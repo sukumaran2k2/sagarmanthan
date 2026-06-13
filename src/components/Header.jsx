@@ -7,18 +7,18 @@ export default function Header({ onLogout }) {
   return (
     <header className="bg-gradient-to-r from-[#0a2540] via-[#0f417a] to-[#008ca3] text-white shadow-lg border-b border-[#008ca3]/30">
       {/* Top Banner / Ministry Details */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           
           {/* Left: Emblem and Government branding */}
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3 border-r border-white/20 pr-4">
+            <div className="flex items-center space-x-3 lg:border-r lg:border-white/20 lg:pr-4">
               <img
                 src="/emblem.svg"
                 alt="Emblem of India"
-                className="h-10 w-auto object-contain brightness-0 invert"
+                className="h-9 w-auto object-contain brightness-0 invert"
               />
-              <div>
+              <div className="hidden lg:block">
                 <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold leading-tight">Government of India</p>
                 <p className="text-xs font-bold text-white tracking-tight leading-tight">Ministry of Ports, Shipping and Waterways</p>
               </div>
@@ -30,18 +30,18 @@ export default function Header({ onLogout }) {
                 <Anchor className="h-5 w-5 text-white" />
               </div>
               <div>
-                <span className="text-lg font-black tracking-wider bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent font-display">
+                <span className="text-sm sm:text-lg font-black tracking-wider bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent font-display">
                   SAGARMANTHAN
                 </span>
-                <span className="block text-[9px] text-cyan-300 font-mono tracking-widest uppercase -mt-1">Maritime Data Portal</span>
+                <span className="block text-[8px] sm:text-[9px] text-cyan-300 font-mono tracking-widest uppercase -mt-1">Maritime Data Portal</span>
               </div>
             </div>
           </div>
 
           {/* Right: Quick actions, profile details */}
-          <div className="flex items-center space-x-5">
+          <div className="flex items-center space-x-3 sm:space-x-5">
             {/* Greeting */}
-            <div className="hidden md:flex flex-col text-right">
+            <div className="hidden lg:flex flex-col text-right">
               <span className="text-[11px] text-slate-300">Welcome Back</span>
               <span className="text-xs font-medium text-white flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block animate-ping"></span>
@@ -50,12 +50,12 @@ export default function Header({ onLogout }) {
             </div>
 
             {/* App Version badge */}
-            <span className="px-2.5 py-0.5 bg-white/10 text-cyan-300 border border-white/10 rounded-full text-[10px] font-mono font-semibold">
+            <span className="hidden sm:inline-block px-2.5 py-0.5 bg-white/10 text-cyan-300 border border-white/10 rounded-full text-[10px] font-mono font-semibold">
               Version 3.0
             </span>
 
             {/* Actions Bar */}
-            <div className="flex items-center space-x-2 border-l border-white/20 pl-4">
+            <div className="flex items-center space-x-1 sm:space-x-2 border-l border-white/20 pl-2 sm:pl-4">
               {/* Language Selector */}
               <button 
                 onClick={() => setLang(lang === 'EN' ? 'HI' : 'EN')}

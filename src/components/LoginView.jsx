@@ -28,13 +28,13 @@ export default function LoginView({ onLogin }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 font-sans select-none">
+    <div className="min-h-screen w-full flex items-center justify-center bg-slate-950 font-sans select-none overflow-y-auto py-10 md:py-16 relative z-50">
       
       {/* Background Image Carousel (Smooth Opacity Transition) */}
       {BG_IMAGES.map((imgUrl, idx) => (
         <div
           key={idx}
-          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${
+          className={`fixed inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${
             idx === currentBgIndex ? 'opacity-100' : 'opacity-0'
           }`}
           style={{ backgroundImage: `url('${imgUrl}')` }}
@@ -42,11 +42,11 @@ export default function LoginView({ onLogin }) {
       ))}
 
       {/* Smooth Darkening Overlay to Match Colors of Reference */}
-      <div className="absolute inset-0 bg-[#3a1c3e]/30 mix-blend-multiply"></div>
-      <div className="absolute inset-0 bg-gradient-to-tr from-slate-950/70 via-slate-900/30 to-transparent"></div>
+      <div className="fixed inset-0 bg-[#3a1c3e]/30 mix-blend-multiply"></div>
+      <div className="fixed inset-0 bg-gradient-to-tr from-slate-950/70 via-slate-900/30 to-transparent"></div>
 
       {/* Main Container */}
-      <div className="relative w-full max-w-6xl mx-auto px-6 sm:px-12 flex flex-col md:flex-row items-center justify-between gap-12 z-10">
+      <div className="relative w-full max-w-6xl mx-auto px-6 sm:px-12 flex flex-col lg:flex-row items-center justify-between gap-12 z-10">
         
         {/* Left Side: Dynamic Marine Typography */}
         <div className="text-left max-w-xl text-white space-y-5 animate-fade-in">
@@ -156,21 +156,21 @@ export default function LoginView({ onLogin }) {
             </button>
 
             {/* Or separator */}
-            <div className="flex items-center my-4">
+            {/* <div className="flex items-center my-4">
               <div className="flex-grow border-t border-white/20"></div>
               <span className="px-3 text-xs text-slate-300 font-semibold uppercase tracking-wider">or</span>
               <div className="flex-grow border-t border-white/20"></div>
-            </div>
+            </div> */}
 
             {/* Secure MoPSW SSO Login option */}
-            <button
+            {/* <button
               type="button"
               onClick={handleSubmit}
               className="w-full py-3.5 text-xs font-bold text-slate-800 bg-white hover:bg-slate-50 active:scale-[0.98] rounded-lg shadow transition-all focus:outline-none focus:ring-2 focus:ring-slate-300 flex items-center justify-center space-x-2 cursor-pointer"
             >
               <Shield className="h-4 w-4 text-amber-600 fill-amber-50" />
               <span>Login with MoPSW SSO</span>
-            </button>
+            </button> */}
 
             {/* Footer Host Agency Reference */}
             <div className="text-center text-[10px] text-slate-300 font-medium pt-2">

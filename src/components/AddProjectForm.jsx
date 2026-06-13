@@ -88,7 +88,7 @@ export default function AddProjectForm({ onAdd, onClose }) {
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm animate-fade-in max-w-7xl mx-auto my-4 text-slate-800">
+    <div className="bg-white border-b border-slate-200 p-6 sm:p-8 shadow-sm animate-fade-in w-full text-slate-800">
       
       {/* Header Bar */}
       <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">

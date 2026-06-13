@@ -178,7 +178,7 @@ export default function App() {
       />
 
       {/* Main Content Viewport */}
-      <main className="flex-grow max-w-7xl w-full mx-auto pb-12">
+      <main className="flex-grow w-full max-w-full px-4 sm:px-6 lg:px-8 pb-12">
         {activeTab === 'dashboard' && (
           <DashboardView projects={projects} />
         )}
@@ -224,7 +224,7 @@ export default function App() {
 
       {/* Government Footer */}
       <footer className="bg-slate-900 border-t border-slate-850 text-slate-400 py-6 text-center text-xs mt-auto font-medium">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-1">
+        <div className="w-full px-4 sm:px-6 lg:px-8 space-y-1">
           <p className="tracking-wide text-slate-300">
             Copyright © {new Date().getFullYear()} Ministry of Ports, Shipping and Waterways, Government of India. All Rights Reserved.
           </p>

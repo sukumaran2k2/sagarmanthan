@@ -33,7 +33,7 @@ export default function DashboardView() {
   ];
 
   return (
-    <div className="space-y-6 px-8 py-6 animate-fade-in text-slate-800 bg-slate-50/50 min-h-screen">
+    <div className="space-y-6 px-4 sm:px-6 md:px-8 py-6 animate-fade-in text-slate-800 bg-slate-50/50 min-h-screen">
       
       {/* Breadcrumbs Row */}
       <div className="flex items-center space-x-2 text-xs text-slate-500 font-medium">
@@ -201,7 +201,7 @@ export default function DashboardView() {
           </div>
 
           {/* KPI Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             
             {/* Card 1: Total Projects */}
             <div className="bg-gradient-to-b from-[#1b4380] to-[#0f2e5a] text-white rounded-2xl p-5 flex flex-col justify-between shadow-lg relative overflow-hidden transition hover:-translate-y-1 duration-300">
@@ -392,52 +392,54 @@ export default function DashboardView() {
               <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Organisations Wise Project Count</h3>
             </div>
             
-            {/* Custom Interactive SVG/CSS Bar Chart */}
-            <div className="relative h-72 w-full flex items-end justify-between px-4 pb-10 border-b border-slate-150">
-              
-              {/* Y-Axis Gridlines */}
-              <div className="absolute inset-x-0 top-0 h-full pointer-events-none flex flex-col justify-between text-[9px] text-slate-400">
-                <div className="w-full border-t border-slate-100 flex justify-between pt-1">
-                  <span>150</span>
+            {/* Custom Interactive SVG/CSS Bar Chart wrapper for mobile scrollability */}
+            <div className="overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
+              <div className="relative h-72 min-w-[768px] w-full flex items-end justify-between px-4 pb-10 border-b border-slate-150">
+                
+                {/* Y-Axis Gridlines */}
+                <div className="absolute inset-x-0 top-0 h-full pointer-events-none flex flex-col justify-between text-[9px] text-slate-400">
+                  <div className="w-full border-t border-slate-100 flex justify-between pt-1">
+                    <span>150</span>
+                  </div>
+                  <div className="w-full border-t border-slate-100 flex justify-between pt-1">
+                    <span>100</span>
+                  </div>
+                  <div className="w-full border-t border-slate-100 flex justify-between pt-1">
+                    <span>50</span>
+                  </div>
+                  <div className="w-full flex justify-between pt-1">
+                    <span>0</span>
+                  </div>
                 </div>
-                <div className="w-full border-t border-slate-100 flex justify-between pt-1">
-                  <span>100</span>
-                </div>
-                <div className="w-full border-t border-slate-100 flex justify-between pt-1">
-                  <span>50</span>
-                </div>
-                <div className="w-full flex justify-between pt-1">
-                  <span>0</span>
-                </div>
-              </div>
 
-              {/* Bars Container */}
-              <div className="w-full h-full flex items-end justify-between relative z-10 px-6">
-                {orgData.map((org, idx) => {
-                  // Scale the height: max is 150 -> map to percentage of container
-                  const heightPercent = (org.count / 150) * 100;
-                  return (
-                    <div key={idx} className="flex flex-col justify-end items-center group relative flex-1 mx-2 h-full">
-                      {/* Tooltip */}
-                      <div className="absolute -top-9 bg-slate-900 text-white text-[9px] px-2.5 py-1 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap font-bold">
-                        {org.name}: {org.count}
+                {/* Bars Container */}
+                <div className="w-full h-full flex items-end justify-between relative z-10 px-6">
+                  {orgData.map((org, idx) => {
+                    // Scale the height: max is 150 -> map to percentage of container
+                    const heightPercent = (org.count / 150) * 100;
+                    return (
+                      <div key={idx} className="flex flex-col justify-end items-center group relative flex-1 mx-2 h-full">
+                        {/* Tooltip */}
+                        <div className="absolute -top-9 bg-slate-900 text-white text-[9px] px-2.5 py-1 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap font-bold">
+                          {org.name}: {org.count}
+                        </div>
+                        
+                        {/* Bar */}
+                        <div 
+                          className={`w-full rounded-t-md ${org.color} shadow-md hover:brightness-90 hover:shadow-lg transition-all duration-500`}
+                          style={{ height: `${heightPercent}%` }}
+                        ></div>
+                        
+                        {/* Label (Slanted/Rotated) */}
+                        <span className="absolute top-full mt-3 text-[9px] font-bold text-slate-500 origin-center rotate-45 whitespace-nowrap">
+                          {org.name}
+                        </span>
                       </div>
-                      
-                      {/* Bar */}
-                      <div 
-                        className={`w-full rounded-t-md ${org.color} shadow-md hover:brightness-90 hover:shadow-lg transition-all duration-500`}
-                        style={{ height: `${heightPercent}%` }}
-                      ></div>
-                      
-                      {/* Label (Slanted/Rotated) */}
-                      <span className="absolute top-full mt-3 text-[9px] font-bold text-slate-500 origin-center rotate-45 whitespace-nowrap">
-                        {org.name}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
 
+              </div>
             </div>
           </div>
 
@@ -676,13 +678,13 @@ export default function DashboardView() {
           </div>
 
           {/* Action Row */}
-          <div className="flex justify-between items-center bg-white border border-slate-200 p-4 rounded-xl shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-sm gap-4">
             <div className="text-xs text-slate-500 font-semibold">
               Selected: <strong className="text-slate-800">Ongoing Projects - Major Ports</strong> | Category Group A - F
             </div>
             
             {/* Export Buttons */}
-            <div className="flex space-x-3">
+            <div className="flex space-x-3 w-full sm:w-auto justify-end">
               <button className="flex items-center space-x-1.5 px-4.5 py-2 bg-[#0284c7] hover:bg-[#0369a1] text-white text-[10px] font-bold tracking-wider rounded-lg transition-all cursor-pointer shadow-md hover:shadow-lg">
                 <FileSpreadsheet className="h-3.5 w-3.5" />
                 <span>Export to Excel</span>
