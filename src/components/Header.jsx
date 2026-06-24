@@ -30,7 +30,7 @@ export default function Header({ onLogout }) {
           <div className="flex items-center justify-between h-20">
 
             {/* Left: Emblem and Government branding */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 scale-90 origin-left">
               <div className="flex items-center space-x-3 lg:border-r lg:border-white/20 lg:pr-4">
                 <img
                     src="/emblem.svg"
@@ -45,8 +45,8 @@ export default function Header({ onLogout }) {
 
               {/* SAGARMANTHAN Brand */}
               <div className="flex items-center space-x-2">
-                <div className="p-1.5 bg-gradient-to-tr from-blue-600 to-cyan-500 rounded-lg shadow-inner">
-                  <Anchor className="h-5 w-5 text-white" />
+                <div>
+                  <img src="src/assets/sagarmanthan_logo.png" />
                 </div>
                 <div>
                 <span className="text-sm sm:text-lg font-black tracking-wider bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent font-display">

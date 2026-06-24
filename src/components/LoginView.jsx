@@ -52,13 +52,13 @@ export default function LoginView({ onLogin }) {
         <div className="text-left max-w-xl text-white space-y-5 animate-fade-in">
           <div className="space-y-1">
             {/* Styled title matching Travel layout */}
-            <div className="flex items-center space-x-1.5 text-2xl font-light tracking-wide text-cyan-300">
-              <span>Sagarmanthan</span>
-              {/* Symbolic Ship Graphic Trail */}
-              <svg className="w-5 h-5 text-cyan-400 rotate-45" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M20 21c-1.39 0-2.78-.47-4-1.32-2.44 1.71-5.56 1.71-8 0C6.78 20.53 5.39 21 4 21H2v-2h2c1.02 0 1.96-.37 2.76-.94-.85-1.54-.92-3.41-.05-5.06H4v-2h3.29c1.65-3.14 5.37-4.66 8.71-3.51V5h-2.5V3h7v2h-2.5v2.79c1.94-.78 4.09-.59 5.86.52V9.4l-1.35.61C19.78 11.23 20 12.58 20 14h2v2h-2.71c.87 1.65.8 3.52-.05 5.06.8.57 1.74.94 2.76.94h2v2h-2z" />
-              </svg>
-            </div>
+            {/*<div className="flex items-center space-x-1.5 text-2xl font-light tracking-wide text-cyan-300">*/}
+            {/*  <img src="src/assets/sagarmanthan_logo.png" />*/}
+            {/*  <span className="text-sm sm:text-lg font-black tracking-wider bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent font-display">*/}
+            {/*      SAGARMANTHAN*/}
+            {/*  </span>*/}
+
+            {/*</div>*/}
             
             {/* Giant Bold Headers */}
             <h1 className="text-5xl sm:text-7xl font-extrabold tracking-wider leading-none mt-1 select-text">
