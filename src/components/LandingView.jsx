@@ -1,0 +1,234 @@
+import React, { useMemo } from 'react';
+import { FileSpreadsheet, FileText } from 'lucide-react';
+import { AgGridReact } from 'ag-grid-react';
+
+export default function LandingView({ onNavigate }) {
+  const fileUploadModules = [
+    {
+      id: 'cpgrams',
+      title: '1.CPGRAMS',
+      date: 'As on 23 Jun 2026',
+      status: 'Last file uploaded on',
+      badge: 'May - 2026'
+    },
+    {
+      id: 'file-pendency',
+      title: '2a.File Pendency',
+      date: 'As on 23 Jun 2026',
+      status: 'Last file uploaded on',
+      badge: 'Week 3 - June 2026'
+    },
+    {
+      id: 'receipt-pendency',
+      title: '2b.Receipt Pendency',
+      date: 'As on 23 Jun 2026',
+      status: 'Last file uploaded on',
+      badge: 'Week 3 - June 2026'
+    },
+    {
+      id: 'file-disposal',
+      title: '2c.File Disposal',
+      date: 'As on 23 Jun 2026',
+      status: 'Last file uploaded on',
+      badge: 'Week 3 - June 2026'
+    },
+    {
+      id: 'attendance',
+      title: '3.Attendance',
+      date: 'As on 23 Jun 2026',
+      status: 'Last file uploaded on',
+      badge: 'Week 3 - June 2026'
+    }
+  ];
+
+  const rowData = [
+    { sno: 4, moduleName: 'Young Professional', shipping: '17-03-2025', vigilance: '--', ports: '17-03-2025', iwt: '19-01-2024', admin: '19-01-2024' },
+    { sno: 5, moduleName: 'Consultant Appointment', shipping: '17-03-2025', vigilance: '--', ports: '17-03-2025', iwt: '--', admin: '17-03-2025' },
+    { sno: 6, moduleName: 'VIP Reference', shipping: '22-06-2026', vigilance: '--', ports: '15-06-2026', iwt: '29-05-2026', admin: '--' },
+    { sno: 7, moduleName: 'Cabinet Notes-Other Ministry', shipping: 'Not Applicable', vigilance: 'Not Applicable', ports: 'Not Applicable', iwt: 'Not Applicable', admin: 'Not Applicable' },
+    { sno: 8, moduleName: 'Cabinet Notes-MoPSW', shipping: '--', vigilance: '--', ports: '16-06-2026', iwt: '--', admin: '--' },
+    { sno: 9, moduleName: 'Audit Para', shipping: '--', vigilance: '--', ports: '11-06-2026', iwt: '--', admin: '--' },
+    { sno: 10, moduleName: 'Bills/PreConstitutions Act', shipping: '17-03-2025', vigilance: '--', ports: '--', iwt: '--', admin: '--' },
+    { sno: 11, moduleName: 'MOM OF PSW Meetings', shipping: '--', vigilance: '--', ports: '02-06-2026', iwt: '--', admin: '--' },
+    { sno: 12, moduleName: 'Promotion of Indian Flagged Ships', shipping: '--', vigilance: 'Not Applicable', ports: 'Not Applicable', iwt: 'Not Applicable', admin: 'Not Applicable' },
+    { sno: 13, moduleName: 'Parliamentary Issues', shipping: '26-02-2026', vigilance: '--', ports: '06-04-2026', iwt: '06-12-2024', admin: '09-03-2026' },
+    { sno: 14, moduleName: 'Review Items', shipping: '--', vigilance: '--', ports: '--', iwt: '--', admin: '--' },
+    { sno: 15, moduleName: 'MoPSW Tracker', shipping: '--', vigilance: '--', ports: '--', iwt: '--', admin: '--' },
+    { sno: 16, moduleName: 'Expenditure', shipping: '--', vigilance: '--', ports: '--', iwt: '--', admin: '--' },
+    { sno: 17, moduleName: 'Foreign Visit', shipping: '17-06-2026', vigilance: 'Not Applicable', ports: 'Not Applicable', iwt: 'Not Applicable', admin: 'Not Applicable' },
+    { sno: 18, moduleName: 'Inter State and Inter Ministerial Issues', shipping: '--', vigilance: '--', ports: '--', iwt: '--', admin: '--' },
+    { sno: 19, moduleName: 'Acts & Rules', shipping: '--', vigilance: '--', ports: '--', iwt: '--', admin: '--' }
+  ];
+
+  const DateCellRenderer = (params) => {
+    const val = params.value;
+    if (!val || val === '--') {
+      return <span className="text-slate-400 font-medium select-none">--</span>;
+    }
+    if (val === 'Not Applicable') {
+      return <span className="text-slate-400 font-medium select-none">Not Applicable</span>;
+    }
+    if (val.includes('-')) {
+      const parts = val.split('-');
+      const year = parts[2];
+      if (year === '2026') {
+        return <span className="text-emerald-600 font-bold">{val}</span>;
+      } else {
+        return <span className="text-rose-600 font-bold">{val}</span>;
+      }
+    }
+    return <span className="text-slate-700 font-semibold">{val}</span>;
+  };
+
+  const colDefs = useMemo(() => [
+    {
+      headerName: 'S.No',
+      field: 'sno',
+      width: 70,
+      cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center border-r border-slate-200'
+    },
+    {
+      headerName: 'Module Name',
+      field: 'moduleName',
+      width: 280,
+      cellClass: 'font-semibold text-slate-700 flex items-center pl-4 border-r border-slate-200'
+    },
+    {
+      headerName: 'Departments / Wings',
+      marryChildren: true,
+      children: [
+        {
+          headerName: 'Shipping',
+          field: 'shipping',
+          width: 140,
+          cellClass: 'text-center flex items-center justify-center border-r border-slate-100',
+          cellRenderer: DateCellRenderer
+        },
+        {
+          headerName: 'Vigilance',
+          field: 'vigilance',
+          width: 140,
+          cellClass: 'text-center flex items-center justify-center border-r border-slate-100',
+          cellRenderer: DateCellRenderer
+        },
+        {
+          headerName: 'Ports',
+          field: 'ports',
+          width: 140,
+          cellClass: 'text-center flex items-center justify-center border-r border-slate-100',
+          cellRenderer: DateCellRenderer
+        },
+        {
+          headerName: 'IWT',
+          field: 'iwt',
+          width: 140,
+          cellClass: 'text-center flex items-center justify-center border-r border-slate-100',
+          cellRenderer: DateCellRenderer
+        },
+        {
+          headerName: 'Administration',
+          field: 'admin',
+          width: 140,
+          cellClass: 'text-center flex items-center justify-center border-r border-slate-100',
+          cellRenderer: DateCellRenderer
+        }
+      ]
+    }
+  ], []);
+
+  return (
+    <div className="space-y-8 animate-fade-in pb-12">
+      
+      {/* Centered Banner */}
+      <div className="w-full text-center mt-6">
+        <h1 className="text-2xl font-black text-slate-805 tracking-tight uppercase font-display">
+          Data Entry Dashboard
+        </h1>
+        <p className="text-xs text-slate-500 mt-1 font-medium">
+          Access and manage National maritime database modules and file submissions.
+        </p>
+      </div>
+
+      {/* Action Header Panel */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 pb-5 items-start md:items-center">
+        <div className="flex items-center space-x-2 text-slate-800 py-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+          <span className="font-bold text-sm tracking-wider uppercase text-slate-800 font-display select-none">
+            Ministry Exclusive Modules
+          </span>
+        </div>
+        
+        <div className="flex items-center space-x-3 self-start md:self-auto">
+          <button 
+            onClick={() => {}}
+            className="inline-flex items-center space-x-2 px-4.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition cursor-pointer"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            <span>Data Entry Report</span>
+          </button>
+          <button 
+            onClick={() => {}}
+            className="inline-flex items-center space-x-2 px-4.5 py-2.5 bg-red-700 hover:bg-red-800 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition cursor-pointer"
+          >
+            <FileText className="h-4 w-4" />
+            <span>Data Entry Report as PDF</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Section I: File Upload Modules */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-bold text-slate-800 tracking-tight font-display flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-blue-600"></span>
+          I. File Upload Modules
+        </h2>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {fileUploadModules.map((item, idx) => (
+            <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-blue-200 transition-all duration-300">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="text-[11px] font-extrabold text-[#0f417a] font-display">{item.title}</span>
+                <span className="text-[9px] font-bold text-red-500 whitespace-nowrap bg-red-50 px-1.5 py-0.5 rounded-md">{item.date}</span>
+              </div>
+              <div className="py-4 text-center space-y-2">
+                <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">{item.status}</p>
+                <div className="inline-flex items-center justify-center px-4 py-1.5 bg-emerald-500 text-white text-[11px] font-black rounded-full shadow-sm">
+                  {item.badge}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Section II: Data Entry Modules Table */}
+      <div className="space-y-4 pt-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h2 className="text-lg font-bold text-slate-800 tracking-tight font-display flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-blue-600"></span>
+            II. Data Entry Modules
+          </h2>
+          <span className="text-[11px] font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded-md">
+            (As on 23 Jun 2026)
+          </span>
+        </div>
+
+        <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-md">
+          <AgGridReact 
+            theme="legacy"
+            rowData={rowData}
+            columnDefs={colDefs}
+            domLayout="autoHeight"
+            rowHeight={46}
+            headerHeight={44}
+            autoSizeStrategy={{
+              type: 'fitGridWidth',
+              defaultMinWidth: 70
+            }}
+          />
+        </div>
+      </div>
+
+    </div>
+  );
+}

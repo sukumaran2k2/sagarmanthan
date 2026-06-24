@@ -1,8 +1,53 @@
-import React, { useState } from 'react';
-import { Home, Calendar, CheckCircle2, ChevronDown, BarChart2, DollarSign, FileSpreadsheet, FileText, ChevronRight, Layers, Sliders, Eye } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Calendar, CheckCircle2, ChevronDown, BarChart2, DollarSign, FileSpreadsheet, FileText, Layers, Sliders, Eye, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 export default function DashboardView() {
   const [activeSubTab, setActiveSubTab] = useState('all');
+  const [zoomScale, setZoomScale] = useState(1);
+  const chartContainerRef = useRef(null);
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const [openFilters, setOpenFilters] = useState({
+    orgCategory: false,
+    orgWise: false,
+    foundation: false,
+    inauguration: false,
+    workAwarded: false,
+    actualCompletion: false,
+    sanctioned: false
+  });
+
+  const toggleFilter = (key) => {
+    setOpenFilters(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  useEffect(() => {
+    const handleWheel = (e) => {
+      if (!chartContainerRef.current) return;
+      // Only zoom if the mouse is hovering over the chart element
+      if (chartContainerRef.current.contains(e.target)) {
+        e.preventDefault();
+        const direction = e.deltaY > 0 ? -1 : 1;
+        const factor = 0.08;
+        setZoomScale(prev => {
+          const next = prev + direction * factor;
+          return Math.max(0.5, Math.min(3.0, next));
+        });
+      }
+    };
+
+    const container = chartContainerRef.current;
+    if (container) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+    }
+    return () => {
+      if (container) {
+        container.removeEventListener('wheel', handleWheel);
+      }
+    };
+  }, []);
   
   // Custom organizations data for the bar chart
   const orgData = [
@@ -35,13 +80,7 @@ export default function DashboardView() {
   return (
     <div className="space-y-6 px-4 sm:px-6 md:px-8 py-6 animate-fade-in text-slate-800 bg-slate-50/50 min-h-screen">
       
-      {/* Breadcrumbs Row */}
-      <div className="flex items-center space-x-2 text-xs text-slate-500 font-medium">
-        <Home className="h-3.5 w-3.5 text-blue-600" />
-        <span className="hover:text-blue-600 transition-colors cursor-pointer">Home</span>
-        <ChevronRight className="h-3 w-3 text-slate-300" />
-        <span className="font-bold text-slate-800">Dashboard</span>
-      </div>
+
 
       {/* Header Panel with Sub-navigation */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -79,125 +118,188 @@ export default function DashboardView() {
         <>
           {/* Filter Options Grid */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Dashboard Filters</h3>
+            <div 
+              onClick={() => setIsFiltersExpanded(prev => !prev)}
+              className="flex items-center justify-between border-b border-slate-100 pb-3 cursor-pointer select-none"
+            >
+              <div className="flex items-center space-x-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Dashboard Filters</h3>
+              </div>
+              <div className="flex items-center space-x-1.5 text-xs text-blue-650 font-bold hover:text-blue-800 transition-colors">
+                <span>{isFiltersExpanded ? 'Hide Filters' : 'Show Filters'}</span>
+                <ChevronDown className={`h-4 w-4 text-blue-650 transition-transform duration-200 ${isFiltersExpanded ? 'rotate-180' : ''}`} />
+              </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              
-              {/* Dropdown 1 */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Organisation Category</label>
-                <div className="relative">
-                  <select className="w-full text-xs pl-3.5 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition cursor-pointer font-medium text-slate-800">
-                    <option>Major Ports</option>
-                  </select>
-                  <div className="absolute right-8 top-1/2 -translate-y-1/2 text-emerald-600">
-                    <CheckCircle2 className="h-4 w-4 fill-emerald-100" />
-                  </div>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                    <ChevronDown className="h-4 w-4" />
-                  </div>
+            {isFiltersExpanded && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-2 animate-fade-in">
+                
+                {/* Dropdown 1 */}
+                <div className={`p-3.5 rounded-xl border transition-all ${openFilters.orgCategory ? 'bg-blue-50/60 border-blue-300 shadow-sm' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/70 hover:border-slate-300/80'}`}>
+                  <button
+                    onClick={() => toggleFilter('orgCategory')}
+                    className="flex items-center justify-between w-full font-bold text-left text-slate-700 hover:text-blue-700 cursor-pointer"
+                  >
+                    <span className="text-[11px] uppercase tracking-wider">Organisation Category</span>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${openFilters.orgCategory ? 'rotate-180 text-blue-600' : ''}`} />
+                  </button>
+                  {openFilters.orgCategory && (
+                    <div className="relative mt-3 animate-fade-in">
+                      <select className="w-full text-xs pl-3.5 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition cursor-pointer font-medium text-slate-800">
+                        <option>Major Ports</option>
+                      </select>
+                      <div className="absolute right-8 top-1/2 -translate-y-1/2 text-emerald-600">
+                        <CheckCircle2 className="h-4 w-4 fill-emerald-100" />
+                      </div>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ChevronDown className="h-4 w-4" />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              {/* Dropdown 2 */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Organisation Wise</label>
-                <div className="relative">
-                  <select className="w-full text-xs pl-3.5 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition cursor-pointer font-medium text-slate-800">
-                    <option>--Organisation--</option>
-                  </select>
-                  <div className="absolute right-8 top-1/2 -translate-y-1/2 text-emerald-600">
-                    <CheckCircle2 className="h-4 w-4 fill-emerald-100" />
-                  </div>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                    <ChevronDown className="h-4 w-4" />
-                  </div>
+                {/* Dropdown 2 */}
+                <div className={`p-3.5 rounded-xl border transition-all ${openFilters.orgWise ? 'bg-blue-50/60 border-blue-300 shadow-sm' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/70 hover:border-slate-300/80'}`}>
+                  <button
+                    onClick={() => toggleFilter('orgWise')}
+                    className="flex items-center justify-between w-full font-bold text-left text-slate-700 hover:text-blue-700 cursor-pointer"
+                  >
+                    <span className="text-[11px] uppercase tracking-wider">Organisation Wise</span>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${openFilters.orgWise ? 'rotate-180 text-blue-600' : ''}`} />
+                  </button>
+                  {openFilters.orgWise && (
+                    <div className="relative mt-3 animate-fade-in">
+                      <select className="w-full text-xs pl-3.5 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition cursor-pointer font-medium text-slate-800">
+                        <option>--Organisation--</option>
+                      </select>
+                      <div className="absolute right-8 top-1/2 -translate-y-1/2 text-emerald-600">
+                        <CheckCircle2 className="h-4 w-4 fill-emerald-100" />
+                      </div>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ChevronDown className="h-4 w-4" />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              {/* Date Range 1 */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tentative Foundation Date</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <input type="text" placeholder="From" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
-                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
-                  <div className="relative">
-                    <input type="text" placeholder="To" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
-                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
+                {/* Date Range 1 */}
+                <div className={`p-3.5 rounded-xl border transition-all ${openFilters.foundation ? 'bg-blue-50/60 border-blue-300 shadow-sm' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/70 hover:border-slate-300/80'}`}>
+                  <button
+                    onClick={() => toggleFilter('foundation')}
+                    className="flex items-center justify-between w-full font-bold text-left text-slate-700 hover:text-blue-700 cursor-pointer"
+                  >
+                    <span className="text-[11px] uppercase tracking-wider">Tentative Foundation Date</span>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${openFilters.foundation ? 'rotate-180 text-blue-600' : ''}`} />
+                  </button>
+                  {openFilters.foundation && (
+                    <div className="grid grid-cols-2 gap-2 mt-3 animate-fade-in">
+                      <div className="relative">
+                        <input type="text" placeholder="From" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
+                        <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                      <div className="relative">
+                        <input type="text" placeholder="To" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
+                        <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              {/* Date Range 2 */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tentative Inauguration Date</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <input type="text" placeholder="From" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
-                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
-                  <div className="relative">
-                    <input type="text" placeholder="To" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
-                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
+                {/* Date Range 2 */}
+                <div className={`p-3.5 rounded-xl border transition-all ${openFilters.inauguration ? 'bg-blue-50/60 border-blue-300 shadow-sm' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/70 hover:border-slate-300/80'}`}>
+                  <button
+                    onClick={() => toggleFilter('inauguration')}
+                    className="flex items-center justify-between w-full font-bold text-left text-slate-700 hover:text-blue-700 cursor-pointer"
+                  >
+                    <span className="text-[11px] uppercase tracking-wider">Tentative Inauguration Date</span>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${openFilters.inauguration ? 'rotate-180 text-blue-600' : ''}`} />
+                  </button>
+                  {openFilters.inauguration && (
+                    <div className="grid grid-cols-2 gap-2 mt-3 animate-fade-in">
+                      <div className="relative">
+                        <input type="text" placeholder="From" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
+                        <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                      <div className="relative">
+                        <input type="text" placeholder="To" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
+                        <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
-              
-              {/* Date Range 3 */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Work Awarded Date</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <input type="text" placeholder="From" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
-                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
-                  <div className="relative">
-                    <input type="text" placeholder="To" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
-                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
+                {/* Date Range 3 */}
+                <div className={`p-3.5 rounded-xl border transition-all ${openFilters.workAwarded ? 'bg-blue-50/60 border-blue-300 shadow-sm' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/70 hover:border-slate-300/80'}`}>
+                  <button
+                    onClick={() => toggleFilter('workAwarded')}
+                    className="flex items-center justify-between w-full font-bold text-left text-slate-700 hover:text-blue-700 cursor-pointer"
+                  >
+                    <span className="text-[11px] uppercase tracking-wider">Work Awarded Date</span>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${openFilters.workAwarded ? 'rotate-180 text-blue-600' : ''}`} />
+                  </button>
+                  {openFilters.workAwarded && (
+                    <div className="grid grid-cols-2 gap-2 mt-3 animate-fade-in">
+                      <div className="relative">
+                        <input type="text" placeholder="From" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
+                        <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                      <div className="relative">
+                        <input type="text" placeholder="To" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
+                        <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              {/* Date Range 4 */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Actual Completion Date</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <input type="text" placeholder="From" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
-                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
-                  <div className="relative">
-                    <input type="text" placeholder="To" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
-                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
+                {/* Date Range 4 */}
+                <div className={`p-3.5 rounded-xl border transition-all ${openFilters.actualCompletion ? 'bg-blue-50/60 border-blue-300 shadow-sm' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/70 hover:border-slate-300/80'}`}>
+                  <button
+                    onClick={() => toggleFilter('actualCompletion')}
+                    className="flex items-center justify-between w-full font-bold text-left text-slate-700 hover:text-blue-700 cursor-pointer"
+                  >
+                    <span className="text-[11px] uppercase tracking-wider">Actual Completion Date</span>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${openFilters.actualCompletion ? 'rotate-180 text-blue-600' : ''}`} />
+                  </button>
+                  {openFilters.actualCompletion && (
+                    <div className="grid grid-cols-2 gap-2 mt-3 animate-fade-in">
+                      <div className="relative">
+                        <input type="text" placeholder="From" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
+                        <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                      <div className="relative">
+                        <input type="text" placeholder="To" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
+                        <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              {/* Date Range 5 */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Sanctioned Date</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative">
-                    <input type="text" placeholder="From" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
-                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
-                  <div className="relative">
-                    <input type="text" placeholder="To" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
-                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                  </div>
+                {/* Date Range 5 */}
+                <div className={`p-3.5 rounded-xl border transition-all ${openFilters.sanctioned ? 'bg-blue-50/60 border-blue-300 shadow-sm' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/70 hover:border-slate-300/80'}`}>
+                  <button
+                    onClick={() => toggleFilter('sanctioned')}
+                    className="flex items-center justify-between w-full font-bold text-left text-slate-700 hover:text-blue-700 cursor-pointer"
+                  >
+                    <span className="text-[11px] uppercase tracking-wider">Sanctioned Date</span>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${openFilters.sanctioned ? 'rotate-180 text-blue-600' : ''}`} />
+                  </button>
+                  {openFilters.sanctioned && (
+                    <div className="grid grid-cols-2 gap-2 mt-3 animate-fade-in">
+                      <div className="relative">
+                        <input type="text" placeholder="From" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
+                        <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                      <div className="relative">
+                        <input type="text" placeholder="To" defaultValue="dd-mm-yyyy" className="w-full text-[11px] pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition text-slate-700 font-semibold" />
+                        <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-            </div>
+              </div>
+            )}
           </div>
 
           {/* KPI Cards Grid */}
@@ -385,60 +487,178 @@ export default function DashboardView() {
 
           </div>
 
-          {/* Organisations Wise Project Count Bar Chart */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-6">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Organisations Wise Project Count</h3>
-            </div>
-            
-            {/* Custom Interactive SVG/CSS Bar Chart wrapper for mobile scrollability */}
-            <div className="overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
-              <div className="relative h-72 min-w-[768px] w-full flex items-end justify-between px-4 pb-10 border-b border-slate-150">
+          {/* Charts Row: Organisations Wise Project Count & Delay Status side-by-side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Organisations Wise Project Count Bar Chart */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between border-b border-slate-150 pb-4 mb-6">
+                  <div className="flex items-center space-x-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Organisations Wise Project Count</h3>
+                  </div>
+                  
+                  {/* Zoom Controls */}
+                  <div className="flex items-center space-x-2 text-xs text-slate-500 font-semibold bg-slate-50 border border-slate-200/60 rounded-xl p-1.5 shadow-sm">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1">Scroll to Zoom</span>
+                    <div className="h-4 w-[1px] bg-slate-200"></div>
+                    <button 
+                      onClick={() => setZoomScale(prev => Math.max(0.5, prev - 0.1))}
+                      className="p-1 hover:bg-slate-200/70 hover:text-slate-850 rounded transition-colors cursor-pointer"
+                      title="Zoom Out"
+                    >
+                      <ZoomOut className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="text-[10px] font-bold min-w-10 text-center text-slate-700 bg-white border border-slate-200 rounded px-1.5 py-0.5 shadow-xs select-none">
+                      {Math.round(zoomScale * 100)}%
+                    </span>
+                    <button 
+                      onClick={() => setZoomScale(prev => Math.min(3.0, prev + 0.1))}
+                      className="p-1 hover:bg-slate-200/70 hover:text-slate-850 rounded transition-colors cursor-pointer"
+                      title="Zoom In"
+                    >
+                      <ZoomIn className="h-3.5 w-3.5" />
+                    </button>
+                    <button 
+                      onClick={() => setZoomScale(1.0)}
+                      className="p-1 hover:bg-slate-200/70 hover:text-slate-850 rounded transition-colors text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title="Reset Zoom"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
                 
-                {/* Y-Axis Gridlines */}
-                <div className="absolute inset-x-0 top-0 h-full pointer-events-none flex flex-col justify-between text-[9px] text-slate-400">
-                  <div className="w-full border-t border-slate-100 flex justify-between pt-1">
-                    <span>150</span>
-                  </div>
-                  <div className="w-full border-t border-slate-100 flex justify-between pt-1">
-                    <span>100</span>
-                  </div>
-                  <div className="w-full border-t border-slate-100 flex justify-between pt-1">
-                    <span>50</span>
-                  </div>
-                  <div className="w-full flex justify-between pt-1">
-                    <span>0</span>
-                  </div>
-                </div>
-
-                {/* Bars Container */}
-                <div className="w-full h-full flex items-end justify-between relative z-10 px-6">
-                  {orgData.map((org, idx) => {
-                    // Scale the height: max is 150 -> map to percentage of container
-                    const heightPercent = (org.count / 150) * 100;
-                    return (
-                      <div key={idx} className="flex flex-col justify-end items-center group relative flex-1 mx-2 h-full">
-                        {/* Tooltip */}
-                        <div className="absolute -top-9 bg-slate-900 text-white text-[9px] px-2.5 py-1 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap font-bold">
-                          {org.name}: {org.count}
-                        </div>
-                        
-                        {/* Bar */}
-                        <div 
-                          className={`w-full rounded-t-md ${org.color} shadow-md hover:brightness-90 hover:shadow-lg transition-all duration-500`}
-                          style={{ height: `${heightPercent}%` }}
-                        ></div>
-                        
-                        {/* Label (Slanted/Rotated) */}
-                        <span className="absolute top-full mt-3 text-[9px] font-bold text-slate-500 origin-center rotate-45 whitespace-nowrap">
-                          {org.name}
-                        </span>
+                {/* Custom Interactive SVG/CSS Bar Chart wrapper for mobile scrollability */}
+                <div 
+                  ref={chartContainerRef}
+                  className="overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200 cursor-zoom-in"
+                >
+                  <div 
+                    className="relative h-72 w-full flex items-end justify-between px-4 pb-10 border-b border-slate-150 transition-all duration-150"
+                    style={{ 
+                      minWidth: `${768 * zoomScale}px`,
+                    }}
+                  >
+                    
+                    {/* Y-Axis Gridlines */}
+                    <div className="absolute inset-x-0 top-0 h-full pointer-events-none flex flex-col justify-between text-[9px] text-slate-400">
+                      <div className="w-full border-t border-slate-100 flex justify-between pt-1">
+                        <span>150</span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="w-full border-t border-slate-100 flex justify-between pt-1">
+                        <span>100</span>
+                      </div>
+                      <div className="w-full border-t border-slate-100 flex justify-between pt-1">
+                        <span>50</span>
+                      </div>
+                      <div className="w-full flex justify-between pt-1">
+                        <span>0</span>
+                      </div>
+                    </div>
 
+                    {/* Bars Container */}
+                    <div className="w-full h-full flex items-end justify-between relative z-10 px-6">
+                      {orgData.map((org, idx) => {
+                        // Scale the height: max is 150 -> map to percentage of container
+                        const heightPercent = (org.count / 150) * 100;
+                        return (
+                          <div key={idx} className="flex flex-col justify-end items-center group relative flex-1 mx-2 h-full">
+                            {/* Tooltip */}
+                            <div className="absolute -top-9 bg-slate-900 text-white text-[9px] px-2.5 py-1 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap font-bold">
+                              {org.name}: {org.count}
+                            </div>
+                            
+                            {/* Bar */}
+                            <div 
+                              className={`w-full rounded-t-md ${org.color} shadow-md hover:brightness-90 hover:shadow-lg transition-all duration-500`}
+                              style={{ height: `${heightPercent}%` }}
+                            ></div>
+                            
+                            {/* Label (Slanted/Rotated) */}
+                            <span className="absolute top-full mt-3 text-[9px] font-bold text-slate-500 origin-center rotate-45 whitespace-nowrap">
+                              {org.name}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Delay Status Card */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-650"></span>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Delay Status - Under Implementation Projects</h3>
+                </div>
+                
+                <div className="flex flex-col md:flex-row items-center justify-around py-6 gap-6">
+                  
+                  {/* SVG Pie Chart */}
+                  <div className="relative flex items-center justify-center">
+                    <svg className="w-64 h-64 transform -rotate-90">
+                      {/* Outer circle backdrop */}
+                      <circle cx="128" cy="128" r="90" stroke="#f1f5f9" strokeWidth="32" fill="transparent" />
+                      
+                      {/* Slice 1: On Time (138 projects -> 64.2% -> strokeDasharray="565.5" strokeDashoffset="202.5") */}
+                      <circle 
+                        cx="128" 
+                        cy="128" 
+                        r="90" 
+                        stroke="#0ea5e9" 
+                        strokeWidth="32" 
+                        fill="transparent" 
+                        strokeDasharray="565.5" 
+                        strokeDashoffset="202.5"
+                        strokeLinecap="butt" 
+                      />
+
+                      {/* Slice 2: Delayed (77 projects -> 35.8% -> strokeDasharray="202.5 565.5" strokeDashoffset="-363.0") */}
+                      <circle 
+                        cx="128" 
+                        cy="128" 
+                        r="90" 
+                        stroke="#6366f1" 
+                        strokeWidth="32" 
+                        fill="transparent" 
+                        strokeDasharray="202.5 565.5" 
+                        strokeDashoffset="-363.0"
+                        strokeLinecap="butt" 
+                      />
+                    </svg>
+
+                    <div className="absolute flex flex-col items-center justify-center text-center">
+                      <span className="text-3xl font-black text-slate-850">215</span>
+                      <span className="text-[10px] font-bold text-slate-450 uppercase tracking-widest mt-0.5">Total Under</span>
+                      <span className="text-[10px] font-bold text-slate-450 uppercase tracking-widest leading-tight">Implementation</span>
+                    </div>
+                  </div>
+
+                  {/* Legends & Metrics */}
+                  <div className="space-y-4 min-w-48">
+                    <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="h-3 w-3 rounded-full bg-[#6366f1] inline-block"></span>
+                        <span className="text-xs font-bold text-slate-600">Delayed</span>
+                      </div>
+                      <span className="text-sm font-extrabold text-slate-800">77</span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="h-3 w-3 rounded-full bg-[#0ea5e9] inline-block"></span>
+                        <span className="text-xs font-bold text-slate-600">On Time</span>
+                      </div>
+                      <span className="text-sm font-extrabold text-slate-800">138</span>
+                    </div>
+                  </div>
+
+                </div>
               </div>
             </div>
           </div>
@@ -563,77 +783,6 @@ export default function DashboardView() {
               </table>
             </div>
           </div>
-
-          {/* Delay Status Card */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center space-x-2 border-b border-slate-100 pb-4 mb-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-650"></span>
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Delay Status - Under Implementation Projects</h3>
-            </div>
-            
-            <div className="flex flex-col md:flex-row items-center justify-around py-6 gap-6">
-              
-              {/* SVG Pie Chart */}
-              <div className="relative flex items-center justify-center">
-                <svg className="w-48 h-48 transform -rotate-90">
-                  {/* Outer circle backdrop */}
-                  <circle cx="96" cy="96" r="70" stroke="#f1f5f9" strokeWidth="24" fill="transparent" />
-                  
-                  {/* Slice 1: On Time (138 projects -> 64.2% -> strokeDasharray="439.8" strokeDashoffset="157.4") */}
-                  <circle 
-                    cx="96" 
-                    cy="96" 
-                    r="70" 
-                    stroke="#0ea5e9" 
-                    strokeWidth="24" 
-                    fill="transparent" 
-                    strokeDasharray="439.8" 
-                    strokeDashoffset="157.4"
-                    strokeLinecap="butt" 
-                  />
-
-                  {/* Slice 2: Delayed (77 projects -> 35.8% -> strokeDasharray="439.8" strokeDashoffset="439.8" with a dasharray/offset combination to offset it after On Time) */}
-                  <circle 
-                    cx="96" 
-                    cy="96" 
-                    r="70" 
-                    stroke="#6366f1" 
-                    strokeWidth="24" 
-                    fill="transparent" 
-                    strokeDasharray="157.4 439.8" 
-                    strokeDashoffset="-282.4"
-                    strokeLinecap="butt" 
-                  />
-                </svg>
-
-                <div className="absolute flex flex-col items-center justify-center text-center">
-                  <span className="text-2xl font-extrabold text-slate-850">215</span>
-                  <span className="text-[9px] font-bold text-slate-450 uppercase tracking-widest mt-0.5">Total Under</span>
-                  <span className="text-[9px] font-bold text-slate-450 uppercase tracking-widest leading-tight">Implementation</span>
-                </div>
-              </div>
-
-              {/* Legends & Metrics */}
-              <div className="space-y-4 min-w-48">
-                <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
-                  <div className="flex items-center space-x-2.5">
-                    <span className="h-3 w-3 rounded-full bg-[#6366f1] inline-block"></span>
-                    <span className="text-xs font-bold text-slate-600">Delayed</span>
-                  </div>
-                  <span className="text-sm font-extrabold text-slate-800">77</span>
-                </div>
-
-                <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 rounded-xl">
-                  <div className="flex items-center space-x-2.5">
-                    <span className="h-3 w-3 rounded-full bg-[#0ea5e9] inline-block"></span>
-                    <span className="text-xs font-bold text-slate-600">On Time</span>
-                  </div>
-                  <span className="text-sm font-extrabold text-slate-800">138</span>
-                </div>
-              </div>
-
-            </div>
-          </div>
         </>
       ) : (
         <div className="space-y-6 animate-fade-in">
@@ -703,13 +852,13 @@ export default function DashboardView() {
             <div className="flex-grow overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-700 border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold uppercase tracking-wider text-[10px]">
-                    <th className="py-4 px-4 border-r border-slate-200 w-16 text-center">S.No</th>
-                    <th className="py-4 px-5 border-r border-slate-200 text-left">Broad Category Name</th>
-                    <th className="py-4 px-4 border-r border-slate-200 w-32 text-center">EPC (B)</th>
-                    <th className="py-4 px-4 border-r border-slate-200 w-32 text-center">PPP (C)</th>
-                    <th className="py-4 px-4 border-r border-slate-200 w-40 text-center text-slate-800 font-bold">Total (D = B+C)</th>
-                    <th className="py-4 px-4 border-r border-slate-200 w-28 text-center">Percentage (E)</th>
+                  <tr className="bg-[#0f417a] text-white font-semibold uppercase tracking-wider text-[10px] border-b border-blue-900">
+                    <th className="py-4 px-4 border-r border-white/10 w-16 text-center">S.No</th>
+                    <th className="py-4 px-5 border-r border-white/10 text-left">Broad Category Name</th>
+                    <th className="py-4 px-4 border-r border-white/10 w-32 text-center">EPC (B)</th>
+                    <th className="py-4 px-4 border-r border-white/10 w-32 text-center">PPP (C)</th>
+                    <th className="py-4 px-4 border-r border-white/10 w-40 text-center font-bold">Total (D = B+C)</th>
+                    <th className="py-4 px-4 border-r border-white/10 w-28 text-center">Percentage (E)</th>
                     <th className="py-4 px-5 w-40 text-right">Estimated Cost (F)</th>
                   </tr>
                 </thead>

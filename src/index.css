@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+@import "ag-grid-community/styles/ag-grid.css";
+@import "ag-grid-community/styles/ag-theme-quartz.css";
 
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -40,4 +42,30 @@ body {
 
 .animate-fade-in {
   animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* AG Grid custom styling to match dashboard theme */
+.ag-theme-quartz {
+  --ag-header-background-color: #0f417a !important;
+  --ag-header-foreground-color: #ffffff !important;
+  --ag-border-color: #e2e8f0 !important;
+  --ag-row-hover-color: #f8fafc/60 !important;
+  --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  --ag-font-size: 12px !important;
+}
+
+/* Custom CSS to style header text & properties */
+.ag-theme-quartz .ag-header-cell-label {
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Style filter and sort icons on header to be white */
+.ag-theme-quartz .ag-icon {
+  color: #ffffff !important;
+}
+
+.ag-theme-quartz .ag-header-icon {
+  color: #ffffff !important;
 }
