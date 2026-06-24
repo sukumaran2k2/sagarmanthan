@@ -1,16 +1,16 @@
-
-import { 
+import React, { useMemo } from 'react';
+import {
   Home,
-  Briefcase, 
-  Activity, 
-  Users, 
-  ShieldCheck, 
-  Scale, 
-  TrendingUp, 
-  BookMarked, 
-  FileEdit, 
-  LineChart, 
-  UserCheck, 
+  Briefcase,
+  Activity,
+  Users,
+  ShieldCheck,
+  Scale,
+  TrendingUp,
+  BookMarked,
+  FileEdit,
+  LineChart,
+  UserCheck,
   PhoneCall,
   ChevronDown,
   FolderOpen,
@@ -315,8 +315,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
 
   const handleItemClick = (label) => {
     const norm = label.toLowerCase().replace(/[^a-z0-9]/g, '');
-    
-    // Exact mapping to standard active states
     if (norm === 'projectdashboard') {
       setActiveTab('dashboard');
     } else if (norm === 'projectlist') {
@@ -330,130 +328,123 @@ export default function Tabs({ activeTab, setActiveTab }) {
     } else if (norm === 'reports') {
       setActiveTab('reports');
     } else {
-      // General dynamic category loading
       setActiveTab(label);
     }
   };
 
   return (
-    <nav className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-      <div className="w-full max-w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex space-x-1 overflow-visible py-1.5 justify-between items-center">
-          {/* Home Tab Button */}
-          <button
-            onClick={() => setActiveTab('landing')}
-            className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 ${
-              activeTab === 'landing'
-                ? 'text-blue-755 font-bold'
-                : 'text-slate-655 font-semibold hover:text-slate-900'
-            }`}
-          >
-            <Home className={`h-4.5 w-4.5 transition-colors ${
-              activeTab === 'landing' ? 'text-blue-755' : 'text-slate-500 group-hover:text-blue-600'
-            }`} />
-            <span className="text-[9px] tracking-tight uppercase select-none whitespace-nowrap">
+      <nav className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+        <div className="w-full max-w-full px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-1 overflow-visible py-1.5 justify-between items-center">
+            {/* Home Tab Button */}
+            <button
+                onClick={() => setActiveTab('landing')}
+                className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 ${
+                    activeTab === 'landing'
+                        ? 'text-blue-755 font-bold'
+                        : 'text-slate-655 font-semibold hover:text-slate-900'
+                }`}
+            >
+              <Home className={`h-4.5 w-4.5 transition-colors ${
+                  activeTab === 'landing' ? 'text-blue-755' : 'text-slate-500 group-hover:text-blue-600'
+              }`} />
+              <span className="text-[9px] tracking-tight uppercase select-none whitespace-nowrap">
               Home
             </span>
-          </button>
+            </button>
 
-          {MENU_DATA.map((menu) => {
-            const Icon = menu.icon;
-            const hasDropdown = menu.subcategories || menu.items;
+            {MENU_DATA.map((menu) => {
+              const Icon = menu.icon;
+              const hasDropdown = menu.subcategories || menu.items;
 
-            return (
-              <div key={menu.id} className="relative group flex-shrink-0">
-                {/* Main Menu Button */}
-                <button
-                  className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 ${
-                    activeTab.startsWith(menu.id) || activeTab === menu.id
-                      ? 'text-blue-700 font-bold'
-                      : 'text-slate-655 font-semibold hover:text-slate-900'
-                  }`}
-                >
-                  <Icon className="h-4.5 w-4.5 text-slate-500 group-hover:text-blue-600 transition-colors" />
-                  <span className="text-[9px] tracking-tight uppercase flex items-center gap-0.5 select-none whitespace-nowrap">
+              return (
+                  <div key={menu.id} className="relative group flex-shrink-0">
+                    {/* Main Menu Button */}
+                    <button
+                        className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 ${
+                            activeTab.startsWith(menu.id) || activeTab === menu.id
+                                ? 'text-blue-700 font-bold'
+                                : 'text-slate-655 font-semibold hover:text-slate-900'
+                        }`}
+                    >
+                      <Icon className="h-4.5 w-4.5 text-slate-500 group-hover:text-blue-600 transition-colors" />
+                      <span className="text-[9px] tracking-tight uppercase flex items-center gap-0.5 select-none whitespace-nowrap">
                     {menu.label}
-                    {hasDropdown && <ChevronDown className="h-2.5 w-2.5 opacity-60" />}
+                        {hasDropdown && <ChevronDown className="h-2.5 w-2.5 opacity-60" />}
                   </span>
-                </button>
+                    </button>
 
-                {/* Subcategory Side Overlay Dropdown */}
-                {hasDropdown && (
-                  <div className={`absolute top-full ${menu.align} ${menu.subcategories ? 'w-64 bg-slate-50 border-slate-200 text-slate-800' : menu.width + ' bg-white border-slate-200 text-slate-800'} border shadow-2xl rounded-b-2xl rounded-t-md p-3 transition-all duration-200 ease-out origin-top scale-y-95 opacity-0 invisible group-hover:scale-y-100 group-hover:opacity-100 group-hover:visible z-50`}>
-                    
-                    {/* Render Subcategories Layout (e.g. Projects, KPI, HR) */}
-                    {menu.subcategories && (
-                      <div className="flex flex-col space-y-0.5 relative">
-                        {menu.subcategories.map((sub, sIdx) => {
-                          const SubIcon = sub.icon;
-                          return (
-                            <div
-                              key={sIdx}
-                              className="relative group/sub"
-                            >
-                              <div
-                                className="w-full text-left text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition-all flex items-center justify-between text-slate-700 hover:bg-blue-50 hover:text-blue-700"
-                              >
-                                <div className="flex items-center space-x-2">
-                                  {SubIcon && <SubIcon className="h-4 w-4 text-slate-400 group-hover/sub:text-blue-600 transition-colors" />}
-                                  <span>{sub.title}</span>
-                                </div>
-                                <span className="text-[10px] text-slate-400 group-hover/sub:text-blue-600 transition-colors">➔</span>
+                    {/* Reverted Main Dropdown Back to Original Slate Styling */}
+                    {hasDropdown && (
+                        <div className={`absolute top-full ${menu.align} ${menu.subcategories ? 'w-64 bg-slate-50 border-slate-200 text-slate-800' : menu.width + ' bg-white border-slate-200 text-slate-800'} border shadow-2xl rounded-b-2xl rounded-t-md p-3 transition-all duration-200 ease-out origin-top scale-y-95 opacity-0 invisible group-hover:scale-y-100 group-hover:opacity-100 group-hover:visible z-50`}>
+
+                          {/* Render Subcategories Layout (e.g. Projects, KPI, HR) */}
+                          {menu.subcategories && (
+                              <div className="flex flex-col space-y-0.5 relative">
+                                {menu.subcategories.map((sub, sIdx) => {
+                                  const SubIcon = sub.icon;
+                                  return (
+                                      <div key={sIdx} className="relative group/sub">
+                                        <div className="w-full text-left text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition-all flex items-center justify-between text-slate-700 hover:bg-blue-50 hover:text-blue-700">
+                                          <div className="flex items-center space-x-2">
+                                            {SubIcon && <SubIcon className="h-4 w-4 text-slate-400 group-hover/sub:text-blue-600 transition-colors" />}
+                                            <span>{sub.title}</span>
+                                          </div>
+                                          <span className="text-[10px] text-slate-400 group-hover/sub:text-blue-600 transition-colors">➔</span>
+                                        </div>
+
+                                        {/* Adjusted flyout container placement to align flawlessly to the right side edge */}
+                                        <div className={`absolute ${menu.id === 'hr' ? 'right-full -top-3 mr-3 origin-right' : 'left-full -top-3 ml-3 origin-left'} w-60 bg-white text-slate-800 border border-slate-200 shadow-2xl rounded-2xl p-4 transition-all duration-200 scale-95 opacity-0 invisible group-hover/sub:scale-100 group-hover/sub:opacity-100 group-hover/sub:visible z-50 space-y-3`}>
+                                          <h4 className="text-[11px] font-bold text-[#0f417a] uppercase tracking-widest block border-b border-slate-150 pb-2">
+                                            {sub.title} Options
+                                          </h4>
+                                          <div className="flex flex-col space-y-1.5">
+                                            {sub.items.map((item, iIdx) => {
+                                              const ItemIcon = item.icon;
+                                              return (
+                                                  <button
+                                                      key={iIdx}
+                                                      onClick={() => handleItemClick(item.label)}
+                                                      className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-all py-1.5 px-2 rounded border border-transparent hover:border-slate-100 cursor-pointer"
+                                                  >
+                                                    {ItemIcon && <ItemIcon className="h-3.5 w-3.5 text-slate-400 group-hover/sub:text-blue-600 transition-colors" />}
+                                                    <span>{item.label}</span>
+                                                  </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      </div>
+                                  );
+                                })}
                               </div>
+                          )}
 
-                              {/* Flyout Submenu Overlay */}
-                              <div className={`absolute ${menu.id === 'hr' ? 'right-full top-0 mr-1.5 origin-right' : 'left-full top-0 ml-1.5 origin-left'} w-60 bg-white text-slate-800 border border-slate-200 shadow-2xl rounded-2xl p-4 transition-all duration-200 scale-95 opacity-0 invisible group-hover/sub:scale-100 group-hover/sub:opacity-100 group-hover/sub:visible z-50 space-y-3`}>
-                                <h4 className="text-[11px] font-bold text-[#0f417a] uppercase tracking-widest block border-b border-slate-150 pb-2">
-                                  {sub.title} Options
-                                </h4>
-                                <div className="flex flex-col space-y-1.5">
-                                  {sub.items.map((item, iIdx) => {
-                                    const ItemIcon = item.icon;
-                                    return (
+                          {/* Render Grid/List of Single Items Layout (e.g. Governance, Legal) */}
+                          {menu.items && (
+                              <div className={`grid ${menu.gridCols || 'grid-cols-1'} gap-3`}>
+                                {menu.items.map((item, iIdx) => {
+                                  const ItemIcon = item.icon;
+                                  return (
                                       <button
-                                        key={iIdx}
-                                        onClick={() => handleItemClick(item.label)}
-                                        className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-all py-1.5 px-2 rounded border border-transparent hover:border-slate-100 cursor-pointer"
+                                          key={iIdx}
+                                          onClick={() => handleItemClick(item.label)}
+                                          className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-650 hover:text-blue-605 hover:bg-slate-55 transition-all px-2.5 py-1.5 rounded-lg border border-transparent hover:border-slate-100 cursor-pointer"
                                       >
-                                        {ItemIcon && <ItemIcon className="h-3.5 w-3.5 text-slate-400 group-hover/sub:text-blue-600 transition-colors" />}
+                                        {ItemIcon && <ItemIcon className="h-4 w-4 text-slate-400" />}
                                         <span>{item.label}</span>
                                       </button>
-                                    );
-                                  })}
-                                </div>
+                                  );
+                                })}
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Render Grid/List of Single Items Layout (e.g. Governance, Legal) */}
-                    {menu.items && (
-                      <div className={`grid ${menu.gridCols || 'grid-cols-1'} gap-3`}>
-                        {menu.items.map((item, iIdx) => {
-                          const ItemIcon = item.icon;
-                          return (
-                            <button
-                              key={iIdx}
-                              onClick={() => handleItemClick(item.label)}
-                              className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-650 hover:text-blue-605 hover:bg-slate-55 transition-all px-2.5 py-1.5 rounded-lg border border-transparent hover:border-slate-100 cursor-pointer"
-                            >
-                              {ItemIcon && <ItemIcon className="h-4 w-4 text-slate-400" />}
-                              <span>{item.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                          )}
+                        </div>
                     )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
   );
 }
-
