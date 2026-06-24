@@ -141,10 +141,10 @@ export default function LandingView({ onNavigate }) {
       
       {/* Centered Banner */}
       <div className="w-full text-center mt-6">
-        <h1 className="text-2xl font-black text-slate-805 tracking-tight uppercase font-display">
+        <h1 className="text-4xl font-black text-slate-805 tracking-tight uppercase font-display">
           Data Entry Dashboard
         </h1>
-        <p className="text-xs text-slate-500 mt-1 font-medium">
+        <p className="text-sm text-slate-500 mt-1 font-medium">
           Access and manage National maritime database modules and file submissions.
         </p>
       </div>
@@ -152,8 +152,8 @@ export default function LandingView({ onNavigate }) {
       {/* Action Header Panel */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 pb-5 items-start md:items-center">
         <div className="flex items-center space-x-2 text-slate-800 py-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
-          <span className="font-bold text-sm tracking-wider uppercase text-slate-800 font-display select-none">
+          {/*<span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>*/}
+          <span className="font-bold text-2xl tracking-wider uppercase text-slate-800 font-display select-none">
             Ministry Exclusive Modules
           </span>
         </div>
