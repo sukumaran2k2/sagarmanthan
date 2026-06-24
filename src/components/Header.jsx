@@ -5,18 +5,42 @@ export default function Header({ onLogout }) {
   const [lang, setLang] = useState('EN');
   const [fontSize, setFontSize] = useState(16); // Standard browser baseline default (16px)
   const [showFontSlider, setShowFontSlider] = useState(false);
+
+  // Refs to control closing the elements programmatically
   const sliderRef = useRef(null);
+  const langDetailsRef = useRef(null);
+  const avatarDetailsRef = useRef(null);
 
   // Sync root document baseline text size whenever state updates
   useEffect(() => {
     document.documentElement.style.fontSize = `${fontSize}px`;
   }, [fontSize]);
 
-  // Close the font slider dropdown if clicking outside of its area
+  // Handle opening one dropdown and forcing the others to close
+  const handleDropdownOpen = (targetOpen) => {
+    if (targetOpen === 'lang') {
+      setShowFontSlider(false);
+      if (avatarDetailsRef.current) avatarDetailsRef.current.open = false;
+    } else if (targetOpen === 'font') {
+      if (langDetailsRef.current) langDetailsRef.current.open = false;
+      if (avatarDetailsRef.current) avatarDetailsRef.current.open = false;
+    } else if (targetOpen === 'avatar') {
+      setShowFontSlider(false);
+      if (langDetailsRef.current) langDetailsRef.current.open = false;
+    }
+  };
+
+  // Close everything if clicking completely outside of the actions bar area
   useEffect(() => {
     function handleClickOutside(event) {
-      if (sliderRef.current && !sliderRef.current.contains(event.target)) {
+      if (
+          sliderRef.current && !sliderRef.current.contains(event.target) &&
+          langDetailsRef.current && !langDetailsRef.current.contains(event.target) &&
+          avatarDetailsRef.current && !avatarDetailsRef.current.contains(event.target)
+      ) {
         setShowFontSlider(false);
+        if (langDetailsRef.current) langDetailsRef.current.open = false;
+        if (avatarDetailsRef.current) avatarDetailsRef.current.open = false;
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -46,7 +70,7 @@ export default function Header({ onLogout }) {
               {/* SAGARMANTHAN Brand */}
               <div className="flex items-center space-x-2">
                 <div>
-                  <img src="src/assets/sagarmanthan_logo.png" />
+                  <img src="src/assets/sagarmanthan_logo.png" alt="Sagarmanthan Logo" />
                 </div>
                 <div>
                 <span className="text-sm sm:text-lg font-black tracking-wider bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent font-display">
@@ -63,7 +87,7 @@ export default function Header({ onLogout }) {
               <div className="hidden lg:flex flex-col text-right">
                 <span className="text-[11px] text-slate-300">Welcome Back</span>
                 <span className="text-xs font-medium text-white flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block animate-ping"></span>
+                <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block border-black"></span>
                 Good Evening, <strong className="text-white">TestMopsw</strong> | <span className="text-slate-300 font-normal">MoPSW</span>
               </span>
               </div>
@@ -75,20 +99,50 @@ export default function Header({ onLogout }) {
 
               {/* Actions Bar */}
               <div className="flex items-center space-x-1 sm:space-x-2 border-l border-white/20 pl-2 sm:pl-4">
+
                 {/* Language Selector */}
-                <button
-                    onClick={() => setLang(lang === 'EN' ? 'HI' : 'EN')}
-                    className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex items-center space-x-1"
-                    title="Change Language"
+                <details
+                    ref={langDetailsRef}
+                    name="header-dropdown"
+                    className="relative inline-block group"
+                    onToggle={(e) => { if (e.target.open) handleDropdownOpen('lang'); }}
                 >
-                  <Globe className="h-4 w-4" />
-                  <span className="text-[10px] font-bold tracking-wider">{lang}</span>
-                </button>
+                  {/* Dropdown Trigger Button */}
+                  <summary className="list-none outline-none cursor-pointer p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex items-center space-x-1" title="Change Language">
+                    <Globe className="h-4 w-4" />
+                    <span className="text-[10px] font-bold tracking-wider">{lang}</span>
+                  </summary>
+
+                  {/* Language Dropdown Menu */}
+                  <div className="absolute right-0 mt-2 w-32 py-1 bg-[#0a2540] border border-white/10 rounded-xl shadow-2xl z-50 flex flex-col">
+                    {/* English Option */}
+                    <button
+                        onClick={() => { setLang('EN'); langDetailsRef.current.open = false; }}
+                        className="flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white text-left cursor-pointer"
+                    >
+                      <span>English</span>
+                      {lang === 'EN' && <span className="text-cyan-400 font-bold text-xs">✓</span>}
+                    </button>
+
+                    {/* Hindi Option */}
+                    <button
+                        onClick={() => { setLang('HI'); langDetailsRef.current.open = false; }}
+                        className="flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white text-left cursor-pointer"
+                    >
+                      <span>Hindi</span>
+                      {lang === 'HI' && <span className="text-cyan-400 font-bold text-xs">✓</span>}
+                    </button>
+                  </div>
+                </details>
 
                 {/* Text Size Accessibility Tool Dropdown Container */}
                 <div className="relative" ref={sliderRef}>
                   <button
-                      onClick={() => setShowFontSlider(!showFontSlider)}
+                      onClick={() => {
+                        const nextState = !showFontSlider;
+                        setShowFontSlider(nextState);
+                        if (nextState) handleDropdownOpen('font');
+                      }}
                       className={`p-1.5 rounded-lg transition-all cursor-pointer ${
                           showFontSlider ? 'text-cyan-300 bg-white/15 shadow-inner' : 'text-slate-300 hover:text-white hover:bg-white/10'
                       }`}
@@ -130,22 +184,26 @@ export default function Header({ onLogout }) {
                 </div>
 
                 {/* User Avatar & Dropdown */}
-                <div className="relative group">
-                  <button className="flex items-center space-x-2 p-1.5 bg-white/10 border border-white/10 hover:bg-white/20 rounded-full transition-all duration-200 cursor-pointer">
-                    <div className="h-7 w-7 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold font-display shadow-md">
+                <details
+                    ref={avatarDetailsRef}
+                    name="header-dropdown"
+                    className="relative inline-block group"
+                    onToggle={(e) => { if (e.target.open) handleDropdownOpen('avatar'); }}
+                >
+                  <summary className="list-none outline-none cursor-pointer">
+                    <div className="h-7 w-7 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold font-display shadow-md hover:opacity-90 transition-opacity">
                       TM
                     </div>
-                    <ChevronDown className="h-3.5 w-3.5 text-slate-300 group-hover:text-white transition-colors" />
-                  </button>
+                  </summary>
 
-                  {/* Micro-hover profile menu */}
-                  <div className="absolute right-0 w-48 mt-2 py-1 bg-[#0a2540] border border-white/10 rounded-xl shadow-2xl invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-300 z-50">
-                    <a href="#profile" className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">Profile Settings</a>
-                    <a href="#manual" className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">User Manual</a>
+                  {/* Micro-profile menu */}
+                  <div className="absolute right-0 w-48 mt-2 py-1 bg-[#0a2540] border border-white/10 rounded-xl shadow-2xl z-50">
+                    <a href="#profile" onClick={() => { avatarDetailsRef.current.open = false; }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">Profile Settings</a>
+                    <a href="#manual" onClick={() => { avatarDetailsRef.current.open = false; }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">User Manual</a>
                     <hr className="border-white/10 my-1" />
-                    <a href="#logout" onClick={(e) => { e.preventDefault(); onLogout(); }} className="block px-4 py-2 text-xs text-red-400 hover:bg-white/10 font-medium">Sign Out</a>
+                    <a href="#logout" onClick={(e) => { e.preventDefault(); avatarDetailsRef.current.open = false; onLogout(); }} className="block px-4 py-2 text-xs text-red-400 hover:bg-white/10 font-medium">Sign Out</a>
                   </div>
-                </div>
+                </details>
               </div>
 
             </div>
