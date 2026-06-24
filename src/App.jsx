@@ -268,31 +268,6 @@ export default function App() {
       {/* Main Content Viewport */}
       <main className="flex-grow w-full max-w-full px-4 sm:px-6 lg:px-8 pb-12">
         {/* Dynamic Breadcrumbs Row */}
-        <div className="flex items-center space-x-2 text-xs text-slate-500 font-semibold py-3 border-b border-slate-200/60 mb-5 max-w-full overflow-x-auto select-none">
-          <Home 
-            onClick={() => setActiveTab('landing')} 
-            className="h-3.5 w-3.5 text-blue-600 flex-shrink-0 cursor-pointer hover:text-blue-800 transition-colors" 
-          />
-          {getBreadcrumbs(activeTab).map((path, idx, arr) => {
-            if (idx === 0) return (
-              <span 
-                key={idx}
-                onClick={() => setActiveTab('landing')} 
-                className="hover:text-blue-600 transition-colors cursor-pointer"
-              >
-                {path}
-              </span>
-            );
-            return (
-              <React.Fragment key={idx}>
-                <ChevronRight className="h-3 w-3 text-slate-350 flex-shrink-0" />
-                <span className={idx === arr.length - 1 ? "font-bold text-slate-800" : "text-slate-500"}>
-                  {path}
-                </span>
-              </React.Fragment>
-            );
-          })}
-        </div>
         {activeTab === 'landing' && (
           <LandingView onNavigate={setActiveTab} />
         )}
