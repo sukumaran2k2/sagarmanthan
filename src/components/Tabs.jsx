@@ -181,7 +181,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           items: [
             { label: 'HR Dashboard', icon: LayoutDashboard },
             { label: 'Employee Database', icon: ClipboardList },
-            { label: 'List of Abolished Ports', icon: UserX },
+            { label: 'List of Abolished Posts', icon: UserX },
             { label: 'Contractual Employment', icon: UserPlus },
             { label: 'Training Details', icon: BookOpen },
             { label: 'HR Reports', icon: FilePieChart }
@@ -356,13 +356,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
             {MENU_DATA.map((menu) => {
               const Icon = menu.icon;
               const hasDropdown = menu.subcategories || menu.items;
+              const isHrActiveTab = [
+                'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts',
+                'Contractual Employment', 'Training Details', 'HR Reports'
+              ].includes(activeTab);
+              const isMainMenuActive = activeTab.startsWith(menu.id) || activeTab === menu.id || (menu.id === 'hr' && isHrActiveTab);
 
               return (
                   <div key={menu.id} className="relative group flex-shrink-0">
                     {/* Main Menu Button */}
                     <button
                         className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 ${
-                            activeTab.startsWith(menu.id) || activeTab === menu.id
+                            isMainMenuActive
                                 ? 'text-blue-700 font-bold'
                                 : 'text-slate-655 font-semibold hover:text-slate-900'
                         }`}
