@@ -5,6 +5,7 @@ export default function Header({ onLogout }) {
   const [lang, setLang] = useState('EN');
   const [fontSize, setFontSize] = useState(16); // Standard browser baseline default (16px)
   const [showFontSlider, setShowFontSlider] = useState(false);
+  const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
 
   // Refs to control closing the elements programmatically
   const sliderRef = useRef(null);
@@ -20,10 +21,10 @@ export default function Header({ onLogout }) {
   const handleDropdownOpen = (targetOpen) => {
     if (targetOpen === 'lang') {
       setShowFontSlider(false);
-      if (avatarDetailsRef.current) avatarDetailsRef.current.open = false;
+      setShowAvatarDropdown(false);
     } else if (targetOpen === 'font') {
+      setShowAvatarDropdown(false);
       if (langDetailsRef.current) langDetailsRef.current.open = false;
-      if (avatarDetailsRef.current) avatarDetailsRef.current.open = false;
     } else if (targetOpen === 'avatar') {
       setShowFontSlider(false);
       if (langDetailsRef.current) langDetailsRef.current.open = false;
@@ -39,8 +40,8 @@ export default function Header({ onLogout }) {
           avatarDetailsRef.current && !avatarDetailsRef.current.contains(event.target)
       ) {
         setShowFontSlider(false);
+        setShowAvatarDropdown(false);
         if (langDetailsRef.current) langDetailsRef.current.open = false;
-        if (avatarDetailsRef.current) avatarDetailsRef.current.open = false;
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -138,85 +139,94 @@ export default function Header({ onLogout }) {
                 {/* Text Size Accessibility Tool Dropdown Container */}
                 <div className="relative" ref={sliderRef}>
                   <button
-                      onClick={() => {
-                        const nextState = !showFontSlider;
-                        setShowFontSlider(nextState);
-                        if (nextState) handleDropdownOpen('font');
-                      }}
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                          showFontSlider ? 'text-cyan-300 bg-white/15 shadow-inner' : 'text-slate-300 hover:text-white hover:bg-white/10'
-                      }`}
-                      title="Font Accessibility Settings"
+                    onClick={() => {
+                      const nextState = !showFontSlider;
+                      setShowFontSlider(nextState);
+                      if (nextState) handleDropdownOpen('font');
+                    }}
+                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                      showFontSlider ? 'text-cyan-300 bg-white/15 shadow-inner' : 'text-slate-300 hover:text-white hover:bg-white/10'
+                    }`}
+                    title="Font Accessibility Settings"
                   >
                     <Type className="h-4 w-4" />
                   </button>
 
                   {showFontSlider && (
-                      <div className="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 flex items-center space-x-2 whitespace-nowrap">
+                    <div className="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 flex items-center space-x-2 whitespace-nowrap">
+                      
+                      {/* Decrease Font Size (A-) */}
+                      <button
+                        onClick={() => setFontSize(14)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+                          fontSize === 14
+                            ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
+                            : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        A-
+                      </button>
 
-                        {/* Decrease Font Size (A-) */}
-                        <button
-                            onClick={() => setFontSize(14)}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-                                fontSize === 14
-                                    ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
-                                    : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
-                            }`}
-                        >
-                          A-
-                        </button>
+                      {/* Default Font Size (A) */}
+                      <button
+                        onClick={() => setFontSize(16)}
+                        className={`px-4 py-1.5 text-base font-semibold rounded-lg border transition-all ${
+                          fontSize === 16
+                            ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
+                            : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        A
+                      </button>
 
-                        {/* Default Font Size (A) */}
-                        <button
-                            onClick={() => setFontSize(16)}
-                            className={`px-4 py-1.5 text-base font-semibold rounded-lg border transition-all ${
-                                fontSize === 16
-                                    ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
-                                    : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
-                            }`}
-                        >
-                          A
-                        </button>
+                      {/* Increase Font Size (A+) */}
+                      <button
+                        onClick={() => setFontSize(20)}
+                        className={`px-3 py-1.5 text-lg font-bold rounded-lg border transition-all ${
+                          fontSize === 20
+                            ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
+                            : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        A+
+                      </button>
 
-                        {/* Increase Font Size (A+) */}
-                        <button
-                            onClick={() => setFontSize(20)}
-                            className={`px-3 py-1.5 text-lg font-bold rounded-lg border transition-all ${
-                                fontSize === 20
-                                    ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
-                                    : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
-                            }`}
-                        >
-                          A+
-                        </button>
-
-                      </div>
+                    </div>
                   )}
                 </div>
 
                 {/* User Avatar & Dropdown */}
-                <details
-                    ref={avatarDetailsRef}
-                    name="header-dropdown"
-                    className="relative inline-block group"
-                    onToggle={(e) => { if (e.target.open) handleDropdownOpen('avatar'); }}
-                >
-                  <summary className="list-none outline-none cursor-pointer">
-                    <div className="h-7 w-7 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold font-display shadow-md hover:opacity-90 transition-opacity">
+                <div className="relative" ref={avatarDetailsRef}>
+                  <button 
+                    onClick={() => {
+                      const nextState = !showAvatarDropdown;
+                      setShowAvatarDropdown(nextState);
+                      if (nextState) handleDropdownOpen('avatar');
+                    }}
+                    className={`flex items-center space-x-2 p-1.5 border rounded-full transition-all duration-200 cursor-pointer ${
+                      showAvatarDropdown 
+                        ? 'text-cyan-300 bg-white/15 border-white/25 shadow-inner' 
+                        : 'bg-white/10 border-white/10 text-slate-300 hover:text-white hover:bg-white/20'
+                    }`}
+                  >
+                    <div className="h-7 w-7 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold font-display shadow-md">
                       TM
                     </div>
-                  </summary>
+                    <ChevronDown className="h-3.5 w-3.5 transition-colors" />
+                  </button>
+                  
+                  {/* Click-to-open profile menu */}
+                  {showAvatarDropdown && (
+                    <div className="absolute right-0 w-48 mt-2 py-1 bg-[#0a2540] border border-white/10 rounded-xl shadow-2xl z-50 transition-all duration-200">
+                      <a href="#profile" onClick={() => setShowAvatarDropdown(false)} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">Profile Settings</a>
+                      <a href="#manual" onClick={() => setShowAvatarDropdown(false)} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">User Manual</a>
+                      <hr className="border-white/10 my-1" />
+                      <a href="#logout" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onLogout(); }} className="block px-4 py-2 text-xs text-red-400 hover:bg-white/10 font-medium">Sign Out</a>
+                    </div>
+                  )}
+                </div>
 
-                  {/* Micro-profile menu */}
-                  <div className="absolute right-0 w-48 mt-2 py-1 bg-[#0a2540] border border-white/10 rounded-xl shadow-2xl z-50">
-                    <a href="#profile" onClick={() => { avatarDetailsRef.current.open = false; }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">Profile Settings</a>
-                    <a href="#manual" onClick={() => { avatarDetailsRef.current.open = false; }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">User Manual</a>
-                    <hr className="border-white/10 my-1" />
-                    <a href="#logout" onClick={(e) => { e.preventDefault(); avatarDetailsRef.current.open = false; onLogout(); }} className="block px-4 py-2 text-xs text-red-400 hover:bg-white/10 font-medium">Sign Out</a>
-                  </div>
-                </details>
               </div>
-
             </div>
           </div>
         </div>
