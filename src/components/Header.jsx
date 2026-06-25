@@ -152,33 +152,44 @@ export default function Header({ onLogout }) {
                   </button>
 
                   {showFontSlider && (
-                      <div className="absolute right-0 mt-3.5 w-64 p-4 bg-[#0a2540] border border-white/10 rounded-2xl shadow-2xl z-50 transition-all duration-200">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Font Size Adjustment</span>
-                          <span className="text-xs font-mono font-bold text-cyan-300">{fontSize}px</span>
-                        </div>
+                      <div className="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 flex items-center space-x-2 whitespace-nowrap">
 
-                        <div className="flex items-center space-x-3 mt-1.5">
-                          <span className="text-xs text-slate-400 select-none">A</span>
-                          <input
-                              type="range"
-                              min="13"
-                              max="22"
-                              value={fontSize}
-                              onChange={(e) => setFontSize(Number(e.target.value))}
-                              className="w-full accent-cyan-400 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer"
-                          />
-                          <span className="text-lg text-slate-200 select-none font-semibold">A</span>
-                        </div>
+                        {/* Decrease Font Size (A-) */}
+                        <button
+                            onClick={() => setFontSize(14)}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+                                fontSize === 14
+                                    ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
+                                    : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                          A-
+                        </button>
 
-                        <div className="flex justify-between items-center mt-3 pt-2 border-t border-white/5">
-                          <button
-                              onClick={() => setFontSize(16)}
-                              className="text-[10px] text-cyan-400/80 hover:text-cyan-300 font-semibold tracking-wider uppercase transition-colors"
-                          >
-                            Reset Default
-                          </button>
-                        </div>
+                        {/* Default Font Size (A) */}
+                        <button
+                            onClick={() => setFontSize(16)}
+                            className={`px-4 py-1.5 text-base font-semibold rounded-lg border transition-all ${
+                                fontSize === 16
+                                    ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
+                                    : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                          A
+                        </button>
+
+                        {/* Increase Font Size (A+) */}
+                        <button
+                            onClick={() => setFontSize(20)}
+                            className={`px-3 py-1.5 text-lg font-bold rounded-lg border transition-all ${
+                                fontSize === 20
+                                    ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
+                                    : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                          A+
+                        </button>
+
                       </div>
                   )}
                 </div>
