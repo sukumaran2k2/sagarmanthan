@@ -14,6 +14,7 @@ import EOfficeView from './components/EOfficeView';
 import AttendanceView from './components/AttendanceView';
 import CPGRAMSView from './components/CPGRAMSView';
 import HRDashboardView from './components/HRDashboardView';
+import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight } from 'lucide-react';
 
 const INITIAL_PROJECTS = [
@@ -215,6 +216,19 @@ export default function App() {
   const [notification, setNotification] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   // Notification Trigger
   const triggerNotification = (message) => {
@@ -261,7 +275,11 @@ export default function App() {
       )}
 
       {/* Government Portal Header */}
-      <Header onLogout={() => setIsLoggedIn(false)} />
+      <Header 
+        onLogout={() => setIsLoggedIn(false)} 
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={toggleDarkMode}
+      />
 
       {/* Tab Navigation Menu */}
       <Tabs 
@@ -362,16 +380,7 @@ export default function App() {
       </main>
 
       {/* Government Footer */}
-      <footer className="bg-slate-900 border-t border-slate-850 text-slate-400 py-6 text-center text-xs mt-auto font-medium">
-        <div className="w-full px-4 sm:px-6 lg:px-8 space-y-1">
-          <p className="tracking-wide text-slate-300">
-            Copyright © {new Date().getFullYear()} Ministry of Ports, Shipping and Waterways, Government of India. All Rights Reserved.
-          </p>
-          <p className="text-[10px] text-slate-500 font-mono">
-            Designed and developed for SAGARMANTHAN National Database Portal.
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

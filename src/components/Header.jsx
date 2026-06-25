@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Globe, Type, Anchor } from 'lucide-react';
+import { ChevronDown, Globe, Type, Sun, Moon } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 
-export default function Header({ onLogout }) {
+export default function Header({ onLogout, isDarkMode, onToggleDarkMode }) {
   const [lang, setLang] = useState('EN');
   const [fontSize, setFontSize] = useState(16); // Standard browser baseline default (16px)
   const [showFontSlider, setShowFontSlider] = useState(false);
@@ -55,7 +55,7 @@ export default function Header({ onLogout }) {
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
 
-            {/* Left: Emblem and Government branding */}
+             {/* Left: Emblem and Government branding (GIGW Standard layout) */}
             <div className="flex items-center space-x-4 scale-90 origin-left">
               <div className="flex items-center space-x-3 lg:border-r lg:border-white/20 lg:pr-4">
                 <img
@@ -64,8 +64,12 @@ export default function Header({ onLogout }) {
                     className="h-9 w-auto object-contain brightness-0 invert"
                 />
                 <div className="hidden lg:block">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold leading-tight">Government of India</p>
-                  <p className="text-xs font-bold text-white tracking-tight leading-tight">Ministry of Ports, Shipping and Waterways</p>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold leading-tight">
+                    {lang === 'HI' ? 'भारत सरकार' : 'Government of India'}
+                  </p>
+                  <p className="text-xs font-bold text-white tracking-tight leading-tight">
+                    {lang === 'HI' ? 'पत्तन, पोत परिवहन और जलमार्ग मंत्रालय' : 'Ministry of Ports, Shipping and Waterways'}
+                  </p>
                 </div>
               </div>
 
@@ -75,10 +79,12 @@ export default function Header({ onLogout }) {
                   <img src={sagarmanthanLogo} alt="Sagarmanthan Logo" className="h-10 w-auto object-contain" />
                 </div>
                 <div>
-                <span className="text-sm sm:text-lg font-black tracking-wider bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent font-display">
-                  SAGARMANTHAN
-                </span>
-                  <span className="block text-[8px] sm:text-[9px] text-cyan-300 font-mono tracking-widest uppercase -mt-1">Maritime Data Portal</span>
+                  <span className="text-sm sm:text-lg font-black tracking-wider bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent font-display">
+                    {lang === 'HI' ? 'सागरमंथन' : 'SAGARMANTHAN'}
+                  </span>
+                  <span className="block text-[8px] sm:text-[9px] text-cyan-300 font-mono tracking-widest uppercase -mt-1">
+                    {lang === 'HI' ? 'समुद्री डेटा पोर्टल' : 'Maritime Data Portal'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -195,6 +201,19 @@ export default function Header({ onLogout }) {
                     </div>
                   )}
                 </div>
+
+                {/* Theme Switcher Button */}
+                <button
+                  onClick={onToggleDarkMode}
+                  className="p-1.5 rounded-lg transition-all cursor-pointer text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center"
+                  title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                >
+                  {isDarkMode ? (
+                    <Sun className="h-4 w-4 text-amber-400 fill-amber-350" />
+                  ) : (
+                    <Moon className="h-4 w-4" />
+                  )}
+                </button>
 
                 {/* User Avatar & Dropdown */}
                 <div className="relative" ref={avatarDetailsRef}>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Shield } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 const BG_IMAGES = [
   'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=1920&q=80', // Ocean container port loading cranes
@@ -14,6 +15,8 @@ export default function LoginView({ onLogin }) {
   const [rememberMe, setRememberMe] = useState(false);
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
 
+  const [captchaVerified, setCaptchaVerified] = useState(false);
+
   // Cycle background images every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
@@ -24,6 +27,10 @@ export default function LoginView({ onLogin }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!captchaVerified) {
+      alert('Please check the CAPTCHA box to verify you are not a robot.');
+      return;
+    }
     onLogin();
   };
 
@@ -145,6 +152,15 @@ export default function LoginView({ onLogin }) {
               >
                 Forgot Password?
               </a>
+            </div>
+
+            {/* Real Google reCAPTCHA Widget */}
+            <div className="w-full flex justify-center bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner">
+              <ReCAPTCHA
+                sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
+                onChange={(val) => setCaptchaVerified(!!val)}
+                theme="light"
+              />
             </div>
 
             {/* Submit Button */}
