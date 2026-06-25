@@ -136,61 +136,64 @@ export default function Header({ onLogout }) {
                 </details>
 
                 {/* Text Size Accessibility Tool Dropdown Container */}
+                {/* Text Size Accessibility Tool Dropdown Container */}
+
+                {/* This is a test commit */}
                 <div className="relative" ref={sliderRef}>
                   <button
-                      onClick={() => {
-                        const nextState = !showFontSlider;
-                        setShowFontSlider(nextState);
-                        if (nextState) handleDropdownOpen('font');
-                      }}
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                          showFontSlider ? 'text-cyan-300 bg-white/15 shadow-inner' : 'text-slate-300 hover:text-white hover:bg-white/10'
-                      }`}
-                      title="Font Accessibility Settings"
+                    onClick={() => {
+                      const nextState = !showFontSlider;
+                      setShowFontSlider(nextState);
+                      if (nextState) handleDropdownOpen('font');
+                    }}
+                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                      showFontSlider ? 'text-cyan-300 bg-white/15 shadow-inner' : 'text-slate-300 hover:text-white hover:bg-white/10'
+                    }`}
+                    title="Font Accessibility Settings"
                   >
                     <Type className="h-4 w-4" />
                   </button>
 
                   {showFontSlider && (
-                      <div className="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 flex items-center space-x-2 whitespace-nowrap">
+                    <div className="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 flex items-center space-x-2 whitespace-nowrap">
+                      
+                      {/* Decrease Font Size (A-) */}
+                      <button
+                        onClick={() => setFontSize(14)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+                          fontSize === 14
+                            ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
+                            : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        A-
+                      </button>
 
-                        {/* Decrease Font Size (A-) */}
-                        <button
-                            onClick={() => setFontSize(14)}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-                                fontSize === 14
-                                    ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
-                                    : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
-                            }`}
-                        >
-                          A-
-                        </button>
+                      {/* Default Font Size (A) */}
+                      <button
+                        onClick={() => setFontSize(16)}
+                        className={`px-4 py-1.5 text-base font-semibold rounded-lg border transition-all ${
+                          fontSize === 16
+                            ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
+                            : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        A
+                      </button>
 
-                        {/* Default Font Size (A) */}
-                        <button
-                            onClick={() => setFontSize(16)}
-                            className={`px-4 py-1.5 text-base font-semibold rounded-lg border transition-all ${
-                                fontSize === 16
-                                    ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
-                                    : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
-                            }`}
-                        >
-                          A
-                        </button>
+                      {/* Increase Font Size (A+) */}
+                      <button
+                        onClick={() => setFontSize(20)}
+                        className={`px-3 py-1.5 text-lg font-bold rounded-lg border transition-all ${
+                          fontSize === 20
+                            ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
+                            : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        A+
+                      </button>
 
-                        {/* Increase Font Size (A+) */}
-                        <button
-                            onClick={() => setFontSize(20)}
-                            className={`px-3 py-1.5 text-lg font-bold rounded-lg border transition-all ${
-                                fontSize === 20
-                                    ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
-                                    : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
-                            }`}
-                        >
-                          A+
-                        </button>
-
-                      </div>
+                    </div>
                   )}
                 </div>
 
