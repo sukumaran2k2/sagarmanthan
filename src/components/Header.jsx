@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Globe, Type, Anchor } from 'lucide-react';
+import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 
 export default function Header({ onLogout }) {
   const [lang, setLang] = useState('EN');
@@ -71,7 +72,7 @@ export default function Header({ onLogout }) {
               {/* SAGARMANTHAN Brand */}
               <div className="flex items-center space-x-2">
                 <div>
-                  <img src="src/assets/sagarmanthan_logo.png" alt="Sagarmanthan Logo" />
+                  <img src={sagarmanthanLogo} alt="Sagarmanthan Logo" className="h-10 w-auto object-contain" />
                 </div>
                 <div>
                 <span className="text-sm sm:text-lg font-black tracking-wider bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent font-display">
