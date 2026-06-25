@@ -117,14 +117,16 @@ export default function ProjectTable({
     {
       headerName: 'S.No',
       valueGetter: (params) => params.node.rowIndex + 1,
-      width: 70,
+      maxWidth: 60,
+      flex: 0.4,
       pinned: isPinned ? 'left' : null,
       cellClass: 'text-center font-semibold text-slate-500 flex items-center justify-center'
     },
     {
       headerName: 'Project ID',
       field: 'projectId',
-      width: 120,
+      minWidth: 95,
+      flex: 0.8,
       pinned: isPinned ? 'left' : null,
       cellRenderer: (params) => (
         <span className="font-bold text-orange-600 hover:text-orange-700 cursor-pointer hover:underline flex items-center gap-1.5 h-full">
@@ -136,15 +138,16 @@ export default function ProjectTable({
     {
       headerName: 'Sub Project ID',
       field: 'subProjectId',
-      width: 130,
+      minWidth: 105,
+      flex: 0.8,
       cellClass: 'text-center text-slate-400 font-medium flex items-center justify-center',
       valueFormatter: (params) => params.value && params.value !== '-' ? params.value : '-'
     },
     {
       headerName: 'Project Name',
       field: 'projectName',
-      minWidth: 300,
-      flex: 1,
+      minWidth: 180,
+      flex: 2,
       wrapText: true,
       autoHeight: true,
       cellRenderer: (params) => {
@@ -167,10 +170,11 @@ export default function ProjectTable({
     {
       headerName: 'Category',
       field: 'category',
-      width: 180,
+      minWidth: 110,
+      flex: 1,
       cellRenderer: (params) => (
         <div className="flex items-center h-full">
-          <span className="inline-flex items-center px-2.5 py-1 text-[10px] font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
+          <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded bg-blue-50 text-blue-700 border border-blue-100">
             {params.value || 'Uncategorized'}
           </span>
         </div>
@@ -179,20 +183,23 @@ export default function ProjectTable({
     {
       headerName: 'Sanctioned Cost (In Cr.)',
       field: 'cost',
-      width: 185,
+      minWidth: 110,
+      flex: 1,
       cellClass: 'text-right font-extrabold text-slate-700 flex items-center justify-end',
       valueFormatter: (params) => params.value ? parseFloat(params.value).toFixed(2) : '-'
     },
     {
-      headerName: 'Primary Implementing Agency',
+      headerName: 'Implementing Agency',
       field: 'agency',
-      width: 200,
+      minWidth: 130,
+      flex: 1.2,
       cellClass: 'text-slate-600 font-medium flex items-center'
     },
     {
-      headerName: 'Current Stage',
+      headerName: 'Stage',
       field: 'stage',
-      width: 170,
+      minWidth: 120,
+      flex: 1,
       cellRenderer: (params) => {
         const stage = params.value;
         let style = 'bg-slate-50 text-slate-700 border-slate-200';
@@ -205,7 +212,7 @@ export default function ProjectTable({
         }
         return (
           <div className="flex items-center h-full">
-            <span className={`inline-flex items-center px-2.5 py-1 text-[10px] font-bold rounded-full border ${style}`}>
+            <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-full border ${style}`}>
               {stage}
             </span>
           </div>
@@ -215,18 +222,13 @@ export default function ProjectTable({
     {
       headerName: 'Physical (%)',
       field: 'physicalProgress',
-      width: 140,
+      minWidth: 80,
+      flex: 0.6,
       cellRenderer: (params) => {
         const pct = params.value || 0;
         return (
           <div className="flex items-center space-x-1.5 h-full">
             <span className="font-bold text-slate-700 min-w-8">{pct}%</span>
-            <div className="w-10 bg-slate-100 h-1.5 rounded-full overflow-hidden hidden sm:block flex-shrink-0">
-              <div 
-                className="bg-blue-600 h-1.5 rounded-full" 
-                style={{ width: `${pct}%` }}
-              ></div>
-            </div>
           </div>
         );
       }
@@ -234,18 +236,13 @@ export default function ProjectTable({
     {
       headerName: 'Financial (%)',
       field: 'financialProgress',
-      width: 140,
+      minWidth: 80,
+      flex: 0.6,
       cellRenderer: (params) => {
         const pct = params.value || 0;
         return (
           <div className="flex items-center space-x-1.5 h-full">
             <span className="font-bold text-slate-700 min-w-8">{pct}%</span>
-            <div className="w-10 bg-slate-100 h-1.5 rounded-full overflow-hidden hidden sm:block flex-shrink-0">
-              <div 
-                className="bg-emerald-500 h-1.5 rounded-full" 
-                style={{ width: `${pct}%` }}
-              ></div>
-            </div>
           </div>
         );
       }

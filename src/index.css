@@ -6,6 +6,8 @@
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
+  --font-size-xs: 0.825rem;
+  --font-size-sm: 0.925rem;
 }
 
 body {
@@ -13,6 +15,10 @@ body {
   background-color: #f8fafc;
   color: #1e293b;
   overflow-x: hidden;
+}
+
+#root {
+  zoom: 1.06;
 }
 
 /* Custom Scrollbars */
@@ -51,7 +57,7 @@ body {
   --ag-border-color: #e2e8f0 !important;
   --ag-row-hover-color: #f8fafc/60 !important;
   --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
-  --ag-font-size: 12px !important;
+  --ag-font-size: 13.5px !important;
 }
 
 /* Custom CSS to style header text & properties */

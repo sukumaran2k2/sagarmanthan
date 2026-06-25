@@ -1,6 +1,9 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 export default function LandingView({ onNavigate }) {
   const fileUploadModules = [
@@ -91,7 +94,7 @@ export default function LandingView({ onNavigate }) {
       headerName: 'Module Name',
       field: 'moduleName',
       width: 280,
-      cellClass: 'font-semibold text-slate-700 flex items-center pl-4 border-r border-slate-200'
+      cellClass: 'font-semibold text-slate-700 flex items-center pl-4 border-r border-slate-200 cursor-pointer hover:text-blue-700'
     },
     {
       headerName: 'Departments / Wings',
@@ -135,6 +138,44 @@ export default function LandingView({ onNavigate }) {
       ]
     }
   ], []);
+
+  const handleCardClick = (id) => {
+    if (id === 'cpgrams') {
+      onNavigate('CPGRAMS');
+    } else if (id === 'file-pendency') {
+      onNavigate('E Office', 'file-pendency');
+    } else if (id === 'receipt-pendency') {
+      onNavigate('E Office', 'receipt-pendency');
+    } else if (id === 'file-disposal') {
+      onNavigate('E Office', 'file-disposal');
+    } else if (id === 'attendance') {
+      onNavigate('Attendance');
+    }
+  };
+
+  const handleRowClicked = (event) => {
+    const moduleName = event.data.moduleName;
+    const routeMap = {
+      'Young Professional': 'YP Reports',
+      'Consultant Appointment': 'Consultant Reports',
+      'VIP Reference': 'VIP Reference',
+      'Cabinet Notes-Other Ministry': 'Cabinet Notes - Other Ministries',
+      'Cabinet Notes-MoPSW': 'Cabinet Notes - MoPSW',
+      'Audit Para': 'Audit Paras',
+      'MOM OF PSW Meetings': 'MOM Of PSW Meetings',
+      'Promotion of Indian Flagged Ships': 'Flagged Ships / FOB Basis',
+      'Parliamentary Issues': 'Parliamentary Issues',
+      'Review Items': 'Review Items',
+      'MoPSW Tracker': 'Project Milestones',
+      'Foreign Visit': 'Foreign Visit',
+      'Inter State and Inter Ministerial Issues': 'Inter State & Inter Ministerial',
+      'Acts & Rules': 'Acts & Rules'
+    };
+    const targetTab = routeMap[moduleName];
+    if (targetTab) {
+      onNavigate(targetTab);
+    }
+  };
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
@@ -185,7 +226,11 @@ export default function LandingView({ onNavigate }) {
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {fileUploadModules.map((item, idx) => (
-            <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-blue-200 transition-all duration-300">
+            <div 
+              key={idx} 
+              onClick={() => handleCardClick(item.id)}
+              className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-blue-300 hover:-translate-y-0.5 cursor-pointer transition-all duration-300 select-none"
+            >
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <span className="text-[11px] font-extrabold text-[#0f417a] font-display">{item.title}</span>
                 <span className="text-[9px] font-bold text-red-500 whitespace-nowrap bg-red-50 px-1.5 py-0.5 rounded-md">{item.date}</span>
@@ -221,6 +266,7 @@ export default function LandingView({ onNavigate }) {
             domLayout="autoHeight"
             rowHeight={46}
             headerHeight={44}
+            onRowClicked={handleRowClicked}
             autoSizeStrategy={{
               type: 'fitGridWidth',
               defaultMinWidth: 70
