@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Globe, Type, Sun, Moon } from 'lucide-react';
+import { ChevronDown, Globe, Type, Sun, Moon, User, LogOut } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import { useTheme } from '../theme/ThemeContext';
 
-export default function Header({ onLogout }) {
+export default function Header({ onLogout, setActiveTab }) {
   const { isDarkMode, toggleTheme } = useTheme();
   const [lang, setLang] = useState('EN');
   const [fontSize, setFontSize] = useState(16); // Standard browser baseline default (16px)
@@ -229,11 +229,45 @@ export default function Header({ onLogout }) {
                   <ChevronDown className="h-3.5 w-3.5 transition-colors" />
                 </button>
                 {showAvatarDropdown && (
-                  <div className="absolute right-0 w-48 mt-2 py-1 bg-[#0a2540] border border-white/10 rounded-xl shadow-2xl z-50 transition-all duration-200">
-                    <a href="#profile" onClick={() => setShowAvatarDropdown(false)} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">Profile Settings</a>
-                    <a href="#manual" onClick={() => setShowAvatarDropdown(false)} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">User Manual</a>
-                    <hr className="border-white/10 my-1" />
-                    <a href="#logout" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onLogout(); }} className="block px-4 py-2 text-xs text-red-400 hover:bg-white/10 font-medium">Sign Out</a>
+                  <div className="absolute right-0 w-64 mt-2 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 transition-all duration-200 overflow-hidden">
+                    
+                    {/* User Info Header */}
+                    <div className="flex items-center space-x-3 p-4 bg-slate-50 dark:bg-slate-800/50">
+                      <div className="h-10 w-10 flex-shrink-0 rounded-full bg-blue-500 flex items-center justify-center text-white text-base font-bold font-display shadow-sm">
+                        T
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-800 dark:text-white">TestMopsw</span>
+                        <span className="text-xs text-slate-500">MoPSW</span>
+                      </div>
+                    </div>
+                    
+                    <hr className="border-slate-100 dark:border-slate-700/50" />
+                    
+                    {/* Menu Items */}
+                    <div className="p-1.5">
+                      <a 
+                        href="#profile" 
+                        onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); if(setActiveTab) setActiveTab('profile'); }} 
+                        className="flex items-center space-x-3 px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
+                      >
+                        <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span>Profile</span>
+                      </a>
+                    </div>
+                    
+                    <hr className="border-slate-100 dark:border-slate-700/50" />
+                    
+                    <div className="p-1.5">
+                      <a 
+                        href="#logout" 
+                        onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onLogout(); }} 
+                        className="flex items-center space-x-3 px-3 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Logout</span>
+                      </a>
+                    </div>
                   </div>
                 )}
               </div>

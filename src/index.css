@@ -78,34 +78,34 @@ body {
 
 /* Dark Mode Global Overrides */
 .dark body {
-  background-color: #0b0f19 !important;
-  color: #f1f5f9 !important;
+  background-color: #0f172a !important; /* softer slate-900 */
+  color: #e2e8f0 !important; /* softer slate-200 */
 }
 
 .dark #root {
-  background-color: #0b0f19 !important;
+  background-color: #0f172a !important;
 }
 
 .dark main {
-  background-color: #0b0f19 !important;
+  background-color: #0f172a !important;
 }
 
 .dark .bg-white {
-  background-color: #111827 !important;
-  color: #f1f5f9 !important;
-  border-color: #1f2937 !important;
+  background-color: #1e293b !important; /* slate-800 */
+  color: #e2e8f0 !important;
+  border-color: #334155 !important; /* slate-700 */
 }
 
 .dark .bg-slate-50 {
-  background-color: #0b0f19 !important;
+  background-color: #0f172a !important;
 }
 
 .dark [class*="bg-[#eef2f5]"] {
-  background-color: #1f2937 !important;
+  background-color: #1e293b !important;
 }
 
 .dark [class*="bg-slate-50/50"] {
-  background-color: #111827 !important;
+  background-color: #1e293b !important;
 }
 
 .dark .text-slate-800,
@@ -114,65 +114,65 @@ body {
 .dark .text-slate-905,
 .dark .text-slate-655,
 .dark .text-slate-650 {
-  color: #f1f5f9 !important;
+  color: #e2e8f0 !important; /* slate-200 */
 }
 
 .dark .text-slate-500,
 .dark .text-slate-600,
 .dark .text-slate-450 {
-  color: #9ca3af !important;
+  color: #94a3b8 !important; /* slate-400 */
 }
 
 .dark .border-slate-200,
 .dark .border-slate-100,
 .dark .border-slate-150 {
-  border-color: #374151 !important;
+  border-color: #334155 !important;
 }
 
 .dark [class*="hover:bg-slate-50"]:hover {
-  background-color: #1f2937 !important;
+  background-color: #334155 !important;
 }
 
 /* KPI Card backgrounds in dark mode */
 .dark [class*="bg-[#fff9e6]"] {
-  background-color: #231c0e !important;
+  background-color: #2a2416 !important;
   border-color: #4b3e1d !important;
 }
 .dark [class*="bg-[#e6f4ea]"] {
-  background-color: #0a2e1d !important;
+  background-color: #0d3623 !important;
   border-color: #165b33 !important;
 }
 .dark [class*="bg-[#ebf8ff]"] {
-  background-color: #0a2540 !important;
+  background-color: #0f3052 !important;
   border-color: #1a4f76 !important;
 }
 .dark [class*="bg-[#fff5f5]"] {
-  background-color: #350f0f !important;
+  background-color: #401616 !important;
   border-color: #681f1f !important;
 }
 
 /* Breadcrumbs text color */
 .dark .text-slate-400 {
-  color: #9ca3af !important;
+  color: #94a3b8 !important;
 }
 
 /* AG Grid Dark Theme support */
 .dark .ag-theme-quartz {
-  --ag-background-color: #111827 !important;
-  --ag-data-color: #f1f5f9 !important;
-  --ag-border-color: #374151 !important;
-  --ag-row-hover-color: #1f2937 !important;
-  --ag-header-background-color: #030712 !important;
+  --ag-background-color: #1e293b !important;
+  --ag-data-color: #e2e8f0 !important;
+  --ag-border-color: #334155 !important;
+  --ag-row-hover-color: #334155 !important;
+  --ag-header-background-color: #0f172a !important;
 }
 
 /* Tab menu */
 .dark nav.bg-white {
-  background-color: #111827 !important;
+  background-color: #1e293b !important;
 }
 .dark nav button.text-slate-655 {
-  color: #9ca3af !important;
+  color: #94a3b8 !important;
 }
 .dark nav button.text-slate-655:hover {
-  color: #ffffff !important;
+  color: #e2e8f0 !important;
 }
 

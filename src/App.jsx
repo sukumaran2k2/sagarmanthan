@@ -15,6 +15,7 @@ import EOfficeView from './components/pages/Governance/EOfficeView.jsx';
 import AttendanceView from './components/pages/Governance/AttendanceView.jsx';
 import CPGRAMSView from './components/pages/Governance/CPGRAMSView.jsx';
 import HRDashboardView from './components/pages/HR_And_Institutional/HRDashboardView.jsx';
+import ProfileView from './components/pages/ProfileView.jsx';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight } from 'lucide-react';
 
@@ -266,6 +267,7 @@ export default function App() {
         {/* Government Portal Header */}
         <Header 
           onLogout={() => setIsLoggedIn(false)} 
+          setActiveTab={setActiveTab}
         />
 
         {/* Tab Navigation Menu */}
@@ -333,6 +335,10 @@ export default function App() {
             <CPGRAMSView />
           )}
 
+          {activeTab === 'profile' && (
+            <ProfileView />
+          )}
+
           {['HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
             <HRDashboardView activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
           )}
@@ -347,7 +353,7 @@ export default function App() {
           )}
 
           {/* Placeholder / Empty State for other inactive government menu views */}
-          {!['dashboard', 'projects', 'landing', 'Ports Dashboard', 'Ports Input Form', 'Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
+          {!['dashboard', 'projects', 'landing', 'profile', 'Ports Dashboard', 'Ports Input Form', 'Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
             <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
               <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                 <Sparkles className="h-7 w-7 text-blue-600" />
