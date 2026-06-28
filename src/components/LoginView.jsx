@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import ReCAPTCHA from 'react-google-recaptcha';
+import ChangePasswordModal from './ChangePasswordModal';
 
 const BG_IMAGES = [
   'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=1920&q=80', // Ocean container port loading cranes
@@ -16,6 +17,7 @@ export default function LoginView({ onLogin }) {
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
 
   const [captchaVerified, setCaptchaVerified] = useState(false);
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
 
   // Cycle background images every 5 seconds
   useEffect(() => {
@@ -148,7 +150,7 @@ export default function LoginView({ onLogin }) {
               <a
                 href="#forgot"
                 className="font-bold hover:underline"
-                onClick={(e) => e.preventDefault()}
+                onClick={(e) => { e.preventDefault(); setIsForgotModalOpen(true); }}
               >
                 Forgot Password?
               </a>
@@ -197,6 +199,11 @@ export default function LoginView({ onLogin }) {
         </div>
 
       </div>
+      <ChangePasswordModal 
+        isOpen={isForgotModalOpen} 
+        onClose={() => setIsForgotModalOpen(false)} 
+        isForgotPassword={true} 
+      />
     </div>
   );
 }
