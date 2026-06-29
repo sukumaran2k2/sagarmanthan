@@ -90,13 +90,13 @@ export default function DashboardView() {
         </div>
         
         {/* Navigation Selector */}
-        <div className="flex bg-slate-100 p-1 rounded-xl self-start md:self-auto border border-slate-200/50">
+        <div className="flex space-x-1 border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto shadow-sm bg-white p-1">
           <button
             onClick={() => setActiveSubTab('all')}
             className={`px-4 py-2 text-xs font-bold tracking-wide rounded-lg transition-all cursor-pointer ${
               activeSubTab === 'all'
                 ? 'bg-[#0f417a] text-white shadow-md'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
             All Projects View
@@ -106,13 +106,39 @@ export default function DashboardView() {
             className={`px-4 py-2 text-xs font-bold tracking-wide rounded-lg transition-all cursor-pointer ${
               activeSubTab === 'ongoing'
                 ? 'bg-[#0f417a] text-white shadow-md'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
             }`}
           >
             Ongoing Projects - Major Ports
           </button>
         </div>
       </div>
+
+      {/* <div className="flex space-x-1 border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto shadow-sm bg-white p-1">
+            <button
+              onClick={() => setActiveTab('traffic')}
+              className={`px-4.5 py-2 text-xs font-bold transition-all cursor-pointer rounded-lg ${
+                activeTab === 'traffic'
+                  ? 'bg-[#0f417a] text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              Traffic & Port Performance Dashboard
+            </button>
+
+            <button
+              onClick={() => setActiveTab('financial')}
+              className={`px-4.5 py-2 text-xs font-bold transition-all cursor-pointer rounded-lg ${
+                activeTab === 'financial'
+                  ? 'bg-[#0f417a] text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              Financial Dashboard
+            </button>
+          </div>
+        </div> */}
+
 
       {activeSubTab === 'all' ? (
         <>

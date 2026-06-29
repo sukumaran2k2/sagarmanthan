@@ -65,7 +65,7 @@ function DoughnutChart({ data, size = 160 }) {
             title={`${seg.label}: ${seg.value}%`}
           />
         ))}
-        <circle cx="20" cy="20" r="12" fill="white" />
+        <circle cx="20" cy="20" r="12" className="fill-white dark:fill-transparent" />
       </svg>
       {/* Center percentage / label (optional) */}
       <div className="absolute text-center">
@@ -268,7 +268,7 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
         </div>
 
         {/* Modern Segmented Control Tab Switcher */}
-        <div className="inline-flex bg-slate-200/50 p-1.5 rounded-2xl shadow-inner border border-slate-300/30 flex-wrap justify-center gap-1">
+        <div className="flex flex-wrap items-center gap-1 border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto shadow-sm bg-white p-1">
           {SUB_TABS.map((tab) => {
             const TabIcon = tab.icon;
             const isActive = currentTab === tab.id;
@@ -276,13 +276,13 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
               <button
                 key={tab.id}
                 onClick={() => setActiveSubTab(tab.id)}
-                className={`flex items-center space-x-2 px-4.5 py-2 rounded-xl text-xs font-extrabold transition-all duration-200 cursor-pointer ${
+                className={`flex items-center space-x-2 px-4.5 py-2 text-xs font-bold transition-all duration-200 cursor-pointer rounded-lg ${
                   isActive 
-                    ? 'bg-white text-blue-800 shadow-md border border-slate-200/50' 
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
+                    ? 'bg-[#0f417a] text-white shadow-md' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
-                <TabIcon className={`h-4 w-4 ${isActive ? 'text-blue-700' : 'text-slate-450'}`} />
+                <TabIcon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-slate-450'}`} />
                 <span className="whitespace-nowrap uppercase tracking-wider text-[9.5px]">
                   {tab.label}
                 </span>
