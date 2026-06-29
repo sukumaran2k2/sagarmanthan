@@ -22,7 +22,7 @@ export default function Footer() {
           {/* Column 2: Copyright & Government Ownership Statement - Centered */}
           <div className="text-center font-semibold leading-relaxed">
             <p className="text-slate-300">
-              Copyright © 2025 Ministry of Ports, Shipping and Waterways,
+              Copyright © 2026 Made by NTCPWC for Ministry of Ports, Shipping and Waterways,
             </p>
             <p className="text-[10px] text-slate-400">
               Government of India, All Rights Reserved
