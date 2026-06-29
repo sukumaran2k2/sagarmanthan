@@ -88,7 +88,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
           <p className="text-xs text-slate-500 mt-1">Real-time status updates and financial tracking of key maritime category plans.</p>
         </div>
         {/* Navigation container aligned right and enlarged to hold both nav components */}
-        <div className="flex flex-col items-end space-y-2">
+        <div className="flex flex-col items-start space-y-2">
           {/* Primary navigation tabs */}
           <InternalNavigation
             tabs={[
