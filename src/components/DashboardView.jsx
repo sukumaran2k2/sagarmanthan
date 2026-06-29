@@ -80,55 +80,41 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
 
   return (
     <div className="space-y-6 px-4 sm:px-6 md:px-8 py-6 animate-fade-in text-slate-800 bg-slate-50/50 min-h-screen">
-      
 
-
-      {/* Header Panel with Sub-navigation */}
+      {/* Header Panel — title only, no sub-nav (handled by InternalNavigation dropdown) */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight font-display">SAGARMANTHAN Projects Dashboard</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight font-display">Projects Dashboard</h1>
           <p className="text-xs text-slate-500 mt-1">Real-time status updates and financial tracking of key maritime category plans.</p>
         </div>
-        
-        <InternalNavigation
-          tabs={[
-            { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
-            { id: 'projects', label: 'Project List', icon: ClipboardList },
-            { id: 'less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
-            { id: 'lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
-            { id: 'dropRequests', label: 'View Drop Request', icon: FolderSync },
-            { id: 'reports', label: 'Reports', icon: FilePieChart },
-          ]}
-          currentTab={activeTab}
-          onTabChange={setActiveTab}
-        />
+        {/* Navigation container aligned right and enlarged to hold both nav components */}
+        <div className="flex flex-col items-end space-y-2">
+          {/* Primary navigation tabs */}
+          <InternalNavigation
+            tabs={[
+              { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
+              { id: 'projects', label: 'Project List', icon: ClipboardList },
+              { id: 'less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
+              { id: 'lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
+              { id: 'dropRequests', label: 'View Drop Request', icon: FolderSync },
+              { id: 'reports', label: 'Reports', icon: FilePieChart },
+            ]}
+            currentTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+          {/* Secondary navigation for Project Dashboard sub‑views */}
+          {activeTab === 'dashboard' && (
+            <InternalNavigation
+              tabs={[
+                { id: 'all', label: 'All Projects View' },
+                { id: 'ongoing', label: 'Ongoing Projects – Major Ports' },
+              ]}
+              currentTab={activeSubTab}
+              onTabChange={setActiveSubTab}
+            />
+          )}
+        </div>
       </div>
-
-      {/* <div className="flex space-x-1 border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto shadow-sm bg-white p-1">
-            <button
-              onClick={() => setActiveTab('traffic')}
-              className={`px-4.5 py-2 text-xs font-bold transition-all cursor-pointer rounded-lg ${
-                activeTab === 'traffic'
-                  ? 'bg-[#0f417a] text-white shadow-md'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              Traffic & Port Performance Dashboard
-            </button>
-
-            <button
-              onClick={() => setActiveTab('financial')}
-              className={`px-4.5 py-2 text-xs font-bold transition-all cursor-pointer rounded-lg ${
-                activeTab === 'financial'
-                  ? 'bg-[#0f417a] text-white shadow-md'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              Financial Dashboard
-            </button>
-          </div>
-        </div> */}
-
 
       {activeSubTab === 'all' ? (
         <>

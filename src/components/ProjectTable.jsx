@@ -279,20 +279,17 @@ export default function ProjectTable({
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
-      
-      {/* Title & User Manual */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+      {/* Cross-page module navigation (Projects tabs) */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        {/* Title & User Manual */}
+        <div className="flex items-center space-x-4">
           <h2 className="text-xl font-bold text-slate-800 font-display">Project List</h2>
+          {/* <button onClick={() => onExportTrigger('User Manual PDF download')} className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold text-xs rounded-lg shadow hover:shadow-lg transition cursor-pointer">
+            <FileText className="h-4.5 w-4.5" />
+            <span>User Manual</span>
+          </button> */}
         </div>
-        <button 
-          onClick={() => onExportTrigger('User Manual PDF download')}
-          className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold text-xs rounded-lg shadow hover:shadow-lg transition cursor-pointer"
-        >
-          <FileText className="h-4.5 w-4.5" />
-          <span>User Manual</span>
-        </button>
-        {/* Internal Navigation for Project Table */}
+        {/* Navigation */}
         <InternalNavigation
           tabs={[
             { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
