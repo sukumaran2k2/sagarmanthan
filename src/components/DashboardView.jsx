@@ -116,6 +116,9 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
         </div>
       </div>
 
+     
+
+
       {activeSubTab === 'all' ? (
         <>
           {/* Filter Options Grid */}

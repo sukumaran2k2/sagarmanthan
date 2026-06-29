@@ -187,4 +187,14 @@ body {
   border-top-color: #1f2937 !important;
 }
 
+/* Ken Burns Zoom Animation for Carousel */
+@keyframes kenBurns {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.08); }
+}
+
+.animate-ken-burns {
+  animation: kenBurns 8.2s ease-out forwards;
+}
+
 
