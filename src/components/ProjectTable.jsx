@@ -10,18 +10,38 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  Filter
+  Filter,
+  Calendar,
+  CheckCircle2,
+  BarChart2,
+  DollarSign,
+  Layers,
+  Sliders,
+  Eye,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  LayoutDashboard,
+  ClipboardList,
+  TrendingDown,
+  TrendingUp,
+  FolderSync,
+  FilePieChart
 } from 'lucide-react';
+import InternalNavigation from './InternalNavigation';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 
+// Register grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 export default function ProjectTable({ 
   projects, 
   onAddProjectClick, 
   onAddSubProjectClick,
-  onExportTrigger 
+  onExportTrigger,
+  activeTab,
+  setActiveTab
 }) {
   const gridRef = useRef();
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,6 +52,7 @@ export default function ProjectTable({
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
   const [isPinned, setIsPinned] = useState(window.innerWidth < 1024);
+  const [activeSubTab, setActiveSubTab] = useState('all');
 
   useEffect(() => {
     const handleResize = () => {
@@ -73,6 +94,13 @@ export default function ProjectTable({
     if (selectedStage !== 'All') {
       result = result.filter(p => p.stage === selectedStage);
     }
+      // Filter by Internal Navigation tab
+      if (activeSubTab && activeSubTab !== 'all') {
+        if (activeSubTab === 'ongoing') {
+          // Exclude projects that are not ongoing (e.g., Project Initiated)
+          result = result.filter(p => p.stage !== 'Project Initiated');
+        }
+      }
 
     // Filter by Search Query
     if (searchQuery.trim() !== '') {
@@ -264,6 +292,19 @@ export default function ProjectTable({
           <FileText className="h-4.5 w-4.5" />
           <span>User Manual</span>
         </button>
+        {/* Internal Navigation for Project Table */}
+        <InternalNavigation
+          tabs={[
+            { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
+            { id: 'projects', label: 'Project List', icon: ClipboardList },
+            { id: 'less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
+            { id: 'lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
+            { id: 'dropRequests', label: 'View Drop Request', icon: FolderSync },
+            { id: 'reports', label: 'Reports', icon: FilePieChart },
+          ]}
+          currentTab={activeTab}
+          onTabChange={setActiveTab}
+        />
       </div>
 
       {/* Combined Project Categories Selection & Filters */}

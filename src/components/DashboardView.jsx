@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, CheckCircle2, ChevronDown, BarChart2, DollarSign, FileSpreadsheet, FileText, Layers, Sliders, Eye, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import InternalNavigation from './InternalNavigation';
+import { Calendar, CheckCircle2, ChevronDown, BarChart2, DollarSign, FileSpreadsheet, FileText, Layers, Sliders, Eye, ZoomIn, ZoomOut, RotateCcw, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
 
-export default function DashboardView() {
+export default function DashboardView({ projects, activeTab, setActiveTab }) {
   const [activeSubTab, setActiveSubTab] = useState('all');
   const [zoomScale, setZoomScale] = useState(1);
   const chartContainerRef = useRef(null);
@@ -89,29 +90,18 @@ export default function DashboardView() {
           <p className="text-xs text-slate-500 mt-1">Real-time status updates and financial tracking of key maritime category plans.</p>
         </div>
         
-        {/* Navigation Selector */}
-        <div className="flex space-x-1 border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto shadow-sm bg-white p-1">
-          <button
-            onClick={() => setActiveSubTab('all')}
-            className={`px-4 py-2 text-xs font-bold tracking-wide rounded-lg transition-all cursor-pointer ${
-              activeSubTab === 'all'
-                ? 'bg-[#0f417a] text-white shadow-md'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            All Projects View
-          </button>
-          <button
-            onClick={() => setActiveSubTab('ongoing')}
-            className={`px-4 py-2 text-xs font-bold tracking-wide rounded-lg transition-all cursor-pointer ${
-              activeSubTab === 'ongoing'
-                ? 'bg-[#0f417a] text-white shadow-md'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            Ongoing Projects - Major Ports
-          </button>
-        </div>
+        <InternalNavigation
+          tabs={[
+            { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
+            { id: 'projects', label: 'Project List', icon: ClipboardList },
+            { id: 'less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
+            { id: 'lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
+            { id: 'dropRequests', label: 'View Drop Request', icon: FolderSync },
+            { id: 'reports', label: 'Reports', icon: FilePieChart },
+          ]}
+          currentTab={activeTab}
+          onTabChange={setActiveTab}
+        />
       </div>
 
       {/* <div className="flex space-x-1 border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto shadow-sm bg-white p-1">

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import InternalNavigation from './InternalNavigation';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -268,28 +269,11 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
         </div>
 
         {/* Modern Segmented Control Tab Switcher */}
-        <div className="flex flex-wrap items-center gap-1 border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto shadow-sm bg-white p-1">
-          {SUB_TABS.map((tab) => {
-            const TabIcon = tab.icon;
-            const isActive = currentTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSubTab(tab.id)}
-                className={`flex items-center space-x-2 px-4.5 py-2 text-xs font-bold transition-all duration-200 cursor-pointer rounded-lg ${
-                  isActive 
-                    ? 'bg-[#0f417a] text-white shadow-md' 
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                <TabIcon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-slate-450'}`} />
-                <span className="whitespace-nowrap uppercase tracking-wider text-[9.5px]">
-                  {tab.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <InternalNavigation
+          tabs={SUB_TABS} 
+          currentTab={currentTab} 
+          onTabChange={setActiveSubTab}
+        />
       </div>
 
       {/* Main Container Section */}
