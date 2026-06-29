@@ -180,14 +180,26 @@ export default function LandingView({ onNavigate }) {
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       
-      {/* Centered Banner */}
-      <div className="w-full text-center mt-6">
-        <h1 className="text-2xl font-black text-slate-805 tracking-tight uppercase font-display">
-          Data Entry Dashboard
-        </h1>
-        <p className="text-sm text-slate-500 mt-1 font-medium">
-          Access and manage National maritime database modules and file submissions.
-        </p>
+      {/* Centered Banner & Hero Image */}
+      <div className="space-y-4 mt-2">
+        <div className="relative w-full h-48 md:h-60 rounded-2xl overflow-hidden shadow-2xl shadow-slate-900/30 border border-slate-200">
+          <img 
+            src="/cargo-ship.jpg" 
+            alt="Maritime Port Banner" 
+            className="w-full h-full object-cover object-center" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent flex flex-col justify-end p-6 text-left">
+            <span className="text-[10px] text-cyan-300 font-mono tracking-widest uppercase font-bold">
+              Ministry of Ports, Shipping and Waterways
+            </span>
+            <h1 className="text-xl md:text-2xl font-black text-white tracking-tight uppercase font-display mt-1">
+              Data Entry Dashboard
+            </h1>
+            <p className="text-xs text-slate-200 mt-1 font-medium max-w-xl leading-relaxed">
+              Access and manage National maritime database modules, real-time cargo telemetry, and GIGW compliant file submissions.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Action Header Panel */}
