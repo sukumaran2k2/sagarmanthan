@@ -16,7 +16,16 @@ import CPGRAMSView from './components/CPGRAMSView';
 import HRDashboardView from './components/HRDashboardView';
 import ProfileView from './components/ProfileView';
 import Footer from './components/Footer';
-import { Bell, Sparkles, CheckCircle2, Home, ChevronRight } from 'lucide-react';
+import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
+
+const PROJECT_TABS = [
+  { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
+  { id: 'projects', label: 'Project List', icon: ClipboardList },
+  { id: 'less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
+  { id: 'lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
+  { id: 'dropRequests', label: 'View Drop Request', icon: FolderSync },
+  { id: 'reports', label: 'Reports', icon: FilePieChart },
+];
 
 const INITIAL_PROJECTS = [
   {
@@ -305,7 +314,11 @@ export default function App() {
         )}
 
         {activeTab === 'dashboard' && (
-          <DashboardView projects={projects} />
+          <DashboardView 
+            projects={projects} 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab} 
+          />
         )}
         
         {activeTab === 'projects' && (
@@ -320,6 +333,8 @@ export default function App() {
               onAddProjectClick={() => setIsAddingProject(true)}
               onAddSubProjectClick={() => setIsAddSubProjectOpen(true)}
               onExportTrigger={(type) => triggerNotification(`${type} triggered successfully.`)}
+              activeTab={activeTab} 
+              setActiveTab={setActiveTab}
             />
           )
         )}

@@ -10,18 +10,38 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  Filter
+  Filter,
+  Calendar,
+  CheckCircle2,
+  BarChart2,
+  DollarSign,
+  Layers,
+  Sliders,
+  Eye,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  LayoutDashboard,
+  ClipboardList,
+  TrendingDown,
+  TrendingUp,
+  FolderSync,
+  FilePieChart
 } from 'lucide-react';
+import InternalNavigation from './InternalNavigation';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 
+// Register grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 export default function ProjectTable({ 
   projects, 
   onAddProjectClick, 
   onAddSubProjectClick,
-  onExportTrigger 
+  onExportTrigger,
+  activeTab,
+  setActiveTab
 }) {
   const gridRef = useRef();
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,6 +52,7 @@ export default function ProjectTable({
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
   const [isPinned, setIsPinned] = useState(window.innerWidth < 1024);
+  const [activeSubTab, setActiveSubTab] = useState('all');
 
   useEffect(() => {
     const handleResize = () => {
@@ -73,6 +94,13 @@ export default function ProjectTable({
     if (selectedStage !== 'All') {
       result = result.filter(p => p.stage === selectedStage);
     }
+      // Filter by Internal Navigation tab
+      if (activeSubTab && activeSubTab !== 'all') {
+        if (activeSubTab === 'ongoing') {
+          // Exclude projects that are not ongoing (e.g., Project Initiated)
+          result = result.filter(p => p.stage !== 'Project Initiated');
+        }
+      }
 
     // Filter by Search Query
     if (searchQuery.trim() !== '') {
@@ -251,19 +279,29 @@ export default function ProjectTable({
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
-      
-      {/* Title & User Manual */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+      {/* Cross-page module navigation (Projects tabs) */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        {/* Title & User Manual */}
+        <div className="flex items-center space-x-4">
           <h2 className="text-xl font-bold text-slate-800 font-display">Project List</h2>
+          {/* <button onClick={() => onExportTrigger('User Manual PDF download')} className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold text-xs rounded-lg shadow hover:shadow-lg transition cursor-pointer">
+            <FileText className="h-4.5 w-4.5" />
+            <span>User Manual</span>
+          </button> */}
         </div>
-        <button 
-          onClick={() => onExportTrigger('User Manual PDF download')}
-          className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold text-xs rounded-lg shadow hover:shadow-lg transition cursor-pointer"
-        >
-          <FileText className="h-4.5 w-4.5" />
-          <span>User Manual</span>
-        </button>
+        {/* Navigation */}
+        <InternalNavigation
+          tabs={[
+            { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
+            { id: 'projects', label: 'Project List', icon: ClipboardList },
+            { id: 'less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
+            { id: 'lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
+            { id: 'dropRequests', label: 'View Drop Request', icon: FolderSync },
+            { id: 'reports', label: 'Reports', icon: FilePieChart },
+          ]}
+          currentTab={activeTab}
+          onTabChange={setActiveTab}
+        />
       </div>
 
       {/* Combined Project Categories Selection & Filters */}
