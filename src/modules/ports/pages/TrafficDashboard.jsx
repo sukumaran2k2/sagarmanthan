@@ -13,7 +13,7 @@ import {
   Scale 
 } from 'lucide-react';
 
-export default function PortsDashboardView() {
+export default function PortsDashboard({ headerNav }) {
   const [activeTab, setActiveTab] = useState('traffic'); // 'traffic' or 'financial'
   const [org, setOrg] = useState('All Organisations');
   const [fy, setFy] = useState('');
@@ -225,6 +225,7 @@ export default function PortsDashboardView() {
               KPI Traffic & Port Performance Dashboard
             </h1>
           </div>
+          {headerNav}
           
           {/* Tab Switcher buttons */}
           <div className="flex space-x-1 border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto shadow-sm bg-white p-1">

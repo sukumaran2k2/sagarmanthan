@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Globe, Type, Sun, Moon } from 'lucide-react';
-import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
+import sagarmanthanLogo from "../../assets/sagarmanthan_logo.png";
 
 export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfileClick }) {
   const [lang, setLang] = useState('EN');

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, Search, ArrowLeft } from 'lucide-react';
 
-export default function PortsReportsView() {
+export default function PortsReports({ headerNav }) {
   const [subView, setSubView] = useState('list'); // 'list' or 'details'
   const [selectedReport, setSelectedReport] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,10 +77,11 @@ export default function PortsReportsView() {
       {subView === 'list' ? (
         /* Reports Index Table View */
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-          <div className="text-center border-b border-slate-100 pb-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-100 pb-4">
             <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-wide font-display uppercase">
               KPI - Major Ports (Output Reports)
             </h1>
+            {headerNav}
           </div>
 
           <div className="overflow-x-auto border border-slate-150 rounded-xl">
@@ -141,6 +142,7 @@ export default function PortsReportsView() {
                 {selectedReport?.desc}
               </h1>
             </div>
+            {headerNav}
           </div>
 
           {/* Filters */}

@@ -1,4 +1,4 @@
-import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
+import sagarmanthanLogo from "../../assets/sagarmanthan_logo.png";
 
 export default function Footer() {
   return (

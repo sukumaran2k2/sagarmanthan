@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Search, ArrowLeft } from 'lucide-react';
 
-export default function PortsInputFormView() {
+export default function PortsInputForm({ headerNav }) {
   const [subView, setSubView] = useState('list'); // 'list' or 'details'
   const [activeTab, setActiveTab] = useState('actuals'); // 'targets' or 'actuals'
   const [selectedFy, setSelectedFy] = useState('Show All');
@@ -110,10 +110,11 @@ export default function PortsInputFormView() {
       {subView === 'list' ? (
         /* Form list view */
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-          <div className="text-center border-b border-slate-100 pb-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-100 pb-4">
             <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-wide font-display">
               KPI - Major Ports (Input Forms)
             </h1>
+            {headerNav}
           </div>
 
           <div className="overflow-x-auto border border-slate-150 rounded-xl">
@@ -166,6 +167,7 @@ export default function PortsInputFormView() {
                 Financial Parameters for Major Ports
               </h1>
             </div>
+            {headerNav}
             
             {/* Target vs Actual Switcher */}
             <div className="flex border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto bg-slate-50 p-1">

@@ -28,7 +28,7 @@ import {
   FolderSync,
   FilePieChart
 } from 'lucide-react';
-import InternalNavigation from './InternalNavigation';
+import InternalNavigation from './navigation/InternalNavigation';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 

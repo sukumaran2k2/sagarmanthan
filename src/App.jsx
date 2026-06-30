@@ -1,138 +1,22 @@
-  import React, { useState, useEffect } from 'react';
-import Header from './components/Header';
-import Tabs from './components/Tabs';
-import ProjectTable from './components/ProjectTable';
-import DashboardView from './components/DashboardView';
-import AddProjectForm from './components/AddProjectForm';
-import AddSubProjectModal from './components/AddSubProjectModal';
-import LoginView from './components/LoginView';
+import React, { useState, useEffect } from 'react';
+import Header from './components/navigation/Header';
+import Tabs from './components/navigation/Tabs';
+import Footer from './components/navigation/Footer';
+// Project module
+import ProjectsModule from './modules/projects/ProjectsModule';
+// Ports module
+import PortsModule from './modules/ports/PortsModule';
+// HR module
+import HRModule from './modules/hr/HRModule';
+// Governance modules
+import AttendanceModule from './modules/attendance/AttendanceModule';
+import CPGRAMSModule from './modules/cpgrams/CPGRAMSModule';
+import EOfficeModule from './modules/eoffice/EOfficeModule';
+// Standalone pages
 import LandingView from './components/LandingView';
-import PortsDashboardView from './components/PortsDashboardView';
-import PortsInputFormView from './components/PortsInputFormView';
-import PortsReportsView from './components/PortsReportsView';
-import EOfficeView from './components/EOfficeView';
-import AttendanceView from './components/AttendanceView';
-import CPGRAMSView from './components/CPGRAMSView';
-import HRDashboardView from './components/HRDashboardView';
+import LoginView from './components/LoginView';
 import ProfileView from './components/ProfileView';
-import Footer from './components/Footer';
-import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
-
-const PROJECT_TABS = [
-  { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
-  { id: 'projects', label: 'Project List', icon: ClipboardList },
-  { id: 'less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
-  { id: 'lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
-  { id: 'dropRequests', label: 'View Drop Request', icon: FolderSync },
-  { id: 'reports', label: 'Reports', icon: FilePieChart },
-];
-
-const INITIAL_PROJECTS = [
-  {
-    id: 1,
-    projectId: 'PR1372',
-    subProjectId: '-',
-    projectName: 'Supply and Setting up of ICT Infrastructure & FMS Support for Data Center at SCI',
-    subProjectName: '-',
-    cost: '58.25',
-    agency: 'Shipping Corporation of India',
-    stage: 'Under Implementation',
-    category: 'Digital Infrastructure',
-    physicalProgress: '68',
-    financialProgress: '54',
-  },
-  {
-    id: 2,
-    projectId: 'PR1371',
-    subProjectId: '-',
-    projectName: 'Deepening & widening of common portion of main channel of mumbai harbour & anchorages by JNPA',
-    subProjectName: '-',
-    cost: '5.00',
-    agency: 'Jawaharlal Nehru Port Authority',
-    stage: 'Under Implementation',
-    category: 'Dredging Projects',
-    physicalProgress: '85',
-    financialProgress: '70',
-  },
-  {
-    id: 3,
-    projectId: 'PR1370',
-    subProjectId: '-',
-    projectName: 'Coal Berth 4',
-    subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '12',
-    financialProgress: '0',
-  },
-  {
-    id: 4,
-    projectId: 'PR1369',
-    subProjectId: '-',
-    projectName: 'Coal Berth 3',
-    subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '10',
-    financialProgress: '0',
-  },
-  {
-    id: 5,
-    projectId: 'PR1368',
-    subProjectId: '-',
-    projectName: 'Coal Berth 1 & 2',
-    subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '15',
-    financialProgress: '5',
-  },
-  {
-    id: 6,
-    projectId: 'PR1367',
-    subProjectId: '-',
-    projectName: 'Replacement of FLP-WP LED light fitting with poles & allied works at PirPau',
-    subProjectName: '-',
-    cost: '7.75',
-    agency: 'Mumbai Port Authority',
-    stage: 'Under Tendering',
-    category: 'Green Initiatives',
-    physicalProgress: '0',
-    financialProgress: '0',
-  },
-  {
-    id: 7,
-    projectId: 'PR1366',
-    subProjectId: '-',
-    projectName: 'DRY-DOCKING/REPAIRS of SCI PANNA',
-    subProjectName: '-',
-    cost: '0.00',
-    agency: 'Shipping Corporation of India',
-    stage: 'Project Initiated',
-    category: 'Shipyard Development',
-    physicalProgress: '5',
-    financialProgress: '0',
-  },
-  {
-    id: 8,
-    projectId: 'PR1365',
-    subProjectId: '-',
-    projectName: 'Operation and Maintenance of existing EQ-10 berth at Visakhapatnam Port Authority',
-    subProjectName: '-',
-    cost: '11.41',
-    agency: 'Visakhapatnam Port Authority',
-    stage: 'Under Tendering',
-    category: 'Port Modernization',
-    physicalProgress: '0',
-    financialProgress: '0',
-  },
-];
+import { Sparkles, CheckCircle2 } from 'lucide-react';
 
 const getBreadcrumbs = (tab) => {
   if (tab === 'landing') return ['Home'];
@@ -219,14 +103,12 @@ const getBreadcrumbs = (tab) => {
 };
 
 export default function App() {
-  const [projects, setProjects] = useState(INITIAL_PROJECTS);
   const [activeTab, setActiveTab] = useState('landing');
-  const [isAddingProject, setIsAddingProject] = useState(false);
-  const [isAddSubProjectOpen, setIsAddSubProjectOpen] = useState(false);
   const [notification, setNotification] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [projects, setProjects] = useState([]);
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
@@ -253,16 +135,6 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [notification]);
-
-  const handleAddProject = (newProject) => {
-    setProjects([newProject, ...projects]);
-    triggerNotification(`Project ${newProject.projectId} successfully created.`);
-  };
-
-  const handleAddSubProject = (newSubProject) => {
-    setProjects(prev => [newSubProject, ...prev]);
-    triggerNotification(`Sub-project ${newSubProject.subProjectId} successfully created.`);
-  };
 
   if (!isLoggedIn) {
     return <LoginView onLogin={() => setIsLoggedIn(true)} />;
@@ -313,71 +185,36 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'dashboard' && (
-          <DashboardView 
-            projects={projects} 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
+        {['dashboard', 'projects', 'less5cr', 'lumpsum', 'dropRequests', 'reports'].includes(activeTab) && (
+          <ProjectsModule 
+            initialTab={activeTab}
+            onSyncTab={setActiveTab}
+            triggerNotification={triggerNotification}
           />
         )}
-        
-        {activeTab === 'projects' && (
-          isAddingProject ? (
-            <AddProjectForm 
-              onAdd={handleAddProject}
-              onClose={() => setIsAddingProject(false)}
-            />
-          ) : (
-            <ProjectTable 
-              projects={projects} 
-              onAddProjectClick={() => setIsAddingProject(true)}
-              onAddSubProjectClick={() => setIsAddSubProjectOpen(true)}
-              onExportTrigger={(type) => triggerNotification(`${type} triggered successfully.`)}
-              activeTab={activeTab} 
-              setActiveTab={setActiveTab}
-            />
-          )
-        )}
 
-        {activeTab === 'Ports Dashboard' && (
-          <PortsDashboardView />
-        )}
-
-        {activeTab === 'Ports Input Form' && (
-          <PortsInputFormView />
-        )}
-
-        {activeTab === 'Ports Reports' && (
-          <PortsReportsView />
+        {['Ports Dashboard', 'Ports Input Form', 'Ports Reports'].includes(activeTab) && (
+          <PortsModule initialTab={activeTab} onSyncTab={setActiveTab} />
         )}
 
         {activeTab === 'E Office' && (
-          <EOfficeView key={eOfficeKpi} initialKpi={eOfficeKpi} />
+          <EOfficeModule />
         )}
 
         {activeTab === 'Attendance' && (
-          <AttendanceView />
+          <AttendanceModule />
         )}
 
         {activeTab === 'CPGRAMS' && (
-          <CPGRAMSView />
+          <CPGRAMSModule />
         )}
 
         {['HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
-          <HRDashboardView activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
+          <HRModule initialTab={activeTab} onSyncTab={setActiveTab} />
         )}
 
         {activeTab === 'profile' && (
           <ProfileView triggerNotification={triggerNotification} />
-        )}
-
-        {isAddSubProjectOpen && (
-          <AddSubProjectModal
-            isOpen={isAddSubProjectOpen}
-            onClose={() => setIsAddSubProjectOpen(false)}
-            onAdd={handleAddSubProject}
-            projects={projects}
-          />
         )}
 
         {/* Placeholder / Empty State for other inactive government menu views */}
