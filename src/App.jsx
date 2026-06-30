@@ -1,20 +1,17 @@
   import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Tabs from './components/Tabs';
-import ProjectTable from './components/ProjectTable';
-import DashboardView from './components/DashboardView';
-import AddProjectForm from './components/AddProjectForm';
+import { ProjectTable, AddProjectForm } from './modules/Projects/Projects';
+import DashboardView from './modules/Dashboard/Dashboard';
 import AddSubProjectModal from './components/AddSubProjectModal';
-import LoginView from './components/LoginView';
-import LandingView from './components/LandingView';
-import PortsDashboardView from './components/PortsDashboardView';
-import PortsInputFormView from './components/PortsInputFormView';
-import PortsReportsView from './components/PortsReportsView';
-import EOfficeView from './components/EOfficeView';
-import AttendanceView from './components/AttendanceView';
-import CPGRAMSView from './components/CPGRAMSView';
-import HRDashboardView from './components/HRDashboardView';
-import ProfileView from './components/ProfileView';
+import LoginView from './modules/Login/Login';
+import LandingView from './modules/Landing/Landing';
+import { PortsDashboardView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
+import EOfficeView from './modules/EOffice/EOffice';
+import AttendanceView from './modules/Attendance/Attendance';
+import CPGRAMSView from './modules/CPGRAMS/CPGRAMS';
+import HRDashboardView from './modules/HR/HR';
+import ProfileView from './modules/Profile/Profile';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
 
@@ -339,15 +336,15 @@ export default function App() {
           )
         )}
 
-        {activeTab === 'Ports Dashboard' && (
+        {activeTab === 'Major Ports Dashboard' && (
           <PortsDashboardView />
         )}
 
-        {activeTab === 'Ports Input Form' && (
+        {activeTab === 'Major Ports Input Form' && (
           <PortsInputFormView />
         )}
 
-        {activeTab === 'Ports Reports' && (
+        {activeTab === 'Major Ports Reports' && (
           <PortsReportsView />
         )}
 

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
-import InternalNavigation from './InternalNavigation';
+import InternalNavigation from '../../components/InternalNavigation';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 

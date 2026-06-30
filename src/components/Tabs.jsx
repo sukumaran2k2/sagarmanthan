@@ -102,9 +102,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Major Ports',
           icon: Anchor,
           items: [
-            { label: 'Ports Dashboard', icon: LayoutDashboard },
-            { label: 'Ports Input Form', icon: FileEdit },
-            { label: 'Ports Reports', icon: FilePieChart }
+            { label: 'Major Ports Dashboard', icon: LayoutDashboard },
+            { label: 'Major Ports Input Form', icon: FileEdit },
+            { label: 'Major Ports Reports', icon: FilePieChart }
           ]
         },
         {

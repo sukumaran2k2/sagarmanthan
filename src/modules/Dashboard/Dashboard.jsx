@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import InternalNavigation from './InternalNavigation';
+import InternalNavigation from '../../components/InternalNavigation';
 import { Calendar, CheckCircle2, ChevronDown, BarChart2, DollarSign, FileSpreadsheet, FileText, Layers, Sliders, Eye, ZoomIn, ZoomOut, RotateCcw, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
 
 export default function DashboardView({ projects, activeTab, setActiveTab }) {

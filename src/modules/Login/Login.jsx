@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import ReCAPTCHA from 'react-google-recaptcha';
-import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
+import sagarmanthanLogo from '../../assets/sagarmanthan_logo.png';
 
 const BG_IMAGES = [
   'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=1920&q=80', // Ocean container port loading cranes
