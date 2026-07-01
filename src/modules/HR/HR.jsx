@@ -536,7 +536,7 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
                 onFirstDataRendered={(params) => {
                   const allCols = params.api.getAllGridColumns();
                   const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
                   if (containerWidth > 0 && totalColWidth < containerWidth) {
                     params.api.sizeColumnsToFit();
                   }
@@ -577,7 +577,7 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
                 onFirstDataRendered={(params) => {
                   const allCols = params.api.getAllGridColumns();
                   const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
                   if (containerWidth > 0 && totalColWidth < containerWidth) {
                     params.api.sizeColumnsToFit();
                   }
@@ -618,7 +618,7 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
                 onFirstDataRendered={(params) => {
                   const allCols = params.api.getAllGridColumns();
                   const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
                   if (containerWidth > 0 && totalColWidth < containerWidth) {
                     params.api.sizeColumnsToFit();
                   }
@@ -659,7 +659,7 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
                 onFirstDataRendered={(params) => {
                   const allCols = params.api.getAllGridColumns();
                   const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
                   if (containerWidth > 0 && totalColWidth < containerWidth) {
                     params.api.sizeColumnsToFit();
                   }

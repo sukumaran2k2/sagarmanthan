@@ -239,7 +239,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
       width: 'w-[240px]',
       items: [
         { label: 'Courtcases', icon: Shield },
-        { label: 'Acts & Rules', icon: BookOpen }
+        { label: 'Acts & Rules', icon: BookOpen },
+        { label: 'Bills/PreConstitutions Act', icon: FileText }
       ]
     },
     {

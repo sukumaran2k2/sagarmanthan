@@ -12,7 +12,9 @@ import {
   User,
   Activity,
   Layers,
-  CheckCircle2
+  CheckCircle2,
+  ArrowLeft,
+  Edit
 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
@@ -81,23 +83,13 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
   const WINGS = ['Coord-I', 'Shipping', 'Ports', 'Administration', 'DGLL, Parliament & TRW', 'IWT', 'Vigilance', 'Finance', 'Legal'];
 
   const SUB_TABS = [
-    { id: 'Consultant Input Form', label: 'Input Forms', icon: FileEdit },
-    { id: 'Consultant Reports', label: 'Report', icon: FilePieChart }
+    { id: 'Consultant Input Form', label: 'Input Form', icon: FileEdit },
+    { id: 'Consultant Reports', label: 'Reports', icon: FilePieChart }
   ];
 
   const currentTab = SUB_TABS.some(t => t.id === activeSubTab) ? activeSubTab : 'Consultant Input Form';
 
-  // Prevent background scrolling when overlay is active
-  useEffect(() => {
-    if (isAdding || updatingAppointment) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isAdding, updatingAppointment]);
+  // Remove background scrolling lock as overlays are no longer used
 
   const handleStartUpdate = (row) => {
     const original = appointments.find(a => a.id === row.id);
@@ -285,18 +277,20 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
     { field: 'status', headerName: 'Status', flex: 2, minWidth: 200, cellClass: 'font-semibold text-blue-700' },
     { field: 'numResources', headerName: 'Number of Resources', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-slate-800', headerClass: 'text-center' },
     {
-      field: 'update',
       headerName: 'Update',
       width: 110,
-      cellClass: 'text-center',
+      cellClass: 'text-center flex items-center justify-center text-[11px]',
       headerClass: 'text-center',
       cellRenderer: (params) => (
-        <button
-          onClick={() => handleStartUpdate(params.data)}
-          className="text-[11px] font-bold text-blue-605 hover:text-blue-800 hover:underline cursor-pointer"
-        >
-          Update
-        </button>
+        <div className="flex items-center justify-center h-full">
+          <button
+            onClick={() => handleStartUpdate(params.data)}
+            className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm hover:shadow transition cursor-pointer"
+            title="Edit Details"
+          >
+            <Edit className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )
     }
   ], [appointments]);
@@ -327,13 +321,13 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
           <>
             <span className="text-slate-600">Consultant Appointment</span>
             <span className="text-slate-400">/</span>
-            <span className="text-blue-800 font-bold">Input Forms</span>
+            <span className="text-blue-800 font-bold">Input Form</span>
           </>
         ) : (
           <>
             <span className="text-slate-600">Consultant Appointment</span>
             <span className="text-slate-400">/</span>
-            <span className="text-blue-800 font-bold">Report</span>
+            <span className="text-blue-800 font-bold">Reports</span>
           </>
         )}
       </div>
@@ -356,56 +350,256 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
       {/* Input Form Tab View */}
       {currentTab === 'Consultant Input Form' && (
         <div className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-800 font-display">Consultant Appointment Register</h3>
-                <p className="text-xs text-slate-500 font-medium">Tracking engagement statuses of full-time and part-time consultants.</p>
+          {isAdding || updatingAppointment ? (
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
+              {/* Header Title Bar */}
+              <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4.5 flex items-center justify-between text-white border-b border-blue-900/20">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wider font-display">
+                    {updatingAppointment ? 'Update Consultant Appointment' : 'Add Consultant Appointment'}
+                  </h3>
+                  <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAdding(false);
+                    setUpdatingAppointment(null);
+                  }}
+                  className="inline-flex items-center space-x-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold text-white transition cursor-pointer"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>Back to Register</span>
+                </button>
               </div>
-              <button
-                onClick={() => setIsAdding(true)}
-                className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer self-start sm:self-auto"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Consultant</span>
-              </button>
-            </div>
 
-            {/* Filter Search */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
-              <div className="relative w-full sm:max-w-xs">
-                <input
-                  type="text"
-                  placeholder="Search Wing, Division or Status..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full text-xs pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
+              {/* Form Content */}
+              <form onSubmit={updatingAppointment ? handleUpdateSubmit : handleAddSubmit} className="p-6 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing*</label>
+                    <select
+                      value={formWing}
+                      onChange={(e) => setFormWing(e.target.value)}
+                      required
+                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
+                    >
+                      <option value="">--Select Wing--</option>
+                      {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division*</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Admn., Shipping-I"
+                      value={formDivision}
+                      onChange={(e) => setFormDivision(e.target.value)}
+                      required
+                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-255 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-800 placeholder-slate-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Number of Resources*</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formNumResources}
+                      onChange={(e) => setFormNumResources(e.target.value)}
+                      required
+                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-255 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-800"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Appointment Type*</label>
+                    <select
+                      value={formAppointmentType}
+                      onChange={(e) => setFormAppointmentType(e.target.value)}
+                      required
+                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-255 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-705 cursor-pointer"
+                    >
+                      <option value="Full Time">Full Time</option>
+                      <option value="Part Time">Part Time</option>
+                      <option value="Retainer">Retainer</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Checklist Stages Yes/No */}
+                <div className="space-y-3">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-1.5">
+                    Workflow Milestone Checklist
+                  </label>
+
+                  {/* Stage 1 (Full Width with Date) */}
+                  <div className="flex flex-col py-2.5 px-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-xs font-bold text-slate-700">
+                        1. Admin Approval for Engaging Consultant
+                      </span>
+                      <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                        <button
+                          type="button"
+                          onClick={() => handleStageChange('adminApproval', true)}
+                          className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${formStages.adminApproval === true
+                              ? 'bg-emerald-600 text-white shadow-sm font-black'
+                              : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
+                            }`}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleStageChange('adminApproval', false);
+                            setFormAdminApprovalDate('');
+                          }}
+                          className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${formStages.adminApproval === false
+                              ? 'bg-rose-600 text-white shadow-sm font-black'
+                              : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
+                            }`}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+
+                    {formStages.adminApproval && (
+                      <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60 mt-1.5 w-full animate-fade-in pl-4">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase">Date of Approval *</span>
+                        <div className="relative w-44">
+                          <input
+                            type="date"
+                            value={formAdminApprovalDate}
+                            onChange={(e) => setFormAdminApprovalDate(e.target.value)}
+                            required={formStages.adminApproval}
+                            className="w-full text-xs pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700"
+                          />
+                          <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Stages 2 to 8 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 text-[11px] font-semibold text-slate-755 mt-3">
+                    {STAGES.slice(1).map((stage, idx) => {
+                      const isYes = formStages[stage.key] === true;
+                      return (
+                        <div
+                          key={stage.key}
+                          className={`flex items-center justify-between py-2 px-3 rounded-lg border transition-all bg-slate-50/50 ${isYes ? 'border-emerald-250 bg-slate-50 shadow-sm' : 'border-slate-150'
+                            }`}
+                        >
+                          <span className="truncate max-w-[160px]" title={stage.label}>
+                            {idx + 2}. {stage.label}
+                          </span>
+                          <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                            <button
+                              type="button"
+                              onClick={() => handleStageChange(stage.key, true)}
+                              className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${isYes
+                                  ? 'bg-emerald-600 text-white shadow-sm font-black'
+                                  : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
+                                }`}
+                            >
+                              Yes
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStageChange(stage.key, false)}
+                              className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${!isYes
+                                  ? 'bg-rose-600 text-white shadow-sm font-black'
+                                  : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
+                                }`}
+                            >
+                              No
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Form Actions Footer */}
+                <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAdding(false);
+                      setUpdatingAppointment(null);
+                    }}
+                    className="px-4.5 py-2.5 border border-slate-250 text-slate-655 rounded-xl text-xs font-bold hover:bg-slate-50 hover:text-slate-800 transition cursor-pointer"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer"
+                  >
+                    {updatingAppointment ? 'Save Changes' : 'Save Post'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-800 font-display">Consultant Appointment Register</h3>
+                  <p className="text-xs text-slate-500 font-medium">Tracking engagement statuses of full-time and part-time consultants.</p>
+                </div>
+                <button
+                  onClick={() => setIsAdding(true)}
+                  className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Consultant</span>
+                </button>
+              </div>
+
+              {/* Filter Search */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+                <div className="relative w-full sm:max-w-xs">
+                  <input
+                    type="text"
+                    placeholder="Search Wing, Division or Status..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full text-xs pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
+                  />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                </div>
+                <div className="text-xs font-semibold text-slate-500">
+                  Showing {filteredInputGridData.length} entries
+                </div>
+              </div>
+
+              {/* AG Grid */}
+              <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                <AgGridReact
+                  theme="legacy"
+                  rowData={filteredInputGridData}
+                  columnDefs={inputColDefs}
+                  domLayout="autoHeight"
+                  rowHeight={45}
+                  headerHeight={45}
+                  autoSizeStrategy={{
+                    type: 'fitGridWidth',
+                    defaultMinWidth: 90
+                  }}
+                  pagination={true}
+                  paginationPageSize={10}
                 />
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              </div>
-              <div className="text-xs font-semibold text-slate-500">
-                Showing {filteredInputGridData.length} entries
               </div>
             </div>
-
-            {/* AG Grid */}
-            <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-              <AgGridReact
-                theme="legacy"
-                rowData={filteredInputGridData}
-                columnDefs={inputColDefs}
-                domLayout="autoHeight"
-                rowHeight={45}
-                headerHeight={45}
-                autoSizeStrategy={{
-                  type: 'fitGridWidth',
-                  defaultMinWidth: 90
-                }}
-                pagination={true}
-                paginationPageSize={10}
-              />
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -479,371 +673,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
             </div>
           </div>
         </div>
-      )}
-
-      {/* Add Consultant Overlay Modal */}
-      {isAdding && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/65 px-4 py-10">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-lg mx-auto animate-scale-up">
-
-            <div className="flex items-center justify-between border-b border-slate-100 px-7 pt-7 pb-5">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-800 font-display">Add Consultant Appointment</h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">Register engagement details and workflow milestones.</p>
-              </div>
-              <button
-                onClick={() => setIsAdding(false)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition cursor-pointer flex-shrink-0"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddSubmit} className="px-7 pt-5 pb-7 space-y-5">
-              <div className="space-y-5 bg-slate-50 p-5 rounded-xl border border-slate-100">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Wing *</label>
-                  <select
-                    value={formWing}
-                    onChange={(e) => setFormWing(e.target.value)}
-                    required
-                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
-                  >
-                    <option value="">--Select Wing--</option>
-                    {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Division *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Admn., Shipping-I"
-                    value={formDivision}
-                    onChange={(e) => setFormDivision(e.target.value)}
-                    required
-                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Number of Resources</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formNumResources}
-                    onChange={(e) => setFormNumResources(e.target.value)}
-                    required
-                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Appointment Type *</label>
-                  <select
-                    value={formAppointmentType}
-                    onChange={(e) => setFormAppointmentType(e.target.value)}
-                    required
-                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
-                  >
-                    <option value="Full Time">Full Time</option>
-                    <option value="Part Time">Part Time</option>
-                    <option value="Retainer">Retainer</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Checklist Stages Yes/No */}
-              <div className="space-y-3 bg-slate-50 p-5 rounded-xl border border-slate-100">
-                <h4 className="text-xs font-bold text-[#0f417a] uppercase tracking-wide border-b border-slate-200 pb-2 mb-1">
-                  Workflow Milestone Checklist
-                </h4>
-
-                {/* Stage 1 (Full Width) */}
-                <div className="flex flex-col gap-2 pb-3 border-b border-slate-200">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-xs font-bold text-slate-700">
-                      1. Admin Approval for Engaging Consultant
-                    </span>
-                    <div className="flex gap-3 flex-shrink-0">
-                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600">
-                        <input
-                          type="radio"
-                          name="add-stage-adminApproval"
-                          checked={formStages.adminApproval === true}
-                          onChange={() => handleStageChange('adminApproval', true)}
-                          className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-100"
-                        />
-                        Yes
-                      </label>
-                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600">
-                        <input
-                          type="radio"
-                          name="add-stage-adminApproval"
-                          checked={formStages.adminApproval === false}
-                          onChange={() => {
-                            handleStageChange('adminApproval', false);
-                            setFormAdminApprovalDate('');
-                          }}
-                          className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-100"
-                        />
-                        No
-                      </label>
-                    </div>
-                  </div>
-
-                  {formStages.adminApproval && (
-                    <div className="pl-4 mt-1 animate-fade-in">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Date of Approval *</label>
-                      <div className="relative">
-                        <input
-                          type="date"
-                          value={formAdminApprovalDate}
-                          onChange={(e) => setFormAdminApprovalDate(e.target.value)}
-                          required={formStages.adminApproval}
-                          className="w-full text-xs pl-8 pr-3.5 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700 shadow-sm"
-                        />
-                        <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Stages 2 to 8 (single column) */}
-                <div className="space-y-2 pt-1">
-                  {STAGES.slice(1).map((stage, idx) => (
-                    <div key={stage.key} className="flex items-center justify-between gap-4 py-2 border-b border-slate-100 last:border-b-0">
-                      <span className="text-xs font-semibold text-slate-700">
-                        {idx + 2}. {stage.label}
-                      </span>
-                      <div className="flex gap-3 flex-shrink-0">
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600">
-                          <input
-                            type="radio"
-                            name={`add-stage-${stage.key}`}
-                            checked={formStages[stage.key] === true}
-                            onChange={() => handleStageChange(stage.key, true)}
-                            className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-100"
-                          />
-                          Yes
-                        </label>
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600">
-                          <input
-                            type="radio"
-                            name={`add-stage-${stage.key}`}
-                            checked={formStages[stage.key] === false}
-                            onChange={() => handleStageChange(stage.key, false)}
-                            className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-100"
-                          />
-                          No
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsAdding(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm hover:shadow transition cursor-pointer"
-                >
-                  Save Post
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Update Consultant Overlay Modal */}
-      {updatingAppointment && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/65 px-4 py-10">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-lg mx-auto animate-scale-up">
-
-            <div className="flex items-center justify-between border-b border-slate-100 px-7 pt-7 pb-5">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-800 font-display">Update Consultant Appointment</h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">Modify engagement status details and milestones.</p>
-              </div>
-              <button
-                onClick={() => setUpdatingAppointment(null)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition cursor-pointer flex-shrink-0"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateSubmit} className="px-7 pt-5 pb-7 space-y-5">
-              <div className="space-y-5 bg-slate-50 p-5 rounded-xl border border-slate-100">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Wing *</label>
-                  <select
-                    value={formWing}
-                    onChange={(e) => setFormWing(e.target.value)}
-                    required
-                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
-                  >
-                    <option value="">--Select Wing--</option>
-                    {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Division *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Admn., Shipping-I"
-                    value={formDivision}
-                    onChange={(e) => setFormDivision(e.target.value)}
-                    required
-                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Number of Resources</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formNumResources}
-                    onChange={(e) => setFormNumResources(e.target.value)}
-                    required
-                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Appointment Type *</label>
-                  <select
-                    value={formAppointmentType}
-                    onChange={(e) => setFormAppointmentType(e.target.value)}
-                    required
-                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
-                  >
-                    <option value="Full Time">Full Time</option>
-                    <option value="Part Time">Part Time</option>
-                    <option value="Retainer">Retainer</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Checklist Stages Yes/No */}
-              <div className="space-y-3 bg-slate-50 p-5 rounded-xl border border-slate-100">
-                <h4 className="text-xs font-bold text-[#0f417a] uppercase tracking-wide border-b border-slate-200 pb-2 mb-1">
-                  Workflow Milestone Checklist
-                </h4>
-
-                {/* Stage 1 (Full Width with Date) */}
-                <div className="flex flex-col gap-2 pb-3 border-b border-slate-200">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-xs font-bold text-slate-700">
-                      1. Admin Approval for Engaging Consultant
-                    </span>
-                    <div className="flex gap-3 flex-shrink-0">
-                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600">
-                        <input
-                          type="radio"
-                          name="update-stage-adminApproval"
-                          checked={formStages.adminApproval === true}
-                          onChange={() => handleStageChange('adminApproval', true)}
-                          className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-100"
-                        />
-                        Yes
-                      </label>
-                      <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600">
-                        <input
-                          type="radio"
-                          name="update-stage-adminApproval"
-                          checked={formStages.adminApproval === false}
-                          onChange={() => {
-                            handleStageChange('adminApproval', false);
-                            setFormAdminApprovalDate('');
-                          }}
-                          className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-100"
-                        />
-                        No
-                      </label>
-                    </div>
-                  </div>
-
-                  {formStages.adminApproval && (
-                    <div className="pl-4 mt-1 animate-fade-in">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Date of Approval *</label>
-                      <div className="relative">
-                        <input
-                          type="date"
-                          value={formAdminApprovalDate}
-                          onChange={(e) => setFormAdminApprovalDate(e.target.value)}
-                          required={formStages.adminApproval}
-                          className="w-full text-xs pl-8 pr-3.5 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700 shadow-sm"
-                        />
-                        <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Stages 2 to 8 (single column) */}
-                <div className="space-y-2 pt-1">
-                  {STAGES.slice(1).map((stage, idx) => (
-                    <div key={stage.key} className="flex items-center justify-between gap-4 py-2 border-b border-slate-100 last:border-b-0">
-                      <span className="text-xs font-semibold text-slate-700">
-                        {idx + 2}. {stage.label}
-                      </span>
-                      <div className="flex gap-3 flex-shrink-0">
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600">
-                          <input
-                            type="radio"
-                            name={`update-stage-${stage.key}`}
-                            checked={formStages[stage.key] === true}
-                            onChange={() => handleStageChange(stage.key, true)}
-                            className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-100"
-                          />
-                          Yes
-                        </label>
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-600">
-                          <input
-                            type="radio"
-                            name={`update-stage-${stage.key}`}
-                            checked={formStages[stage.key] === false}
-                            onChange={() => handleStageChange(stage.key, false)}
-                            className="h-3.5 w-3.5 text-blue-600 focus:ring-blue-100"
-                          />
-                          No
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setUpdatingAppointment(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm hover:shadow transition cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+      )}    </div>
   );
 }
