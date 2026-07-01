@@ -7,9 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
-  CheckCircle2,
-  Clock,
-  Send,
   Search,
   Copy
 } from 'lucide-react';

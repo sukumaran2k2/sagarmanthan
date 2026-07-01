@@ -83,6 +83,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
   const [formStatusSteps, setFormStatusSteps] = useState({
     1: 'No', 2: 'No', 3: 'No', 4: 'No', 5: 'No', 6: 'No', 7: 'No', 8: 'No', 9: 'No', 10: 'No', 11: 'No'
   });
+  const [formStatusDates, setFormStatusDates] = useState({});
 
   const triggerNotification = (msg) => {
     setNotification(msg);
@@ -121,6 +122,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
     setFormStatusSteps({
       1: 'No', 2: 'No', 3: 'No', 4: 'No', 5: 'No', 6: 'No', 7: 'No', 8: 'No', 9: 'No', 10: 'No', 11: 'No'
     });
+    setFormStatusDates({});
     setIsFormOpen(true);
   };
 
@@ -132,6 +134,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
     setFormRemarks(note.remarks || '');
     setFormFile(note.fileName ? { name: note.fileName } : null);
     setFormStatusSteps(getStepsFromNoteStatus(note.status));
+    setFormStatusDates(note.statusDates || {});
     setIsFormOpen(true);
   }, []);
 
@@ -157,6 +160,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
         division: formDivision,
         remarks: formRemarks,
         status: calculatedStatus,
+        statusDates: formStatusDates,
         fileName: formFile ? formFile.name : null
       } : n));
       triggerNotification('Cabinet note updated successfully.');
@@ -169,6 +173,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
         division: formDivision,
         remarks: formRemarks,
         status: calculatedStatus,
+        statusDates: formStatusDates,
         fileName: formFile ? formFile.name : null
       };
       setNotes(prev => [newNote, ...prev]);
@@ -460,42 +465,77 @@ export default function CabinetNotesInput({ notes, setNotes }) {
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-1.5">
                 Status
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 text-[11px] font-semibold text-slate-750">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 text-[11px] font-semibold text-slate-755">
                 {Object.entries(STATUS_STEPS).map(([stepKey, stepName]) => {
                   const isYes = formStatusSteps[stepKey] === 'Yes';
                   return (
-                    <div key={stepKey} className="flex items-center justify-between py-1 bg-slate-50/50 px-3 rounded-lg border border-slate-150">
-                      <span className="truncate max-w-[200px] sm:max-w-[260px]" title={stepName}>
-                        {stepKey === '7' ? '7. Has Dcm been approved?' : `${stepKey}. ${stepName}`}
-                      </span>
-                      
-                      <div className="flex items-center space-x-1.5 shrink-0 ml-2">
-                        {/* Yes Button */}
-                        <button
-                          type="button"
-                          onClick={() => setFormStatusSteps(prev => ({ ...prev, [stepKey]: 'Yes' }))}
-                          className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${
-                            isYes 
-                              ? 'bg-emerald-600 text-white shadow-sm font-black' 
-                              : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
-                          }`}
-                        >
-                          Yes
-                        </button>
+                    <div 
+                      key={stepKey} 
+                      className={`flex flex-col py-2 px-3 rounded-lg border transition-all ${
+                        isYes 
+                          ? 'bg-slate-50 border-emerald-200 shadow-sm' 
+                          : 'bg-slate-50/50 border-slate-150'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="truncate max-w-[160px] sm:max-w-[200px]" title={stepName}>
+                          {stepKey === '7' ? '7. Has Dcm been approved?' : `${stepKey}. ${stepName}`}
+                        </span>
                         
-                        {/* No Button */}
-                        <button
-                          type="button"
-                          onClick={() => setFormStatusSteps(prev => ({ ...prev, [stepKey]: 'No' }))}
-                          className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${
-                            !isYes 
-                              ? 'bg-rose-600 text-white shadow-sm font-black' 
-                              : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
-                          }`}
-                        >
-                          No
-                        </button>
+                        <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                          {/* Yes Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormStatusSteps(prev => ({ ...prev, [stepKey]: 'Yes' }));
+                              if (!formStatusDates[stepKey]) {
+                                const today = new Date().toISOString().split('T')[0];
+                                setFormStatusDates(prev => ({ ...prev, [stepKey]: today }));
+                              }
+                            }}
+                            className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${
+                              isYes 
+                                ? 'bg-emerald-600 text-white shadow-sm font-black' 
+                                : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
+                            }`}
+                          >
+                            Yes
+                          </button>
+                          
+                          {/* No Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormStatusSteps(prev => ({ ...prev, [stepKey]: 'No' }));
+                              setFormStatusDates(prev => {
+                                const copy = { ...prev };
+                                delete copy[stepKey];
+                                return copy;
+                              });
+                            }}
+                            className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${
+                              !isYes 
+                                ? 'bg-rose-600 text-white shadow-sm font-black' 
+                                : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
+                            }`}
+                          >
+                            No
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Completion Date Field (Visible only when Yes is selected) */}
+                      {isYes && (
+                        <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60 mt-1.5 w-full animate-fade-in">
+                          <span className="text-[9px] text-slate-500 font-bold uppercase">Date:</span>
+                          <input 
+                            type="date"
+                            value={formStatusDates[stepKey] || ''}
+                            onChange={(e) => setFormStatusDates(prev => ({ ...prev, [stepKey]: e.target.value }))}
+                            className="px-2 py-0.5 border border-slate-300 rounded bg-white text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 w-32"
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
