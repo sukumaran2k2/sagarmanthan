@@ -1,12 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { 
-  FileSpreadsheet, 
-  FolderOpen, 
-  Plus, 
-  Search, 
-  Copy, 
-  FileText, 
-  ChevronLeft, 
+import {
+  FileSpreadsheet,
+  FolderOpen,
+  Plus,
+  Search,
+  Copy,
+  FileText,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -35,9 +35,9 @@ import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 // Register grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-export default function ProjectTable({ 
-  projects, 
-  onAddProjectClick, 
+export default function ProjectTable({
+  projects,
+  onAddProjectClick,
   onAddSubProjectClick,
   onExportTrigger,
   activeTab,
@@ -102,18 +102,18 @@ export default function ProjectTable({
     if (selectedStage !== 'All') {
       result = result.filter(p => p.stage === selectedStage);
     }
-      // Filter by Internal Navigation tab
-      if (activeSubTab && activeSubTab !== 'all') {
-        if (activeSubTab === 'ongoing') {
-          // Exclude projects that are not ongoing (e.g., Project Initiated)
-          result = result.filter(p => p.stage !== 'Project Initiated');
-        }
+    // Filter by Internal Navigation tab
+    if (activeSubTab && activeSubTab !== 'all') {
+      if (activeSubTab === 'ongoing') {
+        // Exclude projects that are not ongoing (e.g., Project Initiated)
+        result = result.filter(p => p.stage !== 'Project Initiated');
       }
+    }
 
     // Filter by Search Query
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase();
-      result = result.filter(p => 
+      result = result.filter(p =>
         (p.projectId && p.projectId.toLowerCase().includes(q)) ||
         (p.projectName && p.projectName.toLowerCase().includes(q)) ||
         (p.agency && p.agency.toLowerCase().includes(q))
@@ -312,11 +312,10 @@ export default function ProjectTable({
 
       {/* Combined Project Categories Selection & Filters */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-        <button 
+        <button
           onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
-          className={`w-full flex items-center justify-between text-left transition cursor-pointer ${
-            isFiltersExpanded ? 'pb-3 border-b border-slate-100 mb-4' : ''
-          }`}
+          className={`w-full flex items-center justify-between text-left transition cursor-pointer ${isFiltersExpanded ? 'pb-3 border-b border-slate-100 mb-4' : ''
+            }`}
         >
           <div className="flex items-center space-x-2">
             <Filter className="h-4 w-4 text-blue-600" />
@@ -327,13 +326,13 @@ export default function ProjectTable({
             {isFiltersExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </div>
         </button>
-        
+
         {isFiltersExpanded && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-fade-in">
             {/* Stage Selection */}
             <div className="space-y-1.5 lg:border-r lg:border-slate-150 lg:pr-6 flex flex-col justify-center">
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Stage Selection</label>
-              <select 
+              <select
                 value={selectedStage}
                 onChange={(e) => { setSelectedStage(e.target.value); setCurrentPage(1); }}
                 className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
@@ -374,16 +373,15 @@ export default function ProjectTable({
                     <button
                       key={i}
                       onClick={() => { setSelectedCategory(cat); setCurrentPage(1); }}
-                      className={`relative w-44 h-20 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer shadow border transition-all duration-300 ${
-                        isActive 
-                          ? 'ring-4 ring-[#0f417a] scale-95 shadow-md font-bold' 
-                          : 'border-slate-200 opacity-80 hover:opacity-100 hover:scale-[1.02]'
-                      }`}
+                      className={`relative w-44 h-20 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer shadow border transition-all duration-300 ${isActive
+                        ? 'ring-4 ring-[#0f417a] scale-95 shadow-md font-bold'
+                        : 'border-slate-200 opacity-80 hover:opacity-100 hover:scale-[1.02]'
+                        }`}
                     >
                       {/* Background Image */}
-                      <img 
-                        src={imageUrl} 
-                        alt={cat} 
+                      <img
+                        src={imageUrl}
+                        alt={cat}
                         className="w-full h-full object-cover"
                       />
                       {/* Dark Overlay */}
@@ -407,21 +405,21 @@ export default function ProjectTable({
       <div className="flex flex-row items-center justify-between gap-4 w-full">
         {/* Left Side: Data exports logs */}
         <div className="flex flex-wrap gap-2.5">
-          <button 
+          <button
             onClick={() => onExportTrigger('All Data Excel')}
             className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold hover:bg-emerald-100/50 transition cursor-pointer"
           >
             <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
             <span>All Data</span>
           </button>
-          <button 
+          <button
             onClick={() => onExportTrigger('Expenditure Logs')}
             className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold hover:bg-emerald-100/50 transition cursor-pointer"
           >
             <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
             <span>Expenditure Logs</span>
           </button>
-          <button 
+          <button
             onClick={() => onExportTrigger('Media Files folder view')}
             className="inline-flex items-center space-x-2 px-3.5 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold hover:bg-blue-100/50 transition cursor-pointer"
           >
@@ -432,14 +430,14 @@ export default function ProjectTable({
 
         {/* Right Side: Operations / Add Button */}
         <div className="flex flex-wrap gap-2.5">
-          <button 
+          <button
             onClick={onAddProjectClick}
             className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>Add Project</span>
           </button>
-          <button 
+          <button
             onClick={onAddSubProjectClick}
             className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
           >
@@ -453,19 +451,19 @@ export default function ProjectTable({
       <div className="bg-white rounded-xl shadow-md border border-slate-200 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         {/* Copy, Excel, PDF export options */}
         <div className="flex items-center space-x-1.5 border-b md:border-b-0 pb-3 md:pb-0 border-slate-100">
-          <button 
+          <button
             onClick={() => onExportTrigger('Clipboard Copied')}
             className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
           >
             <Copy className="h-3.5 w-3.5" /> Copy
           </button>
-          <button 
+          <button
             onClick={() => onExportTrigger('Excel report')}
             className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
           >
             <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
           </button>
-          <button 
+          <button
             onClick={() => onExportTrigger('PDF download')}
             className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
           >
@@ -477,7 +475,7 @@ export default function ProjectTable({
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
           <div className="flex items-center space-x-2 w-full sm:w-auto">
             <span className="text-xs text-slate-500 whitespace-nowrap">Show</span>
-            <select 
+            <select
               value={entriesLimit}
               onChange={(e) => { setEntriesLimit(parseInt(e.target.value)); }}
               className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
@@ -493,8 +491,8 @@ export default function ProjectTable({
             <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-3.5 w-3.5 text-slate-400" />
             </span>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Search project..."
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); }}
@@ -506,7 +504,7 @@ export default function ProjectTable({
 
       {/* Main Responsive Table */}
       <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-        <AgGridReact 
+        <AgGridReact
           ref={gridRef}
           theme="legacy"
           rowData={filteredProjects}
@@ -521,7 +519,7 @@ export default function ProjectTable({
           headerHeight={48}
           suppressColumnVirtualisation={true}
           autoSizeStrategy={{
-            type: 'fitCellContents'
+            type: 'fitGridWidth'
           }}
         />
 
@@ -532,7 +530,7 @@ export default function ProjectTable({
             <span className="font-bold text-slate-800">{Math.min(currentPage * entriesLimit, totalEntries)}</span> of{' '}
             <span className="font-bold text-slate-800">{totalEntries}</span> entries
           </span>
-          
+
           <div className="flex items-center space-x-1">
             <button
               onClick={() => handlePageChange(currentPage - 1)}
@@ -541,7 +539,7 @@ export default function ProjectTable({
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            
+
             {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
               if (totalPages > 6 && Math.abs(currentPage - p) > 1 && p !== 1 && p !== totalPages) {
                 if (p === 2 || p === totalPages - 1) {
@@ -553,17 +551,16 @@ export default function ProjectTable({
                 <button
                   key={p}
                   onClick={() => handlePageChange(p)}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                    currentPage === p
-                      ? 'bg-[#0f417a] text-white shadow-sm'
-                      : 'border border-slate-200 text-slate-650 hover:bg-slate-50'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentPage === p
+                    ? 'bg-[#0f417a] text-white shadow-sm'
+                    : 'border border-slate-200 text-slate-650 hover:bg-slate-50'
+                    }`}
                 >
                   {p}
                 </button>
               );
             })}
-            
+
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages || totalPages === 0}
@@ -574,7 +571,7 @@ export default function ProjectTable({
           </div>
         </div>
       </div>
-      
+
     </div>
   );
 }

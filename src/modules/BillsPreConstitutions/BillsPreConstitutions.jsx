@@ -208,7 +208,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
       const matchWing = selectedWing === 'All' || b.wing === selectedWing;
       const matchDivision = selectedDivision === 'All' || b.division === selectedDivision;
       const matchStatus = selectedStatus === 'All' || b.status === selectedStatus;
-      const matchSearch = !searchQuery || 
+      const matchSearch = !searchQuery ||
         b.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
         b.wing.toLowerCase().includes(searchQuery.toLowerCase()) ||
         b.division.toLowerCase().includes(searchQuery.toLowerCase());
@@ -307,18 +307,17 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
     { field: 'subject', headerName: 'Name of the Subject', flex: 2, minWidth: 250, cellClass: 'font-bold text-slate-800' },
     { field: 'wing', headerName: 'Wing', width: 140, cellClass: 'font-semibold text-slate-650' },
     { field: 'division', headerName: 'Division', width: 140, cellClass: 'font-mono text-slate-600' },
-    { 
-      field: 'status', 
-      headerName: 'Status', 
-      flex: 1.5, 
+    {
+      field: 'status',
+      headerName: 'Status',
+      flex: 1.5,
       minWidth: 180,
       cellRenderer: (params) => (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
-          params.value.includes('Passed') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-          params.value.includes('Introduced') ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-          params.value.includes('Cabinet') ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-          'bg-amber-50 text-amber-700 border border-amber-200'
-        }`}>
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${params.value.includes('Passed') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+            params.value.includes('Introduced') ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+              params.value.includes('Cabinet') ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                'bg-amber-50 text-amber-700 border border-amber-200'
+          }`}>
           {params.value}
         </span>
       )
@@ -409,7 +408,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
 
   return (
     <div className="space-y-6 pt-5 pb-4 px-1 md:px-2 animate-fade-in text-slate-800">
-      
+
       {/* Toast Notification */}
       {reportNotification && (
         <div className="fixed top-6 right-6 z-55 flex items-center space-x-2.5 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in animate-pulse">
@@ -544,9 +543,8 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                       return (
                         <div
                           key={stepKey}
-                          className={`flex flex-col py-2 px-3 rounded-lg border transition-all ${
-                            isYes ? 'bg-slate-50 border-emerald-250 shadow-sm' : 'bg-slate-50/50 border-slate-150'
-                          }`}
+                          className={`flex flex-col py-2 px-3 rounded-lg border transition-all ${isYes ? 'bg-slate-50 border-emerald-250 shadow-sm' : 'bg-slate-50/50 border-slate-150'
+                            }`}
                         >
                           <div className="flex items-center justify-between w-full">
                             <span className="truncate max-w-[160px] sm:max-w-[200px]" title={stepName}>
@@ -562,9 +560,8 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                                     setFormStatusDates(prev => ({ ...prev, [stepKey]: today }));
                                   }
                                 }}
-                                className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${
-                                  isYes ? 'bg-emerald-600 text-white shadow-sm font-black' : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
-                                }`}
+                                className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${isYes ? 'bg-emerald-600 text-white shadow-sm font-black' : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
+                                  }`}
                               >
                                 Yes
                               </button>
@@ -578,9 +575,8 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                                     return copy;
                                   });
                                 }}
-                                className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${
-                                  !isYes ? 'bg-rose-600 text-white shadow-sm font-black' : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
-                                }`}
+                                className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${!isYes ? 'bg-rose-600 text-white shadow-sm font-black' : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
+                                  }`}
                               >
                                 No
                               </button>
@@ -699,7 +695,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                     {Object.values(STATUS_STEPS).map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
-                
+
                 <div className="text-xs font-semibold text-slate-500">
                   Showing {filteredBills.length} entries
                 </div>
@@ -750,7 +746,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                   <div className="flex items-center space-x-2">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Wing:</span>
                     <div className="relative min-w-[160px]">
-                      <select 
+                      <select
                         value={selectedReportWing}
                         onChange={(e) => { setSelectedReportWing(e.target.value); setReportCurrentPage(1); }}
                         className="w-full text-xs pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 font-bold text-slate-700 cursor-pointer"
@@ -766,14 +762,14 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
 
                   {/* Export Action Buttons */}
                   <div className="flex items-center gap-2">
-                    <button 
+                    <button
                       onClick={() => triggerReportNotification('Abstract Excel generated.')}
                       className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer whitespace-nowrap"
                     >
                       <FileSpreadsheet className="h-3.5 w-3.5" />
                       <span>Export to Excel</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => triggerReportNotification('Abstract PDF generated.')}
                       className="px-3.5 py-2 bg-red-500 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer whitespace-nowrap"
                     >
@@ -782,7 +778,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                     </button>
                   </div>
 
-                  <button 
+                  <button
                     onClick={() => setIsReportExpanded(false)}
                     className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg border border-slate-250 shadow-sm transition cursor-pointer"
                   >
@@ -791,7 +787,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                   </button>
                 </>
               ) : (
-                <button 
+                <button
                   onClick={() => setIsReportExpanded(true)}
                   className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
                 >
@@ -815,8 +811,8 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                 <div className="flex items-center gap-4">
                   <div className="flex items-center space-x-2">
                     <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
-                    <select 
-                      value={reportEntriesLimit} 
+                    <select
+                      value={reportEntriesLimit}
                       onChange={(e) => { setReportEntriesLimit(parseInt(e.target.value)); }}
                       className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
                     >
@@ -828,8 +824,8 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                   </div>
 
                   <div className="relative">
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Search..."
                       value={reportSearchQuery}
                       onChange={(e) => setReportSearchQuery(e.target.value)}
@@ -842,7 +838,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
 
               {/* Main Responsive Table */}
               <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-                <AgGridReact 
+                <AgGridReact
                   ref={reportGridRef}
                   theme="legacy"
                   rowData={filteredReportRows}
@@ -857,7 +853,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                   headerHeight={38}
                   suppressColumnVirtualisation={true}
                   autoSizeStrategy={{
-                    type: 'fitCellContents'
+                    type: 'fitGridWidth'
                   }}
                 />
 
@@ -868,7 +864,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                     <span className="font-bold text-slate-800">{Math.min(reportCurrentPage * reportEntriesLimit, filteredReportRows.length)}</span> of{' '}
                     <span className="font-bold text-slate-800">{filteredReportRows.length}</span> entries
                   </span>
-                  
+
                   <div className="flex items-center space-x-1">
                     <button
                       onClick={() => handleReportPageChange(reportCurrentPage - 1)}
@@ -877,7 +873,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    
+
                     {Array.from({ length: reportTotalPages }, (_, i) => i + 1).map(p => {
                       if (reportTotalPages > 6 && Math.abs(reportCurrentPage - p) > 1 && p !== 1 && p !== reportTotalPages) {
                         if (p === 2 || p === reportTotalPages - 1) {
@@ -889,17 +885,16 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                         <button
                           key={p}
                           onClick={() => handleReportPageChange(p)}
-                          className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                            reportCurrentPage === p
+                          className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${reportCurrentPage === p
                               ? 'bg-[#0f417a] text-white shadow-sm'
                               : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
-                          }`}
+                            }`}
                         >
                           {p}
                         </button>
                       );
                     })}
-                    
+
                     <button
                       onClick={() => handleReportPageChange(reportCurrentPage + 1)}
                       disabled={reportCurrentPage === reportTotalPages || reportTotalPages === 0}
@@ -914,18 +909,18 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
           ) : (
             /* Charts Visualizations */
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 animate-fade-in pt-4">
-              
+
               {/* Left Bar Chart (Wing-wise Bill counts) */}
               <div className="lg:col-span-3 bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Bills by Wing</h3>
                 <div className="space-y-3.5 pt-2">
                   {dynamicReportRows.filter(r => r.total > 0).map((row, idx) => {
                     const percent = (row.total / (reportTotals.total || 1)) * 100;
-                    const gradientClass = 
+                    const gradientClass =
                       idx === 0 ? 'bg-gradient-to-r from-blue-500 to-indigo-500' :
-                      idx === 1 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' :
-                      idx === 2 ? 'bg-gradient-to-r from-purple-500 to-violet-500' :
-                      'bg-gradient-to-r from-rose-500 to-pink-500';
+                        idx === 1 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' :
+                          idx === 2 ? 'bg-gradient-to-r from-purple-500 to-violet-500' :
+                            'bg-gradient-to-r from-rose-500 to-pink-500';
                     return (
                       <div key={row.id} className="space-y-1 font-semibold">
                         <div className="flex justify-between text-xs text-slate-600">
@@ -933,7 +928,7 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                           <span>{row.total} Bills ({Math.round(percent)}%)</span>
                         </div>
                         <div className="w-full h-3 bg-slate-200/60 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full rounded-full ${gradientClass} transition-all duration-500`}
                             style={{ width: `${percent}%` }}
                           />
@@ -947,16 +942,16 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
               {/* Right Donut Chart (Status breakdown) */}
               <div className="lg:col-span-2 bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Legislative Status Breakdown</h3>
-                
+
                 <div className="flex items-center justify-around py-3">
                   <div className="relative h-28 w-28 flex items-center justify-center">
                     <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                      <circle className="text-slate-200" strokeWidth="3" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
-                      <circle className="text-emerald-500" strokeWidth="3.5" strokeDasharray={`${donutPercentages.passed} 100`} strokeDashoffset="0" strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
-                      <circle className="text-blue-600" strokeWidth="3.5" strokeDasharray={`${donutPercentages.introduced} 100`} strokeDashoffset={`-${donutPercentages.passed}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
-                      <circle className="text-amber-500" strokeWidth="3.5" strokeDasharray={`${donutPercentages.others} 100`} strokeDashoffset={`-${donutPercentages.passed + donutPercentages.introduced}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
+                      <circle className="text-slate-200" strokeWidth="3" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18" />
+                      <circle className="text-emerald-500" strokeWidth="3.5" strokeDasharray={`${donutPercentages.passed} 100`} strokeDashoffset="0" strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18" />
+                      <circle className="text-blue-600" strokeWidth="3.5" strokeDasharray={`${donutPercentages.introduced} 100`} strokeDashoffset={`-${donutPercentages.passed}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18" />
+                      <circle className="text-amber-500" strokeWidth="3.5" strokeDasharray={`${donutPercentages.others} 100`} strokeDashoffset={`-${donutPercentages.passed + donutPercentages.introduced}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18" />
                     </svg>
-                    
+
                     <div className="absolute text-center">
                       <p className="text-lg font-black text-slate-900 leading-none">{reportTotals.total}</p>
                       <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Bills</p>
