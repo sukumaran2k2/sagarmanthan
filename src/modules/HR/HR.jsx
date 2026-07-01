@@ -166,48 +166,51 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
 
   // Employee Database Grid Columns
   const employeeColDefs = useMemo(() => [
-    { field: 'code', headerName: 'Emp Code', width: 110, cellClass: 'font-mono font-bold text-slate-800' },
-    { field: 'name', headerName: 'Employee Name', flex: 1.5, minWidth: 160, cellClass: 'font-extrabold text-slate-900' },
-    { field: 'designation', headerName: 'Designation', flex: 1.5, minWidth: 150 },
-    { field: 'organization', headerName: 'Org', width: 90, cellClass: 'text-center font-bold text-blue-700' },
-    { field: 'department', headerName: 'Department', flex: 1.2 },
-    { field: 'type', headerName: 'Employment Type', width: 130, cellClass: params => params.value === 'Regular' ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold' },
-    { field: 'gender', headerName: 'Gender', width: 90 },
-    { field: 'community', headerName: 'Category', width: 100, cellClass: 'text-center font-semibold' },
-    { field: 'disability', headerName: 'Disability', width: 100 },
-    { field: 'joiningDate', headerName: 'Joining Date', width: 120 }
+    { field: 'code', headerName: 'Emp Code', width: 120, pinned: 'left', cellClass: 'font-mono font-bold text-slate-800' },
+    { field: 'name', headerName: 'Employee Name', minWidth: 170, pinned: 'left', cellClass: 'font-extrabold text-slate-900' },
+    { field: 'designation', headerName: 'Designation', minWidth: 160 },
+    { field: 'organization', headerName: 'Organization', minWidth: 120, cellClass: 'text-center font-bold text-blue-700' },
+    { field: 'department', headerName: 'Department', minWidth: 160 },
+    { field: 'type', headerName: 'Employment Type', minWidth: 150, cellClass: params => params.value === 'Regular' ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold' },
+    { field: 'gender', headerName: 'Gender', minWidth: 100 },
+    { field: 'community', headerName: 'Category', minWidth: 110, cellClass: 'text-center font-semibold' },
+    { field: 'disability', headerName: 'Disability', minWidth: 110 },
+    { field: 'joiningDate', headerName: 'Joining Date', minWidth: 130 }
   ], []);
 
   // Abolished Posts Grid Columns
   const abolishedColDefs = useMemo(() => [
-    { field: 'postName', headerName: 'Abolished Post Title', flex: 2, minWidth: 200, cellClass: 'font-extrabold text-rose-700' },
-    { field: 'organization', headerName: 'Organisation', width: 130, cellClass: 'text-center font-bold' },
-    { field: 'department', headerName: 'Department', flex: 1.2 },
-    { field: 'abolishedDate', headerName: 'Abolished Date', width: 150 },
-    { field: 'vacantSince', headerName: 'Vacant Since', width: 150 },
-    { field: 'authorityRef', headerName: 'Authority Reference', flex: 1.5 }
+    { field: 'id', headerName: 'S.No', width: 70, pinned: 'left', cellClass: 'text-center font-bold text-slate-500' },
+    { field: 'postName', headerName: 'Abolished Post Title', minWidth: 220, pinned: 'left', cellClass: 'font-extrabold text-rose-700' },
+    { field: 'organization', headerName: 'Organisation', minWidth: 140, cellClass: 'text-center font-bold' },
+    { field: 'department', headerName: 'Department', minWidth: 160 },
+    { field: 'abolishedDate', headerName: 'Abolished Date', minWidth: 150 },
+    { field: 'vacantSince', headerName: 'Vacant Since', minWidth: 150 },
+    { field: 'authorityRef', headerName: 'Authority Reference', minWidth: 180 }
   ], []);
 
   // Contractual Staff Grid Columns
   const contractualColDefs = useMemo(() => [
-    { field: 'name', headerName: 'Staff Name', flex: 1.5, minWidth: 150, cellClass: 'font-extrabold text-slate-900' },
-    { field: 'designation', headerName: 'Designation', flex: 1.5 },
-    { field: 'project', headerName: 'Assigned Project / Scheme', flex: 2 },
-    { field: 'remuneration', headerName: 'Monthly Renumeration', width: 180, cellClass: 'font-bold text-slate-800 text-right' },
-    { field: 'startDate', headerName: 'Contract Start', width: 130 },
-    { field: 'endDate', headerName: 'Contract End', width: 130 },
-    { field: 'status', headerName: 'Status', width: 130, cellClass: params => params.value === 'Active' ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold' }
+    { field: 'id', headerName: 'S.No', width: 70, pinned: 'left', cellClass: 'text-center font-bold text-slate-500' },
+    { field: 'name', headerName: 'Staff Name', minWidth: 160, pinned: 'left', cellClass: 'font-extrabold text-slate-900' },
+    { field: 'designation', headerName: 'Designation', minWidth: 160 },
+    { field: 'project', headerName: 'Assigned Project / Scheme', minWidth: 260 },
+    { field: 'remuneration', headerName: 'Monthly Remuneration', minWidth: 180, cellClass: 'font-bold text-slate-800 text-right' },
+    { field: 'startDate', headerName: 'Contract Start', minWidth: 140 },
+    { field: 'endDate', headerName: 'Contract End', minWidth: 140 },
+    { field: 'status', headerName: 'Status', minWidth: 130, cellClass: params => params.value === 'Active' ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold' }
   ], []);
 
   // Training Details Grid Columns
   const trainingColDefs = useMemo(() => [
-    { field: 'name', headerName: 'Employee Name', flex: 1.5, minWidth: 150, cellClass: 'font-extrabold text-slate-900' },
-    { field: 'designation', headerName: 'Designation', flex: 1.2 },
-    { field: 'course', headerName: 'Training Course Name', flex: 2, cellClass: 'font-semibold text-blue-800' },
-    { field: 'agency', headerName: 'Training Agency', flex: 1.2 },
-    { field: 'startDate', headerName: 'Start Date', width: 130 },
-    { field: 'endDate', headerName: 'End Date', width: 130 },
-    { field: 'status', headerName: 'Status', width: 120, cellClass: params => params.value === 'Completed' ? 'text-emerald-600 font-bold text-center' : 'text-blue-600 font-bold text-center animate-pulse' }
+    { field: 'id', headerName: 'S.No', width: 70, pinned: 'left', cellClass: 'text-center font-bold text-slate-500' },
+    { field: 'name', headerName: 'Employee Name', minWidth: 160, pinned: 'left', cellClass: 'font-extrabold text-slate-900' },
+    { field: 'designation', headerName: 'Designation', minWidth: 160 },
+    { field: 'course', headerName: 'Training Course Name', minWidth: 280, cellClass: 'font-semibold text-blue-800' },
+    { field: 'agency', headerName: 'Training Agency', minWidth: 160 },
+    { field: 'startDate', headerName: 'Start Date', minWidth: 130 },
+    { field: 'endDate', headerName: 'End Date', minWidth: 130 },
+    { field: 'status', headerName: 'Status', minWidth: 130, cellClass: params => params.value === 'Completed' ? 'text-emerald-600 font-bold text-center' : 'text-blue-600 font-bold text-center animate-pulse' }
   ], []);
 
   // Filter lists based on search term
@@ -512,7 +515,13 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
             </div>
 
             {/* ag-Grid */}
-            <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-sm overflow-x-auto" onWheel={(e) => {
+              const vp = e.currentTarget.querySelector('.ag-body-viewport');
+              if (vp && vp.scrollWidth > vp.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                vp.scrollLeft += e.deltaY;
+                e.preventDefault();
+              }
+            }}>
               <AgGridReact
                 theme="legacy"
                 rowData={filteredEmployees}
@@ -520,9 +529,17 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
                 domLayout="autoHeight"
                 rowHeight={45}
                 headerHeight={45}
+                suppressColumnVirtualisation={true}
                 autoSizeStrategy={{
-                  type: 'fitGridWidth',
-                  defaultMinWidth: 90
+                  type: 'fitCellContents'
+                }}
+                onFirstDataRendered={(params) => {
+                  const allCols = params.api.getAllGridColumns();
+                  const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  if (containerWidth > 0 && totalColWidth < containerWidth) {
+                    params.api.sizeColumnsToFit();
+                  }
                 }}
               />
             </div>
@@ -539,7 +556,13 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
             </div>
 
             {/* ag-Grid */}
-            <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-sm overflow-x-auto" onWheel={(e) => {
+              const vp = e.currentTarget.querySelector('.ag-body-viewport');
+              if (vp && vp.scrollWidth > vp.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                vp.scrollLeft += e.deltaY;
+                e.preventDefault();
+              }
+            }}>
               <AgGridReact
                 theme="legacy"
                 rowData={filteredAbolished}
@@ -547,9 +570,17 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
                 domLayout="autoHeight"
                 rowHeight={45}
                 headerHeight={45}
+                suppressColumnVirtualisation={true}
                 autoSizeStrategy={{
-                  type: 'fitGridWidth',
-                  defaultMinWidth: 100
+                  type: 'fitCellContents'
+                }}
+                onFirstDataRendered={(params) => {
+                  const allCols = params.api.getAllGridColumns();
+                  const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  if (containerWidth > 0 && totalColWidth < containerWidth) {
+                    params.api.sizeColumnsToFit();
+                  }
                 }}
               />
             </div>
@@ -566,7 +597,13 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
             </div>
 
             {/* ag-Grid */}
-            <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-sm overflow-x-auto" onWheel={(e) => {
+              const vp = e.currentTarget.querySelector('.ag-body-viewport');
+              if (vp && vp.scrollWidth > vp.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                vp.scrollLeft += e.deltaY;
+                e.preventDefault();
+              }
+            }}>
               <AgGridReact
                 theme="legacy"
                 rowData={filteredContractual}
@@ -574,9 +611,17 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
                 domLayout="autoHeight"
                 rowHeight={45}
                 headerHeight={45}
+                suppressColumnVirtualisation={true}
                 autoSizeStrategy={{
-                  type: 'fitGridWidth',
-                  defaultMinWidth: 100
+                  type: 'fitCellContents'
+                }}
+                onFirstDataRendered={(params) => {
+                  const allCols = params.api.getAllGridColumns();
+                  const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  if (containerWidth > 0 && totalColWidth < containerWidth) {
+                    params.api.sizeColumnsToFit();
+                  }
                 }}
               />
             </div>
@@ -593,7 +638,13 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
             </div>
 
             {/* ag-Grid */}
-            <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-sm overflow-x-auto" onWheel={(e) => {
+              const vp = e.currentTarget.querySelector('.ag-body-viewport');
+              if (vp && vp.scrollWidth > vp.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                vp.scrollLeft += e.deltaY;
+                e.preventDefault();
+              }
+            }}>
               <AgGridReact
                 theme="legacy"
                 rowData={filteredTraining}
@@ -601,9 +652,17 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
                 domLayout="autoHeight"
                 rowHeight={45}
                 headerHeight={45}
+                suppressColumnVirtualisation={true}
                 autoSizeStrategy={{
-                  type: 'fitGridWidth',
-                  defaultMinWidth: 100
+                  type: 'fitCellContents'
+                }}
+                onFirstDataRendered={(params) => {
+                  const allCols = params.api.getAllGridColumns();
+                  const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  if (containerWidth > 0 && totalColWidth < containerWidth) {
+                    params.api.sizeColumnsToFit();
+                  }
                 }}
               />
             </div>

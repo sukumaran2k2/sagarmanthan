@@ -42,17 +42,33 @@ export default function CPGRAMSView() {
     });
   }, [searchTerm]);
 
+  const handleGridWheel = (e) => {
+    const container = e.currentTarget;
+    if (container) {
+      const gridBodyViewport = container.querySelector('.ag-body-viewport');
+      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          gridBodyViewport.scrollLeft += e.deltaY;
+          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
+          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
+          if (!isAtStart && !isAtEnd) {
+            e.preventDefault();
+          }
+        }
+      }
+    }
+  };
+
   const colDefs = useMemo(() => [
-    { field: 'sno', headerName: 'S.No', maxWidth: 80, cellClass: 'text-center font-bold text-slate-500' },
-    { field: 'id', headerName: 'Grievance ID', minWidth: 150, cellClass: 'font-mono font-bold text-[#0d417a]' },
-    { field: 'name', headerName: 'Name of Complainant', flex: 1.5, minWidth: 150, cellClass: 'font-extrabold text-slate-905' },
-    { field: 'category', headerName: 'Grievance Category', flex: 2, minWidth: 200 },
-    { field: 'dateReceived', headerName: 'Date Received', flex: 1, minWidth: 120, cellClass: 'text-center' },
+    { field: 'sno', headerName: 'S.No', width: 70, pinned: 'left', cellClass: 'text-center font-bold text-slate-500' },
+    { field: 'id', headerName: 'Grievance ID', minWidth: 150, pinned: 'left', cellClass: 'font-mono font-bold text-[#0d417a]' },
+    { field: 'name', headerName: 'Name of Complainant', minWidth: 180, cellClass: 'font-extrabold text-slate-905' },
+    { field: 'category', headerName: 'Grievance Category', minWidth: 200 },
+    { field: 'dateReceived', headerName: 'Date Received', minWidth: 130, cellClass: 'text-center' },
     { 
       field: 'status', 
       headerName: 'Status', 
-      flex: 1, 
-      minWidth: 120, 
+      minWidth: 140, 
       cellClass: 'text-center flex items-center justify-center',
       cellRenderer: (params) => {
         const val = params.value;
@@ -62,8 +78,8 @@ export default function CPGRAMSView() {
         return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-250">Under Process</span>;
       }
     },
-    { field: 'targetDate', headerName: 'Target Date', flex: 1, minWidth: 120, cellClass: 'text-center' },
-    { field: 'wing', headerName: 'Wing', flex: 1, minWidth: 100 }
+    { field: 'targetDate', headerName: 'Target Date', minWidth: 130, cellClass: 'text-center' },
+    { field: 'wing', headerName: 'Wing', minWidth: 120 }
   ], []);
 
   return (
@@ -206,7 +222,7 @@ export default function CPGRAMSView() {
         </div>
 
         {/* AG Grid */}
-        <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-md">
+        <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
           <AgGridReact 
             theme="legacy"
             rowData={filteredData}
@@ -214,9 +230,17 @@ export default function CPGRAMSView() {
             domLayout="autoHeight"
             rowHeight={48}
             headerHeight={48}
+            suppressColumnVirtualisation={true}
             autoSizeStrategy={{
-              type: 'fitGridWidth',
-              defaultMinWidth: 80
+              type: 'fitCellContents'
+            }}
+            onFirstDataRendered={(params) => {
+              const allCols = params.api.getAllGridColumns();
+              const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+              const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                if (containerWidth > 0 && totalColWidth < containerWidth) {
+                  params.api.sizeColumnsToFit();
+                }
             }}
           />
         </div>

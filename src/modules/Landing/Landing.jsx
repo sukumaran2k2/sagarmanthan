@@ -88,12 +88,14 @@ export default function LandingView({ onNavigate }) {
       headerName: 'S.No',
       field: 'sno',
       width: 70,
+      pinned: 'left',
       cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center border-r border-slate-200'
     },
     {
       headerName: 'Module Name',
       field: 'moduleName',
-      width: 280,
+      minWidth: 280,
+      pinned: 'left',
       cellClass: 'font-semibold text-slate-700 flex items-center pl-4 border-r border-slate-200 cursor-pointer hover:text-blue-700'
     },
     {
@@ -103,35 +105,35 @@ export default function LandingView({ onNavigate }) {
         {
           headerName: 'Shipping',
           field: 'shipping',
-          width: 140,
+          minWidth: 140,
           cellClass: 'text-center flex items-center justify-center border-r border-slate-100',
           cellRenderer: DateCellRenderer
         },
         {
           headerName: 'Vigilance',
           field: 'vigilance',
-          width: 140,
+          minWidth: 140,
           cellClass: 'text-center flex items-center justify-center border-r border-slate-100',
           cellRenderer: DateCellRenderer
         },
         {
           headerName: 'Ports',
           field: 'ports',
-          width: 140,
+          minWidth: 140,
           cellClass: 'text-center flex items-center justify-center border-r border-slate-100',
           cellRenderer: DateCellRenderer
         },
         {
           headerName: 'IWT',
           field: 'iwt',
-          width: 140,
+          minWidth: 140,
           cellClass: 'text-center flex items-center justify-center border-r border-slate-100',
           cellRenderer: DateCellRenderer
         },
         {
           headerName: 'Administration',
           field: 'admin',
-          width: 140,
+          minWidth: 140,
           cellClass: 'text-center flex items-center justify-center border-r border-slate-100',
           cellRenderer: DateCellRenderer
         }
@@ -270,7 +272,13 @@ export default function LandingView({ onNavigate }) {
           </span>
         </div>
 
-        <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-md">
+        <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={(e) => {
+          const vp = e.currentTarget.querySelector('.ag-body-viewport');
+          if (vp && vp.scrollWidth > vp.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            vp.scrollLeft += e.deltaY;
+            e.preventDefault();
+          }
+        }}>
           <AgGridReact 
             theme="legacy"
             rowData={rowData}
@@ -279,9 +287,17 @@ export default function LandingView({ onNavigate }) {
             rowHeight={46}
             headerHeight={44}
             onRowClicked={handleRowClicked}
+            suppressColumnVirtualisation={true}
             autoSizeStrategy={{
-              type: 'fitGridWidth',
-              defaultMinWidth: 70
+              type: 'fitCellContents'
+            }}
+            onFirstDataRendered={(params) => {
+              const allCols = params.api.getAllGridColumns();
+              const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+              const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                if (containerWidth > 0 && totalColWidth < containerWidth) {
+                  params.api.sizeColumnsToFit();
+                }
             }}
           />
         </div>

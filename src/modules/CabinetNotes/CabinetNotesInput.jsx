@@ -11,6 +11,8 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Filter,
   Layers,
   GitBranch,
@@ -211,53 +213,85 @@ export default function CabinetNotesInput() {
     }
   }, [searchQuery]);
 
-  // Handle AG Grid page change labels
-  const onPaginationChanged = () => {
+  // Sync entriesLimit with AG Grid Pagination Page Size
+  useEffect(() => {
     if (gridRef.current && gridRef.current.api) {
-      setCurrentPage(gridRef.current.api.paginationGetCurrentPage() + 1);
-      setTotalPages(gridRef.current.api.paginationGetTotalPages() || 1);
+      gridRef.current.api.setGridOption('paginationPageSize', entriesLimit);
+    }
+  }, [entriesLimit]);
+
+  const handlePageChange = (page) => {
+    if (gridRef.current && gridRef.current.api && page >= 1 && page <= totalPages) {
+      gridRef.current.api.paginationGoToPage(page - 1);
     }
   };
 
-  // Define AG Grid Column Definitions
+  // Handle AG Grid page change labels
+  const onPaginationChanged = () => {
+    if (gridRef.current && gridRef.current.api) {
+      const page = gridRef.current.api.paginationGetCurrentPage() + 1;
+      const total = gridRef.current.api.paginationGetTotalPages();
+      setCurrentPage(page);
+      setTotalPages(total || 1);
+    }
+  };
+
+  const handleGridWheel = (e) => {
+    const container = e.currentTarget;
+    if (container) {
+      const gridBodyViewport = container.querySelector('.ag-body-viewport');
+      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          gridBodyViewport.scrollLeft += e.deltaY;
+          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
+          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
+          if (!isAtStart && !isAtEnd) {
+            e.preventDefault();
+          }
+        }
+      }
+    }
+  };
+
   const colDefs = useMemo(() => [
     {
       headerName: 'S.No',
       valueGetter: 'node.rowIndex + 1',
       width: 70,
       maxWidth: 80,
-      cellClass: 'text-center font-bold text-slate-550 border-r border-slate-100 bg-slate-50/20 flex items-center justify-center',
+      pinned: 'left',
+      cellClass: 'text-center font-bold text-slate-550 border-r border-slate-100 bg-slate-50/20 flex items-center justify-center text-[11px]',
       headerClass: 'text-center border-r border-blue-900/30'
     },
     {
       headerName: 'Name of the Subject',
       field: 'subject',
-      flex: 3,
       minWidth: 320,
       wrapText: true,
       autoHeight: true,
-      cellClass: 'text-slate-900 font-extrabold whitespace-normal leading-relaxed py-2 border-r border-slate-100 flex items-center',
+      pinned: 'left',
+      cellClass: 'text-slate-900 font-extrabold whitespace-normal leading-relaxed py-2 border-r border-slate-100 flex items-center text-[11px]',
       headerClass: 'border-r border-blue-900/30'
     },
     {
       headerName: 'Wing',
       field: 'wing',
-      width: 140,
-      cellClass: 'text-slate-600 font-bold border-r border-slate-100 flex items-center',
+      minWidth: 140,
+      cellClass: 'text-slate-600 font-bold border-r border-slate-100 flex items-center text-[11px]',
       headerClass: 'border-r border-blue-900/30'
     },
     {
       headerName: 'Division',
       field: 'division',
-      width: 130,
-      cellClass: 'text-slate-655 font-mono font-bold border-r border-slate-100 flex items-center',
+      minWidth: 130,
+      cellClass: 'text-slate-655 font-mono font-bold border-r border-slate-100 flex items-center text-[11px]',
       headerClass: 'border-r border-blue-900/30'
     },
     {
       headerName: 'Status',
       field: 'status',
-      width: 220,
-      cellClass: 'border-r border-slate-100 flex items-center',
+      minWidth: 220,
+      cellClass: 'border-r border-slate-100 flex items-center text-[11px]',
       headerClass: 'border-r border-blue-900/30',
       cellRenderer: (params) => {
         const status = params.value || '';
@@ -277,8 +311,8 @@ export default function CabinetNotesInput() {
     },
     {
       headerName: 'Upload/Download Documents',
-      width: 200,
-      cellClass: 'text-center border-r border-slate-100 flex items-center justify-center',
+      minWidth: 210,
+      cellClass: 'text-center border-r border-slate-100 flex items-center justify-center text-[11px]',
       headerClass: 'text-center border-r border-blue-900/30',
       cellRenderer: (params) => {
         const note = params.data;
@@ -304,8 +338,8 @@ export default function CabinetNotesInput() {
     },
     {
       headerName: 'Update',
-      width: 90,
-      cellClass: 'text-center flex items-center justify-center',
+      minWidth: 90,
+      cellClass: 'text-center flex items-center justify-center text-[11px]',
       cellRenderer: (params) => {
         const note = params.data;
         return (
@@ -707,8 +741,8 @@ export default function CabinetNotesInput() {
               </div>
             </div>
 
-            {/* AG Grid React Table replacement */}
-            <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm" style={{ '--ag-font-size': '10px' }}>
+            {/* Main Responsive Table */}
+            <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
               <AgGridReact 
                 ref={gridRef}
                 theme="legacy"
@@ -719,43 +753,69 @@ export default function CabinetNotesInput() {
                 suppressPaginationPanel={true}
                 onPaginationChanged={onPaginationChanged}
                 domLayout="autoHeight"
-                rowHeight={38}
-                headerHeight={32}
+                rowHeight={64}
+                headerHeight={48}
+                suppressColumnVirtualisation={true}
                 autoSizeStrategy={{
-                  type: 'fitGridWidth',
-                  defaultMinWidth: 80
+                  type: 'fitCellContents'
+                }}
+                onFirstDataRendered={(params) => {
+                  const allCols = params.api.getAllGridColumns();
+                  const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  if (containerWidth > 0 && totalColWidth < containerWidth) {
+                    params.api.sizeColumnsToFit();
+                  }
                 }}
               />
-            </div>
 
-            {/* Custom Pagination Footer */}
-            <div className="flex flex-col sm:flex-row items-center justify-between pt-4 text-xs text-slate-500 font-semibold gap-4">
-              <span>Showing <span className="font-bold text-slate-800">{filteredNotes.length > 0 ? (currentPage - 1) * entriesLimit + 1 : 0}</span> to <span className="font-bold text-slate-800">{Math.min(currentPage * entriesLimit, filteredNotes.length)}</span> of <span className="font-bold text-slate-800">{filteredNotes.length}</span> entries</span>
-              
-              <div className="flex items-center space-x-1">
-                <button 
-                  onClick={() => gridRef.current?.api?.paginationGoToPreviousPage()}
-                  disabled={currentPage === 1}
-                  className="px-2.5 py-1.5 border border-slate-200 rounded bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white cursor-pointer font-bold"
-                >
-                  Previous
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                  <button 
-                    key={p} 
-                    onClick={() => gridRef.current?.api?.paginationGoToPage(p - 1)}
-                    className={`px-3 py-1.5 rounded font-black transition cursor-pointer ${currentPage === p ? 'bg-[#0f417a] text-white shadow-sm' : 'border border-slate-200 hover:bg-slate-50'}`}
+              {/* Custom Pagination Footer */}
+              <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-4 bg-white border-t border-slate-200 text-xs gap-4">
+                <span className="text-slate-500 font-medium text-center sm:text-left">
+                  Showing <span className="font-bold text-slate-800">{filteredNotes.length > 0 ? (currentPage - 1) * entriesLimit + 1 : 0}</span> to{' '}
+                  <span className="font-bold text-slate-800">{Math.min(currentPage * entriesLimit, filteredNotes.length)}</span> of{' '}
+                  <span className="font-bold text-slate-800">{filteredNotes.length}</span> entries
+                </span>
+                
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
                   >
-                    {p}
+                    <ChevronLeft className="h-4 w-4" />
                   </button>
-                ))}
-                <button 
-                  onClick={() => gridRef.current?.api?.paginationGoToNextPage()}
-                  disabled={currentPage === totalPages}
-                  className="px-2.5 py-1.5 border border-slate-200 rounded bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white cursor-pointer font-bold"
-                >
-                  Next
-                </button>
+                  
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
+                    if (totalPages > 6 && Math.abs(currentPage - p) > 1 && p !== 1 && p !== totalPages) {
+                      if (p === 2 || p === totalPages - 1) {
+                        return <span key={p} className="px-1.5 text-slate-400 font-bold">...</span>;
+                      }
+                      return null;
+                    }
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => handlePageChange(p)}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                          currentPage === p
+                            ? 'bg-[#0f417a] text-white shadow-sm'
+                            : 'border border-slate-200 text-slate-650 hover:bg-slate-50'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                  
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
