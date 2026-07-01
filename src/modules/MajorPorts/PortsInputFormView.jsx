@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { ChevronDown, Plus, Search, ArrowLeft } from 'lucide-react';
+import { AbilityContext } from '../../config/ability';
 
 export default function PortsInputFormView() {
+  const ability = useContext(AbilityContext);
   const [subView, setSubView] = useState('list'); // 'list' or 'details'
   const [activeTab, setActiveTab] = useState('actuals'); // 'targets' or 'actuals'
   const [selectedFy, setSelectedFy] = useState('Show All');
@@ -275,10 +277,12 @@ export default function PortsInputFormView() {
                   <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 </div>
               </div>
-              <button className="bg-[#2bab4f] hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer h-[30px]">
-                <Plus className="h-4 w-4" />
-                <span>Add target</span>
-              </button>
+              {ability.can('create', 'KPI') && (
+                <button className="bg-[#2bab4f] hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer h-[30px]">
+                  <Plus className="h-4 w-4" />
+                  <span>Add target</span>
+                </button>
+              )}
             </div>
           </div>
 

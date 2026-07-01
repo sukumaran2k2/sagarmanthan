@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, useContext } from 'react';
 import { 
   FileSpreadsheet, 
   Plus, 
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { AbilityContext } from '../../config/ability';
 
 
 // Register grid modules
@@ -59,6 +60,7 @@ const STATUS_STEPS = {
 
 export default function CabinetNotesInput({ notes, setNotes }) {
   const gridRef = useRef();
+  const ability = useContext(AbilityContext);
   const [selectedWing, setSelectedWing] = useState('All');
   const [selectedDivision, setSelectedDivision] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -338,7 +340,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
         );
       }
     },
-    {
+    ...(ability.can('update', 'CabinetNote') ? [{
       headerName: 'Update',
       minWidth: 90,
       cellClass: 'text-center flex items-center justify-center text-[11px]',
@@ -356,8 +358,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
           </div>
         );
       }
-    }
-  ], [handleOpenEdit]);
+    }] : [])
+  ], [handleOpenEdit, ability]);
 
   // If Form Page is open, render the Form Page directly
   if (isFormOpen) {
@@ -656,13 +658,15 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                 <span>All Data</span>
               </button>
 
-              <button 
-                onClick={handleOpenAdd}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-105 text-black border border-white font-bold text-xs rounded-lg transition-all duration-200 cursor-pointer hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-md font-sans"
-              >
-                <Plus className="h-4 w-4 text-emerald-800 hover:text-white" />
-                <span>Add Notes</span>
-              </button>
+              {ability.can('create', 'CabinetNote') && (
+                <button 
+                  onClick={handleOpenAdd}
+                  className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-105 text-black border border-white font-bold text-xs rounded-lg transition-all duration-200 cursor-pointer hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-md font-sans"
+                >
+                  <Plus className="h-4 w-4 text-emerald-800 hover:text-white" />
+                  <span>Add Notes</span>
+                </button>
+              )}
 
               <button 
                 onClick={() => setIsDatabaseExpanded(false)}

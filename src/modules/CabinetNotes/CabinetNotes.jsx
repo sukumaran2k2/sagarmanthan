@@ -4,7 +4,7 @@ import CabinetNotesInput from './CabinetNotesInput';
 import CabinetNotesReports from './CabinetNotesReports';
 import { INITIAL_NOTES } from './constants';
 
-export default function CabinetNotes() {
+export default function CabinetNotes({ userRole = 'Admin' }) {
   const [notes, setNotes] = useState(INITIAL_NOTES);
 
   return (
@@ -34,12 +34,12 @@ export default function CabinetNotes() {
         
         {/* 1. Detailed Notes Section / Input Form (Top Card) */}
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-          <CabinetNotesInput notes={notes} setNotes={setNotes} />
+          <CabinetNotesInput notes={notes} setNotes={setNotes} userRole={userRole} />
         </div>
 
         {/* 2. Abstract Report Section (Bottom Card) */}
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 animate-fade-in">
-          <CabinetNotesReports notes={notes} />
+          <CabinetNotesReports notes={notes} userRole={userRole} />
         </div>
 
       </div>

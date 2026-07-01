@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useContext } from 'react';
+import { AbilityContext } from '../../config/ability';
 import { 
   FileSpreadsheet, 
   FolderOpen, 
@@ -43,6 +44,7 @@ export default function ProjectTable({
   activeTab,
   setActiveTab
 }) {
+  const ability = useContext(AbilityContext);
   const gridRef = useRef();
   const [searchQuery, setSearchQuery] = useState('');
   const [entriesLimit, setEntriesLimit] = useState(10);
@@ -432,20 +434,24 @@ export default function ProjectTable({
 
         {/* Right Side: Operations / Add Button */}
         <div className="flex flex-wrap gap-2.5">
-          <button 
-            onClick={onAddProjectClick}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Project</span>
-          </button>
-          <button 
-            onClick={onAddSubProjectClick}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Sub Project</span>
-          </button>
+          {ability.can('create', 'Projects') && (
+            <button 
+              onClick={onAddProjectClick}
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Project</span>
+            </button>
+          )}
+          {ability.can('create', 'Projects') && (
+            <button 
+              onClick={onAddSubProjectClick}
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Sub Project</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-  import React, { useState, useEffect } from 'react';
+  import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from './components/Header';
 import Tabs from './components/Tabs';
 import { ProjectTable, AddProjectForm } from './modules/Projects/Projects';
@@ -14,6 +14,8 @@ import HRDashboardView from './modules/HR/HR';
 import ProfileView from './modules/Profile/Profile';
 import CabinetNotes from './modules/CabinetNotes/CabinetNotes';
 import Footer from './components/Footer';
+import UserManagement from './modules/UserManagement/UserManagement';
+import { AbilityContext, defineAbilityFor } from './config/ability';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
 
 const PROJECT_TABS = [
@@ -216,6 +218,49 @@ const getBreadcrumbs = (tab) => {
   return ['Home', tab];
 };
 
+const makeFullAccess = () => ({
+  projects: { dashboard: true, list: true, less5cr: true, lumpsum: true, dropRequests: true, reports: true, create: true, update: true, delete: true },
+  kpi: { dashboard: true, inputForm: true, reports: true, create: true, update: true, delete: true },
+  governance: { eOffice: true, attendance: true, cpgrams: true, cabinetNotes: true, vipReference: true, createCabinetNotes: true, updateCabinetNotes: true },
+  legal: { courtCases: true, actsRules: true },
+  strategies: { vision2047: true, mis: true, blueEconomy: true },
+  knowledge: { researchPapers: true, policyDocuments: true, guidelines: true },
+  formBuilder: { createForm: true, viewSubmissions: true },
+  tracker: { milestones: true, delayAnalysis: true },
+  meeting: { schedule: true, mom: true, atr: true },
+  contact: { ministryContacts: true, helpdesk: true },
+  userAccess: { manage: true }
+});
+
+const makeReadAccess = (canEditNotes = false) => ({
+  projects: { dashboard: true, list: true, less5cr: true, lumpsum: true, dropRequests: true, reports: true, create: false, update: false, delete: false },
+  kpi: { dashboard: true, inputForm: true, reports: true, create: false, update: false, delete: false },
+  governance: { eOffice: true, attendance: true, cpgrams: true, cabinetNotes: true, vipReference: true, createCabinetNotes: canEditNotes, updateCabinetNotes: canEditNotes },
+  legal: { courtCases: true, actsRules: true },
+  strategies: { vision2047: true, mis: true, blueEconomy: true },
+  knowledge: { researchPapers: true, policyDocuments: true, guidelines: true },
+  formBuilder: { createForm: true, viewSubmissions: true },
+  tracker: { milestones: true, delayAnalysis: true },
+  meeting: { schedule: true, mom: true, atr: true },
+  contact: { ministryContacts: true, helpdesk: true },
+  userAccess: { manage: false }
+});
+
+const DEFAULT_PERMISSIONS = {
+  'Super Admin': makeFullAccess(),
+  'NTCPWC Admin': makeFullAccess(),
+  'View Only Admin': makeReadAccess(false),
+  'MOPSW - Wing/Division Level User': makeReadAccess(true),
+  'MOPSW - Undersecretary Level': makeReadAccess(true),
+  'MOPSW - Director Level': makeReadAccess(true),
+  'MOPSW - Joint Secretary Level': makeReadAccess(true),
+  'MOPSW - Secretary Level': makeReadAccess(true),
+  'Organisation Port - S.O': makeReadAccess(true),
+  'Organisation Port - N.O': makeReadAccess(false),
+  'Organisation Non-Port - S.O': makeReadAccess(true),
+  'Organisation Non-Port - N.O': makeReadAccess(false)
+};
+
 export default function App() {
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
   const [activeTab, setActiveTab] = useState('landing');
@@ -223,6 +268,78 @@ export default function App() {
   const [isAddSubProjectOpen, setIsAddSubProjectOpen] = useState(false);
   const [notification, setNotification] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userRole, setUserRole] = useState('Admin');
+  const [rolePermissions, setRolePermissions] = useState(() => {
+    const saved = localStorage.getItem('sagarmanthan_rbac_permissions');
+    return saved ? JSON.parse(saved) : DEFAULT_PERMISSIONS;
+  });
+  
+  const ability = useMemo(() => defineAbilityFor(userRole, rolePermissions), [userRole, rolePermissions]);
+
+  useEffect(() => {
+    localStorage.setItem('sagarmanthan_rbac_permissions', JSON.stringify(rolePermissions));
+  }, [rolePermissions]);
+  
+  const isTabPermitted = useCallback((tab) => {
+    if (tab === 'landing' || tab === 'profile') return true;
+    
+    // Projects sub-sections
+    if (tab === 'dashboard') return ability.can('read', 'ProjectsDashboard');
+    if (tab === 'projects') return ability.can('read', 'ProjectsList');
+    if (tab === 'less5cr') return ability.can('read', 'ProjectsLess5cr');
+    if (tab === 'lumpsum') return ability.can('read', 'ProjectsLumpsum');
+    if (tab === 'dropRequests') return ability.can('read', 'ProjectsDropRequests');
+    if (tab === 'reports') return ability.can('read', 'ProjectsReports');
+    
+    // KPI sub-sections
+    if (tab === 'Major Ports Dashboard') return ability.can('read', 'KPIDashboard');
+    if (tab === 'Major Ports Input Form') return ability.can('read', 'KPIInputForm');
+    if (tab === 'Major Ports Reports') return ability.can('read', 'KPIReports');
+    
+    // Governance sub-sections
+    if (tab === 'E Office') return ability.can('read', 'GovernanceEOffice');
+    if (tab === 'Attendance') return ability.can('read', 'GovernanceAttendance');
+    if (tab === 'CPGRAMS') return ability.can('read', 'GovernanceCPGRAMS');
+    if (tab === 'Cabinet Notes - MoPSW') return ability.can('read', 'CabinetNotes');
+    if (tab === 'VIP Reference') return ability.can('read', 'GovernanceVipReference');
+    
+    // Legal sub-sections
+    if (tab === 'Court cases') return ability.can('read', 'LegalCourtCases');
+    if (tab === 'Acts & Rules') return ability.can('read', 'LegalActsRules');
+    
+    // Strategies sub-sections
+    if (tab === 'Vision 2047') return ability.can('read', 'StrategiesVision2047');
+    if (tab === 'Maritime India Summit') return ability.can('read', 'StrategiesMIS');
+    if (tab === 'Blue Economy Policy') return ability.can('read', 'StrategiesBlueEconomy');
+    
+    // Knowledge sub-sections
+    if (tab === 'Research Papers') return ability.can('read', 'KnowledgeResearchPapers');
+    if (tab === 'Policy Documents') return ability.can('read', 'KnowledgePolicyDocuments');
+    if (tab === 'Guidelines') return ability.can('read', 'KnowledgeGuidelines');
+    
+    // Form Builder sub-sections
+    if (tab === 'Create Dynamic Form') return ability.can('read', 'FormBuilderCreateForm');
+    if (tab === 'View Submissions') return ability.can('read', 'FormBuilderViewSubmissions');
+    
+    // Tracker sub-sections
+    if (tab === 'Project Milestones') return ability.can('read', 'TrackerMilestones');
+    if (tab === 'Delay Analysis') return ability.can('read', 'TrackerDelayAnalysis');
+    
+    // Meetings sub-sections
+    if (tab === 'Meeting Schedule') return ability.can('read', 'MeetingSchedule');
+    if (tab === 'Minutes of Meeting') return ability.can('read', 'MeetingMOM');
+    if (tab === 'Action Taken Report') return ability.can('read', 'MeetingATR');
+    
+    // Contacts sub-sections
+    if (tab === 'Ministry Contacts') return ability.can('read', 'ContactMinistryContacts');
+    if (tab === 'Helpdesk Support') return ability.can('read', 'ContactHelpdesk');
+    
+    // User Access
+    if (tab === 'User Management') return ability.can('manage', 'UserAccess');
+    
+    return true;
+  }, [ability]);
+
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -263,11 +380,12 @@ export default function App() {
   };
 
   if (!isLoggedIn) {
-    return <LoginView onLogin={() => setIsLoggedIn(true)} />;
+    return <LoginView onLogin={(role) => { setIsLoggedIn(true); setUserRole(role || 'Admin'); }} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
+    <AbilityContext.Provider value={ability}>
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
       
       {/* Toast Notification Alert Banner */}
       {notification && (
@@ -295,115 +413,143 @@ export default function App() {
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         projectCount={projects.length} 
+        userRole={userRole}
       />
 
       {/* Main Content Viewport */}
       <main className="flex-grow w-full max-w-full px-4 sm:px-6 lg:px-8 pb-12">
-        {/* Dynamic Breadcrumbs Row */}
-        {activeTab === 'landing' && (
-          <LandingView 
-            onNavigate={(tab, subKpi) => {
-              if (subKpi) {
-                setEOfficeKpi(subKpi);
-              }
-              setActiveTab(tab);
-            }} 
-          />
-        )}
-
-        {activeTab === 'dashboard' && (
-          <DashboardView 
-            projects={projects} 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-          />
-        )}
-        
-        {activeTab === 'projects' && (
-          isAddingProject ? (
-            <AddProjectForm 
-              onAdd={handleAddProject}
-              onClose={() => setIsAddingProject(false)}
-            />
-          ) : (
-            <ProjectTable 
-              projects={projects} 
-              onAddProjectClick={() => setIsAddingProject(true)}
-              onAddSubProjectClick={() => setIsAddSubProjectOpen(true)}
-              onExportTrigger={(type) => triggerNotification(`${type} triggered successfully.`)}
-              activeTab={activeTab} 
-              setActiveTab={setActiveTab}
-            />
-          )
-        )}
-
-        {activeTab === 'Major Ports Dashboard' && (
-          <PortsDashboardView />
-        )}
-
-        {activeTab === 'Major Ports Input Form' && (
-          <PortsInputFormView />
-        )}
-
-        {activeTab === 'Major Ports Reports' && (
-          <PortsReportsView />
-        )}
-
-        {activeTab === 'E Office' && (
-          <EOfficeView key={eOfficeKpi} initialKpi={eOfficeKpi} />
-        )}
-
-        {activeTab === 'Attendance' && (
-          <AttendanceView />
-        )}
-
-        {activeTab === 'CPGRAMS' && (
-          <CPGRAMSView />
-        )}
-
-        {activeTab === 'Cabinet Notes - MoPSW' && (
-          <CabinetNotes />
-        )}
-
-        {['HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
-          <HRDashboardView activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
-        )}
-
-        {activeTab === 'profile' && (
-          <ProfileView triggerNotification={triggerNotification} />
-        )}
-
-        {isAddSubProjectOpen && (
-          <AddSubProjectModal
-            isOpen={isAddSubProjectOpen}
-            onClose={() => setIsAddSubProjectOpen(false)}
-            onAdd={handleAddSubProject}
-            projects={projects}
-          />
-        )}
-
-        {/* Placeholder / Empty State for other inactive government menu views */}
-        {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW'].includes(activeTab) && (
-          <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
-            <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
-              <Sparkles className="h-7 w-7 text-blue-600" />
+        {!isTabPermitted(activeTab) ? (
+          <div className="flex flex-col items-center justify-center p-12 bg-white border border-slate-200 rounded-2xl shadow-sm text-center my-12 max-w-lg mx-auto animate-fade-in">
+            <div className="p-3.5 bg-rose-50 text-rose-600 rounded-full mb-4">
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0-6v2m0-6h.01M12 21a9 9 0 110-18 9 9 0 010 18z" />
+              </svg>
             </div>
-            <h3 className="text-sm font-bold text-slate-800 font-display">SAGARMANTHAN - {activeTab}</h3>
-            <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
-              This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
+            <h3 className="text-base font-bold text-slate-800 uppercase tracking-wider mb-2">Access Denied</h3>
+            <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+              You do not have the required permissions to view this module. Please contact your Super Admin to request access.
             </p>
             <button 
-              onClick={() => setActiveTab('dashboard')}
-              className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
+              onClick={() => setActiveTab('landing')}
+              className="px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
             >
-              Back to Dashboard
+              Back to Home
             </button>
           </div>
+        ) : (
+          <>
+            {/* Dynamic Breadcrumbs Row */}
+            {activeTab === 'landing' && (
+              <LandingView 
+                onNavigate={(tab, subKpi) => {
+                  if (subKpi) {
+                    setEOfficeKpi(subKpi);
+                  }
+                  setActiveTab(tab);
+                }} 
+              />
+            )}
+
+            {activeTab === 'dashboard' && (
+              <DashboardView 
+                projects={projects} 
+                activeTab={activeTab} 
+                setActiveTab={setActiveTab} 
+              />
+            )}
+            
+            {activeTab === 'projects' && (
+              isAddingProject ? (
+                <AddProjectForm 
+                  onAdd={handleAddProject}
+                  onClose={() => setIsAddingProject(false)}
+                />
+              ) : (
+                <ProjectTable 
+                  projects={projects} 
+                  onAddProjectClick={() => setIsAddingProject(true)}
+                  onAddSubProjectClick={() => setIsAddSubProjectOpen(true)}
+                  onExportTrigger={(type) => triggerNotification(`${type} triggered successfully.`)}
+                  activeTab={activeTab} 
+                  setActiveTab={setActiveTab}
+                />
+              )
+            )}
+
+            {activeTab === 'Major Ports Dashboard' && (
+              <PortsDashboardView />
+            )}
+
+            {activeTab === 'Major Ports Input Form' && (
+              <PortsInputFormView />
+            )}
+
+            {activeTab === 'Major Ports Reports' && (
+              <PortsReportsView />
+            )}
+
+            {activeTab === 'E Office' && (
+              <EOfficeView key={eOfficeKpi} initialKpi={eOfficeKpi} />
+            )}
+
+            {activeTab === 'Attendance' && (
+              <AttendanceView />
+            )}
+
+            {activeTab === 'CPGRAMS' && (
+              <CPGRAMSView />
+            )}
+
+            {activeTab === 'Cabinet Notes - MoPSW' && (
+              <CabinetNotes userRole={userRole} />
+            )}
+
+            {activeTab === 'User Management' && (
+              <UserManagement rolePermissions={rolePermissions} setRolePermissions={setRolePermissions} />
+            )}
+
+            {['HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
+              <HRDashboardView activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
+            )}
+
+            {activeTab === 'profile' && (
+              <ProfileView triggerNotification={triggerNotification} />
+            )}
+
+            {isAddSubProjectOpen && (
+              <AddSubProjectModal
+                isOpen={isAddSubProjectOpen}
+                onClose={() => setIsAddSubProjectOpen(false)}
+                onAdd={handleAddSubProject}
+                projects={projects}
+              />
+            )}
+
+            {/* Placeholder / Empty State for other inactive government menu views */}
+            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'User Management'].includes(activeTab) && (
+              <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
+                <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
+                  <Sparkles className="h-7 w-7 text-blue-600" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-800 font-display">SAGARMANTHAN - {activeTab}</h3>
+                <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
+                  This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
+                </p>
+                <button 
+                  onClick={() => setActiveTab('dashboard')}
+                  className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
+                >
+                  Back to Dashboard
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 
       {/* Government Footer */}
       <Footer />
-    </div>
+      </div>
+    </AbilityContext.Provider>
   );
 }

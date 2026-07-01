@@ -10,8 +10,8 @@ const BG_IMAGES = [
 ];
 
 export default function LoginView({ onLogin }) {
-  const [email, setEmail] = useState('testmopsw@gmail.com');
-  const [password, setPassword] = useState('••••••••••••••••');
+  const [email, setEmail] = useState('superadmin@mopsw.gov.in');
+  const [password, setPassword] = useState('superadmin123');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [captchaVerified, setCaptchaVerified] = useState(false);
@@ -41,9 +41,33 @@ export default function LoginView({ onLogin }) {
       alert('Please complete the reCAPTCHA verification.');
       return;
     }
-    // Match the mock auth credentials
-    if (email === 'testmopsw@gmail.com') {
-      onLogin();
+    // Match the mock auth credentials and roles
+    if (email === 'superadmin@mopsw.gov.in' && password === 'superadmin123') {
+      onLogin('Super Admin');
+    } else if (email === 'admin@mopsw.gov.in' && password === 'admin123') {
+      onLogin('NTCPWC Admin');
+    } else if (email === 'viewonlyadmin@mopsw.gov.in' && password === 'viewonlyadmin123') {
+      onLogin('View Only Admin');
+    } else if (email === 'mopsw.wing@mopsw.gov.in' && password === 'wing123') {
+      onLogin('MOPSW - Wing/Division Level User');
+    } else if (email === 'mopsw.undersecretary@mopsw.gov.in' && password === 'undersecretary123') {
+      onLogin('MOPSW - Undersecretary Level');
+    } else if (email === 'mopsw.director@mopsw.gov.in' && password === 'director123') {
+      onLogin('MOPSW - Director Level');
+    } else if (email === 'mopsw.jointsecretary@mopsw.gov.in' && password === 'jointsecretary123') {
+      onLogin('MOPSW - Joint Secretary Level');
+    } else if (email === 'mopsw.secretary@mopsw.gov.in' && password === 'secretary123') {
+      onLogin('MOPSW - Secretary Level');
+    } else if (email === 'port.so@jnport.gov.in' && password === 'portso123') {
+      onLogin('Organisation Port - S.O');
+    } else if (email === 'port.no@jnport.gov.in' && password === 'portno123') {
+      onLogin('Organisation Port - N.O');
+    } else if (email === 'nonport.so@iwai.gov.in' && password === 'nonportso123') {
+      onLogin('Organisation Non-Port - S.O');
+    } else if (email === 'nonport.no@iwai.gov.in' && password === 'nonportno123') {
+      onLogin('Organisation Non-Port - N.O');
+    } else if (email === 'testmopsw@gmail.com') {
+      onLogin('NTCPWC Admin');
     } else {
       alert('Invalid username or password.');
     }
@@ -312,6 +336,141 @@ export default function LoginView({ onLogin }) {
                 </div>
               </div>
 
+
+              {/* Role selector dropdown */}
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[9px] font-bold text-cyan-300 tracking-wider uppercase block">Test Login Role Quick-Fill</label>
+                <select
+                  onChange={(e) => {
+                    const r = e.target.value;
+                    if (r === 'SuperAdmin') {
+                      setEmail('superadmin@mopsw.gov.in');
+                      setPassword('superadmin123');
+                    } else if (r === 'Admin') {
+                      setEmail('admin@mopsw.gov.in');
+                      setPassword('admin123');
+                    } else if (r === 'ViewOnlyAdmin') {
+                      setEmail('viewonlyadmin@mopsw.gov.in');
+                      setPassword('viewonlyadmin123');
+                    } else if (r === 'MopswWing') {
+                      setEmail('mopsw.wing@mopsw.gov.in');
+                      setPassword('wing123');
+                    } else if (r === 'MopswUndersecretary') {
+                      setEmail('mopsw.undersecretary@mopsw.gov.in');
+                      setPassword('undersecretary123');
+                    } else if (r === 'MopswDirector') {
+                      setEmail('mopsw.director@mopsw.gov.in');
+                      setPassword('director123');
+                    } else if (r === 'MopswJointSecretary') {
+                      setEmail('mopsw.jointsecretary@mopsw.gov.in');
+                      setPassword('jointsecretary123');
+                    } else if (r === 'MopswSecretary') {
+                      setEmail('mopsw.secretary@mopsw.gov.in');
+                      setPassword('secretary123');
+                    } else if (r === 'PortSO') {
+                      setEmail('port.so@jnport.gov.in');
+                      setPassword('portso123');
+                    } else if (r === 'PortNO') {
+                      setEmail('port.no@jnport.gov.in');
+                      setPassword('portno123');
+                    } else if (r === 'NonPortSO') {
+                      setEmail('nonport.so@iwai.gov.in');
+                      setPassword('nonportso123');
+                    } else if (r === 'NonPortNO') {
+                      setEmail('nonport.no@iwai.gov.in');
+                      setPassword('nonportno123');
+                    }
+                  }}
+                  defaultValue="SuperAdmin"
+                  className="w-full text-xs px-3 py-2.5 bg-white/10 border border-white/20 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-semibold cursor-pointer"
+                >
+                  <optgroup label="Admins" className="text-slate-800 font-bold bg-slate-100">
+                    <option value="SuperAdmin">Super Admin (User Management & Full Access)</option>
+                    <option value="Admin">NTCPWC Admin (Full Access)</option>
+                    <option value="ViewOnlyAdmin">View Only Admin</option>
+                  </optgroup>
+                  <optgroup label="MOPSW Hierarchy" className="text-slate-800 font-bold bg-slate-100">
+                    <option value="MopswWing">MOPSW - Wing/Division Level User</option>
+                    <option value="MopswUndersecretary">MOPSW - Undersecretary Level</option>
+                    <option value="MopswDirector">MOPSW - Director Level</option>
+                    <option value="MopswJointSecretary">MOPSW - Joint Secretary Level</option>
+                    <option value="MopswSecretary">MOPSW - Secretary Level</option>
+                  </optgroup>
+                  <optgroup label="Organisations" className="text-slate-800 font-bold bg-slate-100">
+                    <option value="PortSO">Organisation Port - S.O</option>
+                    <option value="PortNO">Organisation Port - N.O</option>
+                    <option value="NonPortSO">Organisation Non-Port - S.O</option>
+                    <option value="NonPortNO">Organisation Non-Port - N.O</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              {/* Login Details Cheat Sheet */}
+              <div className="bg-white/10 border border-white/15 rounded-lg p-2.5 space-y-1.5 text-[9.5px] text-white">
+                <p className="font-bold text-cyan-300 uppercase tracking-wider text-[9px]">Role Credentials Directory</p>
+                <div className="max-h-[120px] overflow-y-auto pr-1 space-y-2.5 font-sans leading-tight scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                  {/* Admins */}
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-black text-cyan-400 uppercase tracking-wider">Admins</p>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">Super Admin:</span>
+                      <span className="font-mono text-[9px] opacity-90">superadmin@mopsw.gov.in / superadmin123</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">NTCPWC Admin:</span>
+                      <span className="font-mono text-[9px] opacity-90">admin@mopsw.gov.in / admin123</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">View Only Admin:</span>
+                      <span className="font-mono text-[9px] opacity-90">viewonlyadmin@mopsw.gov.in / viewonlyadmin123</span>
+                    </div>
+                  </div>
+                  {/* MOPSW */}
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-black text-cyan-400 uppercase tracking-wider">MOPSW Hierarchy</p>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">Wing/Div User:</span>
+                      <span className="font-mono text-[9px] opacity-90">mopsw.wing@mopsw.gov.in / wing123</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">Undersecretary:</span>
+                      <span className="font-mono text-[9px] opacity-90">mopsw.undersecretary@mopsw.gov.in / undersecretary123</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">Director Level:</span>
+                      <span className="font-mono text-[9px] opacity-90">mopsw.director@mopsw.gov.in / director123</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">Joint Secretary:</span>
+                      <span className="font-mono text-[9px] opacity-90">mopsw.jointsecretary@mopsw.gov.in / jointsecretary123</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">Secretary Level:</span>
+                      <span className="font-mono text-[9px] opacity-90">mopsw.secretary@mopsw.gov.in / secretary123</span>
+                    </div>
+                  </div>
+                  {/* Organisations */}
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-black text-cyan-400 uppercase tracking-wider">Organisations</p>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">Port (S.O):</span>
+                      <span className="font-mono text-[9px] opacity-90">port.so@jnport.gov.in / portso123</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">Port (N.O):</span>
+                      <span className="font-mono text-[9px] opacity-90">port.no@jnport.gov.in / portno123</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
+                      <span className="font-bold text-cyan-100">Non-Port (S.O):</span>
+                      <span className="font-mono text-[9px] opacity-90">nonport.so@iwai.gov.in / nonportso123</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:justify-between">
+                      <span className="font-bold text-cyan-100">Non-Port (N.O):</span>
+                      <span className="font-mono text-[9px] opacity-90">nonport.no@iwai.gov.in / nonportno123</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Email Field */}
               <div className="space-y-2">
