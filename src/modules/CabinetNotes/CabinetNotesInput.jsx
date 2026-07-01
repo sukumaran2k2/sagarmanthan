@@ -14,7 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  Layers,
   GitBranch,
   CheckCircle2,
   UploadCloud,
@@ -23,7 +22,6 @@ import {
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 
-import { INITIAL_NOTES } from './constants';
 
 // Register grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -59,9 +57,8 @@ const STATUS_STEPS = {
   11: 'Completed'
 };
 
-export default function CabinetNotesInput() {
+export default function CabinetNotesInput({ notes, setNotes }) {
   const gridRef = useRef();
-  const [notes, setNotes] = useState(INITIAL_NOTES);
   const [selectedWing, setSelectedWing] = useState('All');
   const [selectedDivision, setSelectedDivision] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -823,28 +820,7 @@ export default function CabinetNotesInput() {
         </>
       ) : (
         /* KPI Insights Grid (Visible only when Database table is collapsed) */
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in pt-4 border-t border-slate-100">
-          
-          {/* 1. Wing-wise KPI */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 shadow-inner">
-            <div className="flex items-center space-x-2 text-[#0f417a] font-bold">
-              <Layers className="h-4.5 w-4.5 text-[#0f417a]" />
-              <span className="text-[11px] uppercase tracking-wider font-display text-slate-700">Wing Wise Counts</span>
-            </div>
-            <div className="divide-y divide-slate-150 font-semibold text-xs text-slate-700 max-h-[220px] overflow-y-auto pr-1">
-              {Object.entries(
-                notes.reduce((acc, n) => {
-                  acc[n.wing] = (acc[n.wing] || 0) + 1;
-                  return acc;
-                }, {})
-              ).sort((a, b) => b[1] - a[1]).map(([wing, count]) => (
-                <div key={wing} className="flex justify-between py-2 items-center">
-                  <span>{wing}</span>
-                  <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-extrabold">{count} notes</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in pt-4 border-t border-slate-100">
 
           {/* 2. Division-wise KPI */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 shadow-inner">
