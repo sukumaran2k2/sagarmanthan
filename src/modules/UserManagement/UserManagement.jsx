@@ -44,7 +44,7 @@ const INITIAL_USERS = [
     title: 'Shri',
     name: 'Sagar Kumar',
     phone: '9876543210',
-    email: 'sagar.kumar@mopsw.gov.in',
+    email: 'sagar.kumar@mopsw.test.local',
     organisation: 'Ministry of Ports, Shipping and Waterways',
     designation: 'Joint Secretary',
     role: 'MOPSW - Joint Secretary Level'
@@ -54,7 +54,7 @@ const INITIAL_USERS = [
     title: 'Dr',
     name: 'T. R. Prasad',
     phone: '9444012345',
-    email: 'prasad.tr@ntcpwc.org',
+    email: 'prasad.tr@ntcpwc.test.local',
     organisation: 'NTCPWC',
     designation: 'Senior Nodal Officer',
     role: 'NTCPWC Admin'
@@ -64,7 +64,7 @@ const INITIAL_USERS = [
     title: 'Shri',
     name: 'M. K. Swamy',
     phone: '9988776655',
-    email: 'swamy.mk@jnport.gov.in',
+    email: 'swamy.mk@jnport.test.local',
     organisation: 'Jawaharlal Nehru Port Authority',
     designation: 'Senior Officer (S.O)',
     role: 'Organisation Port - S.O'
@@ -74,7 +74,7 @@ const INITIAL_USERS = [
     title: 'Ms',
     name: 'Anjali Sharma',
     phone: '9123456789',
-    email: 'anjali.sharma@mopsw.gov.in',
+    email: 'anjali.sharma@mopsw.test.local',
     organisation: 'Ministry of Ports, Shipping and Waterways',
     designation: 'Undersecretary',
     role: 'MOPSW - Undersecretary Level'
@@ -694,7 +694,7 @@ export default function UserManagement({ rolePermissions = {}, setRolePermission
                     <input 
                       type="email" 
                       required
-                      placeholder="e.g. email@mopsw.gov.in"
+                      placeholder="e.g. email@mopsw.test.local"
                       value={formEmail}
                       onChange={(e) => setFormEmail(e.target.value)}
                       className="w-full pl-8 pr-3 py-2 border border-slate-250 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-550"

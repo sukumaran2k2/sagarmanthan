@@ -10,7 +10,7 @@ const BG_IMAGES = [
 ];
 
 export default function LoginView({ onLogin }) {
-  const [email, setEmail] = useState('superadmin@mopsw.gov.in');
+  const [email, setEmail] = useState('superadmin@mopsw.test.local');
   const [password, setPassword] = useState('superadmin123');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -42,29 +42,29 @@ export default function LoginView({ onLogin }) {
       return;
     }
     // Match the mock auth credentials and roles
-    if (email === 'superadmin@mopsw.gov.in' && password === 'superadmin123') {
+    if (email === 'superadmin@mopsw.test.local' && password === 'superadmin123') {
       onLogin('Super Admin');
-    } else if (email === 'admin@mopsw.gov.in' && password === 'admin123') {
+    } else if (email === 'admin@mopsw.test.local' && password === 'admin123') {
       onLogin('NTCPWC Admin');
-    } else if (email === 'viewonlyadmin@mopsw.gov.in' && password === 'viewonlyadmin123') {
+    } else if (email === 'viewonlyadmin@mopsw.test.local' && password === 'viewonlyadmin123') {
       onLogin('View Only Admin');
-    } else if (email === 'mopsw.wing@mopsw.gov.in' && password === 'wing123') {
+    } else if (email === 'mopsw.wing@mopsw.test.local' && password === 'wing123') {
       onLogin('MOPSW - Wing/Division Level User');
-    } else if (email === 'mopsw.undersecretary@mopsw.gov.in' && password === 'undersecretary123') {
+    } else if (email === 'mopsw.undersecretary@mopsw.test.local' && password === 'undersecretary123') {
       onLogin('MOPSW - Undersecretary Level');
-    } else if (email === 'mopsw.director@mopsw.gov.in' && password === 'director123') {
+    } else if (email === 'mopsw.director@mopsw.test.local' && password === 'director123') {
       onLogin('MOPSW - Director Level');
-    } else if (email === 'mopsw.jointsecretary@mopsw.gov.in' && password === 'jointsecretary123') {
+    } else if (email === 'mopsw.jointsecretary@mopsw.test.local' && password === 'jointsecretary123') {
       onLogin('MOPSW - Joint Secretary Level');
-    } else if (email === 'mopsw.secretary@mopsw.gov.in' && password === 'secretary123') {
+    } else if (email === 'mopsw.secretary@mopsw.test.local' && password === 'secretary123') {
       onLogin('MOPSW - Secretary Level');
-    } else if (email === 'port.so@jnport.gov.in' && password === 'portso123') {
+    } else if (email === 'port.so@jnport.test.local' && password === 'portso123') {
       onLogin('Organisation Port - S.O');
-    } else if (email === 'port.no@jnport.gov.in' && password === 'portno123') {
+    } else if (email === 'port.no@jnport.test.local' && password === 'portno123') {
       onLogin('Organisation Port - N.O');
-    } else if (email === 'nonport.so@iwai.gov.in' && password === 'nonportso123') {
+    } else if (email === 'nonport.so@iwai.test.local' && password === 'nonportso123') {
       onLogin('Organisation Non-Port - S.O');
-    } else if (email === 'nonport.no@iwai.gov.in' && password === 'nonportno123') {
+    } else if (email === 'nonport.no@iwai.test.local' && password === 'nonportno123') {
       onLogin('Organisation Non-Port - N.O');
     } else if (email === 'testmopsw@gmail.com') {
       onLogin('NTCPWC Admin');
@@ -344,41 +344,41 @@ export default function LoginView({ onLogin }) {
                   onChange={(e) => {
                     const r = e.target.value;
                     if (r === 'SuperAdmin') {
-                      setEmail('superadmin@mopsw.gov.in');
-                      setPassword('superadmin123');
-                    } else if (r === 'Admin') {
-                      setEmail('admin@mopsw.gov.in');
-                      setPassword('admin123');
-                    } else if (r === 'ViewOnlyAdmin') {
-                      setEmail('viewonlyadmin@mopsw.gov.in');
-                      setPassword('viewonlyadmin123');
-                    } else if (r === 'MopswWing') {
-                      setEmail('mopsw.wing@mopsw.gov.in');
-                      setPassword('wing123');
-                    } else if (r === 'MopswUndersecretary') {
-                      setEmail('mopsw.undersecretary@mopsw.gov.in');
-                      setPassword('undersecretary123');
-                    } else if (r === 'MopswDirector') {
-                      setEmail('mopsw.director@mopsw.gov.in');
-                      setPassword('director123');
-                    } else if (r === 'MopswJointSecretary') {
-                      setEmail('mopsw.jointsecretary@mopsw.gov.in');
-                      setPassword('jointsecretary123');
-                    } else if (r === 'MopswSecretary') {
-                      setEmail('mopsw.secretary@mopsw.gov.in');
-                      setPassword('secretary123');
-                    } else if (r === 'PortSO') {
-                      setEmail('port.so@jnport.gov.in');
-                      setPassword('portso123');
-                    } else if (r === 'PortNO') {
-                      setEmail('port.no@jnport.gov.in');
-                      setPassword('portno123');
-                    } else if (r === 'NonPortSO') {
-                      setEmail('nonport.so@iwai.gov.in');
-                      setPassword('nonportso123');
-                    } else if (r === 'NonPortNO') {
-                      setEmail('nonport.no@iwai.gov.in');
-                      setPassword('nonportno123');
+                       setEmail('superadmin@mopsw.test.local');
+                       setPassword('superadmin123');
+                     } else if (r === 'Admin') {
+                       setEmail('admin@mopsw.test.local');
+                       setPassword('admin123');
+                     } else if (r === 'ViewOnlyAdmin') {
+                       setEmail('viewonlyadmin@mopsw.test.local');
+                       setPassword('viewonlyadmin123');
+                     } else if (r === 'MopswWing') {
+                       setEmail('mopsw.wing@mopsw.test.local');
+                       setPassword('wing123');
+                     } else if (r === 'MopswUndersecretary') {
+                       setEmail('mopsw.undersecretary@mopsw.test.local');
+                       setPassword('undersecretary123');
+                     } else if (r === 'MopswDirector') {
+                       setEmail('mopsw.director@mopsw.test.local');
+                       setPassword('director123');
+                     } else if (r === 'MopswJointSecretary') {
+                       setEmail('mopsw.jointsecretary@mopsw.test.local');
+                       setPassword('jointsecretary123');
+                     } else if (r === 'MopswSecretary') {
+                       setEmail('mopsw.secretary@mopsw.test.local');
+                       setPassword('secretary123');
+                     } else if (r === 'PortSO') {
+                       setEmail('port.so@jnport.test.local');
+                       setPassword('portso123');
+                     } else if (r === 'PortNO') {
+                       setEmail('port.no@jnport.test.local');
+                       setPassword('portno123');
+                     } else if (r === 'NonPortSO') {
+                       setEmail('nonport.so@iwai.test.local');
+                       setPassword('nonportso123');
+                     } else if (r === 'NonPortNO') {
+                       setEmail('nonport.no@iwai.test.local');
+                       setPassword('nonportno123');
                     }
                   }}
                   defaultValue="SuperAdmin"
@@ -414,15 +414,15 @@ export default function LoginView({ onLogin }) {
                     <p className="text-[8px] font-black text-cyan-400 uppercase tracking-wider">Admins</p>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">Super Admin:</span>
-                      <span className="font-mono text-[9px] opacity-90">superadmin@mopsw.gov.in / superadmin123</span>
+                      <span className="font-mono text-[9px] opacity-90">superadmin@mopsw.test.local / superadmin123</span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">NTCPWC Admin:</span>
-                      <span className="font-mono text-[9px] opacity-90">admin@mopsw.gov.in / admin123</span>
+                      <span className="font-mono text-[9px] opacity-90">admin@mopsw.test.local / admin123</span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">View Only Admin:</span>
-                      <span className="font-mono text-[9px] opacity-90">viewonlyadmin@mopsw.gov.in / viewonlyadmin123</span>
+                      <span className="font-mono text-[9px] opacity-90">viewonlyadmin@mopsw.test.local / viewonlyadmin123</span>
                     </div>
                   </div>
                   {/* MOPSW */}
@@ -430,23 +430,23 @@ export default function LoginView({ onLogin }) {
                     <p className="text-[8px] font-black text-cyan-400 uppercase tracking-wider">MOPSW Hierarchy</p>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">Wing/Div User:</span>
-                      <span className="font-mono text-[9px] opacity-90">mopsw.wing@mopsw.gov.in / wing123</span>
+                      <span className="font-mono text-[9px] opacity-90">mopsw.wing@mopsw.test.local / wing123</span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">Undersecretary:</span>
-                      <span className="font-mono text-[9px] opacity-90">mopsw.undersecretary@mopsw.gov.in / undersecretary123</span>
+                      <span className="font-mono text-[9px] opacity-90">mopsw.undersecretary@mopsw.test.local / undersecretary123</span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">Director Level:</span>
-                      <span className="font-mono text-[9px] opacity-90">mopsw.director@mopsw.gov.in / director123</span>
+                      <span className="font-mono text-[9px] opacity-90">mopsw.director@mopsw.test.local / director123</span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">Joint Secretary:</span>
-                      <span className="font-mono text-[9px] opacity-90">mopsw.jointsecretary@mopsw.gov.in / jointsecretary123</span>
+                      <span className="font-mono text-[9px] opacity-90">mopsw.jointsecretary@mopsw.test.local / jointsecretary123</span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">Secretary Level:</span>
-                      <span className="font-mono text-[9px] opacity-90">mopsw.secretary@mopsw.gov.in / secretary123</span>
+                      <span className="font-mono text-[9px] opacity-90">mopsw.secretary@mopsw.test.local / secretary123</span>
                     </div>
                   </div>
                   {/* Organisations */}
@@ -454,19 +454,19 @@ export default function LoginView({ onLogin }) {
                     <p className="text-[8px] font-black text-cyan-400 uppercase tracking-wider">Organisations</p>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">Port (S.O):</span>
-                      <span className="font-mono text-[9px] opacity-90">port.so@jnport.gov.in / portso123</span>
+                      <span className="font-mono text-[9px] opacity-90">port.so@jnport.test.local / portso123</span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">Port (N.O):</span>
-                      <span className="font-mono text-[9px] opacity-90">port.no@jnport.gov.in / portno123</span>
+                      <span className="font-mono text-[9px] opacity-90">port.no@jnport.test.local / portno123</span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between border-b border-white/5 pb-1">
                       <span className="font-bold text-cyan-100">Non-Port (S.O):</span>
-                      <span className="font-mono text-[9px] opacity-90">nonport.so@iwai.gov.in / nonportso123</span>
+                      <span className="font-mono text-[9px] opacity-90">nonport.so@iwai.test.local / nonportso123</span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:justify-between">
                       <span className="font-bold text-cyan-100">Non-Port (N.O):</span>
-                      <span className="font-mono text-[9px] opacity-90">nonport.no@iwai.gov.in / nonportno123</span>
+                      <span className="font-mono text-[9px] opacity-90">nonport.no@iwai.test.local / nonportno123</span>
                     </div>
                   </div>
                 </div>
