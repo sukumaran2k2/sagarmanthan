@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
-import { 
-  UserCheck, 
-  ChevronDown, 
-  FileSpreadsheet, 
-  FileCheck, 
+import {
+  UserCheck,
+  ChevronDown,
+  FileSpreadsheet,
+  FileCheck,
   Search,
   Calendar
 } from 'lucide-react';
@@ -73,7 +73,7 @@ export default function AttendanceView() {
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-      
+
       {/* KPI Overviews */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
@@ -124,7 +124,7 @@ export default function AttendanceView() {
         {/* Dropdown Filters Panel */}
         <div className="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-end justify-between gap-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 flex-grow">
-            
+
             {/* Month Selector */}
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Month</label>
@@ -207,7 +207,7 @@ export default function AttendanceView() {
 
         {/* AG Grid */}
         <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-          <AgGridReact 
+          <AgGridReact
             theme="legacy"
             rowData={filteredData}
             columnDefs={colDefs}
@@ -216,15 +216,7 @@ export default function AttendanceView() {
             headerHeight={48}
             suppressColumnVirtualisation={true}
             autoSizeStrategy={{
-              type: 'fitCellContents'
-            }}
-            onFirstDataRendered={(params) => {
-              const allCols = params.api.getAllGridColumns();
-              const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-              const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
-                if (containerWidth > 0 && totalColWidth < containerWidth) {
-                  params.api.sizeColumnsToFit();
-                }
+              type: 'fitGridWidth'
             }}
           />
         </div>

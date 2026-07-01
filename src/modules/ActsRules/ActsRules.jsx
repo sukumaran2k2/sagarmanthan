@@ -468,15 +468,7 @@ export default function ActsRulesView() {
                     headerHeight={48}
                     suppressColumnVirtualisation={true}
                     autoSizeStrategy={{
-                        type: 'fitCellContents'
-                    }}
-                    onFirstDataRendered={(params) => {
-                        const allCols = params.api.getAllGridColumns();
-                        const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-                        const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
-                        if (containerWidth > 0 && totalColWidth < containerWidth) {
-                            params.api.sizeColumnsToFit();
-                        }
+                        type: 'fitGridWidth'
                     }}
                 />
                 {/* Custom Pagination Footer */}

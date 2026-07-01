@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
-import { 
-  FileText, 
-  Inbox, 
-  CheckSquare, 
-  ChevronDown, 
-  FileSpreadsheet, 
-  FileCheck, 
+import {
+  FileText,
+  Inbox,
+  CheckSquare,
+  ChevronDown,
+  FileSpreadsheet,
+  FileCheck,
   Search
 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
@@ -101,67 +101,67 @@ export default function EOfficeView({ initialKpi }) {
 
   // AG Grid Column Definitions
   const colDefs = useMemo(() => [
-    { 
-      field: 'sno', 
-      headerName: 'S.No', 
-      width: 70, 
+    {
+      field: 'sno',
+      headerName: 'S.No',
+      width: 70,
       pinned: 'left',
       cellClass: 'text-slate-500 font-bold',
       sortable: true
     },
-    { 
-      field: 'empId', 
-      headerName: 'Emp ID', 
-      minWidth: 110, 
+    {
+      field: 'empId',
+      headerName: 'Emp ID',
+      minWidth: 110,
       pinned: 'left',
       cellClass: 'font-mono font-bold text-slate-800',
       sortable: true,
       filter: true
     },
-    { 
-      field: 'empName', 
-      headerName: 'Employee Name', 
-      minWidth: 170, 
+    {
+      field: 'empName',
+      headerName: 'Employee Name',
+      minWidth: 170,
       cellClass: 'font-extrabold text-slate-900',
       sortable: true,
       filter: true
     },
-    { 
-      field: 'designation', 
-      headerName: 'Designation', 
-      minWidth: 160, 
+    {
+      field: 'designation',
+      headerName: 'Designation',
+      minWidth: 160,
       cellClass: 'text-slate-600 font-semibold',
       sortable: true,
       filter: true
     },
-    { 
-      field: 'wing', 
-      headerName: 'Wing', 
-      minWidth: 130, 
+    {
+      field: 'wing',
+      headerName: 'Wing',
+      minWidth: 130,
       cellClass: 'text-slate-600 font-semibold',
       sortable: true,
       filter: true
     },
-    { 
-      field: 'division', 
-      headerName: 'Division', 
-      minWidth: 130, 
+    {
+      field: 'division',
+      headerName: 'Division',
+      minWidth: 130,
       cellClass: 'text-slate-600 font-semibold',
       sortable: true,
       filter: true
     },
-    { 
-      field: 'gt30', 
-      headerName: 'Greater than 30 Days', 
-      minWidth: 180, 
+    {
+      field: 'gt30',
+      headerName: 'Greater than 30 Days',
+      minWidth: 180,
       cellClass: 'text-center font-bold text-slate-900',
       sortable: true,
       filter: true
     },
-    { 
-      field: 'd16_30', 
-      headerName: '16-30 Days', 
-      minWidth: 130, 
+    {
+      field: 'd16_30',
+      headerName: '16-30 Days',
+      minWidth: 130,
       cellClass: 'text-center font-bold text-slate-900',
       sortable: true,
       filter: true
@@ -187,18 +187,17 @@ export default function EOfficeView({ initialKpi }) {
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-      
+
       {/* 3 KPI Card Style Buttons */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        
+
         {/* Card 1: File Pendency (Red Theme) */}
         <button
           onClick={() => setSelectedKpi('file-pendency')}
-          className={`flex items-center justify-between p-5 rounded-2xl border text-left transition-all duration-250 cursor-pointer ${
-            selectedKpi === 'file-pendency'
+          className={`flex items-center justify-between p-5 rounded-2xl border text-left transition-all duration-250 cursor-pointer ${selectedKpi === 'file-pendency'
               ? 'bg-red-50/50 border-red-300 shadow-md ring-2 ring-red-200/40'
               : 'bg-white border-slate-200 hover:border-red-200 hover:shadow-sm'
-          }`}
+            }`}
         >
           <div className="space-y-1">
             <span className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-widest">
@@ -214,9 +213,8 @@ export default function EOfficeView({ initialKpi }) {
               Pending departmental files
             </span>
           </div>
-          <div className={`p-3.5 rounded-xl border transition-colors ${
-            selectedKpi === 'file-pendency' ? 'bg-red-600 text-white border-red-700' : 'bg-slate-50 text-slate-400 border-slate-100'
-          }`}>
+          <div className={`p-3.5 rounded-xl border transition-colors ${selectedKpi === 'file-pendency' ? 'bg-red-600 text-white border-red-700' : 'bg-slate-50 text-slate-400 border-slate-100'
+            }`}>
             <FileText className="h-5 w-5" />
           </div>
         </button>
@@ -224,11 +222,10 @@ export default function EOfficeView({ initialKpi }) {
         {/* Card 2: Receipt Pendency */}
         <button
           onClick={() => setSelectedKpi('receipt-pendency')}
-          className={`flex items-center justify-between p-5 rounded-2xl border text-left transition-all duration-250 cursor-pointer ${
-            selectedKpi === 'receipt-pendency'
+          className={`flex items-center justify-between p-5 rounded-2xl border text-left transition-all duration-250 cursor-pointer ${selectedKpi === 'receipt-pendency'
               ? 'bg-amber-50/50 border-amber-350 shadow-md ring-2 ring-amber-200/50'
               : 'bg-white border-slate-200 hover:border-slate-350 hover:shadow-sm'
-          }`}
+            }`}
         >
           <div className="space-y-1">
             <span className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-widest">
@@ -244,9 +241,8 @@ export default function EOfficeView({ initialKpi }) {
               Receipts pending processing
             </span>
           </div>
-          <div className={`p-3.5 rounded-xl border ${
-            selectedKpi === 'receipt-pendency' ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 text-slate-400 border-slate-100'
-          }`}>
+          <div className={`p-3.5 rounded-xl border ${selectedKpi === 'receipt-pendency' ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 text-slate-400 border-slate-100'
+            }`}>
             <Inbox className="h-5 w-5" />
           </div>
         </button>
@@ -254,11 +250,10 @@ export default function EOfficeView({ initialKpi }) {
         {/* Card 3: File Disposal */}
         <button
           onClick={() => setSelectedKpi('file-disposal')}
-          className={`flex items-center justify-between p-5 rounded-2xl border text-left transition-all duration-250 cursor-pointer ${
-            selectedKpi === 'file-disposal'
+          className={`flex items-center justify-between p-5 rounded-2xl border text-left transition-all duration-250 cursor-pointer ${selectedKpi === 'file-disposal'
               ? 'bg-emerald-50/50 border-emerald-350 shadow-md ring-2 ring-emerald-200/50'
               : 'bg-white border-slate-200 hover:border-slate-350 hover:shadow-sm'
-          }`}
+            }`}
         >
           <div className="space-y-1">
             <span className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-widest">
@@ -274,9 +269,8 @@ export default function EOfficeView({ initialKpi }) {
               Files disposed & finalized
             </span>
           </div>
-          <div className={`p-3.5 rounded-xl border ${
-            selectedKpi === 'file-disposal' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-slate-50 text-slate-400 border-slate-100'
-          }`}>
+          <div className={`p-3.5 rounded-xl border ${selectedKpi === 'file-disposal' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-slate-50 text-slate-400 border-slate-100'
+            }`}>
             <CheckSquare className="h-5 w-5" />
           </div>
         </button>
@@ -285,7 +279,7 @@ export default function EOfficeView({ initialKpi }) {
 
       {/* Main E-Office Content Card */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-        
+
         {/* Dynamic Title Header */}
         <div className="text-center space-y-1">
           <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
@@ -302,11 +296,10 @@ export default function EOfficeView({ initialKpi }) {
             <button
               key={tab}
               onClick={() => setActiveSubTab(tab)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeSubTab === tab || (tab === 'Report' && activeSubTab === 'Report')
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeSubTab === tab || (tab === 'Report' && activeSubTab === 'Report')
                   ? 'bg-blue-755 text-white shadow-sm dark:bg-[#0f417a]'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
-              }`}
+                }`}
             >
               {tab}
             </button>
@@ -316,7 +309,7 @@ export default function EOfficeView({ initialKpi }) {
         {/* Dropdown Filters Panel */}
         <div className="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-5 flex flex-col md:flex-row md:items-end justify-between gap-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 flex-grow">
-            
+
             {/* Month Selector */}
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Month</label>
@@ -420,7 +413,7 @@ export default function EOfficeView({ initialKpi }) {
 
         {/* AG Grid Table Container */}
         <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-          <AgGridReact 
+          <AgGridReact
             theme="legacy"
             rowData={filteredData}
             columnDefs={colDefs}
@@ -429,15 +422,7 @@ export default function EOfficeView({ initialKpi }) {
             headerHeight={48}
             suppressColumnVirtualisation={true}
             autoSizeStrategy={{
-              type: 'fitCellContents'
-            }}
-            onFirstDataRendered={(params) => {
-              const allCols = params.api.getAllGridColumns();
-              const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-              const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
-                if (containerWidth > 0 && totalColWidth < containerWidth) {
-                  params.api.sizeColumnsToFit();
-                }
+              type: 'fitGridWidth'
             }}
           />
         </div>

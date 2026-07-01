@@ -60,7 +60,8 @@ export default function LandingView({ onNavigate }) {
     { sno: 16, moduleName: 'Expenditure', shipping: '--', vigilance: '--', ports: '--', iwt: '--', admin: '--' },
     { sno: 17, moduleName: 'Foreign Visit', shipping: '17-06-2026', vigilance: 'Not Applicable', ports: 'Not Applicable', iwt: 'Not Applicable', admin: 'Not Applicable' },
     { sno: 18, moduleName: 'Inter State and Inter Ministerial Issues', shipping: '--', vigilance: '--', ports: '--', iwt: '--', admin: '--' },
-    { sno: 19, moduleName: 'Acts & Rules', shipping: '--', vigilance: '--', ports: '--', iwt: '--', admin: '--' }
+    { sno: 19, moduleName: 'Acts & Rules', shipping: '--', vigilance: '--', ports: '--', iwt: '--', admin: '--' },
+    { sno: 20, moduleName: 'Media Outreach', shipping: '--', vigilance: '--', ports: '18-05-2026', iwt: '--', admin: '--' }
   ];
 
   const DateCellRenderer = (params) => {
@@ -171,7 +172,8 @@ export default function LandingView({ onNavigate }) {
       'MoPSW Tracker': 'Project Milestones',
       'Foreign Visit': 'Foreign Visit',
       'Inter State and Inter Ministerial Issues': 'Inter State & Inter Ministerial',
-      'Acts & Rules': 'Acts & Rules'
+      'Acts & Rules': 'Acts & Rules',
+      'Media Outreach': 'Media Outreach'
     };
     const targetTab = routeMap[moduleName];
     if (targetTab) {
@@ -289,15 +291,7 @@ export default function LandingView({ onNavigate }) {
             onRowClicked={handleRowClicked}
             suppressColumnVirtualisation={true}
             autoSizeStrategy={{
-              type: 'fitCellContents'
-            }}
-            onFirstDataRendered={(params) => {
-              const allCols = params.api.getAllGridColumns();
-              const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-              const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
-                if (containerWidth > 0 && totalColWidth < containerWidth) {
-                  params.api.sizeColumnsToFit();
-                }
+              type: 'fitGridWidth'
             }}
           />
         </div>
