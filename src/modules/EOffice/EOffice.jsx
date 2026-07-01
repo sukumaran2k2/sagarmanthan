@@ -104,23 +104,24 @@ export default function EOfficeView({ initialKpi }) {
     { 
       field: 'sno', 
       headerName: 'S.No', 
-      maxWidth: 80, 
+      width: 70, 
+      pinned: 'left',
       cellClass: 'text-slate-500 font-bold',
       sortable: true
     },
     { 
       field: 'empId', 
       headerName: 'Emp ID', 
-      maxWidth: 110, 
+      minWidth: 110, 
+      pinned: 'left',
       cellClass: 'font-mono font-bold text-slate-800',
       sortable: true,
       filter: true
     },
     { 
       field: 'empName', 
-      headerName: 'Emp Name', 
-      flex: 1.5,
-      minWidth: 150, 
+      headerName: 'Employee Name', 
+      minWidth: 170, 
       cellClass: 'font-extrabold text-slate-900',
       sortable: true,
       filter: true
@@ -128,8 +129,7 @@ export default function EOfficeView({ initialKpi }) {
     { 
       field: 'designation', 
       headerName: 'Designation', 
-      flex: 1.5,
-      minWidth: 150, 
+      minWidth: 160, 
       cellClass: 'text-slate-600 font-semibold',
       sortable: true,
       filter: true
@@ -137,8 +137,7 @@ export default function EOfficeView({ initialKpi }) {
     { 
       field: 'wing', 
       headerName: 'Wing', 
-      flex: 1,
-      minWidth: 120, 
+      minWidth: 130, 
       cellClass: 'text-slate-600 font-semibold',
       sortable: true,
       filter: true
@@ -146,17 +145,15 @@ export default function EOfficeView({ initialKpi }) {
     { 
       field: 'division', 
       headerName: 'Division', 
-      flex: 1,
-      minWidth: 120, 
+      minWidth: 130, 
       cellClass: 'text-slate-600 font-semibold',
       sortable: true,
       filter: true
     },
     { 
       field: 'gt30', 
-      headerName: 'Greater than 30 days', 
-      flex: 1,
-      minWidth: 160, 
+      headerName: 'Greater than 30 Days', 
+      minWidth: 180, 
       cellClass: 'text-center font-bold text-slate-900',
       sortable: true,
       filter: true
@@ -164,13 +161,29 @@ export default function EOfficeView({ initialKpi }) {
     { 
       field: 'd16_30', 
       headerName: '16-30 Days', 
-      flex: 1,
-      minWidth: 120, 
+      minWidth: 130, 
       cellClass: 'text-center font-bold text-slate-900',
       sortable: true,
       filter: true
     }
   ], []);
+
+  const handleGridWheel = (e) => {
+    const container = e.currentTarget;
+    if (container) {
+      const gridBodyViewport = container.querySelector('.ag-body-viewport');
+      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          gridBodyViewport.scrollLeft += e.deltaY;
+          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
+          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
+          if (!isAtStart && !isAtEnd) {
+            e.preventDefault();
+          }
+        }
+      }
+    }
+  };
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
@@ -406,7 +419,7 @@ export default function EOfficeView({ initialKpi }) {
         </div>
 
         {/* AG Grid Table Container */}
-        <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-md">
+        <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
           <AgGridReact 
             theme="legacy"
             rowData={filteredData}
@@ -414,9 +427,17 @@ export default function EOfficeView({ initialKpi }) {
             domLayout="autoHeight"
             rowHeight={48}
             headerHeight={48}
+            suppressColumnVirtualisation={true}
             autoSizeStrategy={{
-              type: 'fitGridWidth',
-              defaultMinWidth: 80
+              type: 'fitCellContents'
+            }}
+            onFirstDataRendered={(params) => {
+              const allCols = params.api.getAllGridColumns();
+              const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+              const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                if (containerWidth > 0 && totalColWidth < containerWidth) {
+                  params.api.sizeColumnsToFit();
+                }
             }}
           />
         </div>

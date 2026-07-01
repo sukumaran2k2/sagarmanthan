@@ -51,16 +51,24 @@ export default function ProjectTable({
   const [selectedStage, setSelectedStage] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
-  const [isPinned, setIsPinned] = useState(window.innerWidth < 1024);
   const [activeSubTab, setActiveSubTab] = useState('all');
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsPinned(window.innerWidth < 1024);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const handleGridWheel = (e) => {
+    const container = e.currentTarget;
+    if (container) {
+      const gridBodyViewport = container.querySelector('.ag-body-viewport');
+      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          gridBodyViewport.scrollLeft += e.deltaY;
+          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
+          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
+          if (!isAtStart && !isAtEnd) {
+            e.preventDefault();
+          }
+        }
+      }
+    }
+  };
 
   const CATEGORIES = [
     'All Categories',
@@ -145,17 +153,15 @@ export default function ProjectTable({
     {
       headerName: 'S.No',
       valueGetter: (params) => params.node.rowIndex + 1,
-      maxWidth: 60,
-      flex: 0.4,
-      pinned: isPinned ? 'left' : null,
+      width: 60,
+      pinned: 'left',
       cellClass: 'text-center font-semibold text-slate-500 flex items-center justify-center'
     },
     {
       headerName: 'Project ID',
       field: 'projectId',
-      minWidth: 95,
-      flex: 0.8,
-      pinned: isPinned ? 'left' : null,
+      minWidth: 110,
+      pinned: 'left',
       cellRenderer: (params) => (
         <span className="font-bold text-orange-600 hover:text-orange-700 cursor-pointer hover:underline flex items-center gap-1.5 h-full">
           <span className="h-1.5 w-1.5 rounded-full bg-orange-500 inline-block"></span>
@@ -275,7 +281,7 @@ export default function ProjectTable({
         );
       }
     }
-  ], [isPinned]);
+  ], []);
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -499,12 +505,13 @@ export default function ProjectTable({
       </div>
 
       {/* Main Responsive Table */}
-      <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-md">
+      <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
         <AgGridReact 
           ref={gridRef}
           theme="legacy"
           rowData={filteredProjects}
           columnDefs={colDefs}
+          defaultColDef={{ minWidth: 80, suppressSizeToFit: false }}
           pagination={true}
           paginationPageSize={entriesLimit}
           suppressPaginationPanel={true}
@@ -512,9 +519,9 @@ export default function ProjectTable({
           domLayout="autoHeight"
           rowHeight={64}
           headerHeight={48}
+          suppressColumnVirtualisation={true}
           autoSizeStrategy={{
-            type: 'fitGridWidth',
-            defaultMinWidth: 80
+            type: 'fitCellContents'
           }}
         />
 

@@ -42,17 +42,34 @@ export default function AttendanceView() {
   }, [searchTerm]);
 
   const colDefs = useMemo(() => [
-    { field: 'sno', headerName: 'S.No', maxWidth: 80, cellClass: 'text-center font-bold text-slate-500' },
-    { field: 'empId', headerName: 'Emp ID', maxWidth: 110, cellClass: 'font-mono font-bold text-slate-800' },
-    { field: 'empName', headerName: 'Emp Name', flex: 1.5, minWidth: 150, cellClass: 'font-extrabold text-slate-900' },
-    { field: 'designation', headerName: 'Designation', flex: 1.5, minWidth: 150 },
-    { field: 'wing', headerName: 'Wing', flex: 1, minWidth: 120 },
-    { field: 'totalDays', headerName: 'Working Days', flex: 1, minWidth: 110, type: 'numericColumn', cellClass: 'text-center' },
-    { field: 'presentDays', headerName: 'Present', flex: 1, minWidth: 90, type: 'numericColumn', cellClass: 'text-center font-bold text-emerald-600' },
-    { field: 'absentDays', headerName: 'Absent', flex: 1, minWidth: 90, type: 'numericColumn', cellClass: 'text-center font-bold text-red-500' },
-    { field: 'leaves', headerName: 'Leaves', flex: 1, minWidth: 90, type: 'numericColumn', cellClass: 'text-center font-semibold text-amber-600' },
-    { field: 'pct', headerName: 'Percentage', flex: 1, minWidth: 110, type: 'numericColumn', cellClass: 'text-center font-black text-blue-700' }
+    { field: 'sno', headerName: 'S.No', width: 70, pinned: 'left', cellClass: 'text-center font-bold text-slate-500' },
+    { field: 'empId', headerName: 'Emp ID', minWidth: 110, pinned: 'left', cellClass: 'font-mono font-bold text-slate-800' },
+    { field: 'empName', headerName: 'Employee Name', minWidth: 160, cellClass: 'font-extrabold text-slate-900' },
+    { field: 'designation', headerName: 'Designation', minWidth: 160 },
+    { field: 'wing', headerName: 'Wing', minWidth: 120 },
+    { field: 'totalDays', headerName: 'Working Days', minWidth: 120, type: 'numericColumn', cellClass: 'text-center' },
+    { field: 'presentDays', headerName: 'Present', minWidth: 100, type: 'numericColumn', cellClass: 'text-center font-bold text-emerald-600' },
+    { field: 'absentDays', headerName: 'Absent', minWidth: 100, type: 'numericColumn', cellClass: 'text-center font-bold text-red-500' },
+    { field: 'leaves', headerName: 'Leaves', minWidth: 100, type: 'numericColumn', cellClass: 'text-center font-semibold text-amber-600' },
+    { field: 'pct', headerName: 'Percentage (%)', minWidth: 130, type: 'numericColumn', cellClass: 'text-center font-black text-blue-700' }
   ], []);
+
+  const handleGridWheel = (e) => {
+    const container = e.currentTarget;
+    if (container) {
+      const gridBodyViewport = container.querySelector('.ag-body-viewport');
+      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          gridBodyViewport.scrollLeft += e.deltaY;
+          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
+          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
+          if (!isAtStart && !isAtEnd) {
+            e.preventDefault();
+          }
+        }
+      }
+    }
+  };
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
@@ -189,7 +206,7 @@ export default function AttendanceView() {
         </div>
 
         {/* AG Grid */}
-        <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-md">
+        <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
           <AgGridReact 
             theme="legacy"
             rowData={filteredData}
@@ -197,9 +214,17 @@ export default function AttendanceView() {
             domLayout="autoHeight"
             rowHeight={48}
             headerHeight={48}
+            suppressColumnVirtualisation={true}
             autoSizeStrategy={{
-              type: 'fitGridWidth',
-              defaultMinWidth: 80
+              type: 'fitCellContents'
+            }}
+            onFirstDataRendered={(params) => {
+              const allCols = params.api.getAllGridColumns();
+              const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+              const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                if (containerWidth > 0 && totalColWidth < containerWidth) {
+                  params.api.sizeColumnsToFit();
+                }
             }}
           />
         </div>

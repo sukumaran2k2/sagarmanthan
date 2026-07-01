@@ -1,6 +1,43 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
-import { Calendar, CheckCircle2, ChevronDown, BarChart2, DollarSign, FileSpreadsheet, FileText, Layers, Sliders, Eye, ZoomIn, ZoomOut, RotateCcw, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
+import { 
+  Calendar, 
+  CheckCircle2, 
+  ChevronDown, 
+  ChevronLeft,
+  ChevronRight,
+  BarChart2, 
+  DollarSign, 
+  FileSpreadsheet, 
+  FileText, 
+  Layers, 
+  Sliders, 
+  Eye, 
+  ZoomIn, 
+  ZoomOut, 
+  RotateCcw, 
+  LayoutDashboard, 
+  ClipboardList, 
+  TrendingDown, 
+  TrendingUp, 
+  FolderSync, 
+  FilePieChart,
+  Search,
+  Copy
+} from 'lucide-react';
+import { AgGridReact } from 'ag-grid-react';
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+
+// Register grid modules
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+const PHYSICAL_PROGRESS_DATA = [
+  { range: '0%-20%', chpa: 15, copa: 17, dpa: 61, jnpa: 22, kpl: 15, mbpa: 24, mgpa: 3, nmpa: 5, ppa: 16, smpaHdc: 11, smpaKds: 17, vocpa: 43, vpa: 29, total: 278 },
+  { range: '20%-40%', chpa: 2, copa: 0, dpa: 9, jnpa: 5, kpl: 1, mbpa: 0, mgpa: 0, nmpa: 1, ppa: 2, smpaHdc: 0, smpaKds: 4, vocpa: 5, vpa: 5, total: 34 },
+  { range: '40%-60%', chpa: 1, copa: 1, dpa: 5, jnpa: 3, kpl: 2, mbpa: 3, mgpa: 0, nmpa: 1, ppa: 0, smpaHdc: 3, smpaKds: 2, vocpa: 5, vpa: 6, total: 32 },
+  { range: '60%-80%', chpa: 1, copa: 1, dpa: 6, jnpa: 6, kpl: 0, mbpa: 2, mgpa: 0, nmpa: 0, ppa: 6, smpaHdc: 2, smpaKds: 2, vocpa: 4, vpa: 4, total: 34 },
+  { range: '80%-100%', chpa: 18, copa: 3, dpa: 56, jnpa: 28, kpl: 17, mbpa: 19, mgpa: 15, nmpa: 13, ppa: 25, smpaHdc: 25, smpaKds: 17, vocpa: 28, vpa: 31, total: 295 }
+];
 
 export default function DashboardView({ projects, activeTab, setActiveTab }) {
   const [activeSubTab, setActiveSubTab] = useState('all');
@@ -77,6 +114,175 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
     { sno: 6, category: 'Green Initiatives', epc: '30', ppp: '-', total: 30, pct: '7.11%', cost: '753.25' },
     { sno: 7, category: 'Other Infrastructure Projects', epc: '89', ppp: '7', total: 96, pct: '22.75%', cost: '84,848.07' },
   ];
+
+  // AG Grid States & Definitions for Table 1 (Physical Progress)
+  const physicalGridRef = useRef();
+  const [physicalEntriesLimit, setPhysicalEntriesLimit] = useState(5);
+  const [physicalCurrentPage, setPhysicalCurrentPage] = useState(1);
+  const [physicalTotalPages, setPhysicalTotalPages] = useState(1);
+  const [physicalSearchQuery, setPhysicalSearchQuery] = useState('');
+
+  // Sync entriesLimit with AG Grid Pagination Page Size
+  useEffect(() => {
+    if (physicalGridRef.current && physicalGridRef.current.api) {
+      physicalGridRef.current.api.setGridOption('paginationPageSize', physicalEntriesLimit);
+    }
+  }, [physicalEntriesLimit]);
+
+  // Apply Quick Search to AG Grid
+  useEffect(() => {
+    if (physicalGridRef.current && physicalGridRef.current.api) {
+      physicalGridRef.current.api.setGridOption('quickFilterText', physicalSearchQuery);
+    }
+  }, [physicalSearchQuery]);
+
+  const handlePhysicalPageChange = (page) => {
+    if (physicalGridRef.current && physicalGridRef.current.api && page >= 1 && page <= physicalTotalPages) {
+      physicalGridRef.current.api.paginationGoToPage(page - 1);
+    }
+  };
+
+  const onPhysicalPaginationChanged = () => {
+    if (physicalGridRef.current && physicalGridRef.current.api) {
+      const page = physicalGridRef.current.api.paginationGetCurrentPage() + 1;
+      const total = physicalGridRef.current.api.paginationGetTotalPages();
+      setPhysicalCurrentPage(page);
+      setPhysicalTotalPages(total || 1);
+    }
+  };
+
+  const handleGridWheel = (e) => {
+    const container = e.currentTarget;
+    if (container) {
+      const gridBodyViewport = container.querySelector('.ag-body-viewport');
+      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          gridBodyViewport.scrollLeft += e.deltaY;
+          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
+          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
+          if (!isAtStart && !isAtEnd) {
+            e.preventDefault();
+          }
+        }
+      }
+    }
+  };
+
+  const physicalColDefs = useMemo(() => [
+    {
+      headerName: 'S.No',
+      valueGetter: (params) => params.node.rowIndex + 1,
+      width: 70,
+      pinned: 'left',
+      cellClass: 'text-center font-bold text-slate-550 border-r border-slate-100 bg-slate-50/20 flex items-center justify-center text-[11px]'
+    },
+    {
+      headerName: 'Progress Range',
+      field: 'range',
+      width: 140,
+      pinned: 'left',
+      cellClass: 'text-slate-800 font-extrabold flex items-center border-r border-slate-100 justify-center text-[11px]'
+    },
+    { headerName: 'ChPA', field: 'chpa', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'CoPA', field: 'copa', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'DPA', field: 'dpa', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'JNPA', field: 'jnpa', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'KPL', field: 'kpl', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'MbPA', field: 'mbpa', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'MgPA', field: 'mgpa', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'NMPA', field: 'nmpa', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'PPA', field: 'ppa', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'SMPA-HDC', field: 'smpaHdc', width: 110, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'SMPA-KDS', field: 'smpaKds', width: 110, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'VOCPA', field: 'vocpa', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'VPA', field: 'vpa', width: 90, cellClass: 'text-center font-semibold text-blue-600 flex items-center justify-center border-r border-slate-100 text-[11px]' },
+    { headerName: 'Total', field: 'total', width: 100, cellClass: 'text-center font-extrabold text-slate-900 bg-slate-50 flex items-center justify-center text-[11px]' }
+  ], []);
+
+  // AG Grid States & Definitions for Table 2 (Ongoing Projects)
+  const ongoingGridRef = useRef();
+  const [ongoingEntriesLimit, setOngoingEntriesLimit] = useState(10);
+  const [ongoingCurrentPage, setOngoingCurrentPage] = useState(1);
+  const [ongoingTotalPages, setOngoingTotalPages] = useState(1);
+  const [ongoingSearchQuery, setOngoingSearchQuery] = useState('');
+
+  // Sync entriesLimit with AG Grid Pagination Page Size
+  useEffect(() => {
+    if (ongoingGridRef.current && ongoingGridRef.current.api) {
+      ongoingGridRef.current.api.setGridOption('paginationPageSize', ongoingEntriesLimit);
+    }
+  }, [ongoingEntriesLimit]);
+
+  // Apply Quick Search to AG Grid
+  useEffect(() => {
+    if (ongoingGridRef.current && ongoingGridRef.current.api) {
+      ongoingGridRef.current.api.setGridOption('quickFilterText', ongoingSearchQuery);
+    }
+  }, [ongoingSearchQuery]);
+
+  const handleOngoingPageChange = (page) => {
+    if (ongoingGridRef.current && ongoingGridRef.current.api && page >= 1 && page <= ongoingTotalPages) {
+      ongoingGridRef.current.api.paginationGoToPage(page - 1);
+    }
+  };
+
+  const onOngoingPaginationChanged = () => {
+    if (ongoingGridRef.current && ongoingGridRef.current.api) {
+      const page = ongoingGridRef.current.api.paginationGetCurrentPage() + 1;
+      const total = ongoingGridRef.current.api.paginationGetTotalPages();
+      setOngoingCurrentPage(page);
+      setOngoingTotalPages(total || 1);
+    }
+  };
+
+  const ongoingColDefs = useMemo(() => [
+    {
+      headerName: 'S.No',
+      field: 'sno',
+      width: 70,
+      pinned: 'left',
+      cellClass: 'text-center font-bold text-slate-400 border-r border-slate-100 flex items-center justify-center text-[11px]'
+    },
+    {
+      headerName: 'Broad Category Name',
+      field: 'category',
+      minWidth: 250,
+      flex: 2,
+      pinned: 'left',
+      cellClass: 'text-left text-slate-800 font-bold tracking-tight border-r border-slate-100 flex items-center text-[11px]'
+    },
+    {
+      headerName: 'EPC (B)',
+      field: 'epc',
+      width: 120,
+      cellClass: 'text-center font-extrabold text-blue-600 border-r border-slate-100 flex items-center justify-center text-[11px]'
+    },
+    {
+      headerName: 'PPP (C)',
+      field: 'ppp',
+      width: 120,
+      cellClass: 'text-center font-extrabold text-blue-600 border-r border-slate-100 flex items-center justify-center text-[11px]'
+    },
+    {
+      headerName: 'Total (D = B+C)',
+      field: 'total',
+      width: 150,
+      cellClass: 'text-center font-extrabold text-slate-900 border-r border-slate-100 flex items-center justify-center text-[11px]'
+    },
+    {
+      headerName: 'Percentage (E)',
+      field: 'pct',
+      width: 130,
+      cellClass: 'text-center font-semibold text-slate-550 border-r border-slate-100 flex items-center justify-center text-[11px]'
+    },
+    {
+      headerName: 'Estimated Cost (F)',
+      field: 'cost',
+      width: 160,
+      cellClass: 'text-right font-extrabold text-slate-850 flex items-center justify-end text-[11px]',
+      valueFormatter: (params) => params.value ? `₹ ${params.value} Cr` : '-'
+    }
+  ], []);
 
   return (
     <div className="space-y-6 px-4 sm:px-6 md:px-8 py-6 animate-fade-in text-slate-800 bg-slate-50/50 min-h-screen">
@@ -677,115 +883,118 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-150">
-              <table className="w-full text-center text-xs text-slate-700 border-collapse">
-                <thead>
-                  <tr className="bg-[#0f417a] text-white font-bold text-[10px] uppercase tracking-wider border-b border-blue-900">
-                    <th className="py-3 px-3 text-left border-r border-blue-900/30">Progress Range</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">ChPA</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">CoPA</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">DPA</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">JNPA</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">KPL</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">MbPA</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">MgPA</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">NMPA</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">PPA</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">SMPA-HDC</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">SMPA-KDS</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">VOCPA</th>
-                    <th className="py-3 px-2 border-r border-blue-900/30">VPA</th>
-                    <th className="py-3 px-3 font-extrabold bg-[#0d3666]">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150 font-semibold">
-                  <tr className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-3 text-left font-bold text-slate-800 border-r border-slate-150 bg-slate-50/50">0%-20%</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">15</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">17</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">61</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">22</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">15</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">24</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">3</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">5</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">16</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">11</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">17</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">43</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">29</td>
-                    <td className="py-3 px-3 font-bold text-slate-900 bg-slate-50">278</td>
-                  </tr>
-                  <tr className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-3 text-left font-bold text-slate-800 border-r border-slate-150 bg-slate-50/50">20%-40%</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">2</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">0</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">9</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">5</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">1</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">0</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">0</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">1</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">2</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">0</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">4</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">5</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">5</td>
-                    <td className="py-3 px-3 font-bold text-slate-900 bg-slate-50">34</td>
-                  </tr>
-                  <tr className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-3 text-left font-bold text-slate-800 border-r border-slate-150 bg-slate-50/50">40%-60%</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">1</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">1</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">5</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">3</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">2</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">3</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">0</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">1</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">0</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">3</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">2</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">5</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">6</td>
-                    <td className="py-3 px-3 font-bold text-slate-900 bg-slate-50">32</td>
-                  </tr>
-                  <tr className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-3 text-left font-bold text-slate-800 border-r border-slate-150 bg-slate-50/50">60%-80%</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">1</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">1</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">6</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">6</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">0</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">2</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">0</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">0</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">6</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">2</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">2</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">4</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">4</td>
-                    <td className="py-3 px-3 font-bold text-slate-900 bg-slate-50">34</td>
-                  </tr>
-                  <tr className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-3 text-left font-bold text-slate-800 border-r border-slate-150 bg-slate-50/50">80%-100%</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">18</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">3</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">56</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">28</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">17</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">19</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">15</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">13</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">25</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">25</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">17</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">28</td>
-                    <td className="py-3 px-2 border-r border-slate-100 text-blue-600">31</td>
-                    <td className="py-3 px-3 font-bold text-slate-900 bg-slate-50">295</td>
-                  </tr>
-                </tbody>
-              </table>
+            {/* Table Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-1.5">
+                <button onClick={() => triggerNotification('Copied to clipboard.')} className="px-3 py-1.5 hover:bg-slate-100 rounded text-xs font-bold text-slate-600 flex items-center gap-1.5 cursor-pointer"><Copy className="h-3.5 w-3.5" /> Copy</button>
+                <button onClick={() => triggerNotification('Excel export initiated.')} className="px-3 py-1.5 hover:bg-slate-100 rounded text-xs font-bold text-slate-600 flex items-center gap-1.5 cursor-pointer"><FileSpreadsheet className="h-3.5 w-3.5" /> Excel</button>
+                <button onClick={() => triggerNotification('PDF export initiated.')} className="px-3 py-1.5 hover:bg-slate-100 rounded text-xs font-bold text-slate-655 flex items-center gap-1.5 cursor-pointer"><FileText className="h-3.5 w-3.5" /> PDF</button>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
+                  <select 
+                    value={physicalEntriesLimit} 
+                    onChange={(e) => { setPhysicalEntriesLimit(parseInt(e.target.value)); }}
+                    className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                  </select>
+                  <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">entries</span>
+                </div>
+
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="Search..."
+                    value={physicalSearchQuery}
+                    onChange={(e) => setPhysicalSearchQuery(e.target.value)}
+                    className="text-xs pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold w-56 text-slate-750"
+                  />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                </div>
+              </div>
+            </div>
+
+            {/* Main Responsive Table */}
+            <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
+              <AgGridReact 
+                ref={physicalGridRef}
+                theme="legacy"
+                rowData={PHYSICAL_PROGRESS_DATA}
+                columnDefs={physicalColDefs}
+                pagination={true}
+                paginationPageSize={physicalEntriesLimit}
+                suppressPaginationPanel={true}
+                onPaginationChanged={onPhysicalPaginationChanged}
+                domLayout="autoHeight"
+                rowHeight={64}
+                headerHeight={48}
+                suppressColumnVirtualisation={true}
+                autoSizeStrategy={{
+                  type: 'fitCellContents'
+                }}
+                onFirstDataRendered={(params) => {
+                  const allCols = params.api.getAllGridColumns();
+                  const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  if (containerWidth > 0 && totalColWidth < containerWidth) {
+                    params.api.sizeColumnsToFit();
+                  }
+                }}
+              />
+
+              {/* Custom Pagination Footer */}
+              <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-4 bg-white border-t border-slate-200 text-xs gap-4">
+                <span className="text-slate-500 font-medium text-center sm:text-left">
+                  Showing <span className="font-bold text-slate-800">{PHYSICAL_PROGRESS_DATA.length > 0 ? (physicalCurrentPage - 1) * physicalEntriesLimit + 1 : 0}</span> to{' '}
+                  <span className="font-bold text-slate-800">{Math.min(physicalCurrentPage * physicalEntriesLimit, PHYSICAL_PROGRESS_DATA.length)}</span> of{' '}
+                  <span className="font-bold text-slate-800">{PHYSICAL_PROGRESS_DATA.length}</span> entries
+                </span>
+                
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => handlePhysicalPageChange(physicalCurrentPage - 1)}
+                    disabled={physicalCurrentPage === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  
+                  {Array.from({ length: physicalTotalPages }, (_, i) => i + 1).map(p => {
+                    if (physicalTotalPages > 6 && Math.abs(physicalCurrentPage - p) > 1 && p !== 1 && p !== physicalTotalPages) {
+                      if (p === 2 || p === physicalTotalPages - 1) {
+                        return <span key={p} className="px-1.5 text-slate-400 font-bold">...</span>;
+                      }
+                      return null;
+                    }
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => handlePhysicalPageChange(p)}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                          physicalCurrentPage === p
+                            ? 'bg-[#0f417a] text-white shadow-sm'
+                            : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                  
+                  <button
+                    onClick={() => handlePhysicalPageChange(physicalCurrentPage + 1)}
+                    disabled={physicalCurrentPage === physicalTotalPages || physicalTotalPages === 0}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </>
@@ -850,67 +1059,120 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
             </div>
           </div>
 
-          {/* Data Table */}
-          <div className="flex border border-slate-200 rounded-2xl overflow-hidden shadow-md bg-white">
-            
-            {/* Table Area */}
-            <div className="flex-grow overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-700 border-collapse">
-                <thead>
-                  <tr className="bg-[#0f417a] text-white font-semibold uppercase tracking-wider text-[10px] border-b border-blue-900">
-                    <th className="py-4 px-4 border-r border-white/10 w-16 text-center">S.No</th>
-                    <th className="py-4 px-5 border-r border-white/10 text-left">Broad Category Name</th>
-                    <th className="py-4 px-4 border-r border-white/10 w-32 text-center">EPC (B)</th>
-                    <th className="py-4 px-4 border-r border-white/10 w-32 text-center">PPP (C)</th>
-                    <th className="py-4 px-4 border-r border-white/10 w-40 text-center font-bold">Total (D = B+C)</th>
-                    <th className="py-4 px-4 border-r border-white/10 w-28 text-center">Percentage (E)</th>
-                    <th className="py-4 px-5 w-40 text-right">Estimated Cost (F)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150 text-center font-medium text-slate-700">
-                  {ongoingProjects.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-blue-50/20 transition-colors">
-                      <td className="py-3.5 px-4 border-r border-slate-100 text-slate-400 font-semibold">{row.sno}</td>
-                      <td className="py-3.5 px-5 border-r border-slate-100 text-left text-slate-800 font-bold tracking-tight">{row.category}</td>
-                      <td className="py-3.5 px-4 border-r border-slate-100 text-blue-600 font-extrabold text-xs">{row.epc}</td>
-                      <td className="py-3.5 px-4 border-r border-slate-100 text-blue-600 font-extrabold text-xs">{row.ppp}</td>
-                      <td className="py-3.5 px-4 border-r border-slate-100 font-extrabold text-slate-900 text-xs">{row.total}</td>
-                      <td className="py-3.5 px-4 border-r border-slate-100 text-slate-500 font-semibold">{row.pct}</td>
-                      <td className="py-3.5 px-5 text-right font-extrabold text-slate-800 text-xs">₹ {row.cost} Cr</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* Data Table Controls */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-1.5">
+                <button onClick={() => triggerNotification('Copied to clipboard.')} className="px-3 py-1.5 hover:bg-slate-100 rounded text-xs font-bold text-slate-600 flex items-center gap-1.5 cursor-pointer"><Copy className="h-3.5 w-3.5" /> Copy</button>
+                <button onClick={() => triggerNotification('Excel export initiated.')} className="px-3 py-1.5 hover:bg-slate-100 rounded text-xs font-bold text-slate-600 flex items-center gap-1.5 cursor-pointer"><FileSpreadsheet className="h-3.5 w-3.5" /> Excel</button>
+                <button onClick={() => triggerNotification('PDF export initiated.')} className="px-3 py-1.5 hover:bg-slate-100 rounded text-xs font-bold text-slate-655 flex items-center gap-1.5 cursor-pointer"><FileText className="h-3.5 w-3.5" /> PDF</button>
+              </div>
 
-              {/* Table Footer Navigation */}
-              <div className="p-4 bg-slate-50/50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 font-bold">
+              <div className="flex items-center gap-4">
                 <div className="flex items-center space-x-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#1b4380]"></span>
-                  <span>Total Categories: 10</span>
+                  <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
+                  <select 
+                    value={ongoingEntriesLimit} 
+                    onChange={(e) => { setOngoingEntriesLimit(parseInt(e.target.value)); }}
+                    className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                  </select>
+                  <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">entries</span>
                 </div>
-                <div className="flex space-x-2">
-                  <button className="px-4.5 py-1.5 border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold rounded-lg text-[10px] cursor-pointer transition shadow-sm">
-                    Previous
-                  </button>
-                  <button className="px-4.5 py-1.5 bg-[#0f417a] hover:bg-[#0b2e56] text-white font-bold rounded-lg text-[10px] cursor-pointer transition shadow-sm">
-                    Next Page
-                  </button>
+
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="Search..."
+                    value={ongoingSearchQuery}
+                    onChange={(e) => setOngoingSearchQuery(e.target.value)}
+                    className="text-xs pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold w-56 text-slate-750"
+                  />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                 </div>
               </div>
             </div>
 
-            {/* Vertical Columns / Filters Side Panel tabs */}
-            <div className="w-10 flex flex-col border-l border-slate-200 bg-slate-50/80 flex-shrink-0 select-none">
-              <div className="flex-1 py-8 border-b border-slate-200 text-[9px] font-bold text-slate-500 uppercase tracking-widest text-center cursor-pointer hover:bg-slate-100 transition-colors flex flex-col items-center justify-center gap-2">
-                <Eye className="h-4 w-4 text-slate-400" />
-                <span className="[writing-mode:vertical-lr] rotate-180">Columns</span>
-              </div>
-              <div className="flex-1 py-8 text-[9px] font-bold text-slate-500 uppercase tracking-widest text-center cursor-pointer hover:bg-slate-100 transition-colors flex flex-col items-center justify-center gap-2">
-                <Sliders className="h-4 w-4 text-slate-400" />
-                <span className="[writing-mode:vertical-lr] rotate-180">Filters</span>
+            {/* Main Responsive Table */}
+            <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
+              <AgGridReact 
+                ref={ongoingGridRef}
+                theme="legacy"
+                rowData={ongoingProjects}
+                columnDefs={ongoingColDefs}
+                pagination={true}
+                paginationPageSize={ongoingEntriesLimit}
+                suppressPaginationPanel={true}
+                onPaginationChanged={onOngoingPaginationChanged}
+                domLayout="autoHeight"
+                rowHeight={64}
+                headerHeight={48}
+                suppressColumnVirtualisation={true}
+                autoSizeStrategy={{
+                  type: 'fitCellContents'
+                }}
+                onFirstDataRendered={(params) => {
+                  const allCols = params.api.getAllGridColumns();
+                  const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  if (containerWidth > 0 && totalColWidth < containerWidth) {
+                    params.api.sizeColumnsToFit();
+                  }
+                }}
+              />
+
+              {/* Custom Pagination Footer */}
+              <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-4 bg-white border-t border-slate-200 text-xs gap-4">
+                <span className="text-slate-500 font-medium text-center sm:text-left">
+                  Showing <span className="font-bold text-slate-800">{ongoingProjects.length > 0 ? (ongoingCurrentPage - 1) * ongoingEntriesLimit + 1 : 0}</span> to{' '}
+                  <span className="font-bold text-slate-800">{Math.min(ongoingCurrentPage * ongoingEntriesLimit, ongoingProjects.length)}</span> of{' '}
+                  <span className="font-bold text-slate-800">{ongoingProjects.length}</span> entries
+                </span>
+                
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => handleOngoingPageChange(ongoingCurrentPage - 1)}
+                    disabled={ongoingCurrentPage === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  
+                  {Array.from({ length: ongoingTotalPages }, (_, i) => i + 1).map(p => {
+                    if (ongoingTotalPages > 6 && Math.abs(ongoingCurrentPage - p) > 1 && p !== 1 && p !== ongoingTotalPages) {
+                      if (p === 2 || p === ongoingTotalPages - 1) {
+                        return <span key={p} className="px-1.5 text-slate-400 font-bold">...</span>;
+                      }
+                      return null;
+                    }
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => handleOngoingPageChange(p)}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                          ongoingCurrentPage === p
+                            ? 'bg-[#0f417a] text-white shadow-sm'
+                            : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                  
+                  <button
+                    onClick={() => handleOngoingPageChange(ongoingCurrentPage + 1)}
+                    disabled={ongoingCurrentPage === ongoingTotalPages || ongoingTotalPages === 0}
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
-
           </div>
 
         </div>

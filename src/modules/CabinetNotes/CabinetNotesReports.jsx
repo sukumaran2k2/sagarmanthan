@@ -1,14 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   FileSpreadsheet, 
   FileText, 
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Check,
   CheckCircle2,
   Clock,
-  Send
+  Send,
+  Search,
+  Copy
 } from 'lucide-react';
+import { AgGridReact } from 'ag-grid-react';
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+
+// Register grid modules
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 const REPORT_ROWS = [
   { id: 1, wing: 'Administration', total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0 },
@@ -27,9 +36,14 @@ const REPORT_ROWS = [
 ];
 
 export default function CabinetNotesReports() {
+  const gridRef = useRef();
   const [selectedWing, setSelectedWing] = useState('All');
   const [notification, setNotification] = useState(null);
   const [isReportExpanded, setIsReportExpanded] = useState(false);
+  const [entriesLimit, setEntriesLimit] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const triggerNotification = (msg) => {
     setNotification(msg);
@@ -61,6 +75,166 @@ export default function CabinetNotesReports() {
       total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0
     });
   }, [filteredRows]);
+
+  // Sync entriesLimit with AG Grid Pagination Page Size
+  useEffect(() => {
+    if (gridRef.current && gridRef.current.api) {
+      gridRef.current.api.setGridOption('paginationPageSize', entriesLimit);
+    }
+  }, [entriesLimit]);
+
+  // Apply Quick Search to AG Grid
+  useEffect(() => {
+    if (gridRef.current && gridRef.current.api) {
+      gridRef.current.api.setGridOption('quickFilterText', searchQuery);
+    }
+  }, [searchQuery]);
+
+  const handlePageChange = (page) => {
+    if (gridRef.current && gridRef.current.api && page >= 1 && page <= totalPages) {
+      gridRef.current.api.paginationGoToPage(page - 1);
+    }
+  };
+
+  // Handle AG Grid page change labels
+  const onPaginationChanged = () => {
+    if (gridRef.current && gridRef.current.api) {
+      const page = gridRef.current.api.paginationGetCurrentPage() + 1;
+      const total = gridRef.current.api.paginationGetTotalPages();
+      setCurrentPage(page);
+      setTotalPages(total || 1);
+    }
+  };
+
+  const handleGridWheel = (e) => {
+    const container = e.currentTarget;
+    if (container) {
+      const gridBodyViewport = container.querySelector('.ag-body-viewport');
+      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          gridBodyViewport.scrollLeft += e.deltaY;
+          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
+          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
+          if (!isAtStart && !isAtEnd) {
+            e.preventDefault();
+          }
+        }
+      }
+    }
+  };
+
+  // Define column definitions
+  const colDefs = useMemo(() => [
+    {
+      headerName: 'S.No',
+      valueGetter: (params) => params.node.rowIndex + 1,
+      width: 70,
+      pinned: 'left',
+      cellClass: 'text-center font-bold text-slate-550 border-r border-slate-100 bg-slate-50/20 flex items-center justify-center'
+    },
+    {
+      headerName: 'Wing',
+      field: 'wing',
+      minWidth: 200,
+      pinned: 'left',
+      cellClass: 'text-slate-800 font-extrabold flex items-center border-r border-slate-100 hover:underline cursor-pointer'
+    },
+    {
+      headerName: 'No. of Cabinet Notes',
+      field: 'total',
+      minWidth: 160,
+      cellClass: 'text-center font-bold text-slate-800 flex items-center justify-center border-r border-slate-100',
+      valueFormatter: (params) => params.value || ''
+    },
+    {
+      headerName: 'Preliminary DCN Prepared',
+      field: 'prep',
+      minWidth: 190,
+      cellClass: 'text-center font-semibold text-slate-700 flex items-center justify-center border-r border-slate-100',
+      valueFormatter: (params) => params.value || ''
+    },
+    {
+      headerName: 'Preliminary DCN Approved by Minister',
+      field: 'appMin',
+      minWidth: 270,
+      cellClass: 'text-center font-semibold text-slate-700 flex items-center justify-center border-r border-slate-100',
+      valueFormatter: (params) => params.value || ''
+    },
+    {
+      headerName: 'Circulated for IMC',
+      field: 'circIMC',
+      minWidth: 155,
+      cellClass: 'text-center font-semibold text-slate-700 flex items-center justify-center border-r border-slate-100',
+      valueFormatter: (params) => params.value || ''
+    },
+    {
+      headerName: 'IMC Comments Received',
+      field: 'imcRec',
+      minWidth: 175,
+      cellClass: 'text-center font-semibold text-slate-755 flex items-center justify-center border-r border-slate-100',
+      valueFormatter: (params) => params.value || ''
+    },
+    {
+      headerName: 'Final DCN to be Prepared',
+      field: 'prepFinal',
+      minWidth: 195,
+      cellClass: 'text-center font-semibold text-slate-700 flex items-center justify-center border-r border-slate-100',
+      valueFormatter: (params) => params.value || ''
+    },
+    {
+      headerName: 'Final DCN Approved by Minister',
+      field: 'appFinal',
+      minWidth: 240,
+      cellClass: 'text-center font-semibold text-slate-700 flex items-center justify-center border-r border-slate-100',
+      valueFormatter: (params) => params.value || ''
+    },
+    {
+      headerName: 'Advance Copy Sent to PMO & Cab',
+      field: 'advPMO',
+      minWidth: 240,
+      cellClass: 'text-center font-semibold text-slate-700 flex items-center justify-center border-r border-slate-100',
+      valueFormatter: (params) => params.value || ''
+    },
+    {
+      headerName: 'Approved by Cabinet',
+      field: 'appCab',
+      minWidth: 165,
+      cellClass: 'text-center font-semibold text-slate-700 flex items-center justify-center border-r border-slate-100',
+      valueFormatter: (params) => params.value || ''
+    },
+    {
+      headerName: 'On Hold',
+      field: 'hold',
+      minWidth: 100,
+      cellClass: 'text-center font-semibold text-slate-700 flex items-center justify-center border-r border-slate-100',
+      valueFormatter: (params) => params.value || ''
+    },
+    {
+      headerName: 'Completed',
+      field: 'comp',
+      minWidth: 110,
+      cellClass: 'text-center font-semibold text-slate-700 flex items-center justify-center',
+      valueFormatter: (params) => params.value || ''
+    }
+  ], []);
+
+  // Pinned bottom totals row
+  const pinnedBottomRowData = useMemo(() => {
+    return [{
+      wing: 'Total',
+      total: totals.total,
+      prep: totals.prep,
+      appMin: totals.appMin,
+      circIMC: totals.circIMC,
+      imcRec: totals.imcRec,
+      prepFinal: totals.prepFinal,
+      appFinal: totals.appFinal,
+      advPMO: totals.advPMO,
+      appCab: totals.appCab,
+      hold: totals.hold,
+      comp: totals.comp
+    }];
+  }, [totals]);
 
   return (
     <div className="space-y-6">
@@ -102,7 +276,7 @@ export default function CabinetNotesReports() {
                 <div className="relative min-w-[160px]">
                   <select 
                     value={selectedWing}
-                    onChange={(e) => setSelectedWing(e.target.value)}
+                    onChange={(e) => { setSelectedWing(e.target.value); setCurrentPage(1); }}
                     className="w-full text-xs pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 font-bold text-slate-700 cursor-pointer"
                   >
                     <option value="All">--Show All--</option>
@@ -153,62 +327,120 @@ export default function CabinetNotesReports() {
 
       {isReportExpanded ? (
         /* Table Container (Visible only when Expanded) */
-        <div className="border border-slate-150 rounded-xl overflow-hidden shadow-sm animate-fade-in">
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px] text-left text-slate-700 border-collapse">
-              <thead>
-                <tr className="bg-[#b33c56] text-white font-bold text-[10px] uppercase tracking-wider border-b border-[#962e43]">
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-12">S.No</th>
-                  <th className="py-3 px-4 border-r border-[#962e43]/30">Wing</th>
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-24">No. of Cabinet Notes</th>
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-24">Preliminary DCN Prepared</th>
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-24">Preliminary DCN Approved by Minister</th>
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-24">Circulated for IMC</th>
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-24">IMC Comments Received</th>
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-24">Final DCN to be Prepared</th>
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-24">Final DCN Approved by Minister</th>
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-24">Advance Copy Sent to PMO & Cab</th>
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-24">Approved by Cabinet</th>
-                  <th className="py-3 px-3 text-center border-r border-[#962e43]/30 w-20">On Hold</th>
-                  <th className="py-3 px-3 text-center w-20">Completed</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-150 font-bold">
-                {filteredRows.map((row, idx) => (
-                  <tr key={row.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-3 text-center border-r border-slate-150 text-slate-550">{idx + 1}</td>
-                    <td className="py-3 px-4 border-r border-slate-100 text-blue-600 hover:underline cursor-pointer font-bold">{row.wing}</td>
-                    <td className="py-3 px-3 text-center border-r border-slate-100 text-slate-800">{row.total || ''}</td>
-                    <td className="py-3 px-3 text-center border-r border-slate-100 text-slate-800">{row.prep || ''}</td>
-                    <td className="py-3 px-3 text-center border-r border-slate-100 text-slate-800">{row.appMin || ''}</td>
-                    <td className="py-3 px-3 text-center border-r border-slate-100 text-slate-800">{row.circIMC || ''}</td>
-                    <td className="py-3 px-3 text-center border-r border-slate-100 text-slate-800">{row.imcRec || ''}</td>
-                    <td className="py-3 px-3 text-center border-r border-slate-100 text-slate-800">{row.prepFinal || ''}</td>
-                    <td className="py-3 px-3 text-center border-r border-slate-100 text-slate-800">{row.appFinal || ''}</td>
-                    <td className="py-3 px-3 text-center border-r border-slate-100 text-slate-800">{row.advPMO || ''}</td>
-                    <td className="py-3 px-3 text-center border-r border-slate-100 text-slate-800">{row.appCab || ''}</td>
-                    <td className="py-3 px-3 text-center border-r border-slate-100 text-slate-800">{row.hold || ''}</td>
-                    <td className="py-3 px-3 text-center text-slate-800">{row.comp || ''}</td>
-                  </tr>
-                ))}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+          {/* Table Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
+            <div className="flex items-center space-x-1.5">
+              <button onClick={() => triggerNotification('Copied to clipboard.')} className="px-3 py-1.5 hover:bg-slate-100 rounded text-xs font-bold text-slate-600 flex items-center gap-1.5 cursor-pointer"><Copy className="h-3.5 w-3.5" /> Copy</button>
+              <button onClick={() => triggerNotification('Excel export initiated.')} className="px-3 py-1.5 hover:bg-slate-100 rounded text-xs font-bold text-slate-600 flex items-center gap-1.5 cursor-pointer"><FileSpreadsheet className="h-3.5 w-3.5" /> Excel</button>
+              <button onClick={() => triggerNotification('PDF export initiated.')} className="px-3 py-1.5 hover:bg-slate-100 rounded text-xs font-bold text-slate-655 flex items-center gap-1.5 cursor-pointer"><FileText className="h-3.5 w-3.5" /> PDF</button>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
+                <select 
+                  value={entriesLimit} 
+                  onChange={(e) => { setEntriesLimit(parseInt(e.target.value)); }}
+                  className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                </select>
+                <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">entries</span>
+              </div>
+
+              <div className="relative">
+                <input 
+                  type="text" 
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="text-xs pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold w-56 text-slate-750"
+                />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
+          </div>
+
+          {/* Main Responsive Table */}
+          <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
+            <AgGridReact 
+              ref={gridRef}
+              theme="legacy"
+              rowData={filteredRows}
+              columnDefs={colDefs}
+              pinnedBottomRowData={pinnedBottomRowData}
+              pagination={true}
+              paginationPageSize={entriesLimit}
+              suppressPaginationPanel={true}
+              onPaginationChanged={onPaginationChanged}
+              domLayout="autoHeight"
+              rowHeight={64}
+              headerHeight={48}
+              suppressColumnVirtualisation={true}
+              autoSizeStrategy={{
+                type: 'fitCellContents'
+              }}
+              onFirstDataRendered={(params) => {
+                const allCols = params.api.getAllGridColumns();
+                const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                if (containerWidth > 0 && totalColWidth < containerWidth) {
+                  params.api.sizeColumnsToFit();
+                }
+              }}
+            />
+
+            {/* Custom Pagination Footer */}
+            <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-4 bg-white border-t border-slate-200 text-xs gap-4">
+              <span className="text-slate-500 font-medium text-center sm:text-left">
+                Showing <span className="font-bold text-slate-800">{filteredRows.length > 0 ? (currentPage - 1) * entriesLimit + 1 : 0}</span> to{' '}
+                <span className="font-bold text-slate-800">{Math.min(currentPage * entriesLimit, filteredRows.length)}</span> of{' '}
+                <span className="font-bold text-slate-800">{filteredRows.length}</span> entries
+              </span>
+              
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
                 
-                {/* Total Footer Row */}
-                <tr className="bg-slate-50 border-t-2 border-slate-200 text-slate-900 font-extrabold text-[12px]">
-                  <td colSpan={2} className="py-3 px-4 text-center border-r border-slate-200">Total</td>
-                  <td className="py-3 px-3 text-center border-r border-slate-200 bg-slate-100">{totals.total}</td>
-                  <td className="py-3 px-3 text-center border-r border-slate-100">{totals.prep || ''}</td>
-                  <td className="py-3 px-3 text-center border-r border-slate-100">{totals.appMin || ''}</td>
-                  <td className="py-3 px-3 text-center border-r border-slate-100">{totals.circIMC || ''}</td>
-                  <td className="py-3 px-3 text-center border-r border-slate-100 bg-slate-100">{totals.imcRec || ''}</td>
-                  <td className="py-3 px-3 text-center border-r border-slate-100">{totals.prepFinal || ''}</td>
-                  <td className="py-3 px-3 text-center border-r border-slate-100">{totals.appFinal || ''}</td>
-                  <td className="py-3 px-3 text-center border-r border-slate-200 bg-slate-100">{totals.advPMO || ''}</td>
-                  <td className="py-3 px-3 text-center border-r border-slate-250 bg-slate-100">{totals.appCab || ''}</td>
-                  <td className="py-3 px-3 text-center border-r border-slate-100">{totals.hold || ''}</td>
-                  <td className="py-3 px-3 text-center">{totals.comp || ''}</td>
-                </tr>
-              </tbody>
-            </table>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
+                  if (totalPages > 6 && Math.abs(currentPage - p) > 1 && p !== 1 && p !== totalPages) {
+                    if (p === 2 || p === totalPages - 1) {
+                      return <span key={p} className="px-1.5 text-slate-400 font-bold">...</span>;
+                    }
+                    return null;
+                  }
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => handlePageChange(p)}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                        currentPage === p
+                          ? 'bg-[#0f417a] text-white shadow-sm'
+                          : 'border border-slate-200 text-slate-650 hover:bg-slate-50'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : (
