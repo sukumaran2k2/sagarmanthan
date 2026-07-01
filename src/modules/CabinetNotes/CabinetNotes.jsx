@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { Home } from 'lucide-react';
 import CabinetNotesInput from './CabinetNotesInput';
 import CabinetNotesReports from './CabinetNotesReports';
+import { INITIAL_NOTES } from './constants';
 
 export default function CabinetNotes() {
+  const [notes, setNotes] = useState(INITIAL_NOTES);
+
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
       
@@ -30,12 +34,12 @@ export default function CabinetNotes() {
         
         {/* 1. Detailed Notes Section / Input Form (Top Card) */}
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-          <CabinetNotesInput />
+          <CabinetNotesInput notes={notes} setNotes={setNotes} />
         </div>
 
         {/* 2. Abstract Report Section (Bottom Card) */}
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 animate-fade-in">
-          <CabinetNotesReports />
+          <CabinetNotesReports notes={notes} />
         </div>
 
       </div>

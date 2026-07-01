@@ -19,23 +19,17 @@ import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 // Register grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-const REPORT_ROWS = [
-  { id: 1, wing: 'Administration', total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0 },
-  { id: 2, wing: 'Coord-I', total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0 },
-  { id: 3, wing: 'Coord-II', total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0 },
-  { id: 4, wing: 'Development', total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0 },
-  { id: 5, wing: 'DGLL, Parliament & TRW', total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0 },
-  { id: 6, wing: 'Finance', total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0 },
-  { id: 7, wing: 'Information Technology', total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0 },
-  { id: 8, wing: 'IWT', total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0 },
-  { id: 9, wing: 'Office of Economic Advisor', total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0 },
-  { id: 10, wing: 'Ports', total: 10, prep: 0, appMin: 0, circIMC: 0, imcRec: 1, prepFinal: 0, appFinal: 0, advPMO: 6, appCab: 2, hold: 0, comp: 1 },
-  { id: 11, wing: 'Sagarmala', total: 2, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 2, hold: 0, comp: 0 },
-  { id: 12, wing: 'Shipping', total: 2, prep: 2, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 1, hold: 0, comp: 0 },
-  { id: 13, wing: 'Special Initiatives & Projects', total: 1, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 1, hold: 0, comp: 0 }
+const WINGS_LIST = [
+  'Administration',
+  'Development',
+  'IWT',
+  'Ports',
+  'Sagarmala',
+  'Shipping',
+  'Special Initiatives & Projects'
 ];
 
-export default function CabinetNotesReports() {
+export default function CabinetNotesReports({ notes = [] }) {
   const gridRef = useRef();
   const [selectedWing, setSelectedWing] = useState('All');
   const [notification, setNotification] = useState(null);
@@ -50,11 +44,45 @@ export default function CabinetNotesReports() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // Filter rows
+  // Derive REPORT_ROWS dynamically from the notes database
+  const dynamicReportRows = useMemo(() => {
+    return WINGS_LIST.map((wing, index) => {
+      const wingNotes = notes.filter(n => n.wing === wing);
+      const prep = wingNotes.filter(n => n.status === 'Preliminary DCN Prepared').length;
+      const appMin = wingNotes.filter(n => n.status === 'Preliminary DCN Approved by Minister').length;
+      const circIMC = wingNotes.filter(n => n.status === 'Circulated for IMC').length;
+      const imcRec = wingNotes.filter(n => n.status === 'IMC Comments Received').length;
+      const prepFinal = wingNotes.filter(n => n.status === 'Final DCN to be Prepared').length;
+      const appFinal = wingNotes.filter(n => n.status === 'Final DCN Approved by Minister').length;
+      const advPMO = wingNotes.filter(n => n.status === 'Advance Copy Sent to PMO & Cab').length;
+      const appCab = wingNotes.filter(n => n.status === 'Approved by Cabinet').length;
+      const hold = wingNotes.filter(n => n.status === 'On Hold').length;
+      const comp = wingNotes.filter(n => n.status === 'Completed').length;
+      const total = wingNotes.length;
+
+      return {
+        id: index + 1,
+        wing,
+        total,
+        prep,
+        appMin,
+        circIMC,
+        imcRec,
+        prepFinal,
+        appFinal,
+        advPMO,
+        appCab,
+        hold,
+        comp
+      };
+    });
+  }, [notes]);
+
+  // Filter rows based on selected wing
   const filteredRows = useMemo(() => {
-    if (selectedWing === 'All') return REPORT_ROWS;
-    return REPORT_ROWS.filter(r => r.wing === selectedWing);
-  }, [selectedWing]);
+    if (selectedWing === 'All') return dynamicReportRows;
+    return dynamicReportRows.filter(r => r.wing === selectedWing);
+  }, [dynamicReportRows, selectedWing]);
 
   // Aggregate totals
   const totals = useMemo(() => {
@@ -75,6 +103,20 @@ export default function CabinetNotesReports() {
       total: 0, prep: 0, appMin: 0, circIMC: 0, imcRec: 0, prepFinal: 0, appFinal: 0, advPMO: 0, appCab: 0, hold: 0, comp: 0
     });
   }, [filteredRows]);
+
+  // Calculate dynamic Donut segments percentages
+  const donutPercentages = useMemo(() => {
+    const total = totals.total || 1;
+    const approvedPct = Math.round((totals.appCab / total) * 100);
+    const pmoPct = Math.round((totals.advPMO / total) * 100);
+    const draftPct = 100 - approvedPct - pmoPct;
+
+    return {
+      approved: approvedPct,
+      pmo: pmoPct,
+      draft: Math.max(0, draftPct)
+    };
+  }, [totals]);
 
   // Sync entriesLimit with AG Grid Pagination Page Size
   useEffect(() => {
@@ -242,7 +284,7 @@ export default function CabinetNotesReports() {
       {/* Toast Notification */}
       {notification && (
         <div className="fixed top-6 right-6 z-55 flex items-center space-x-2.5 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in animate-pulse">
-          <div className="p-1 bg-emerald-550 rounded-lg">
+          <div className="p-1 bg-emerald-50 rounded-lg">
             <Check className="h-4.5 w-4.5 text-white" />
           </div>
           <div>
@@ -252,22 +294,20 @@ export default function CabinetNotesReports() {
         </div>
       )}
 
-      {/* Unified Header & Filter Banner Row */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 border-b border-slate-100 pb-4 mb-2">
-        {/* Left Side: Report Title & Dates */}
-        <div className="space-y-1">
-          <h2 className="text-sm font-black text-slate-900 font-display">
+      {/* Header Banner Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
+        <div>
+          <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
             Report No.: 6.1A - Abstract ( Wing Wise ) - Cabinet Notes MoPSW
           </h2>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-            <span>As On date: <strong className="text-slate-700">30-6-2026</strong></span>
-            <span className="hidden sm:inline text-slate-350">•</span>
-            <span className="text-slate-400">(Report for the Month - June 2026)</span>
+          <div className="flex items-center space-x-1.5 text-[10px] text-slate-500 font-bold mt-1">
+            <span>As On date: 30-6-2026</span>
+            <span>•</span>
+            <span className="text-[#b33c56]">(Report for the Month - June 2026)</span>
           </div>
         </div>
 
-        {/* Right Side: Filters & Exports Grouped */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+        <div className="flex items-center space-x-3">
           {isReportExpanded ? (
             <>
               {/* Wing Select Box */}
@@ -280,7 +320,7 @@ export default function CabinetNotesReports() {
                     className="w-full text-xs pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 font-bold text-slate-700 cursor-pointer"
                   >
                     <option value="All">--Show All--</option>
-                    {REPORT_ROWS.map(r => <option key={r.id} value={r.wing}>{r.wing}</option>)}
+                    {dynamicReportRows.map(r => <option key={r.id} value={r.wing}>{r.wing}</option>)}
                   </select>
                   <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                     <ChevronDown className="h-4 w-4" />
@@ -377,8 +417,8 @@ export default function CabinetNotesReports() {
               suppressPaginationPanel={true}
               onPaginationChanged={onPaginationChanged}
               domLayout="autoHeight"
-              rowHeight={64}
-              headerHeight={48}
+              rowHeight={46}
+              headerHeight={38}
               suppressColumnVirtualisation={true}
               autoSizeStrategy={{
                 type: 'fitCellContents'
@@ -424,7 +464,7 @@ export default function CabinetNotesReports() {
                       className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
                         currentPage === p
                           ? 'bg-[#0f417a] text-white shadow-sm'
-                          : 'border border-slate-200 text-slate-650 hover:bg-slate-50'
+                          : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
                       }`}
                     >
                       {p}
@@ -451,8 +491,8 @@ export default function CabinetNotesReports() {
           <div className="lg:col-span-3 bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Cabinet Notes by Wing</h3>
             <div className="space-y-3.5 pt-2">
-              {REPORT_ROWS.filter(r => r.total > 0).map((row, idx) => {
-                const percent = (row.total / totals.total) * 100;
+              {dynamicReportRows.filter(r => r.total > 0).map((row, idx) => {
+                const percent = (row.total / (totals.total || 1)) * 100;
                 const gradientClass = 
                   idx === 0 ? 'bg-gradient-to-r from-blue-500 to-indigo-500' :
                   idx === 1 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' :
@@ -487,14 +527,14 @@ export default function CabinetNotesReports() {
                   {/* Background Circle */}
                   <circle className="text-slate-200" strokeWidth="3" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
                   
-                  {/* Circle Segment 1: Approved (40% - strokeDasharray="40 100") */}
-                  <circle className="text-emerald-500" strokeWidth="3.5" strokeDasharray="40 100" strokeDashoffset="0" strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
+                  {/* Circle Segment 1: Approved */}
+                  <circle className="text-emerald-500" strokeWidth="3.5" strokeDasharray={`${donutPercentages.approved} 100`} strokeDashoffset="0" strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
                   
-                  {/* Circle Segment 2: PMO copy (40% - strokeDasharray="40 100" offset by 40) */}
-                  <circle className="text-blue-600" strokeWidth="3.5" strokeDasharray="40 100" strokeDashoffset="-40" strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
+                  {/* Circle Segment 2: PMO copy */}
+                  <circle className="text-blue-600" strokeWidth="3.5" strokeDasharray={`${donutPercentages.pmo} 100`} strokeDashoffset={`-${donutPercentages.approved}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
                   
-                  {/* Circle Segment 3: Draft (20% - strokeDasharray="20 100" offset by 80) */}
-                  <circle className="text-amber-500" strokeWidth="3.5" strokeDasharray="20 100" strokeDashoffset="-80" strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
+                  {/* Circle Segment 3: Draft */}
+                  <circle className="text-amber-500" strokeWidth="3.5" strokeDasharray={`${donutPercentages.draft} 100`} strokeDashoffset={`-${donutPercentages.approved + donutPercentages.pmo}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
                 </svg>
                 
                 {/* Central Text inside donut */}

@@ -117,18 +117,6 @@ export default function LoginView({ onLogin }) {
             </div>
           </div>
 
-          {/* 2. SAGARMANTHAN Portal Branding (Middle) */}
-          <div className="flex items-center space-x-3 pt-1">
-            <img src={sagarmanthanLogo} alt="Sagarmanthan Logo" className="h-9 w-auto object-contain" />
-            <div className="text-left leading-none">
-              <h2 className="text-xl sm:text-2xl font-black tracking-wider bg-gradient-to-r from-white via-cyan-100 to-cyan-300 bg-clip-text text-transparent font-display">
-                SAGARMANTHAN
-              </h2>
-              <span className="block text-[9px] text-cyan-300 font-mono tracking-widest uppercase mt-0.5">
-                National Database Portal
-              </span>
-            </div>
-          </div>
 
           {/* 3. MONITOR OCEANS Giant Typography (Bottom) */}
           <div className="space-y-1 pt-2">
@@ -311,11 +299,19 @@ export default function LoginView({ onLogin }) {
             /* Login Form */
             <form onSubmit={handleSubmit} className="space-y-5">
               
-              {/* Clean Login Header */}
-              <div className="text-center pb-2 select-none border-b border-white/10">
-                <h2 className="text-lg font-bold text-white font-display">Portal Login</h2>
-                <p className="text-[10px] text-slate-300 font-medium mt-0.5">Enter your credentials to authenticate</p>
+              {/* SAGARMANTHAN Portal Branding (Top Center) */}
+              <div className="flex items-center justify-center space-x-3 pb-3 select-none border-b border-white/10 w-full">
+                <img src={sagarmanthanLogo} alt="Sagarmanthan Logo" className="h-9 w-auto object-contain" />
+                <div className="leading-none text-left">
+                  <h2 className="text-xl font-black tracking-wider bg-gradient-to-r from-white via-cyan-100 to-cyan-300 bg-clip-text text-transparent font-display">
+                    SAGARMANTHAN
+                  </h2>
+                  <span className="block text-[9px] text-cyan-300 font-mono tracking-widest uppercase mt-0.5">
+                    National Database Portal
+                  </span>
+                </div>
               </div>
+
 
               {/* Email Field */}
               <div className="space-y-2">
@@ -395,8 +391,12 @@ export default function LoginView({ onLogin }) {
           )}
 
           {/* Footer Host Agency Reference */}
-          <div className="text-center text-[10px] text-slate-300 font-medium pt-2">
-            Hosted & Managed by <strong className="text-white">NIC / MoPSW Support</strong>
+          <div className="flex flex-col items-center justify-center text-center text-[10px] text-slate-300 font-semibold pt-4 border-t border-white/10 mt-4 select-none">
+            <span className="mb-1 text-slate-400">Developed and hosted by</span>
+            <div className="flex items-center space-x-1.5">
+              <img src="/ntcpwc_logo.png" alt="NTCPWC Logo" className="h-5.5 w-auto object-contain rounded bg-white p-0.5" />
+              <strong className="text-white tracking-wide font-sans text-[11px]">NTCPWC</strong>
+            </div>
           </div>
 
         </div>
