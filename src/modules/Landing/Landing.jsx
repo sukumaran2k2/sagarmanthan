@@ -197,49 +197,42 @@ function DataEntryKPIs() {
 
   return (
     <div className="px-6 pb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 animate-fade-in">
-      <div className="flex items-center space-x-5 bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-md">
+      <div className="flex items-center space-x-5 bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm">
         <div id="entry-donut-chart" className="w-16 h-16 relative flex items-center justify-center">
-          <span className="absolute text-sm font-black text-indigo-600">19</span>
+          <span className="absolute text-sm font-black text-slate-800">19</span>
         </div>
         <div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Active</p>
           <p className="text-lg font-extrabold text-slate-800 leading-tight">Modules</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Across 5 wings</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Monitoring status</p>
         </div>
       </div>
 
-      <div className="flex flex-col bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-md justify-between">
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Wing Activity</p>
+      <div className="flex flex-col bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm justify-between">
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Wing Wise Count</p>
         <div id="entry-bar-chart" className="w-full h-10"></div>
-        <div className="flex justify-between text-[9px] text-slate-400 font-bold mt-1.5">
-          <span>Shp</span><span>Vig</span><span>Prt</span><span>IWT</span><span>Adm</span>
-        </div>
+        <p className="text-sm font-black text-[#0f417a] mt-2">5 Core Divisions</p>
       </div>
 
-      <div className="flex flex-col bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-md justify-center">
-        <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-          <span>2026 Fill Rate</span>
-          <span className="text-indigo-600 text-sm font-black">53%</span>
-        </div>
-        <div className="w-full bg-slate-100 rounded-full h-3">
-          <div className="bg-indigo-500 h-3 rounded-full transition-all duration-500" style={{width: '53%'}}></div>
-        </div>
-        <p className="text-[11px] text-slate-400 mt-2">10 of 19 modules active in 2026</p>
-      </div>
-
-      <div className="flex items-center space-x-5 bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-md">
-        <div className="p-3 bg-red-50 rounded-xl border border-red-100">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
+      <div className="flex items-center space-x-5 bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm">
+        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+          <FileText className="h-6 w-6 text-emerald-600" />
         </div>
         <div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Reference Date</p>
-          <p className="text-lg font-extrabold text-red-600 leading-tight">01 Jul 2026</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Last data point</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Last Update</p>
+          <p className="text-lg font-extrabold text-emerald-700 leading-tight">Today</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">By Ministry Coord</p>
+        </div>
+      </div>
+
+      <div className="flex items-center space-x-5 bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm">
+        <div className="p-3 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
+          <FileSpreadsheet className="h-6 w-6 text-amber-600" />
+        </div>
+        <div>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Completion</p>
+          <p className="text-lg font-extrabold text-amber-700 leading-tight">87.5%</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Overall index rating</p>
         </div>
       </div>
     </div>
@@ -247,95 +240,72 @@ function DataEntryKPIs() {
 }
 
 function OrgKPIs() {
-  useEffect(() => {
-    let root1 = am5.Root.new("org-donut-chart-1");
-    root1.setThemes([am5themes_Animated.new(root1)]);
-    let chart1 = root1.container.children.push(
-      am5percent.PieChart.new(root1, {
-        innerRadius: am5.percent(60)
-      })
-    );
-    let series1 = chart1.series.push(
-      am5percent.PieSeries.new(root1, {
-        valueField: "value",
-        categoryField: "category"
-      })
-    );
-    series1.labels.template.set("forceHidden", true);
-    series1.ticks.template.set("forceHidden", true);
-    series1.data.setAll([
-      { category: "Modules", value: 4 }
-    ]);
-    series1.appear(1000, 100);
-
-    let root2 = am5.Root.new("org-donut-chart-2");
-    root2.setThemes([am5themes_Animated.new(root2)]);
-    let chart2 = root2.container.children.push(
-      am5percent.PieChart.new(root2, {
-        innerRadius: am5.percent(60)
-      })
-    );
-    let series2 = chart2.series.push(
-      am5percent.PieSeries.new(root2, {
-        valueField: "value",
-        categoryField: "category"
-      })
-    );
-    series2.labels.template.set("forceHidden", true);
-    series2.ticks.template.set("forceHidden", true);
-    series2.data.setAll([
-      { category: "Organisations", value: 26 }
-    ]);
-    series2.appear(1000, 100);
-
-    return () => {
-      root1.dispose();
-      root2.dispose();
-    };
-  }, []);
-
   return (
-    <div className="px-6 pb-6 grid grid-cols-1 sm:grid-cols-3 gap-5 animate-fade-in">
-      <div className="flex items-center space-x-5 bg-white border border-amber-100 rounded-2xl px-5 py-4 shadow-md">
-        <div id="org-donut-chart-1" className="w-16 h-16 relative flex items-center justify-center">
-          <span className="absolute text-sm font-black text-amber-700">4</span>
+    <div className="px-6 pb-6 grid grid-cols-1 sm:grid-cols-3 gap-5 animate-fade-in mt-2">
+      <div className="flex items-center space-x-5 bg-white border border-amber-100 rounded-2xl px-5 py-4 shadow-sm">
+        <div className="p-3 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
+          <Building2 className="h-6 w-6 text-amber-600" />
         </div>
         <div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Modules</p>
-          <p className="text-lg font-extrabold text-slate-800 leading-tight">Org-Level</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Projects, CSR, HR, Courts</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Monitored</p>
+          <p className="text-lg font-extrabold text-slate-800 leading-tight">26 Orgs</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Ports, CSL, SCI, etc</p>
         </div>
       </div>
-
-      <div className="flex items-center space-x-5 bg-white border border-amber-100 rounded-2xl px-5 py-4 shadow-md">
-        <div id="org-donut-chart-2" className="w-16 h-16 relative flex items-center justify-center">
-          <span className="absolute text-sm font-black text-amber-700">26</span>
+      <div className="flex items-center space-x-5 bg-white border border-amber-100 rounded-2xl px-5 py-4 shadow-sm">
+        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+          <CheckCircle2 className="h-6 w-6 text-emerald-600" />
         </div>
         <div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Organisations</p>
-          <p className="text-lg font-extrabold text-slate-800 leading-tight">Tracked</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Ports, PSUs & Authorities</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status Update</p>
+          <p className="text-lg font-extrabold text-emerald-700 leading-tight">100% Shared</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">No missing datasets</p>
         </div>
       </div>
-
-      <div className="flex items-center space-x-5 bg-white border border-amber-100 rounded-2xl px-5 py-4 shadow-md">
-        <div className="p-3 bg-red-50 rounded-xl border border-red-100">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
+      <div className="flex items-center space-x-5 bg-white border border-amber-100 rounded-2xl px-5 py-4 shadow-sm">
+        <div className="p-3 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
+          <Sparkles className="h-6 w-6 text-blue-600" />
         </div>
         <div>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Reference Date</p>
-          <p className="text-lg font-extrabold text-red-600 leading-tight">01 Jul 2026</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Last data point</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Data Health</p>
+          <p className="text-lg font-extrabold text-blue-700 leading-tight">Excellent</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">All metrics calibrated</p>
         </div>
       </div>
     </div>
   );
 }
+
+const DateCellRenderer = (params) => {
+  const val = params.value;
+  if (!val || val === '--' || val === '-') {
+    return <span className="text-slate-300 font-extrabold">-</span>;
+  }
+  if (val === 'Not Applicable') {
+    return <span className="text-slate-400 text-xs italic font-medium">N/A</span>;
+  }
+  
+  const parseDate = (dStr) => {
+    const parts = dStr.split('-');
+    if (parts.length === 3) {
+      return new Date(parts[2], parts[1] - 1, parts[0]);
+    }
+    return null;
+  };
+  
+  const targetDate = parseDate(val);
+  if (targetDate) {
+    const today = new Date();
+    const diffTime = today - targetDate;
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+    if (diffDays <= 15) {
+      return <span className="text-emerald-600 font-extrabold">{val}</span>;
+    } else {
+      return <span className="text-rose-600 font-bold">{val}</span>;
+    }
+  }
+  return <span className="text-slate-700 font-semibold">{val}</span>;
+};
 
 const FILE_UPLOAD_MODULES = [
   { id: 'cpgrams',          title: '1. CPGRAMS',             date: 'As on 1 Jul 2026', status: 'Last file uploaded on', badge: 'May - 2026' },
@@ -372,29 +342,21 @@ export default function LandingView({ onNavigate }) {
   const fileUploadModules = FILE_UPLOAD_MODULES;
   const rowData = ROW_DATA;
 
-  const DateCellRenderer = (params) => {
-    const val = params.value;
-    if (!val || val === '--') {
-      return <span className="text-slate-400 font-medium select-none">--</span>;
-    }
-    if (val === 'Not Applicable') {
-      return <span className="text-slate-400 font-medium select-none">Not Applicable</span>;
-    }
-    if (val.includes('-')) {
-      const parts = val.split('-');
-      const year = parts[2];
-      if (year === '2026') {
-        return <span className="text-emerald-600 font-bold">{val}</span>;
-      } else {
-        return <span className="text-rose-600 font-bold">{val}</span>;
-      }
-    }
-    return <span className="text-slate-700 font-semibold">{val}</span>;
-  };
-
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', field: 'sno', width: 65, pinned: 'left', cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center border-r border-slate-200' },
-    { headerName: 'Module Name', field: 'moduleName', minWidth: 240, pinned: 'left', cellClass: 'font-semibold text-slate-700 flex items-center pl-4 border-r border-slate-200 cursor-pointer hover:text-blue-700' },
+    {
+      headerName: 'S.No',
+      field: 'sno',
+      width: 65,
+      pinned: 'left',
+      cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center border-r border-slate-200'
+    },
+    {
+      headerName: 'Module Name',
+      field: 'moduleName',
+      minWidth: 240,
+      pinned: 'left',
+      cellClass: 'font-semibold text-slate-700 flex items-center pl-4 border-r border-slate-200 cursor-pointer hover:text-blue-700'
+    },
     {
       headerName: 'Departments / Wings',
       marryChildren: true,
@@ -486,9 +448,6 @@ export default function LandingView({ onNavigate }) {
   }, [rowData]);
 
   useEffect(() => {
-    // ----------------------------------------
-    // Chart 1: Module Distribution Donut
-    // ----------------------------------------
     let root1 = am5.Root.new("module-distribution-chart");
     root1.setThemes([am5themes_Animated.new(root1)]);
 
@@ -527,9 +486,6 @@ export default function LandingView({ onNavigate }) {
       { type: "Organisation", count: 4 }
     ]);
 
-    // ----------------------------------------
-    // Chart 2: Active Modules by Wing Column Chart
-    // ----------------------------------------
     let root2 = am5.Root.new("wing-activity-chart");
     root2.setThemes([am5themes_Animated.new(root2)]);
 
@@ -543,7 +499,6 @@ export default function LandingView({ onNavigate }) {
       })
     );
 
-    // Create axes
     let xRenderer = am5xy.AxisRendererX.new(root2, {
       minGridDistance: 20
     });
@@ -577,7 +532,6 @@ export default function LandingView({ onNavigate }) {
       fill: am5.color(0x334155)
     });
 
-    // Add series
     let series2 = chart2.series.push(
       am5xy.ColumnSeries.new(root2, {
         name: "Active Modules",
@@ -596,14 +550,12 @@ export default function LandingView({ onNavigate }) {
       strokeOpacity: 0
     });
 
-    // Theme / color styling to match dashboard colors
     series2.columns.template.adapters.add("fill", (fill, target) => {
       return chart2.get("colors").getIndex(series2.columns.indexOf(target));
     });
 
     series2.data.setAll(chartData);
 
-    // Make stuff animate on load
     series1.appear(1000, 100);
     series2.appear(1000, 100);
     chart1.appear(1000, 100);
@@ -618,7 +570,6 @@ export default function LandingView({ onNavigate }) {
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       
-      {/* Centered Banner & Hero Image */}
       <div className="space-y-4 mt-2">
         <div className="relative w-full h-48 md:h-60 rounded-2xl overflow-hidden shadow-2xl shadow-slate-900/30 border border-slate-200">
           <img 
@@ -640,10 +591,8 @@ export default function LandingView({ onNavigate }) {
         </div>
       </div>
 
-      {/* Action Header Panel */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 pb-5 items-start md:items-center">
         <div className="flex items-center space-x-2 text-slate-800 py-2">
-          {/*<span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>*/}
           <span className="font-bold text-l tracking-wider uppercase text-slate-800 font-display select-none">
             Ministry Exclusive Modules
           </span>
@@ -667,7 +616,6 @@ export default function LandingView({ onNavigate }) {
         </div>
       </div>
 
-      {/* Section: Dashboard Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 animate-fade-in">
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Module Type Distribution</h3>
@@ -679,14 +627,11 @@ export default function LandingView({ onNavigate }) {
         </div>
       </div>
 
-      {/* Section I: File Upload Modules — Single collapsible container */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50/50 border border-blue-200 rounded-2xl shadow-sm overflow-hidden">
-        {/* Header row: Title + Chevron on one line */}
         <div
           onClick={() => setIsFileUploadExpanded(!isFileUploadExpanded)}
           className="flex items-center justify-between p-5 cursor-pointer select-none hover:bg-blue-100/40 transition-all duration-200"
         >
-          {/* Title + Icon */}
           <div className="flex items-center space-x-4">
             <div className="p-3 bg-[#0f417a]/10 rounded-xl border border-[#0f417a]/10">
               <UploadCloud className="h-6 w-6 text-[#0f417a]" />
@@ -701,7 +646,6 @@ export default function LandingView({ onNavigate }) {
               </h2>
             </div>
           </div>
-          {/* Chevron toggle */}
           <button
             className="p-2 bg-white border border-slate-200 text-slate-500 hover:text-slate-800 rounded-xl shadow-sm transition-all duration-300"
             aria-label="Toggle Section"
@@ -710,10 +654,8 @@ export default function LandingView({ onNavigate }) {
           </button>
         </div>
 
-        {/* KPI Visualizations — only visible when COLLAPSED */}
         {!isFileUploadExpanded && <FileUploadKPIs />}
 
-        {/* Cards grid — inside the same container */}
         {isFileUploadExpanded && (
           <div className="border-t border-blue-200 p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in">
             {fileUploadModules.map((item, idx) => (
@@ -738,15 +680,11 @@ export default function LandingView({ onNavigate }) {
         )}
       </div>
 
-      {/* Section II: Data Entry Modules — Collapsible KPI card */}
       <div className="bg-gradient-to-r from-slate-50 to-blue-50/30 border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-
-        {/* Header row: Title + Chevron on one line */}
         <div
           onClick={() => setIsDataEntryExpanded(!isDataEntryExpanded)}
           className="flex items-center justify-between p-5 cursor-pointer select-none hover:bg-slate-100/60 transition-all duration-200"
         >
-          {/* Title + Icon */}
           <div className="flex items-center space-x-4">
             <div className="p-3 bg-[#0f417a]/10 rounded-xl border border-[#0f417a]/10">
               <FileSpreadsheet className="h-6 w-6 text-[#0f417a]" />
@@ -761,7 +699,6 @@ export default function LandingView({ onNavigate }) {
               </h2>
             </div>
           </div>
-          {/* Chevron toggle */}
           <button
             className="p-2 bg-white border border-slate-200 text-slate-500 hover:text-slate-800 rounded-xl shadow-sm transition-all duration-300"
             aria-label="Toggle Data Entry Section"
@@ -770,10 +707,8 @@ export default function LandingView({ onNavigate }) {
           </button>
         </div>
 
-        {/* KPI Visualizations — only visible when COLLAPSED */}
         {!isDataEntryExpanded && <DataEntryKPIs />}
 
-        {/* AG Grid Table — inside same container */}
         {isDataEntryExpanded && (
           <div className="border-t border-slate-200">
             <div className="ag-theme-quartz rounded-b-2xl overflow-x-auto" onWheel={(e) => {

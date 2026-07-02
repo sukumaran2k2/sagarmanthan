@@ -1,4 +1,5 @@
 import { useState } from 'react';
+
 import CabinetNotesInput from './CabinetNotesInput';
 import CabinetNotesReports from './CabinetNotesReports';
 import { INITIAL_NOTES } from './constants';
