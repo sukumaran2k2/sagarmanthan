@@ -1,0 +1,23 @@
+export const INITIAL_NOTES = [
+  { id: 1, subject: 'Draft Amendment of Insurance Act to deepen penetration and accelerate growth and development of insurance sector-reg', wing: 'Ministry of Finance', status: 'Comments Received' },
+  { id: 2, subject: 'CABINET NOTE for inter-ministerial consultation to enter into a memorandum of understanding regarding yuga yugeen Bharat Museum-reg', wing: 'Ministry of Culture', status: 'Comments Received' },
+  { id: 3, subject: 'Development of trunk infrastructure components in industrial nodes/cities under national industrial corridor development programme (NICDP)', wing: 'Ministry of Commerce and Industry', status: 'Comments Received' },
+  { id: 4, subject: 'Amendment of the First Schedule to the Offshore Areas Mineral (Development and Regulation) Act, 2002 to rationalize the royalty rates of Concretion sand, Lime mud, polymetallic nodules/crusts and other minerals - reg.', wing: 'Ministry of Mines', status: 'Comments Received' },
+  { id: 5, subject: 're-assessment of the Coal Mines Act, 2015.', wing: 'Ministry of Commerce and Industry', status: 'Comments Received' },
+  { id: 6, subject: 'draft note for cabinet on proposal for introduction of the Delhi Property records bill 2024-reg', wing: 'Ministry of Housing and Urban Affairs', status: 'Comments Received' },
+  { id: 7, subject: 'Draft Cabinet Note for abandonment of Prime Minister Shram Awards (PMSA) regarding', wing: 'Ministry of Labour and Employment', status: 'Comments Received' },
+  { id: 8, subject: 'DCN - Establishing Indian Coast Guard Academy at Kampara Village, Mangaluru, Karnataka - reg.', wing: 'Ministry of Defence', status: 'Comments Received' },
+  { id: 9, subject: 'DCN-Amendment to the national highways Act 1956-reg.', wing: 'Ministry of Road Transport and Highways', status: 'Comments Received' },
+  { id: 10, subject: 'DCN-Amendments to the national highways act 1956-reg.', wing: 'Ministry of Road Transport and Highways', status: 'Comments Received' },
+  { id: 11, subject: 'Draft Cabinet Note regarding Post / Logistics Infrastructure Project of Department of Posts', wing: 'Ministry of Communications', status: 'Comments Received' },
+  { id: 12, subject: 'Draft Note for the Cabinet on Setting up of Integrated Transport & Logistics Authority (ITLA)', wing: 'Ministry of Commerce and Industry', status: 'Comments Received' },
+  { id: 13, subject: 'Circulation of Draft Cabinet Note for introduction of Micro, Small and Medium Enterprises Development (Amendment) Bill, 2024 for Inter-Ministerial consultation (IMC)', wing: 'Ministry of Micro, Small and Medium Enterprises', status: 'Comments Received' },
+  { id: 14, subject: 'Comments / inputs sought on Draft Disaster Line and National Adaptation Plan (NAP) -reg.', wing: 'Ministry of Environment, Forest and Climate Change', status: 'Comments Received' },
+  { id: 15, subject: 'Draft Note for the Cabinet on the proposal for India-Japan Maritime/Ocean Fisheries Agreement (IJMFA)-reg.', wing: 'Ministry of Fisheries, Animal Husbandry and Dairying', status: 'Comments Received' },
+  { id: 16, subject: 'Circulation of draft note for cabinet on the proposal for introducing the national policy for skill development and entrepreneurship 2024 for inter-ministerial consultation (IMC)', wing: 'Ministry of Skill Development and Entrepreneurship', status: 'Comments Received' },
+  { id: 17, subject: 'Draft cabinet note for approval of National Steel Policy - 2025 - regarding', wing: 'Ministry of Steel', status: 'Comments Received' },
+  { id: 18, subject: 'Inter-Ministerial Consultation on Draft Cabinet Note on Steel Scrap Recycling Policy (SSRP), 2024 for enhancing the domestic scrap generation and scrap-based steel production-reg.', wing: 'Ministry of Steel', status: 'Comments Received' },
+  { id: 19, subject: 'circulation of draft note for cabinet note for cabinet on the proposal for introducing the revised Jan Vishwas (Amendment of provisions) Bill, 2024 for Inter - Minister Consultation (IMC) - reg.', wing: 'Ministry of Commerce and Industry', status: 'Comments Received' },
+  { id: 20, subject: 'Draft note for the Cabinet on the Biodiversity beyond national Jurisdiction (BBNJ) URL 2024 - reg', wing: 'Ministry of Earth Sciences', status: 'Comments Received' },
+  { id: 21, subject: 'Draft Cabinet List for approval of National Steel Policy - 2025 - regarding', wing: 'Ministry of Steel', status: 'Reply Furnished' }
+];

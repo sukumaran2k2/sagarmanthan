@@ -217,7 +217,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
         { label: 'CPGRAMS', icon: FileCheck },
         { label: 'Cabinet Notes - Other Ministries', icon: FileText },
         { label: 'E Office', icon: Globe },
-        { label: 'Parliamentary Issues', icon: Gavel },
+        { label: 'Parliamentary Issue', icon: Gavel },
         { label: 'GEM Procurements', icon: Coins },
         { label: 'Cabinet Notes - MoPSW', icon: FileText },
         { label: 'VIP Reference', icon: Award },

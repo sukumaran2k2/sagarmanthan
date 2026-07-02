@@ -13,6 +13,8 @@ import CPGRAMSView from './modules/CPGRAMS/CPGRAMS';
 import HRDashboardView from './modules/HR/HR';
 import ProfileView from './modules/Profile/Profile';
 import CabinetNotes from './modules/CabinetNotes/CabinetNotes';
+import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotes';
+import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
 
@@ -146,9 +148,9 @@ const getBreadcrumbs = (tab) => {
   
   // Dynamic lookup for other tabs
   const kpiItems = {
-    'Ports Dashboard': ['KPI', 'Major Ports'],
-    'Ports Input Form': ['KPI', 'Major Ports'],
-    'Ports Reports': ['KPI', 'Major Ports'],
+    'Major Ports Dashboard': ['KPI', 'Major Ports'],
+    'Major Ports Input Form': ['KPI', 'Major Ports'],
+    'Major Ports Reports': ['KPI', 'Major Ports'],
     'MMD Master': ['KPI', 'DSG'],
     'DSG Input Form': ['KPI', 'DSG'],
     'DSG Reports': ['KPI', 'DSG'],
@@ -216,15 +218,118 @@ const getBreadcrumbs = (tab) => {
   return ['Home', tab];
 };
 
+const ROUTE_MAP = {
+  'landing': 'landing',
+  'profile': 'profile',
+  
+  // Projects nested routes
+  'dashboard': 'projects/project/project-dashboard',
+  'projects': 'projects/project/project-list',
+  'less5cr': 'projects/project/projects-less-than-5-cr',
+  'lumpsum': 'projects/project/lumpsum-iwai',
+  'dropRequests': 'projects/project/view-drop-request',
+  'reports': 'projects/project/reports',
+  
+  // KPI nested routes
+  'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
+  'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
+  'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
+  
+  // Governance nested routes
+  'E Office': 'governance/e-office',
+  'Attendance': 'governance/attendance',
+  'CPGRAMS': 'governance/cpgrams',
+  'Cabinet Notes - MoPSW': 'governance/cabinet-notes',
+  'Cabinet Notes - Other Ministries': 'governance/cabinet-notes-other-ministry',
+  'VIP Reference': 'governance/vip-reference',
+  
+  // Legal nested routes
+  'Courtcases': 'legal/courtcases',
+  'Acts & Rules': 'legal/acts-rules',
+  
+  // Strategies nested routes
+  'Vision 2047': 'strategies/vision-2047',
+  'Maritime India Summit': 'strategies/maritime-india-summit',
+  'Blue Economy Policy': 'strategies/blue-economy-policy',
+  
+  // Knowledge nested routes
+  'Research Papers': 'knowledge/research-papers',
+  'Policy Documents': 'knowledge/policy-documents',
+  'Guidelines': 'knowledge/guidelines',
+  
+  // Form Builder nested routes
+  'Create Dynamic Form': 'formBuilder/create-dynamic-form',
+  'View Submissions': 'formBuilder/view-submissions',
+  
+  // Tracker nested routes
+  'Project Milestones': 'tracker/project-milestones',
+  'Delay Analysis': 'tracker/delay-analysis',
+  
+  // Meetings nested routes
+  'Meeting Schedule': 'meeting/meeting-schedule',
+  'Minutes of Meeting': 'meeting/minutes-of-meeting',
+  'Action Taken Report': 'meeting/action-taken-report',
+  
+  // Contacts nested routes
+  'Ministry Contacts': 'contact/ministry-contacts',
+  'Helpdesk Support': 'contact/helpdesk-support',
+  
+  // User Management
+  'User Management': 'userManagement/user-management',
+  
+  // HR nested routes
+  'HR Dashboard': 'hr/hr-management/hr-dashboard',
+  'Employee Database': 'hr/hr-management/employee-database',
+  'List of Abolished Ports': 'hr/hr-management/abolished-ports',
+  'List of Abolished Posts': 'hr/hr-management/abolished-posts',
+  'Contractual Employment': 'hr/hr-management/contractual-employment',
+  'Training Details': 'hr/hr-management/training-details',
+  'HR Reports': 'hr/hr-management/hr-reports',
+};
+
+const getTabFromSlug = (slug) => {
+  const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === slug);
+  return entry ? entry[0] : slug;
+};
+
 export default function App() {
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
-  const [activeTab, setActiveTab] = useState('landing');
+  const [activeTab, setActiveTab] = useState(() => {
+    const path = window.location.pathname.replace(/^\//, '');
+    return path ? getTabFromSlug(path) : 'landing';
+  });
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [isAddSubProjectOpen, setIsAddSubProjectOpen] = useState(false);
   const [notification, setNotification] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Sync pathname changes from browser back/forward history buttons to activeTab state
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.replace(/^\//, '');
+      if (path) {
+        setActiveTab(getTabFromSlug(path));
+      } else {
+        setActiveTab('landing');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Sync activeTab changes back to browser path
+  useEffect(() => {
+    if (isLoggedIn) {
+      const slug = ROUTE_MAP[activeTab] || activeTab;
+      const currentPath = window.location.pathname.replace(/^\//, '');
+      if (currentPath !== slug) {
+        window.history.pushState(null, '', `/${slug}`);
+      }
+    }
+  }, [activeTab, isLoggedIn]);
 
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
@@ -300,6 +405,20 @@ export default function App() {
       {/* Main Content Viewport */}
       <main className="flex-grow w-full max-w-full px-4 sm:px-6 lg:px-8 pb-12">
         {/* Dynamic Breadcrumbs Row */}
+        {activeTab !== 'landing' && (
+          <div className="flex items-center space-x-2 text-slate-400 text-xs font-semibold px-2 mb-6 mt-3 animate-fade-in select-none bg-white py-2.5 px-4 rounded-xl border border-slate-200 shadow-sm w-fit">
+            <Home className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => setActiveTab('landing')} />
+            {getBreadcrumbs(activeTab).slice(1).map((crumb, idx, arr) => (
+              <div key={idx} className="flex items-center space-x-2">
+                <span className="text-slate-350">/</span>
+                <span className={idx === arr.length - 1 ? "text-blue-800 font-bold" : "text-slate-550"}>
+                  {crumb}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        
         {activeTab === 'landing' && (
           <LandingView 
             onNavigate={(tab, subKpi) => {
@@ -365,6 +484,14 @@ export default function App() {
           <CabinetNotes />
         )}
 
+        {activeTab === 'Cabinet Notes - Other Ministries' && (
+          <CabinetNotesOther />
+        )}
+
+        {activeTab === 'Parliamentary Issue' && (
+          <ParliamentaryIssues />
+        )}
+
         {['HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
           <HRDashboardView activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
         )}
@@ -383,7 +510,7 @@ export default function App() {
         )}
 
         {/* Placeholder / Empty State for other inactive government menu views */}
-        {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW'].includes(activeTab) && (
+        {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue'].includes(activeTab) && (
           <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
             <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
               <Sparkles className="h-7 w-7 text-blue-600" />

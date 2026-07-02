@@ -14,8 +14,7 @@ import {
   FileSpreadsheet,
   FileCheck,
   Download,
-  Filter,
-  Home
+  Filter
 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
@@ -253,15 +252,6 @@ export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-
-      {/* Breadcrumbs Row matching image layout */}
-      <div className="flex items-center space-x-1 text-slate-400 text-xs font-semibold px-2">
-        <Home className="h-3.5 w-3.5 text-slate-400" />
-        <span className="text-slate-400">/</span>
-        <span className="text-slate-600 cursor-pointer hover:underline" onClick={() => setActiveSubTab('HR Dashboard')}>HR Management</span>
-        <span className="text-slate-400">/</span>
-        <span className="text-blue-800 font-bold">{SUB_TABS.find(t => t.id === currentTab)?.label}</span>
-      </div>
 
       {/* Header Row: Title & Navigation Tab Switcher on the same line */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">

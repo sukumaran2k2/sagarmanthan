@@ -13,9 +13,9 @@ export default function CabinetNotes() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
-            Cabinet Notes-MoPSW
+            Cabinet Notes-Other Ministry
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium">Manage and review Cabinet Notes, departmental summaries, and wing-wise status reports.</p>
+          <p className="text-xs text-slate-500 mt-1 font-medium">Manage, register and monitor Cabinet Notes received from other ministries and departments.</p>
         </div>
       </div>
 
