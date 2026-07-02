@@ -324,29 +324,6 @@ export default function VIPReferenceReports({ vipReferences }) {
               ? { type: 'fitGridWidth' }
               : { type: 'fitCellContents' }
           }
-          onFirstDataRendered={(params) => {
-            if (reportType === 'pendency') return;
-            const allCols = params.api.getAllGridColumns();
-            params.api.autoSizeColumns(allCols);
-            const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-            const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
-            if (containerWidth > 0 && totalColWidth < containerWidth) {
-              params.api.sizeColumnsToFit();
-            }
-          }}
-          onGridSizeChanged={(params) => {
-            if (reportType === 'pendency') {
-              params.api.sizeColumnsToFit();
-              return;
-            }
-            const allCols = params.api.getAllGridColumns();
-            params.api.autoSizeColumns(allCols);
-            const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-            const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
-            if (containerWidth > 0 && totalColWidth < containerWidth) {
-              params.api.sizeColumnsToFit();
-            }
-          }}
         />
       </div>
 
