@@ -242,6 +242,7 @@ const ROUTE_MAP = {
   'Cabinet Notes - MoPSW': 'governance/cabinet-notes',
   'Cabinet Notes - Other Ministries': 'governance/cabinet-notes-other-ministry',
   'VIP Reference': 'governance/vip-reference',
+  'Parliamentary Issue': 'governance/parliamentary-issue',
   
   // Legal nested routes
   'Courtcases': 'legal/courtcases',
@@ -288,15 +289,16 @@ const ROUTE_MAP = {
 };
 
 const getTabFromSlug = (slug) => {
-  const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === slug);
-  return entry ? entry[0] : slug;
+  const cleanSlug = slug.replace(/^\//, '').replace(/\/$/, '');
+  const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);
+  return entry ? entry[0] : cleanSlug;
 };
 
 export default function App() {
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
   const [activeTab, setActiveTab] = useState(() => {
-    const path = window.location.pathname.replace(/^\//, '');
-    return path ? getTabFromSlug(path) : 'landing';
+    const path = window.location.pathname;
+    return path && path !== '/' ? getTabFromSlug(path) : 'landing';
   });
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [isAddSubProjectOpen, setIsAddSubProjectOpen] = useState(false);
@@ -307,8 +309,8 @@ export default function App() {
   // Sync pathname changes from browser back/forward history buttons to activeTab state
   useEffect(() => {
     const handlePopState = () => {
-      const path = window.location.pathname.replace(/^\//, '');
-      if (path) {
+      const path = window.location.pathname;
+      if (path && path !== '/') {
         setActiveTab(getTabFromSlug(path));
       } else {
         setActiveTab('landing');

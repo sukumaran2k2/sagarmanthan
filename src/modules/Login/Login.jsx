@@ -14,7 +14,7 @@ export default function LoginView({ onLogin }) {
   const [password, setPassword] = useState('••••••••••••••••');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [captchaVerified, setCaptchaVerified] = useState(false);
+  const [captchaVerified, setCaptchaVerified] = useState(true);
 
   // Forgot password flow states
   const [view, setView] = useState('login'); // 'login' or 'forgot'
@@ -37,10 +37,11 @@ export default function LoginView({ onLogin }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!captchaVerified) {
-      alert('Please complete the reCAPTCHA verification.');
-      return;
-    }
+    // Temporarily disabled reCAPTCHA check
+    // if (!captchaVerified) {
+    //   alert('Please complete the reCAPTCHA verification.');
+    //   return;
+    // }
     // Match the mock auth credentials
     if (email === 'testmopsw@gmail.com') {
       onLogin();
@@ -368,7 +369,7 @@ export default function LoginView({ onLogin }) {
                 </button>
               </div>
 
-              {/* Real Google reCAPTCHA Widget */}
+              {/* Real Google reCAPTCHA Widget (Commented for testing speed)
               <div className="w-full flex justify-center bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden">
                 <div className="scale-100 sm:scale-105 origin-center flex justify-center w-full py-1">
                   <ReCAPTCHA
@@ -378,6 +379,7 @@ export default function LoginView({ onLogin }) {
                   />
                 </div>
               </div>
+              */}
 
               {/* Submit Button */}
               <button

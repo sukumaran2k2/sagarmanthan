@@ -38,7 +38,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
   const [totalPages, setTotalPages] = useState(1);
   const [notification, setNotification] = useState(null);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
-  const [isDatabaseExpanded, setIsDatabaseExpanded] = useState(false);
+  const [isDatabaseExpanded, setIsDatabaseExpanded] = useState(true);
 
   // Form View State
   const [isFormOpen, setIsFormOpen] = useState(false);
