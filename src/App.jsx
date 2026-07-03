@@ -303,7 +303,6 @@ export default function App() {
   const [notification, setNotification] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
-  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Sync pathname changes from browser back/forward history buttons to activeTab state
   useEffect(() => {
@@ -331,17 +330,7 @@ export default function App() {
     }
   }, [activeTab, isLoggedIn]);
 
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-  };
 
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
 
   // Notification Trigger
   const triggerNotification = (message) => {
@@ -390,8 +379,6 @@ export default function App() {
       {/* Government Portal Header */}
       <Header 
         onLogout={() => setIsLoggedIn(false)} 
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={toggleDarkMode}
         onProfileClick={() => setActiveTab('profile')}
       />
 

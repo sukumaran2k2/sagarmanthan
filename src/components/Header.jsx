@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Globe, Type, Sun, Moon } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
+import { useTheme } from '../context/ThemeContext.jsx';
 
-export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfileClick }) {
+export default function Header({ onLogout, onProfileClick }) {
+  const { isDarkMode, toggleDarkMode } = useTheme();
   const [lang, setLang] = useState('EN');
   const [fontSize, setFontSize] = useState(16); // Standard browser baseline default (16px)
   const [showFontSlider, setShowFontSlider] = useState(false);
@@ -204,7 +206,7 @@ export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfi
 
                 {/* Theme Switcher Button */}
                 <button
-                  onClick={onToggleDarkMode}
+                  onClick={toggleDarkMode}
                   className="p-1.5 rounded-lg transition-all cursor-pointer text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center"
                   title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
                 >
