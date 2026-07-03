@@ -17,6 +17,7 @@ import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotes';
 import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
+import Loader from './components/Loader';
 
 const PROJECT_TABS = [
   { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
@@ -304,7 +305,42 @@ export default function App() {
   const [isAddSubProjectOpen, setIsAddSubProjectOpen] = useState(false);
   const [notification, setNotification] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
+  const [isTabLoading, setIsTabLoading] = useState(false);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      let isMounted = true;
+
+      // Start loading process deferred to avoid synchronous cascade render warnings
+      Promise.resolve().then(() => {
+        if (isMounted) {
+          setIsTabLoading(true);
+        }
+      });
+      
+      const simulateDataFetch = async () => {
+        try {
+          // Simulating asynchronous data retrieval process
+          await new Promise((resolve) => setTimeout(resolve, 350));
+        } catch (error) {
+          console.error("Telemetry fetch error:", error);
+        } finally {
+          // End loading process
+          if (isMounted) {
+            setIsTabLoading(false);
+          }
+        }
+      };
+
+      simulateDataFetch();
+
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [activeTab, isLoggedIn]);
 
   // Sync pathname changes from browser back/forward history buttons to activeTab state
   useEffect(() => {
@@ -358,8 +394,20 @@ export default function App() {
     triggerNotification(`Sub-project ${newSubProject.subProjectId} successfully created.`);
   };
 
+  const handleLoginSuccess = () => {
+    setIsLoggingIn(true);
+    setTimeout(() => {
+      setIsLoggingIn(false);
+      setIsLoggedIn(true);
+    }, 1500);
+  };
+
+  if (isLoggingIn) {
+    return <Loader message="Authenticating credentials and loading dashboard..." fullPage={true} />;
+  }
+
   if (!isLoggedIn) {
-    return <LoginView onLogin={() => setIsLoggedIn(true)} />;
+    return <LoginView onLogin={handleLoginSuccess} />;
   }
 
   return (
@@ -408,113 +456,121 @@ export default function App() {
           </div>
         )}
         
-        {activeTab === 'landing' && (
-          <LandingView 
-            onNavigate={(tab, subKpi) => {
-              if (subKpi) {
-                setEOfficeKpi(subKpi);
-              }
-              setActiveTab(tab);
-            }} 
-          />
-        )}
-
-        {activeTab === 'dashboard' && (
-          <DashboardView 
-            projects={projects} 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-          />
-        )}
-        
-        {activeTab === 'projects' && (
-          isAddingProject ? (
-            <AddProjectForm 
-              onAdd={handleAddProject}
-              onClose={() => setIsAddingProject(false)}
-            />
-          ) : (
-            <ProjectTable 
-              projects={projects} 
-              onAddProjectClick={() => setIsAddingProject(true)}
-              onAddSubProjectClick={() => setIsAddSubProjectOpen(true)}
-              onExportTrigger={(type) => triggerNotification(`${type} triggered successfully.`)}
-              activeTab={activeTab} 
-              setActiveTab={setActiveTab}
-            />
-          )
-        )}
-
-        {activeTab === 'Major Ports Dashboard' && (
-          <PortsDashboardView />
-        )}
-
-        {activeTab === 'Major Ports Input Form' && (
-          <PortsInputFormView />
-        )}
-
-        {activeTab === 'Major Ports Reports' && (
-          <PortsReportsView />
-        )}
-
-        {activeTab === 'E Office' && (
-          <EOfficeView key={eOfficeKpi} initialKpi={eOfficeKpi} />
-        )}
-
-        {activeTab === 'Attendance' && (
-          <AttendanceView />
-        )}
-
-        {activeTab === 'CPGRAMS' && (
-          <CPGRAMSView />
-        )}
-
-        {activeTab === 'Cabinet Notes - MoPSW' && (
-          <CabinetNotes />
-        )}
-
-        {activeTab === 'Cabinet Notes - Other Ministries' && (
-          <CabinetNotesOther />
-        )}
-
-        {activeTab === 'Parliamentary Issue' && (
-          <ParliamentaryIssues />
-        )}
-
-        {['HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
-          <HRDashboardView activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
-        )}
-
-        {activeTab === 'profile' && (
-          <ProfileView triggerNotification={triggerNotification} />
-        )}
-
-        {isAddSubProjectOpen && (
-          <AddSubProjectModal
-            isOpen={isAddSubProjectOpen}
-            onClose={() => setIsAddSubProjectOpen(false)}
-            onAdd={handleAddSubProject}
-            projects={projects}
-          />
-        )}
-
-        {/* Placeholder / Empty State for other inactive government menu views */}
-        {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue'].includes(activeTab) && (
-          <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
-            <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
-              <Sparkles className="h-7 w-7 text-blue-600" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-800 font-display">SAGARMANTHAN - {activeTab}</h3>
-            <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
-              This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
-            </p>
-            <button 
-              onClick={() => setActiveTab('dashboard')}
-              className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
-            >
-              Back to Dashboard
-            </button>
+        {isTabLoading ? (
+          <div className="py-12 animate-fade-in">
+            <Loader message={`Fetching telemetry and compiling active panels for ${activeTab}...`} fullPage={false} />
           </div>
+        ) : (
+          <>
+            {activeTab === 'landing' && (
+              <LandingView 
+                onNavigate={(tab, subKpi) => {
+                  if (subKpi) {
+                    setEOfficeKpi(subKpi);
+                  }
+                  setActiveTab(tab);
+                }} 
+              />
+            )}
+
+            {activeTab === 'dashboard' && (
+              <DashboardView 
+                projects={projects} 
+                activeTab={activeTab} 
+                setActiveTab={setActiveTab} 
+              />
+            )}
+            
+            {activeTab === 'projects' && (
+              isAddingProject ? (
+                <AddProjectForm 
+                  onAdd={handleAddProject}
+                  onClose={() => setIsAddingProject(false)}
+                />
+              ) : (
+                <ProjectTable 
+                  projects={projects} 
+                  onAddProjectClick={() => setIsAddingProject(true)}
+                  onAddSubProjectClick={() => setIsAddSubProjectOpen(true)}
+                  onExportTrigger={(type) => triggerNotification(`${type} triggered successfully.`)}
+                  activeTab={activeTab} 
+                  setActiveTab={setActiveTab}
+                />
+              )
+            )}
+
+            {activeTab === 'Major Ports Dashboard' && (
+              <PortsDashboardView />
+            )}
+
+            {activeTab === 'Major Ports Input Form' && (
+              <PortsInputFormView />
+            )}
+
+            {activeTab === 'Major Ports Reports' && (
+              <PortsReportsView />
+            )}
+
+            {activeTab === 'E Office' && (
+              <EOfficeView key={eOfficeKpi} initialKpi={eOfficeKpi} />
+            )}
+
+            {activeTab === 'Attendance' && (
+              <AttendanceView />
+            )}
+
+            {activeTab === 'CPGRAMS' && (
+              <CPGRAMSView />
+            )}
+
+            {activeTab === 'Cabinet Notes - MoPSW' && (
+              <CabinetNotes />
+            )}
+
+            {activeTab === 'Cabinet Notes - Other Ministries' && (
+              <CabinetNotesOther />
+            )}
+
+            {activeTab === 'Parliamentary Issue' && (
+              <ParliamentaryIssues />
+            )}
+
+            {['HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
+              <HRDashboardView activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
+            )}
+
+            {activeTab === 'profile' && (
+              <ProfileView triggerNotification={triggerNotification} />
+            )}
+
+            {isAddSubProjectOpen && (
+              <AddSubProjectModal
+                isOpen={isAddSubProjectOpen}
+                onClose={() => setIsAddSubProjectOpen(false)}
+                onAdd={handleAddSubProject}
+                projects={projects}
+              />
+            )}
+
+            {/* Placeholder / Empty State for other inactive government menu views */}
+            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue'].includes(activeTab) && (
+              <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
+                <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
+                  <Sparkles className="h-7 w-7 text-blue-600" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-800 font-display">SAGARMANTHAN - {activeTab}</h3>
+                <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
+                  This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
+                </p>
+                <button 
+                  onClick={() => setActiveTab('dashboard')}
+                  className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
+                >
+                  Back to Dashboard
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 

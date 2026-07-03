@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { 
   FileSpreadsheet, 
-  Plus, 
   Search, 
   Copy, 
   FileText, 
@@ -14,8 +13,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  GitBranch,
-  CheckCircle2,
   UploadCloud,
   ArrowLeft
 } from 'lucide-react';
@@ -57,7 +54,14 @@ const STATUS_STEPS = {
   11: 'Completed'
 };
 
-export default function CabinetNotesInput({ notes, setNotes }) {
+export default function CabinetNotesInput({ 
+  notes, 
+  setNotes,
+  activeSubTab,
+  setActiveSubTab,
+  editingNote,
+  setEditingNote
+}) {
   const gridRef = useRef();
   const [selectedWing, setSelectedWing] = useState('All');
   const [selectedDivision, setSelectedDivision] = useState('All');
@@ -68,12 +72,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
   const [totalPages, setTotalPages] = useState(1);
   const [notification, setNotification] = useState(null);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
-  const [isDatabaseExpanded, setIsDatabaseExpanded] = useState(false);
 
-  // Form View State
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState(null);
-  
   // Fields required by MoPSW
   const [formSubject, setFormSubject] = useState('');
   const [formWing, setFormWing] = useState('');
@@ -89,6 +88,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
   };
+
+  const isFormOpen = activeSubTab === 'add';
 
   const getNoteStatusFromSteps = (steps) => {
     let currentStatus = 'Draft';
@@ -112,31 +113,36 @@ export default function CabinetNotesInput({ notes, setNotes }) {
     return steps;
   };
 
-  const handleOpenAdd = () => {
-    setEditingNote(null);
-    setFormSubject('');
-    setFormWing('');
-    setFormDivision('');
-    setFormRemarks('');
-    setFormFile(null);
-    setFormStatusSteps({
-      1: 'No', 2: 'No', 3: 'No', 4: 'No', 5: 'No', 6: 'No', 7: 'No', 8: 'No', 9: 'No', 10: 'No', 11: 'No'
-    });
-    setFormStatusDates({});
-    setIsFormOpen(true);
-  };
+  useEffect(() => {
+    if (activeSubTab === 'add') {
+      Promise.resolve().then(() => {
+        if (editingNote) {
+          setFormSubject(editingNote.subject);
+          setFormWing(editingNote.wing);
+          setFormDivision(editingNote.division);
+          setFormRemarks(editingNote.remarks || '');
+          setFormFile(editingNote.fileName ? { name: editingNote.fileName } : null);
+          setFormStatusSteps(getStepsFromNoteStatus(editingNote.status));
+          setFormStatusDates(editingNote.statusDates || {});
+        } else {
+          setFormSubject('');
+          setFormWing('');
+          setFormDivision('');
+          setFormRemarks('');
+          setFormFile(null);
+          setFormStatusSteps({
+            1: 'No', 2: 'No', 3: 'No', 4: 'No', 5: 'No', 6: 'No', 7: 'No', 8: 'No', 9: 'No', 10: 'No', 11: 'No'
+          });
+          setFormStatusDates({});
+        }
+      });
+    }
+  }, [activeSubTab, editingNote]);
 
   const handleOpenEdit = useCallback((note) => {
     setEditingNote(note);
-    setFormSubject(note.subject);
-    setFormWing(note.wing);
-    setFormDivision(note.division);
-    setFormRemarks(note.remarks || '');
-    setFormFile(note.fileName ? { name: note.fileName } : null);
-    setFormStatusSteps(getStepsFromNoteStatus(note.status));
-    setFormStatusDates(note.statusDates || {});
-    setIsFormOpen(true);
-  }, []);
+    setActiveSubTab('add');
+  }, [setEditingNote, setActiveSubTab]);
 
   const handleSaveNote = (e) => {
     e.preventDefault();
@@ -179,7 +185,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
       setNotes(prev => [newNote, ...prev]);
       triggerNotification('Cabinet note registered successfully.');
     }
-    setIsFormOpen(false);
+    setActiveSubTab('list');
+    setEditingNote(null);
   };
 
   const handleFileChange = (e) => {
@@ -389,7 +396,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
               <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
             </div>
             <button 
-              onClick={() => setIsFormOpen(false)} 
+              onClick={() => { setActiveSubTab('list'); setEditingNote(null); }} 
               className="inline-flex items-center space-x-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold text-white transition cursor-pointer"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
@@ -599,7 +606,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
             <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100">
               <button 
                 type="button" 
-                onClick={() => setIsFormOpen(false)}
+                onClick={() => { setActiveSubTab('list'); setEditingNote(null); }}
                 className="px-4.5 py-2.5 border border-slate-250 text-slate-655 rounded-xl text-xs font-bold hover:bg-slate-50 hover:text-slate-800 transition cursor-pointer"
               >
                 Discard
@@ -646,47 +653,17 @@ export default function CabinetNotesInput({ notes, setNotes }) {
         </div>
 
         <div className="flex items-center space-x-3">
-          {isDatabaseExpanded ? (
-            <>
-              <button 
-                onClick={() => triggerNotification('All Data Export initiated.')}
-                className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100/50 transition cursor-pointer"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                <span>All Data</span>
-              </button>
-
-              <button 
-                onClick={handleOpenAdd}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-105 text-black border border-white font-bold text-xs rounded-lg transition-all duration-200 cursor-pointer hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-md font-sans"
-              >
-                <Plus className="h-4 w-4 text-emerald-800 hover:text-white" />
-                <span>Add Notes</span>
-              </button>
-
-              <button 
-                onClick={() => setIsDatabaseExpanded(false)}
-                className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg border border-slate-255 shadow-sm transition cursor-pointer"
-              >
-                <span>Collapse</span>
-                <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
-              </button>
-            </>
-          ) : (
-            <button 
-              onClick={() => setIsDatabaseExpanded(true)}
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
-            >
-              <span>View Detailed Report</span>
-            </button>
-          )}
+          <button 
+            onClick={() => triggerNotification('All Data Export initiated.')}
+            className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100/50 transition cursor-pointer"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            <span>All Data</span>
+          </button>
         </div>
       </div>
 
-      {isDatabaseExpanded ? (
-        <>
-          {/* Collapsible Filters Card */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
             <button 
               onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
               className="w-full flex items-center justify-between text-left transition cursor-pointer select-none"
@@ -857,62 +834,6 @@ export default function CabinetNotesInput({ notes, setNotes }) {
             </div>
 
           </div>
-        </>
-      ) : (
-        /* KPI Insights Grid (Visible only when Database table is collapsed) */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in pt-4 border-t border-slate-100">
-
-          {/* 2. Division-wise KPI */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 shadow-inner">
-            <div className="flex items-center space-x-2 text-rose-600 font-bold">
-              <GitBranch className="h-4.5 w-4.5 text-rose-600" />
-              <span className="text-[11px] uppercase tracking-wider font-display text-slate-700">Division Wise Counts</span>
-            </div>
-            <div className="divide-y divide-slate-150 font-semibold text-xs text-slate-700 max-h-[220px] overflow-y-auto pr-1">
-              {Object.entries(
-                notes.reduce((acc, n) => {
-                  acc[n.division] = (acc[n.division] || 0) + 1;
-                  return acc;
-                }, {})
-              ).sort((a, b) => b[1] - a[1]).map(([division, count]) => (
-                <div key={division} className="flex justify-between py-2 items-center">
-                  <span className="font-mono">{division}</span>
-                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[10px] font-extrabold">{count} notes</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 3. Status-wise KPI */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 shadow-inner">
-            <div className="flex items-center space-x-2 text-emerald-600 font-bold">
-              <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600" />
-              <span className="text-[11px] uppercase tracking-wider font-display text-slate-700">Status Wise Counts</span>
-            </div>
-            <div className="divide-y divide-slate-150 font-semibold text-xs text-slate-700 max-h-[220px] overflow-y-auto pr-1">
-              {Object.entries(
-                notes.reduce((acc, n) => {
-                  acc[n.status] = (acc[n.status] || 0) + 1;
-                  return acc;
-                }, {})
-              ).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
-                <div key={status} className="flex justify-between py-2 items-center">
-                  <span className="max-w-[180px] truncate" title={status}>{status}</span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                    status.includes('Approved') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                    status.includes('Prepared') ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                    status.includes('PMO') ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' :
-                    'bg-amber-50 text-amber-700 border border-amber-100'
-                  }`}>
-                    {count} notes
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      )}
 
     </div>
   );

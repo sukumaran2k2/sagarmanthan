@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { 
   FileSpreadsheet, 
-  Plus, 
   Search, 
   Copy, 
   FileText, 
@@ -12,8 +11,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  GitBranch,
-  CheckCircle2,
   ArrowLeft
 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
@@ -26,7 +23,14 @@ const DIVISIONS = ['All', 'PC-I', 'PD-I', 'PD-II', 'PD-III', 'PPP', 'IWT-I', 'IW
 const ISSUE_TYPES = ['All', 'Assurance'];
 const STATUSES = ['All', 'No Status', 'Received At Ministry'];
 
-export default function ParliamentaryIssuesInput({ issues, setIssues }) {
+export default function ParliamentaryIssuesInput({ 
+  issues, 
+  setIssues,
+  activeSubTab,
+  setActiveSubTab,
+  editingIssue,
+  setEditingIssue
+}) {
   const gridRef = useRef();
   const [selectedWing, setSelectedWing] = useState('All');
   const [selectedDivision, setSelectedDivision] = useState('All');
@@ -38,45 +42,48 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
   const [totalPages, setTotalPages] = useState(1);
   const [notification, setNotification] = useState(null);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
-  const [isDatabaseExpanded, setIsDatabaseExpanded] = useState(true);
 
   // Form View State
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingIssue, setEditingIssue] = useState(null);
-  
   const [formSubject, setFormSubject] = useState('');
   const [formWing, setFormWing] = useState('');
   const [formDivision, setFormDivision] = useState('');
-  const [formIssueType, setFormIssueType] = useState('');
-  const [formStatus, setFormStatus] = useState('');
+  const [formIssueType, setFormIssueType] = useState('Assurance');
+  const [formStatus, setFormStatus] = useState('No Status');
   const [formRemarks, setFormRemarks] = useState('');
+
+  const isFormOpen = activeSubTab === 'add';
+
+  useEffect(() => {
+    if (activeSubTab === 'add') {
+      Promise.resolve().then(() => {
+        if (editingIssue) {
+          setFormSubject(editingIssue.subject);
+          setFormWing(editingIssue.wing);
+          setFormDivision(editingIssue.division);
+          setFormIssueType(editingIssue.issueType);
+          setFormStatus(editingIssue.status);
+          setFormRemarks(editingIssue.remarks || '');
+        } else {
+          setFormSubject('');
+          setFormWing('');
+          setFormDivision('');
+          setFormIssueType('Assurance');
+          setFormStatus('No Status');
+          setFormRemarks('');
+        }
+      });
+    }
+  }, [activeSubTab, editingIssue]);
 
   const triggerNotification = (msg) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleOpenAdd = () => {
-    setEditingIssue(null);
-    setFormSubject('');
-    setFormWing('');
-    setFormDivision('');
-    setFormIssueType('Assurance');
-    setFormStatus('No Status');
-    setFormRemarks('');
-    setIsFormOpen(true);
-  };
-
   const handleOpenEdit = useCallback((issue) => {
     setEditingIssue(issue);
-    setFormSubject(issue.subject);
-    setFormWing(issue.wing);
-    setFormDivision(issue.division);
-    setFormIssueType(issue.issueType);
-    setFormStatus(issue.status);
-    setFormRemarks(issue.remarks || '');
-    setIsFormOpen(true);
-  }, []);
+    setActiveSubTab('add');
+  }, [setEditingIssue, setActiveSubTab]);
 
   const handleSaveIssue = (e) => {
     e.preventDefault();
@@ -113,7 +120,8 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
       setIssues(prev => [newIssue, ...prev]);
       triggerNotification('Parliamentary issue added successfully.');
     }
-    setIsFormOpen(false);
+    setActiveSubTab('list');
+    setEditingIssue(null);
   };
 
   const filteredIssues = useMemo(() => {
@@ -276,7 +284,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
             </div>
             <button 
-              onClick={() => setIsFormOpen(false)} 
+              onClick={() => { setActiveSubTab('list'); setEditingIssue(null); }} 
               className="inline-flex items-center space-x-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold text-white transition cursor-pointer"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
@@ -387,7 +395,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
             <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100">
               <button 
                 type="button" 
-                onClick={() => setIsFormOpen(false)}
+                onClick={() => { setActiveSubTab('list'); setEditingIssue(null); }}
                 className="px-4.5 py-2.5 border border-slate-250 text-slate-655 rounded-xl text-xs font-bold hover:bg-slate-50 hover:text-slate-800 transition cursor-pointer"
               >
                 Discard
@@ -428,46 +436,17 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
         </div>
 
         <div className="flex items-center space-x-3">
-          {isDatabaseExpanded ? (
-            <>
-              <button 
-                onClick={() => triggerNotification('All Data Export initiated.')}
-                className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100/50 transition cursor-pointer"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                <span>All Data</span>
-              </button>
-
-              <button 
-                onClick={handleOpenAdd}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-105 text-black border border-white font-bold text-xs rounded-lg transition-all duration-200 cursor-pointer hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-md font-sans"
-              >
-                <Plus className="h-4 w-4 text-emerald-800" />
-                <span>Add Parliamentary Issues</span>
-              </button>
-
-              <button 
-                onClick={() => setIsDatabaseExpanded(false)}
-                className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg border border-slate-255 shadow-sm transition cursor-pointer"
-              >
-                <span>Collapse</span>
-                <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
-              </button>
-            </>
-          ) : (
-            <button 
-              onClick={() => setIsDatabaseExpanded(true)}
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
-            >
-              <span>View Detailed Report</span>
-            </button>
-          )}
+          <button 
+            onClick={() => triggerNotification('All Data Export initiated.')}
+            className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100/50 transition cursor-pointer"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            <span>All Data</span>
+          </button>
         </div>
       </div>
 
-      {isDatabaseExpanded ? (
-        <>
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
             <button 
               onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
               className="w-full flex items-center justify-between text-left transition cursor-pointer select-none"
@@ -643,55 +622,6 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               </div>
             </div>
           </div>
-        </>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in pt-4 border-t border-slate-100">
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 shadow-inner">
-            <div className="flex items-center space-x-2 text-rose-600 font-bold">
-              <GitBranch className="h-4.5 w-4.5 text-rose-600" />
-              <span className="text-[11px] uppercase tracking-wider font-display text-slate-700">Wing Wise Counts</span>
-            </div>
-            <div className="divide-y divide-slate-150 font-semibold text-xs text-slate-700 max-h-[220px] overflow-y-auto pr-1">
-              {Object.entries(
-                issues.reduce((acc, i) => {
-                  acc[i.wing] = (acc[i.wing] || 0) + 1;
-                  return acc;
-                }, {})
-              ).sort((a, b) => b[1] - a[1]).map(([wing, count]) => (
-                <div key={wing} className="flex justify-between py-2 items-center">
-                  <span className="truncate max-w-[200px]" title={wing}>{wing}</span>
-                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[10px] font-extrabold">{count} issues</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 shadow-inner">
-            <div className="flex items-center space-x-2 text-emerald-600 font-bold">
-              <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600" />
-              <span className="text-[11px] uppercase tracking-wider font-display text-slate-700">Status Wise Counts</span>
-            </div>
-            <div className="divide-y divide-slate-150 font-semibold text-xs text-slate-700 max-h-[220px] overflow-y-auto pr-1">
-              {Object.entries(
-                issues.reduce((acc, i) => {
-                  acc[i.status] = (acc[i.status] || 0) + 1;
-                  return acc;
-                }, {})
-              ).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
-                <div key={status} className="flex justify-between py-2 items-center">
-                  <span>{status}</span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                    status.includes('Received') ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                    'bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}>
-                    {count} issues
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

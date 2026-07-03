@@ -5,7 +5,8 @@ import { INITIAL_ISSUES } from './constants';
 
 export default function ParliamentaryIssues() {
   const [issues, setIssues] = useState(INITIAL_ISSUES);
-  const [activeSubTab, setActiveSubTab] = useState('dashboard'); // 'dashboard' | 'list' | 'report'
+  const [activeSubTab, setActiveSubTab] = useState('dashboard'); // 'dashboard' | 'list' | 'report' | 'add'
+  const [editingIssue, setEditingIssue] = useState(null);
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
@@ -22,7 +23,7 @@ export default function ParliamentaryIssues() {
         {/* Tabs Selector Navigation on the same line */}
         <div className="flex space-x-1.5 bg-slate-50/50 p-1.5 rounded-xl border border-slate-200 w-fit">
           <button
-            onClick={() => setActiveSubTab('dashboard')}
+            onClick={() => { setActiveSubTab('dashboard'); setEditingIssue(null); }}
             className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
               activeSubTab === 'dashboard'
                 ? 'bg-[#0f417a] text-white shadow'
@@ -32,7 +33,7 @@ export default function ParliamentaryIssues() {
             Dashboard
           </button>
           <button
-            onClick={() => setActiveSubTab('list')}
+            onClick={() => { setActiveSubTab('list'); setEditingIssue(null); }}
             className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
               activeSubTab === 'list'
                 ? 'bg-[#0f417a] text-white shadow'
@@ -42,7 +43,7 @@ export default function ParliamentaryIssues() {
             List View (Register)
           </button>
           <button
-            onClick={() => setActiveSubTab('report')}
+            onClick={() => { setActiveSubTab('report'); setEditingIssue(null); }}
             className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
               activeSubTab === 'report'
                 ? 'bg-[#0f417a] text-white shadow'
@@ -50,6 +51,16 @@ export default function ParliamentaryIssues() {
             }`}
           >
             Analytical Reports
+          </button>
+          <button
+            onClick={() => { setActiveSubTab('add'); setEditingIssue(null); }}
+            className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              activeSubTab === 'add'
+                ? 'bg-[#0f417a] text-white shadow'
+                : 'text-slate-555 hover:text-slate-800'
+            }`}
+          >
+            Add Issues
           </button>
         </div>
       </div>
@@ -63,9 +74,16 @@ export default function ParliamentaryIssues() {
           </div>
         )}
 
-        {activeSubTab === 'list' && (
+        {(activeSubTab === 'list' || activeSubTab === 'add') && (
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 animate-fade-in">
-            <ParliamentaryIssuesInput issues={issues} setIssues={setIssues} />
+            <ParliamentaryIssuesInput 
+              issues={issues} 
+              setIssues={setIssues} 
+              activeSubTab={activeSubTab}
+              setActiveSubTab={setActiveSubTab}
+              editingIssue={editingIssue}
+              setEditingIssue={setEditingIssue}
+            />
           </div>
         )}
 
