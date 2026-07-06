@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, Search, ArrowLeft } from 'lucide-react';
+import CommonTable from '../../components/CommonTable';
 
 export default function PortsReportsView() {
   const [subView, setSubView] = useState('list'); // 'list' or 'details'
@@ -48,34 +49,133 @@ export default function PortsReportsView() {
   const performanceData = [
     { sno: 1, org: 'Chennai Port Authority', fy: '2026-2027', month: 'May', cruiseCalls: '4', ferryCalls: '12', vesselTat: '32.5', dwellImport: '48.2' },
     { sno: 2, org: 'Cochin Port Authority', fy: '2026-2027', month: 'May', cruiseCalls: '8', ferryCalls: '28', vesselTat: '28.1', dwellImport: '36.5' },
-    { sno: 3, org: 'Kamarajar Port Limited', fy: '2026-2027', month: 'May', cruiseCalls: '0', ferryCalls: '0', vesselTat: '22.4', dwellImport: '41.0' },
-    { sno: 4, org: 'Deendayal Port Authority', fy: '2026-2027', month: 'May', cruiseCalls: '2', ferryCalls: '5', vesselTat: '44.8', dwellImport: '52.4' }
+    { sno: 3, org: 'Kamarajar Port Limited', fy: '2026-2027', month: 'May', cruiseCalls: '0', ferryCalls: '0', vesselTat: '21.4', dwellImport: '29.2' },
+    { sno: 4, org: 'Deendayal Port Authority', fy: '2026-2027', month: 'May', cruiseCalls: '2', ferryCalls: '5', vesselTat: '41.2', dwellImport: '52.4' }
   ];
 
-  const handleReportClick = (report) => {
-    setSelectedReport(report);
+  const handleReportClick = (item) => {
+    setSelectedReport(item);
     setSubView('details');
   };
 
   const getFilteredData = () => {
-    const data = selectedReport?.id === 'financial' 
-      ? financialData 
-      : (selectedReport?.id.startsWith('traffic') ? trafficData : performanceData);
+    let rawData = [];
+    if (selectedReport?.id === 'financial') {
+      rawData = financialData;
+    } else if (selectedReport?.id.startsWith('traffic')) {
+      rawData = trafficData;
+    } else {
+      rawData = performanceData;
+    }
 
-    return data.filter(row => {
+    return rawData.filter(row => {
       const matchFy = selectedFy === 'Show All' || row.fy === selectedFy;
       const matchMonth = selectedMonth === 'Show All' || row.month === selectedMonth;
       const matchOrg = selectedOrg === 'Show All' || row.org === selectedOrg;
-      const matchSearch = searchTerm === '' || row.org.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchSearch = searchTerm === '' || 
+        row.org.toLowerCase().includes(searchTerm.toLowerCase());
       return matchFy && matchMonth && matchOrg && matchSearch;
     });
+  };
+
+  // Main list column definitions
+  const listColDefs = [
+    { headerName: 'S.No.', field: 'sno', width: 90, cellClass: 'text-slate-500 font-bold' },
+    { headerName: 'Coding', field: 'coding', width: 140, cellClass: 'text-slate-800 font-bold font-mono' },
+    {
+      headerName: 'Description',
+      field: 'desc',
+      flex: 1,
+      cellRenderer: (params) => {
+        const item = params.data;
+        if (item.isCategory && !item.clickable) {
+          return <span className="font-extrabold text-slate-900">{item.desc}</span>;
+        }
+        return (
+          <button
+            onClick={() => handleReportClick(item)}
+            className="text-left font-extrabold hover:text-blue-700 transition-colors cursor-pointer underline text-[#1d428a]"
+          >
+            {item.desc}
+          </button>
+        );
+      }
+    }
+  ];
+
+  // Dynamic Column selection for reports
+  const getReportColDefs = () => {
+    const baseCols = [
+      { headerName: 'S.No', field: 'sno', width: 80, pinned: 'left' },
+      { headerName: 'Organisation', field: 'org', width: 220, pinned: 'left', cellClass: 'font-extrabold text-slate-800' },
+      { headerName: 'Financial Year', field: 'fy', width: 120 },
+      { headerName: 'Month', field: 'month', width: 100 }
+    ];
+
+    if (selectedReport?.id === 'financial') {
+      return [
+        ...baseCols,
+        { headerName: 'Operating Income (In Cr.)', field: 'opIncome', width: 180 },
+        { headerName: 'Operating Expenditure (In Cr.)', field: 'opExpend', width: 200 },
+        { headerName: 'Total Income (In Cr.)', field: 'totIncome', width: 160 },
+        { headerName: 'Total Expenditure (In Cr.)', field: 'totExpend', width: 180 },
+        { headerName: 'Operating Surplus (In Cr.)', field: 'opSurplus', width: 180 },
+        { headerName: 'Net Surplus (In Cr.)', field: 'netSurplus', width: 150 },
+        { headerName: 'Operating Ratio (%)', field: 'opRatio', width: 150 },
+        { headerName: 'Per Tonne Handling Cost (In Rupees)', field: 'handlingCost', width: 230 }
+      ];
+    }
+
+    if (selectedReport?.id === 'traffic-container') {
+      return [
+        ...baseCols,
+        { headerName: 'Container Traffic (in TEUs)', field: 'containerTeu', width: 220 }
+      ];
+    }
+
+    if (selectedReport?.id === 'traffic-total') {
+      return [
+        ...baseCols,
+        { headerName: 'Target Traffic (MMT)', field: 'target', width: 180 },
+        { headerName: 'Actual Traffic (MMT)', field: 'actual', width: 180 },
+        { 
+          headerName: 'YoY Growth (%)', 
+          field: 'growth', 
+          width: 150,
+          cellClass: (params) => {
+            const val = params.value || '';
+            return val.startsWith('-') ? 'text-rose-600 font-bold' : 'text-emerald-600 font-bold';
+          }
+        }
+      ];
+    }
+
+    // Default performance indicators
+    let metricField = 'dwellImport';
+    let metricHeader = 'Dwell Time - Import Cycle (in Hours)';
+
+    if (selectedReport?.id.startsWith('cruise')) {
+      metricField = 'cruiseCalls';
+      metricHeader = 'Cruise Calls (Nos)';
+    } else if (selectedReport?.id.startsWith('ferry')) {
+      metricField = 'ferryCalls';
+      metricHeader = 'Ferry Calls (Nos)';
+    } else if (selectedReport?.id.startsWith('vessel-tat')) {
+      metricField = 'vesselTat';
+      metricHeader = 'Vessel Turnaround Time (in Hours)';
+    }
+
+    return [
+      ...baseCols,
+      { headerName: metricHeader, field: metricField, width: 250 }
+    ];
   };
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
 
       {subView === 'list' ? (
-        /* Reports Index Table View */
+        /* Report list View */
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
           <div className="text-center border-b border-slate-100 pb-4">
             <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-wide font-display uppercase">
@@ -83,42 +183,13 @@ export default function PortsReportsView() {
             </h1>
           </div>
 
-          <div className="overflow-x-auto border border-slate-150 rounded-xl">
-            <table className="w-full text-left border-collapse text-xs font-semibold text-slate-700">
-              <thead>
-                <tr className="bg-[#1d428a] text-white">
-                  <th className="py-3 px-4 font-bold tracking-wider w-20">S.No.</th>
-                  <th className="py-3 px-4 font-bold tracking-wider w-36">Coding</th>
-                  <th className="py-3 px-4 font-bold tracking-wider">Description</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-150">
-                {reportStructure.map((item, idx) => (
-                  <tr 
-                    key={idx} 
-                    className={`transition-colors ${
-                      item.isCategory && !item.clickable ? 'bg-slate-50/80' : 'hover:bg-slate-50/70'
-                    }`}
-                  >
-                    <td className="py-2.5 px-4 text-slate-500 font-bold">{item.sno}</td>
-                    <td className="py-2.5 px-4 text-slate-800 font-bold font-mono">{item.coding}</td>
-                    <td className="py-2.5 px-4">
-                      {item.isCategory && !item.clickable ? (
-                        <span className="font-extrabold text-slate-900">{item.desc}</span>
-                      ) : (
-                        <button
-                          onClick={() => handleReportClick(item)}
-                          className={`text-left font-extrabold hover:text-blue-700 transition-colors cursor-pointer underline text-[#1d428a]`}
-                        >
-                          {item.desc}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CommonTable 
+            rowData={reportStructure}
+            columnDefs={listColDefs}
+            rowHeight={46}
+            headerHeight={38}
+            autoSize={true}
+          />
         </div>
       ) : (
         /* Detailed Report Data Table View */
@@ -151,7 +222,7 @@ export default function PortsReportsView() {
                 <select
                   value={selectedFy}
                   onChange={(e) => setSelectedFy(e.target.value)}
-                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 animate-none"
                 >
                   <option>Show All</option>
                   <option>2026-2027</option>
@@ -166,7 +237,7 @@ export default function PortsReportsView() {
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 animate-none"
                 >
                   <option>Show All</option>
                   <option>May</option>
@@ -181,7 +252,7 @@ export default function PortsReportsView() {
                 <select
                   value={selectedOrg}
                   onChange={(e) => setSelectedOrg(e.target.value)}
-                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 animate-none"
                 >
                   <option>Show All</option>
                   <option>Chennai Port Authority</option>
@@ -197,9 +268,9 @@ export default function PortsReportsView() {
           {/* Table Actions and Search */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t border-slate-100 pt-4">
             <div className="flex space-x-1">
-              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-650 transition cursor-pointer">Copy</button>
-              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-650 transition cursor-pointer">Excel</button>
-              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-650 transition cursor-pointer">PDF</button>
+              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-655 transition cursor-pointer">Copy</button>
+              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-655 transition cursor-pointer">Excel</button>
+              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-655 transition cursor-pointer">PDF</button>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -216,121 +287,13 @@ export default function PortsReportsView() {
             </div>
           </div>
 
-          {/* Table Rendering based on Report Type */}
-          <div className="overflow-x-auto border border-slate-150 rounded-xl max-w-full">
-            {selectedReport?.id === 'financial' ? (
-              <table className="w-full text-left border-collapse text-[10px] font-semibold text-slate-700 whitespace-nowrap">
-                <thead>
-                  <tr className="bg-[#1d428a] text-white">
-                    <th className="py-3 px-3.5 border-r border-white/10 text-center font-bold">S.No</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 font-bold">Organisation</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 font-bold">Financial Year</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 font-bold">Month</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Income (In Cr.)</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Expenditure (In Cr.)</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Total Income (In Cr.)</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Total Expenditure (In Cr.)</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Surplus (In Cr.)</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Net Surplus (In Cr.)</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Ratio (%)</th>
-                    <th className="py-3 px-3.5 text-right font-bold">Per Tonne Handling Cost (In Rupees)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150">
-                  {getFilteredData().map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-center font-medium text-slate-500">{row.sno}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-slate-800 font-extrabold">{row.org}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-slate-500">{row.fy}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-slate-500">{row.month}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-right font-bold text-slate-800">{row.opIncome}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-right font-bold text-slate-800">{row.opExpend}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-right font-bold text-slate-800">{row.totIncome}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-right font-bold text-slate-800">{row.totExpend}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-right font-bold text-slate-800">{row.opSurplus}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-right font-bold text-slate-800">{row.netSurplus}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-right font-bold text-slate-800">{row.opRatio}</td>
-                      <td className="py-3 px-3.5 text-right font-bold text-slate-800">{row.handlingCost}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : selectedReport?.id.startsWith('traffic') ? (
-              <table className="w-full text-left border-collapse text-[10px] font-semibold text-slate-700 whitespace-nowrap">
-                <thead>
-                  <tr className="bg-[#1d428a] text-white">
-                    <th className="py-3 px-3.5 border-r border-white/10 text-center font-bold">S.No</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 font-bold">Organisation</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 font-bold">Financial Year</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 font-bold">Month</th>
-                    {selectedReport.id === 'traffic-container' ? (
-                      <th className="py-3 px-3.5 text-right font-bold">Container Traffic (in TEUs)</th>
-                    ) : (
-                      <>
-                        <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Target Traffic (MMT)</th>
-                        <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Actual Traffic (MMT)</th>
-                        <th className="py-3 px-3.5 text-right font-bold">YoY Growth (%)</th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150">
-                  {getFilteredData().map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-center font-medium text-slate-500">{row.sno}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-slate-800 font-extrabold">{row.org}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-slate-500">{row.fy}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-slate-500">{row.month}</td>
-                      {selectedReport.id === 'traffic-container' ? (
-                        <td className="py-3 px-3.5 text-right font-bold text-slate-800">{row.containerTeu}</td>
-                      ) : (
-                        <>
-                          <td className="py-3 px-3.5 border-r border-slate-150 text-right font-bold text-slate-800">{row.target}</td>
-                          <td className="py-3 px-3.5 border-r border-slate-150 text-right font-bold text-slate-800">{row.actual}</td>
-                          <td className={`py-3 px-3.5 text-right font-black ${row.growth.startsWith('-') ? 'text-rose-600' : 'text-emerald-600'}`}>{row.growth}</td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <table className="w-full text-left border-collapse text-[10px] font-semibold text-slate-700 whitespace-nowrap">
-                <thead>
-                  <tr className="bg-[#1d428a] text-white">
-                    <th className="py-3 px-3.5 border-r border-white/10 text-center font-bold">S.No</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 font-bold">Organisation</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 font-bold">Financial Year</th>
-                    <th className="py-3 px-3.5 border-r border-white/10 font-bold">Month</th>
-                    {selectedReport?.id.startsWith('cruise') ? (
-                      <th className="py-3 px-3.5 text-right font-bold">Cruise Calls (Nos)</th>
-                    ) : selectedReport?.id.startsWith('ferry') ? (
-                      <th className="py-3 px-3.5 text-right font-bold">Ferry Calls (Nos)</th>
-                    ) : selectedReport?.id.startsWith('vessel-tat') ? (
-                      <th className="py-3 px-3.5 text-right font-bold">Vessel Turnaround Time (in Hours)</th>
-                    ) : (
-                      <th className="py-3 px-3.5 text-right font-bold">Dwell Time - Import Cycle (in Hours)</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150">
-                  {getFilteredData().map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-center font-medium text-slate-500">{row.sno}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-slate-800 font-extrabold">{row.org}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-slate-500">{row.fy}</td>
-                      <td className="py-3 px-3.5 border-r border-slate-150 text-slate-500">{row.month}</td>
-                      <td className="py-3 px-3.5 text-right font-bold text-slate-800">
-                        {selectedReport?.id.startsWith('cruise') ? row.cruiseCalls :
-                         selectedReport?.id.startsWith('ferry') ? row.ferryCalls :
-                         selectedReport?.id.startsWith('vessel-tat') ? row.vesselTat : row.dwellImport}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+          <CommonTable 
+            rowData={getFilteredData()}
+            columnDefs={getReportColDefs()}
+            rowHeight={46}
+            headerHeight={38}
+            autoSize={false}
+          />
         </div>
       )}
     </div>

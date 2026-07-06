@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Search, ArrowLeft } from 'lucide-react';
+import CommonTable from '../../components/CommonTable';
 
 export default function PortsInputFormView() {
   const [subView, setSubView] = useState('list'); // 'list' or 'details'
@@ -52,11 +53,11 @@ export default function PortsInputFormView() {
       netSurplus: '-0.46',
       opRatio: '51.16',
       handlingCost: '133.18',
-      profitTonne: '133.59',
-      profitTeu: '5036.9',
-      profitDry: '5044.95',
-      profitBreak: '31502.37',
-      profitLiquid: '208.06'
+      profitTonne: '65.21',
+      profitTeu: '1211.51',
+      profitDry: '0',
+      profitBreak: '241.12',
+      profitLiquid: '89.15'
     },
     {
       sno: 3,
@@ -68,14 +69,14 @@ export default function PortsInputFormView() {
       totIncome: '102.81',
       totExpend: '31.21',
       opSurplus: '76.15',
-      netSurplus: '71.60',
+      netSurplus: '71.6',
       opRatio: '25.04',
       handlingCost: '57.88',
-      profitTonne: '23.11',
-      profitTeu: '4120.45',
-      profitDry: '0.00',
-      profitBreak: '12405.50',
-      profitLiquid: '95.40'
+      profitTonne: '185.12',
+      profitTeu: '0',
+      profitDry: '151.12',
+      profitBreak: '98.54',
+      profitLiquid: '162.24'
     },
     {
       sno: 4,
@@ -90,11 +91,11 @@ export default function PortsInputFormView() {
       netSurplus: '5.20',
       opRatio: '40.08',
       handlingCost: '92.30',
-      profitTonne: '88.10',
-      profitTeu: '3120.10',
-      profitDry: '2025.40',
-      profitBreak: '15400.20',
-      profitLiquid: '135.20'
+      profitTonne: '110.25',
+      profitTeu: '990.15',
+      profitDry: '78.50',
+      profitBreak: '190.20',
+      profitLiquid: '105.40'
     }
   ];
 
@@ -103,6 +104,59 @@ export default function PortsInputFormView() {
       setSubView('details');
     }
   };
+
+  const listColDefs = [
+    { headerName: 'S.No.', field: 'sno', width: 100, cellClass: 'text-slate-500 font-bold' },
+    { headerName: 'Coding', field: 'coding', width: 150, cellClass: 'text-slate-800 font-bold font-mono' },
+    {
+      headerName: 'Description',
+      field: 'desc',
+      flex: 1,
+      cellRenderer: (params) => {
+        const desc = params.value;
+        const isClickable = desc === 'Financial Parameters for Major Ports';
+        return (
+          <button
+            onClick={() => handleRowClick(desc)}
+            className={`text-left font-extrabold hover:text-blue-700 transition-colors cursor-pointer ${
+              isClickable ? 'underline text-[#1d428a]' : 'text-slate-700'
+            }`}
+          >
+            {desc}
+          </button>
+        );
+      }
+    }
+  ];
+
+  const detailColDefs = [
+    { headerName: 'S.No', field: 'sno', width: 80, pinned: 'left' },
+    { headerName: 'Organisation', field: 'org', width: 220, pinned: 'left', cellClass: 'font-extrabold text-slate-800' },
+    { headerName: 'Financial Year', field: 'fy', width: 120 },
+    { headerName: 'Month', field: 'month', width: 100 },
+    { headerName: 'Operating Income (In Cr.)', field: 'opIncome', width: 180 },
+    { headerName: 'Operating Expenditure (In Cr.)', field: 'opExpend', width: 200 },
+    { headerName: 'Total Income (In Cr.)', field: 'totIncome', width: 160 },
+    { headerName: 'Total Expenditure (In Cr.)', field: 'totExpend', width: 180 },
+    { headerName: 'Operating Surplus (In Cr.)', field: 'opSurplus', width: 180 },
+    { headerName: 'Net Surplus (In Cr.)', field: 'netSurplus', width: 150 },
+    { headerName: 'Operating Ratio (%)', field: 'opRatio', width: 150 },
+    { headerName: 'Per Tonne Handling Cost (In Rupees)', field: 'handlingCost', width: 230 },
+    { headerName: 'Operating Profit / Tonne (in INR Crs/Tonne)', field: 'profitTonne', width: 260 },
+    { headerName: 'Operating Profit / TEU of Container (in INR Crs/TEU)', field: 'profitTeu', width: 310 },
+    { headerName: 'Operating Profit / Tonne of Dry Bulk (in INR Crs/Tonne)', field: 'profitDry', width: 310 },
+    { headerName: 'Operating Profit / Tonne of Break Bulk (in INR Crs/Tonne)', field: 'profitBreak', width: 320 },
+    { headerName: 'Operating Profit / Tonne of Liquid Bulk (in INR Crs/Tonne)', field: 'profitLiquid', width: 320 }
+  ];
+
+  const filteredDetailsData = tableData.filter(row => {
+    const matchFy = selectedFy === 'Show All' || row.fy === selectedFy;
+    const matchMonth = selectedMonth === 'Show All' || row.month === selectedMonth;
+    const matchOrg = selectedOrg === 'Show All' || row.org === selectedOrg;
+    const matchSearch = searchTerm === '' || 
+      row.org.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchFy && matchMonth && matchOrg && matchSearch;
+  });
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
@@ -116,38 +170,13 @@ export default function PortsInputFormView() {
             </h1>
           </div>
 
-          <div className="overflow-x-auto border border-slate-150 rounded-xl">
-            <table className="w-full text-left border-collapse text-xs font-semibold text-slate-700">
-              <thead>
-                <tr className="bg-[#1d428a] text-white">
-                  <th className="py-3.5 px-4 font-bold tracking-wider w-20">S.No.</th>
-                  <th className="py-3.5 px-4 font-bold tracking-wider w-36">Coding</th>
-                  <th className="py-3.5 px-4 font-bold tracking-wider">Description</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-150">
-                {formList.map((item) => (
-                  <tr 
-                    key={item.coding} 
-                    className="hover:bg-slate-50/70 transition-colors"
-                  >
-                    <td className="py-3 px-4 text-slate-500 font-medium">{item.sno}</td>
-                    <td className="py-3 px-4 text-slate-800 font-bold font-mono">{item.coding}</td>
-                    <td className="py-3 px-4">
-                      <button
-                        onClick={() => handleRowClick(item.desc)}
-                        className={`text-left font-extrabold hover:text-blue-700 transition-colors cursor-pointer ${
-                          item.desc === 'Financial Parameters for Major Ports' ? 'underline text-[#1d428a]' : 'text-slate-700'
-                        }`}
-                      >
-                        {item.desc}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CommonTable 
+            rowData={formList}
+            columnDefs={listColDefs}
+            rowHeight={46}
+            headerHeight={38}
+            autoSize={true}
+          />
         </div>
       ) : (
         /* Details Grid View */
@@ -201,7 +230,7 @@ export default function PortsInputFormView() {
                 <select
                   value={selectedFy}
                   onChange={(e) => setSelectedFy(e.target.value)}
-                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105"
+                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
                 >
                   <option>Show All</option>
                   <option>2026-2027</option>
@@ -217,7 +246,7 @@ export default function PortsInputFormView() {
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105"
+                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
                 >
                   <option>Show All</option>
                   <option>May</option>
@@ -234,7 +263,7 @@ export default function PortsInputFormView() {
                 <select
                   value={selectedOrg}
                   onChange={(e) => setSelectedOrg(e.target.value)}
-                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105"
+                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
                 >
                   <option>Show All</option>
                   <option>Chennai Port Authority</option>
@@ -250,15 +279,9 @@ export default function PortsInputFormView() {
           {/* Table Controls and Search */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t border-slate-100 pt-4">
             <div className="flex space-x-1">
-              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-650 transition cursor-pointer">Copy</button>
-              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-650 transition cursor-pointer">Excel</button>
-              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-650 transition cursor-pointer">PDF</button>
-              <div className="relative">
-                <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-650 transition cursor-pointer flex items-center gap-1">
-                  <span>Column visibility</span>
-                  <ChevronDown className="h-3 w-3" />
-                </button>
-              </div>
+              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-655 transition cursor-pointer">Copy</button>
+              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-655 transition cursor-pointer">Excel</button>
+              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-655 transition cursor-pointer">PDF</button>
             </div>
 
             {/* Search Input and Add target Button */}
@@ -282,64 +305,13 @@ export default function PortsInputFormView() {
             </div>
           </div>
 
-          {/* Detailed Data Table */}
-          <div className="overflow-x-auto border border-slate-150 rounded-xl max-w-full">
-            <table className="w-full text-left border-collapse text-[10px] font-semibold text-slate-700 whitespace-nowrap">
-              <thead>
-                <tr className="bg-[#1d428a] text-white">
-                  <th className="py-3 px-3.5 border-r border-white/10 text-center font-bold">S.No</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 font-bold">Organisation</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 font-bold">Financial Year</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 font-bold">Month</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Income (In Cr.)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Expenditure (In Cr.)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Total Income (In Cr.)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Total Expenditure (In Cr.)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Surplus (In Cr.)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Net Surplus (In Cr.)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Ratio (%)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Per Tonne Handling Cost (In Rupees)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Profit / Tonne (in INR Crs/Tonne)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Profit / TEU of Container (in INR Crs/TEU)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Profit / Tonne of Dry Bulk (in INR Crs/Tonne)</th>
-                  <th className="py-3 px-3.5 border-r border-white/10 text-right font-bold">Operating Profit / Tonne of Break Bulk (in INR Crs/Tonne)</th>
-                  <th className="py-3 px-3.5 text-right font-bold">Operating Profit / Tonne of Liquid Bulk (in INR Crs/Tonne)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-150">
-                {tableData
-                  .filter(row => {
-                    const matchFy = selectedFy === 'Show All' || row.fy === selectedFy;
-                    const matchMonth = selectedMonth === 'Show All' || row.month === selectedMonth;
-                    const matchOrg = selectedOrg === 'Show All' || row.org === selectedOrg;
-                    const matchSearch = searchTerm === '' || 
-                      row.org.toLowerCase().includes(searchTerm.toLowerCase());
-                    return matchFy && matchMonth && matchOrg && matchSearch;
-                  })
-                  .map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-center font-medium text-slate-500">{row.sno}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-slate-800 font-extrabold">{row.org}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-slate-500">{row.fy}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-slate-500">{row.month}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.opIncome}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.opExpend}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.totIncome}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.totExpend}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.opSurplus}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.netSurplus}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.opRatio}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.handlingCost}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.profitTonne}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.profitTeu}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.profitDry}</td>
-                      <td className="py-3.5 px-3 border-r border-slate-150 text-right font-bold text-slate-800">{row.profitBreak}</td>
-                      <td className="py-3.5 px-3 text-right font-bold text-slate-800">{row.profitLiquid}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+          <CommonTable 
+            rowData={filteredDetailsData}
+            columnDefs={detailColDefs}
+            rowHeight={46}
+            headerHeight={38}
+            autoSize={false}
+          />
         </div>
       )}
 

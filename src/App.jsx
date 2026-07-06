@@ -1,9 +1,8 @@
   import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Tabs from './components/Tabs';
-import { ProjectTable, AddProjectForm } from './modules/Projects/Projects';
+import Projects from './modules/Projects/Projects';
 import DashboardView from './modules/Dashboard/Dashboard';
-import AddSubProjectModal from './components/AddSubProjectModal';
 import LoginView from './modules/Login/Login';
 import LandingView from './modules/Landing/Landing';
 import { PortsDashboardView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
@@ -301,8 +300,6 @@ export default function App() {
     const path = window.location.pathname;
     return path && path !== '/' ? getTabFromSlug(path) : 'landing';
   });
-  const [isAddingProject, setIsAddingProject] = useState(false);
-  const [isAddSubProjectOpen, setIsAddSubProjectOpen] = useState(false);
   const [notification, setNotification] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -482,21 +479,14 @@ export default function App() {
             )}
             
             {activeTab === 'projects' && (
-              isAddingProject ? (
-                <AddProjectForm 
-                  onAdd={handleAddProject}
-                  onClose={() => setIsAddingProject(false)}
-                />
-              ) : (
-                <ProjectTable 
-                  projects={projects} 
-                  onAddProjectClick={() => setIsAddingProject(true)}
-                  onAddSubProjectClick={() => setIsAddSubProjectOpen(true)}
-                  onExportTrigger={(type) => triggerNotification(`${type} triggered successfully.`)}
-                  activeTab={activeTab} 
-                  setActiveTab={setActiveTab}
-                />
-              )
+              <Projects 
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+              />
             )}
 
             {activeTab === 'Major Ports Dashboard' && (
@@ -541,15 +531,6 @@ export default function App() {
 
             {activeTab === 'profile' && (
               <ProfileView triggerNotification={triggerNotification} />
-            )}
-
-            {isAddSubProjectOpen && (
-              <AddSubProjectModal
-                isOpen={isAddSubProjectOpen}
-                onClose={() => setIsAddSubProjectOpen(false)}
-                onAdd={handleAddSubProject}
-                projects={projects}
-              />
             )}
 
             {/* Placeholder / Empty State for other inactive government menu views */}
