@@ -55,7 +55,7 @@ const INITIAL_ACTIVITIES = [
   { id: 18, projectId: 'PR0700', projectName: 'JMVP 1', activityName: 'JMVP PMU office expenditure', cost: 9.06, date: '2026-07-08' }
 ];
 
-export default function LumpsumIWAI({ activeTab, setActiveTab }) {
+export default function LumpsumIWAI({ activeTab, setActiveTab, userPermissions }) {
   const gridRef = useRef();
   const reportGridRef = useRef();
   const [currentSubTab, setCurrentSubTab] = useState('Input Form');
@@ -225,7 +225,8 @@ export default function LumpsumIWAI({ activeTab, setActiveTab }) {
   };
 
   // Main table column definitions (configured with generous/explicit widths to prevent minimization/shrinking)
-  const colDefs = useMemo(() => [
+  const colDefs = useMemo(() => {
+    const cols = [
     {
       headerName: 'S.No',
       valueGetter: (params) => params.node.rowIndex + 1,
@@ -277,7 +278,12 @@ export default function LumpsumIWAI({ activeTab, setActiveTab }) {
         );
       }
     }
-  ], []);
+    ];
+    if (userPermissions && userPermissions.update === false) {
+      return cols.filter(c => c.headerName !== 'Update');
+    }
+    return cols;
+  }, [userPermissions]);
 
   // Lumpsum Report column definitions
   const reportColDefs = useMemo(() => [
@@ -574,13 +580,15 @@ export default function LumpsumIWAI({ activeTab, setActiveTab }) {
                   <h3 className="text-base font-extrabold text-slate-800 font-display">LumpSum List</h3>
                   <p className="text-xs text-slate-500 font-medium font-sans">Register and track cost estimates of lumpsum initiatives.</p>
                 </div>
-                <button
-                  onClick={() => setIsAdding(true)}
-                  className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer self-start sm:self-auto"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add LumpSum</span>
-                </button>
+                {(!userPermissions || userPermissions.add !== false) && (
+                  <button
+                    onClick={() => setIsAdding(true)}
+                    className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add LumpSum</span>
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">

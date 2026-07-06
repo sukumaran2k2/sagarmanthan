@@ -302,7 +302,8 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
     }
   };
 
-  const colDefs = useMemo(() => [
+  const colDefs = useMemo(() => {
+    const cols = [
     { field: 'sNo', headerName: 'S.No', width: 90, cellClass: 'font-mono text-slate-600 text-center', headerClass: 'text-center' },
     { field: 'subject', headerName: 'Name of the Subject', flex: 2, minWidth: 250, cellClass: 'font-bold text-slate-800' },
     { field: 'wing', headerName: 'Wing', width: 140, cellClass: 'font-semibold text-slate-650' },
@@ -339,7 +340,12 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
         </div>
       )
     }
-  ], []);
+    ];
+    if (userPermissions && userPermissions.update === false) {
+      return cols.filter(c => c.headerName !== 'Update');
+    }
+    return cols;
+  }, [userPermissions]);
 
   // Detailed Report Column definitions matching Cabinet Notes Reports
   const reportColDefs = useMemo(() => {
@@ -645,13 +651,15 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                   <h3 className="text-base font-extrabold text-slate-800 font-display">Bills/PreConstitutions Act Register</h3>
                   <p className="text-xs text-slate-500 font-medium">Tracking and editing legislative bill statuses.</p>
                 </div>
-                <button
-                  onClick={handleOpenAdd}
-                  className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer self-start sm:self-auto"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Bills/PreConstitutions Act</span>
-                </button>
+                {(!userPermissions || userPermissions.add !== false) && (
+                  <button
+                    onClick={handleOpenAdd}
+                    className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add Bills/PreConstitutions Act</span>
+                  </button>
+                )}
               </div>
 
               {/* Table search filter bar */}

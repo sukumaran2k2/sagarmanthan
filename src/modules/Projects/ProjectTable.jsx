@@ -44,7 +44,8 @@ export default function ProjectTable({
   onAddSubProjectClick,
   onExportTrigger,
   activeTab,
-  setActiveTab
+  setActiveTab,
+  userPermissions
 }) {
   const gridRef = useRef();
   const [searchQuery, setSearchQuery] = useState('');
@@ -177,7 +178,8 @@ export default function ProjectTable({
   };
 
   // Define Grid Columns
-  const colDefs = useMemo(() => [
+  const colDefs = useMemo(() => {
+    const cols = [
     {
       headerName: 'S.No',
       valueGetter: (params) => params.node.rowIndex + 1,
@@ -329,7 +331,12 @@ export default function ProjectTable({
         );
       }
     }
-  ], [handleOpenUpdateOverlay]);
+    ];
+    if (userPermissions && userPermissions.update === false) {
+      return cols.filter(c => c.headerName !== 'Update');
+    }
+    return cols;
+  }, [handleOpenUpdateOverlay, userPermissions]);
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -487,20 +494,24 @@ export default function ProjectTable({
 
         {/* Right Side: Operations / Add Button */}
         <div className="flex flex-wrap gap-2.5">
-          <button
-            onClick={onAddProjectClick}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Project</span>
-          </button>
-          <button
-            onClick={onAddSubProjectClick}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Sub Project</span>
-          </button>
+          {(!userPermissions || userPermissions.add !== false) && (
+            <>
+              <button
+                onClick={onAddProjectClick}
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Project</span>
+              </button>
+              <button
+                onClick={onAddSubProjectClick}
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Sub Project</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 

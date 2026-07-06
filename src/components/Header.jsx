@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Globe, Type, Sun, Moon } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 
-export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfileClick }) {
+export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfileClick, onAdminClick, currentUser }) {
   const [lang, setLang] = useState('EN');
   const [fontSize, setFontSize] = useState(16); // Standard browser baseline default (16px)
   const [showFontSlider, setShowFontSlider] = useState(false);
@@ -96,7 +96,7 @@ export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfi
                 <span className="text-[11px] text-slate-300">Welcome Back</span>
                 <span className="text-xs font-medium text-white flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block border-black"></span>
-                Good Evening, <strong className="text-white">TestMopsw</strong> | <span className="text-slate-300 font-normal">MoPSW</span>
+                Good Evening, <strong className="text-white">{currentUser?.name || 'TestMopsw'}</strong> | <span className="text-slate-300 font-normal">{currentUser?.roleLabel || 'MoPSW'}</span>
               </span>
               </div>
 
@@ -230,7 +230,7 @@ export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfi
                     }`}
                   >
                     <div className="h-7 w-7 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold font-display shadow-md">
-                      TM
+                      {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'TM'}
                     </div>
                     <ChevronDown className="h-3.5 w-3.5 transition-colors" />
                   </button>
@@ -239,6 +239,9 @@ export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfi
                   {showAvatarDropdown && (
                     <div className="absolute right-0 w-48 mt-2 py-1 bg-[#0a2540] border border-white/10 rounded-xl shadow-2xl z-50 transition-all duration-200">
                       <a href="#profile" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onProfileClick(); }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">Profile Settings</a>
+                      {currentUser?.role === 'super_admin' && (
+                        <a href="#admin" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onAdminClick(); }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white font-semibold text-cyan-300">User Administration</a>
+                      )}
                       <a href="#manual" onClick={() => setShowAvatarDropdown(false)} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">User Manual</a>
                       <hr className="border-white/10 my-1" />
                       <a href="#logout" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onLogout(); }} className="block px-4 py-2 text-xs text-red-400 hover:bg-white/10 font-medium">Sign Out</a>

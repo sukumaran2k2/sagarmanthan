@@ -58,7 +58,7 @@ for (let i = 11; i <= 524; i++) {
   });
 }
 
-export default function MediaOutreach({ triggerNotification }) {
+export default function MediaOutreach({ triggerNotification, userPermissions }) {
   const gridRef = useRef();
   const [mediaData, setMediaData] = useState(INITIAL_MEDIA_DATA);
   const [selectedFY, setSelectedFY] = useState('All');
@@ -302,9 +302,10 @@ export default function MediaOutreach({ triggerNotification }) {
     }
   };
 
-  const colDefs = useMemo(() => [
+  const colDefs = useMemo(() => {
+    const cols = [
     {
-      headerName: 'S No',
+      headerName: 'S.No',
       field: 'sno',
       valueGetter: (params) => params.node.rowIndex + 1,
       width: 70,
@@ -368,7 +369,12 @@ export default function MediaOutreach({ triggerNotification }) {
         </button>
       )
     }
-  ], []);
+    ];
+    if (userPermissions && userPermissions.update === false) {
+      return cols.filter(c => c.headerName !== 'Update');
+    }
+    return cols;
+  }, [userPermissions]);
 
   if (isAdding) {
     return (
@@ -698,13 +704,15 @@ export default function MediaOutreach({ triggerNotification }) {
           </div>
         </div>
 
-        <button
-          onClick={() => setIsAdding(true)}
-          className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer self-start md:self-auto"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Media Outreach</span>
-        </button>
+        {(!userPermissions || userPermissions.add !== false) && (
+          <button
+            onClick={() => setIsAdding(true)}
+            className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer self-start md:self-auto"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Media Outreach</span>
+          </button>
+        )}
       </div>
 
       {/* Filters Container Banner (Similar layout as Project Categories) */}

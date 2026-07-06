@@ -10,11 +10,12 @@ const BG_IMAGES = [
 ];
 
 export default function LoginView({ onLogin }) {
-  const [email, setEmail] = useState('testmopsw@gmail.com');
-  const [password, setPassword] = useState('••••••••••••••••');
+  const [email, setEmail] = useState('super_admin@gmail.com');
+  const [password, setPassword] = useState('123');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [captchaVerified, setCaptchaVerified] = useState(false);
+  const [passwordError, setPasswordError] = useState(false);
 
   // Forgot password flow states
   const [view, setView] = useState('login'); // 'login' or 'forgot'
@@ -41,11 +42,38 @@ export default function LoginView({ onLogin }) {
       alert('Please complete the reCAPTCHA verification.');
       return;
     }
-    // Match the mock auth credentials
-    if (email === 'testmopsw@gmail.com') {
-      onLogin();
+
+    const emailLower = email.toLowerCase().trim();
+    const roleMapping = {
+      'senior_officer@gmail.com': { role: 'senior_officer', name: 'Senior Officer', roleLabel: 'Senior Officer (Port Org)' },
+      'nodal_officer@gmail.com': { role: 'nodal_officer', name: 'Nodal Officer', roleLabel: 'Nodal Officer (Port Org)' },
+      'wing_division@gmail.com': { role: 'wing_level', name: 'Wing/Division User', roleLabel: 'Wing/Division (MoPSW)' },
+      'undersecretary@gmail.com': { role: 'under_secretary', name: 'Undersecretary', roleLabel: 'Undersecretary (MoPSW)' },
+      'director@gmail.com': { role: 'director', name: 'Director', roleLabel: 'Director (MoPSW)' },
+      'joint_secretary@gmail.com': { role: 'joint_secretary', name: 'Joint Secretary', roleLabel: 'Joint Secretary (MoPSW)' },
+      'secretary@gmail.com': { role: 'secretary', name: 'Secretary', roleLabel: 'Secretary (MoPSW)' },
+      'super_admin@gmail.com': { role: 'super_admin', name: 'Super Admin', roleLabel: 'Super Admin' },
+      
+      // variations
+      'seniorofficer@gmail.com': { role: 'senior_officer', name: 'Senior Officer', roleLabel: 'Senior Officer (Port Org)' },
+      'nodalofficer@gmail.com': { role: 'nodal_officer', name: 'Nodal Officer', roleLabel: 'Nodal Officer (Port Org)' },
+      'wingdivision@gmail.com': { role: 'wing_level', name: 'Wing/Division User', roleLabel: 'Wing/Division (MoPSW)' },
+      'under_secretary@gmail.com': { role: 'under_secretary', name: 'Undersecretary', roleLabel: 'Undersecretary (MoPSW)' },
+      'jointsecretary@gmail.com': { role: 'joint_secretary', name: 'Joint Secretary', roleLabel: 'Joint Secretary (MoPSW)' },
+      'superadmin@gmail.com': { role: 'super_admin', name: 'Super Admin', roleLabel: 'Super Admin' },
+      'testmopsw@gmail.com': { role: 'super_admin', name: 'TestMopsw', roleLabel: 'Super Admin' }
+    };
+
+    const matchedUser = roleMapping[emailLower];
+
+    if (matchedUser && password === '123') {
+      onLogin(matchedUser);
+    } else if (emailLower === 'testmopsw@gmail.com' && password === '••••••••••••••••') {
+      // Allow legacy password for testing convenience
+      onLogin(roleMapping['testmopsw@gmail.com']);
     } else {
-      alert('Invalid username or password.');
+      setPasswordError(true);
+      alert('Wrong password enterred, password last reset on June 15, 2026');
     }
   };
 
@@ -334,9 +362,16 @@ export default function LoginView({ onLogin }) {
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setPasswordError(false);
+                    }}
                     placeholder="Enter your password"
-                    className="w-full text-xs pl-4 pr-10 py-3 bg-white text-slate-800 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-semibold"
+                    className={`w-full text-xs pl-4 pr-10 py-3 bg-white text-slate-800 rounded-lg placeholder-slate-400 focus:outline-none transition-all font-semibold ${
+                      passwordError 
+                        ? 'ring-2 ring-red-500 border border-red-500 bg-red-50/50' 
+                        : 'focus:ring-2 focus:ring-blue-500'
+                    }`}
                   />
                   <button
                     type="button"
@@ -373,7 +408,15 @@ export default function LoginView({ onLogin }) {
                 <div className="scale-100 sm:scale-105 origin-center flex justify-center w-full py-1">
                   <ReCAPTCHA
                     sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
-                    onChange={(val) => setCaptchaVerified(!!val)}
+                    onChange={(val) => {
+                      setCaptchaVerified(!!val);
+                      if (val) {
+                        const signalStrength = navigator.connection && navigator.connection.downlink 
+                          ? navigator.connection.downlink + ' Mbps' 
+                          : '4.5 Mbps';
+                        alert(`Your Wifi strength is Weak (${signalStrength}).\nTo get the complete experience, switch to a better network.`);
+                      }
+                    }}
                     theme="light"
                   />
                 </div>

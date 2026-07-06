@@ -56,7 +56,7 @@ const INITIAL_APPOINTMENTS = [
   { id: 9, wing: 'Administration', division: 'Admn.', appointmentType: 'Full Time', numResources: 1, stages: { adminApproval: true, adminApprovalDate: '2026-05-10', tenderPublished: false, preBidQueries: false, bidReceived: false, techBidFinalized: false, finBidFinalized: false, workOrderIssued: false, contractSigned: false } },
 ];
 
-export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTab, triggerNotification }) {
+export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTab, triggerNotification, userPermissions }) {
   const [appointments, setAppointments] = useState(INITIAL_APPOINTMENTS);
   const [isAdding, setIsAdding] = useState(false);
   const [updatingAppointment, setUpdatingAppointment] = useState(null);
@@ -555,13 +555,15 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                   <h3 className="text-base font-extrabold text-slate-800 font-display">Consultant Appointment Register</h3>
                   <p className="text-xs text-slate-500 font-medium">Tracking engagement statuses of full-time and part-time consultants.</p>
                 </div>
-                <button
-                  onClick={() => setIsAdding(true)}
-                  className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer self-start sm:self-auto"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Consultant</span>
-                </button>
+                {(!userPermissions || userPermissions.add !== false) && (
+                  <button
+                    onClick={() => setIsAdding(true)}
+                    className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add Consultant</span>
+                  </button>
+                )}
               </div>
 
               {/* Filter Search */}

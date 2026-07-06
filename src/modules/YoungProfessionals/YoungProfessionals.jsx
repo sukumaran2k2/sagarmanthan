@@ -61,7 +61,7 @@ const INITIAL_POSTS = [
   { id: 25, wing: 'Coord-II', division: 'Coord-II', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2025-02-14', candidateDetails: 'Rohan Sharma' },
 ];
 
-export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, triggerNotification }) {
+export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, triggerNotification, userPermissions }) {
   const [posts, setPosts] = useState(INITIAL_POSTS);
   const [isAdding, setIsAdding] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -388,13 +388,15 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
                   <h3 className="text-base font-extrabold text-slate-800 font-display">Young Professionals List</h3>
                   <p className="text-xs text-slate-500 font-medium">Overview of in-position YPs across various wings and divisions.</p>
                 </div>
-                <button
-                  onClick={() => setIsAdding(true)}
-                  className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer self-start sm:self-auto"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Post</span>
-                </button>
+                {(!userPermissions || userPermissions.add !== false) && (
+                  <button
+                    onClick={() => setIsAdding(true)}
+                    className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add Post</span>
+                  </button>
+                )}
               </div>
 
               {/* Table search filter bar */}
