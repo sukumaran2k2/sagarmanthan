@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { 
-  FileSpreadsheet, 
-  FileText, 
+import {
+  FileSpreadsheet,
+  FileText,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
@@ -51,7 +51,7 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
       const wingIssues = issues.filter(i => i.wing === wing && i.issueType === activeReport);
       const total = wingIssues.length;
       const receivedAtMinistry = wingIssues.filter(i => i.status === 'Received At Ministry').length;
-      
+
       // Calculate realistic breakdown distribution matching screenshot
       const commentsSought = Math.floor(receivedAtMinistry * 0.3);
       const commentsReceived = Math.floor(receivedAtMinistry * 0.2);
@@ -249,7 +249,7 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Wing:</span>
                 <div className="relative min-w-[160px]">
-                  <select 
+                  <select
                     value={selectedWing}
                     onChange={(e) => { setSelectedWing(e.target.value); setCurrentPage(1); }}
                     className="w-full text-xs pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 font-bold text-slate-700 cursor-pointer"
@@ -264,14 +264,14 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
               </div>
 
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   onClick={() => triggerNotification('Abstract Excel generated.')}
                   className="px-3.5 py-2 bg-[#028266] hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer whitespace-nowrap"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5" />
                   <span>Export to Excel</span>
                 </button>
-                <button 
+                <button
                   onClick={() => triggerNotification('Abstract PDF generated.')}
                   className="px-3.5 py-2 bg-red-500 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer whitespace-nowrap"
                 >
@@ -280,7 +280,7 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
                 </button>
               </div>
 
-              <button 
+              <button
                 onClick={() => setIsReportExpanded(false)}
                 className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg border border-slate-250 shadow-sm transition cursor-pointer"
               >
@@ -289,7 +289,7 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
               </button>
             </>
           ) : (
-            <button 
+            <button
               onClick={() => setIsReportExpanded(true)}
               className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
             >
@@ -311,8 +311,8 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
             <div className="flex items-center gap-4">
               <div className="flex items-center space-x-2">
                 <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
-                <select 
-                  value={entriesLimit} 
+                <select
+                  value={entriesLimit}
                   onChange={(e) => { setEntriesLimit(parseInt(e.target.value)); }}
                   className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
                 >
@@ -324,8 +324,8 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
               </div>
 
               <div className="relative">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -337,7 +337,7 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
           </div>
 
           <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-            <AgGridReact 
+            <AgGridReact
               ref={gridRef}
               theme="legacy"
               rowData={filteredRows}
@@ -370,7 +370,7 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
                 <span className="font-bold text-slate-800">{Math.min(currentPage * entriesLimit, filteredRows.length)}</span> of{' '}
                 <span className="font-bold text-slate-800">{filteredRows.length}</span> entries
               </span>
-              
+
               <div className="flex items-center space-x-1">
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
@@ -379,7 +379,7 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
-                
+
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
                   if (totalPages > 6 && Math.abs(currentPage - p) > 1 && p !== 1 && p !== totalPages) {
                     if (p === 2 || p === totalPages - 1) {
@@ -391,17 +391,16 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
                     <button
                       key={p}
                       onClick={() => handlePageChange(p)}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                        currentPage === p
+                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentPage === p
                           ? 'bg-[#0f417a] text-white shadow-sm'
                           : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       {p}
                     </button>
                   );
                 })}
-                
+
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages || totalPages === 0}
@@ -420,11 +419,11 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
             <div className="space-y-3.5 pt-2">
               {dynamicReportRows.filter(r => r.matterDisposed > 0).map((row, idx) => {
                 const percent = (row.matterDisposed / (totals.matterDisposed || 1)) * 100;
-                const gradientClass = 
+                const gradientClass =
                   idx === 0 ? 'bg-gradient-to-r from-blue-500 to-indigo-500' :
-                  idx === 1 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' :
-                  idx === 2 ? 'bg-gradient-to-r from-purple-500 to-violet-500' :
-                  'bg-gradient-to-r from-rose-500 to-pink-500';
+                    idx === 1 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' :
+                      idx === 2 ? 'bg-gradient-to-r from-purple-500 to-violet-500' :
+                        'bg-gradient-to-r from-rose-500 to-pink-500';
                 return (
                   <div key={row.id} className="space-y-1 font-semibold">
                     <div className="flex justify-between text-xs text-slate-600">
@@ -432,7 +431,7 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
                       <span>{row.matterDisposed} Disposed ({Math.round(percent)}%)</span>
                     </div>
                     <div className="w-full h-3 bg-slate-200/60 rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className={`h-full rounded-full ${gradientClass} transition-all duration-500`}
                         style={{ width: `${percent}%` }}
                       />
@@ -445,7 +444,7 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
 
           <div className="lg:col-span-2 bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Ministry Action Stages</h3>
-            
+
             <div className="space-y-3.5 pt-2">
               {[
                 { label: 'Comments Sought', val: totals.commentsSought, color: 'bg-yellow-500' },
@@ -465,7 +464,7 @@ export default function ParliamentaryIssuesReports({ issues = [] }) {
                       <span>{stage.val} ({Math.round(percent)}%)</span>
                     </div>
                     <div className="w-full h-1.5 bg-slate-200/60 rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className={`h-full rounded-full ${stage.color} transition-all duration-500`}
                         style={{ width: `${percent}%` }}
                       />

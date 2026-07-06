@@ -1,26 +1,26 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
-import { 
-  Calendar, 
-  CheckCircle2, 
-  ChevronDown, 
+import {
+  Calendar,
+  CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  BarChart2, 
-  DollarSign, 
-  FileSpreadsheet, 
-  FileText, 
-  Layers, 
-  Sliders, 
-  Eye, 
-  ZoomIn, 
-  ZoomOut, 
-  RotateCcw, 
-  LayoutDashboard, 
-  ClipboardList, 
-  TrendingDown, 
-  TrendingUp, 
-  FolderSync, 
+  BarChart2,
+  DollarSign,
+  FileSpreadsheet,
+  FileText,
+  Layers,
+  Sliders,
+  Eye,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  LayoutDashboard,
+  ClipboardList,
+  TrendingDown,
+  TrendingUp,
+  FolderSync,
   FilePieChart,
   Search,
   Copy
@@ -86,7 +86,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
       }
     };
   }, []);
-  
+
   // Custom organizations data for the bar chart
   const orgData = [
     { name: 'JNPA', count: 42, color: 'bg-cyan-500' },
@@ -322,14 +322,14 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
         </div>
       </div>
 
-     
+
 
 
       {activeSubTab === 'all' ? (
         <>
           {/* Filter Options Grid */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-            <div 
+            <div
               onClick={() => setIsFiltersExpanded(prev => !prev)}
               className="flex items-center justify-between border-b border-slate-100 pb-3 cursor-pointer select-none"
             >
@@ -342,10 +342,10 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                 <ChevronDown className={`h-4 w-4 text-blue-650 transition-transform duration-200 ${isFiltersExpanded ? 'rotate-180' : ''}`} />
               </div>
             </div>
-            
+
             {isFiltersExpanded && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-2 animate-fade-in">
-                
+
                 {/* Dropdown 1 */}
                 <div className={`p-3.5 rounded-xl border transition-all ${openFilters.orgCategory ? 'bg-blue-50/60 border-blue-300 shadow-sm' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/70 hover:border-slate-300/80'}`}>
                   <button
@@ -515,7 +515,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
 
           {/* KPI Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            
+
             {/* Card 1: Total Projects */}
             <div className="bg-gradient-to-b from-[#1b4380] to-[#0f2e5a] text-white rounded-2xl p-5 flex flex-col justify-between shadow-lg relative overflow-hidden transition hover:-translate-y-1 duration-300">
               <div className="flex items-start justify-between">
@@ -527,7 +527,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <BarChart2 className="h-5 w-5 text-white" />
                 </div>
               </div>
-              
+
               <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-[10px]">
                 <div className="flex justify-between border-b border-white/5 pb-1.5">
                   <span className="text-blue-200 font-semibold">TOTAL COST</span>
@@ -563,7 +563,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <Layers className="h-5 w-5 text-white" />
                 </div>
               </div>
-              
+
               <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-[10px]">
                 <div className="flex justify-between border-b border-white/5 pb-1.5">
                   <span className="text-cyan-100 font-semibold">TOTAL COST</span>
@@ -599,7 +599,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <BarChart2 className="h-5 w-5 text-white" />
                 </div>
               </div>
-              
+
               <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-[10px]">
                 <div className="flex justify-between border-b border-white/5 pb-1.5">
                   <span className="text-orange-100 font-semibold">TOTAL COST</span>
@@ -635,7 +635,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <BarChart2 className="h-5 w-5 text-white" />
                 </div>
               </div>
-              
+
               <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-[10px]">
                 <div className="flex justify-between border-b border-white/5 pb-1.5">
                   <span className="text-amber-100 font-semibold">TOTAL COST</span>
@@ -671,7 +671,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <CheckCircle2 className="h-5 w-5 text-white" />
                 </div>
               </div>
-              
+
               <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-[10px]">
                 <div className="flex justify-between border-b border-white/5 pb-1.5">
                   <span className="text-emerald-100 font-semibold">TOTAL COST</span>
@@ -708,12 +708,12 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Organisations Wise Project Count</h3>
                   </div>
-                  
+
                   {/* Zoom Controls */}
                   <div className="flex items-center space-x-2 text-xs text-slate-500 font-semibold bg-slate-50 border border-slate-200/60 rounded-xl p-1.5 shadow-sm">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1">Scroll to Zoom</span>
                     <div className="h-4 w-[1px] bg-slate-200"></div>
-                    <button 
+                    <button
                       onClick={() => setZoomScale(prev => Math.max(0.5, prev - 0.1))}
                       className="p-1 hover:bg-slate-200/70 hover:text-slate-850 rounded transition-colors cursor-pointer"
                       title="Zoom Out"
@@ -723,14 +723,14 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                     <span className="text-[10px] font-bold min-w-10 text-center text-slate-700 bg-white border border-slate-200 rounded px-1.5 py-0.5 shadow-xs select-none">
                       {Math.round(zoomScale * 100)}%
                     </span>
-                    <button 
+                    <button
                       onClick={() => setZoomScale(prev => Math.min(3.0, prev + 0.1))}
                       className="p-1 hover:bg-slate-200/70 hover:text-slate-850 rounded transition-colors cursor-pointer"
                       title="Zoom In"
                     >
                       <ZoomIn className="h-3.5 w-3.5" />
                     </button>
-                    <button 
+                    <button
                       onClick={() => setZoomScale(1.0)}
                       className="p-1 hover:bg-slate-200/70 hover:text-slate-850 rounded transition-colors text-slate-400 hover:text-slate-600 cursor-pointer"
                       title="Reset Zoom"
@@ -739,19 +739,19 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Custom Interactive SVG/CSS Bar Chart wrapper for mobile scrollability */}
-                <div 
+                <div
                   ref={chartContainerRef}
                   className="overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200 cursor-zoom-in"
                 >
-                  <div 
+                  <div
                     className="relative h-72 w-full flex items-end justify-between px-4 pb-10 border-b border-slate-150 transition-all duration-150"
-                    style={{ 
+                    style={{
                       minWidth: `${768 * zoomScale}px`,
                     }}
                   >
-                    
+
                     {/* Y-Axis Gridlines */}
                     <div className="absolute inset-x-0 top-0 h-full pointer-events-none flex flex-col justify-between text-[9px] text-slate-400">
                       <div className="w-full border-t border-slate-100 flex justify-between pt-1">
@@ -779,13 +779,13 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                             <div className="absolute -top-9 bg-slate-900 text-white text-[9px] px-2.5 py-1 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap font-bold">
                               {org.name}: {org.count}
                             </div>
-                            
+
                             {/* Bar */}
-                            <div 
+                            <div
                               className={`w-full rounded-t-md ${org.color} shadow-md hover:brightness-90 hover:shadow-lg transition-all duration-500`}
                               style={{ height: `${heightPercent}%` }}
                             ></div>
-                            
+
                             {/* Label (Slanted/Rotated) */}
                             <span className="absolute top-full mt-3 text-[9px] font-bold text-slate-500 origin-center rotate-45 whitespace-nowrap">
                               {org.name}
@@ -807,39 +807,39 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <span className="h-1.5 w-1.5 rounded-full bg-blue-650"></span>
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Delay Status - Under Implementation Projects</h3>
                 </div>
-                
+
                 <div className="flex flex-col md:flex-row items-center justify-around py-6 gap-6">
-                  
+
                   {/* SVG Pie Chart */}
                   <div className="relative flex items-center justify-center">
                     <svg className="w-64 h-64 transform -rotate-90">
                       {/* Outer circle backdrop */}
                       <circle cx="128" cy="128" r="90" stroke="#f1f5f9" strokeWidth="32" fill="transparent" />
-                      
+
                       {/* Slice 1: On Time (138 projects -> 64.2% -> strokeDasharray="565.5" strokeDashoffset="202.5") */}
-                      <circle 
-                        cx="128" 
-                        cy="128" 
-                        r="90" 
-                        stroke="#0ea5e9" 
-                        strokeWidth="32" 
-                        fill="transparent" 
-                        strokeDasharray="565.5" 
+                      <circle
+                        cx="128"
+                        cy="128"
+                        r="90"
+                        stroke="#0ea5e9"
+                        strokeWidth="32"
+                        fill="transparent"
+                        strokeDasharray="565.5"
                         strokeDashoffset="202.5"
-                        strokeLinecap="butt" 
+                        strokeLinecap="butt"
                       />
 
                       {/* Slice 2: Delayed (77 projects -> 35.8% -> strokeDasharray="202.5 565.5" strokeDashoffset="-363.0") */}
-                      <circle 
-                        cx="128" 
-                        cy="128" 
-                        r="90" 
-                        stroke="#6366f1" 
-                        strokeWidth="32" 
-                        fill="transparent" 
-                        strokeDasharray="202.5 565.5" 
+                      <circle
+                        cx="128"
+                        cy="128"
+                        r="90"
+                        stroke="#6366f1"
+                        strokeWidth="32"
+                        fill="transparent"
+                        strokeDasharray="202.5 565.5"
                         strokeDashoffset="-363.0"
-                        strokeLinecap="butt" 
+                        strokeLinecap="butt"
                       />
                     </svg>
 
@@ -894,8 +894,8 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
               <div className="flex items-center gap-4">
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
-                  <select 
-                    value={physicalEntriesLimit} 
+                  <select
+                    value={physicalEntriesLimit}
                     onChange={(e) => { setPhysicalEntriesLimit(parseInt(e.target.value)); }}
                     className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
                   >
@@ -907,8 +907,8 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                 </div>
 
                 <div className="relative">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Search..."
                     value={physicalSearchQuery}
                     onChange={(e) => setPhysicalSearchQuery(e.target.value)}
@@ -921,7 +921,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
 
             {/* Main Responsive Table */}
             <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-              <AgGridReact 
+              <AgGridReact
                 ref={physicalGridRef}
                 theme="legacy"
                 rowData={PHYSICAL_PROGRESS_DATA}
@@ -946,7 +946,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <span className="font-bold text-slate-800">{Math.min(physicalCurrentPage * physicalEntriesLimit, PHYSICAL_PROGRESS_DATA.length)}</span> of{' '}
                   <span className="font-bold text-slate-800">{PHYSICAL_PROGRESS_DATA.length}</span> entries
                 </span>
-                
+
                 <div className="flex items-center space-x-1">
                   <button
                     onClick={() => handlePhysicalPageChange(physicalCurrentPage - 1)}
@@ -955,7 +955,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  
+
                   {Array.from({ length: physicalTotalPages }, (_, i) => i + 1).map(p => {
                     if (physicalTotalPages > 6 && Math.abs(physicalCurrentPage - p) > 1 && p !== 1 && p !== physicalTotalPages) {
                       if (p === 2 || p === physicalTotalPages - 1) {
@@ -967,17 +967,16 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                       <button
                         key={p}
                         onClick={() => handlePhysicalPageChange(p)}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                          physicalCurrentPage === p
+                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${physicalCurrentPage === p
                             ? 'bg-[#0f417a] text-white shadow-sm'
                             : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         {p}
                       </button>
                     );
                   })}
-                  
+
                   <button
                     onClick={() => handlePhysicalPageChange(physicalCurrentPage + 1)}
                     disabled={physicalCurrentPage === physicalTotalPages || physicalTotalPages === 0}
@@ -992,10 +991,10 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
         </>
       ) : (
         <div className="space-y-6 animate-fade-in">
-          
+
           {/* Top Row: Estimated Cost and circular Ongoing projects side-by-side inside a professional panel */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-            
+
             {/* Estimated Cost Card */}
             <div className="bg-gradient-to-br from-blue-50/50 via-white to-sky-50 border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-center items-center text-center lg:col-span-2 relative overflow-hidden">
               <div className="absolute top-0 right-0 h-32 w-32 bg-blue-100/30 rounded-full blur-2xl pointer-events-none"></div>
@@ -1020,7 +1019,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <circle cx="64" cy="64" r="54" stroke="#e2e8f0" strokeWidth="8" fill="transparent" />
                   <circle cx="64" cy="64" r="54" stroke="#1b4380" strokeWidth="8" fill="transparent" strokeDasharray="339" strokeDashoffset="80" strokeLinecap="round" />
                 </svg>
-                
+
                 {/* Text Inner Info */}
                 <div className="absolute flex flex-col items-center justify-center text-center">
                   <span className="text-3xl font-black text-[#1b4380] tracking-tight font-display">422</span>
@@ -1037,7 +1036,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
             <div className="text-xs text-slate-500 font-semibold">
               Selected: <strong className="text-slate-800">Ongoing Projects - Major Ports</strong> | Category Group A - F
             </div>
-            
+
             {/* Export Buttons */}
             <div className="flex space-x-3 w-full sm:w-auto justify-end">
               <button className="flex items-center space-x-1.5 px-4.5 py-2 bg-[#0284c7] hover:bg-[#0369a1] text-white text-[10px] font-bold tracking-wider rounded-lg transition-all cursor-pointer shadow-md hover:shadow-lg">
@@ -1063,8 +1062,8 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
               <div className="flex items-center gap-4">
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
-                  <select 
-                    value={ongoingEntriesLimit} 
+                  <select
+                    value={ongoingEntriesLimit}
                     onChange={(e) => { setOngoingEntriesLimit(parseInt(e.target.value)); }}
                     className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
                   >
@@ -1076,8 +1075,8 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                 </div>
 
                 <div className="relative">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Search..."
                     value={ongoingSearchQuery}
                     onChange={(e) => setOngoingSearchQuery(e.target.value)}
@@ -1090,7 +1089,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
 
             {/* Main Responsive Table */}
             <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-              <AgGridReact 
+              <AgGridReact
                 ref={ongoingGridRef}
                 theme="legacy"
                 rowData={ongoingProjects}
@@ -1115,7 +1114,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <span className="font-bold text-slate-800">{Math.min(ongoingCurrentPage * ongoingEntriesLimit, ongoingProjects.length)}</span> of{' '}
                   <span className="font-bold text-slate-800">{ongoingProjects.length}</span> entries
                 </span>
-                
+
                 <div className="flex items-center space-x-1">
                   <button
                     onClick={() => handleOngoingPageChange(ongoingCurrentPage - 1)}
@@ -1124,7 +1123,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  
+
                   {Array.from({ length: ongoingTotalPages }, (_, i) => i + 1).map(p => {
                     if (ongoingTotalPages > 6 && Math.abs(ongoingCurrentPage - p) > 1 && p !== 1 && p !== ongoingTotalPages) {
                       if (p === 2 || p === ongoingTotalPages - 1) {
@@ -1136,17 +1135,16 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                       <button
                         key={p}
                         onClick={() => handleOngoingPageChange(p)}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                          ongoingCurrentPage === p
+                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${ongoingCurrentPage === p
                             ? 'bg-[#0f417a] text-white shadow-sm'
                             : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         {p}
                       </button>
                     );
                   })}
-                  
+
                   <button
                     onClick={() => handleOngoingPageChange(ongoingCurrentPage + 1)}
                     disabled={ongoingCurrentPage === ongoingTotalPages || ongoingTotalPages === 0}

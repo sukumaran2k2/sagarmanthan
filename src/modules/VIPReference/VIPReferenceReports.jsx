@@ -28,7 +28,7 @@ export default function VIPReferenceReports({ vipReferences }) {
       const wingRefs = vipReferences.filter(
         (p) => p.wing.toLowerCase() === wing.toLowerCase()
       );
-      
+
       const pendingRefs = wingRefs.filter((p) => p.statusSteps[6] !== 'Yes');
 
       const counts = {
@@ -65,7 +65,7 @@ export default function VIPReferenceReports({ vipReferences }) {
       const wingRefs = vipReferences.filter(
         (p) => p.wing.toLowerCase() === wing.toLowerCase()
       );
-      
+
       const counts = {
         total: wingRefs.length,
         received: wingRefs.filter((p) => p.statusSteps[1] === 'Yes').length,
@@ -110,9 +110,8 @@ export default function VIPReferenceReports({ vipReferences }) {
       field: 'wing',
       minWidth: 200,
       pinned: 'left',
-      cellClass: (params) => 
-        `font-extrabold flex items-center border-r border-slate-100 ${
-          params.node.rowPinned ? 'text-blue-900 bg-blue-50/30' : 'text-slate-800'
+      cellClass: (params) =>
+        `font-extrabold flex items-center border-r border-slate-100 ${params.node.rowPinned ? 'text-blue-900 bg-blue-50/30' : 'text-slate-800'
         }`
     },
     {
@@ -154,9 +153,8 @@ export default function VIPReferenceReports({ vipReferences }) {
       field: 'wing',
       minWidth: 200,
       pinned: 'left',
-      cellClass: (params) => 
-        `font-extrabold flex items-center border-r border-slate-100 ${
-          params.node.rowPinned ? 'text-blue-900 bg-blue-50/30' : 'text-slate-800'
+      cellClass: (params) =>
+        `font-extrabold flex items-center border-r border-slate-100 ${params.node.rowPinned ? 'text-blue-900 bg-blue-50/30' : 'text-slate-800'
         }`
     },
     {
@@ -235,7 +233,7 @@ export default function VIPReferenceReports({ vipReferences }) {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Secondary Internal Navigation */}
       <div className="flex justify-between items-center pb-2 border-b border-slate-100">
         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Report Type</span>
@@ -250,8 +248,8 @@ export default function VIPReferenceReports({ vipReferences }) {
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-sm font-black text-slate-800 font-display flex items-center gap-1.5 uppercase">
-            {reportType === 'pendency' 
-              ? 'Report No.: 5.1A - Pendency ( Wing Wise ) - VIP References' 
+            {reportType === 'pendency'
+              ? 'Report No.: 5.1A - Pendency ( Wing Wise ) - VIP References'
               : 'Report No.: 5.1A - Abstract ( Wing Wise ) - VIP References'
             }
           </h2>

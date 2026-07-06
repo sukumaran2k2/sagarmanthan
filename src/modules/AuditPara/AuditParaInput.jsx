@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef } from 'react';
-import { 
-  FileSpreadsheet, 
-  Plus, 
-  Search, 
-  Copy, 
-  FileText, 
-  ChevronLeft, 
+import {
+  FileSpreadsheet,
+  Plus,
+  Search,
+  Copy,
+  FileText,
+  ChevronLeft,
   ChevronRight,
   Filter,
   CheckCircle2,
@@ -21,7 +21,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 export default function AuditParaInput({ auditParas, setAuditParas }) {
   const gridRef = useRef();
-  
+
   const [selectedWing, setSelectedWing] = useState('All');
   const [selectedDivision, setSelectedDivision] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -153,7 +153,7 @@ export default function AuditParaInput({ auditParas, setAuditParas }) {
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(p => 
+      result = result.filter(p =>
         p.number.toLowerCase().includes(q) ||
         p.subject.toLowerCase().includes(q) ||
         p.wing.toLowerCase().includes(q) ||
@@ -321,7 +321,7 @@ export default function AuditParaInput({ auditParas, setAuditParas }) {
 
           {/* Form Content */}
           <form onSubmit={handleSavePara} className="p-6 space-y-6">
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Audit Para Number*</label>
@@ -477,7 +477,7 @@ export default function AuditParaInput({ auditParas, setAuditParas }) {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Search and Filters panel */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
         <button
@@ -675,7 +675,7 @@ export default function AuditParaInput({ auditParas, setAuditParas }) {
                   className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentPage === p
                     ? 'bg-[#0f417a] text-white shadow-sm'
                     : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   {p}
                 </button>

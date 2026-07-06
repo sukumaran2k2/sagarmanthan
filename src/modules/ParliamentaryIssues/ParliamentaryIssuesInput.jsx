@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { 
-  FileSpreadsheet, 
-  Plus, 
-  Search, 
-  Copy, 
-  FileText, 
-  Edit, 
+import {
+  FileSpreadsheet,
+  Plus,
+  Search,
+  Copy,
+  FileText,
+  Edit,
   Check,
   ChevronDown,
   ChevronUp,
@@ -43,7 +43,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
   // Form View State
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingIssue, setEditingIssue] = useState(null);
-  
+
   const [formSubject, setFormSubject] = useState('');
   const [formWing, setFormWing] = useState('');
   const [formDivision, setFormDivision] = useState('');
@@ -221,10 +221,9 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
         const status = params.value || '';
         return (
           <div className="flex items-center h-full">
-            <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-              status.includes('Received') ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-              'bg-slate-100 text-slate-700 border border-slate-200'
-            }`}>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${status.includes('Received') ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                'bg-slate-100 text-slate-700 border border-slate-200'
+              }`}>
               {status}
             </span>
           </div>
@@ -239,7 +238,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
         const issue = params.data;
         return (
           <div className="flex items-center justify-center h-full">
-            <button 
+            <button
               onClick={() => handleOpenEdit(issue)}
               className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm hover:shadow transition cursor-pointer"
               title="Edit Issue Details"
@@ -275,8 +274,8 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               </h3>
               <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
             </div>
-            <button 
-              onClick={() => setIsFormOpen(false)} 
+            <button
+              onClick={() => setIsFormOpen(false)}
               className="inline-flex items-center space-x-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold text-white transition cursor-pointer"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
@@ -289,8 +288,8 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                 Name of the subject*
               </label>
-              <textarea 
-                required 
+              <textarea
+                required
                 rows={3}
                 value={formSubject}
                 onChange={(e) => setFormSubject(e.target.value)}
@@ -303,7 +302,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing*</label>
                 <div className="relative">
-                  <select 
+                  <select
                     required
                     value={formWing}
                     onChange={(e) => setFormWing(e.target.value)}
@@ -321,7 +320,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division*</label>
                 <div className="relative">
-                  <select 
+                  <select
                     required
                     value={formDivision}
                     onChange={(e) => setFormDivision(e.target.value)}
@@ -341,7 +340,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Issue Type*</label>
                 <div className="relative">
-                  <select 
+                  <select
                     required
                     value={formIssueType}
                     onChange={(e) => setFormIssueType(e.target.value)}
@@ -358,7 +357,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Status*</label>
                 <div className="relative">
-                  <select 
+                  <select
                     required
                     value={formStatus}
                     onChange={(e) => setFormStatus(e.target.value)}
@@ -375,7 +374,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
 
             <div className="space-y-1.5 flex flex-col">
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Remarks</label>
-              <textarea 
+              <textarea
                 rows={3}
                 value={formRemarks}
                 onChange={(e) => setFormRemarks(e.target.value)}
@@ -385,14 +384,14 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
             </div>
 
             <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setIsFormOpen(false)}
                 className="px-4.5 py-2.5 border border-slate-250 text-slate-655 rounded-xl text-xs font-bold hover:bg-slate-50 hover:text-slate-800 transition cursor-pointer"
               >
                 Discard
               </button>
-              <button 
+              <button
                 type="submit"
                 className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
               >
@@ -430,7 +429,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
         <div className="flex items-center space-x-3">
           {isDatabaseExpanded ? (
             <>
-              <button 
+              <button
                 onClick={() => triggerNotification('All Data Export initiated.')}
                 className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100/50 transition cursor-pointer"
               >
@@ -438,7 +437,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
                 <span>All Data</span>
               </button>
 
-              <button 
+              <button
                 onClick={handleOpenAdd}
                 className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-105 text-black border border-white font-bold text-xs rounded-lg transition-all duration-200 cursor-pointer hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-md font-sans"
               >
@@ -446,7 +445,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
                 <span>Add Parliamentary Issues</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => setIsDatabaseExpanded(false)}
                 className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg border border-slate-255 shadow-sm transition cursor-pointer"
               >
@@ -455,7 +454,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               </button>
             </>
           ) : (
-            <button 
+            <button
               onClick={() => setIsDatabaseExpanded(true)}
               className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
             >
@@ -468,7 +467,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
       {isDatabaseExpanded ? (
         <>
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-            <button 
+            <button
               onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
               className="w-full flex items-center justify-between text-left transition cursor-pointer select-none"
             >
@@ -486,8 +485,8 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pt-4 border-t border-slate-100 animate-fade-in">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Wing</label>
-                  <select 
-                    value={selectedWing} 
+                  <select
+                    value={selectedWing}
                     onChange={(e) => { setSelectedWing(e.target.value); setCurrentPage(1); }}
                     className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
                   >
@@ -497,8 +496,8 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
 
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Division</label>
-                  <select 
-                    value={selectedDivision} 
+                  <select
+                    value={selectedDivision}
                     onChange={(e) => { setSelectedDivision(e.target.value); setCurrentPage(1); }}
                     className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
                   >
@@ -508,8 +507,8 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
 
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Issue Type</label>
-                  <select 
-                    value={selectedIssueType} 
+                  <select
+                    value={selectedIssueType}
                     onChange={(e) => { setSelectedIssueType(e.target.value); setCurrentPage(1); }}
                     className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
                   >
@@ -519,8 +518,8 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
 
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</label>
-                  <select 
-                    value={selectedStatus} 
+                  <select
+                    value={selectedStatus}
                     onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
                     className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
                   >
@@ -542,8 +541,8 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               <div className="flex items-center gap-4">
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
-                  <select 
-                    value={entriesLimit} 
+                  <select
+                    value={entriesLimit}
                     onChange={(e) => { setEntriesLimit(parseInt(e.target.value)); }}
                     className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
                   >
@@ -555,8 +554,8 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
                 </div>
 
                 <div className="relative">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -568,7 +567,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
             </div>
 
             <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-              <AgGridReact 
+              <AgGridReact
                 ref={gridRef}
                 theme="legacy"
                 rowData={filteredIssues}
@@ -600,7 +599,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
                   <span className="font-bold text-slate-800">{Math.min(currentPage * entriesLimit, filteredIssues.length)}</span> of{' '}
                   <span className="font-bold text-slate-800">{filteredIssues.length}</span> entries
                 </span>
-                
+
                 <div className="flex items-center space-x-1">
                   <button
                     onClick={() => handlePageChange(currentPage - 1)}
@@ -609,7 +608,7 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  
+
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
                     if (totalPages > 6 && Math.abs(currentPage - p) > 1 && p !== 1 && p !== totalPages) {
                       if (p === 2 || p === totalPages - 1) {
@@ -621,17 +620,16 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
                       <button
                         key={p}
                         onClick={() => handlePageChange(p)}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                          currentPage === p
+                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentPage === p
                             ? 'bg-[#0f417a] text-white shadow-sm'
                             : 'border border-slate-200 text-slate-650 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         {p}
                       </button>
                     );
                   })}
-                  
+
                   <button
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages || totalPages === 0}
@@ -680,10 +678,9 @@ export default function ParliamentaryIssuesInput({ issues, setIssues }) {
               ).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
                 <div key={status} className="flex justify-between py-2 items-center">
                   <span>{status}</span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                    status.includes('Received') ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                    'bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${status.includes('Received') ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                      'bg-slate-100 text-slate-700 border border-slate-200'
+                    }`}>
                     {count} issues
                   </span>
                 </div>

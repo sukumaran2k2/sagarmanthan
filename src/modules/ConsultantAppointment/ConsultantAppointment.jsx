@@ -447,8 +447,8 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                           type="button"
                           onClick={() => handleStageChange('adminApproval', true)}
                           className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${formStages.adminApproval === true
-                              ? 'bg-emerald-600 text-white shadow-sm font-black'
-                              : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
+                            ? 'bg-emerald-600 text-white shadow-sm font-black'
+                            : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
                             }`}
                         >
                           Yes
@@ -460,8 +460,8 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                             setFormAdminApprovalDate('');
                           }}
                           className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${formStages.adminApproval === false
-                              ? 'bg-rose-600 text-white shadow-sm font-black'
-                              : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
+                            ? 'bg-rose-600 text-white shadow-sm font-black'
+                            : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
                             }`}
                         >
                           No
@@ -504,8 +504,8 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                               type="button"
                               onClick={() => handleStageChange(stage.key, true)}
                               className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${isYes
-                                  ? 'bg-emerald-600 text-white shadow-sm font-black'
-                                  : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
+                                ? 'bg-emerald-600 text-white shadow-sm font-black'
+                                : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
                                 }`}
                             >
                               Yes
@@ -514,8 +514,8 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                               type="button"
                               onClick={() => handleStageChange(stage.key, false)}
                               className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${!isYes
-                                  ? 'bg-rose-600 text-white shadow-sm font-black'
-                                  : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
+                                ? 'bg-rose-600 text-white shadow-sm font-black'
+                                : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
                                 }`}
                             >
                               No

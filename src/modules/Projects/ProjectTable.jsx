@@ -26,17 +26,20 @@ import {
   TrendingDown,
   TrendingUp,
   FolderSync,
-  FilePieChart
+  FilePieChart,
+  Edit
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import UpdateProjectOverlay from './UpdateProjectOverlay';
 
 // Register grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 export default function ProjectTable({
   projects,
+  setProjects,
   onAddProjectClick,
   onAddSubProjectClick,
   onExportTrigger,
@@ -52,6 +55,22 @@ export default function ProjectTable({
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState('all');
+
+  const [selectedUpdateProject, setSelectedUpdateProject] = useState(null);
+  const [isUpdateOverlayOpen, setIsUpdateOverlayOpen] = useState(false);
+
+  const handleOpenUpdateOverlay = (project) => {
+    setSelectedUpdateProject(project);
+    setIsUpdateOverlayOpen(true);
+  };
+
+  const handleSaveProject = (updatedProject) => {
+    if (setProjects) {
+      setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+    }
+    setIsUpdateOverlayOpen(false);
+    setSelectedUpdateProject(null);
+  };
 
   const handleGridWheel = (e) => {
     const container = e.currentTarget;
@@ -93,6 +112,15 @@ export default function ProjectTable({
   const filteredProjects = useMemo(() => {
     let result = [...projects];
 
+    // Filter by activeTab
+    if (activeTab === 'less5cr') {
+      result = result.filter(p => p.cost === '' || parseFloat(p.cost) < 5.0);
+    } else if (activeTab === 'lumpsum') {
+      result = result.filter(p => p.implementationType === 'Lumpsum');
+    } else if (activeTab === 'dropRequests') {
+      result = result.filter(p => p.stage === 'Drop Requested' || p.isDropRequested === true);
+    }
+
     // Filter by Category
     if (selectedCategory !== 'All Categories') {
       result = result.filter(p => p.category === selectedCategory);
@@ -121,7 +149,7 @@ export default function ProjectTable({
     }
 
     return result;
-  }, [projects, searchQuery, selectedStage, selectedCategory]);
+  }, [projects, searchQuery, selectedStage, selectedCategory, activeTab, activeSubTab]);
 
   // Total entries calculation
   const totalEntries = filteredProjects.length;
@@ -153,90 +181,88 @@ export default function ProjectTable({
     {
       headerName: 'S.No',
       valueGetter: (params) => params.node.rowIndex + 1,
-      width: 60,
+      width: 70,
+      minWidth: 70,
       pinned: 'left',
       cellClass: 'text-center font-semibold text-slate-500 flex items-center justify-center'
     },
     {
-      headerName: 'Project ID',
+      headerName: 'Project Id',
       field: 'projectId',
-      minWidth: 110,
+      width: 140,
+      minWidth: 140,
       pinned: 'left',
-      cellRenderer: (params) => (
-        <span className="font-bold text-orange-600 hover:text-orange-700 cursor-pointer hover:underline flex items-center gap-1.5 h-full">
-          <span className="h-1.5 w-1.5 rounded-full bg-orange-500 inline-block"></span>
-          {params.value}
-        </span>
-      )
+      cellRenderer: (params) => {
+        const project = params.data;
+        return (
+          <span className="font-bold text-orange-600 hover:text-orange-700 cursor-pointer hover:underline flex flex-col justify-center h-full">
+            <div className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-500 inline-block"></span>
+              {params.value}
+            </div>
+            {project?.isSagarmalaFunded && (
+              <span className="text-[8px] text-cyan-600 font-bold bg-cyan-50 px-1 py-0.5 rounded w-fit mt-0.5">
+                Sagarmala Funded
+              </span>
+            )}
+          </span>
+        );
+      }
     },
     {
       headerName: 'Sub Project ID',
       field: 'subProjectId',
-      minWidth: 105,
-      flex: 0.8,
+      width: 140,
+      minWidth: 140,
       cellClass: 'text-center text-slate-400 font-medium flex items-center justify-center',
       valueFormatter: (params) => params.value && params.value !== '-' ? params.value : '-'
     },
     {
       headerName: 'Project Name',
       field: 'projectName',
-      minWidth: 180,
-      flex: 2,
+      width: 320,
+      minWidth: 320,
       wrapText: true,
       autoHeight: true,
-      cellRenderer: (params) => {
-        const project = params.data;
-        if (!project) return null;
-        return (
-          <div className="flex flex-col justify-center py-2 h-full">
-            <span className="font-bold text-slate-800 block text-xs hover:text-blue-600 cursor-pointer transition-colors leading-relaxed whitespace-normal">
-              {project.projectName}
-            </span>
-            {project.subProjectName && project.subProjectName !== '-' && (
-              <span className="text-[10px] text-slate-500 font-bold block mt-1 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded w-fit">
-                Sub-Project: {project.subProjectName}
-              </span>
-            )}
-          </div>
-        );
-      }
+      cellRenderer: (params) => (
+        <span className="font-bold text-slate-800 block text-xs leading-relaxed whitespace-normal py-2 flex items-center h-full">
+          {params.value}
+        </span>
+      )
     },
     {
-      headerName: 'Category',
-      field: 'category',
-      minWidth: 110,
-      flex: 1,
-      cellRenderer: (params) => (
-        <div className="flex items-center h-full">
-          <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded bg-blue-50 text-blue-700 border border-blue-100">
-            {params.value || 'Uncategorized'}
-          </span>
-        </div>
-      )
+      headerName: 'Sub Project Name',
+      field: 'subProjectName',
+      width: 180,
+      minWidth: 180,
+      cellClass: 'text-slate-500 font-semibold flex items-center',
+      valueFormatter: (params) => params.value && params.value !== '-' ? params.value : '-'
     },
     {
       headerName: 'Sanctioned Cost (In Cr.)',
       field: 'cost',
-      minWidth: 110,
-      flex: 1,
+      width: 190,
+      minWidth: 190,
       cellClass: 'text-right font-extrabold text-slate-700 flex items-center justify-end',
       valueFormatter: (params) => params.value ? parseFloat(params.value).toFixed(2) : '-'
     },
     {
-      headerName: 'Implementing Agency',
+      headerName: 'Primary Implementing Agency',
       field: 'agency',
-      minWidth: 130,
-      flex: 1.2,
-      cellClass: 'text-slate-600 font-medium flex items-center'
+      width: 260,
+      minWidth: 260,
+      cellClass: 'text-slate-655 font-medium flex items-center',
+      valueFormatter: (params) => params.value || '-'
     },
     {
-      headerName: 'Stage',
+      headerName: 'Current Stage',
       field: 'stage',
-      minWidth: 120,
-      flex: 1,
+      width: 180,
+      minWidth: 180,
       cellRenderer: (params) => {
         const stage = params.value;
-        let style = 'bg-slate-50 text-slate-700 border-slate-200';
+        if (!stage || stage === 'null') return <span className="text-slate-400 italic font-medium flex items-center h-full">-</span>;
+        let style = 'bg-slate-50 text-slate-700 border-slate-205';
         if (stage === 'Under Implementation') {
           style = 'bg-blue-50 text-blue-700 border-blue-200';
         } else if (stage === 'Project Initiated') {
@@ -246,7 +272,7 @@ export default function ProjectTable({
         }
         return (
           <div className="flex items-center h-full">
-            <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-full border ${style}`}>
+            <span className={`inline-flex items-center px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${style}`}>
               {stage}
             </span>
           </div>
@@ -254,34 +280,56 @@ export default function ProjectTable({
       }
     },
     {
-      headerName: 'Physical (%)',
+      headerName: 'Physical Progress (%)',
       field: 'physicalProgress',
-      minWidth: 80,
-      flex: 0.6,
+      width: 180,
+      minWidth: 180,
       cellRenderer: (params) => {
-        const pct = params.value || 0;
+        const pct = params.value;
+        if (pct === undefined || pct === null || pct === '') return <span className="text-slate-400 italic font-medium flex items-center h-full">-</span>;
         return (
           <div className="flex items-center space-x-1.5 h-full">
-            <span className="font-bold text-slate-700 min-w-8">{pct}%</span>
+            <span className="font-bold text-slate-700">{pct}%</span>
           </div>
         );
       }
     },
     {
-      headerName: 'Financial (%)',
+      headerName: 'Financial Progress (%)',
       field: 'financialProgress',
-      minWidth: 80,
-      flex: 0.6,
+      width: 180,
+      minWidth: 180,
       cellRenderer: (params) => {
-        const pct = params.value || 0;
+        const pct = params.value;
+        if (pct === undefined || pct === null || pct === '') return <span className="text-slate-400 italic font-medium flex items-center h-full">-</span>;
         return (
           <div className="flex items-center space-x-1.5 h-full">
-            <span className="font-bold text-slate-700 min-w-8">{pct}%</span>
+            <span className="font-bold text-slate-700">{pct}%</span>
+          </div>
+        );
+      }
+    },
+    {
+      headerName: 'Update',
+      width: 100,
+      minWidth: 100,
+      cellClass: 'text-center flex items-center justify-center',
+      cellRenderer: (params) => {
+        const project = params.data;
+        return (
+          <div className="flex items-center justify-center h-full">
+            <button
+              onClick={() => handleOpenUpdateOverlay(project)}
+              className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm hover:shadow transition cursor-pointer"
+              title="Update Project Details"
+            >
+              <Edit className="h-3.5 w-3.5" />
+            </button>
           </div>
         );
       }
     }
-  ], []);
+  ], [handleOpenUpdateOverlay]);
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -310,8 +358,17 @@ export default function ProjectTable({
         />
       </div>
 
-      {/* Combined Project Categories Selection & Filters */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      {isUpdateOverlayOpen ? (
+        <UpdateProjectOverlay 
+          isOpen={isUpdateOverlayOpen}
+          onClose={() => setIsUpdateOverlayOpen(false)}
+          project={selectedUpdateProject}
+          onSave={handleSaveProject}
+        />
+      ) : (
+        <>
+          {/* Combined Project Categories Selection & Filters */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
         <button
           onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
           className={`w-full flex items-center justify-between text-left transition cursor-pointer ${isFiltersExpanded ? 'pb-3 border-b border-slate-100 mb-4' : ''
@@ -509,7 +566,7 @@ export default function ProjectTable({
           theme="legacy"
           rowData={filteredProjects}
           columnDefs={colDefs}
-          defaultColDef={{ minWidth: 80, suppressSizeToFit: false }}
+          defaultColDef={{ resizable: true, suppressSizeToFit: true, minWidth: 100 }}
           pagination={true}
           paginationPageSize={entriesLimit}
           suppressPaginationPanel={true}
@@ -518,9 +575,6 @@ export default function ProjectTable({
           rowHeight={64}
           headerHeight={48}
           suppressColumnVirtualisation={true}
-          autoSizeStrategy={{
-            type: 'fitGridWidth'
-          }}
         />
 
         {/* Custom Pagination Footer */}
@@ -572,6 +626,8 @@ export default function ProjectTable({
         </div>
       </div>
 
+        </>
+      )}
     </div>
   );
 }

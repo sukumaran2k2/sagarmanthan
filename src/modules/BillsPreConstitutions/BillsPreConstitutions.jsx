@@ -314,9 +314,9 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
       minWidth: 180,
       cellRenderer: (params) => (
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${params.value.includes('Passed') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-            params.value.includes('Introduced') ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-              params.value.includes('Cabinet') ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                'bg-amber-50 text-amber-700 border border-amber-200'
+          params.value.includes('Introduced') ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+            params.value.includes('Cabinet') ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+              'bg-amber-50 text-amber-700 border border-amber-200'
           }`}>
           {params.value}
         </span>
@@ -886,8 +886,8 @@ export default function BillsPreConstitutionsView({ triggerNotification }) {
                           key={p}
                           onClick={() => handleReportPageChange(p)}
                           className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${reportCurrentPage === p
-                              ? 'bg-[#0f417a] text-white shadow-sm'
-                              : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
+                            ? 'bg-[#0f417a] text-white shadow-sm'
+                            : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
                             }`}
                         >
                           {p}

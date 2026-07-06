@@ -2,6 +2,9 @@
 import Header from './components/Header';
 import Tabs from './components/Tabs';
 import { ProjectTable, AddProjectForm } from './modules/Projects/Projects';
+import ProjectsLess5Cr from './modules/Projects/ProjectsLess5Cr';
+import LumpsumIWAI from './modules/Projects/LumpsumIWAI';
+import ViewDropRequest from './modules/Projects/ViewDropRequest';
 import DashboardView from './modules/Dashboard/Dashboard';
 import AddSubProjectModal from './components/AddSubProjectModal';
 import LoginView from './modules/Login/Login';
@@ -24,6 +27,7 @@ import MediaOutreachView from './modules/MediaOutreach/MediaOutreach';
 import AuditPara from './modules/AuditPara/AuditPara';
 import VIPReference from './modules/VIPReference/VIPReference';
 import Footer from './components/Footer';
+import UserManagementView from './modules/UserManagement/UserManagement';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
 
 const PROJECT_TABS = [
@@ -38,108 +42,395 @@ const PROJECT_TABS = [
 const INITIAL_PROJECTS = [
   {
     id: 1,
-    projectId: 'PR1372',
+    projectId: 'PR0699',
     subProjectId: '-',
-    projectName: 'Supply and Setting up of ICT Infrastructure & FMS Support for Data Center at SCI',
+    projectName: 'Development of PPP Projects',
     subProjectName: '-',
-    cost: '58.25',
-    agency: 'Shipping Corporation of India',
-    stage: 'Under Implementation',
-    category: 'Digital Infrastructure',
-    physicalProgress: '68',
-    financialProgress: '54',
+    cost: '',
+    agency: '',
+    stage: 'null',
+    category: 'Capacity Enhancement',
+    physicalProgress: '',
+    financialProgress: '',
+    implementationType: 'PPP',
+    projectType: 'Capital',
+    projectBrief: 'Development of various PPP Projects',
+    initiatedDate: '2025-01-01',
+    completionDate: '2028-12-31',
+    revisedCompletionDate: '',
+    secondaryAgency: '',
+    scheme: 'Sagarmala',
+    initiative: 'Modernization',
+    output: 'Berth Built',
+    outcome: 'Increased cargo throughput',
+    capacity: '10',
+    fundingSource: 'Private',
+    primaryFundingAgency: 'Concessionaire',
+    secondaryFundingAgency: '',
+    state: 'Maharashtra',
+    district: 'Mumbai',
+    taluka: '',
+    village: '',
+    mpConstituency: 'MumbaiSouth',
+    isLandAcquiredRequired: 'No',
+    percentageLandAcquired: '100',
+    otherLandDetails: '',
+    targetExpenditure: [
+      { sn: 1, year: '2025-26', target: '' }
+    ]
   },
   {
     id: 2,
-    projectId: 'PR1371',
+    projectId: 'PR0894',
     subProjectId: '-',
-    projectName: 'Deepening & widening of common portion of main channel of mumbai harbour & anchorages by JNPA',
+    projectName: 'Rail connectivity to MMT',
     subProjectName: '-',
-    cost: '5.00',
-    agency: 'Jawaharlal Nehru Port Authority',
-    stage: 'Under Implementation',
-    category: 'Dredging Projects',
-    physicalProgress: '85',
-    financialProgress: '70',
+    cost: '',
+    agency: '',
+    stage: 'null',
+    category: 'Connectivity Enhancement',
+    physicalProgress: '',
+    financialProgress: '',
+    implementationType: 'EPC',
+    projectType: 'Capital',
+    projectBrief: 'Rail line connectivity to MMT',
+    initiatedDate: '2025-02-15',
+    completionDate: '2027-06-30',
+    revisedCompletionDate: '',
+    secondaryAgency: '',
+    scheme: 'GatiShakti',
+    initiative: 'Connectivity',
+    output: 'IT System',
+    outcome: 'Improved multimodal transport connectivity',
+    capacity: '',
+    fundingSource: 'Budgetary',
+    primaryFundingAgency: 'MoPSW',
+    secondaryFundingAgency: '',
+    state: 'Gujarat',
+    district: 'Mumbai',
+    taluka: '',
+    village: '',
+    mpConstituency: 'MumbaiSouth',
+    isLandAcquiredRequired: 'Yes',
+    percentageLandAcquired: '80',
+    otherLandDetails: '',
+    targetExpenditure: [
+      { sn: 1, year: '2025-26', target: '' }
+    ]
   },
   {
     id: 3,
-    projectId: 'PR1370',
+    projectId: 'PR0643',
     subProjectId: '-',
-    projectName: 'Coal Berth 4',
+    projectName: 'Coastal Districts Skill Development Program - Phase II -Karnataka',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
+    cost: '',
+    agency: 'Ministry of Rural Development (DDU-GKY)',
     stage: 'Project Initiated',
     category: 'Coastal Berth',
-    physicalProgress: '12',
-    financialProgress: '0',
+    physicalProgress: '',
+    financialProgress: '',
+    isSagarmalaFunded: true,
+    implementationType: 'Lumpsum',
+    projectType: 'General',
+    projectBrief: 'Skill development training program in coastal Karnataka districts',
+    initiatedDate: '2025-03-01',
+    completionDate: '2026-03-01',
+    revisedCompletionDate: '',
+    secondaryAgency: 'Karnataka State Government',
+    scheme: 'Sagarmala',
+    initiative: 'Community',
+    output: 'IT System',
+    outcome: 'Employment opportunities for coastal youth',
+    capacity: '',
+    fundingSource: 'Budgetary',
+    primaryFundingAgency: 'MoPSW',
+    secondaryFundingAgency: 'MoRD',
+    state: 'TamilNadu',
+    district: 'Chennai',
+    taluka: '',
+    village: '',
+    mpConstituency: 'ChennaiSouth',
+    isLandAcquiredRequired: 'No',
+    percentageLandAcquired: '',
+    otherLandDetails: '',
+    targetExpenditure: [
+      { sn: 1, year: '2025-26', target: '' }
+    ]
   },
   {
     id: 4,
-    projectId: 'PR1369',
+    projectId: 'PR0787',
     subProjectId: '-',
-    projectName: 'Coal Berth 3',
+    projectName: 'Setting up of New Container Terminal at BD II',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
+    cost: '',
+    agency: 'Chennai Port Authority',
     stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '10',
-    financialProgress: '0',
+    category: 'Port Modernization',
+    physicalProgress: '',
+    financialProgress: '',
+    implementationType: 'PPP',
+    projectType: 'Capital',
+    projectBrief: 'Setting up container terminal BD II',
+    initiatedDate: '2025-04-10',
+    completionDate: '2029-12-31',
+    revisedCompletionDate: '',
+    secondaryAgency: '',
+    scheme: 'MIV2030',
+    initiative: 'Modernization',
+    output: 'Berth Built',
+    outcome: 'Add 2 MTPA capacity',
+    capacity: '2.0',
+    fundingSource: 'Internal',
+    primaryFundingAgency: 'Chennai Port Authority',
+    secondaryFundingAgency: '',
+    state: 'TamilNadu',
+    district: 'Chennai',
+    taluka: '',
+    village: '',
+    mpConstituency: 'ChennaiSouth',
+    isLandAcquiredRequired: 'No',
+    percentageLandAcquired: '',
+    otherLandDetails: '',
+    targetExpenditure: [
+      { sn: 1, year: '2025-26', target: '' }
+    ]
   },
   {
     id: 5,
-    projectId: 'PR1368',
+    projectId: 'PR0786',
     subProjectId: '-',
-    projectName: 'Coal Berth 1 & 2',
+    projectName: 'Setting up of Multi Cargo Terminal at JD - West through PPP.',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
+    cost: '',
+    agency: 'Chennai Port Authority',
     stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '15',
-    financialProgress: '5',
+    category: 'Port Modernization',
+    physicalProgress: '',
+    financialProgress: '',
+    implementationType: 'PPP',
+    projectType: 'Capital',
+    projectBrief: 'Developing multi cargo terminal at JD west',
+    initiatedDate: '2025-05-15',
+    completionDate: '2028-10-31',
+    revisedCompletionDate: '',
+    secondaryAgency: '',
+    scheme: 'Sagarmala',
+    initiative: 'Modernization',
+    output: 'Berth Built',
+    outcome: 'Enhance bulk handling capacity',
+    capacity: '1.5',
+    fundingSource: 'Private',
+    primaryFundingAgency: 'PPP Partner',
+    secondaryFundingAgency: '',
+    state: 'TamilNadu',
+    district: 'Chennai',
+    taluka: '',
+    village: '',
+    mpConstituency: 'ChennaiSouth',
+    isLandAcquiredRequired: 'No',
+    percentageLandAcquired: '',
+    otherLandDetails: '',
+    targetExpenditure: [
+      { sn: 1, year: '2025-26', target: '' }
+    ]
   },
   {
     id: 6,
-    projectId: 'PR1367',
+    projectId: 'PR0752',
     subProjectId: '-',
-    projectName: 'Replacement of FLP-WP LED light fitting with poles & allied works at PirPau',
+    projectName: 'Setting up of Multi Cargo Terminal at JD - East through PPP mode',
     subProjectName: '-',
-    cost: '7.75',
-    agency: 'Mumbai Port Authority',
-    stage: 'Under Tendering',
-    category: 'Green Initiatives',
-    physicalProgress: '0',
-    financialProgress: '0',
+    cost: '',
+    agency: 'Chennai Port Authority',
+    stage: 'Project Initiated',
+    category: 'Port Modernization',
+    physicalProgress: '',
+    financialProgress: '',
+    implementationType: 'PPP',
+    projectType: 'Capital',
+    projectBrief: 'Developing multi cargo terminal at JD east',
+    initiatedDate: '2025-06-20',
+    completionDate: '2028-12-31',
+    revisedCompletionDate: '',
+    secondaryAgency: '',
+    scheme: 'Sagarmala',
+    initiative: 'Modernization',
+    output: 'Berth Built',
+    outcome: 'Increased bulk cargo space',
+    capacity: '1.8',
+    fundingSource: 'Private',
+    primaryFundingAgency: 'PPP Partner',
+    secondaryFundingAgency: '',
+    state: 'TamilNadu',
+    district: 'Chennai',
+    taluka: '',
+    village: '',
+    mpConstituency: 'ChennaiSouth',
+    isLandAcquiredRequired: 'No',
+    percentageLandAcquired: '',
+    otherLandDetails: '',
+    targetExpenditure: [
+      { sn: 1, year: '2025-26', target: '' }
+    ]
   },
   {
     id: 7,
-    projectId: 'PR1366',
+    projectId: 'PR0759',
     subProjectId: '-',
-    projectName: 'DRY-DOCKING/REPAIRS of SCI PANNA',
+    projectName: 'Multi Cargo Terminal-II',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Shipping Corporation of India',
+    cost: '',
+    agency: 'Kamarajar Port Limited',
     stage: 'Project Initiated',
-    category: 'Shipyard Development',
-    physicalProgress: '5',
-    financialProgress: '0',
+    category: 'Port Modernization',
+    physicalProgress: '',
+    financialProgress: '',
+    implementationType: 'PPP',
+    projectType: 'Capital',
+    projectBrief: 'Establish multi cargo terminal II',
+    initiatedDate: '2025-07-01',
+    completionDate: '2029-03-31',
+    revisedCompletionDate: '',
+    secondaryAgency: '',
+    scheme: 'MIV2030',
+    initiative: 'Modernization',
+    output: 'Berth Built',
+    outcome: 'Additional cargo draft',
+    capacity: '3.0',
+    fundingSource: 'Internal',
+    primaryFundingAgency: 'KPL',
+    secondaryFundingAgency: '',
+    state: 'TamilNadu',
+    district: 'Chennai',
+    taluka: '',
+    village: '',
+    mpConstituency: 'ChennaiSouth',
+    isLandAcquiredRequired: 'No',
+    percentageLandAcquired: '',
+    otherLandDetails: '',
+    targetExpenditure: [
+      { sn: 1, year: '2025-26', target: '' }
+    ]
   },
   {
     id: 8,
-    projectId: 'PR1365',
+    projectId: 'PR0760',
     subProjectId: '-',
-    projectName: 'Operation and Maintenance of existing EQ-10 berth at Visakhapatnam Port Authority',
+    projectName: 'Second Container Terminal',
     subProjectName: '-',
-    cost: '11.41',
-    agency: 'Visakhapatnam Port Authority',
-    stage: 'Under Tendering',
+    cost: '',
+    agency: 'Kamarajar Port Limited',
+    stage: 'Project Initiated',
     category: 'Port Modernization',
-    physicalProgress: '0',
-    financialProgress: '0',
+    physicalProgress: '',
+    financialProgress: '',
+    implementationType: 'PPP',
+    projectType: 'Capital',
+    projectBrief: 'Setup second container terminal',
+    initiatedDate: '2025-08-10',
+    completionDate: '2029-12-31',
+    revisedCompletionDate: '',
+    secondaryAgency: '',
+    scheme: 'Sagarmala',
+    initiative: 'Modernization',
+    output: 'Berth Built',
+    outcome: '2.5 MTPA capacity addition',
+    capacity: '2.5',
+    fundingSource: 'Private',
+    primaryFundingAgency: 'Concessionaire',
+    secondaryFundingAgency: '',
+    state: 'TamilNadu',
+    district: 'Chennai',
+    taluka: '',
+    village: '',
+    mpConstituency: 'ChennaiSouth',
+    isLandAcquiredRequired: 'No',
+    percentageLandAcquired: '',
+    otherLandDetails: '',
+    targetExpenditure: [
+      { sn: 1, year: '2025-26', target: '' }
+    ]
   },
+  {
+    id: 9,
+    projectId: 'PR0762',
+    subProjectId: '-',
+    projectName: 'Bulk Terminal-1',
+    subProjectName: '-',
+    cost: '',
+    agency: 'Kamarajar Port Limited',
+    stage: 'Project Initiated',
+    category: 'Port Modernization',
+    physicalProgress: '',
+    financialProgress: '',
+    implementationType: 'PPP',
+    projectType: 'Capital',
+    projectBrief: 'Setup bulk terminal 1',
+    initiatedDate: '2025-09-01',
+    completionDate: '2028-06-30',
+    revisedCompletionDate: '',
+    secondaryAgency: '',
+    scheme: 'MIV2030',
+    initiative: 'Modernization',
+    output: 'Berth Built',
+    outcome: 'Optimized bulk handling',
+    capacity: '2.0',
+    fundingSource: 'Private',
+    primaryFundingAgency: 'Concessionaire',
+    secondaryFundingAgency: '',
+    state: 'TamilNadu',
+    district: 'Chennai',
+    taluka: '',
+    village: '',
+    mpConstituency: 'ChennaiSouth',
+    isLandAcquiredRequired: 'No',
+    percentageLandAcquired: '',
+    otherLandDetails: '',
+    targetExpenditure: [
+      { sn: 1, year: '2025-26', target: '' }
+    ]
+  },
+  {
+    id: 10,
+    projectId: 'PR0763',
+    subProjectId: '-',
+    projectName: 'General Cargo Berth 3',
+    subProjectName: '-',
+    cost: '',
+    agency: 'Kamarajar Port Limited',
+    stage: 'Project Initiated',
+    category: 'Port Modernization',
+    physicalProgress: '',
+    financialProgress: '',
+    implementationType: 'EPC',
+    projectType: 'Capital',
+    projectBrief: 'Establish general cargo berth 3',
+    initiatedDate: '2025-10-01',
+    completionDate: '2027-12-31',
+    revisedCompletionDate: '',
+    secondaryAgency: '',
+    scheme: 'Sagarmala',
+    initiative: 'Modernization',
+    output: 'Berth Built',
+    outcome: 'Increased roll-on/roll-off capability',
+    capacity: '1.0',
+    fundingSource: 'Budgetary',
+    primaryFundingAgency: 'MoPSW',
+    secondaryFundingAgency: '',
+    state: 'TamilNadu',
+    district: 'Chennai',
+    taluka: '',
+    village: '',
+    mpConstituency: 'ChennaiSouth',
+    isLandAcquiredRequired: 'No',
+    percentageLandAcquired: '',
+    otherLandDetails: '',
+    targetExpenditure: [
+      { sn: 1, year: '2025-26', target: '' }
+    ]
+  }
 ];
 
 const getBreadcrumbs = (tab) => {
@@ -446,7 +737,7 @@ export default function App() {
           />
         )}
         
-        {activeTab === 'projects' && (
+        {['projects', 'reports'].includes(activeTab) && (
           isAddingProject ? (
             <AddProjectForm 
               onAdd={handleAddProject}
@@ -455,6 +746,7 @@ export default function App() {
           ) : (
             <ProjectTable 
               projects={projects} 
+              setProjects={setProjects}
               onAddProjectClick={() => setIsAddingProject(true)}
               onAddSubProjectClick={() => setIsAddSubProjectOpen(true)}
               onExportTrigger={(type) => triggerNotification(`${type} triggered successfully.`)}
@@ -462,6 +754,27 @@ export default function App() {
               setActiveTab={setActiveTab}
             />
           )
+        )}
+
+        {activeTab === 'less5cr' && (
+          <ProjectsLess5Cr 
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+          />
+        )}
+
+        {activeTab === 'lumpsum' && (
+          <LumpsumIWAI 
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+          />
+        )}
+
+        {activeTab === 'dropRequests' && (
+          <ViewDropRequest 
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+          />
         )}
 
         {activeTab === 'Major Ports Dashboard' && (
@@ -516,6 +829,10 @@ export default function App() {
           <ProfileView triggerNotification={triggerNotification} />
         )}
 
+        {activeTab === 'User Management' && (
+          <UserManagementView triggerNotification={triggerNotification} />
+        )}
+
         {activeTab === 'Acts & Rules' && (
           <ActsRules triggerNotification={triggerNotification} />
         )}
@@ -546,7 +863,7 @@ export default function App() {
         )}
 
         {/* Placeholder / Empty State for other inactive government menu views */}
-        {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'YP Input Form', 'YP Reports', 'Consultant Input Form', 'Consultant Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Acts & Rules', 'Bills/PreConstitutions Act', 'Media Outreach', 'Audit Paras', 'VIP Reference'].includes(activeTab) && (
+        {!['dashboard', 'projects', 'less5cr', 'lumpsum', 'dropRequests', 'reports', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'YP Input Form', 'YP Reports', 'Consultant Input Form', 'Consultant Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Acts & Rules', 'Bills/PreConstitutions Act', 'Media Outreach', 'Audit Paras', 'VIP Reference', 'User Management'].includes(activeTab) && (
           <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
             <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
               <Sparkles className="h-7 w-7 text-blue-600" />

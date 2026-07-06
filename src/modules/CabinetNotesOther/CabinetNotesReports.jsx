@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { 
-  FileSpreadsheet, 
-  FileText, 
+import {
+  FileSpreadsheet,
+  FileText,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
@@ -239,7 +239,7 @@ export default function CabinetNotesReports({ notes = [] }) {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Toast Notification */}
       {notification && (
         <div className="fixed top-6 right-6 z-55 flex items-center space-x-2.5 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in animate-pulse">
@@ -257,21 +257,19 @@ export default function CabinetNotesReports({ notes = [] }) {
       <div className="flex border-b border-slate-200">
         <button
           onClick={() => setActiveReport('stages')}
-          className={`px-6 py-2.5 font-bold text-xs uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
-            activeReport === 'stages'
+          className={`px-6 py-2.5 font-bold text-xs uppercase tracking-wider transition-all border-b-2 cursor-pointer ${activeReport === 'stages'
               ? 'border-blue-700 text-blue-700'
               : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
+            }`}
         >
           Report 6.2 (Stage Wise Abstract)
         </button>
         <button
           onClick={() => setActiveReport('pendency')}
-          className={`px-6 py-2.5 font-bold text-xs uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
-            activeReport === 'pendency'
+          className={`px-6 py-2.5 font-bold text-xs uppercase tracking-wider transition-all border-b-2 cursor-pointer ${activeReport === 'pendency'
               ? 'border-blue-700 text-blue-700'
               : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
+            }`}
         >
           Report 6.2 (Pendency Wise Abstract)
         </button>
@@ -303,7 +301,7 @@ export default function CabinetNotesReports({ notes = [] }) {
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ministry:</span>
                 <div className="relative min-w-[160px]">
-                  <select 
+                  <select
                     value={selectedWing}
                     onChange={(e) => { setSelectedWing(e.target.value); setCurrentPage(1); }}
                     className="w-full text-xs pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 font-bold text-slate-700 cursor-pointer"
@@ -319,14 +317,14 @@ export default function CabinetNotesReports({ notes = [] }) {
 
               {/* Export Action Buttons */}
               <div className="flex items-center gap-2">
-                <button 
+                <button
                   onClick={() => triggerNotification('Abstract Excel generated.')}
                   className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer whitespace-nowrap"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5" />
                   <span>Export to Excel</span>
                 </button>
-                <button 
+                <button
                   onClick={() => triggerNotification('Abstract PDF generated.')}
                   className="px-3.5 py-2 bg-red-500 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer whitespace-nowrap"
                 >
@@ -335,7 +333,7 @@ export default function CabinetNotesReports({ notes = [] }) {
                 </button>
               </div>
 
-              <button 
+              <button
                 onClick={() => setIsReportExpanded(false)}
                 className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg border border-slate-250 shadow-sm transition cursor-pointer"
               >
@@ -344,7 +342,7 @@ export default function CabinetNotesReports({ notes = [] }) {
               </button>
             </>
           ) : (
-            <button 
+            <button
               onClick={() => setIsReportExpanded(true)}
               className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
             >
@@ -368,8 +366,8 @@ export default function CabinetNotesReports({ notes = [] }) {
             <div className="flex items-center gap-4">
               <div className="flex items-center space-x-2">
                 <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
-                <select 
-                  value={entriesLimit} 
+                <select
+                  value={entriesLimit}
                   onChange={(e) => { setEntriesLimit(parseInt(e.target.value)); }}
                   className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
                 >
@@ -381,8 +379,8 @@ export default function CabinetNotesReports({ notes = [] }) {
               </div>
 
               <div className="relative">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -395,7 +393,7 @@ export default function CabinetNotesReports({ notes = [] }) {
 
           {/* Main Responsive Table */}
           <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-            <AgGridReact 
+            <AgGridReact
               ref={gridRef}
               theme="legacy"
               rowData={filteredRows}
@@ -429,7 +427,7 @@ export default function CabinetNotesReports({ notes = [] }) {
                 <span className="font-bold text-slate-800">{Math.min(currentPage * entriesLimit, filteredRows.length)}</span> of{' '}
                 <span className="font-bold text-slate-800">{filteredRows.length}</span> entries
               </span>
-              
+
               <div className="flex items-center space-x-1">
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
@@ -438,7 +436,7 @@ export default function CabinetNotesReports({ notes = [] }) {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
-                
+
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
                   if (totalPages > 6 && Math.abs(currentPage - p) > 1 && p !== 1 && p !== totalPages) {
                     if (p === 2 || p === totalPages - 1) {
@@ -450,17 +448,16 @@ export default function CabinetNotesReports({ notes = [] }) {
                     <button
                       key={p}
                       onClick={() => handlePageChange(p)}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
-                        currentPage === p
+                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentPage === p
                           ? 'bg-[#0f417a] text-white shadow-sm'
                           : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       {p}
                     </button>
                   );
                 })}
-                
+
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages || totalPages === 0}
@@ -475,7 +472,7 @@ export default function CabinetNotesReports({ notes = [] }) {
       ) : (
         /* Charts Visualization Row (Visible only when Collapsed) */
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 animate-fade-in pt-4">
-          
+
           {/* Left Chart Panel */}
           {activeReport === 'stages' ? (
             <div className="lg:col-span-3 bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3 flex flex-col justify-between">
@@ -483,11 +480,11 @@ export default function CabinetNotesReports({ notes = [] }) {
               <div className="space-y-3.5 pt-2 max-h-[240px] overflow-y-auto pr-1">
                 {dynamicReportRows.filter(r => r.total > 0).map((row, idx) => {
                   const percent = Math.round((row.replyFurnished / (row.total || 1)) * 100);
-                  const gradientClass = 
+                  const gradientClass =
                     idx === 0 ? 'bg-gradient-to-r from-teal-500 to-emerald-500' :
-                    idx === 1 ? 'bg-gradient-to-r from-blue-500 to-indigo-500' :
-                    idx === 2 ? 'bg-gradient-to-r from-purple-500 to-violet-500' :
-                    'bg-gradient-to-r from-amber-500 to-orange-500';
+                      idx === 1 ? 'bg-gradient-to-r from-blue-500 to-indigo-500' :
+                        idx === 2 ? 'bg-gradient-to-r from-purple-500 to-violet-500' :
+                          'bg-gradient-to-r from-amber-500 to-orange-500';
                   return (
                     <div key={row.id} className="space-y-1 font-semibold">
                       <div className="flex justify-between text-xs text-slate-600">
@@ -495,7 +492,7 @@ export default function CabinetNotesReports({ notes = [] }) {
                         <span>{row.replyFurnished} / {row.total} Replied ({percent}%)</span>
                       </div>
                       <div className="w-full h-2.5 bg-slate-200/60 rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className={`h-full rounded-full ${gradientClass} transition-all duration-500`}
                           style={{ width: `${percent || 5}%` }}
                         />
@@ -520,7 +517,7 @@ export default function CabinetNotesReports({ notes = [] }) {
                         <span>{row.ageOver80} / {totalAgeNotes} Pending &gt; 80 Days ({percentOver80}%)</span>
                       </div>
                       <div className="w-full h-2.5 bg-slate-200/60 rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className={`h-full rounded-full ${gradientClass} transition-all duration-500`}
                           style={{ width: `${percentOver80 || 5}%` }}
                         />
@@ -534,7 +531,7 @@ export default function CabinetNotesReports({ notes = [] }) {
           {activeReport === 'stages' ? (
             <div className="lg:col-span-2 bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
               <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Top Requesting Ministries</h3>
-              
+
               <div className="space-y-3.5 pt-2">
                 {[...dynamicReportRows]
                   .filter(r => r.total > 0)
@@ -557,7 +554,7 @@ export default function CabinetNotesReports({ notes = [] }) {
                           <span>{row.total} Notes ({Math.round(percent)}%)</span>
                         </div>
                         <div className="w-full h-1.5 bg-slate-200/60 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full rounded-full ${color} transition-all duration-500`}
                             style={{ width: `${percent}%` }}
                           />
@@ -574,24 +571,24 @@ export default function CabinetNotesReports({ notes = [] }) {
           ) : (
             <div className="lg:col-span-2 bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
               <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Pendency Age Breakdown</h3>
-              
+
               <div className="flex items-center justify-around py-3">
                 <div className="relative h-28 w-28 flex items-center justify-center">
                   <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                    <circle className="text-slate-200" strokeWidth="3" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
+                    <circle className="text-slate-200" strokeWidth="3" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18" />
                     {/* Circle Segment 1: 0-50 Days */}
-                    <circle className="text-blue-500" strokeWidth="3.5" strokeDasharray={`${Math.round((totals.age0_50 / (totals.total || 1)) * 100)} 100`} strokeDashoffset="0" strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
+                    <circle className="text-blue-500" strokeWidth="3.5" strokeDasharray={`${Math.round((totals.age0_50 / (totals.total || 1)) * 100)} 100`} strokeDashoffset="0" strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18" />
                     {/* Circle Segment 2: 51-80 Days */}
-                    <circle className="text-amber-500" strokeWidth="3.5" strokeDasharray={`${Math.round((totals.age51_80 / (totals.total || 1)) * 100)} 100`} strokeDashoffset={`-${Math.round((totals.age0_50 / (totals.total || 1)) * 100)}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
+                    <circle className="text-amber-500" strokeWidth="3.5" strokeDasharray={`${Math.round((totals.age51_80 / (totals.total || 1)) * 100)} 100`} strokeDashoffset={`-${Math.round((totals.age0_50 / (totals.total || 1)) * 100)}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18" />
                     {/* Circle Segment 3: More than 80 Days */}
-                    <circle className="text-red-500" strokeWidth="3.5" strokeDasharray={`${Math.round((totals.ageOver80 / (totals.total || 1)) * 100)} 100`} strokeDashoffset={`-${Math.round(((totals.age0_50 + totals.age51_80) / (totals.total || 1)) * 100)}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18"/>
+                    <circle className="text-red-500" strokeWidth="3.5" strokeDasharray={`${Math.round((totals.ageOver80 / (totals.total || 1)) * 100)} 100`} strokeDashoffset={`-${Math.round(((totals.age0_50 + totals.age51_80) / (totals.total || 1)) * 100)}`} strokeLinecap="round" stroke="currentColor" fill="transparent" r="16" cx="18" cy="18" />
                   </svg>
                   <div className="absolute text-center">
                     <p className="text-lg font-black text-slate-900 leading-none">{totals.total}</p>
                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Total Pending</p>
                   </div>
                 </div>
-   
+
                 <div className="space-y-2 font-semibold text-xs text-slate-700">
                   <div className="flex items-center space-x-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-blue-500"></span>
@@ -607,7 +604,7 @@ export default function CabinetNotesReports({ notes = [] }) {
                   </div>
                 </div>
               </div>
-   
+
               <div className="text-[10px] text-center text-slate-400 font-semibold border-t border-slate-200/60 pt-2.5 mt-2">
                 Clearance monitoring categorized by duration in queue
               </div>
