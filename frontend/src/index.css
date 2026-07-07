@@ -1,0 +1,220 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+@import "ag-grid-community/styles/ag-grid.css";
+@import "ag-grid-community/styles/ag-theme-quartz.css";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
+  --font-size-xs: 0.825rem;
+  --font-size-sm: 0.925rem;
+}
+
+html,
+body {
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+body {
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+#root {
+  zoom: 1.06;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Keyframe Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* AG Grid custom styling to match dashboard theme */
+.ag-theme-quartz {
+  --ag-header-background-color: #0f417a !important;
+  --ag-header-foreground-color: #ffffff !important;
+  --ag-border-color: #e2e8f0 !important;
+  --ag-row-hover-color: #f8fafc/60 !important;
+  --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  --ag-font-size: 11.5px !important;
+}
+
+/* Custom CSS to style header text & properties */
+.ag-theme-quartz .ag-header-cell-label {
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Style filter and sort icons on header to be white */
+.ag-theme-quartz .ag-icon {
+  color: #ffffff !important;
+}
+
+.ag-theme-quartz .ag-header-icon {
+  color: #ffffff !important;
+}
+
+/* Dark Mode Global Overrides */
+.dark html,
+.dark body {
+  background-color: #0b0f19 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark #root {
+  background-color: #0b0f19 !important;
+}
+
+.dark main {
+  background-color: #0b0f19 !important;
+}
+
+.dark .bg-white {
+  background-color: #111827 !important;
+  color: #f1f5f9 !important;
+  border-color: #1f2937 !important;
+}
+
+.dark .bg-slate-50 {
+  background-color: #0b0f19 !important;
+}
+
+.dark [class*="bg-[#eef2f5]"] {
+  background-color: #1f2937 !important;
+}
+
+.dark [class*="bg-slate-50/50"] {
+  background-color: #111827 !important;
+}
+
+.dark .text-slate-800,
+.dark .text-slate-900,
+.dark .text-slate-705,
+.dark .text-slate-905,
+.dark .text-slate-655,
+.dark .text-slate-650 {
+  color: #f1f5f9 !important;
+}
+
+.dark .text-slate-500,
+.dark .text-slate-600,
+.dark .text-slate-450 {
+  color: #9ca3af !important;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-100,
+.dark .border-slate-150 {
+  border-color: #374151 !important;
+}
+
+.dark [class*="hover:bg-slate-50"]:hover {
+  background-color: #1f2937 !important;
+}
+
+/* KPI Card backgrounds in dark mode */
+.dark [class*="bg-[#fff9e6]"] {
+  background-color: #231c0e !important;
+  border-color: #4b3e1d !important;
+}
+
+.dark [class*="bg-[#e6f4ea]"] {
+  background-color: #0a2e1d !important;
+  border-color: #165b33 !important;
+}
+
+.dark [class*="bg-[#ebf8ff]"] {
+  background-color: #0a2540 !important;
+  border-color: #1a4f76 !important;
+}
+
+.dark [class*="bg-[#fff5f5]"] {
+  background-color: #350f0f !important;
+  border-color: #681f1f !important;
+}
+
+/* Breadcrumbs text color */
+.dark .text-slate-400 {
+  color: #9ca3af !important;
+}
+
+/* AG Grid Dark Theme support */
+.dark .ag-theme-quartz {
+  --ag-background-color: #111827 !important;
+  --ag-data-color: #f1f5f9 !important;
+  --ag-border-color: #374151 !important;
+  --ag-row-hover-color: #1f2937 !important;
+  --ag-header-background-color: #030712 !important;
+}
+
+/* Tab menu */
+.dark nav.bg-white {
+  background-color: #111827 !important;
+}
+
+.dark nav button.text-slate-655 {
+  color: #9ca3af !important;
+}
+
+.dark nav button.text-slate-655:hover {
+  color: #ffffff !important;
+}
+
+/* Header and Footer Dark Mode overrides */
+.dark header {
+  background-image: linear-gradient(to right, #030712, #0b0f19, #111827) !important;
+  border-color: #1f2937 !important;
+}
+
+.dark footer {
+  background-color: #030712 !important;
+  border-top-color: #1f2937 !important;
+}
+
+/* Ken Burns Zoom Animation for Carousel */
+@keyframes kenBurns {
+  0% {
+    transform: scale(1);
+  }
+
+  100% {
+    transform: scale(1.08);
+  }
+}
+
+.animate-ken-burns {
+  animation: kenBurns 8.2s ease-out forwards;
+}
