@@ -568,13 +568,10 @@ export default function LoginView({ onLogin }) {
             <span className="mb-1 text-slate-400">Developed and hosted by</span>
             <div className="flex items-center space-x-1.5">
               <img
-                src="/ntcpwc_logo.png"
-                alt="NTCPWC Logo"
-                className="h-5.5 w-auto object-contain rounded bg-white p-0.5"
+                src="/logo-01.png"
+                alt="Logo"
+                className="h-8 w-auto object-contain"
               />
-              <strong className="text-white tracking-wide font-sans text-[11px]">
-                NTCPWC
-              </strong>
             </div>
           </div>
         </div>
