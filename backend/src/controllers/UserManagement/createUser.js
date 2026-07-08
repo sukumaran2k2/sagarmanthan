@@ -217,7 +217,7 @@ async function getUserData(req, res) {
         const result = await conn.query(`SELECT tbl_user.user_id, tbl_user.title, tbl_user.name, tbl_user.designation,
         tbl_user.role_id, tbl_role.role_name, tbl_user.organisation_id, tbl_user.wing_id, wing_name, tbl_user.division_id,
         division_name, mmt_organisation.organisation_name, tbl_user.email, tbl_user.phone, tbl_user.status,
-        tbl_user.state_id, state_name, tbl_user.district_id, district_name
+        tbl_user.state_id, state_name, tbl_user.district_id, district_name, tbl_user.last_login
         FROM tbl_user
         INNER JOIN tbl_role on tbl_role.role_id = tbl_user.role_id
         INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_user.organisation_id
@@ -516,23 +516,7 @@ async function updatePassword(req, res) {
     const encryptedOldPassword = req.body.oldPassword;
     const encryptedNewPassword = req.body.newPassword;
 
-    const privateKeyPem = `
-    -----BEGIN RSA PRIVATE KEY-----
-    MIICXgIBAAKBgQCtKadrC6eRM6dVJzCMaYEb9u6J3bmQ5yzMER6Jsa5xr2SoVRwn
-    phar1ch/fqz+nWKu52Phztsx6r9ZE3Q7yDjXzsFrJ3ynq8UGpdHAVJ0BkL2bXp+E
-    1ZDbUI0Xl8Dv6hWCQXlvkGi6fNOHSYlqNgNQHsZ1IlQP88vCQeRFJf3bCQIDAQAB
-    AoGAKXV+ow+ASDCQ0L94TTX5doORqyqOAlaHEDjNEfSbqpZuyCrQeeG3Ld8aiQQA
-    UVnHRc8ax/ap3nKw65fPzXxrt0EdncLjOLS+SMcpShaDD4h6bk9PYRG9p5/00NFN
-    /6m0JkHD5xUYvrYvU/Yo0sS12lBQt6jhf5W61XOkMhcTm4ECQQD+yNd/BOtCcwIl
-    HstC2cPr0ut2bQ7UgpBWzcwGQRZc69yMet6427XG15oVKxiYAtTEN6dKBkRSoJdO
-    3M/rVBEZAkEArf0hdehVQG9X9qPDjmx+JS/AmgEFImiKvcQL69bLHg9dRPjwh6zN
-    pgspmFWfwfuabmV+pEnv/f6f54hiVPOncQJBAOKlUSW5/3nGCyNwSEp4o1OV9kYL
-    78RVPQcq3RK3NaiFXFVPO+9f600uH/AyvRcEdbby9wrflkmWd+L8hK0HxIkCQQCK
-    rq/TGcOKPrXwpAwmJBhQb8Wne5SqHoYoSHHwJB928Gw5o+ulWXn6Ff+rquRSbMhl
-    ooTVUxH2dNTkanNmn2ghAkEA8vuv2fNrQXH0bSkiDwZGwCzbskS/3fBiXuI2Lu3n
-    J209E6WnEWR0lMMaPJIhXAtv3iH32m+WaO/Eyml9QhbwCQ==
-    -----END RSA PRIVATE KEY-----
-    `;
+    const privateKeyPem = (process.env.RSA_PRIVATE_KEY || "").replace(/\\n/g, "\n");
     try{
         try {
             const privateKey = forge.pki.privateKeyFromPem(privateKeyPem);

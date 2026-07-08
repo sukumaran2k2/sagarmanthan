@@ -5,12 +5,7 @@ import sagarmanthanLogo from "../../assets/sagarmanthan_logo.png";
 import axios from "axios";
 import forge from "node-forge";
 
-const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCtKadrC6eRM6dVJzCMaYEb9u6J
-3bmQ5yzMER6Jsa5xr2SoVRwnphar1ch/fqz+nWKu52Phztsx6r9ZE3Q7yDjXzsFr
-J3ynq8UGpdHAVJ0BkL2bXp+E1ZDbUI0Xl8Dv6hWCQXlvkGi6fNOHSYlqNgNQHsZ1
-IlQP88vCQeRFJf3bCQIDAQAB
------END PUBLIC KEY-----`;
+const PUBLIC_KEY_PEM = (import.meta.env.VITE_RSA_PUBLIC_KEY || "").replace(/\\n/g, "\n");
 
 function encryptPassword(password) {
   const publicKey = forge.pki.publicKeyFromPem(PUBLIC_KEY_PEM);
@@ -45,6 +40,8 @@ export default function LoginView({ onLogin }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [forgotError, setForgotError] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [forgotRecaptchaToken, setForgotRecaptchaToken] = useState("");
 
   // Background rotater state
@@ -60,9 +57,12 @@ export default function LoginView({ onLogin }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     setForgotError("");
+    setLoginError("");
+    setIsSubmitting(true);
 
     if (!recaptchaToken) {
-      alert("Please complete the reCAPTCHA verification.");
+      setLoginError("Please complete the reCAPTCHA verification.");
+      setIsSubmitting(false);
       return;
     }
 
@@ -70,7 +70,8 @@ export default function LoginView({ onLogin }) {
     try {
       encrypted = encryptPassword(password);
     } catch (err) {
-      alert("Encryption failed: " + err.message);
+      setLoginError("Encryption failed: " + err.message);
+      setIsSubmitting(false);
       return;
     }
 
@@ -81,17 +82,39 @@ export default function LoginView({ onLogin }) {
         recaptchaResponse: recaptchaToken,
       })
       .then((res) => {
+        setIsSubmitting(false);
         if (res.data.accessToken) {
           localStorage.setItem("accessToken", res.data.accessToken);
           localStorage.setItem("refreshToken", res.data.refreshToken);
           onLogin();
         } else {
-          alert(res.data.message || "Invalid username or password.");
+          let errMsg = res.data.message || "Invalid credentials.";
+          if (res.data.passwordUpdatedOn) {
+            try {
+              const d = new Date(res.data.passwordUpdatedOn);
+              // Cancel timezone offset shift
+              const userOffset = d.getTimezoneOffset() * 60000;
+              const adjustedDate = new Date(d.getTime() + userOffset);
+              const formattedDate = adjustedDate.toLocaleString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              });
+              errMsg += `\n(Password was last reset on: ${formattedDate})`;
+            } catch (e) {
+              errMsg += `\n(Password was last reset on: ${res.data.passwordUpdatedOn})`;
+            }
+          }
+          setLoginError(errMsg);
         }
       })
       .catch((err) => {
+        setIsSubmitting(false);
         const msg = err.response?.data?.message || "Login request failed.";
-        alert(msg);
+        setLoginError(msg);
       });
   };
 
@@ -291,7 +314,7 @@ export default function LoginView({ onLogin }) {
                   <div className="w-full flex justify-center bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden animate-fade-in">
                     <div className="scale-95 origin-center flex justify-center w-full py-1">
                       <ReCAPTCHA
-                        sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
+                        sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY }
                         onChange={(val) => {
                           setForgotRecaptchaToken(val || "");
                         }}
@@ -543,7 +566,7 @@ export default function LoginView({ onLogin }) {
               <div className="w-full flex justify-center bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden">
                 <div className="scale-100 sm:scale-105 origin-center flex justify-center w-full py-1">
                   <ReCAPTCHA
-                    sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
+                    sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
                     onChange={(val) => {
                       setRecaptchaToken(val || "");
                       setCaptchaVerified(!!val);
@@ -553,12 +576,32 @@ export default function LoginView({ onLogin }) {
                 </div>
               </div>
 
+              {/* Error Message */}
+              {loginError && (
+                <div className="w-full text-center text-xs font-bold text-red-500 bg-red-500/10 border border-red-500/20 px-3 py-2.5 rounded-lg animate-fade-in whitespace-pre-line">
+                  {loginError}
+                </div>
+              )}
+
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full py-3.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] rounded-lg shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                disabled={isSubmitting}
+                className={`w-full py-3.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] rounded-lg shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer flex items-center justify-center gap-2 ${
+                  isSubmitting ? "opacity-75 cursor-not-allowed" : ""
+                }`}
               >
-                Login
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Verifying details...</span>
+                  </>
+                ) : (
+                  "Login"
+                )}
               </button>
             </form>
           )}
@@ -570,7 +613,7 @@ export default function LoginView({ onLogin }) {
               <img
                 src="/logo-01.png"
                 alt="Logo"
-                className="h-8 w-auto object-contain"
+                className="h-14 w-auto object-contain"
               />
             </div>
           </div>

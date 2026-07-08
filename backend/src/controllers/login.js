@@ -13,7 +13,7 @@ async function validation(req, res) {
   const encryptedPassword = req.body.password;
   const reCaptchaResponse = req.body.recaptchaResponse;
 
-  const RECAPTCHA_SECRET_KEY = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe';
+  const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY ;
 
   // LOG 1: Request received
   console.log('[LOGIN_START]', {
@@ -51,23 +51,7 @@ async function validation(req, res) {
 
     const userData = result.recordset[0];
     if (userData) {
-      const privateKeyPem = `
-      -----BEGIN RSA PRIVATE KEY-----
-      MIICXgIBAAKBgQCtKadrC6eRM6dVJzCMaYEb9u6J3bmQ5yzMER6Jsa5xr2SoVRwn
-      phar1ch/fqz+nWKu52Phztsx6r9ZE3Q7yDjXzsFrJ3ynq8UGpdHAVJ0BkL2bXp+E
-      1ZDbUI0Xl8Dv6hWCQXlvkGi6fNOHSYlqNgNQHsZ1IlQP88vCQeRFJf3bCQIDAQAB
-      AoGAKXV+ow+ASDCQ0L94TTX5doORqyqOAlaHEDjNEfSbqpZuyCrQeeG3Ld8aiQQA
-      UVnHRc8ax/ap3nKw65fPzXxrt0EdncLjOLS+SMcpShaDD4h6bk9PYRG9p5/00NFN
-      /6m0JkHD5xUYvrYvU/Yo0sS12lBQt6jhf5W61XOkMhcTm4ECQQD+yNd/BOtCcwIl
-      HstC2cPr0ut2bQ7UgpBWzcwGQRZc69yMet6427XG15oVKxiYAtTEN6dKBkRSoJdO
-      3M/rVBEZAkEArf0hdehVQG9X9qPDjmx+JS/AmgEFImiKvcQL69bLHg9dRPjwh6zN
-      pgspmFWfwfuabmV+pEnv/f6f54hiVPOncQJBAOKlUSW5/3nGCyNwSEp4o1OV9kYL
-      78RVPQcq3RK3NaiFXFVPO+9f600uH/AyvRcEdbby9wrflkmWd+L8hK0HxIkCQQCK
-      rq/TGcOKPrXwpAwmJBhQb8Wne5SqHoYoSHHwJB928Gw5o+ulWXn6Ff+rquRSbMhl
-      ooTVUxH2dNTkanNmn2ghAkEA8vuv2fNrQXH0bSkiDwZGwCzbskS/3fBiXuI2Lu3n
-      J209E6WnEWR0lMMaPJIhXAtv3iH32m+WaO/Eyml9QhbwCQ==
-      -----END RSA PRIVATE KEY-----
-                `;
+      const privateKeyPem = (process.env.RSA_PRIVATE_KEY || "").replace(/\\n/g, "\n");
 
       const privateKey = forge.pki.privateKeyFromPem(privateKeyPem);
 
@@ -216,6 +200,19 @@ async function validation(req, res) {
           tokenPayload.modulePermissions = modulePermissions;
         }
 
+        // Update last_login timestamp in the database
+        try {
+          const updateLoginRequest = conn.request();
+          updateLoginRequest.input("userID", userData.user_id);
+          await updateLoginRequest.query(`
+            UPDATE tbl_user 
+            SET last_login = GETDATE() 
+            WHERE user_id = @userID
+          `);
+        } catch (updateLoginErr) {
+          console.error("Error updating last_login timestamp:", updateLoginErr);
+        }
+
         const accessToken = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
           expiresIn: "30m",
         });
@@ -272,7 +269,7 @@ async function resetpassword(req, res) {
   const email = req.body.email;
   const updated_on = req.body.updated_on;
   const reCaptchaResponse = req.body.recaptchaResponse;
-  const RECAPTCHA_SECRET_KEY = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe';
+  const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY || '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe';
 
   if (!email || !reCaptchaResponse) {
     return res.status(400).json({ message: 'Missing fields' });

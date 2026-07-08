@@ -17,6 +17,7 @@ import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssu
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
 import Loader from './components/Loader';
+import NetworkCheckView from './components/NetworkCheckView';
 
 const PROJECT_TABS = [
   { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
@@ -301,10 +302,12 @@ export default function App() {
     return path && path !== '/' ? getTabFromSlug(path) : 'landing';
   });
   const [notification, setNotification] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return !!localStorage.getItem('accessToken');
+  });
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
   const [isTabLoading, setIsTabLoading] = useState(false);
+  const [showNetworkCheck, setShowNetworkCheck] = useState(false);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -319,8 +322,8 @@ export default function App() {
       
       const simulateDataFetch = async () => {
         try {
-          // Simulating asynchronous data retrieval process
-          await new Promise((resolve) => setTimeout(resolve, 350));
+          // Instantly resolve to remove simulated delay
+          await new Promise((resolve) => setTimeout(resolve, 0));
         } catch (error) {
           console.error("Telemetry fetch error:", error);
         } finally {
@@ -392,19 +395,26 @@ export default function App() {
   };
 
   const handleLoginSuccess = () => {
-    setIsLoggingIn(true);
-    setTimeout(() => {
-      setIsLoggingIn(false);
-      setIsLoggedIn(true);
-    }, 1500);
+    setIsLoggedIn(true);
+    setShowNetworkCheck(true);
   };
-
-  if (isLoggingIn) {
-    return <Loader message="Authenticating credentials and loading dashboard..." fullPage={true} />;
-  }
 
   if (!isLoggedIn) {
     return <LoginView onLogin={handleLoginSuccess} />;
+  }
+
+  if (showNetworkCheck) {
+    return (
+      <NetworkCheckView 
+        onContinue={() => setShowNetworkCheck(false)}
+        onCancel={() => {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          setIsLoggedIn(false);
+          setShowNetworkCheck(false);
+        }}
+      />
+    );
   }
 
   return (
@@ -425,7 +435,11 @@ export default function App() {
 
       {/* Government Portal Header */}
       <Header 
-        onLogout={() => setIsLoggedIn(false)} 
+        onLogout={() => {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          setIsLoggedIn(false);
+        }} 
         onProfileClick={() => setActiveTab('profile')}
       />
 
