@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Production builds
+dist/
+dist-ssr/
+
+# Environment configurations (credentials)
+.env
+*.local
+
+# Logs
+*.log
+logs/
+
+# Editor files
+.vscode/
+.idea/
+.DS_Store
+
+# Database files & SQL dumps
+*.sql
+sagar_dumb_july1.sql

@@ -1,0 +1,10 @@
+DB_HOST=localhost
+DB_USER=sag
+DB_PASSWORD=sag
+DB_NAME=sagarmanthan_revamp
+
+JWT_SECRET=secret
+PORT = 3001
+CHAINLIT_AUTH_SECRE="secret"
+CHAINLIT_AUTH_SECRET=":?E$POBVW*RLSg4~/HW.TPNvYl-$Xr19Y?>4ByLc*79=x1Gp5a^ts^07FQ9WONYW"
+MIKR_REFRESH_SECRET=refresh_secret
