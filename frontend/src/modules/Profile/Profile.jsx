@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import forge from 'node-forge';
 import { 
   User, 
   Mail, 
@@ -18,26 +20,83 @@ import {
   ChevronDown
 } from 'lucide-react';
 
+const PUBLIC_KEY_PEM = (import.meta.env.VITE_RSA_PUBLIC_KEY || "").replace(/\\n/g, "\n");
+
+function encryptPassword(password) {
+  const publicKey = forge.pki.publicKeyFromPem(PUBLIC_KEY_PEM);
+  const bytes = forge.util.encodeUtf8(password);
+  const encrypted = publicKey.encrypt(bytes, 'RSA-OAEP', {
+    md: forge.md.sha256.create(),
+    mgf1: { md: forge.md.sha256.create() },
+  });
+  return forge.util.encode64(encrypted);
+}
+
+function decodeToken(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
+function getInitials(name) {
+  if (!name) return 'U';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return parts[0].slice(0, 2).toUpperCase();
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return 'First session';
+  try {
+    const d = new Date(dateStr);
+    // Cancel the timezone offset shift to show raw database local time values
+    const userOffset = d.getTimezoneOffset() * 60000;
+    const adjustedDate = new Date(d.getTime() + userOffset);
+    return adjustedDate.toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (e) {
+    return dateStr;
+  }
+}
+
 export default function ProfileView({ triggerNotification }) {
   // Edit mode for Personal Details
   const [isEditingPersonal, setIsEditingPersonal] = useState(false);
+  const [rawUser, setRawUser] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(true);
 
-  // Form state combining both the old layout features and new required fields
+  // Form state combining both the old layout features and new required fields (initialized empty to avoid flickers)
   const [profile, setProfile] = useState({
-    title: 'Mr',
-    fullName: 'Rajesh Asati',
-    email: 'rajesh.asati@gov.in',
-    phone: '9727772146',
-    location: 'Shastri Bhawan, New Delhi',
-    employeeId: 'EMP-2026-894',
-    designation: 'Deputy Secretary',
-    department: 'PD-I Division',
-    state: 'Delhi',
-    district: 'New Delhi',
-    wing: 'Ports',
-    division: 'PD-I',
+    title: '',
+    fullName: '',
+    email: '',
+    phone: '',
+    location: '',
+    employeeId: '',
+    designation: '',
+    department: '',
+    state: '',
+    district: '',
+    wing: '',
+    division: '',
     langPreference: 'English',
-    twoFactor: true
+    twoFactor: true,
+    lastLogin: null
   });
 
   // Password reset state
@@ -46,6 +105,48 @@ export default function ProfileView({ triggerNotification }) {
     newPassword: '',
     confirmPassword: ''
   });
+
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    console.log("DEBUG_PROFILE: Loaded token:", token);
+    if (!token) return;
+    const decoded = decodeToken(token);
+    console.log("DEBUG_PROFILE: Decoded payload:", decoded);
+    if (!decoded || !decoded.email) return;
+
+    axios.get('http://localhost:3000/userlist')
+      .then(res => {
+        const users = res.data || [];
+        console.log("DEBUG_PROFILE: Loaded userlist:", users);
+        const matched = users.find(u => u.email.toLowerCase() === decoded.email.toLowerCase());
+        console.log("DEBUG_PROFILE: Matched user object:", matched);
+        if (matched) {
+          setRawUser(matched);
+          setProfile({
+            title: matched.title || 'Mr',
+            fullName: matched.name || '',
+            email: matched.email || '',
+            phone: matched.phone || '',
+            location: matched.district_name ? `${matched.district_name}, ${matched.state_name || ''}` : 'New Delhi, India',
+            employeeId: `EMP-2026-${matched.user_id}`,
+            designation: matched.designation || 'Officer',
+            department: matched.division_name || matched.organisation_name || 'N/A',
+            state: matched.state_name || 'N/A',
+            district: matched.district_name || 'N/A',
+            wing: matched.wing_name || 'Ports',
+            division: matched.division_name || 'N/A',
+            langPreference: 'English',
+            twoFactor: true,
+            lastLogin: matched.last_login
+          });
+        }
+        setLoadingDetails(false);
+      })
+      .catch(err => {
+        console.error('Failed to load profile details:', err);
+        setLoadingDetails(false);
+      });
+  }, []);
 
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
@@ -59,27 +160,88 @@ export default function ProfileView({ triggerNotification }) {
 
   const handleSaveProfile = (e) => {
     e.preventDefault();
-    setIsEditingPersonal(false);
-    if (triggerNotification) {
-      triggerNotification('Personal details updated successfully.');
-    } else {
-      alert('Personal details updated successfully.');
-    }
+    if (!rawUser) return;
+
+    axios.put('http://localhost:3000/edit-user-profile', {
+      userID: rawUser.user_id,
+      title: profile.title,
+      name: profile.fullName,
+      designation: profile.designation,
+      email: profile.email,
+      phone: profile.phone,
+      organisationId: rawUser.organisation_id || 1,
+      wing: rawUser.wing_id || 1,
+      division: rawUser.division_id || 1,
+      state: rawUser.state_id || 1,
+      district: rawUser.district_id || 1,
+      loginUser: rawUser.name
+    })
+    .then(() => {
+      setIsEditingPersonal(false);
+      if (triggerNotification) {
+        triggerNotification('Personal details updated successfully in the database.');
+      } else {
+        alert('Personal details updated successfully in the database.');
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Failed to update profile details.');
+    });
   };
 
   const handleUpdatePassword = (e) => {
     e.preventDefault();
+    if (!rawUser) return;
+
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       alert('New passwords do not match.');
       return;
     }
-    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    if (triggerNotification) {
-      triggerNotification('Security credentials updated successfully.');
-    } else {
-      alert('Security credentials updated successfully.');
+
+    let encryptedOld, encryptedNew;
+    try {
+      encryptedOld = encryptPassword(passwordForm.currentPassword);
+      encryptedNew = encryptPassword(passwordForm.newPassword);
+    } catch (encryptionErr) {
+      console.error(encryptionErr);
+      alert('Encryption failed.');
+      return;
     }
+
+    axios.put('http://localhost:3000/edit-password', {
+      userID: rawUser.user_id,
+      email: rawUser.email,
+      loginUser: rawUser.name,
+      oldPassword: encryptedOld,
+      newPassword: encryptedNew
+    })
+    .then(() => {
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      if (triggerNotification) {
+        triggerNotification('Security credentials updated successfully.');
+      } else {
+        alert('Security credentials updated successfully.');
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      const errMsg = err.response?.data?.message || 'Failed to update password.';
+      alert(errMsg);
+    });
   };
+
+  if (loadingDetails) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4 text-slate-500 font-semibold animate-pulse">
+        <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Loading profile credentials from secure database...</span>
+      </div>
+    );
+  }
 
   // Helper classes for editable vs disabled inputs
   const inputClass = isEditingPersonal
@@ -110,12 +272,9 @@ export default function ProfileView({ triggerNotification }) {
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col items-center text-center">
             
             {/* Avatar block */}
-            <div className="relative group cursor-pointer mt-4">
-              <div className="h-24 w-24 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-700 flex items-center justify-center text-white text-3xl font-black font-display shadow-lg group-hover:opacity-90 transition-all">
-                RA
-              </div>
-              <div className="absolute bottom-0 right-0 p-1.5 bg-blue-600 rounded-full border-2 border-white text-white shadow hover:scale-105 transition-all">
-                <Camera className="h-3.5 w-3.5" />
+            <div className="relative group mt-4">
+              <div className="h-24 w-24 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-700 flex items-center justify-center text-white text-3xl font-black font-display shadow-lg transition-all">
+                {getInitials(profile.fullName)}
               </div>
             </div>
 
@@ -140,7 +299,7 @@ export default function ProfileView({ triggerNotification }) {
               </div>
               <div className="flex items-center justify-between text-slate-500 font-semibold">
                 <span>Last Sign In</span>
-                <span className="text-slate-800 font-medium">Today at 18:22 PM</span>
+                <span className="text-slate-800 font-medium">{formatDate(profile.lastLogin)}</span>
               </div>
             </div>
           </div>

@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Header from './components/Header';
 import Tabs from './components/Tabs';
-import { ProjectTable, AddProjectForm } from './modules/Projects/Projects';
+import Projects from './modules/Projects/Projects';
 import ProjectsLess5Cr from './modules/Projects/ProjectsLess5Cr';
 import LumpsumIWAI from './modules/Projects/LumpsumIWAI';
 import ViewDropRequest from './modules/Projects/ViewDropRequest';
 import DashboardView from './modules/Dashboard/Dashboard';
-import AddSubProjectModal from './components/AddSubProjectModal';
 import LoginView from './modules/Login/Login';
 import LandingView from './modules/Landing/Landing';
 import { PortsDashboardView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
@@ -16,8 +15,7 @@ import CPGRAMSView from './modules/CPGRAMS/CPGRAMS';
 import HRDashboardView from './modules/HR/HR';
 import YoungProfessionalsView from './modules/YoungProfessionals/YoungProfessionals';
 import ConsultantAppointmentView from './modules/ConsultantAppointment/ConsultantAppointment';
-// import ProfileView from './modules/Profile/Profile';
-import ProfileView from './modules/Profile/Profile-Trial';
+import ProfileView from './modules/Profile/Profile';
 import CabinetNotes from './modules/CabinetNotes/CabinetNotes';
 import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotes';
 import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
@@ -29,6 +27,21 @@ import VIPReference from './modules/VIPReference/VIPReference';
 import Footer from './components/Footer';
 import UserManagementView from './modules/UserManagement/UserManagement';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Shield } from 'lucide-react';
+import Loader from './components/Loader';
+import NetworkCheckView from './components/NetworkCheckView';
+
+function decodeToken(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
 
 const PROJECT_TABS = [
   { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
@@ -42,401 +55,114 @@ const PROJECT_TABS = [
 const INITIAL_PROJECTS = [
   {
     id: 1,
-    projectId: 'PR0699',
+    projectId: 'PR1372',
     subProjectId: '-',
-    projectName: 'Development of PPP Projects',
+    projectName: 'Supply and Setting up of ICT Infrastructure & FMS Support for Data Center at SCI',
     subProjectName: '-',
-    cost: '',
-    agency: '',
-    stage: 'null',
-    category: 'Capacity Enhancement',
-    physicalProgress: '',
-    financialProgress: '',
-    implementationType: 'PPP',
-    projectType: 'Capital',
-    projectBrief: 'Development of various PPP Projects',
-    initiatedDate: '2025-01-01',
-    completionDate: '2028-12-31',
-    revisedCompletionDate: '',
-    secondaryAgency: '',
-    scheme: 'Sagarmala',
-    initiative: 'Modernization',
-    output: 'Berth Built',
-    outcome: 'Increased cargo throughput',
-    capacity: '10',
-    fundingSource: 'Private',
-    primaryFundingAgency: 'Concessionaire',
-    secondaryFundingAgency: '',
-    state: 'Maharashtra',
-    district: 'Mumbai',
-    taluka: '',
-    village: '',
-    mpConstituency: 'MumbaiSouth',
-    isLandAcquiredRequired: 'No',
-    percentageLandAcquired: '100',
-    otherLandDetails: '',
-    targetExpenditure: [
-      { sn: 1, year: '2025-26', target: '' }
-    ]
+    cost: '58.25',
+    agency: 'Shipping Corporation of India',
+    stage: 'Under Implementation',
+    category: 'Digital Infrastructure',
+    physicalProgress: '68',
+    financialProgress: '54',
   },
   {
     id: 2,
-    projectId: 'PR0894',
+    projectId: 'PR1371',
     subProjectId: '-',
-    projectName: 'Rail connectivity to MMT',
+    projectName: 'Deepening & widening of common portion of main channel of mumbai harbour & anchorages by JNPA',
     subProjectName: '-',
-    cost: '',
-    agency: '',
-    stage: 'null',
-    category: 'Connectivity Enhancement',
-    physicalProgress: '',
-    financialProgress: '',
-    implementationType: 'EPC',
-    projectType: 'Capital',
-    projectBrief: 'Rail line connectivity to MMT',
-    initiatedDate: '2025-02-15',
-    completionDate: '2027-06-30',
-    revisedCompletionDate: '',
-    secondaryAgency: '',
-    scheme: 'GatiShakti',
-    initiative: 'Connectivity',
-    output: 'IT System',
-    outcome: 'Improved multimodal transport connectivity',
-    capacity: '',
-    fundingSource: 'Budgetary',
-    primaryFundingAgency: 'MoPSW',
-    secondaryFundingAgency: '',
-    state: 'Gujarat',
-    district: 'Mumbai',
-    taluka: '',
-    village: '',
-    mpConstituency: 'MumbaiSouth',
-    isLandAcquiredRequired: 'Yes',
-    percentageLandAcquired: '80',
-    otherLandDetails: '',
-    targetExpenditure: [
-      { sn: 1, year: '2025-26', target: '' }
-    ]
+    cost: '5.00',
+    agency: 'Jawaharlal Nehru Port Authority',
+    stage: 'Under Implementation',
+    category: 'Dredging Projects',
+    physicalProgress: '85',
+    financialProgress: '70',
   },
   {
     id: 3,
-    projectId: 'PR0643',
+    projectId: 'PR1370',
     subProjectId: '-',
-    projectName: 'Coastal Districts Skill Development Program - Phase II -Karnataka',
+    projectName: 'Coal Berth 4',
     subProjectName: '-',
-    cost: '',
-    agency: 'Ministry of Rural Development (DDU-GKY)',
+    cost: '0.00',
+    agency: 'Kamarajar Port Limited',
     stage: 'Project Initiated',
     category: 'Coastal Berth',
-    physicalProgress: '',
-    financialProgress: '',
-    isSagarmalaFunded: true,
-    implementationType: 'Lumpsum',
-    projectType: 'General',
-    projectBrief: 'Skill development training program in coastal Karnataka districts',
-    initiatedDate: '2025-03-01',
-    completionDate: '2026-03-01',
-    revisedCompletionDate: '',
-    secondaryAgency: 'Karnataka State Government',
-    scheme: 'Sagarmala',
-    initiative: 'Community',
-    output: 'IT System',
-    outcome: 'Employment opportunities for coastal youth',
-    capacity: '',
-    fundingSource: 'Budgetary',
-    primaryFundingAgency: 'MoPSW',
-    secondaryFundingAgency: 'MoRD',
-    state: 'TamilNadu',
-    district: 'Chennai',
-    taluka: '',
-    village: '',
-    mpConstituency: 'ChennaiSouth',
-    isLandAcquiredRequired: 'No',
-    percentageLandAcquired: '',
-    otherLandDetails: '',
-    targetExpenditure: [
-      { sn: 1, year: '2025-26', target: '' }
-    ]
+    physicalProgress: '12',
+    financialProgress: '0',
   },
   {
     id: 4,
-    projectId: 'PR0787',
+    projectId: 'PR1369',
     subProjectId: '-',
-    projectName: 'Setting up of New Container Terminal at BD II',
+    projectName: 'Coal Berth 3',
     subProjectName: '-',
-    cost: '',
-    agency: 'Chennai Port Authority',
+    cost: '0.00',
+    agency: 'Kamarajar Port Limited',
     stage: 'Project Initiated',
-    category: 'Port Modernization',
-    physicalProgress: '',
-    financialProgress: '',
-    implementationType: 'PPP',
-    projectType: 'Capital',
-    projectBrief: 'Setting up container terminal BD II',
-    initiatedDate: '2025-04-10',
-    completionDate: '2029-12-31',
-    revisedCompletionDate: '',
-    secondaryAgency: '',
-    scheme: 'MIV2030',
-    initiative: 'Modernization',
-    output: 'Berth Built',
-    outcome: 'Add 2 MTPA capacity',
-    capacity: '2.0',
-    fundingSource: 'Internal',
-    primaryFundingAgency: 'Chennai Port Authority',
-    secondaryFundingAgency: '',
-    state: 'TamilNadu',
-    district: 'Chennai',
-    taluka: '',
-    village: '',
-    mpConstituency: 'ChennaiSouth',
-    isLandAcquiredRequired: 'No',
-    percentageLandAcquired: '',
-    otherLandDetails: '',
-    targetExpenditure: [
-      { sn: 1, year: '2025-26', target: '' }
-    ]
+    category: 'Coastal Berth',
+    physicalProgress: '10',
+    financialProgress: '0',
   },
   {
     id: 5,
-    projectId: 'PR0786',
+    projectId: 'PR1368',
     subProjectId: '-',
-    projectName: 'Setting up of Multi Cargo Terminal at JD - West through PPP.',
+    projectName: 'Coal Berth 1 & 2',
     subProjectName: '-',
-    cost: '',
-    agency: 'Chennai Port Authority',
+    cost: '0.00',
+    agency: 'Kamarajar Port Limited',
     stage: 'Project Initiated',
-    category: 'Port Modernization',
-    physicalProgress: '',
-    financialProgress: '',
-    implementationType: 'PPP',
-    projectType: 'Capital',
-    projectBrief: 'Developing multi cargo terminal at JD west',
-    initiatedDate: '2025-05-15',
-    completionDate: '2028-10-31',
-    revisedCompletionDate: '',
-    secondaryAgency: '',
-    scheme: 'Sagarmala',
-    initiative: 'Modernization',
-    output: 'Berth Built',
-    outcome: 'Enhance bulk handling capacity',
-    capacity: '1.5',
-    fundingSource: 'Private',
-    primaryFundingAgency: 'PPP Partner',
-    secondaryFundingAgency: '',
-    state: 'TamilNadu',
-    district: 'Chennai',
-    taluka: '',
-    village: '',
-    mpConstituency: 'ChennaiSouth',
-    isLandAcquiredRequired: 'No',
-    percentageLandAcquired: '',
-    otherLandDetails: '',
-    targetExpenditure: [
-      { sn: 1, year: '2025-26', target: '' }
-    ]
+    category: 'Coastal Berth',
+    physicalProgress: '15',
+    financialProgress: '5',
   },
   {
     id: 6,
-    projectId: 'PR0752',
+    projectId: 'PR1367',
     subProjectId: '-',
-    projectName: 'Setting up of Multi Cargo Terminal at JD - East through PPP mode',
+    projectName: 'Replacement of FLP-WP LED light fitting with poles & allied works at PirPau',
     subProjectName: '-',
-    cost: '',
-    agency: 'Chennai Port Authority',
-    stage: 'Project Initiated',
-    category: 'Port Modernization',
-    physicalProgress: '',
-    financialProgress: '',
-    implementationType: 'PPP',
-    projectType: 'Capital',
-    projectBrief: 'Developing multi cargo terminal at JD east',
-    initiatedDate: '2025-06-20',
-    completionDate: '2028-12-31',
-    revisedCompletionDate: '',
-    secondaryAgency: '',
-    scheme: 'Sagarmala',
-    initiative: 'Modernization',
-    output: 'Berth Built',
-    outcome: 'Increased bulk cargo space',
-    capacity: '1.8',
-    fundingSource: 'Private',
-    primaryFundingAgency: 'PPP Partner',
-    secondaryFundingAgency: '',
-    state: 'TamilNadu',
-    district: 'Chennai',
-    taluka: '',
-    village: '',
-    mpConstituency: 'ChennaiSouth',
-    isLandAcquiredRequired: 'No',
-    percentageLandAcquired: '',
-    otherLandDetails: '',
-    targetExpenditure: [
-      { sn: 1, year: '2025-26', target: '' }
-    ]
+    cost: '7.75',
+    agency: 'Mumbai Port Authority',
+    stage: 'Under Tendering',
+    category: 'Green Initiatives',
+    physicalProgress: '0',
+    financialProgress: '0',
   },
   {
     id: 7,
-    projectId: 'PR0759',
+    projectId: 'PR1366',
     subProjectId: '-',
-    projectName: 'Multi Cargo Terminal-II',
+    projectName: 'DRY-DOCKING/REPAIRS of SCI PANNA',
     subProjectName: '-',
-    cost: '',
-    agency: 'Kamarajar Port Limited',
+    cost: '0.00',
+    agency: 'Shipping Corporation of India',
     stage: 'Project Initiated',
-    category: 'Port Modernization',
-    physicalProgress: '',
-    financialProgress: '',
-    implementationType: 'PPP',
-    projectType: 'Capital',
-    projectBrief: 'Establish multi cargo terminal II',
-    initiatedDate: '2025-07-01',
-    completionDate: '2029-03-31',
-    revisedCompletionDate: '',
-    secondaryAgency: '',
-    scheme: 'MIV2030',
-    initiative: 'Modernization',
-    output: 'Berth Built',
-    outcome: 'Additional cargo draft',
-    capacity: '3.0',
-    fundingSource: 'Internal',
-    primaryFundingAgency: 'KPL',
-    secondaryFundingAgency: '',
-    state: 'TamilNadu',
-    district: 'Chennai',
-    taluka: '',
-    village: '',
-    mpConstituency: 'ChennaiSouth',
-    isLandAcquiredRequired: 'No',
-    percentageLandAcquired: '',
-    otherLandDetails: '',
-    targetExpenditure: [
-      { sn: 1, year: '2025-26', target: '' }
-    ]
+    category: 'Shipyard Development',
+    physicalProgress: '5',
+    financialProgress: '0',
   },
   {
     id: 8,
-    projectId: 'PR0760',
+    projectId: 'PR1365',
     subProjectId: '-',
-    projectName: 'Second Container Terminal',
+    projectName: 'Operation and Maintenance of existing EQ-10 berth at Visakhapatnam Port Authority',
     subProjectName: '-',
-    cost: '',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
+    cost: '11.41',
+    agency: 'Visakhapatnam Port Authority',
+    stage: 'Under Tendering',
     category: 'Port Modernization',
-    physicalProgress: '',
-    financialProgress: '',
-    implementationType: 'PPP',
-    projectType: 'Capital',
-    projectBrief: 'Setup second container terminal',
-    initiatedDate: '2025-08-10',
-    completionDate: '2029-12-31',
-    revisedCompletionDate: '',
-    secondaryAgency: '',
-    scheme: 'Sagarmala',
-    initiative: 'Modernization',
-    output: 'Berth Built',
-    outcome: '2.5 MTPA capacity addition',
-    capacity: '2.5',
-    fundingSource: 'Private',
-    primaryFundingAgency: 'Concessionaire',
-    secondaryFundingAgency: '',
-    state: 'TamilNadu',
-    district: 'Chennai',
-    taluka: '',
-    village: '',
-    mpConstituency: 'ChennaiSouth',
-    isLandAcquiredRequired: 'No',
-    percentageLandAcquired: '',
-    otherLandDetails: '',
-    targetExpenditure: [
-      { sn: 1, year: '2025-26', target: '' }
-    ]
+    physicalProgress: '0',
+    financialProgress: '0',
   },
-  {
-    id: 9,
-    projectId: 'PR0762',
-    subProjectId: '-',
-    projectName: 'Bulk Terminal-1',
-    subProjectName: '-',
-    cost: '',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Port Modernization',
-    physicalProgress: '',
-    financialProgress: '',
-    implementationType: 'PPP',
-    projectType: 'Capital',
-    projectBrief: 'Setup bulk terminal 1',
-    initiatedDate: '2025-09-01',
-    completionDate: '2028-06-30',
-    revisedCompletionDate: '',
-    secondaryAgency: '',
-    scheme: 'MIV2030',
-    initiative: 'Modernization',
-    output: 'Berth Built',
-    outcome: 'Optimized bulk handling',
-    capacity: '2.0',
-    fundingSource: 'Private',
-    primaryFundingAgency: 'Concessionaire',
-    secondaryFundingAgency: '',
-    state: 'TamilNadu',
-    district: 'Chennai',
-    taluka: '',
-    village: '',
-    mpConstituency: 'ChennaiSouth',
-    isLandAcquiredRequired: 'No',
-    percentageLandAcquired: '',
-    otherLandDetails: '',
-    targetExpenditure: [
-      { sn: 1, year: '2025-26', target: '' }
-    ]
-  },
-  {
-    id: 10,
-    projectId: 'PR0763',
-    subProjectId: '-',
-    projectName: 'General Cargo Berth 3',
-    subProjectName: '-',
-    cost: '',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Port Modernization',
-    physicalProgress: '',
-    financialProgress: '',
-    implementationType: 'EPC',
-    projectType: 'Capital',
-    projectBrief: 'Establish general cargo berth 3',
-    initiatedDate: '2025-10-01',
-    completionDate: '2027-12-31',
-    revisedCompletionDate: '',
-    secondaryAgency: '',
-    scheme: 'Sagarmala',
-    initiative: 'Modernization',
-    output: 'Berth Built',
-    outcome: 'Increased roll-on/roll-off capability',
-    capacity: '1.0',
-    fundingSource: 'Budgetary',
-    primaryFundingAgency: 'MoPSW',
-    secondaryFundingAgency: '',
-    state: 'TamilNadu',
-    district: 'Chennai',
-    taluka: '',
-    village: '',
-    mpConstituency: 'ChennaiSouth',
-    isLandAcquiredRequired: 'No',
-    percentageLandAcquired: '',
-    otherLandDetails: '',
-    targetExpenditure: [
-      { sn: 1, year: '2025-26', target: '' }
-    ]
-  }
 ];
 
 const getBreadcrumbs = (tab) => {
   if (tab === 'landing') return ['Home'];
   if (tab === 'Ports Reports') return ['KPI - Major Ports - (Output Reports)'];
-
+  
   // Projects tab routes
   if (tab === 'dashboard') return ['Home', 'Projects', 'Project', 'Project Dashboard'];
   if (tab === 'projects') return ['Home', 'Projects', 'Project', 'Project List'];
@@ -444,7 +170,12 @@ const getBreadcrumbs = (tab) => {
   if (tab === 'lumpsum') return ['Home', 'Projects', 'Project', 'Lumpsum - IWAI'];
   if (tab === 'dropRequests') return ['Home', 'Projects', 'Project', 'View Drop Request'];
   if (tab === 'reports') return ['Home', 'Projects', 'Project', 'Reports'];
-
+  if (tab === 'Bills/PreConstitutions Act') return ['Home', 'Legal', 'Bills/PreConstitutions Act'];
+  if (tab === 'Media Outreach') return ['Home', 'Governance', 'Media Outreach'];
+  if (tab === 'Audit Paras') return ['Home', 'Governance', 'Audit Paras'];
+  if (tab === 'VIP Reference') return ['Home', 'Governance', 'VIP Reference'];
+  if (tab === 'User Management') return ['Home', 'Governance', 'User Management'];
+  
   // Dynamic lookup for other tabs
   const kpiItems = {
     'Major Ports Dashboard': ['KPI', 'Major Ports'],
@@ -520,7 +251,7 @@ const getBreadcrumbs = (tab) => {
 const ROUTE_MAP = {
   'landing': 'landing',
   'profile': 'profile',
-
+  
   // Projects nested routes
   'dashboard': 'projects/project/project-dashboard',
   'projects': 'projects/project/project-list',
@@ -528,12 +259,12 @@ const ROUTE_MAP = {
   'lumpsum': 'projects/project/lumpsum-iwai',
   'dropRequests': 'projects/project/view-drop-request',
   'reports': 'projects/project/reports',
-
+  
   // KPI nested routes
   'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
   'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
-
+  
   // Governance nested routes
   'E Office': 'governance/e-office',
   'Attendance': 'governance/attendance',
@@ -541,41 +272,45 @@ const ROUTE_MAP = {
   'Cabinet Notes - MoPSW': 'governance/cabinet-notes',
   'Cabinet Notes - Other Ministries': 'governance/cabinet-notes-other-ministry',
   'VIP Reference': 'governance/vip-reference',
-
+  'Parliamentary Issue': 'governance/parliamentary-issue',
+  'Media Outreach': 'governance/media-outreach',
+  'Audit Paras': 'governance/audit-paras',
+  
   // Legal nested routes
   'Courtcases': 'legal/courtcases',
   'Acts & Rules': 'legal/acts-rules',
-
+  'Bills/PreConstitutions Act': 'legal/bills-preconstitutions',
+  
   // Strategies nested routes
   'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
   'Blue Economy Policy': 'strategies/blue-economy-policy',
-
+  
   // Knowledge nested routes
   'Research Papers': 'knowledge/research-papers',
   'Policy Documents': 'knowledge/policy-documents',
   'Guidelines': 'knowledge/guidelines',
-
+  
   // Form Builder nested routes
   'Create Dynamic Form': 'formBuilder/create-dynamic-form',
   'View Submissions': 'formBuilder/view-submissions',
-
+  
   // Tracker nested routes
   'Project Milestones': 'tracker/project-milestones',
   'Delay Analysis': 'tracker/delay-analysis',
-
+  
   // Meetings nested routes
   'Meeting Schedule': 'meeting/meeting-schedule',
   'Minutes of Meeting': 'meeting/minutes-of-meeting',
   'Action Taken Report': 'meeting/action-taken-report',
-
+  
   // Contacts nested routes
   'Ministry Contacts': 'contact/ministry-contacts',
   'Helpdesk Support': 'contact/helpdesk-support',
-
+  
   // User Management
   'User Management': 'userManagement/user-management',
-
+  
   // HR nested routes
   'HR Dashboard': 'hr/hr-management/hr-dashboard',
   'Employee Database': 'hr/hr-management/employee-database',
@@ -587,26 +322,25 @@ const ROUTE_MAP = {
 };
 
 const getTabFromSlug = (slug) => {
-  const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === slug);
-  return entry ? entry[0] : slug;
+  const cleanSlug = slug.replace(/^\//, '').replace(/\/$/, '');
+  const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);
+  return entry ? entry[0] : cleanSlug;
 };
 
 export default function App() {
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
   const [activeTab, setActiveTab] = useState(() => {
-    const path = window.location.pathname.replace(/^\//, '');
-    return path ? getTabFromSlug(path) : 'landing';
+    const path = window.location.pathname;
+    return path && path !== '/' ? getTabFromSlug(path) : 'landing';
   });
-  const [isAddingProject, setIsAddingProject] = useState(false);
-  const [isAddSubProjectOpen, setIsAddSubProjectOpen] = useState(false);
   const [notification, setNotification] = useState(null);
-  const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('sm_current_user');
-    return saved ? JSON.parse(saved) : null;
-  });
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return !!localStorage.getItem('sm_current_user');
+    return !!localStorage.getItem('accessToken');
   });
+  const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
+  const [isTabLoading, setIsTabLoading] = useState(false);
+  const [showNetworkCheck, setShowNetworkCheck] = useState(false);
+
   const [permissions, setPermissions] = useState(() => {
     const saved = localStorage.getItem('sm_rbac_matrix');
     if (saved) {
@@ -616,6 +350,65 @@ export default function App() {
     }
     return null;
   });
+
+  const [currentUser, setCurrentUser] = useState(() => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      try {
+        const decoded = decodeToken(token);
+        if (decoded) {
+          const roleMapping = {
+            1: 'super_admin',
+            2: 'admin',
+            3: 'senior_officer',
+            4: 'nodal_officer',
+            5: 'wing_level',
+            6: 'under_secretary',
+            7: 'director',
+            8: 'joint_secretary',
+            9: 'secretary',
+            10: 'view_only_admin'
+          };
+          return {
+            name: decoded.email ? decoded.email.split('@')[0] : 'User',
+            role: roleMapping[decoded.roleId] || 'view_only_admin',
+            roleLabel: roleMapping[decoded.roleId] || 'User'
+          };
+        }
+      } catch (e) {}
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      try {
+        const decoded = decodeToken(token);
+        if (decoded) {
+          const roleMapping = {
+            1: 'super_admin',
+            2: 'admin',
+            3: 'senior_officer',
+            4: 'nodal_officer',
+            5: 'wing_level',
+            6: 'under_secretary',
+            7: 'director',
+            8: 'joint_secretary',
+            9: 'secretary',
+            10: 'view_only_admin'
+          };
+          setCurrentUser({
+            name: decoded.email ? decoded.email.split('@')[0] : 'User',
+            role: roleMapping[decoded.roleId] || 'view_only_admin',
+            roleLabel: roleMapping[decoded.roleId] || 'User'
+          });
+        }
+      } catch (e) {}
+    } else {
+      setCurrentUser(null);
+    }
+  }, [isLoggedIn]);
 
   const userPermissions = useMemo(() => {
     if (!currentUser) return {};
@@ -660,14 +453,44 @@ export default function App() {
     return matrix[currentUser.role] || {};
   }, [currentUser, permissions]);
 
-  const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  useEffect(() => {
+    if (isLoggedIn) {
+      let isMounted = true;
+
+      // Start loading process deferred to avoid synchronous cascade render warnings
+      Promise.resolve().then(() => {
+        if (isMounted) {
+          setIsTabLoading(true);
+        }
+      });
+      
+      const simulateDataFetch = async () => {
+        try {
+          // Instantly resolve to remove simulated delay
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        } catch (error) {
+          console.error("Telemetry fetch error:", error);
+        } finally {
+          // End loading process
+          if (isMounted) {
+            setIsTabLoading(false);
+          }
+        }
+      };
+
+      simulateDataFetch();
+
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [activeTab, isLoggedIn]);
 
   // Sync pathname changes from browser back/forward history buttons to activeTab state
   useEffect(() => {
     const handlePopState = () => {
-      const path = window.location.pathname.replace(/^\//, '');
-      if (path) {
+      const path = window.location.pathname;
+      if (path && path !== '/') {
         setActiveTab(getTabFromSlug(path));
       } else {
         setActiveTab('landing');
@@ -688,18 +511,6 @@ export default function App() {
       }
     }
   }, [activeTab, isLoggedIn]);
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-  };
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
 
   // Notification Trigger
   const triggerNotification = (message) => {
@@ -725,14 +536,24 @@ export default function App() {
     triggerNotification(`Sub-project ${newSubProject.subProjectId} successfully created.`);
   };
 
+  const handleLoginSuccess = () => {
+    setIsLoggedIn(true);
+    setShowNetworkCheck(true);
+  };
+
   if (!isLoggedIn) {
+    return <LoginView onLogin={handleLoginSuccess} />;
+  }
+
+  if (showNetworkCheck) {
     return (
-      <LoginView
-        onLogin={(userObj) => {
-          localStorage.setItem('sm_current_user', JSON.stringify(userObj));
-          setCurrentUser(userObj);
-          setIsLoggedIn(true);
-          setActiveTab('landing');
+      <NetworkCheckView 
+        onContinue={() => setShowNetworkCheck(false)}
+        onCancel={() => {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          setIsLoggedIn(false);
+          setShowNetworkCheck(false);
         }}
       />
     );
@@ -740,7 +561,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
-
+      
       {/* Toast Notification Alert Banner */}
       {notification && (
         <div className="fixed top-6 right-6 z-55 flex items-center space-x-2.5 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in">
@@ -755,25 +576,23 @@ export default function App() {
       )}
 
       {/* Government Portal Header */}
-      <Header
+      <Header 
         onLogout={() => {
-          localStorage.removeItem('sm_current_user');
-          setCurrentUser(null);
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
           setIsLoggedIn(false);
-        }}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={toggleDarkMode}
+        }} 
         onProfileClick={() => setActiveTab('profile')}
         onAdminClick={() => setActiveTab('User Management')}
         currentUser={currentUser}
       />
 
       {/* Tab Navigation Menu */}
-      <Tabs
+      <Tabs 
         key={currentUser?.role + '_' + JSON.stringify(permissions)}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        projectCount={projects.length}
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        projectCount={projects.length} 
         userRole={currentUser?.role}
       />
 
@@ -793,179 +612,118 @@ export default function App() {
             ))}
           </div>
         )}
-
-        {(() => {
-          const tabToModule = {
-            // Project
-            dashboard: 'projects',
-            projects: 'projects',
-            less5cr: 'projects',
-            lumpsum: 'projects',
-            dropRequests: 'projects',
-            reports: 'projects',
-            csrDashboard: 'csr_projects',
-            csrFund: 'csr_projects',
-            csrProjectList: 'csr_projects',
-            csrReports: 'csr_projects',
-            estimateValues: 'capex',
-            capexReports: 'capex',
-            expenditureInput: 'expenditure',
-            expenditureReports: 'expenditure',
-
-            // KPI
-            'Major Ports Dashboard': 'major_ports',
-            'Major Ports Input Form': 'major_ports',
-            'Major Ports Reports': 'major_ports',
-            'MMD Master': 'dgs',
-            'DSG Input Form': 'dgs',
-            'DSG Reports': 'dgs',
-            'IWAI Master': 'iwai',
-            'National Waterways': 'iwai',
-            'Terminal/Jetties': 'iwai',
-            'Digital Portals': 'iwai',
-            'DGLL Input Form': 'dgll',
-            'DGLL Reports': 'dgll',
-            'CSL Input Form': 'csl',
-            'CSL Reports': 'csl',
-            'IMU Input Form': 'imu',
-            'IMU Reports': 'imu',
-            'SCI Input Form': 'sci',
-            'SCI Reports': 'sci',
-            'CMEC Input Form': 'cmec',
-            'CMEC Reports': 'cmec',
-
-            // HR & Institutional
-            'HR Dashboard': 'hr_management',
-            'Employee Database': 'hr_management',
-            'List of Abolished Ports': 'hr_management',
-            'List of Abolished Posts': 'hr_management',
-            'Contractual Employment': 'hr_management',
-            'Training Details': 'hr_management',
-            'HR Reports': 'hr_management',
-            'YP Input Form': 'young_professionals',
-            'YP Reports': 'young_professionals',
-            'Consultant Input Form': 'consultants_appointment',
-            'Consultant Reports': 'consultants_appointment',
-
-            // Governance
-            'Attendance': 'attendance',
-            'GEM Procurements': 'gem_procurements',
-            'CPGRAMS': 'cpgrams',
-            'Cabinet Notes - MoPSW': 'cabinet_notes_mopsw',
-            'Cabinet Notes - Other Ministries': 'cabinet_notes_other',
-            'VIP Reference': 'vip_reference',
-            'E Office': 'e_office',
-            'Media Outreach': 'media_outreach',
-            'Parliamentary Issue': 'parliamentary_issues',
-            'Parliamentary Issues': 'parliamentary_issues',
-            'Audit Paras': 'audit_paras',
-            'Inter State & Inter Ministerial': 'inter_state_ministerial',
-            'Foreign Visit': 'foreign_visit',
-            'Cruise Shipping': 'cruise_shipping',
-            'Flagged Ships / FOB Basis': 'flagged_ships',
-            'MOM Of PSW Meetings': 'mom_meetings',
-            'Review Items': 'review_items',
-
-            // Legal
-            'Court Cases': 'court_cases',
-            'Acts & Rules': 'acts_rules',
-            'Bills/PreConstitutions Act': 'bills_preconstitutions',
-
-            // Strategies
-            'MIV 2030': 'miv_2030',
-            'Amrit Kaal Vision 2047': 'amrit_kaal_vision_2047',
-            'Vision 2047': 'amrit_kaal_vision_2047',
-            'Drishti portal (OVOD)': 'drishti_portal',
-            'GMIS & IMW - MoU Tracking': 'gmis_imw_mou',
-
-            // Others
-            'knowledge': 'knowledge_repository',
-            'formBuilder': 'form_builder',
-            'tracker': 'mopsw_tracker',
-            'meeting': 'senior_officer_meetings',
-            'contact': 'contact_us'
-          };
-          const moduleKey = tabToModule[activeTab];
-          if (moduleKey && userPermissions[moduleKey]?.visibility === false) {
-            return (
-              <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
-                <div className="h-16 w-16 bg-red-50 text-red-650 rounded-2xl flex items-center justify-center mb-4 border border-red-100 shadow-inner animate-pulse">
-                  <Shield className="h-7 w-7 text-red-600" />
+        
+        {isTabLoading ? (
+          <div className="py-12 animate-fade-in">
+            <Loader message={`Fetching telemetry and compiling active panels for ${activeTab}...`} fullPage={false} />
+          </div>
+        ) : (
+          (() => {
+            const tabToModule = {
+              dashboard: 'projects',
+              projects: 'projects',
+              less5cr: 'projects',
+              lumpsum: 'projects',
+              dropRequests: 'projects',
+              reports: 'projects',
+              'Major Ports Dashboard': 'major_ports',
+              'Major Ports Input Form': 'major_ports',
+              'Major Ports Reports': 'major_ports',
+              'E Office': 'e_office',
+              'Attendance': 'attendance',
+              'CPGRAMS': 'cpgrams',
+              'Cabinet Notes - MoPSW': 'cabinet_notes_mopsw',
+              'Cabinet Notes - Other Ministries': 'cabinet_notes_other',
+              'Parliamentary Issue': 'parliamentary_issues',
+              'HR Dashboard': 'hr_management',
+              'Employee Database': 'hr_management',
+              'List of Abolished Ports': 'hr_management',
+              'List of Abolished Posts': 'hr_management',
+              'Contractual Employment': 'hr_management',
+              'Training Details': 'hr_management',
+              'HR Reports': 'hr_management',
+              'YP Input Form': 'young_professionals',
+              'YP Reports': 'young_professionals',
+              'Consultant Input Form': 'consultants_appointment',
+              'Consultant Reports': 'consultants_appointment',
+              'Acts & Rules': 'acts_rules',
+              'Bills/PreConstitutions Act': 'bills_preconstitutions',
+              'Media Outreach': 'media_outreach',
+              'Audit Paras': 'audit_paras',
+              'VIP Reference': 'vip_reference',
+              'User Management': 'super_admin'
+            };
+            const moduleKey = tabToModule[activeTab];
+            if (moduleKey && userPermissions[moduleKey]?.visibility === false) {
+              return (
+                <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
+                  <div className="h-16 w-16 bg-red-50 text-red-650 rounded-2xl flex items-center justify-center mb-4 border border-red-100 shadow-inner animate-pulse">
+                    <Shield className="h-7 w-7 text-red-600" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800 font-display">Access Restricted</h3>
+                  <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
+                    Your role (<strong className="text-blue-700">{currentUser?.name} - {currentUser?.roleLabel}</strong>) does not have permission to view the <strong className="text-red-700">{activeTab}</strong> module. Please contact the administrator if you believe this is an error.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('landing')}
+                    className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
+                  >
+                    Go to Home
+                  </button>
                 </div>
-                <h3 className="text-sm font-bold text-slate-800 font-display">Access Restricted</h3>
-                <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
-                  Your role (<strong className="text-blue-700">{currentUser?.name} - {currentUser?.roleLabel}</strong>) does not have permission to view the <strong className="text-red-700">{activeTab}</strong> module. Please contact the administrator if you believe this is an error.
-                </p>
-                <button
-                  onClick={() => setActiveTab('landing')}
-                  className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
-                >
-                  Go to Home
-                </button>
-              </div>
-            );
-          }
-          return null;
-        })() || (
+              );
+            }
+            return null;
+          })() || (
             <>
               {activeTab === 'landing' && (
-                <LandingView
+                <LandingView 
                   onNavigate={(tab, subKpi) => {
                     if (subKpi) {
                       setEOfficeKpi(subKpi);
                     }
                     setActiveTab(tab);
-                  }}
+                  }} 
                 />
               )}
 
               {activeTab === 'dashboard' && (
-                <DashboardView
+                <DashboardView 
+                  projects={projects} 
+                  activeTab={activeTab} 
+                  setActiveTab={setActiveTab} 
+                />
+              )}
+              
+              {activeTab === 'projects' && (
+                <Projects 
                   projects={projects}
+                  onAddProject={handleAddProject}
+                  onAddSubProject={handleAddSubProject}
+                  triggerNotification={triggerNotification}
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
                 />
               )}
 
-              {['projects', 'reports'].includes(activeTab) && (
-                isAddingProject ? (
-                  <AddProjectForm
-                    onAdd={handleAddProject}
-                    onClose={() => setIsAddingProject(false)}
-                  />
-                ) : (
-                  <ProjectTable
-                    projects={projects}
-                    setProjects={setProjects}
-                    onAddProjectClick={() => setIsAddingProject(true)}
-                    onAddSubProjectClick={() => setIsAddSubProjectOpen(true)}
-                    onExportTrigger={(type) => triggerNotification(`${type} triggered successfully.`)}
-                    activeTab={activeTab}
-                    setActiveTab={setActiveTab}
-                    userPermissions={userPermissions.projects}
-                  />
-                )
-              )}
-
               {activeTab === 'less5cr' && (
-                <ProjectsLess5Cr
-                  activeTab={activeTab}
-                  setActiveTab={setActiveTab}
+                <ProjectsLess5Cr 
+                  activeTab={activeTab} 
+                  setActiveTab={setActiveTab} 
                 />
               )}
 
               {activeTab === 'lumpsum' && (
-                <LumpsumIWAI
-                  activeTab={activeTab}
-                  setActiveTab={setActiveTab}
-                  userPermissions={userPermissions.projects}
+                <LumpsumIWAI 
+                  activeTab={activeTab} 
+                  setActiveTab={setActiveTab} 
                 />
               )}
 
               {activeTab === 'dropRequests' && (
-                <ViewDropRequest
-                  activeTab={activeTab}
-                  setActiveTab={setActiveTab}
+                <ViewDropRequest 
+                  activeTab={activeTab} 
+                  setActiveTab={setActiveTab} 
                 />
               )}
 
@@ -974,7 +732,7 @@ export default function App() {
               )}
 
               {activeTab === 'Major Ports Input Form' && (
-                <PortsInputFormView userPermissions={userPermissions.major_ports} />
+                <PortsInputFormView />
               )}
 
               {activeTab === 'Major Ports Reports' && (
@@ -1010,11 +768,11 @@ export default function App() {
               )}
 
               {['YP Input Form', 'YP Reports'].includes(activeTab) && (
-                <YoungProfessionalsView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} userPermissions={userPermissions.young_professionals} />
+                <YoungProfessionalsView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
               )}
 
               {['Consultant Input Form', 'Consultant Reports'].includes(activeTab) && (
-                <ConsultantAppointmentView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} userPermissions={userPermissions.consultants_appointment} />
+                <ConsultantAppointmentView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
               )}
 
               {activeTab === 'profile' && (
@@ -1030,11 +788,11 @@ export default function App() {
               )}
 
               {activeTab === 'Bills/PreConstitutions Act' && (
-                <BillsPreConstitutionsView triggerNotification={triggerNotification} userPermissions={userPermissions.bills_preconstitutions} />
+                <BillsPreConstitutionsView triggerNotification={triggerNotification} />
               )}
 
               {activeTab === 'Media Outreach' && (
-                <MediaOutreachView triggerNotification={triggerNotification} userPermissions={userPermissions.media_outreach} />
+                <MediaOutreachView triggerNotification={triggerNotification} />
               )}
 
               {activeTab === 'Audit Paras' && (
@@ -1045,17 +803,8 @@ export default function App() {
                 <VIPReference />
               )}
 
-              {isAddSubProjectOpen && (
-                <AddSubProjectModal
-                  isOpen={isAddSubProjectOpen}
-                  onClose={() => setIsAddSubProjectOpen(false)}
-                  onAdd={handleAddSubProject}
-                  projects={projects}
-                />
-              )}
-
               {/* Placeholder / Empty State for other inactive government menu views */}
-              {!['dashboard', 'projects', 'less5cr', 'lumpsum', 'dropRequests', 'reports', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'YP Input Form', 'YP Reports', 'Consultant Input Form', 'Consultant Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Acts & Rules', 'Bills/PreConstitutions Act', 'Media Outreach', 'Audit Paras', 'VIP Reference', 'User Management'].includes(activeTab) && (
+              {!['dashboard', 'projects', 'less5cr', 'lumpsum', 'dropRequests', 'reports', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'YP Input Form', 'YP Reports', 'Consultant Input Form', 'Consultant Reports', 'User Management', 'Acts & Rules', 'Bills/PreConstitutions Act', 'Media Outreach', 'Audit Paras', 'VIP Reference'].includes(activeTab) && (
                 <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
                   <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                     <Sparkles className="h-7 w-7 text-blue-600" />
@@ -1064,7 +813,7 @@ export default function App() {
                   <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
                     This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
                   </p>
-                  <button
+                  <button 
                     onClick={() => setActiveTab('dashboard')}
                     className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
                   >
@@ -1073,7 +822,8 @@ export default function App() {
                 </div>
               )}
             </>
-          )}
+          )
+        )}
       </main>
 
       {/* Government Footer */}

@@ -1,26 +1,27 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
-import {
-  Calendar,
-  CheckCircle2,
-  ChevronDown,
+import StatCard from '../../components/StatCard';
+import { 
+  Calendar, 
+  CheckCircle2, 
+  ChevronDown, 
   ChevronLeft,
   ChevronRight,
-  BarChart2,
-  DollarSign,
-  FileSpreadsheet,
-  FileText,
-  Layers,
-  Sliders,
-  Eye,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
-  LayoutDashboard,
-  ClipboardList,
-  TrendingDown,
-  TrendingUp,
-  FolderSync,
+  BarChart2, 
+  DollarSign, 
+  FileSpreadsheet, 
+  FileText, 
+  Layers, 
+  Sliders, 
+  Eye, 
+  ZoomIn, 
+  ZoomOut, 
+  RotateCcw, 
+  LayoutDashboard, 
+  ClipboardList, 
+  TrendingDown, 
+  TrendingUp, 
+  FolderSync, 
   FilePieChart,
   Search,
   Copy
@@ -86,7 +87,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
       }
     };
   }, []);
-
+  
   // Custom organizations data for the bar chart
   const orgData = [
     { name: 'JNPA', count: 42, color: 'bg-cyan-500' },
@@ -322,14 +323,14 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
         </div>
       </div>
 
-
+     
 
 
       {activeSubTab === 'all' ? (
         <>
           {/* Filter Options Grid */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-            <div
+            <div 
               onClick={() => setIsFiltersExpanded(prev => !prev)}
               className="flex items-center justify-between border-b border-slate-100 pb-3 cursor-pointer select-none"
             >
@@ -342,10 +343,10 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                 <ChevronDown className={`h-4 w-4 text-blue-650 transition-transform duration-200 ${isFiltersExpanded ? 'rotate-180' : ''}`} />
               </div>
             </div>
-
+            
             {isFiltersExpanded && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-2 animate-fade-in">
-
+                
                 {/* Dropdown 1 */}
                 <div className={`p-3.5 rounded-xl border transition-all ${openFilters.orgCategory ? 'bg-blue-50/60 border-blue-300 shadow-sm' : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/70 hover:border-slate-300/80'}`}>
                   <button
@@ -515,186 +516,81 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
 
           {/* KPI Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            
+            <StatCard
+              title="Total Projects"
+              value="673"
+              icon={BarChart2}
+              color="blue"
+              stats={[
+                { label: 'TOTAL COST', value: '₹ 17,126,959.31 Cr' },
+                { label: 'CAPACITY (MTPA)', value: '1,121.08' }
+              ]}
+              subItems={[
+                { label: 'EPC', value: '603', subText: '₹17M Cr' },
+                { label: 'PPP', value: '70', subText: '₹68.9K Cr' }
+              ]}
+            />
 
-            {/* Card 1: Total Projects */}
-            <div className="bg-gradient-to-b from-[#1b4380] to-[#0f2e5a] text-white rounded-2xl p-5 flex flex-col justify-between shadow-lg relative overflow-hidden transition hover:-translate-y-1 duration-300">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200 block">Total Projects</span>
-                  <span className="text-3xl font-extrabold font-display tracking-tight block">673</span>
-                </div>
-                <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-sm">
-                  <BarChart2 className="h-5 w-5 text-white" />
-                </div>
-              </div>
+            <StatCard
+              title="Planning & Sanctioning"
+              value="129"
+              icon={Layers}
+              color="cyan"
+              stats={[
+                { label: 'TOTAL COST', value: '₹ 29,985.39 Cr' },
+                { label: 'CAPACITY (MTPA)', value: '213.10' }
+              ]}
+              subItems={[
+                { label: 'EPC', value: '119', subText: '₹10.9K Cr' },
+                { label: 'PPP', value: '10', subText: '₹19K Cr' }
+              ]}
+            />
 
-              <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-[10px]">
-                <div className="flex justify-between border-b border-white/5 pb-1.5">
-                  <span className="text-blue-200 font-semibold">TOTAL COST</span>
-                  <span className="font-bold text-white text-xs">₹ 17,126,959.31 Cr</span>
-                </div>
-                <div className="flex justify-between pb-2">
-                  <span className="text-blue-200 font-semibold">CAPACITY (MTPA)</span>
-                  <span className="font-bold text-white text-xs">1,121.08</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-center pt-2">
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors">
-                    <div className="font-bold text-[12px]">603</div>
-                    <div className="text-[9px] text-blue-200 font-medium mt-0.5">EPC</div>
-                    <div className="text-[8px] font-bold text-slate-200 mt-0.5">₹17M Cr</div>
-                  </div>
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors">
-                    <div className="font-bold text-[12px]">70</div>
-                    <div className="text-[9px] text-blue-200 font-medium mt-0.5">PPP</div>
-                    <div className="text-[8px] font-bold text-slate-200 mt-0.5">₹68.9K Cr</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <StatCard
+              title="Under Tendering"
+              value="78"
+              icon={BarChart2}
+              color="amber"
+              stats={[
+                { label: 'TOTAL COST', value: '₹ 1,483.29 Cr' },
+                { label: 'CAPACITY (MTPA)', value: '661.03' }
+              ]}
+              subItems={[
+                { label: 'EPC', value: '53', subText: '₹631 Cr' },
+                { label: 'PPP', value: '25', subText: '₹852 Cr' }
+              ]}
+            />
 
-            {/* Card 2: Planning & Sanctioning */}
-            <div className="bg-gradient-to-b from-[#009cb3] to-[#007b8f] text-white rounded-2xl p-5 flex flex-col justify-between shadow-lg relative overflow-hidden transition hover:-translate-y-1 duration-300">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-100 block">Planning & Sanctioning</span>
-                  <span className="text-3xl font-extrabold font-display tracking-tight block">129</span>
-                </div>
-                <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-sm">
-                  <Layers className="h-5 w-5 text-white" />
-                </div>
-              </div>
+            <StatCard
+              title="Under Implementation"
+              value="215"
+              icon={BarChart2}
+              color="amber"
+              stats={[
+                { label: 'TOTAL COST', value: '₹ 23,053.39 Cr' },
+                { label: 'CAPACITY (MTPA)', value: '167.56' }
+              ]}
+              subItems={[
+                { label: 'EPC', value: '192', subText: '₹7,136 Cr' },
+                { label: 'PPP', value: '23', subText: '₹15.9K Cr' }
+              ]}
+            />
 
-              <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-[10px]">
-                <div className="flex justify-between border-b border-white/5 pb-1.5">
-                  <span className="text-cyan-100 font-semibold">TOTAL COST</span>
-                  <span className="font-bold text-white text-xs">₹ 29,985.39 Cr</span>
-                </div>
-                <div className="flex justify-between pb-2">
-                  <span className="text-cyan-100 font-semibold">CAPACITY (MTPA)</span>
-                  <span className="font-bold text-white text-xs">213.10</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-center pt-2">
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors">
-                    <div className="font-bold text-[12px]">119</div>
-                    <div className="text-[9px] text-cyan-100 font-medium mt-0.5">EPC</div>
-                    <div className="text-[8px] font-bold text-slate-200 mt-0.5">₹10.9K Cr</div>
-                  </div>
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors">
-                    <div className="font-bold text-[12px]">10</div>
-                    <div className="text-[9px] text-cyan-100 font-medium mt-0.5">PPP</div>
-                    <div className="text-[8px] font-bold text-slate-200 mt-0.5">₹19K Cr</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: Under Tendering */}
-            <div className="bg-gradient-to-b from-[#f09633] to-[#cc771d] text-white rounded-2xl p-5 flex flex-col justify-between shadow-lg relative overflow-hidden transition hover:-translate-y-1 duration-300">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-orange-100 block">Under Tendering</span>
-                  <span className="text-3xl font-extrabold font-display tracking-tight block">78</span>
-                </div>
-                <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-sm">
-                  <BarChart2 className="h-5 w-5 text-white" />
-                </div>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-[10px]">
-                <div className="flex justify-between border-b border-white/5 pb-1.5">
-                  <span className="text-orange-100 font-semibold">TOTAL COST</span>
-                  <span className="font-bold text-white text-xs">₹ 1,483.29 Cr</span>
-                </div>
-                <div className="flex justify-between pb-2">
-                  <span className="text-orange-100 font-semibold">CAPACITY (MTPA)</span>
-                  <span className="font-bold text-white text-xs">661.03</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-center pt-2">
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors">
-                    <div className="font-bold text-[12px]">53</div>
-                    <div className="text-[9px] text-orange-100 font-medium mt-0.5">EPC</div>
-                    <div className="text-[8px] font-bold text-slate-200 mt-0.5">₹631 Cr</div>
-                  </div>
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors">
-                    <div className="font-bold text-[12px]">25</div>
-                    <div className="text-[9px] text-orange-100 font-medium mt-0.5">PPP</div>
-                    <div className="text-[8px] font-bold text-slate-200 mt-0.5">₹852 Cr</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4: Under Implementation */}
-            <div className="bg-gradient-to-b from-[#d2ab28] to-[#ab8714] text-white rounded-2xl p-5 flex flex-col justify-between shadow-lg relative overflow-hidden transition hover:-translate-y-1 duration-300">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-100 block">Under Implementation</span>
-                  <span className="text-3xl font-extrabold font-display tracking-tight block">215</span>
-                </div>
-                <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-sm">
-                  <BarChart2 className="h-5 w-5 text-white" />
-                </div>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-[10px]">
-                <div className="flex justify-between border-b border-white/5 pb-1.5">
-                  <span className="text-amber-100 font-semibold">TOTAL COST</span>
-                  <span className="font-bold text-white text-xs">₹ 23,053.39 Cr</span>
-                </div>
-                <div className="flex justify-between pb-2">
-                  <span className="text-amber-100 font-semibold">CAPACITY (MTPA)</span>
-                  <span className="font-bold text-white text-xs">167.56</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-center pt-2">
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors">
-                    <div className="font-bold text-[12px]">192</div>
-                    <div className="text-[9px] text-amber-100 font-medium mt-0.5">EPC</div>
-                    <div className="text-[8px] font-bold text-slate-200 mt-0.5">₹7,136 Cr</div>
-                  </div>
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors">
-                    <div className="font-bold text-[12px]">23</div>
-                    <div className="text-[9px] text-amber-100 font-medium mt-0.5">PPP</div>
-                    <div className="text-[8px] font-bold text-slate-200 mt-0.5">₹15.9K Cr</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 5: Completed Projects */}
-            <div className="bg-gradient-to-b from-[#10b981] to-[#059669] text-white rounded-2xl p-5 flex flex-col justify-between shadow-lg relative overflow-hidden transition hover:-translate-y-1 duration-300">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-100 block">Completed Projects</span>
-                  <span className="text-3xl font-extrabold font-display tracking-tight block">251</span>
-                </div>
-                <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-sm">
-                  <CheckCircle2 className="h-5 w-5 text-white" />
-                </div>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-white/10 space-y-2.5 text-[10px]">
-                <div className="flex justify-between border-b border-white/5 pb-1.5">
-                  <span className="text-emerald-100 font-semibold">TOTAL COST</span>
-                  <span className="font-bold text-white text-xs">₹ 15,589.66 Cr</span>
-                </div>
-                <div className="flex justify-between pb-2">
-                  <span className="text-emerald-100 font-semibold">CAPACITY (MTPA)</span>
-                  <span className="font-bold text-white text-xs">79.39</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-center pt-2">
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors">
-                    <div className="font-bold text-[12px]">239</div>
-                    <div className="text-[9px] text-emerald-100 font-medium mt-0.5">EPC</div>
-                    <div className="text-[8px] font-bold text-slate-200 mt-0.5">₹9,080 Cr</div>
-                  </div>
-                  <div className="bg-white/5 border border-white/10 rounded-lg p-2 hover:bg-white/10 transition-colors">
-                    <div className="font-bold text-[12px]">12</div>
-                    <div className="text-[9px] text-emerald-100 font-medium mt-0.5">PPP</div>
-                    <div className="text-[8px] font-bold text-slate-200 mt-0.5">₹6,509 Cr</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <StatCard
+              title="Completed Projects"
+              value="251"
+              icon={CheckCircle2}
+              color="emerald"
+              stats={[
+                { label: 'TOTAL COST', value: '₹ 15,589.66 Cr' },
+                { label: 'CAPACITY (MTPA)', value: '79.39' }
+              ]}
+              subItems={[
+                { label: 'EPC', value: '239', subText: '₹9,080 Cr' },
+                { label: 'PPP', value: '12', subText: '₹6,509 Cr' }
+              ]}
+            />
 
           </div>
 
@@ -708,12 +604,12 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Organisations Wise Project Count</h3>
                   </div>
-
+                  
                   {/* Zoom Controls */}
                   <div className="flex items-center space-x-2 text-xs text-slate-500 font-semibold bg-slate-50 border border-slate-200/60 rounded-xl p-1.5 shadow-sm">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1">Scroll to Zoom</span>
                     <div className="h-4 w-[1px] bg-slate-200"></div>
-                    <button
+                    <button 
                       onClick={() => setZoomScale(prev => Math.max(0.5, prev - 0.1))}
                       className="p-1 hover:bg-slate-200/70 hover:text-slate-850 rounded transition-colors cursor-pointer"
                       title="Zoom Out"
@@ -723,14 +619,14 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                     <span className="text-[10px] font-bold min-w-10 text-center text-slate-700 bg-white border border-slate-200 rounded px-1.5 py-0.5 shadow-xs select-none">
                       {Math.round(zoomScale * 100)}%
                     </span>
-                    <button
+                    <button 
                       onClick={() => setZoomScale(prev => Math.min(3.0, prev + 0.1))}
                       className="p-1 hover:bg-slate-200/70 hover:text-slate-850 rounded transition-colors cursor-pointer"
                       title="Zoom In"
                     >
                       <ZoomIn className="h-3.5 w-3.5" />
                     </button>
-                    <button
+                    <button 
                       onClick={() => setZoomScale(1.0)}
                       className="p-1 hover:bg-slate-200/70 hover:text-slate-850 rounded transition-colors text-slate-400 hover:text-slate-600 cursor-pointer"
                       title="Reset Zoom"
@@ -739,19 +635,19 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                     </button>
                   </div>
                 </div>
-
+                
                 {/* Custom Interactive SVG/CSS Bar Chart wrapper for mobile scrollability */}
-                <div
+                <div 
                   ref={chartContainerRef}
                   className="overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200 cursor-zoom-in"
                 >
-                  <div
+                  <div 
                     className="relative h-72 w-full flex items-end justify-between px-4 pb-10 border-b border-slate-150 transition-all duration-150"
-                    style={{
+                    style={{ 
                       minWidth: `${768 * zoomScale}px`,
                     }}
                   >
-
+                    
                     {/* Y-Axis Gridlines */}
                     <div className="absolute inset-x-0 top-0 h-full pointer-events-none flex flex-col justify-between text-[9px] text-slate-400">
                       <div className="w-full border-t border-slate-100 flex justify-between pt-1">
@@ -779,13 +675,13 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                             <div className="absolute -top-9 bg-slate-900 text-white text-[9px] px-2.5 py-1 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap font-bold">
                               {org.name}: {org.count}
                             </div>
-
+                            
                             {/* Bar */}
-                            <div
+                            <div 
                               className={`w-full rounded-t-md ${org.color} shadow-md hover:brightness-90 hover:shadow-lg transition-all duration-500`}
                               style={{ height: `${heightPercent}%` }}
                             ></div>
-
+                            
                             {/* Label (Slanted/Rotated) */}
                             <span className="absolute top-full mt-3 text-[9px] font-bold text-slate-500 origin-center rotate-45 whitespace-nowrap">
                               {org.name}
@@ -807,39 +703,39 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <span className="h-1.5 w-1.5 rounded-full bg-blue-650"></span>
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Delay Status - Under Implementation Projects</h3>
                 </div>
-
+                
                 <div className="flex flex-col md:flex-row items-center justify-around py-6 gap-6">
-
+                  
                   {/* SVG Pie Chart */}
                   <div className="relative flex items-center justify-center">
                     <svg className="w-64 h-64 transform -rotate-90">
                       {/* Outer circle backdrop */}
                       <circle cx="128" cy="128" r="90" stroke="#f1f5f9" strokeWidth="32" fill="transparent" />
-
+                      
                       {/* Slice 1: On Time (138 projects -> 64.2% -> strokeDasharray="565.5" strokeDashoffset="202.5") */}
-                      <circle
-                        cx="128"
-                        cy="128"
-                        r="90"
-                        stroke="#0ea5e9"
-                        strokeWidth="32"
-                        fill="transparent"
-                        strokeDasharray="565.5"
+                      <circle 
+                        cx="128" 
+                        cy="128" 
+                        r="90" 
+                        stroke="#0ea5e9" 
+                        strokeWidth="32" 
+                        fill="transparent" 
+                        strokeDasharray="565.5" 
                         strokeDashoffset="202.5"
-                        strokeLinecap="butt"
+                        strokeLinecap="butt" 
                       />
 
                       {/* Slice 2: Delayed (77 projects -> 35.8% -> strokeDasharray="202.5 565.5" strokeDashoffset="-363.0") */}
-                      <circle
-                        cx="128"
-                        cy="128"
-                        r="90"
-                        stroke="#6366f1"
-                        strokeWidth="32"
-                        fill="transparent"
-                        strokeDasharray="202.5 565.5"
+                      <circle 
+                        cx="128" 
+                        cy="128" 
+                        r="90" 
+                        stroke="#6366f1" 
+                        strokeWidth="32" 
+                        fill="transparent" 
+                        strokeDasharray="202.5 565.5" 
                         strokeDashoffset="-363.0"
-                        strokeLinecap="butt"
+                        strokeLinecap="butt" 
                       />
                     </svg>
 
@@ -894,8 +790,8 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
               <div className="flex items-center gap-4">
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
-                  <select
-                    value={physicalEntriesLimit}
+                  <select 
+                    value={physicalEntriesLimit} 
                     onChange={(e) => { setPhysicalEntriesLimit(parseInt(e.target.value)); }}
                     className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
                   >
@@ -907,8 +803,8 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                 </div>
 
                 <div className="relative">
-                  <input
-                    type="text"
+                  <input 
+                    type="text" 
                     placeholder="Search..."
                     value={physicalSearchQuery}
                     onChange={(e) => setPhysicalSearchQuery(e.target.value)}
@@ -921,7 +817,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
 
             {/* Main Responsive Table */}
             <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-              <AgGridReact
+              <AgGridReact 
                 ref={physicalGridRef}
                 theme="legacy"
                 rowData={PHYSICAL_PROGRESS_DATA}
@@ -935,7 +831,15 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                 headerHeight={48}
                 suppressColumnVirtualisation={true}
                 autoSizeStrategy={{
-                  type: 'fitGridWidth'
+                  type: 'fitCellContents'
+                }}
+                onFirstDataRendered={(params) => {
+                  const allCols = params.api.getAllGridColumns();
+                  const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  if (containerWidth > 0 && totalColWidth < containerWidth) {
+                    params.api.sizeColumnsToFit();
+                  }
                 }}
               />
 
@@ -946,7 +850,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <span className="font-bold text-slate-800">{Math.min(physicalCurrentPage * physicalEntriesLimit, PHYSICAL_PROGRESS_DATA.length)}</span> of{' '}
                   <span className="font-bold text-slate-800">{PHYSICAL_PROGRESS_DATA.length}</span> entries
                 </span>
-
+                
                 <div className="flex items-center space-x-1">
                   <button
                     onClick={() => handlePhysicalPageChange(physicalCurrentPage - 1)}
@@ -955,7 +859,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-
+                  
                   {Array.from({ length: physicalTotalPages }, (_, i) => i + 1).map(p => {
                     if (physicalTotalPages > 6 && Math.abs(physicalCurrentPage - p) > 1 && p !== 1 && p !== physicalTotalPages) {
                       if (p === 2 || p === physicalTotalPages - 1) {
@@ -967,16 +871,17 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                       <button
                         key={p}
                         onClick={() => handlePhysicalPageChange(p)}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${physicalCurrentPage === p
+                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                          physicalCurrentPage === p
                             ? 'bg-[#0f417a] text-white shadow-sm'
                             : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
-                          }`}
+                        }`}
                       >
                         {p}
                       </button>
                     );
                   })}
-
+                  
                   <button
                     onClick={() => handlePhysicalPageChange(physicalCurrentPage + 1)}
                     disabled={physicalCurrentPage === physicalTotalPages || physicalTotalPages === 0}
@@ -991,10 +896,10 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
         </>
       ) : (
         <div className="space-y-6 animate-fade-in">
-
+          
           {/* Top Row: Estimated Cost and circular Ongoing projects side-by-side inside a professional panel */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-
+            
             {/* Estimated Cost Card */}
             <div className="bg-gradient-to-br from-blue-50/50 via-white to-sky-50 border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-center items-center text-center lg:col-span-2 relative overflow-hidden">
               <div className="absolute top-0 right-0 h-32 w-32 bg-blue-100/30 rounded-full blur-2xl pointer-events-none"></div>
@@ -1019,7 +924,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <circle cx="64" cy="64" r="54" stroke="#e2e8f0" strokeWidth="8" fill="transparent" />
                   <circle cx="64" cy="64" r="54" stroke="#1b4380" strokeWidth="8" fill="transparent" strokeDasharray="339" strokeDashoffset="80" strokeLinecap="round" />
                 </svg>
-
+                
                 {/* Text Inner Info */}
                 <div className="absolute flex flex-col items-center justify-center text-center">
                   <span className="text-3xl font-black text-[#1b4380] tracking-tight font-display">422</span>
@@ -1036,7 +941,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
             <div className="text-xs text-slate-500 font-semibold">
               Selected: <strong className="text-slate-800">Ongoing Projects - Major Ports</strong> | Category Group A - F
             </div>
-
+            
             {/* Export Buttons */}
             <div className="flex space-x-3 w-full sm:w-auto justify-end">
               <button className="flex items-center space-x-1.5 px-4.5 py-2 bg-[#0284c7] hover:bg-[#0369a1] text-white text-[10px] font-bold tracking-wider rounded-lg transition-all cursor-pointer shadow-md hover:shadow-lg">
@@ -1062,8 +967,8 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
               <div className="flex items-center gap-4">
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
-                  <select
-                    value={ongoingEntriesLimit}
+                  <select 
+                    value={ongoingEntriesLimit} 
                     onChange={(e) => { setOngoingEntriesLimit(parseInt(e.target.value)); }}
                     className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
                   >
@@ -1075,8 +980,8 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                 </div>
 
                 <div className="relative">
-                  <input
-                    type="text"
+                  <input 
+                    type="text" 
                     placeholder="Search..."
                     value={ongoingSearchQuery}
                     onChange={(e) => setOngoingSearchQuery(e.target.value)}
@@ -1089,7 +994,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
 
             {/* Main Responsive Table */}
             <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-              <AgGridReact
+              <AgGridReact 
                 ref={ongoingGridRef}
                 theme="legacy"
                 rowData={ongoingProjects}
@@ -1103,7 +1008,15 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                 headerHeight={48}
                 suppressColumnVirtualisation={true}
                 autoSizeStrategy={{
-                  type: 'fitGridWidth'
+                  type: 'fitCellContents'
+                }}
+                onFirstDataRendered={(params) => {
+                  const allCols = params.api.getAllGridColumns();
+                  const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  if (containerWidth > 0 && totalColWidth < containerWidth) {
+                    params.api.sizeColumnsToFit();
+                  }
                 }}
               />
 
@@ -1114,7 +1027,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   <span className="font-bold text-slate-800">{Math.min(ongoingCurrentPage * ongoingEntriesLimit, ongoingProjects.length)}</span> of{' '}
                   <span className="font-bold text-slate-800">{ongoingProjects.length}</span> entries
                 </span>
-
+                
                 <div className="flex items-center space-x-1">
                   <button
                     onClick={() => handleOngoingPageChange(ongoingCurrentPage - 1)}
@@ -1123,7 +1036,7 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-
+                  
                   {Array.from({ length: ongoingTotalPages }, (_, i) => i + 1).map(p => {
                     if (ongoingTotalPages > 6 && Math.abs(ongoingCurrentPage - p) > 1 && p !== 1 && p !== ongoingTotalPages) {
                       if (p === 2 || p === ongoingTotalPages - 1) {
@@ -1135,16 +1048,17 @@ export default function DashboardView({ projects, activeTab, setActiveTab }) {
                       <button
                         key={p}
                         onClick={() => handleOngoingPageChange(p)}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${ongoingCurrentPage === p
+                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                          ongoingCurrentPage === p
                             ? 'bg-[#0f417a] text-white shadow-sm'
                             : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
-                          }`}
+                        }`}
                       >
                         {p}
                       </button>
                     );
                   })}
-
+                  
                   <button
                     onClick={() => handleOngoingPageChange(ongoingCurrentPage + 1)}
                     disabled={ongoingCurrentPage === ongoingTotalPages || ongoingTotalPages === 0}

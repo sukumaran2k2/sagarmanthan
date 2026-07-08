@@ -30,12 +30,8 @@ import {
   Edit
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
-import { AgGridReact } from 'ag-grid-react';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import CommonTable from '../../components/CommonTable';
 import UpdateProjectOverlay from './UpdateProjectOverlay';
-
-// Register grid modules
-ModuleRegistry.registerModules([AllCommunityModule]);
 
 export default function ProjectTable({
   projects,
@@ -572,20 +568,19 @@ export default function ProjectTable({
 
       {/* Main Responsive Table */}
       <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-        <AgGridReact
+        <CommonTable 
           ref={gridRef}
-          theme="legacy"
           rowData={filteredProjects}
           columnDefs={colDefs}
-          defaultColDef={{ resizable: true, suppressSizeToFit: true, minWidth: 100 }}
-          pagination={true}
-          paginationPageSize={entriesLimit}
-          suppressPaginationPanel={true}
+          defaultColDef={{ minWidth: 80, suppressSizeToFit: false }}
+          entriesLimit={entriesLimit}
           onPaginationChanged={onPaginationChanged}
-          domLayout="autoHeight"
           rowHeight={64}
           headerHeight={48}
-          suppressColumnVirtualisation={true}
+          autoSize={false}
+          autoSizeStrategy={{
+            type: 'fitCellContents'
+          }}
         />
 
         {/* Custom Pagination Footer */}

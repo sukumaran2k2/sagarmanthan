@@ -1,12 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Globe, Type, Sun, Moon } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
+import { useTheme } from '../context/ThemeContext.jsx';
+import axios from 'axios';
 
-export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfileClick, onAdminClick, currentUser }) {
+function decodeToken(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
+export default function Header({ onLogout, onProfileClick, onAdminClick, currentUser }) {
+  const { isDarkMode, toggleDarkMode } = useTheme();
   const [lang, setLang] = useState('EN');
   const [fontSize, setFontSize] = useState(16); // Standard browser baseline default (16px)
   const [showFontSlider, setShowFontSlider] = useState(false);
   const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
+  
+  const [userName, setUserName] = useState('');
+  const [userWing, setUserWing] = useState('');
 
   // Refs to control closing the elements programmatically
   const sliderRef = useRef(null);
@@ -18,6 +37,25 @@ export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfi
     document.documentElement.style.fontSize = `${fontSize}px`;
   }, [fontSize]);
 
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+    const decoded = decodeToken(token);
+    if (!decoded || !decoded.email) return;
+
+    axios.get('http://localhost:3000/userlist')
+      .then(res => {
+        const users = res.data || [];
+        const matched = users.find(u => u.email.toLowerCase() === decoded.email.toLowerCase());
+        if (matched) {
+          setUserName(matched.name || '');
+          setUserWing(matched.wing_name || 'MoPSW');
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load user details in header:', err);
+      });
+  }, []);
   // Handle opening one dropdown and forcing the others to close
   const handleDropdownOpen = (targetOpen) => {
     if (targetOpen === 'lang') {
@@ -95,9 +133,9 @@ export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfi
               <div className="hidden lg:flex flex-col text-right">
                 <span className="text-[11px] text-slate-300">Welcome Back</span>
                 <span className="text-xs font-medium text-white flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block border-black"></span>
-                Good Evening, <strong className="text-white">{currentUser?.name || 'TestMopsw'}</strong> | <span className="text-slate-300 font-normal">{currentUser?.roleLabel || 'MoPSW'}</span>
-              </span>
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block border-black"></span>
+                  Good Evening, <strong className="text-white">{currentUser?.name || userName || 'User'}</strong> | <span className="text-slate-300 font-normal">{currentUser?.roleLabel || userWing || 'MoPSW'}</span>
+                </span>
               </div>
 
               {/* App Version badge */}
@@ -204,7 +242,7 @@ export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfi
 
                 {/* Theme Switcher Button */}
                 <button
-                  onClick={onToggleDarkMode}
+                  onClick={toggleDarkMode}
                   className="p-1.5 rounded-lg transition-all cursor-pointer text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center"
                   title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
                 >
@@ -230,7 +268,11 @@ export default function Header({ onLogout, isDarkMode, onToggleDarkMode, onProfi
                     }`}
                   >
                     <div className="h-7 w-7 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold font-display shadow-md">
-                      {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'TM'}
+                      {currentUser?.name 
+                        ? currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() 
+                        : userName 
+                          ? userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() 
+                          : 'U'}
                     </div>
                     <ChevronDown className="h-3.5 w-3.5 transition-colors" />
                   </button>

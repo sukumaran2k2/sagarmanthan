@@ -1,12 +1,11 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import {
-  FileSpreadsheet,
-  Plus,
-  Search,
-  Copy,
-  FileText,
-  Download,
-  Edit,
+import { 
+  FileSpreadsheet, 
+  Search, 
+  Copy, 
+  FileText, 
+  Download, 
+  Edit, 
   Folder,
   Check,
   ChevronDown,
@@ -14,8 +13,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  GitBranch,
-  CheckCircle2,
   UploadCloud,
   ArrowLeft
 } from 'lucide-react';
@@ -57,7 +54,14 @@ const STATUS_STEPS = {
   11: 'Completed'
 };
 
-export default function CabinetNotesInput({ notes, setNotes }) {
+export default function CabinetNotesInput({ 
+  notes, 
+  setNotes,
+  activeSubTab,
+  setActiveSubTab,
+  editingNote,
+  setEditingNote
+}) {
   const gridRef = useRef();
   const [selectedWing, setSelectedWing] = useState('All');
   const [selectedDivision, setSelectedDivision] = useState('All');
@@ -68,11 +72,6 @@ export default function CabinetNotesInput({ notes, setNotes }) {
   const [totalPages, setTotalPages] = useState(1);
   const [notification, setNotification] = useState(null);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
-  const [isDatabaseExpanded, setIsDatabaseExpanded] = useState(false);
-
-  // Form View State
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState(null);
 
   // Fields required by MoPSW
   const [formSubject, setFormSubject] = useState('');
@@ -89,6 +88,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
   };
+
+  const isFormOpen = activeSubTab === 'add';
 
   const getNoteStatusFromSteps = (steps) => {
     let currentStatus = 'Draft';
@@ -112,31 +113,36 @@ export default function CabinetNotesInput({ notes, setNotes }) {
     return steps;
   };
 
-  const handleOpenAdd = () => {
-    setEditingNote(null);
-    setFormSubject('');
-    setFormWing('');
-    setFormDivision('');
-    setFormRemarks('');
-    setFormFile(null);
-    setFormStatusSteps({
-      1: 'No', 2: 'No', 3: 'No', 4: 'No', 5: 'No', 6: 'No', 7: 'No', 8: 'No', 9: 'No', 10: 'No', 11: 'No'
-    });
-    setFormStatusDates({});
-    setIsFormOpen(true);
-  };
+  useEffect(() => {
+    if (activeSubTab === 'add') {
+      Promise.resolve().then(() => {
+        if (editingNote) {
+          setFormSubject(editingNote.subject);
+          setFormWing(editingNote.wing);
+          setFormDivision(editingNote.division);
+          setFormRemarks(editingNote.remarks || '');
+          setFormFile(editingNote.fileName ? { name: editingNote.fileName } : null);
+          setFormStatusSteps(getStepsFromNoteStatus(editingNote.status));
+          setFormStatusDates(editingNote.statusDates || {});
+        } else {
+          setFormSubject('');
+          setFormWing('');
+          setFormDivision('');
+          setFormRemarks('');
+          setFormFile(null);
+          setFormStatusSteps({
+            1: 'No', 2: 'No', 3: 'No', 4: 'No', 5: 'No', 6: 'No', 7: 'No', 8: 'No', 9: 'No', 10: 'No', 11: 'No'
+          });
+          setFormStatusDates({});
+        }
+      });
+    }
+  }, [activeSubTab, editingNote]);
 
   const handleOpenEdit = useCallback((note) => {
     setEditingNote(note);
-    setFormSubject(note.subject);
-    setFormWing(note.wing);
-    setFormDivision(note.division);
-    setFormRemarks(note.remarks || '');
-    setFormFile(note.fileName ? { name: note.fileName } : null);
-    setFormStatusSteps(getStepsFromNoteStatus(note.status));
-    setFormStatusDates(note.statusDates || {});
-    setIsFormOpen(true);
-  }, []);
+    setActiveSubTab('add');
+  }, [setEditingNote, setActiveSubTab]);
 
   const handleSaveNote = (e) => {
     e.preventDefault();
@@ -179,7 +185,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
       setNotes(prev => [newNote, ...prev]);
       triggerNotification('Cabinet note registered successfully.');
     }
-    setIsFormOpen(false);
+    setActiveSubTab('list');
+    setEditingNote(null);
   };
 
   const handleFileChange = (e) => {
@@ -299,11 +306,12 @@ export default function CabinetNotesInput({ notes, setNotes }) {
         const status = params.value || '';
         return (
           <div className="flex items-center h-full">
-            <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${status.includes('Approved') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                status.includes('Prepared') ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                  status.includes('PMO') ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' :
-                    'bg-amber-50 text-amber-700 border border-amber-100'
-              }`}>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
+              status.includes('Approved') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+              status.includes('Prepared') ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+              status.includes('PMO') ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' :
+              'bg-amber-50 text-amber-700 border border-amber-100'
+            }`}>
               {status}
             </span>
           </div>
@@ -319,14 +327,14 @@ export default function CabinetNotesInput({ notes, setNotes }) {
         const note = params.data;
         return (
           <div className="flex items-center justify-center space-x-2 h-full">
-            <button
+            <button 
               onClick={() => triggerNotification(`Download Cabinet Note ${note.id} initiated.`)}
               className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm hover:shadow transition cursor-pointer"
               title="Download Note File"
             >
               <Download className="h-3.5 w-3.5" />
             </button>
-            <button
+            <button 
               onClick={() => triggerNotification(`Cabinet Note ${note.id} Folder View opened.`)}
               className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded shadow-sm hover:shadow transition cursor-pointer"
               title="Open Annexures & Documents Folder"
@@ -345,7 +353,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
         const note = params.data;
         return (
           <div className="flex items-center justify-center h-full">
-            <button
+            <button 
               onClick={() => handleOpenEdit(note)}
               className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm hover:shadow transition cursor-pointer"
               title="Edit Note Details"
@@ -362,7 +370,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
   if (isFormOpen) {
     return (
       <div className="space-y-6 animate-fade-in">
-
+        
         {/* Toast Notification */}
         {notification && (
           <div className="fixed top-6 right-6 z-55 flex items-center space-x-2.5 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in animate-pulse">
@@ -378,7 +386,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
 
         {/* Form Page Header Card wrapper */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a]">
-
+          
           {/* Header Title Bar */}
           <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4.5 flex items-center justify-between text-white border-b border-blue-900/20">
             <div>
@@ -387,8 +395,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
               </h3>
               <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
             </div>
-            <button
-              onClick={() => setIsFormOpen(false)}
+            <button 
+              onClick={() => { setActiveSubTab('list'); setEditingNote(null); }} 
               className="inline-flex items-center space-x-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold text-white transition cursor-pointer"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
@@ -398,14 +406,14 @@ export default function CabinetNotesInput({ notes, setNotes }) {
 
           {/* Form Content */}
           <form onSubmit={handleSaveNote} className="p-6 space-y-6">
-
+            
             {/* Subject */}
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                 Name of the subject*
               </label>
-              <textarea
-                required
+              <textarea 
+                required 
                 rows={3}
                 value={formSubject}
                 onChange={(e) => setFormSubject(e.target.value)}
@@ -422,7 +430,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                   Wing*
                 </label>
                 <div className="relative">
-                  <select
+                  <select 
                     required
                     value={formWing}
                     onChange={(e) => setFormWing(e.target.value)}
@@ -443,7 +451,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                   Division*
                 </label>
                 <div className="relative">
-                  <select
+                  <select 
                     required
                     value={formDivision}
                     onChange={(e) => setFormDivision(e.target.value)}
@@ -468,18 +476,19 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                 {Object.entries(STATUS_STEPS).map(([stepKey, stepName]) => {
                   const isYes = formStatusSteps[stepKey] === 'Yes';
                   return (
-                    <div
-                      key={stepKey}
-                      className={`flex flex-col py-2 px-3 rounded-lg border transition-all ${isYes
-                          ? 'bg-slate-50 border-emerald-200 shadow-sm'
+                    <div 
+                      key={stepKey} 
+                      className={`flex flex-col py-2 px-3 rounded-lg border transition-all ${
+                        isYes 
+                          ? 'bg-slate-50 border-emerald-200 shadow-sm' 
                           : 'bg-slate-50/50 border-slate-150'
-                        }`}
+                      }`}
                     >
                       <div className="flex items-center justify-between w-full">
                         <span className="truncate max-w-[160px] sm:max-w-[200px]" title={stepName}>
                           {stepKey === '7' ? '7. Has Dcm been approved?' : `${stepKey}. ${stepName}`}
                         </span>
-
+                        
                         <div className="flex items-center space-x-1.5 shrink-0 ml-2">
                           {/* Yes Button */}
                           <button
@@ -491,14 +500,15 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                                 setFormStatusDates(prev => ({ ...prev, [stepKey]: today }));
                               }
                             }}
-                            className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${isYes
-                                ? 'bg-emerald-600 text-white shadow-sm font-black'
+                            className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${
+                              isYes 
+                                ? 'bg-emerald-600 text-white shadow-sm font-black' 
                                 : 'bg-white border border-slate-250 text-slate-655 hover:bg-slate-100'
-                              }`}
+                            }`}
                           >
                             Yes
                           </button>
-
+                          
                           {/* No Button */}
                           <button
                             type="button"
@@ -510,10 +520,11 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                                 return copy;
                               });
                             }}
-                            className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${!isYes
-                                ? 'bg-rose-600 text-white shadow-sm font-black'
+                            className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${
+                              !isYes 
+                                ? 'bg-rose-600 text-white shadow-sm font-black' 
                                 : 'bg-white border border-slate-255 text-slate-655 hover:bg-slate-100'
-                              }`}
+                            }`}
                           >
                             No
                           </button>
@@ -524,7 +535,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                       {isYes && (
                         <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60 mt-1.5 w-full animate-fade-in">
                           <span className="text-[9px] text-slate-500 font-bold uppercase">Date:</span>
-                          <input
+                          <input 
                             type="date"
                             value={formStatusDates[stepKey] || ''}
                             onChange={(e) => setFormStatusDates(prev => ({ ...prev, [stepKey]: e.target.value }))}
@@ -540,7 +551,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
 
             {/* Remarks & Upload Document Row */}
             <div className="grid grid-cols-1 md:grid-cols-10 gap-6">
-
+              
               {/* Remarks (70%) */}
               <div className="md:col-span-7 space-y-1.5 flex flex-col">
                 <div className="flex justify-between items-center">
@@ -551,7 +562,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                     {formRemarks ? formRemarks.split(/\s+/).filter(Boolean).length : 0} / 250 words
                   </span>
                 </div>
-                <textarea
+                <textarea 
                   rows={3.5}
                   value={formRemarks}
                   onChange={(e) => {
@@ -571,8 +582,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                   Upload Document
                 </label>
                 <div className="border-2 border-dashed border-slate-250 rounded-xl p-3 bg-slate-50/50 flex flex-col items-center justify-center space-y-1 hover:bg-slate-50 hover:border-blue-400 transition cursor-pointer relative flex-1 min-h-[92px]">
-                  <input
-                    type="file"
+                  <input 
+                    type="file" 
                     accept=".pdf"
                     onChange={handleFileChange}
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -593,14 +604,14 @@ export default function CabinetNotesInput({ notes, setNotes }) {
 
             {/* Form Actions Footer */}
             <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsFormOpen(false)}
+              <button 
+                type="button" 
+                onClick={() => { setActiveSubTab('list'); setEditingNote(null); }}
                 className="px-4.5 py-2.5 border border-slate-250 text-slate-655 rounded-xl text-xs font-bold hover:bg-slate-50 hover:text-slate-800 transition cursor-pointer"
               >
                 Discard
               </button>
-              <button
+              <button 
                 type="submit"
                 className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer"
               >
@@ -618,7 +629,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
   // Render main Database List View
   return (
     <div className="space-y-6 animate-fade-in">
-
+      
       {/* Toast Notification */}
       {notification && (
         <div className="fixed top-6 right-6 z-55 flex items-center space-x-2.5 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in animate-pulse">
@@ -642,48 +653,18 @@ export default function CabinetNotesInput({ notes, setNotes }) {
         </div>
 
         <div className="flex items-center space-x-3">
-          {isDatabaseExpanded ? (
-            <>
-              <button
-                onClick={() => triggerNotification('All Data Export initiated.')}
-                className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100/50 transition cursor-pointer"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                <span>All Data</span>
-              </button>
-
-              <button
-                onClick={handleOpenAdd}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-105 text-black border border-white font-bold text-xs rounded-lg transition-all duration-200 cursor-pointer hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-md font-sans"
-              >
-                <Plus className="h-4 w-4 text-emerald-800 hover:text-white" />
-                <span>Add Notes</span>
-              </button>
-
-              <button
-                onClick={() => setIsDatabaseExpanded(false)}
-                className="inline-flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg border border-slate-255 shadow-sm transition cursor-pointer"
-              >
-                <span>Collapse</span>
-                <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setIsDatabaseExpanded(true)}
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
-            >
-              <span>View Detailed Report</span>
-            </button>
-          )}
+          <button 
+            onClick={() => triggerNotification('All Data Export initiated.')}
+            className="inline-flex items-center space-x-2 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100/50 transition cursor-pointer"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            <span>All Data</span>
+          </button>
         </div>
       </div>
 
-      {isDatabaseExpanded ? (
-        <>
-          {/* Collapsible Filters Card */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-            <button
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+            <button 
               onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
               className="w-full flex items-center justify-between text-left transition cursor-pointer select-none"
             >
@@ -701,8 +682,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-4 border-t border-slate-100 animate-fade-in">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Wing</label>
-                  <select
-                    value={selectedWing}
+                  <select 
+                    value={selectedWing} 
                     onChange={(e) => { setSelectedWing(e.target.value); setCurrentPage(1); }}
                     className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
                   >
@@ -712,8 +693,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
 
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Division</label>
-                  <select
-                    value={selectedDivision}
+                  <select 
+                    value={selectedDivision} 
                     onChange={(e) => { setSelectedDivision(e.target.value); setCurrentPage(1); }}
                     className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
                   >
@@ -723,8 +704,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
 
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</label>
-                  <select
-                    value={selectedStatus}
+                  <select 
+                    value={selectedStatus} 
                     onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
                     className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
                   >
@@ -737,7 +718,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
 
           {/* Table Section */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-
+            
             {/* Table Controls */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
               <div className="flex items-center space-x-1.5">
@@ -749,8 +730,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
               <div className="flex items-center gap-4">
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-slate-500 whitespace-nowrap font-semibold">Show</span>
-                  <select
-                    value={entriesLimit}
+                  <select 
+                    value={entriesLimit} 
                     onChange={(e) => { setEntriesLimit(parseInt(e.target.value)); }}
                     className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
                   >
@@ -762,8 +743,8 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                 </div>
 
                 <div className="relative">
-                  <input
-                    type="text"
+                  <input 
+                    type="text" 
                     placeholder="Search..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -776,7 +757,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
 
             {/* Main Responsive Table */}
             <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-              <AgGridReact
+              <AgGridReact 
                 ref={gridRef}
                 theme="legacy"
                 rowData={filteredNotes}
@@ -790,7 +771,15 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                 headerHeight={48}
                 suppressColumnVirtualisation={true}
                 autoSizeStrategy={{
-                  type: 'fitGridWidth'
+                  type: 'fitCellContents'
+                }}
+                onFirstDataRendered={(params) => {
+                  const allCols = params.api.getAllGridColumns();
+                  const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  if (containerWidth > 0 && totalColWidth < containerWidth) {
+                    params.api.sizeColumnsToFit();
+                  }
                 }}
               />
 
@@ -801,7 +790,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                   <span className="font-bold text-slate-800">{Math.min(currentPage * entriesLimit, filteredNotes.length)}</span> of{' '}
                   <span className="font-bold text-slate-800">{filteredNotes.length}</span> entries
                 </span>
-
+                
                 <div className="flex items-center space-x-1">
                   <button
                     onClick={() => handlePageChange(currentPage - 1)}
@@ -810,7 +799,7 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-
+                  
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
                     if (totalPages > 6 && Math.abs(currentPage - p) > 1 && p !== 1 && p !== totalPages) {
                       if (p === 2 || p === totalPages - 1) {
@@ -822,16 +811,17 @@ export default function CabinetNotesInput({ notes, setNotes }) {
                       <button
                         key={p}
                         onClick={() => handlePageChange(p)}
-                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentPage === p
+                        className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                          currentPage === p
                             ? 'bg-[#0f417a] text-white shadow-sm'
                             : 'border border-slate-200 text-slate-650 hover:bg-slate-50'
-                          }`}
+                        }`}
                       >
                         {p}
                       </button>
                     );
                   })}
-
+                  
                   <button
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages || totalPages === 0}
@@ -844,61 +834,6 @@ export default function CabinetNotesInput({ notes, setNotes }) {
             </div>
 
           </div>
-        </>
-      ) : (
-        /* KPI Insights Grid (Visible only when Database table is collapsed) */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in pt-4 border-t border-slate-100">
-
-          {/* 2. Division-wise KPI */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 shadow-inner">
-            <div className="flex items-center space-x-2 text-rose-600 font-bold">
-              <GitBranch className="h-4.5 w-4.5 text-rose-600" />
-              <span className="text-[11px] uppercase tracking-wider font-display text-slate-700">Division Wise Counts</span>
-            </div>
-            <div className="divide-y divide-slate-150 font-semibold text-xs text-slate-700 max-h-[220px] overflow-y-auto pr-1">
-              {Object.entries(
-                notes.reduce((acc, n) => {
-                  acc[n.division] = (acc[n.division] || 0) + 1;
-                  return acc;
-                }, {})
-              ).sort((a, b) => b[1] - a[1]).map(([division, count]) => (
-                <div key={division} className="flex justify-between py-2 items-center">
-                  <span className="font-mono">{division}</span>
-                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[10px] font-extrabold">{count} notes</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 3. Status-wise KPI */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 shadow-inner">
-            <div className="flex items-center space-x-2 text-emerald-600 font-bold">
-              <CheckCircle2 className="h-4.5 w-4.5 text-emerald-600" />
-              <span className="text-[11px] uppercase tracking-wider font-display text-slate-700">Status Wise Counts</span>
-            </div>
-            <div className="divide-y divide-slate-150 font-semibold text-xs text-slate-700 max-h-[220px] overflow-y-auto pr-1">
-              {Object.entries(
-                notes.reduce((acc, n) => {
-                  acc[n.status] = (acc[n.status] || 0) + 1;
-                  return acc;
-                }, {})
-              ).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
-                <div key={status} className="flex justify-between py-2 items-center">
-                  <span className="max-w-[180px] truncate" title={status}>{status}</span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${status.includes('Approved') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                      status.includes('Prepared') ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                        status.includes('PMO') ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' :
-                          'bg-amber-50 text-amber-700 border border-amber-100'
-                    }`}>
-                    {count} notes
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      )}
 
     </div>
   );
