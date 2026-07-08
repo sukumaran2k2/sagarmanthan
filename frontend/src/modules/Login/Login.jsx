@@ -75,7 +75,6 @@ export default function LoginView({ onLogin }) {
       setIsSubmitting(false);
       return;
     }
-    }
 
     axios
       .post("http://localhost:3000/login-validation", {
@@ -593,6 +592,7 @@ export default function LoginView({ onLogin }) {
                         // Keep the wifi strength warning check from hr-modules
                         alert(`Your Wifi strength is Weak (${signalStrength}).\nTo get the complete experience, switch to a better network.`);
                       }
+                    }}
                     theme="light"
                   />
                 </div>

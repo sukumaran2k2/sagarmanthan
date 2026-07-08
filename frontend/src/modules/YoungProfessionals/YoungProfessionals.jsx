@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   FileEdit,
   FilePieChart,
@@ -18,51 +18,56 @@ import {
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import InternalNavigation from '../../components/InternalNavigation';
+import axios from 'axios';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// Initial dataset of individual Young Professional posts
-const INITIAL_POSTS = [
-  // Shipping (6 filled, 4 vacant/in-process -> Total 10)
-  { id: 1, wing: 'Shipping', division: 'Shipping-I', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-03-15', candidateDetails: 'Amit Verma' },
-  { id: 2, wing: 'Shipping', division: 'Shipping-I', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-04-10', candidateDetails: 'Priya Sharma' },
-  { id: 3, wing: 'Shipping', division: 'Shipping-I', status: 'Vacant', vacancyDate: '2025-10-12', advertisedDate: '2025-11-05', appointmentDate: '', candidateDetails: '' },
-  { id: 4, wing: 'Shipping', division: 'Shipping-I', status: 'Vacant', vacancyDate: '2025-12-01', advertisedDate: '2026-01-10', appointmentDate: '', candidateDetails: '' },
-  { id: 5, wing: 'Shipping', division: 'Shipping-II', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-05-12', candidateDetails: 'Rajesh Kumar' },
-  { id: 6, wing: 'Shipping', division: 'Shipping-II', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-06-01', candidateDetails: 'Neha Gupta' },
-  { id: 7, wing: 'Shipping', division: 'Shipping-II', status: 'Vacant', vacancyDate: '2026-01-15', advertisedDate: '2026-02-20', appointmentDate: '', candidateDetails: '' },
-  { id: 8, wing: 'Shipping', division: 'Shipping-II', status: 'Vacant', vacancyDate: '2026-02-10', advertisedDate: '2026-03-01', appointmentDate: '', candidateDetails: '' },
-  { id: 9, wing: 'Shipping', division: 'Shipping-III', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-07-22', candidateDetails: 'Sanjay Dutt' },
-  { id: 10, wing: 'Shipping', division: 'Shipping-III', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-08-11', candidateDetails: 'Ritu Phogat' },
+const DB_WINGS = [
+  { wing_id: 1, wing_name: "Shipping" },
+  { wing_id: 2, wing_name: "Vigilance" },
+  { wing_id: 3, wing_name: "Ports" },
+  { wing_id: 4, wing_name: "IWT" },
+  { wing_id: 5, wing_name: "Administration" },
+  { wing_id: 6, wing_name: "Coord-I" },
+  { wing_id: 7, wing_name: "Coord-II" },
+  { wing_id: 8, wing_name: "DGLL, Parliament & TRW" },
+  { wing_id: 9, wing_name: "Development" },
+  { wing_id: 10, wing_name: "Finance" },
+  { wing_id: 11, wing_name: "Sagarmala" },
+  { wing_id: 12, wing_name: "Information Technology" },
+  { wing_id: 13, wing_name: "Office of Economic Advisor" },
+  { wing_id: 14, wing_name: "Special Initiatives & Projects" }
+];
 
-  // Ports (6 filled, 2 vacant/in-process -> Total 8)
-  { id: 11, wing: 'Ports', division: 'PD-I', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-01-20', candidateDetails: 'Siddharth Singh' },
-  { id: 12, wing: 'Ports', division: 'PD-I', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-02-15', candidateDetails: 'Ananya Roy' },
-  { id: 13, wing: 'Ports', division: 'PD-I', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-03-22', candidateDetails: 'Vikram Malhotra' },
-  { id: 14, wing: 'Ports', division: 'PPP', status: 'Vacant', vacancyDate: '2025-10-01', advertisedDate: '2025-11-15', appointmentDate: '', candidateDetails: '' },
-  { id: 15, wing: 'Ports', division: 'PHRD', status: 'Vacant', vacancyDate: '2025-12-05', advertisedDate: '2026-01-10', appointmentDate: '', candidateDetails: '' },
-  { id: 16, wing: 'Ports', division: 'PD-II', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-09-01', candidateDetails: 'Aditya Birla' },
-  { id: 17, wing: 'Ports', division: 'PD-II', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-10-05', candidateDetails: 'Karan Shah' },
-  { id: 18, wing: 'Ports', division: 'PD-II', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-11-12', candidateDetails: 'Deepika Padukone' },
-
-  // IWT (2 filled, 0 vacant -> Total 2)
-  { id: 19, wing: 'IWT', division: 'IWT-I', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-12-01', candidateDetails: 'Ishaan Khatter' },
-  { id: 20, wing: 'IWT', division: 'IWT-II', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-09-05', candidateDetails: 'Karan Johar' },
-
-  // Administration (3 filled, 0 vacant -> Total 3)
-  { id: 21, wing: 'Administration', division: 'Admn.', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-07-19', candidateDetails: 'Sunita Rao' },
-  { id: 22, wing: 'Administration', division: 'Admn.', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-08-11', candidateDetails: 'Rahul Dev' },
-  { id: 23, wing: 'Administration', division: 'Admn.', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2024-09-15', candidateDetails: 'Vikas Kumar' },
-
-  // Coord-I (1 filled, 0 vacant -> Total 1)
-  { id: 24, wing: 'Coord-I', division: 'Coord-I', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2025-01-10', candidateDetails: 'Meera Nair' },
-
-  // Coord-II (1 filled, 0 vacant -> Total 1)
-  { id: 25, wing: 'Coord-II', division: 'Coord-II', status: 'Filled', vacancyDate: '', advertisedDate: '', appointmentDate: '2025-02-14', candidateDetails: 'Rohan Sharma' },
+const DB_DIVISIONS = [
+  { division_id: 1, division_name: "Shipping-I" },
+  { division_id: 2, division_name: "Shipping-II" },
+  { division_id: 3, division_name: "Shipping-III" },
+  { division_id: 4, division_name: "Vigilance" },
+  { division_id: 5, division_name: "PD-I" },
+  { division_id: 6, division_name: "PD-II" },
+  { division_id: 7, division_name: "PPP" },
+  { division_id: 8, division_name: "PHRD" },
+  { division_id: 9, division_name: "IWT-I" },
+  { division_id: 10, division_name: "IWT-II" },
+  { division_id: 11, division_name: "Admn." },
+  { division_id: 12, division_name: "Coord-I" },
+  { division_id: 13, division_name: "Coord-II" },
+  { division_id: 14, division_name: "DGLL, Parl. & TRW" },
+  { division_id: 15, division_name: "Devlopment" },
+  { division_id: 16, division_name: "Finance" },
+  { division_id: 17, division_name: "Sagarmala -I" },
+  { division_id: 18, division_name: "Sagarmala -II" },
+  { division_id: 19, division_name: "Sagarmala-III , ALHW & Media" },
+  { division_id: 20, division_name: "IT" },
+  { division_id: 21, division_name: "PD-III" },
+  { division_id: 22, division_name: "PD- IV" },
+  { division_id: 23, division_name: "Special Initiatives & Projects" }
 ];
 
 export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, triggerNotification, userPermissions }) {
-  const [posts, setPosts] = useState(INITIAL_POSTS);
+  const [inputGridData, setInputGridData] = useState([]);
+  const [reportGridData, setReportGridData] = useState([]);
   const [isAdding, setIsAdding] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [wingFilter, setWingFilter] = useState('');
@@ -73,8 +78,11 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
   const [formAppointmentDate, setFormAppointmentDate] = useState('');
   const [formCandidateDetails, setFormCandidateDetails] = useState('');
 
+  const fileInputRef = useRef(null);
+
   // Available wings for dropdown selection
-  const WINGS = ['Shipping', 'Ports', 'IWT', 'Administration', 'Vigilance', 'Coord-I', 'Coord-II', 'Finance', 'Technical', 'IT', 'Legal'];
+  const WINGS = DB_WINGS.map(w => w.wing_name);
+  const DIVISIONS = DB_DIVISIONS.map(d => d.division_name);
 
   // Sub-tabs configuration for internal navigation
   const SUB_TABS = [
@@ -85,28 +93,36 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
   // Helper to normalize sub-tab
   const currentTab = SUB_TABS.some(t => t.id === activeSubTab) ? activeSubTab : 'YP Input Form';
 
-  // Remove background scrolling lock as overlay is no longer used
+  const fetchData = () => {
+    axios.get("http://localhost:3000/young-professional")
+      .then(res => {
+        const mapped = res.data.map((item, idx) => ({
+          sNo: idx + 1,
+          wing: item.wing_name || 'Unknown',
+          division: item.division_name || 'Unknown',
+          inPosition: item.inposition > 0 ? item.inposition : '--'
+        }));
+        setInputGridData(mapped);
+      })
+      .catch(err => console.error("Error loading YP data:", err));
 
-  // Grouped Wing & Division list for Input Form view
-  const inputGridData = useMemo(() => {
-    const grouped = {};
-    posts.forEach(post => {
-      const key = `${post.wing}||${post.division}`;
-      if (!grouped[key]) {
-        grouped[key] = { wing: post.wing, division: post.division, inPosition: 0 };
-      }
-      if (post.status === 'Filled') {
-        grouped[key].inPosition += 1;
-      }
-    });
+    axios.get("http://localhost:3000/yp-report")
+      .then(res => {
+        const mapped = res.data.map((item, idx) => ({
+          sNo: idx + 1,
+          wing: item["Wing"] || 'Unknown',
+          total: item["Total No of Post"] || 0,
+          filled: item["No of Vacancy Filled Up"] || 0,
+          vacant: item["No of Vacancy In Process"] || 0
+        }));
+        setReportGridData(mapped);
+      })
+      .catch(err => console.error("Error loading YP report:", err));
+  };
 
-    return Object.values(grouped).map((item, idx) => ({
-      sNo: idx + 1,
-      wing: item.wing,
-      division: item.division,
-      inPosition: item.inPosition > 0 ? item.inPosition : '--'
-    }));
-  }, [posts]);
+  useEffect(() => {
+    fetchData();
+  }, [isAdding]);
 
   // Filtered Input Grid Data
   const filteredInputGridData = useMemo(() => {
@@ -117,38 +133,6 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
       return matchSearch;
     }).map((item, idx) => ({ ...item, sNo: idx + 1 }));
   }, [inputGridData, searchTerm]);
-
-  // Abstract report data for Reports view
-  const reportGridData = useMemo(() => {
-    const grouped = {};
-    // Ensure all unique wings in WINGS or current posts are listed
-    const allWings = Array.from(new Set([...WINGS, ...posts.map(p => p.wing)]));
-
-    allWings.forEach(wing => {
-      grouped[wing] = { wing, total: 0, filled: 0, vacant: 0 };
-    });
-
-    posts.forEach(post => {
-      if (grouped[post.wing]) {
-        grouped[post.wing].total += 1;
-        if (post.status === 'Filled') {
-          grouped[post.wing].filled += 1;
-        } else {
-          grouped[post.wing].vacant += 1;
-        }
-      }
-    });
-
-    return Object.values(grouped)
-      .filter(item => item.total > 0 || item.wing === 'Vigilance') // matching vigilance having 0 in screenshot
-      .map((item, idx) => ({
-        sNo: idx + 1,
-        wing: item.wing,
-        total: item.total,
-        filled: item.filled,
-        vacant: item.vacant
-      }));
-  }, [posts]);
 
   // Filtered Report Grid Data
   const filteredReportGridData = useMemo(() => {
@@ -202,35 +186,72 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
   ], []);
 
   // Form submit handler
-  const handleAddPostSubmit = (e) => {
+  const handleAddPostSubmit = async (e) => {
     e.preventDefault();
     if (!formWing || !formDivision || !formAppointmentDate) {
       alert('Please fill out all required fields.');
       return;
     }
 
-    const newPost = {
-      id: posts.length + 1,
-      wing: formWing,
-      division: formDivision,
-      status: 'Filled',
-      vacancyDate: '',
-      advertisedDate: '',
-      appointmentDate: formAppointmentDate,
-      candidateDetails: formCandidateDetails || 'Resume Uploaded'
-    };
+    const selectedWingObj = DB_WINGS.find(w => w.wing_name === formWing);
+    const selectedDivisionObj = DB_DIVISIONS.find(d => d.division_name === formDivision);
+    const wingId = selectedWingObj ? selectedWingObj.wing_id : null;
+    const divisionId = selectedDivisionObj ? selectedDivisionObj.division_id : null;
 
-    setPosts([newPost, ...posts]);
-    setIsAdding(false);
+    try {
+      // 1. Create Young Professional post record
+      const ypResponse = await axios.post("http://localhost:3000/young-professional", {
+        wing: wingId,
+        division: divisionId,
+        postStatus: "Filled",
+        vacancyAriseDate: null,
+        dateOfVacancyAdvertise: null,
+        dateOfAppointment: formAppointmentDate,
+        postID: Math.floor(Math.random() * 1000).toString(),
+        userID: 1
+      });
 
-    // Clear form
-    setFormWing('');
-    setFormDivision('');
-    setFormAppointmentDate('');
-    setFormCandidateDetails('');
+      const youngProfessionalId = ypResponse.data.insertedYPId;
 
-    if (triggerNotification) {
-      triggerNotification(`New Young Professional post successfully registered for ${formWing} (${formDivision}).`);
+      // 2. Add YP Candidate details
+      const candResponse = await axios.post("http://localhost:3000/candidate-detail", {
+        name: "Candidate",
+        qualification: "B.Tech",
+        category: "General",
+        salary: 50000,
+        appointmentDate: formAppointmentDate,
+        experience: "2 years",
+        skill: "Software Development",
+        youngProfessionalId: youngProfessionalId
+      });
+
+      const candidateId = candResponse.data.candidate_id;
+
+      // 3. Upload candidate document if a file is selected
+      if (fileInputRef.current && fileInputRef.current.files[0]) {
+        const formData = new FormData();
+        formData.append("file", fileInputRef.current.files[0]);
+        await axios.post(`http://localhost:3000/upload-yp-document/${candidateId}`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+      }
+
+      setIsAdding(false);
+
+      // Clear form
+      setFormWing('');
+      setFormDivision('');
+      setFormAppointmentDate('');
+      setFormCandidateDetails('');
+
+      if (triggerNotification) {
+        triggerNotification(`New Young Professional post successfully registered for ${formWing} (${formDivision}).`);
+      }
+    } catch (err) {
+      console.error("Error creating Young Professional:", err);
+      alert("Failed to save post. Please check backend connections.");
     }
   };
 
@@ -318,14 +339,15 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
 
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division*</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Shipping-I, PPP, PD-I"
+                    <select
                       value={formDivision}
                       onChange={(e) => setFormDivision(e.target.value)}
                       required
-                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-800 placeholder-slate-400"
-                    />
+                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
+                    >
+                      <option value="">--Select Division--</option>
+                      {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
                   </div>
                 </div>
 
@@ -348,6 +370,7 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Candidate Details (Resume/CV)*</label>
                     <input
                       type="file"
+                      ref={fileInputRef}
                       accept=".pdf,.doc,.docx"
                       required
                       onChange={(e) => {
@@ -356,7 +379,7 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
                           setFormCandidateDetails(file.name);
                         }
                       }}
-                      className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
+                      className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-255 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
                     />
                     <p className="text-[10px] font-bold text-rose-600 mt-1">
                       * Accepted formats: PDF, DOC, DOCX (Max size: 5MB)

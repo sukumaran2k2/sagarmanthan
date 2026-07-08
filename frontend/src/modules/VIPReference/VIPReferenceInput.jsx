@@ -220,7 +220,7 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences }) {
       headerName: 'Subject',
       field: 'subject',
       width: 280,
-      minWidth: 600,
+      minWidth: 200,
       pinned: 'left',
       wrapText: true,
       autoHeight: true,
