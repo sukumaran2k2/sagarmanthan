@@ -39,8 +39,8 @@ export default function AccessibilityMenu({ lang, setLang }) {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`p-2 rounded-lg transition-all cursor-pointer flex items-center space-x-1.5 ${isOpen
-            ? 'text-cyan-300 bg-white/15 shadow-inner border border-white/20'
-            : 'text-slate-300 hover:text-white hover:bg-white/10 border border-transparent'
+          ? 'text-cyan-300 bg-white/15 shadow-inner border border-white/20'
+          : 'text-slate-300 hover:text-white hover:bg-white/10 border border-transparent'
           }`}
         title="Accessibility Settings"
       >
@@ -68,8 +68,8 @@ export default function AccessibilityMenu({ lang, setLang }) {
               <button
                 onClick={() => setLang('EN')}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${lang === 'EN'
-                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
                   }`}
               >
                 English
@@ -77,8 +77,8 @@ export default function AccessibilityMenu({ lang, setLang }) {
               <button
                 onClick={() => setLang('HI')}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${lang === 'HI'
-                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
                   }`}
               >
                 Hindi
@@ -96,8 +96,8 @@ export default function AccessibilityMenu({ lang, setLang }) {
               <button
                 onClick={() => setFontSize(14)}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${fontSize === 14
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
                   }`}
               >
                 A-
@@ -105,8 +105,8 @@ export default function AccessibilityMenu({ lang, setLang }) {
               <button
                 onClick={() => setFontSize(16)}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${fontSize === 16
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
                   }`}
               >
                 A
@@ -114,8 +114,8 @@ export default function AccessibilityMenu({ lang, setLang }) {
               <button
                 onClick={() => setFontSize(20)}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${fontSize === 20
-                    ? 'bg-blue-600 border-blue-600 text-white'
-                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
                   }`}
               >
                 A+
@@ -123,7 +123,7 @@ export default function AccessibilityMenu({ lang, setLang }) {
             </div>
           </div>
 
-          {/* 3. Cursor Size Control */}
+          {/* 3. Cursor Size Control
           <div className="flex flex-col space-y-1.5">
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
               <MousePointer className="h-3 w-3 text-slate-400" />
@@ -158,7 +158,7 @@ export default function AccessibilityMenu({ lang, setLang }) {
                 C+
               </button>
             </div>
-          </div>
+          </div> */}
 
           {/* 4. Dark & Light Theme Switch */}
           <div className="flex flex-col space-y-1.5">

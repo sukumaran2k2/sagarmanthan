@@ -11,6 +11,7 @@
 }
 
 @variant dark (&:where(.dark, .dark *));
+
 html,
 body {
   background-color: #f8fafc;
@@ -220,7 +221,7 @@ body {
   animation: kenBurns 8.2s ease-out forwards;
 }
 
-/* Accessibility Cursor Styles */
+/* Accessibility Cursor Styles
 html.cursor-medium, html.cursor-medium * {
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"><path fill="%230f417a" stroke="white" stroke-width="1.5" d="M4.5 3v15.2l3.9-3.9 2.4 5.6 2.3-1-2.4-5.6 5.2 0.1L4.5 3z"/></svg>'), default !important;
 }
@@ -235,4 +236,4 @@ html.cursor-large, html.cursor-large * {
 
 html.cursor-large button, html.cursor-large a, html.cursor-large [role="button"], html.cursor-large select, html.cursor-large summary, html.cursor-large input[type="submit"] {
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 24 24"><path fill="%230a2540" stroke="white" stroke-width="1.5" d="M4.5 3v15.2l3.9-3.9 2.4 5.6 2.3-1-2.4-5.6 5.2 0.1L4.5 3z"/></svg>'), pointer !important;
-}
+} */
