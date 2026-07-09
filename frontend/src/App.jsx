@@ -29,7 +29,7 @@ import UserManagementView from './modules/UserManagement/UserManagement';
 import ContactUsView from './modules/ContactUs/ContactUs';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Shield } from 'lucide-react';
 import Loader from './components/Loader';
-import NetworkCheckView from './components/NetworkCheckView';
+import CompatibilityChecker from './components/CompatibilityChecker';
 
 function decodeToken(token) {
   try {
@@ -339,7 +339,6 @@ export default function App() {
   });
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
   const [isTabLoading, setIsTabLoading] = useState(false);
-  const [showNetworkCheck, setShowNetworkCheck] = useState(false);
 
   const [permissions, setPermissions] = useState(() => {
     const saved = localStorage.getItem('sm_rbac_matrix');
@@ -538,25 +537,10 @@ export default function App() {
 
   const handleLoginSuccess = () => {
     setIsLoggedIn(true);
-    setShowNetworkCheck(true);
   };
 
   if (!isLoggedIn) {
     return <LoginView onLogin={handleLoginSuccess} />;
-  }
-
-  if (showNetworkCheck) {
-    return (
-      <NetworkCheckView 
-        onContinue={() => setShowNetworkCheck(false)}
-        onCancel={() => {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          setIsLoggedIn(false);
-          setShowNetworkCheck(false);
-        }}
-      />
-    );
   }
 
   return (
@@ -829,6 +813,9 @@ export default function App() {
           )
         )}
       </main>
+
+      {/* Background Compatibility and Network Speed Checker Alert Overlay */}
+      <CompatibilityChecker />
 
       {/* Government Footer */}
       <Footer />
