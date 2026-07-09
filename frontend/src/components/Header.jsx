@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Globe, Type, Sun, Moon } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import { useTheme } from '../context/ThemeContext.jsx';
+import AccessibilityMenu from './AccessibilityMenu';
 import axios from 'axios';
 
 function decodeToken(token) {
@@ -18,24 +19,13 @@ function decodeToken(token) {
 }
 
 export default function Header({ onLogout, onProfileClick, onAdminClick, currentUser }) {
-  const { isDarkMode, toggleDarkMode } = useTheme();
   const [lang, setLang] = useState('EN');
-  const [fontSize, setFontSize] = useState(16); // Standard browser baseline default (16px)
-  const [showFontSlider, setShowFontSlider] = useState(false);
   const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
   
   const [userName, setUserName] = useState('');
   const [userWing, setUserWing] = useState('');
 
-  // Refs to control closing the elements programmatically
-  const sliderRef = useRef(null);
-  const langDetailsRef = useRef(null);
   const avatarDetailsRef = useRef(null);
-
-  // Sync root document baseline text size whenever state updates
-  useEffect(() => {
-    document.documentElement.style.fontSize = `${fontSize}px`;
-  }, [fontSize]);
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
@@ -56,36 +46,18 @@ export default function Header({ onLogout, onProfileClick, onAdminClick, current
         console.error('Failed to load user details in header:', err);
       });
   }, []);
-  // Handle opening one dropdown and forcing the others to close
-  const handleDropdownOpen = (targetOpen) => {
-    if (targetOpen === 'lang') {
-      setShowFontSlider(false);
-      setShowAvatarDropdown(false);
-    } else if (targetOpen === 'font') {
-      setShowAvatarDropdown(false);
-      if (langDetailsRef.current) langDetailsRef.current.open = false;
-    } else if (targetOpen === 'avatar') {
-      setShowFontSlider(false);
-      if (langDetailsRef.current) langDetailsRef.current.open = false;
-    }
-  };
 
-  // Close everything if clicking completely outside of the actions bar area
+  // Close avatar dropdown if clicking completely outside
   useEffect(() => {
     function handleClickOutside(event) {
-      if (
-          sliderRef.current && !sliderRef.current.contains(event.target) &&
-          langDetailsRef.current && !langDetailsRef.current.contains(event.target) &&
-          avatarDetailsRef.current && !avatarDetailsRef.current.contains(event.target)
-      ) {
-        setShowFontSlider(false);
+      if (avatarDetailsRef.current && !avatarDetailsRef.current.contains(event.target)) {
         setShowAvatarDropdown(false);
-        if (langDetailsRef.current) langDetailsRef.current.open = false;
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
 
   return (
       <header className="bg-gradient-to-r from-[#0a2540] via-[#0f417a] to-[#008ca3] text-white shadow-lg border-b border-[#008ca3]/30">
@@ -146,121 +118,13 @@ export default function Header({ onLogout, onProfileClick, onAdminClick, current
               {/* Actions Bar */}
               <div className="flex items-center space-x-1 sm:space-x-2 border-l border-white/20 pl-2 sm:pl-4">
 
-                {/* Language Selector */}
-                <details
-                    ref={langDetailsRef}
-                    name="header-dropdown"
-                    className="relative inline-block group"
-                    onToggle={(e) => { if (e.target.open) handleDropdownOpen('lang'); }}
-                >
-                  {/* Dropdown Trigger Button */}
-                  <summary className="list-none outline-none cursor-pointer p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex items-center space-x-1" title="Change Language">
-                    <Globe className="h-4 w-4" />
-                    <span className="text-[10px] font-bold tracking-wider">{lang}</span>
-                  </summary>
-
-                  {/* Language Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-32 py-1 bg-[#0a2540] border border-white/10 rounded-xl shadow-2xl z-50 flex flex-col">
-                    {/* English Option */}
-                    <button
-                        onClick={() => { setLang('EN'); langDetailsRef.current.open = false; }}
-                        className="flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white text-left cursor-pointer"
-                    >
-                      <span>English</span>
-                      {lang === 'EN' && <span className="text-cyan-400 font-bold text-xs">✓</span>}
-                    </button>
-
-                    {/* Hindi Option */}
-                    <button
-                        onClick={() => { setLang('HI'); langDetailsRef.current.open = false; }}
-                        className="flex items-center justify-between px-3 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white text-left cursor-pointer"
-                    >
-                      <span>Hindi</span>
-                      {lang === 'HI' && <span className="text-cyan-400 font-bold text-xs">✓</span>}
-                    </button>
-                  </div>
-                </details>
-
-                {/* Text Size Accessibility Tool Dropdown Container */}
-                <div className="relative" ref={sliderRef}>
-                  <button
-                    onClick={() => {
-                      const nextState = !showFontSlider;
-                      setShowFontSlider(nextState);
-                      if (nextState) handleDropdownOpen('font');
-                    }}
-                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                      showFontSlider ? 'text-cyan-300 bg-white/15 shadow-inner' : 'text-slate-300 hover:text-white hover:bg-white/10'
-                    }`}
-                    title="Font Accessibility Settings"
-                  >
-                    <Type className="h-4 w-4" />
-                  </button>
-
-                  {showFontSlider && (
-                    <div className="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 flex items-center space-x-2 whitespace-nowrap">
-                      
-                      {/* Decrease Font Size (A-) */}
-                      <button
-                        onClick={() => setFontSize(14)}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-                          fontSize === 14
-                            ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
-                            : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        A-
-                      </button>
-
-                      {/* Default Font Size (A) */}
-                      <button
-                        onClick={() => setFontSize(16)}
-                        className={`px-4 py-1.5 text-base font-semibold rounded-lg border transition-all ${
-                          fontSize === 16
-                            ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
-                            : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        A
-                      </button>
-
-                      {/* Increase Font Size (A+) */}
-                      <button
-                        onClick={() => setFontSize(20)}
-                        className={`px-3 py-1.5 text-lg font-bold rounded-lg border transition-all ${
-                          fontSize === 20
-                            ? 'bg-blue-800 text-white border-blue-800 shadow-sm'
-                            : 'bg-white text-blue-600 border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        A+
-                      </button>
-
-                    </div>
-                  )}
-                </div>
-
-                {/* Theme Switcher Button */}
-                <button
-                  onClick={toggleDarkMode}
-                  className="p-1.5 rounded-lg transition-all cursor-pointer text-slate-300 hover:text-white hover:bg-white/10 flex items-center justify-center"
-                  title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                >
-                  {isDarkMode ? (
-                    <Sun className="h-4 w-4 text-amber-400 fill-amber-350" />
-                  ) : (
-                    <Moon className="h-4 w-4" />
-                  )}
-                </button>
+                {/* Unified Accessibility Menu Dropdown */}
+                <AccessibilityMenu lang={lang} setLang={setLang} />
 
                 {/* User Avatar & Dropdown */}
                 <div className="relative" ref={avatarDetailsRef}>
                   <button 
-                    onClick={() => {
-                      const nextState = !showAvatarDropdown;
-                      setShowAvatarDropdown(nextState);
-                      if (nextState) handleDropdownOpen('avatar');
-                    }}
+                    onClick={() => setShowAvatarDropdown(!showAvatarDropdown)}
                     className={`flex items-center space-x-2 p-1.5 border rounded-full transition-all duration-200 cursor-pointer ${
                       showAvatarDropdown 
                         ? 'text-cyan-300 bg-white/15 border-white/25 shadow-inner' 
