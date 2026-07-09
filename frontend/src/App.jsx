@@ -26,6 +26,7 @@ import AuditPara from './modules/AuditPara/AuditPara';
 import VIPReference from './modules/VIPReference/VIPReference';
 import Footer from './components/Footer';
 import UserManagementView from './modules/UserManagement/UserManagement';
+import ContactUsView from './modules/ContactUs/ContactUs';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Shield } from 'lucide-react';
 import Loader from './components/Loader';
 import NetworkCheckView from './components/NetworkCheckView';
@@ -305,8 +306,7 @@ const ROUTE_MAP = {
   'Action Taken Report': 'meeting/action-taken-report',
   
   // Contacts nested routes
-  'Ministry Contacts': 'contact/ministry-contacts',
-  'Helpdesk Support': 'contact/helpdesk-support',
+  'Contact Us': 'contact/contact-us',
   
   // User Management
   'User Management': 'userManagement/user-management',
@@ -803,8 +803,12 @@ export default function App() {
                 <VIPReference />
               )}
 
+              {activeTab === 'Contact Us' && (
+                <ContactUsView />
+              )}
+
               {/* Placeholder / Empty State for other inactive government menu views */}
-              {!['dashboard', 'projects', 'less5cr', 'lumpsum', 'dropRequests', 'reports', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'YP Input Form', 'YP Reports', 'Consultant Input Form', 'Consultant Reports', 'User Management', 'Acts & Rules', 'Bills/PreConstitutions Act', 'Media Outreach', 'Audit Paras', 'VIP Reference'].includes(activeTab) && (
+              {!['dashboard', 'projects', 'less5cr', 'lumpsum', 'dropRequests', 'reports', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'YP Input Form', 'YP Reports', 'Consultant Input Form', 'Consultant Reports', 'User Management', 'Acts & Rules', 'Bills/PreConstitutions Act', 'Media Outreach', 'Audit Paras', 'VIP Reference', 'Contact Us'].includes(activeTab) && (
                 <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
                   <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                     <Sparkles className="h-7 w-7 text-blue-600" />

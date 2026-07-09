@@ -306,11 +306,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       label: 'Contact Us',
       icon: PhoneCall,
       align: 'right-0',
-      width: 'w-[240px]',
-      items: [
-        { label: 'Ministry Contacts', icon: Users },
-        { label: 'Helpdesk Support', icon: HelpCircle }
-      ]
+      width: 'w-[240px]'
     }
   ];
 
@@ -371,12 +367,13 @@ export default function Tabs({ activeTab, setActiveTab }) {
              const isLegalActiveTab = [
                'Courtcases', 'Acts & Rules', 'Bills/PreConstitutions Act'
              ].includes(activeTab);
-             const isMainMenuActive = activeTab.startsWith(menu.id) || activeTab === menu.id || (menu.id === 'hr' && isHrActiveTab) || (menu.id === 'legal' && isLegalActiveTab);
+             const isMainMenuActive = activeTab.startsWith(menu.id) || activeTab === menu.id || (menu.id === 'hr' && isHrActiveTab) || (menu.id === 'legal' && isLegalActiveTab) || (menu.id === 'contact' && activeTab === 'Contact Us');
 
             return (
               <div key={menu.id} className="relative group flex-shrink-0">
                 {/* Main Menu Button */}
                 <button
+                  onClick={() => !hasDropdown && setActiveTab(menu.label)}
                   className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 ${isMainMenuActive
                     ? 'text-blue-700 font-bold'
                     : 'text-slate-655 font-semibold hover:text-slate-900'
