@@ -586,11 +586,19 @@ export default function LoginView({ onLogin }) {
                       setRecaptchaToken(val || "");
                       setCaptchaVerified(!!val);
                       if (val) {
+                        /* 
+                        ========================================================================
+                        ORIGINAL ALERTS BLOCK (Commented out for mock purposes)
+                        ------------------------------------------------------------------------
                         const signalStrength = navigator.connection && navigator.connection.downlink 
                           ? navigator.connection.downlink + ' Mbps' 
                           : '4.5 Mbps';
-                        // Keep the wifi strength warning check from hr-modules
                         alert(`Your Wifi strength is Weak (${signalStrength}).\nTo get the complete experience, switch to a better network.`);
+                        ========================================================================
+                        */
+                        
+                        // MOCK ACTION: Dispatch custom event to trigger CompatibilityChecker status overlay
+                        window.dispatchEvent(new CustomEvent('captcha-checked'));
                       }
                     }}
                     theme="light"

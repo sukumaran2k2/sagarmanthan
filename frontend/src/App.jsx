@@ -27,7 +27,7 @@ import VIPReference from './modules/VIPReference/VIPReference';
 import Footer from './components/Footer';
 import UserManagementView from './modules/UserManagement/UserManagement';
 import ContactUsView from './modules/ContactUs/ContactUs';
-import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Shield } from 'lucide-react';
+import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Shield, X } from 'lucide-react';
 import Loader from './components/Loader';
 import CompatibilityChecker from './components/CompatibilityChecker';
 
@@ -525,6 +525,17 @@ export default function App() {
     }
   }, [notification]);
 
+  // Listen to global show-notification events (used for mock periodic bandwidth toasts)
+  useEffect(() => {
+    const handleShowNotification = (e) => {
+      if (e.detail && e.detail.message) {
+        triggerNotification(e.detail.message);
+      }
+    };
+    window.addEventListener('show-notification', handleShowNotification);
+    return () => window.removeEventListener('show-notification', handleShowNotification);
+  }, []);
+
   const handleAddProject = (newProject) => {
     setProjects([newProject, ...projects]);
     triggerNotification(`Project ${newProject.projectId} successfully created.`);
@@ -540,7 +551,12 @@ export default function App() {
   };
 
   if (!isLoggedIn) {
-    return <LoginView onLogin={handleLoginSuccess} />;
+    return (
+      <>
+        <LoginView onLogin={handleLoginSuccess} />
+        <CompatibilityChecker />
+      </>
+    );
   }
 
   return (
@@ -548,14 +564,23 @@ export default function App() {
       
       {/* Toast Notification Alert Banner */}
       {notification && (
-        <div className="fixed top-6 right-6 z-55 flex items-center space-x-2.5 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in">
-          <div className="p-1 bg-emerald-500 rounded-lg">
-            <CheckCircle2 className="h-4.5 w-4.5 text-white" />
+        <div className="fixed top-6 right-6 z-55 flex items-center justify-between space-x-4 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in max-w-sm">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-1 bg-emerald-500 rounded-lg flex-shrink-0">
+              <CheckCircle2 className="h-4.5 w-4.5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold font-display leading-tight">Notification</p>
+              <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{notification}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-bold font-display leading-tight">Notification</p>
-            <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{notification}</p>
-          </div>
+          <button 
+            onClick={() => setNotification(null)}
+            className="p-1 hover:bg-white/10 active:scale-95 rounded-lg transition cursor-pointer text-slate-400 hover:text-white"
+            title="Close"
+          >
+            <X className="h-3.5 w-3.5 stroke-[2.5]" />
+          </button>
         </div>
       )}
 
