@@ -317,6 +317,9 @@ export default function VIPReferenceReports({ vipReferences }) {
           rowHeight={46}
           headerHeight={38}
           suppressColumnVirtualisation={true}
+          pagination={true}
+          paginationPageSize={10}
+          paginationPageSizeSelector={[10, 20, 50]}
           autoSizeStrategy={
             reportType === 'pendency'
               ? { type: 'fitGridWidth' }

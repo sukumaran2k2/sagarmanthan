@@ -80,7 +80,7 @@ body {
 }
 
 /* Style filter and sort icons on header to be white */
-.ag-theme-quartz .ag-icon {
+.ag-theme-quartz .ag-header .ag-icon {
   color: #ffffff !important;
 }
 

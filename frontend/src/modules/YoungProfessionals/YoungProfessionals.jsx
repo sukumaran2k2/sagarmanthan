@@ -108,7 +108,8 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
 
     axios.get("http://localhost:3000/yp-report")
       .then(res => {
-        const mapped = res.data.map((item, idx) => ({
+        const dataArray = res.data.rowData || [];
+        const mapped = dataArray.map((item, idx) => ({
           sNo: idx + 1,
           wing: item["Wing"] || 'Unknown',
           total: item["Total No of Post"] || 0,
@@ -526,6 +527,9 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
                   type: 'fitGridWidth',
                   defaultMinWidth: 95
                 }}
+                pagination={true}
+                paginationPageSize={10}
+                paginationPageSizeSelector={[10, 20, 50]}
               />
             </div>
 

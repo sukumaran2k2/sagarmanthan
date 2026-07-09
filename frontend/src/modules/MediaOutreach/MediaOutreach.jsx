@@ -1,66 +1,20 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Filter, ChevronUp, ChevronDown, FileSpreadsheet, Copy, FileText, ChevronLeft, ChevronRight, Home, Plus, X } from 'lucide-react';
+import { Search, Filter, ChevronUp, ChevronDown, FileSpreadsheet, Copy, FileText, ChevronLeft, ChevronRight, Home, Plus, X, Edit } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import axios from 'axios';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-const ORGANISATIONS = [
-  'Andaman, Lakshadweep Harbour Works',
-  'Shipping Corporation of India',
-  'Jawaharlal Nehru Port Authority',
-  'Deendayal Port Authority',
-  'Ministry of Ports,Shipping and Waterways',
-  'New Mangalore Port Authority',
-  'Visakhapatnam Port Authority',
-  'Mormugao Port Authority',
-  'SMPA - Haldia Dock Complex'
+const monthsList = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
 ];
-
-const INITIAL_MEDIA_DATA = [
-  { id: 1, organisation: 'Andaman, Lakshadweep Harbour Works', fy: '2026-2027', month: 'June', national: 0, regional: 0, overall: 0, tv: { national: 0, regional: 0, overall: 0 }, print: { national: 0, regional: 0, overall: 0 }, online: { english: 0, vernacular: 0, overall: 0 }, social: { twitter: { posts: 0, impression: 0, engagement: 0 }, instagram: { posts: 0, impression: 0, engagement: 0 }, facebook: { posts: 0, impression: 0, engagement: 0 }, linkedIn: { posts: 0, impression: 0, engagement: 0 }, youtube: { posts: 0, impression: 0, engagement: 0 } } },
-  { id: 2, organisation: 'Shipping Corporation of India', fy: '2026-2027', month: 'May', national: 0, regional: 0, overall: 0, tv: { national: 0, regional: 0, overall: 0 }, print: { national: 0, regional: 0, overall: 0 }, online: { english: 0, vernacular: 0, overall: 0 }, social: { twitter: { posts: 0, impression: 0, engagement: 0 }, instagram: { posts: 0, impression: 0, engagement: 0 }, facebook: { posts: 0, impression: 0, engagement: 0 }, linkedIn: { posts: 0, impression: 0, engagement: 0 }, youtube: { posts: 0, impression: 0, engagement: 0 } } },
-  { id: 3, organisation: 'Jawaharlal Nehru Port Authority', fy: '2026-2027', month: 'May', national: 7, regional: 11, overall: 18, tv: { national: 2, regional: 3, overall: 5 }, print: { national: 3, regional: 5, overall: 8 }, online: { english: 2, vernacular: 3, overall: 5 }, social: { twitter: { posts: 10, impression: 500, engagement: 50 }, instagram: { posts: 5, impression: 300, engagement: 30 }, facebook: { posts: 8, impression: 400, engagement: 40 }, linkedIn: { posts: 12, impression: 600, engagement: 60 }, youtube: { posts: 4, impression: 800, engagement: 80 } } },
-  { id: 4, organisation: 'Deendayal Port Authority', fy: '2026-2027', month: 'May', national: 0, regional: 0, overall: 0, tv: { national: 0, regional: 0, overall: 0 }, print: { national: 0, regional: 0, overall: 0 }, online: { english: 0, vernacular: 0, overall: 0 }, social: { twitter: { posts: 0, impression: 0, engagement: 0 }, instagram: { posts: 0, impression: 0, engagement: 0 }, facebook: { posts: 0, impression: 0, engagement: 0 }, linkedIn: { posts: 0, impression: 0, engagement: 0 }, youtube: { posts: 0, impression: 0, engagement: 0 } } },
-  { id: 5, organisation: 'Ministry of Ports,Shipping and Waterways', fy: '2026-2027', month: 'May', national: 0, regional: 0, overall: 0, tv: { national: 0, regional: 0, overall: 0 }, print: { national: 0, regional: 0, overall: 0 }, online: { english: 0, vernacular: 0, overall: 0 }, social: { twitter: { posts: 0, impression: 0, engagement: 0 }, instagram: { posts: 0, impression: 0, engagement: 0 }, facebook: { posts: 0, impression: 0, engagement: 0 }, linkedIn: { posts: 0, impression: 0, engagement: 0 }, youtube: { posts: 0, impression: 0, engagement: 0 } } },
-  { id: 6, organisation: 'New Mangalore Port Authority', fy: '2026-2027', month: 'May', national: 0, regional: 0, overall: 0, tv: { national: 0, regional: 0, overall: 0 }, print: { national: 0, regional: 0, overall: 0 }, online: { english: 0, vernacular: 0, overall: 0 }, social: { twitter: { posts: 0, impression: 0, engagement: 0 }, instagram: { posts: 0, impression: 0, engagement: 0 }, facebook: { posts: 0, impression: 0, engagement: 0 }, linkedIn: { posts: 0, impression: 0, engagement: 0 }, youtube: { posts: 0, impression: 0, engagement: 0 } } },
-  { id: 7, organisation: 'Visakhapatnam Port Authority', fy: '2026-2027', month: 'May', national: 0, regional: 0, overall: 0, tv: { national: 0, regional: 0, overall: 0 }, print: { national: 0, regional: 0, overall: 0 }, online: { english: 0, vernacular: 0, overall: 0 }, social: { twitter: { posts: 0, impression: 0, engagement: 0 }, instagram: { posts: 0, impression: 0, engagement: 0 }, facebook: { posts: 0, impression: 0, engagement: 0 }, linkedIn: { posts: 0, impression: 0, engagement: 0 }, youtube: { posts: 0, impression: 0, engagement: 0 } } },
-  { id: 8, organisation: 'Mormugao Port Authority', fy: '2026-2027', month: 'May', national: 0, regional: 0, overall: 0, tv: { national: 0, regional: 0, overall: 0 }, print: { national: 0, regional: 0, overall: 0 }, online: { english: 0, vernacular: 0, overall: 0 }, social: { twitter: { posts: 0, impression: 0, engagement: 0 }, instagram: { posts: 0, impression: 0, engagement: 0 }, facebook: { posts: 0, impression: 0, engagement: 0 }, linkedIn: { posts: 0, impression: 0, engagement: 0 }, youtube: { posts: 0, impression: 0, engagement: 0 } } },
-  { id: 9, organisation: 'SMPA - Haldia Dock Complex', fy: '2026-2027', month: 'May', national: 10, regional: 10, overall: 20, tv: { national: 3, regional: 3, overall: 6 }, print: { national: 3, regional: 4, overall: 7 }, online: { english: 4, vernacular: 3, overall: 7 }, social: { twitter: { posts: 5, impression: 200, engagement: 20 }, instagram: { posts: 6, impression: 150, engagement: 15 }, facebook: { posts: 4, impression: 180, engagement: 18 }, linkedIn: { posts: 7, impression: 210, engagement: 21 }, youtube: { posts: 2, impression: 300, engagement: 30 } } },
-  { id: 10, organisation: 'Andaman, Lakshadweep Harbour Works', fy: '2026-2027', month: 'May', national: 0, regional: 0, overall: 0, tv: { national: 0, regional: 0, overall: 0 }, print: { national: 0, regional: 0, overall: 0 }, online: { english: 0, vernacular: 0, overall: 0 }, social: { twitter: { posts: 0, impression: 0, engagement: 0 }, instagram: { posts: 0, impression: 0, engagement: 0 }, facebook: { posts: 0, impression: 0, engagement: 0 }, linkedIn: { posts: 0, impression: 0, engagement: 0 }, youtube: { posts: 0, impression: 0, engagement: 0 } } }
-];
-
-// Generate extra entries to match the "524 entries" mentioned in UI
-for (let i = 11; i <= 524; i++) {
-  const org = ORGANISATIONS[i % ORGANISATIONS.length];
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const m = months[i % months.length];
-  const nat = i % 7;
-  const reg = i % 11;
-  INITIAL_MEDIA_DATA.push({
-    id: i,
-    organisation: org,
-    fy: '2026-2027',
-    month: m,
-    national: nat,
-    regional: reg,
-    overall: nat + reg,
-    tv: { national: Math.floor(nat / 3), regional: Math.floor(reg / 3), overall: Math.floor((nat + reg) / 3) },
-    print: { national: Math.floor(nat / 3), regional: Math.floor(reg / 3), overall: Math.floor((nat + reg) / 3) },
-    online: { english: Math.floor(nat / 3), vernacular: Math.floor(reg / 3), overall: Math.floor((nat + reg) / 3) },
-    social: {
-      twitter: { posts: nat, impression: nat * 10, engagement: nat },
-      instagram: { posts: nat, impression: nat * 12, engagement: nat },
-      facebook: { posts: nat, impression: nat * 8, engagement: nat },
-      linkedIn: { posts: nat, impression: nat * 15, engagement: nat },
-      youtube: { posts: nat, impression: nat * 20, engagement: nat }
-    }
-  });
-}
 
 export default function MediaOutreach({ triggerNotification, userPermissions }) {
   const gridRef = useRef();
-  const [mediaData, setMediaData] = useState(INITIAL_MEDIA_DATA);
+  const [mediaData, setMediaData] = useState([]);
+  const [mmtOrganisations, setMmtOrganisations] = useState([]);
   const [selectedFY, setSelectedFY] = useState('All');
   const [selectedOrg, setSelectedOrg] = useState('All');
   const [selectedMonth, setSelectedMonth] = useState('All');
@@ -68,7 +22,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
   const [entriesLimit, setEntriesLimit] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+
 
   // Modal / Add state
   const [isAdding, setIsAdding] = useState(false);
@@ -79,7 +33,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
   // Form input fields
   const [formFY, setFormFY] = useState('2026-2027');
   const [formMonth, setFormMonth] = useState('June');
-  const [formOrg, setFormOrg] = useState(ORGANISATIONS[0]);
+  const [formOrg, setFormOrg] = useState('');
 
   // Sub tab forms data state
   const [tvNational, setTvNational] = useState('');
@@ -114,97 +68,97 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
   const [socialYTImp, setSocialYTImp] = useState('');
   const [socialYTEng, setSocialYTEng] = useState('');
 
-  // Update popup state
-  const [updateFY, setUpdateFY] = useState('2026-2027');
-  const [updateMonth, setUpdateMonth] = useState('June');
+  // Update states
+  const [updateFY, setUpdateFY] = useState('');
+  const [updateMonth, setUpdateMonth] = useState('');
   const [updateNational, setUpdateNational] = useState('');
   const [updateRegional, setUpdateRegional] = useState('');
   const [updateOverall, setUpdateOverall] = useState('');
 
-  const monthsList = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const ORGANISATIONS = useMemo(() => {
+    return mmtOrganisations.map(o => o.organisation_name);
+  }, [mmtOrganisations]);
 
-  // Handle calculation of Overalls dynamically
+  const fetchData = async () => {
+    try {
+      const orgsRes = await axios.get("http://localhost:3000/mmt-dropdown/mmt_organisation");
+      const orgs = orgsRes.data;
+      setMmtOrganisations(orgs);
+      if (orgs.length > 0 && !formOrg) {
+        setFormOrg(orgs[0].organisation_name);
+      }
+
+      const res = await axios.get("http://localhost:3000/monthly-socialmedia-parameter/1");
+      const mapped = res.data.map(r => {
+        const orgObj = orgs.find(o => o.organisation_id === r.organisation_id) || {};
+        return {
+          id: r.media_outreach_id,
+          organisation: orgObj.organisation_name || r.organisation_name || `Organisation ${r.organisation_id}`,
+          organisation_id: r.organisation_id,
+          fy: r.financial_year || '',
+          month: r.month || '',
+          national: (r.broadcast_national || 0) + (r.print_media_national || 0),
+          regional: (r.broadcast_regional || 0) + (r.print_media_regional || 0),
+          overall: (r.broadcast_overall || 0) + (r.print_media_overall || 0) + (r.online_overall || 0),
+          tv: {
+            national: r.broadcast_national || 0,
+            regional: r.broadcast_regional || 0,
+            overall: r.broadcast_overall || 0
+          },
+          print: {
+            national: r.print_media_national || 0,
+            regional: r.print_media_regional || 0,
+            overall: r.print_media_overall || 0
+          },
+          online: {
+            english: r.online_english || 0,
+            vernacular: r.online_vernacular || 0,
+            overall: r.online_overall || 0
+          },
+          social: {
+            twitter: { posts: r.twitter_posts || 0, impression: r.twitter_impression || 0, engagement: r.twitter_engagement || 0 },
+            instagram: { posts: r.instagram_posts || 0, impression: r.instagram_impression || 0, engagement: r.instagram_engagement || 0 },
+            facebook: { posts: r.facebook_posts || 0, impression: r.facebook_impression || 0, engagement: r.facebook_engagement || 0 },
+            linkedIn: { posts: r.linkedIn_posts || 0, impression: r.linkedIn_impression || 0, engagement: r.linkedIn_engagement || 0 },
+            youtube: { posts: r.youTube_posts || 0, impression: r.youTube_impression || 0, engagement: r.youTube_engagement || 0 }
+          }
+        };
+      });
+      setMediaData(mapped);
+    } catch (err) {
+      console.error("Error fetching media outreach data:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [isAdding, isUpdating]);
+
+  // Overall calculations for Add form
   useEffect(() => {
     const nat = parseInt(tvNational) || 0;
     const reg = parseInt(tvRegional) || 0;
-    setTvOverall(nat + reg || '');
+    setTvOverall((nat + reg).toString());
   }, [tvNational, tvRegional]);
 
   useEffect(() => {
     const nat = parseInt(printNational) || 0;
     const reg = parseInt(printRegional) || 0;
-    setPrintOverall(nat + reg || '');
+    setPrintOverall((nat + reg).toString());
   }, [printNational, printRegional]);
 
   useEffect(() => {
     const eng = parseInt(onlineEnglish) || 0;
     const vern = parseInt(onlineVernacular) || 0;
-    setOnlineOverall(eng + vern || '');
+    setOnlineOverall((eng + vern).toString());
   }, [onlineEnglish, onlineVernacular]);
 
+  // Overall calculations for Update form
   useEffect(() => {
     const nat = parseInt(updateNational) || 0;
     const reg = parseInt(updateRegional) || 0;
-    setUpdateOverall(nat + reg || '');
+    setUpdateOverall((nat + reg).toString());
   }, [updateNational, updateRegional]);
-
-  const filteredData = useMemo(() => {
-    return mediaData.filter(row => {
-      if (selectedFY !== 'All' && row.fy !== selectedFY) return false;
-      if (selectedOrg !== 'All' && row.organisation !== selectedOrg) return false;
-      if (selectedMonth !== 'All' && row.month !== selectedMonth) return false;
-      if (searchQuery.trim() !== '') {
-        const query = searchQuery.toLowerCase();
-        return (
-          row.organisation.toLowerCase().includes(query) ||
-          row.fy.toLowerCase().includes(query) ||
-          row.month.toLowerCase().includes(query)
-        );
-      }
-      return true;
-    });
-  }, [mediaData, selectedFY, selectedOrg, selectedMonth, searchQuery]);
-
-  const totalEntries = filteredData.length;
-
-  // Sync entriesLimit with AG Grid Pagination Page Size
-  useEffect(() => {
-    if (gridRef.current && gridRef.current.api) {
-      gridRef.current.api.setGridOption('paginationPageSize', entriesLimit);
-    }
-  }, [entriesLimit]);
-
-  const onPaginationChanged = () => {
-    if (gridRef.current && gridRef.current.api) {
-      const page = gridRef.current.api.paginationGetCurrentPage() + 1;
-      const total = gridRef.current.api.paginationGetTotalPages();
-      setCurrentPage(page);
-      setTotalPages(total || 1);
-    }
-  };
-
-  const handlePageChange = (page) => {
-    if (gridRef.current && gridRef.current.api && page >= 1 && page <= totalPages) {
-      gridRef.current.api.paginationGoToPage(page - 1);
-    }
-  };
-
-  const handleGridWheel = (e) => {
-    const container = e.currentTarget;
-    if (container) {
-      const gridBodyViewport = container.querySelector('.ag-body-viewport');
-      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
-        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-          gridBodyViewport.scrollLeft += e.deltaY;
-          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
-          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
-          if (!isAtStart && !isAtEnd) {
-            e.preventDefault();
-          }
-        }
-      }
-    }
-  };
 
   const handleOpenUpdate = (row) => {
     setSelectedRowToUpdate(row);
@@ -216,172 +170,258 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
     setIsUpdating(true);
   };
 
-  const handleUpdateSubmit = (e) => {
+  const handleUpdateSubmit = async (e) => {
     e.preventDefault();
     if (!updateFY || !updateNational || !updateRegional || !updateOverall) {
       alert('Please fill out all mandatory fields.');
       return;
     }
-    setMediaData(prev =>
-      prev.map(row =>
-        row.id === selectedRowToUpdate.id
-          ? {
-            ...row,
-            fy: updateFY,
-            month: updateMonth,
-            national: parseInt(updateNational) || 0,
-            regional: parseInt(updateRegional) || 0,
-            overall: parseInt(updateOverall) || 0
-          }
-          : row
-      )
-    );
-    setIsUpdating(false);
-    if (triggerNotification) {
-      triggerNotification(`Successfully updated Media Outreach record for ${selectedRowToUpdate.organisation}.`);
+    
+    try {
+      await axios.put("http://localhost:3000/media-outreach-data-edit", {
+        type: 'broadcast',
+        updateBroadcastNational: parseInt(updateNational) || 0,
+        updateBroadcastRegional: parseInt(updateRegional) || 0,
+        updateBroadcastOverall: parseInt(updateOverall) || 0,
+        mediaOutreachIdOrg: selectedRowToUpdate.id,
+        userID: 1
+      });
+      
+      await axios.put("http://localhost:3000/media-outreach-data-edit", {
+        type: 'print',
+        updateprintMediaNational: parseInt(updateNational) || 0,
+        updateprintMediaRegional: parseInt(updateRegional) || 0,
+        updateprintMediaOverall: parseInt(updateOverall) || 0,
+        mediaOutreachIdOrg: selectedRowToUpdate.id,
+        userID: 1
+      });
+      
+      setIsUpdating(false);
+      fetchData();
+      if (triggerNotification) {
+        triggerNotification(`Successfully updated Media Outreach record for ${selectedRowToUpdate.organisation}.`);
+      }
+    } catch (err) {
+      console.error("Error updating media outreach:", err);
+      alert("Failed to update media outreach.");
     }
   };
 
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!formFY || !formMonth || !formOrg) {
       alert('Please select Financial Year, Month and Organisation.');
       return;
     }
 
-    const nat = (parseInt(tvNational) || 0) + (parseInt(printNational) || 0) + (parseInt(onlineEnglish) || 0);
-    const reg = (parseInt(tvRegional) || 0) + (parseInt(printRegional) || 0) + (parseInt(onlineVernacular) || 0);
-
-    const newRecord = {
-      id: mediaData.length + 1,
-      organisation: formOrg,
-      fy: formFY,
+    const orgObj = mmtOrganisations.find(o => o.organisation_name === formOrg) || { organisation_id: 1 };
+    
+    const payload = {
+      financialYear: formFY,
       month: formMonth,
-      national: nat,
-      regional: reg,
-      overall: nat + reg,
-      tv: {
-        national: parseInt(tvNational) || 0,
-        regional: parseInt(tvRegional) || 0,
-        overall: parseInt(tvOverall) || 0
-      },
-      print: {
-        national: parseInt(printNational) || 0,
-        regional: parseInt(printRegional) || 0,
-        overall: parseInt(printOverall) || 0
-      },
-      online: {
-        english: parseInt(onlineEnglish) || 0,
-        vernacular: parseInt(onlineVernacular) || 0,
-        overall: parseInt(onlineOverall) || 0
-      },
-      social: {
-        twitter: { posts: parseInt(socialTwitterPosts) || 0, impression: parseInt(socialTwitterImp) || 0, engagement: parseInt(socialTwitterEng) || 0 },
-        instagram: { posts: parseInt(socialInstaPosts) || 0, impression: parseInt(socialInstaImp) || 0, engagement: parseInt(socialInstaEng) || 0 },
-        facebook: { posts: parseInt(socialFBPosts) || 0, impression: parseInt(socialFBImp) || 0, engagement: parseInt(socialFBEng) || 0 },
-        linkedIn: { posts: parseInt(socialLinkedInPosts) || 0, impression: parseInt(socialLinkedInImp) || 0, engagement: parseInt(socialLinkedInEng) || 0 },
-        youtube: { posts: parseInt(socialYTPosts) || 0, impression: parseInt(socialYTImp) || 0, engagement: parseInt(socialYTEng) || 0 }
-      }
+      organisation: orgObj.organisation_id,
+      BroadcastChecked: tvNational || tvRegional ? 'Yes' : 'No',
+      BroadcastNational: parseInt(tvNational) || 0,
+      BroadcastRegional: parseInt(tvRegional) || 0,
+      BroadcastOverall: parseInt(tvOverall) || 0,
+      PrintMediaChecked: printNational || printRegional ? 'Yes' : 'No',
+      PrintMediaNational: parseInt(printNational) || 0,
+      PrintMediaRegional: parseInt(printRegional) || 0,
+      PrintMediaOverall: parseInt(printOverall) || 0,
+      OnlineChecked: onlineEnglish || onlineVernacular ? 'Yes' : 'No',
+      OnlineEnglish: parseInt(onlineEnglish) || 0,
+      OnlineVernacular: parseInt(onlineVernacular) || 0,
+      OnlineOverall: parseInt(onlineOverall) || 0,
+      SocialMediaChecked: 'Yes',
+      TwitterPosts: parseInt(socialTwitterPosts) || 0,
+      TwitterImpression: parseInt(socialTwitterImp) || 0,
+      TwitterEngagement: parseInt(socialTwitterEng) || 0,
+      InstagramPosts: parseInt(socialInstaPosts) || 0,
+      InstagramImpression: parseInt(socialInstaImp) || 0,
+      InstagramEngagement: parseInt(socialInstaEng) || 0,
+      FacebookPosts: parseInt(socialFBPosts) || 0,
+      FacebookImpression: parseInt(socialFBImp) || 0,
+      FacebookEngagement: parseInt(socialFBEng) || 0,
+      LinkedInPosts: parseInt(socialLinkedInPosts) || 0,
+      LinkedInImpression: parseInt(socialLinkedInImp) || 0,
+      LinkedInEngagement: parseInt(socialLinkedInEng) || 0,
+      youTubePosts: parseInt(socialYTPosts) || 0,
+      youTubeImpression: parseInt(socialYTImp) || 0,
+      youTubeEngagement: parseInt(socialYTEng) || 0
     };
 
-    setMediaData([newRecord, ...mediaData]);
-    setIsAdding(false);
-
-    // Reset inputs
-    setTvNational(''); setTvRegional(''); setTvOverall('');
-    setPrintNational(''); setPrintRegional(''); setPrintOverall('');
-    setOnlineEnglish(''); setOnlineVernacular(''); setOnlineOverall('');
-    setSocialTwitterPosts(''); setSocialTwitterImp(''); setSocialTwitterEng('');
-    setSocialInstaPosts(''); setSocialInstaImp(''); setSocialInstaEng('');
-    setSocialFBPosts(''); setSocialFBImp(''); setSocialFBEng('');
-    setSocialLinkedInPosts(''); setSocialLinkedInImp(''); setSocialLinkedInEng('');
-    setSocialYTPosts(''); setSocialYTImp(''); setSocialYTEng('');
-
-    if (triggerNotification) {
-      triggerNotification(`New Media Outreach record successfully added for ${formOrg}.`);
+    try {
+      await axios.post("http://localhost:3000/create-social-media", payload);
+      setIsAdding(false);
+      
+      // Reset inputs
+      setTvNational(''); setTvRegional(''); setTvOverall('');
+      setPrintNational(''); setPrintRegional(''); setPrintOverall('');
+      setOnlineEnglish(''); setOnlineVernacular(''); setOnlineOverall('');
+      setSocialTwitterPosts(''); setSocialTwitterImp(''); setSocialTwitterEng('');
+      setSocialInstaPosts(''); setSocialInstaImp(''); setSocialInstaEng('');
+      setSocialFBPosts(''); setSocialFBImp(''); setSocialFBEng('');
+      setSocialLinkedInPosts(''); setSocialLinkedInImp(''); setSocialLinkedInEng('');
+      setSocialYTPosts(''); setSocialYTImp(''); setSocialYTEng('');
+      
+      fetchData();
+      if (triggerNotification) {
+        triggerNotification(`New Media Outreach record successfully added for ${formOrg}.`);
+      }
+    } catch (err) {
+      if (err.response && err.response.status === 302) {
+        alert("Record already exists for this organization, month and financial year.");
+      } else {
+        console.error("Error creating social media record:", err);
+        alert("Failed to create record.");
+      }
     }
   };
 
   const colDefs = useMemo(() => {
     const cols = [
-    {
-      headerName: 'S.No',
-      field: 'sno',
-      valueGetter: (params) => params.node.rowIndex + 1,
-      width: 70,
-      pinned: 'left',
-      cellClass: 'text-center font-bold text-slate-500 border-r border-slate-200 flex items-center justify-center'
-    },
-    {
-      headerName: 'Organisation',
-      field: 'organisation',
-      minWidth: 280,
-      flex: 2,
-      pinned: 'left',
-      cellClass: 'font-semibold text-slate-700 flex items-center pl-4 border-r border-slate-200 hover:text-blue-705'
-    },
-    {
-      headerName: 'Financial Year',
-      field: 'fy',
-      minWidth: 140,
-      flex: 1,
-      cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium'
-    },
-    {
-      headerName: 'Month',
-      field: 'month',
-      minWidth: 120,
-      flex: 1,
-      cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium'
-    },
-    {
-      headerName: 'National',
-      field: 'national',
-      minWidth: 120,
-      flex: 1,
-      cellClass: 'text-center font-bold text-slate-800 border-r border-slate-100 flex items-center justify-center'
-    },
-    {
-      headerName: 'Regional',
-      field: 'regional',
-      minWidth: 120,
-      flex: 1,
-      cellClass: 'text-center font-bold text-slate-800 border-r border-slate-100 flex items-center justify-center'
-    },
-    {
-      headerName: 'Overall',
-      field: 'overall',
-      minWidth: 120,
-      flex: 1,
-      cellClass: 'text-center font-black text-blue-700 border-r border-slate-100 flex items-center justify-center'
-    },
-    {
-      headerName: 'Update',
-      field: 'update',
-      width: 100,
-      cellClass: 'text-center flex items-center justify-center',
-      cellRenderer: (params) => (
-        <button
-          onClick={() => handleOpenUpdate(params.data)}
-          className="text-xs font-bold text-blue-650 hover:text-blue-800 hover:underline cursor-pointer"
-        >
-          Update
-        </button>
-      )
-    }
+      {
+        headerName: 'S.No',
+        field: 'sno',
+        valueGetter: (params) => params.node.rowIndex + 1 + (currentPage - 1) * entriesLimit,
+        width: 70,
+        pinned: 'left',
+        cellClass: 'text-center font-bold text-slate-505 border-r border-slate-200 flex items-center justify-center'
+      },
+      {
+        headerName: 'Organisation',
+        field: 'organisation',
+        minWidth: 280,
+        flex: 2,
+        pinned: 'left',
+        cellClass: 'font-semibold text-slate-700 flex items-center pl-4 border-r border-slate-200 hover:text-blue-705'
+      },
+      {
+        headerName: 'Financial Year',
+        field: 'fy',
+        minWidth: 140,
+        flex: 1,
+        cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium'
+      },
+      {
+        headerName: 'Month',
+        field: 'month',
+        minWidth: 120,
+        flex: 1,
+        cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium'
+      },
+      {
+        headerName: 'National',
+        field: 'national',
+        minWidth: 120,
+        flex: 1,
+        cellClass: 'text-center font-bold text-slate-800 border-r border-slate-100 flex items-center justify-center'
+      },
+      {
+        headerName: 'Regional',
+        field: 'regional',
+        minWidth: 120,
+        flex: 1,
+        cellClass: 'text-center font-bold text-slate-800 border-r border-slate-100 flex items-center justify-center'
+      },
+      {
+        headerName: 'Overall',
+        field: 'overall',
+        minWidth: 120,
+        flex: 1,
+        cellClass: 'text-center font-black text-blue-700 border-r border-slate-100 flex items-center justify-center'
+      },
+      {
+        headerName: 'Update',
+        field: 'update',
+        width: 100,
+        cellClass: 'text-center flex items-center justify-center',
+        cellRenderer: (params) => (
+          <div className="flex items-center justify-center h-full">
+            <button
+              onClick={() => handleOpenUpdate(params.data)}
+              className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm hover:shadow transition cursor-pointer"
+              title="Update Media Outreach"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          </div>
+        )
+      }
     ];
     if (userPermissions && userPermissions.update === false) {
       return cols.filter(c => c.headerName !== 'Update');
     }
     return cols;
-  }, [userPermissions]);
+  }, [userPermissions, currentPage, entriesLimit]);
+
+  const handleOpenAdd = () => {
+    setIsAdding(true);
+    setActiveFormTab('tv');
+  };
+
+  // Filter logic
+  const filteredData = useMemo(() => {
+    let result = [...mediaData];
+    if (selectedFY !== 'All') {
+      result = result.filter(r => r.fy === selectedFY);
+    }
+    if (selectedOrg !== 'All') {
+      result = result.filter(r => r.organisation.toLowerCase() === selectedOrg.toLowerCase());
+    }
+    if (selectedMonth !== 'All') {
+      result = result.filter(r => r.month === selectedMonth);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r =>
+        r.organisation.toLowerCase().includes(q) ||
+        r.fy.toLowerCase().includes(q) ||
+        r.month.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [mediaData, selectedFY, selectedOrg, selectedMonth, searchQuery]);
+
+  const totalEntries = filteredData.length;
+  const totalPages = Math.ceil(totalEntries / entriesLimit) || 1;
+
+
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * entriesLimit;
+    return filteredData.slice(start, start + entriesLimit);
+  }, [filteredData, currentPage, entriesLimit]);
+
+  const handlePageChange = (page) => {
+    if (gridRef.current && gridRef.current.api && page >= 1 && page <= totalPages) {
+      gridRef.current.api.paginationGoToPage(page - 1);
+      setCurrentPage(page);
+    }
+  };
+
+  const onPaginationChanged = () => {
+    if (gridRef.current && gridRef.current.api) {
+      const gridPage = gridRef.current.api.paginationGetCurrentPage() + 1;
+      if (gridPage !== currentPage) {
+        setCurrentPage(gridPage);
+      }
+    }
+  };
+
+  const handleGridWheel = (e) => {
+    if (gridRef.current && gridRef.current.api) {
+      const scrollAmount = e.deltaY;
+      const gridContainer = gridRef.current.api.getGridBodyViewportElement?.() || gridRef.current.api.getGridBodyElement?.();
+      if (gridContainer) {
+        gridContainer.scrollLeft += scrollAmount;
+      }
+    }
+  };
 
   if (isAdding) {
     return (
       <div className="p-6 space-y-6 animate-fade-in pb-12">
-        {/* Form Page Header Card wrapper */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a]">
-          {/* Header Title Bar */}
           <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4.5 flex items-center justify-between text-white border-b border-blue-900/20">
             <div>
               <h3 className="text-sm font-black uppercase tracking-wider font-display">
@@ -397,9 +437,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
             </button>
           </div>
 
-          {/* Form Content */}
           <form onSubmit={handleAddSubmit} className="p-6 space-y-6">
-            {/* Top Form Fields */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Financial Year*</label>
@@ -444,51 +482,25 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
               Note : Please note that the Financial Year and Month can be changed only in the Broadcast Tv Media Tab.
             </div>
 
-            {/* Sub tab navigation */}
-            <div className="flex border-b border-slate-100">
-              <button
-                type="button"
-                onClick={() => setActiveFormTab('tv')}
-                className={`px-4 py-2 text-xs font-bold border-b-2 cursor-pointer transition-all ${activeFormTab === 'tv'
-                  ? 'border-blue-600 text-blue-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
-              >
-                Broadcast Tv Media
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveFormTab('print')}
-                className={`px-4 py-2 text-xs font-bold border-b-2 cursor-pointer transition-all ${activeFormTab === 'print'
-                  ? 'border-blue-600 text-blue-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
-              >
-                Print Media
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveFormTab('online')}
-                className={`px-4 py-2 text-xs font-bold border-b-2 cursor-pointer transition-all ${activeFormTab === 'online'
-                  ? 'border-blue-600 text-blue-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
-              >
-                Online
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveFormTab('social')}
-                className={`px-4 py-2 text-xs font-bold border-b-2 cursor-pointer transition-all ${activeFormTab === 'social'
-                  ? 'border-blue-600 text-blue-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
-              >
-                Social Media
-              </button>
+            <div className="flex border-b border-slate-100 font-semibold">
+              {['tv', 'print', 'online', 'social'].map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setActiveFormTab(t)}
+                  className={`px-4 py-2 text-xs font-bold border-b-2 cursor-pointer transition-all ${activeFormTab === t
+                    ? 'border-blue-600 text-blue-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                >
+                  {t === 'tv' && 'Broadcast Tv Media'}
+                  {t === 'print' && 'Print Media'}
+                  {t === 'online' && 'Online'}
+                  {t === 'social' && 'Social Media'}
+                </button>
+              ))}
             </div>
 
-            {/* Sub tab contents */}
             <div className="bg-slate-50/50 p-5 rounded-xl border border-slate-150 min-h-[160px] flex flex-col justify-center">
               {activeFormTab === 'tv' && (
                 <div className="space-y-4">
@@ -618,36 +630,46 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
-                        <tr>
-                          <td className="px-4 py-2 font-bold">Twitter</td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialTwitterPosts} onChange={e => setSocialTwitterPosts(e.target.value)} /></td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialTwitterImp} onChange={e => setSocialTwitterImp(e.target.value)} /></td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialTwitterEng} onChange={e => setSocialTwitterEng(e.target.value)} /></td>
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-2 font-bold">Instagram</td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialInstaPosts} onChange={e => setSocialInstaPosts(e.target.value)} /></td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialInstaImp} onChange={e => setSocialInstaImp(e.target.value)} /></td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialInstaEng} onChange={e => setSocialInstaEng(e.target.value)} /></td>
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-2 font-bold">Facebook</td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialFBPosts} onChange={e => setSocialFBPosts(e.target.value)} /></td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialFBImp} onChange={e => setSocialFBImp(e.target.value)} /></td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialFBEng} onChange={e => setSocialFBEng(e.target.value)} /></td>
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-2 font-bold">LinkedIn</td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialLinkedInPosts} onChange={e => setSocialLinkedInPosts(e.target.value)} /></td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialLinkedInImp} onChange={e => setSocialLinkedInImp(e.target.value)} /></td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialLinkedInEng} onChange={e => setSocialLinkedInEng(e.target.value)} /></td>
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-2 font-bold">Youtube</td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialYTPosts} onChange={e => setSocialYTPosts(e.target.value)} /></td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialYTImp} onChange={e => setSocialYTImp(e.target.value)} /></td>
-                          <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={socialYTEng} onChange={e => setSocialYTEng(e.target.value)} /></td>
-                        </tr>
+                        {['Twitter', 'Instagram', 'Facebook', 'LinkedIn', 'Youtube'].map(ch => {
+                          const getVal = (field) => {
+                            if (ch === 'Twitter') return field === 'posts' ? socialTwitterPosts : field === 'imp' ? socialTwitterImp : socialTwitterEng;
+                            if (ch === 'Instagram') return field === 'posts' ? socialInstaPosts : field === 'imp' ? socialInstaImp : socialInstaEng;
+                            if (ch === 'Facebook') return field === 'posts' ? socialFBPosts : field === 'imp' ? socialFBImp : socialFBEng;
+                            if (ch === 'LinkedIn') return field === 'posts' ? socialLinkedInPosts : field === 'imp' ? socialLinkedInImp : socialLinkedInEng;
+                            return field === 'posts' ? socialYTPosts : field === 'imp' ? socialYTImp : socialYTEng;
+                          };
+                          const setVal = (field, val) => {
+                            if (ch === 'Twitter') {
+                              if (field === 'posts') setSocialTwitterPosts(val);
+                              else if (field === 'imp') setSocialTwitterImp(val);
+                              else setSocialTwitterEng(val);
+                            } else if (ch === 'Instagram') {
+                              if (field === 'posts') setSocialInstaPosts(val);
+                              else if (field === 'imp') setSocialInstaImp(val);
+                              else setSocialInstaEng(val);
+                            } else if (ch === 'Facebook') {
+                              if (field === 'posts') setSocialFBPosts(val);
+                              else if (field === 'imp') setSocialFBImp(val);
+                              else setSocialFBEng(val);
+                            } else if (ch === 'LinkedIn') {
+                              if (field === 'posts') setSocialLinkedInPosts(val);
+                              else if (field === 'imp') setSocialLinkedInImp(val);
+                              else setSocialLinkedInEng(val);
+                            } else {
+                              if (field === 'posts') setSocialYTPosts(val);
+                              else if (field === 'imp') setSocialYTImp(val);
+                              else setSocialYTEng(val);
+                            }
+                          };
+                          return (
+                            <tr key={ch}>
+                              <td className="px-4 py-2 font-bold">{ch}</td>
+                              <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={getVal('posts')} onChange={e => setVal('posts', e.target.value)} /></td>
+                              <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={getVal('imp')} onChange={e => setVal('imp', e.target.value)} /></td>
+                              <td className="px-4 py-2"><input type="number" className="border border-slate-250 px-2 py-1 rounded w-32 focus:outline-none" value={getVal('eng')} onChange={e => setVal('eng', e.target.value)} /></td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -655,8 +677,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
               )}
             </div>
 
-            {/* Form Buttons */}
-            <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100 font-semibold">
               <button
                 type="button"
                 onClick={() => setIsAdding(false)}
@@ -698,50 +719,50 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
         <div>
           <h2 className="text-xl font-bold text-slate-800 font-display">Media Outreach</h2>
           <div className="flex items-center space-x-1.5 text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-1">
-            <span>Home</span>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-slate-650">Media Outreach - (Input Form)</span>
+            <Home className="h-3.5 w-3.5 text-slate-400" />
+            <span>/</span>
+            <span>Governance</span>
+            <span>/</span>
+            <span className="text-blue-800">Media Outreach</span>
           </div>
         </div>
 
         {(!userPermissions || userPermissions.add !== false) && (
           <button
-            onClick={() => setIsAdding(true)}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer self-start md:self-auto"
+            onClick={handleOpenAdd}
+            className="inline-flex items-center space-x-1.5 px-4.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm hover:shadow transition duration-150 self-start md:self-auto cursor-pointer"
           >
             <Plus className="h-4 w-4" />
-            <span>Add Media Outreach</span>
+            <span>Add outreach Record</span>
           </button>
         )}
       </div>
 
-      {/* Filters Container Banner (Similar layout as Project Categories) */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-        <button
-          onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
-          className={`w-full flex items-center justify-between text-left transition cursor-pointer ${isFiltersExpanded ? 'pb-3 border-b border-slate-100 mb-4' : ''
-            }`}
-        >
-          <div className="flex items-center space-x-2">
-            <Filter className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-bold text-slate-800 font-display">Media Outreach Filter Options</span>
+      {/* Filters Area */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center space-x-2 font-bold text-slate-800 text-xs uppercase tracking-wider">
+            <Filter className="h-4 w-4 text-blue-800" />
+            <span>Search Filters</span>
           </div>
-          <div className="flex items-center space-x-1.5 text-slate-400">
-            <span className="text-[10px] font-normal">Click to {isFiltersExpanded ? 'collapse' : 'expand'}</span>
+          <button
+            onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
+            className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition cursor-pointer"
+          >
             {isFiltersExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </div>
-        </button>
+          </button>
+        </div>
 
         {isFiltersExpanded && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <div className="space-y-1.5">
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Financial Year</label>
               <select
                 value={selectedFY}
                 onChange={(e) => { setSelectedFY(e.target.value); setCurrentPage(1); }}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
               >
-                <option value="All">All Years</option>
+                <option value="All">All FYs</option>
                 <option value="2026-2027">2026-2027</option>
                 <option value="2025-2026">2025-2026</option>
               </select>
@@ -752,7 +773,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
               <select
                 value={selectedOrg}
                 onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
               >
                 <option value="All">All Organisations</option>
                 {ORGANISATIONS.map((org, idx) => (
@@ -766,7 +787,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
               <select
                 value={selectedMonth}
                 onChange={(e) => { setSelectedMonth(e.target.value); setCurrentPage(1); }}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
               >
                 <option value="All">All Months</option>
                 {monthsList.map((m, idx) => (
@@ -780,34 +801,32 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
 
       {/* Grid Controls (Show Entries & Search) */}
       <div className="bg-white rounded-xl shadow-md border border-slate-200 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        {/* Copy, Excel, PDF export options */}
         <div className="flex items-center space-x-1.5 border-b md:border-b-0 pb-3 md:pb-0 border-slate-100">
-          <button onClick={() => { }} className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer">
+          <button className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer">
             <Copy className="h-3.5 w-3.5" /> Copy
           </button>
-          <button onClick={() => { }} className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer">
+          <button className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer">
             <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
           </button>
-          <button onClick={() => { }} className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer">
+          <button className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer">
             <FileText className="h-3.5 w-3.5" /> PDF
           </button>
         </div>
 
-        {/* Entries select & Search Input */}
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
           <div className="flex items-center space-x-2 w-full sm:w-auto">
-            <span className="text-xs text-slate-505 whitespace-nowrap">Show</span>
+            <span className="text-xs text-slate-550 whitespace-nowrap">Show</span>
             <select
               value={entriesLimit}
               onChange={(e) => { setEntriesLimit(parseInt(e.target.value)); }}
-              className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+              className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
             >
               <option value={5}>5</option>
               <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
             </select>
-            <span className="text-xs text-slate-505 whitespace-nowrap font-medium">entries</span>
+            <span className="text-xs text-slate-555 whitespace-nowrap font-semibold">entries</span>
           </div>
 
           <div className="relative w-full sm:w-60">
@@ -819,7 +838,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
               placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-xs pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold"
+              className="w-full text-xs pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700"
             />
           </div>
         </div>
@@ -858,7 +877,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-655 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -887,7 +906,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages || totalPages === 0}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+              className="p-1.5 rounded-lg border border-slate-200 text-slate-655 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -895,20 +914,18 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
         </div>
       </div>
 
-
-
       {/* Update Media Outreach Modal */}
       {isUpdating && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/65 px-4 py-10">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-lg mx-auto animate-scale-up">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-lg mx-auto animate-scale-up text-slate-800">
             <div className="flex items-center justify-between border-b border-slate-100 px-7 pt-7 pb-5">
               <div>
                 <h3 className="text-base font-extrabold text-slate-800 font-display">Update Media Outreach</h3>
-                <p className="text-xs text-slate-555 font-medium mt-0.5">{selectedRowToUpdate?.organisation}</p>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">{selectedRowToUpdate?.organisation}</p>
               </div>
               <button
                 onClick={() => setIsUpdating(false)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition cursor-pointer flex-shrink-0"
+                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition cursor-pointer flex-shrink-0"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -921,7 +938,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
                   <select
                     value={updateFY}
                     onChange={(e) => setUpdateFY(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
+                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
                   >
                     <option value="2026-2027">2026-2027</option>
                     <option value="2025-2026">2025-2026</option>
@@ -933,7 +950,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
                   <select
                     value={updateMonth}
                     onChange={(e) => setUpdateMonth(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
+                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
                   >
                     {monthsList.map((m, idx) => (
                       <option key={idx} value={m}>{m}</option>
@@ -981,8 +998,7 @@ export default function MediaOutreach({ triggerNotification, userPermissions }) 
                 </div>
               </div>
 
-              {/* Form Buttons */}
-              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100 font-semibold">
                 <button
                   type="button"
                   onClick={() => setIsUpdating(false)}

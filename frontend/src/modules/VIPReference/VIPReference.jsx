@@ -1,18 +1,62 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Home, FileText, ClipboardList } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import VIPReferenceInput from './VIPReferenceInput';
 import VIPReferenceReports from './VIPReferenceReports';
-import { INITIAL_VIP_REFERENCES } from './constants';
+import axios from 'axios';
 
 export default function VIPReference() {
-  const [vipReferences, setVipReferences] = useState(INITIAL_VIP_REFERENCES);
+  const [vipReferences, setVipReferences] = useState([]);
   const [activeSubTab, setActiveSubTab] = useState('input'); // 'input' or 'reports'
 
   const navTabs = [
     { id: 'input', label: 'Input Form', icon: ClipboardList },
     { id: 'reports', label: 'Reports', icon: FileText }
   ];
+
+  const fetchData = () => {
+    axios.get("http://localhost:3000/vip-reference")
+      .then(res => {
+        const mapped = res.data.map(r => {
+          const steps = {
+            1: r.received_at_ministry || 'No',
+            2: r.submitted_for_approval || 'No',
+            3: r.comments_sought || 'No',
+            4: r.comments_received || 'No',
+            5: r.reply_furnished || 'No',
+            6: r.disposed || 'No'
+          };
+          const dates = {
+            1: r.received_at_ministry_date ? new Date(r.received_at_ministry_date).toISOString().split('T')[0] : '',
+            2: r.submitted_for_approval_date ? new Date(r.submitted_for_approval_date).toISOString().split('T')[0] : '',
+            3: r.comments_sought_date ? new Date(r.comments_sought_date).toISOString().split('T')[0] : '',
+            4: r.comments_received_date ? new Date(r.comments_received_date).toISOString().split('T')[0] : '',
+            5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : '',
+            6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : ''
+          };
+          return {
+            id: r.vip_reference_id,
+            subject: r.subject || '',
+            eofficeFile: r.eoffice_file_number || '',
+            wing: r.wing_name || '',
+            division: r.division_name || '',
+            refNumber: r.ref_letter_num || '',
+            receivedFrom: r.received_from || '',
+            remarks: r.remarks || '',
+            deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
+            statusSteps: steps,
+            statusDates: dates,
+            lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
+          };
+        });
+        setVipReferences(mapped);
+      })
+      .catch(err => console.error("Error fetching VIP references:", err));
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [activeSubTab]);
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
@@ -52,7 +96,7 @@ export default function VIPReference() {
       {/* Content Section */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         {activeSubTab === 'input' ? (
-          <VIPReferenceInput vipReferences={vipReferences} setVipReferences={setVipReferences} />
+          <VIPReferenceInput vipReferences={vipReferences} setVipReferences={setVipReferences} refreshData={fetchData} />
         ) : (
           <VIPReferenceReports vipReferences={vipReferences} />
         )}

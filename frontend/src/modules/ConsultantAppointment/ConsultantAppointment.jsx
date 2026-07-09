@@ -19,8 +19,52 @@ import {
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import InternalNavigation from '../../components/InternalNavigation';
+import axios from 'axios';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
+
+const DB_WINGS = [
+  { wing_id: 1, wing_name: "Shipping" },
+  { wing_id: 2, wing_name: "Vigilance" },
+  { wing_id: 3, wing_name: "Ports" },
+  { wing_id: 4, wing_name: "IWT" },
+  { wing_id: 5, wing_name: "Administration" },
+  { wing_id: 6, wing_name: "Coord-I" },
+  { wing_id: 7, wing_name: "Coord-II" },
+  { wing_id: 8, wing_name: "DGLL, Parliament & TRW" },
+  { wing_id: 9, wing_name: "Development" },
+  { wing_id: 10, wing_name: "Finance" },
+  { wing_id: 11, wing_name: "Sagarmala" },
+  { wing_id: 12, wing_name: "Information Technology" },
+  { wing_id: 13, wing_name: "Office of Economic Advisor" },
+  { wing_id: 14, wing_name: "Special Initiatives & Projects" }
+];
+
+const DB_DIVISIONS = [
+  { division_id: 1, division_name: "Shipping-I" },
+  { division_id: 2, division_name: "Shipping-II" },
+  { division_id: 3, division_name: "Shipping-III" },
+  { division_id: 4, division_name: "Vigilance" },
+  { division_id: 5, division_name: "PD-I" },
+  { division_id: 6, division_name: "PD-II" },
+  { division_id: 7, division_name: "PPP" },
+  { division_id: 8, division_name: "PHRD" },
+  { division_id: 9, division_name: "IWT-I" },
+  { division_id: 10, division_name: "IWT-II" },
+  { division_id: 11, division_name: "Admn." },
+  { division_id: 12, division_name: "Coord-I" },
+  { division_id: 13, division_name: "Coord-II" },
+  { division_id: 14, division_name: "DGLL, Parl. & TRW" },
+  { division_id: 15, division_name: "Devlopment" },
+  { division_id: 16, division_name: "Finance" },
+  { division_id: 17, division_name: "Sagarmala -I" },
+  { division_id: 18, division_name: "Sagarmala -II" },
+  { division_id: 19, division_name: "Sagarmala-III , ALHW & Media" },
+  { division_id: 20, division_name: "IT" },
+  { division_id: 21, division_name: "PD-III" },
+  { division_id: 22, division_name: "PD- IV" },
+  { division_id: 23, division_name: "Special Initiatives & Projects" }
+];
 
 // Sequential checklist stages for Consultant Appointment Status
 const STAGES = [
@@ -43,21 +87,9 @@ const getStatusFromStages = (stages) => {
   return 'Initiated';
 };
 
-// Initial Consultant Appointment dataset (9 entries matching user description)
-const INITIAL_APPOINTMENTS = [
-  { id: 1, wing: 'Coord-I', division: 'Coord-I', appointmentType: 'Full Time', numResources: 1, stages: { adminApproval: true, adminApprovalDate: '2026-05-15', tenderPublished: false, preBidQueries: false, bidReceived: false, techBidFinalized: false, finBidFinalized: false, workOrderIssued: false, contractSigned: false } },
-  { id: 2, wing: 'Shipping', division: 'Shipping-I', appointmentType: 'Full Time', numResources: 1, stages: { adminApproval: true, adminApprovalDate: '2026-04-10', tenderPublished: false, preBidQueries: false, bidReceived: false, techBidFinalized: false, finBidFinalized: false, workOrderIssued: false, contractSigned: false } },
-  { id: 3, wing: 'Ports', division: 'PD-I', appointmentType: 'Full Time', numResources: 1, stages: { adminApproval: true, adminApprovalDate: '2026-03-22', tenderPublished: false, preBidQueries: false, bidReceived: false, techBidFinalized: false, finBidFinalized: false, workOrderIssued: false, contractSigned: false } },
-  { id: 4, wing: 'Administration', division: 'Admn.', appointmentType: 'Full Time', numResources: 1, stages: { adminApproval: true, adminApprovalDate: '2026-02-18', tenderPublished: false, preBidQueries: false, bidReceived: false, techBidFinalized: false, finBidFinalized: false, workOrderIssued: false, contractSigned: false } },
-  { id: 5, wing: 'Administration', division: 'Admn.', appointmentType: 'Full Time', numResources: 1, stages: { adminApproval: true, adminApprovalDate: '2026-02-28', tenderPublished: false, preBidQueries: false, bidReceived: false, techBidFinalized: false, finBidFinalized: false, workOrderIssued: false, contractSigned: false } },
-  { id: 6, wing: 'DGLL, Parliament & TRW', division: 'DGLL, Parl. & TRW', appointmentType: 'Full Time', numResources: 1, stages: { adminApproval: true, adminApprovalDate: '2026-01-15', tenderPublished: false, preBidQueries: false, bidReceived: false, techBidFinalized: false, finBidFinalized: false, workOrderIssued: false, contractSigned: false } },
-  { id: 7, wing: 'DGLL, Parliament & TRW', division: 'DGLL, Parl. & TRW', appointmentType: 'Full Time', numResources: 1, stages: { adminApproval: true, adminApprovalDate: '2026-03-01', tenderPublished: false, preBidQueries: false, bidReceived: false, techBidFinalized: false, finBidFinalized: false, workOrderIssued: false, contractSigned: false } },
-  { id: 8, wing: 'Administration', division: 'Admn.', appointmentType: 'Full Time', numResources: 1, stages: { adminApproval: true, adminApprovalDate: '2026-04-20', tenderPublished: false, preBidQueries: false, bidReceived: false, techBidFinalized: false, finBidFinalized: false, workOrderIssued: false, contractSigned: false } },
-  { id: 9, wing: 'Administration', division: 'Admn.', appointmentType: 'Full Time', numResources: 1, stages: { adminApproval: true, adminApprovalDate: '2026-05-10', tenderPublished: false, preBidQueries: false, bidReceived: false, techBidFinalized: false, finBidFinalized: false, workOrderIssued: false, contractSigned: false } },
-];
-
 export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTab, triggerNotification, userPermissions }) {
-  const [appointments, setAppointments] = useState(INITIAL_APPOINTMENTS);
+  const [appointments, setAppointments] = useState([]);
+  const [reportGridDataFromServer, setReportGridDataFromServer] = useState([]);
   const [isAdding, setIsAdding] = useState(false);
   const [updatingAppointment, setUpdatingAppointment] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -80,7 +112,8 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
     contractSigned: false
   });
 
-  const WINGS = ['Coord-I', 'Shipping', 'Ports', 'Administration', 'DGLL, Parliament & TRW', 'IWT', 'Vigilance', 'Finance', 'Legal'];
+  const WINGS = DB_WINGS.map(w => w.wing_name);
+  const DIVISIONS = DB_DIVISIONS.map(d => d.division_name);
 
   const SUB_TABS = [
     { id: 'Consultant Input Form', label: 'Input Form', icon: FileEdit },
@@ -89,7 +122,50 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
 
   const currentTab = SUB_TABS.some(t => t.id === activeSubTab) ? activeSubTab : 'Consultant Input Form';
 
-  // Remove background scrolling lock as overlays are no longer used
+  const fetchData = () => {
+    axios.get("http://localhost:3000/consultant-appointment")
+      .then(res => {
+        const mapped = res.data.map((b, idx) => ({
+          id: b.consultant_appointment_id,
+          wing: b.wing_name || 'Unknown',
+          division: b.division_name || 'Unknown',
+          appointmentType: b.appointment_type || 'Full Time',
+          numResources: b.number_of_resources || 1,
+          stages: {
+            adminApproval: b.admin_approval_for_nkg_consultant === 'Yes' || b.admin_approval_for_nkg_consultant === 1 || b.admin_approval_for_nkg_consultant === true,
+            adminApprovalDate: b.admin_approval_for_nkg_consultant_date ? new Date(b.admin_approval_for_nkg_consultant_date).toISOString().split('T')[0] : '',
+            tenderPublished: b.tender_published === 'Yes' || b.tender_published === 1 || b.tender_published === true,
+            preBidQueries: b.pre_bid_queries_responded === 'Yes' || b.pre_bid_queries_responded === 1 || b.pre_bid_queries_responded === true,
+            bidReceived: b.bid_received === 'Yes' || b.bid_received === 1 || b.bid_received === true,
+            techBidFinalized: b.technical_bid_finalized === 'Yes' || b.technical_bid_finalized === 1 || b.technical_bid_finalized === true,
+            finBidFinalized: b.financial_bid_finalized === 'Yes' || b.financial_bid_finalized === 1 || b.financial_bid_finalized === true,
+            workOrderIssued: b.work_order_issued === 'Yes' || b.work_order_issued === 1 || b.work_order_issued === true,
+            contractSigned: b.contract_signed === 'Yes' || b.contract_signed === 1 || b.contract_signed === true
+          }
+        }));
+        setAppointments(mapped);
+      })
+      .catch(err => console.error("Error loading CA data:", err));
+
+    axios.get("http://localhost:3000/consultantapp-report")
+      .then(res => {
+        const dataArray = res.data.rowData || [];
+        const mappedReport = dataArray.map((r, idx) => ({
+          sNo: idx + 1,
+          wing: r["Wing Name"] || 'Unknown',
+          total: r["No of Consultant Officer"] || 0,
+          adminApproved: r["Admin Approval for engaging Consultant"] || 0,
+          tenderPublished: r["Tender Published"] || 0,
+          activeContracts: r["Contract Signed"] || 0
+        }));
+        setReportGridDataFromServer(mappedReport);
+      })
+      .catch(err => console.error("Error loading CA report:", err));
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [isAdding, updatingAppointment]);
 
   const handleStartUpdate = (row) => {
     const original = appointments.find(a => a.id === row.id);
@@ -104,97 +180,150 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
     }
   };
 
-  // Form submit handler for Add
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
-    if (!formWing || !formDivision || (formStages.adminApproval && !formAdminApprovalDate)) {
+    if (!formWing || !formDivision) {
       alert('Please fill out all required fields.');
       return;
     }
 
-    const newAppointment = {
-      id: appointments.length + 1,
-      wing: formWing,
-      division: formDivision,
-      appointmentType: formAppointmentType,
-      numResources: Number(formNumResources) || 1,
-      stages: {
-        ...formStages,
-        adminApprovalDate: formStages.adminApproval ? formAdminApprovalDate : ''
+    const selectedWingObj = DB_WINGS.find(w => w.wing_name === formWing);
+    const selectedDivisionObj = DB_DIVISIONS.find(d => d.division_name === formDivision);
+    const wingId = selectedWingObj ? selectedWingObj.wing_id : null;
+    const divisionId = selectedDivisionObj ? selectedDivisionObj.division_id : null;
+
+    let selectedStage = 1;
+    for (let i = 0; i < STAGES.length; i++) {
+      if (formStages[STAGES[i].key]) {
+        selectedStage = i + 1;
       }
-    };
+    }
 
-    setAppointments([newAppointment, ...appointments]);
-    setIsAdding(false);
+    try {
+      await axios.post("http://localhost:3000/consultant-appointment", {
+        wing: wingId,
+        division: divisionId,
+        resourceNumber: Number(formNumResources) || 1,
+        appointmentType: formAppointmentType,
+        adminApproval: formStages.adminApproval ? "Yes" : "No",
+        adminApprovalDate: formAdminApprovalDate || "",
+        tenderPublished: formStages.tenderPublished ? "Yes" : "No",
+        tenderPublishedDate: "",
+        preBidQueriesResponded: formStages.preBidQueries ? "Yes" : "No",
+        preBidQueriesRespondedDate: "",
+        bidReceived: formStages.bidReceived ? "Yes" : "No",
+        bidReceivedDate: "",
+        technicalBidFinalized: formStages.techBidFinalized ? "Yes" : "No",
+        technicalBidFinalizedDate: "",
+        financialBidFinalized: formStages.finBidFinalized ? "Yes" : "No",
+        financialBidFinalizedDate: "",
+        workOrderIssued: formStages.workOrderIssued ? "Yes" : "No",
+        workOrderIssuedDate: "",
+        contractSigned: formStages.contractSigned ? "Yes" : "No",
+        contractSignedDate: "",
+        consultingFirmName: "Consultant Firm",
+        candidateIDs: [],
+        stageID: selectedStage,
+        userID: 1
+      });
 
-    // Reset Form
-    setFormWing('');
-    setFormDivision('');
-    setFormAppointmentType('Full Time');
-    setFormNumResources(1);
-    setFormAdminApprovalDate('');
-    setFormStages({
-      adminApproval: false,
-      tenderPublished: false,
-      preBidQueries: false,
-      bidReceived: false,
-      techBidFinalized: false,
-      finBidFinalized: false,
-      workOrderIssued: false,
-      contractSigned: false
-    });
+      setIsAdding(false);
+      setFormWing('');
+      setFormDivision('');
+      setFormAppointmentType('Full Time');
+      setFormNumResources(1);
+      setFormAdminApprovalDate('');
+      setFormStages({
+        adminApproval: false,
+        tenderPublished: false,
+        preBidQueries: false,
+        bidReceived: false,
+        techBidFinalized: false,
+        finBidFinalized: false,
+        workOrderIssued: false,
+        contractSigned: false
+      });
 
-    if (triggerNotification) {
-      triggerNotification(`New Consultant Appointment registered successfully for ${formWing} (${formDivision}).`);
+      if (triggerNotification) {
+        triggerNotification(`New Consultant Appointment registered successfully for ${formWing} (${formDivision}).`);
+      }
+      fetchData();
+    } catch (err) {
+      console.error("Error creating consultant appointment:", err);
+      alert("Failed to save. Please check database connections.");
     }
   };
 
-  // Form submit handler for Update
-  const handleUpdateSubmit = (e) => {
+  const handleUpdateSubmit = async (e) => {
     e.preventDefault();
-    if (!formWing || !formDivision || (formStages.adminApproval && !formAdminApprovalDate)) {
+    if (!formWing || !formDivision) {
       alert('Please fill out all required fields.');
       return;
     }
 
-    setAppointments(prev => prev.map(item => {
-      if (item.id === updatingAppointment.id) {
-        return {
-          ...item,
-          wing: formWing,
-          division: formDivision,
-          appointmentType: formAppointmentType,
-          numResources: Number(formNumResources) || 1,
-          stages: {
-            ...formStages,
-            adminApprovalDate: formStages.adminApproval ? formAdminApprovalDate : ''
-          }
-        };
+    const selectedWingObj = DB_WINGS.find(w => w.wing_name === formWing);
+    const selectedDivisionObj = DB_DIVISIONS.find(d => d.division_name === formDivision);
+    const wingId = selectedWingObj ? selectedWingObj.wing_id : null;
+    const divisionId = selectedDivisionObj ? selectedDivisionObj.division_id : null;
+
+    let selectedStage = 1;
+    for (let i = 0; i < STAGES.length; i++) {
+      if (formStages[STAGES[i].key]) {
+        selectedStage = i + 1;
       }
-      return item;
-    }));
+    }
 
-    setUpdatingAppointment(null);
+    try {
+      await axios.put("http://localhost:3000/consultant-appointment", {
+        consultantAppointmentID: updatingAppointment.id,
+        wing: wingId,
+        division: divisionId,
+        appointmentType: formAppointmentType,
+        adminApproval: formStages.adminApproval ? "Yes" : "No",
+        adminApprovalDate: formAdminApprovalDate || "",
+        tenderPublished: formStages.tenderPublished ? "Yes" : "No",
+        tenderPublishedDate: "",
+        preBidQueriesResponded: formStages.preBidQueries ? "Yes" : "No",
+        preBidQueriesRespondedDate: "",
+        bidReceived: formStages.bidReceived ? "Yes" : "No",
+        bidReceivedDate: "",
+        technicalBidFinalized: formStages.techBidFinalized ? "Yes" : "No",
+        technicalBidFinalizedDate: "",
+        financialBidFinalized: formStages.finBidFinalized ? "Yes" : "No",
+        financialBidFinalizedDate: "",
+        workOrderIssued: formStages.workOrderIssued ? "Yes" : "No",
+        workOrderIssuedDate: "",
+        contractSigned: formStages.contractSigned ? "Yes" : "No",
+        contractSignedDate: "",
+        consultingFirmName: "Consultant Firm",
+        stageID: selectedStage,
+        userID: 1
+      });
 
-    // Reset Form
-    setFormWing('');
-    setFormDivision('');
-    setFormAppointmentType('Full Time');
-    setFormNumResources(1);
-    setFormAdminApprovalDate('');
-    setFormStages({
-      adminApproval: false,
-      tenderPublished: false,
-      preBidQueries: false,
-      bidReceived: false,
-      techBidFinalized: false,
-      finBidFinalized: false,
-      workOrderIssued: false,
-      contractSigned: false
-    });
+      setUpdatingAppointment(null);
+      setFormWing('');
+      setFormDivision('');
+      setFormAppointmentType('Full Time');
+      setFormNumResources(1);
+      setFormAdminApprovalDate('');
+      setFormStages({
+        adminApproval: false,
+        tenderPublished: false,
+        preBidQueries: false,
+        bidReceived: false,
+        techBidFinalized: false,
+        finBidFinalized: false,
+        workOrderIssued: false,
+        contractSigned: false
+      });
 
-    if (triggerNotification) {
-      triggerNotification(`Consultant Appointment for ${formWing} (${formDivision}) updated successfully.`);
+      if (triggerNotification) {
+        triggerNotification(`Consultant Appointment for ${formWing} (${formDivision}) updated successfully.`);
+      }
+      fetchData();
+    } catch (err) {
+      console.error("Error updating consultant appointment:", err);
+      alert("Failed to update.");
     }
   };
 
@@ -205,7 +334,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
     }));
   };
 
-  // Grouped Grid Data for Input Forms page
   const inputGridData = useMemo(() => {
     return appointments.map((item, idx) => ({
       id: item.id,
@@ -219,7 +347,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
     }));
   }, [appointments]);
 
-  // Filtered Input Grid Data
   const filteredInputGridData = useMemo(() => {
     return inputGridData.filter(item => {
       const matchSearch = !searchTerm ||
@@ -230,45 +357,12 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
     }).map((item, idx) => ({ ...item, sNo: idx + 1 }));
   }, [inputGridData, searchTerm]);
 
-  // Abstract report data for Reports view (Wing Wise)
-  const reportGridData = useMemo(() => {
-    const grouped = {};
-    WINGS.forEach(wing => {
-      grouped[wing] = { wing, totalResources: 0, adminApproved: 0, tenderPublished: 0, activeContracts: 0 };
-    });
-
-    appointments.forEach(item => {
-      if (grouped[item.wing]) {
-        const status = getStatusFromStages(item.stages);
-        grouped[item.wing].totalResources += item.numResources;
-        if (status === 'Admin Approval for engaging Consultant') {
-          grouped[item.wing].adminApproved += item.numResources;
-        } else if (status === 'Tender Published') {
-          grouped[item.wing].tenderPublished += item.numResources;
-        } else if (item.stages.contractSigned) {
-          grouped[item.wing].activeContracts += item.numResources;
-        }
-      }
-    });
-
-    return Object.values(grouped).map((item, idx) => ({
-      sNo: idx + 1,
-      wing: item.wing,
-      total: item.totalResources,
-      adminApproved: item.adminApproved,
-      tenderPublished: item.tenderPublished,
-      activeContracts: item.activeContracts
-    }));
-  }, [appointments]);
-
-  // Filtered Report Grid Data
   const filteredReportGridData = useMemo(() => {
-    return reportGridData.filter(item => {
+    return reportGridDataFromServer.filter(item => {
       return !wingFilter || item.wing === wingFilter;
     }).map((item, idx) => ({ ...item, sNo: idx + 1 }));
-  }, [reportGridData, wingFilter]);
+  }, [reportGridDataFromServer, wingFilter]);
 
-  // Column Definitions
   const inputColDefs = useMemo(() => [
     { field: 'sNo', headerName: 'S.No', width: 90, cellClass: 'font-mono text-slate-600 text-center', headerClass: 'text-center' },
     { field: 'wing', headerName: 'Wing', flex: 1.5, minWidth: 150, cellClass: 'font-bold text-slate-800' },
@@ -312,8 +406,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
 
   return (
     <div className="space-y-6 pt-5 pb-4 px-1 md:px-2 animate-fade-in text-slate-800">
-
-      {/* Breadcrumbs Row */}
       <div className="flex items-center space-x-1 text-slate-400 text-xs font-semibold px-2 pb-1">
         <Home className="h-3.5 w-3.5 text-slate-400" />
         <span className="text-slate-400">/</span>
@@ -332,7 +424,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
         )}
       </div>
 
-      {/* Header Container Row */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800 font-display uppercase tracking-wide">
@@ -347,12 +438,10 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
         />
       </div>
 
-      {/* Input Form Tab View */}
       {currentTab === 'Consultant Input Form' && (
         <div className="space-y-6">
           {isAdding || updatingAppointment ? (
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-              {/* Header Title Bar */}
               <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4.5 flex items-center justify-between text-white border-b border-blue-900/20">
                 <div>
                   <h3 className="text-sm font-black uppercase tracking-wider font-display">
@@ -373,7 +462,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                 </button>
               </div>
 
-              {/* Form Content */}
               <form onSubmit={updatingAppointment ? handleUpdateSubmit : handleAddSubmit} className="p-6 space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div className="space-y-1.5">
@@ -391,14 +479,15 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
 
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division*</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Admn., Shipping-I"
+                    <select
                       value={formDivision}
                       onChange={(e) => setFormDivision(e.target.value)}
                       required
-                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-255 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-800 placeholder-slate-400"
-                    />
+                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-255 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
+                    >
+                      <option value="">--Select Division--</option>
+                      {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
                   </div>
                 </div>
 
@@ -421,7 +510,7 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                       value={formAppointmentType}
                       onChange={(e) => setFormAppointmentType(e.target.value)}
                       required
-                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-255 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-705 cursor-pointer"
+                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-255 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-755 cursor-pointer"
                     >
                       <option value="Full Time">Full Time</option>
                       <option value="Part Time">Part Time</option>
@@ -430,13 +519,11 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                   </div>
                 </div>
 
-                {/* Checklist Stages Yes/No */}
                 <div className="space-y-3">
                   <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-1.5">
                     Workflow Milestone Checklist
                   </label>
 
-                  {/* Stage 1 (Full Width with Date) */}
                   <div className="flex flex-col py-2.5 px-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                     <div className="flex items-center justify-between w-full">
                       <span className="text-xs font-bold text-slate-700">
@@ -486,7 +573,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                     )}
                   </div>
 
-                  {/* Stages 2 to 8 */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 text-[11px] font-semibold text-slate-755 mt-3">
                     {STAGES.slice(1).map((stage, idx) => {
                       const isYes = formStages[stage.key] === true;
@@ -527,7 +613,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                   </div>
                 </div>
 
-                {/* Form Actions Footer */}
                 <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100">
                   <button
                     type="button"
@@ -553,7 +638,7 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-800 font-display">Consultant Appointment Register</h3>
-                  <p className="text-xs text-slate-500 font-medium">Tracking engagement statuses of full-time and part-time consultants.</p>
+                  <p className="text-xs text-slate-500 font-medium">Tracking engagement statuses of consultants.</p>
                 </div>
                 {(!userPermissions || userPermissions.add !== false) && (
                   <button
@@ -566,7 +651,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                 )}
               </div>
 
-              {/* Filter Search */}
               <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
                 <div className="relative w-full sm:max-w-xs">
                   <input
@@ -583,7 +667,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                 </div>
               </div>
 
-              {/* AG Grid */}
               <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                 <AgGridReact
                   theme="legacy"
@@ -598,6 +681,7 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                   }}
                   pagination={true}
                   paginationPageSize={10}
+                  paginationPageSizeSelector={[10, 20, 50]}
                 />
               </div>
             </div>
@@ -605,10 +689,8 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
         </div>
       )}
 
-      {/* Reports Tab View */}
       {currentTab === 'Consultant Reports' && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in">
-
           <div className="text-center space-y-1.5 py-3 border-b border-slate-100">
             <h3 className="text-base md:text-lg font-black text-slate-800 font-display">
               Report No.: 2.3A - Abstract ( Wing Wise ) - Consultant Appointment
@@ -621,7 +703,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-end">
-            {/* Export Actions */}
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
               <button
                 onClick={() => handleExport('Excel')}
@@ -639,7 +720,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
               </button>
             </div>
 
-            {/* Wing Selection */}
             <div className="w-full sm:max-w-xs">
               <label className="block text-xs font-bold text-slate-700 mb-1.5">Wing</label>
               <select
@@ -653,7 +733,6 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
             </div>
           </div>
 
-          {/* AG Grid */}
           <div className="space-y-3">
             <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
               <AgGridReact
@@ -667,6 +746,9 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
                   type: 'fitGridWidth',
                   defaultMinWidth: 95
                 }}
+                pagination={true}
+                paginationPageSize={10}
+                paginationPageSizeSelector={[10, 20, 50]}
               />
             </div>
 
@@ -675,6 +757,7 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
             </div>
           </div>
         </div>
-      )}    </div>
+      )}
+    </div>
   );
 }

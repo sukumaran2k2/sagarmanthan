@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CabinetNotesInput from './CabinetNotesInput';
 import CabinetNotesReports from './CabinetNotesReports';
-import { INITIAL_NOTES } from './constants';
 import InternalNavigation from '../../components/InternalNavigation';
+import axios from 'axios';
 
 export default function CabinetNotes() {
-  const [notes, setNotes] = useState(INITIAL_NOTES);
+  const [notes, setNotes] = useState([]);
   const [activeSubTab, setActiveSubTab] = useState('dashboard'); // 'dashboard' | 'list' | 'report' | 'add'
   const [editingNote, setEditingNote] = useState(null);
 
@@ -15,6 +15,57 @@ export default function CabinetNotes() {
     { id: 'report', label: 'Analytical Reports' },
     { id: 'add', label: 'Add Notes' }
   ];
+
+  const fetchData = () => {
+    axios.get("http://localhost:3000/cabinet-mopsw")
+      .then(res => {
+        const mapped = res.data.map(r => {
+          const steps = {
+            1: r.pre_dcn_prepared || 'No',
+            2: r.pre_dcn__approved || 'No',
+            3: r.cirucalted_for_imc || 'No',
+            4: r.imc_comments_rec || 'No',
+            5: r.final_dcn_prepared || 'No',
+            6: r.final_dcn_approved || 'No',
+            7: r.dcmbeen_approved || 'No',
+            8: r.advance_copy_sent_to_pmo || 'No',
+            9: r.cabinet_approved || 'No',
+            10: r.on_hold || 'No',
+            11: r.completed || 'No'
+          };
+          const dates = {
+            1: r.pre_dcn_prepared_date ? new Date(r.pre_dcn_prepared_date).toISOString().split('T')[0] : '',
+            2: r.pre_dcn__approved_date ? new Date(r.pre_dcn__approved_date).toISOString().split('T')[0] : '',
+            3: r.cirucalted_for_imc_date ? new Date(r.cirucalted_for_imc_date).toISOString().split('T')[0] : '',
+            4: r.imc_comments_rec_date ? new Date(r.imc_comments_rec_date).toISOString().split('T')[0] : '',
+            5: r.final_dcn_prepared_date ? new Date(r.final_dcn_prepared_date).toISOString().split('T')[0] : '',
+            6: r.final_dcn_approved_date ? new Date(r.final_dcn_approved_date).toISOString().split('T')[0] : '',
+            7: r.dcmbeen_approved_date ? new Date(r.dcmbeen_approved_date).toISOString().split('T')[0] : '',
+            8: r.advance_copy_sent_to_pmo_date ? new Date(r.advance_copy_sent_to_pmo_date).toISOString().split('T')[0] : '',
+            9: r.cabinet_approved_date ? new Date(r.cabinet_approved_date).toISOString().split('T')[0] : '',
+            10: r.on_hold_date ? new Date(r.on_hold_date).toISOString().split('T')[0] : '',
+            11: r.completed_date ? new Date(r.completed_date).toISOString().split('T')[0] : ''
+          };
+          return {
+            id: r.cabinet_notes_mopsw_id,
+            subject: r.subject || '',
+            wing: r.wing_name || '',
+            division: r.division_name || '',
+            status: r.mopsw_stage_name || 'Preliminary DCN Prepared',
+            statusSteps: steps,
+            statusDates: dates,
+            remarks: r.remarks || '',
+            fileName: r.document_name || null
+          };
+        });
+        setNotes(mapped);
+      })
+      .catch(err => console.error("Error fetching Cabinet Notes MoPSW:", err));
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [activeSubTab]);
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
@@ -55,6 +106,7 @@ export default function CabinetNotes() {
               setActiveSubTab={setActiveSubTab}
               editingNote={editingNote}
               setEditingNote={setEditingNote}
+              refreshData={fetchData}
             />
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FileSpreadsheet,
   Plus,
@@ -13,11 +13,63 @@ import {
 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
-import { WINGS, DIVISIONS, STATUS_STEPS } from './constants';
+import axios from 'axios';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-export default function VIPReferenceInput({ vipReferences, setVipReferences }) {
+const DB_WINGS = [
+  { wing_id: 1, wing_name: "Shipping" },
+  { wing_id: 2, wing_name: "Vigilance" },
+  { wing_id: 3, wing_name: "Ports" },
+  { wing_id: 4, wing_name: "IWT" },
+  { wing_id: 5, wing_name: "Administration" },
+  { wing_id: 6, wing_name: "Coord-I" },
+  { wing_id: 7, wing_name: "Coord-II" },
+  { wing_id: 8, wing_name: "DGLL, Parliament & TRW" },
+  { wing_id: 9, wing_name: "Development" },
+  { wing_id: 10, wing_name: "Finance" },
+  { wing_id: 11, wing_name: "Sagarmala" },
+  { wing_id: 12, wing_name: "Information Technology" },
+  { wing_id: 13, wing_name: "Office of Economic Advisor" },
+  { wing_id: 14, wing_name: "Special Initiatives & Projects" }
+];
+
+const DB_DIVISIONS = [
+  { division_id: 1, division_name: "Shipping-I" },
+  { division_id: 2, division_name: "Shipping-II" },
+  { division_id: 3, division_name: "Shipping-III" },
+  { division_id: 4, division_name: "Vigilance" },
+  { division_id: 5, division_name: "PD-I" },
+  { division_id: 6, division_name: "PD-II" },
+  { division_id: 7, division_name: "PPP" },
+  { division_id: 8, division_name: "PHRD" },
+  { division_id: 9, division_name: "IWT-I" },
+  { division_id: 10, division_name: "IWT-II" },
+  { division_id: 11, division_name: "Admn." },
+  { division_id: 12, division_name: "Coord-I" },
+  { division_id: 13, division_name: "Coord-II" },
+  { division_id: 14, division_name: "DGLL, Parl. & TRW" },
+  { division_id: 15, division_name: "Devlopment" },
+  { division_id: 16, division_name: "Finance" },
+  { division_id: 17, division_name: "Sagarmala -I" },
+  { division_id: 18, division_name: "Sagarmala -II" },
+  { division_id: 19, division_name: "Sagarmala-III , ALHW & Media" },
+  { division_id: 20, division_name: "IT" },
+  { division_id: 21, division_name: "PD-III" },
+  { division_id: 22, division_name: "PD- IV" },
+  { division_id: 23, division_name: "Special Initiatives & Projects" }
+];
+
+const STATUS_STEPS = {
+  1: 'Received at Ministry',
+  2: 'Submitted for Approval',
+  3: 'Comments Sought',
+  4: 'Comments Received',
+  5: 'Reply Furnished',
+  6: 'Disposed'
+};
+
+export default function VIPReferenceInput({ vipReferences, setVipReferences, refreshData }) {
   const gridRef = useRef();
 
   const [selectedWing, setSelectedWing] = useState('All');
@@ -45,6 +97,9 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences }) {
     1: 'Yes', 2: 'No', 3: 'No', 4: 'No', 5: 'No', 6: 'No'
   });
   const [formStatusDates, setFormStatusDates] = useState({});
+
+  const WINGS = DB_WINGS.map(w => w.wing_name);
+  const DIVISIONS = DB_DIVISIONS.map(d => d.division_name);
 
   const getRefStatusText = (steps) => {
     let currentStatus = 'Draft';
@@ -88,7 +143,7 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences }) {
     setIsFormOpen(true);
   };
 
-  const handleSaveRef = (e) => {
+  const handleSaveRef = async (e) => {
     e.preventDefault();
     if (
       !formSubject.trim() ||
@@ -115,45 +170,56 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences }) {
       return;
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const wingObj = DB_WINGS.find(w => w.wing_name === formWing) || { wing_id: 1 };
+    const divisionObj = DB_DIVISIONS.find(d => d.division_name === formDivision) || { division_id: 1 };
+    const wingId = wingObj.wing_id;
+    const divisionId = divisionObj.division_id;
 
-    if (editingRef) {
-      setVipReferences(prev => prev.map(r => r.id === editingRef.id ? {
-        ...r,
-        subject: formSubject,
-        eofficeFile: formEofficeFile,
-        wing: formWing,
-        division: formDivision,
-        refNumber: formRefNumber,
-        receivedFrom: formReceivedFrom,
-        remarks: formRemarks,
-        deadline: formDeadline,
-        statusSteps: formStatusSteps,
-        statusDates: formStatusDates,
-        lastUpdated: todayStr
-      } : r));
-    } else {
-      const newId = vipReferences.length > 0 ? Math.max(...vipReferences.map(r => r.id)) + 1 : 1;
-      setVipReferences(prev => [
-        {
-          id: newId,
-          subject: formSubject,
-          eofficeFile: formEofficeFile,
-          wing: formWing,
-          division: formDivision,
-          refNumber: formRefNumber,
-          receivedFrom: formReceivedFrom,
-          remarks: formRemarks,
-          deadline: formDeadline,
-          statusSteps: formStatusSteps,
-          statusDates: formStatusDates,
-          lastUpdated: todayStr
-        },
-        ...prev
-      ]);
+    let selectedStage = 1;
+    for (let i = 1; i <= 6; i++) {
+      if (formStatusSteps[i] === 'Yes') {
+        selectedStage = i;
+      }
     }
 
-    setIsFormOpen(false);
+    const payload = {
+      vipSubject: formSubject,
+      eofficeFileNumber: formEofficeFile,
+      wing: wingId,
+      division: divisionId,
+      referenceLetterNumber: formRefNumber,
+      receivedFrom: formReceivedFrom,
+      vipReceivedMinistry: formStatusSteps[1] || 'No',
+      vipReceivedMinistryDate: formStatusDates[1] || '',
+      vipSubmittedForApproval: formStatusSteps[2] || 'No',
+      vipSubmittedForApprovalDate: formStatusDates[2] || '',
+      vipCommentsSought: formStatusSteps[3] || 'No',
+      vipCommentsSoughtDate: formStatusDates[3] || '',
+      vipCommentsReceived: formStatusSteps[4] || 'No',
+      vipCommentsReceivedDate: formStatusDates[4] || '',
+      vipReplyFurnished: formStatusSteps[5] || 'No',
+      vipReplyFurnishedDate: formStatusDates[5] || '',
+      vipDisposed: formStatusSteps[6] || 'No',
+      vipDisposedDate: formStatusDates[6] || '',
+      vipRemarks: formRemarks,
+      selectedStage: selectedStage,
+      deadline: formDeadline || '',
+      userID: 1
+    };
+
+    try {
+      if (editingRef) {
+        payload.vipReferenceID = editingRef.id;
+        await axios.put("http://localhost:3000/vip-reference", payload);
+      } else {
+        await axios.post("http://localhost:3000/vip-reference", payload);
+      }
+      setIsFormOpen(false);
+      if (refreshData) refreshData();
+    } catch (err) {
+      console.error("Error saving VIP reference:", err);
+      alert("Failed to save VIP reference.");
+    }
   };
 
   // Filtering and Searching
@@ -298,7 +364,7 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences }) {
         <button
           onClick={() => handleOpenEdit(params.data)}
           className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm hover:shadow transition cursor-pointer"
-          title="Update VIP Reference Details"
+          title="Update VIP Letter status"
         >
           <Edit className="h-3.5 w-3.5" />
         </button>
@@ -307,442 +373,397 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences }) {
   ], [currentPage, entriesLimit]);
 
   const handleGridWheel = (e) => {
-    const container = e.currentTarget;
-    if (container) {
-      const gridBodyViewport = container.querySelector('.ag-body-viewport');
-      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
-        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-          gridBodyViewport.scrollLeft += e.deltaY;
-          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
-          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
-          if (!isAtStart && !isAtEnd) {
-            e.preventDefault();
-          }
-        }
+    if (gridRef.current && gridRef.current.api) {
+      const scrollAmount = e.deltaY;
+      const gridContainer = gridRef.current.api.getGridBodyViewportElement?.() || gridRef.current.api.getGridBodyElement?.();
+      if (gridContainer) {
+        gridContainer.scrollLeft += scrollAmount;
       }
     }
   };
 
-  const handleExport = (type) => {
-    console.log(`${type} exported.`);
+  const handleStepCheckboxChange = (stepNum, checked) => {
+    setFormStatusSteps(prev => {
+      const updated = { ...prev };
+      if (checked) {
+        // Checking a step should check all prior steps
+        for (let i = 1; i <= stepNum; i++) {
+          updated[i] = 'Yes';
+        }
+      } else {
+        // Unchecking a step should uncheck all subsequent steps
+        for (let i = stepNum; i <= 6; i++) {
+          updated[i] = 'No';
+        }
+      }
+      return updated;
+    });
+
+    setFormStatusDates(prev => {
+      const updated = { ...prev };
+      if (checked) {
+        // Fill dates for checked steps if they do not exist
+        const today = new Date().toISOString().split('T')[0];
+        for (let i = 1; i <= stepNum; i++) {
+          if (!updated[i]) {
+            updated[i] = today;
+          }
+        }
+      } else {
+        // Clear dates for unchecked steps
+        for (let i = stepNum; i <= 6; i++) {
+          delete updated[i];
+        }
+      }
+      return updated;
+    });
   };
 
-  const updateStepValue = (step, val) => {
-    setFormStatusSteps(prev => ({
+  const handleDateChangeForStep = (stepNum, dateVal) => {
+    setFormStatusDates(prev => ({
       ...prev,
-      [step]: val
+      [stepNum]: dateVal
     }));
   };
 
-  if (isFormOpen) {
-    return (
-      <div className="space-y-6 animate-fade-in pb-12">
-        {/* Form Page Header Card wrapper */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a]">
-          {/* Header Title Bar */}
-          <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4.5 flex items-center justify-between text-white border-b border-blue-900/20">
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-wider font-display">
-                {editingRef ? 'Update Reference' : 'Add Reference'}
-              </h3>
-              <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
-            </div>
+  return (
+    <div className="space-y-6">
+      {isFormOpen ? (
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 shadow-inner space-y-6 animate-fade-in">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+            <h2 className="text-base font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+              <Plus className="h-5 w-5 text-blue-800" />
+              {editingRef ? 'Update VIP Reference Letter' : 'Register New VIP Letter'}
+            </h2>
             <button
               onClick={() => setIsFormOpen(false)}
-              className="inline-flex items-center space-x-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold text-white transition cursor-pointer"
+              className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600 transition cursor-pointer"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Back to Database</span>
+              <X className="h-4 w-4" />
             </button>
           </div>
 
-          {/* Form Content */}
-          <form onSubmit={handleSaveRef} className="p-6 space-y-6">
-
+          <form onSubmit={handleSaveRef} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Eoffice File Number*</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject of VIP Reference *</label>
+                <textarea
+                  value={formSubject}
+                  onChange={(e) => setFormSubject(e.target.value)}
+                  placeholder="Details of the letter..."
+                  required
+                  rows={2}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-slate-800 placeholder-slate-400"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">E-Office File Number *</label>
                 <input
                   type="text"
                   value={formEofficeFile}
                   onChange={(e) => setFormEofficeFile(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-                  placeholder="e.g. E-100234"
+                  placeholder="e.g. E-100244"
+                  required
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-800 placeholder-slate-400"
                 />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing*</label>
-                  <select
-                    value={formWing}
-                    onChange={(e) => setFormWing(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-                  >
-                    {WINGS.filter(w => w !== 'All').map(w => (
-                      <option key={w} value={w}>{w}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division*</label>
-                  <select
-                    value={formDivision}
-                    onChange={(e) => setFormDivision(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-                  >
-                    {DIVISIONS.filter(d => d !== 'All').map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Reference Letter Number*</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing *</label>
+                <select
+                  value={formWing}
+                  onChange={(e) => setFormWing(e.target.value)}
+                  required
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
+                >
+                  {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division *</label>
+                <select
+                  value={formDivision}
+                  onChange={(e) => setFormDivision(e.target.value)}
+                  required
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
+                >
+                  {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Reference Letter Number *</label>
                 <input
                   type="text"
                   value={formRefNumber}
                   onChange={(e) => setFormRefNumber(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
                   placeholder="e.g. 647/25"
+                  required
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-800"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Received From*</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Received From (Sender) *</label>
                 <input
                   type="text"
                   value={formReceivedFrom}
                   onChange={(e) => setFormReceivedFrom(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
                   placeholder="e.g. Shri Ajay Kumar Mandal, MP"
+                  required
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-800"
                 />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject*</label>
-              <textarea
-                value={formSubject}
-                onChange={(e) => setFormSubject(e.target.value)}
-                rows={3}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-                placeholder="Enter VIP Reference Subject..."
-              />
-            </div>
-
-            {/* Status Steps Flow */}
-            <div className="border border-slate-200 rounded-2xl p-5 bg-slate-50/50 space-y-4">
-              <span className="block text-xs font-bold text-slate-800 border-b border-slate-200 pb-2">Status Timeline Steps</span>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {[1, 2, 3, 4, 5, 6].map(step => (
-                  <div key={step} className="flex flex-col p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm space-y-2">
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-xs font-semibold text-slate-700">{step}. {STATUS_STEPS[step]}</span>
-                      <div className="flex items-center space-x-2">
-                        <label className="flex items-center space-x-1 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={`step-${step}`}
-                            checked={formStatusSteps[step] === 'Yes'}
-                            onChange={() => {
-                              updateStepValue(step, 'Yes');
-                              if (!formStatusDates[step]) {
-                                const today = new Date().toISOString().split('T')[0];
-                                setFormStatusDates(prev => ({ ...prev, [step]: today }));
-                              }
-                            }}
-                            className="h-3 w-3 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-xs font-bold text-slate-600">Yes</span>
-                        </label>
-                        <label className="flex items-center space-x-1 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={`step-${step}`}
-                            checked={formStatusSteps[step] === 'No'}
-                            onChange={() => {
-                              updateStepValue(step, 'No');
-                            }}
-                            className="h-3 w-3 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-xs font-bold text-slate-600">No</span>
-                        </label>
-                      </div>
-                    </div>
-                    {formStatusSteps[step] === 'Yes' && step === 1 && (
-                      <div className="w-full pt-1 border-t border-slate-100 flex items-center justify-between gap-2 animate-fade-in">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                          Date Received*
-                        </span>
-                        <input
-                          type="date"
-                          value={formStatusDates[step] || ''}
-                          onChange={(e) => setFormStatusDates(prev => ({ ...prev, [step]: e.target.value }))}
-                          className="text-[10px] px-2 py-1 bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Remarks (Max length of words should not exceed 250)</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Remarks</label>
                 <textarea
                   value={formRemarks}
                   onChange={(e) => setFormRemarks(e.target.value)}
-                  rows={3}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-                  placeholder="Enter remarks..."
+                  placeholder="Max 250 words"
+                  rows={2}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-slate-800"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Deadline</label>
-                <input
-                  type="date"
-                  value={formDeadline}
-                  onChange={(e) => setFormDeadline(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-                />
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={formDeadline}
+                    onChange={(e) => setFormDeadline(e.target.value)}
+                    className="w-full text-xs pl-9 pr-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
+                  />
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-end space-x-3 pt-2">
+            <div className="space-y-3.5">
+              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-200 pb-2">
+                Processing Milestone Stages & Action Dates
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((stepNum) => {
+                  const stepLabel = STATUS_STEPS[stepNum];
+                  const isChecked = formStatusSteps[stepNum] === 'Yes';
+                  return (
+                    <div
+                      key={stepNum}
+                      className={`p-3.5 rounded-2xl border transition-all ${isChecked ? 'bg-white border-blue-200 shadow-sm' : 'bg-slate-50 border-slate-200'
+                        }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="flex items-center space-x-2 text-xs font-bold text-slate-800 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => handleStepCheckboxChange(stepNum, e.target.checked)}
+                            className="rounded border-slate-350 text-blue-800 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                          />
+                          <span>{stepNum}. {stepLabel}</span>
+                        </label>
+                      </div>
+
+                      {isChecked && (
+                        <div className="space-y-1 pl-6">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date of Action</label>
+                          <input
+                            type="date"
+                            value={formStatusDates[stepNum] || ''}
+                            onChange={(e) => handleDateChangeForStep(stepNum, e.target.value)}
+                            required={isChecked}
+                            className="w-full text-xs px-2.5 py-1.5 border border-slate-250 rounded-lg focus:outline-none focus:border-blue-500 font-semibold text-slate-700"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setIsFormOpen(false)}
-                className="px-5 py-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition cursor-pointer"
+                className="px-4.5 py-2.5 border border-slate-250 text-slate-655 rounded-xl text-xs font-bold hover:bg-slate-50 hover:text-slate-850 transition cursor-pointer"
               >
-                Cancel
+                Discard
               </button>
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+                className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer"
               >
-                {editingRef ? 'Save Changes' : 'Save Record'}
+                Save Reference
               </button>
             </div>
-
           </form>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-
-      {/* Filters panel */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-        <button
-          onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
-          className={`w-full flex items-center justify-between text-left transition cursor-pointer ${isFiltersExpanded ? 'pb-3 border-b border-slate-100 mb-4' : ''}`}
-        >
-          <div className="flex items-center space-x-2">
-            <Filter className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-black text-slate-800 uppercase tracking-wider font-display">Filter Registry</span>
-          </div>
-          <div className="text-slate-450">
-            {isFiltersExpanded ? <ChevronRight className="h-4 w-4 rotate-90" /> : <ChevronRight className="h-4 w-4" />}
-          </div>
-        </button>
-
-        {isFiltersExpanded && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 animate-fade-in">
-            <div className="space-y-1">
-              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Wing</label>
-              <select
-                value={selectedWing}
-                onChange={(e) => { setSelectedWing(e.target.value); setCurrentPage(1); }}
-                className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-              >
-                {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Division</label>
-              <select
-                value={selectedDivision}
-                onChange={(e) => { setSelectedDivision(e.target.value); setCurrentPage(1); }}
-                className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-              >
-                {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
-              <select
-                value={selectedStatus}
-                onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-                className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold"
-              >
-                <option value="All">All</option>
-                {Object.values(STATUS_STEPS).map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Toolbar */}
-      <div className="bg-white rounded-xl shadow-md border border-slate-200 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center space-x-1.5">
-          <button
-            onClick={() => handleExport('Clipboard')}
-            className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
-          >
-            <Copy className="h-3.5 w-3.5" />
-            <span>Copy</span>
-          </button>
-          <button
-            onClick={() => handleExport('Excel')}
-            className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-            <span>Excel</span>
-          </button>
-          <button
-            onClick={() => handleExport('PDF')}
-            className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            <span>PDF</span>
-          </button>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-          <div className="flex items-center space-x-2 w-full sm:w-auto">
-            <span className="text-xs text-slate-500 whitespace-nowrap">Show</span>
-            <select
-              value={entriesLimit}
-              onChange={(e) => { setEntriesLimit(parseInt(e.target.value)); setCurrentPage(1); }}
-              className="px-2 py-1 border border-slate-350 rounded bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
-            >
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
-            <span className="text-xs text-slate-500 whitespace-nowrap">entries</span>
-          </div>
-
-          <div className="relative w-full sm:w-60">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-3.5 w-3.5 text-slate-400" />
-            </span>
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="w-full text-xs pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold"
-            />
-          </div>
-
-          <button
-            onClick={handleOpenAdd}
-            className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Reference</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Grid Container */}
-      <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-        <AgGridReact
-          ref={gridRef}
-          theme="legacy"
-          rowData={paginatedData}
-          columnDefs={colDefs}
-          defaultColDef={{ minWidth: 80, suppressSizeToFit: false }}
-          pagination={true}
-          paginationPageSize={entriesLimit}
-          suppressPaginationPanel={true}
-          onPaginationChanged={onPaginationChanged}
-          domLayout="autoHeight"
-          rowHeight={48}
-          headerHeight={48}
-          suppressColumnVirtualisation={true}
-          autoSizeStrategy={{
-            type: 'fitCellContents'
-          }}
-          onFirstDataRendered={(params) => {
-            const allCols = params.api.getAllGridColumns();
-            params.api.autoSizeColumns(allCols);
-            const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-            const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
-            if (containerWidth > 0 && totalColWidth < containerWidth) {
-              params.api.sizeColumnsToFit();
-            }
-          }}
-          onGridSizeChanged={(params) => {
-            const allCols = params.api.getAllGridColumns();
-            params.api.autoSizeColumns(allCols);
-            const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-            const containerWidth = (params.api.getGridBodyViewportElement?.() || params.api.getGridBodyElement?.())?.clientWidth || 0;
-            if (containerWidth > 0 && totalColWidth < containerWidth) {
-              params.api.sizeColumnsToFit();
-            }
-          }}
-        />
-
-        {/* Custom Pagination Footer */}
-        <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-4 bg-white border-t border-slate-200 text-xs gap-4 font-semibold">
-          <span className="text-slate-500 font-medium text-center sm:text-left">
-            Showing <span className="font-bold text-slate-800">{totalEntries > 0 ? (currentPage - 1) * entriesLimit + 1 : 0}</span> to{' '}
-            <span className="font-bold text-slate-800">{Math.min(currentPage * entriesLimit, totalEntries)}</span> of{' '}
-            <span className="font-bold text-slate-800">{totalEntries}</span> entries
-          </span>
-
-          <div className="flex items-center space-x-1">
+      ) : (
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+              onClick={handleOpenAdd}
+              className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition cursor-pointer self-start md:self-auto"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
+              <span>Register VIP Letter</span>
             </button>
 
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
-              if (totalPages > 6 && Math.abs(currentPage - p) > 1 && p !== 1 && p !== totalPages) {
-                if (p === 2 || p === totalPages - 1) {
-                  return <span key={p} className="px-1.5 text-slate-400 font-bold">...</span>;
-                }
-                return null;
-              }
-              return (
-                <button
-                  key={p}
-                  onClick={() => handlePageChange(p)}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentPage === p
-                    ? 'bg-[#0f417a] text-white shadow-sm'
-                    : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center space-x-1.5">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Show</span>
+                <select
+                  value={entriesLimit}
+                  onChange={(e) => {
+                    setEntriesLimit(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
                 >
-                  {p}
-                </button>
-              );
-            })}
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Entries</span>
+              </div>
+            </div>
+          </div>
 
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages || totalPages === 0}
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+          {isFiltersExpanded && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 shadow-inner">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Wing</label>
+                <select
+                  value={selectedWing}
+                  onChange={(e) => { setSelectedWing(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700"
+                >
+                  <option value="All">All Wings</option>
+                  {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Division</label>
+                <select
+                  value={selectedDivision}
+                  onChange={(e) => { setSelectedDivision(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700"
+                >
+                  <option value="All">All Divisions</option>
+                  {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700"
+                >
+                  <option value="All">All Statuses</option>
+                  {Object.values(STATUS_STEPS).map(status => <option key={status} value={status}>{status}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+            <div className="relative w-full sm:max-w-xs">
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                className="w-full text-xs pl-8 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-medium text-slate-700"
+              />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            </div>
+            <div className="text-xs font-semibold text-slate-500">
+              Showing {totalEntries} entries
+            </div>
+          </div>
+
+          <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
+            <AgGridReact
+              ref={gridRef}
+              theme="legacy"
+              rowData={filteredData}
+              columnDefs={colDefs}
+              pagination={true}
+              paginationPageSize={entriesLimit}
+              suppressPaginationPanel={true}
+              onPaginationChanged={onPaginationChanged}
+              domLayout="autoHeight"
+              rowHeight={55}
+              headerHeight={45}
+              suppressColumnVirtualisation={true}
+              autoSizeStrategy={{
+                type: 'fitGridWidth',
+                defaultMinWidth: 90
+              }}
+            />
+
+            <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-4 bg-white border-t border-slate-200 text-xs gap-4">
+              <span className="text-slate-500 font-medium text-center sm:text-left">
+                Showing <span className="font-bold text-slate-800">{totalEntries > 0 ? (currentPage - 1) * entriesLimit + 1 : 0}</span> to{' '}
+                <span className="font-bold text-slate-800">{Math.min(currentPage * entriesLimit, totalEntries)}</span> of{' '}
+                <span className="font-bold text-slate-800">{totalEntries}</span> entries
+              </span>
+
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
+                  if (totalPages > 6 && Math.abs(currentPage - p) > 1 && p !== 1 && p !== totalPages) {
+                    if (p === 2 || p === totalPages - 1) {
+                      return <span key={p} className="px-1.5 text-slate-400 font-bold">...</span>;
+                    }
+                    return null;
+                  }
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => handlePageChange(p)}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${currentPage === p
+                        ? 'bg-[#0f417a] text-white shadow-sm'
+                        : 'border border-slate-200 text-slate-655 hover:bg-slate-50'
+                        }`}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="p-1.5 rounded-lg border border-slate-200 text-slate-660 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CabinetNotesInput from './CabinetNotesInput';
 import CabinetNotesReports from './CabinetNotesReports';
-import { INITIAL_NOTES } from './constants';
+import axios from 'axios';
 import InternalNavigation from '../../components/InternalNavigation';
 
 export default function CabinetNotes() {
-  const [notes, setNotes] = useState(INITIAL_NOTES);
+  const [notes, setNotes] = useState([]);
+  const [ministries, setMinistries] = useState([]);
   const [activeSubTab, setActiveSubTab] = useState('dashboard'); // 'dashboard' | 'list' | 'report' | 'add'
   const [editingNote, setEditingNote] = useState(null);
 
@@ -15,6 +16,54 @@ export default function CabinetNotes() {
     { id: 'report', label: 'Analytical Reports' },
     { id: 'add', label: 'Add Notes' }
   ];
+
+  const fetchMinistries = () => {
+    axios.get("http://localhost:3000/mmt-dropdown/mmt_ministry")
+      .then(res => {
+        setMinistries(res.data);
+      })
+      .catch(err => console.error("Error fetching ministries:", err));
+  };
+
+  const fetchData = () => {
+    axios.get("http://localhost:3000/cabinet-ministry/1")
+      .then(res => {
+        const mapped = res.data.map(r => {
+          const steps = {
+            1: r.received_ministry || 'No',
+            2: r.sent_for_comments || 'No',
+            3: r.comments_rec || 'No',
+            4: r.file_submitted || 'No',
+            5: r.reply_furnished || 'No'
+          };
+          const dates = {
+            1: r.received_ministry_date ? new Date(r.received_ministry_date).toISOString().split('T')[0] : '',
+            2: r.sent_for_comments_date ? new Date(r.sent_for_comments_date).toISOString().split('T')[0] : '',
+            3: r.comments_rec_date ? new Date(r.comments_rec_date).toISOString().split('T')[0] : '',
+            4: r.file_submitted_date ? new Date(r.file_submitted_date).toISOString().split('T')[0] : '',
+            5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : ''
+          };
+          return {
+            id: r.cabinet_notes_ministry_id,
+            subject: r.subject || '',
+            ministryName: r.ministry_name || '',
+            status: r.stage_name || 'Note Received from Ministry',
+            statusSteps: steps,
+            statusDates: dates,
+            remarks: r.remarks || '',
+            deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
+            fileName: null
+          };
+        });
+        setNotes(mapped);
+      })
+      .catch(err => console.error("Error fetching Other Ministry Cabinet Notes:", err));
+  };
+
+  useEffect(() => {
+    fetchMinistries();
+    fetchData();
+  }, [activeSubTab]);
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
@@ -55,6 +104,8 @@ export default function CabinetNotes() {
               setActiveSubTab={setActiveSubTab}
               editingNote={editingNote}
               setEditingNote={setEditingNote}
+              refreshData={fetchData}
+              ministries={ministries}
             />
           </div>
         )}

@@ -216,6 +216,9 @@ export default function AuditParaReports({ auditParas }) {
           rowHeight={46}
           headerHeight={38}
           suppressColumnVirtualisation={true}
+          pagination={true}
+          paginationPageSize={10}
+          paginationPageSizeSelector={[10, 20, 50]}
           autoSizeStrategy={{
             type: 'fitCellContents'
           }}
