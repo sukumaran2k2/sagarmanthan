@@ -15,7 +15,7 @@ import CabinetNotes from './modules/CabinetNotes/CabinetNotes';
 import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotes';
 import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
 import Footer from './components/Footer';
-import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart } from 'lucide-react';
+import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
 import Loader from './components/Loader';
 import NetworkCheckView from './components/NetworkCheckView';
 
@@ -308,6 +308,7 @@ export default function App() {
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
   const [isTabLoading, setIsTabLoading] = useState(false);
   const [showNetworkCheck, setShowNetworkCheck] = useState(false);
+  const [isManualNetworkCheck, setIsManualNetworkCheck] = useState(false);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -396,6 +397,7 @@ export default function App() {
 
   const handleLoginSuccess = () => {
     setIsLoggedIn(true);
+    setIsManualNetworkCheck(false);
     setShowNetworkCheck(true);
   };
 
@@ -403,22 +405,20 @@ export default function App() {
     return <LoginView onLogin={handleLoginSuccess} />;
   }
 
-  if (showNetworkCheck) {
-    return (
-      <NetworkCheckView 
-        onContinue={() => setShowNetworkCheck(false)}
-        onCancel={() => {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          setIsLoggedIn(false);
-          setShowNetworkCheck(false);
-        }}
-      />
-    );
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
+      {showNetworkCheck && (
+        <NetworkCheckView 
+          isManual={isManualNetworkCheck}
+          onContinue={() => setShowNetworkCheck(false)}
+          onCancel={() => {
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            setIsLoggedIn(false);
+            setShowNetworkCheck(false);
+          }}
+        />
+      )}
       
       {/* Toast Notification Alert Banner */}
       {notification && (
@@ -568,6 +568,19 @@ export default function App() {
           </>
         )}
       </main>
+
+      {/* Floating Network Check summoned FAB */}
+      <button
+        onClick={() => {
+          setIsManualNetworkCheck(true);
+          setShowNetworkCheck(true);
+        }}
+        className="fixed bottom-6 right-6 z-40 p-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-full shadow-lg cursor-pointer transition-all hover:shadow-blue-500/20 group flex items-center justify-center"
+        title="Check Network Speed & Compatibility"
+        aria-label="Network Check"
+      >
+        <Activity className="h-6 w-6" />
+      </button>
 
       {/* Government Footer */}
       <Footer />
