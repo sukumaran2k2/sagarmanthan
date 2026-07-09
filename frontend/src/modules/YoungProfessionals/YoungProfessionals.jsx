@@ -176,14 +176,14 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
       cellClass: 'text-center text-emerald-600 font-bold',
       headerClass: 'text-center'
     },
-    {
-      field: 'vacant',
-      headerName: 'No of Vacancy In Process',
-      flex: 1,
-      minWidth: 160,
-      cellClass: 'text-center text-amber-600 font-bold',
-      headerClass: 'text-center'
-    }
+    // {
+    //   field: 'vacant',
+    //   headerName: 'No of Vacancy In Process',
+    //   flex: 1,
+    //   minWidth: 160,
+    //   cellClass: 'text-center text-amber-600 font-bold',
+    //   headerClass: 'text-center'
+    // }
   ], []);
 
   // Form submit handler
