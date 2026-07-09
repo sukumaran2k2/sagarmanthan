@@ -1,120 +1,120 @@
-<table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-[#0f417a] text-white text-xs font-bold uppercase tracking-wider border-b border-blue-900">
-                <th className="px-4 py-3.5 text-center w-14">S.No</th>
-                
-                <th 
-                  onClick={() => handleSort('projectId')}
-                  className="px-4 py-3.5 cursor-pointer hover:bg-[#0c3666] transition-colors"
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>Project ID</span>
-                    <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </th>
-                
-                <th className="px-4 py-3.5 text-center">Sub Project ID</th>
-                
-                <th 
-                  onClick={() => handleSort('projectName')}
-                  className="px-4 py-3.5 cursor-pointer hover:bg-[#0c3666] transition-colors w-72"
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>Project Name</span>
-                    <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </th>
-                
-                <th className="px-4 py-3.5">Category</th>
-                
-                <th 
-                  onClick={() => handleSort('cost')}
-                  className="px-4 py-3.5 text-right cursor-pointer hover:bg-[#0c3666] transition-colors"
-                >
-                  <div className="flex items-center justify-end space-x-1">
-                    <span>Sanctioned Cost (In Cr.)</span>
-                    <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </th>
-                
-                <th className="px-4 py-3.5">Primary Implementing Agency</th>
-                <th className="px-4 py-3.5 text-center">Current Stage</th>
-                <th className="px-4 py-3.5 text-center">Physical (%)</th>
-                <th className="px-4 py-3.5 text-center">Financial (%)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {paginatedProjects.length > 0 ? (
-                paginatedProjects.map((project, index) => (
-                  <tr 
-                    key={project.id} 
-                    className="hover:bg-slate-50/60 transition-colors duration-150"
-                  >
-                    <td className="px-4 py-4 text-center font-semibold text-slate-500">
-                      {(currentPage - 1) * entriesLimit + index + 1}
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="font-bold text-orange-600 hover:text-orange-700 cursor-pointer hover:underline flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full bg-orange-500 inline-block"></span>
-                        {project.projectId}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-center text-slate-400 font-medium">{project.subProjectId || '-'}</td>
-                    <td className="px-4 py-4">
-                      <span className="font-bold text-slate-800 block text-xs hover:text-blue-600 cursor-pointer transition-colors leading-relaxed">
-                        {project.projectName}
-                      </span>
-                      {project.subProjectName && project.subProjectName !== '-' && (
-                        <span className="text-[10px] text-slate-500 font-bold block mt-1 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded w-fit">
-                          Sub-Project: {project.subProjectName}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className="inline-flex items-center px-2.5 py-1 text-[10px] font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
-                        {project.category || 'Uncategorized'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-right font-extrabold text-slate-700">
-                      {project.cost ? parseFloat(project.cost).toFixed(2) : '-'}
-                    </td>
-                    <td className="px-4 py-4 text-slate-600 font-medium">{project.agency}</td>
-                    <td className="px-4 py-4 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-1 text-[10px] font-bold rounded-full border ${getStageStyle(project.stage)}`}>
-                        {project.stage}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <div className="flex items-center justify-center space-x-1.5">
-                        <span className="font-bold text-slate-700">{project.physicalProgress}%</span>
-                        {/* Progress mini indicator */}
-                        <div className="w-10 bg-slate-100 h-1.5 rounded-full overflow-hidden hidden sm:block">
-                          <div 
-                            className="bg-blue-600 h-1.5 rounded-full" 
-                            style={{ width: `${project.physicalProgress}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <div className="flex items-center justify-center space-x-1.5">
-                        <span className="font-bold text-slate-700">{project.financialProgress}%</span>
-                        <div className="w-10 bg-slate-100 h-1.5 rounded-full overflow-hidden hidden sm:block">
-                          <div 
-                            className="bg-emerald-500 h-1.5 rounded-full" 
-                            style={{ width: `${project.financialProgress}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="10" className="px-4 py-8 text-center text-slate-400 font-medium">
-                    No matching records found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+import React, { forwardRef } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { FileSpreadsheet, FileText } from 'lucide-react';
+import * as XLSX from 'xlsx';
+
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+const Table = forwardRef(({
+  rowData = [],
+  columnDefs,
+  colDefs,
+  defaultColDef = { minWidth: 80, suppressSizeToFit: false },
+  pagination = true,
+  paginationPageSize = 10,
+  suppressPaginationPanel = false,
+  rowHeight = 46,
+  headerHeight = 44,
+  onRowClicked,
+  onPaginationChanged,
+  enableExport = false,
+  exportFileName = 'ExportData',
+  exportPdfTitle = 'Data Report',
+  ...props
+}, ref) => {
+
+  const finalColDefs = columnDefs || colDefs || [];
+
+  const handleExportExcel = () => {
+    if (!rowData.length) return;
+    const cleanData = rowData.map(({ sno, ...rest }) => rest);
+    const ws = XLSX.utils.json_to_sheet(cleanData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Data');
+    XLSX.writeFile(wb, `${exportFileName}.xlsx`);
+  };
+
+  const handleExportPDF = () => {
+    if (!rowData.length) return;
+    const printWindow = window.open('', '_blank');
+    const headers = Object.keys(rowData[0]);
+    let tableHTML = `<table style="width:100%; border-collapse: collapse; font-family: Inter, sans-serif; font-size: 11px; margin-top: 15px;">`;
+    tableHTML += `<tr style="background-color: #0f417a; color: white;"><th style="border: 1px solid #e2e8f0; padding: 10px; text-align: left;">S.No</th>`;
+    headers.filter(h => h !== 'sno' && h !== 'module' && h !== 'moduleName').forEach(h => {
+      tableHTML += `<th style="border: 1px solid #e2e8f0; padding: 10px; text-align: left; font-weight: 700; text-transform: uppercase;">${h}</th>`;
+    });
+    tableHTML += `</tr>`;
+    
+    rowData.forEach((row) => {
+      tableHTML += `<tr><td style="border: 1px solid #e2e8f0; padding: 8px;">${row.sno || '-'}</td>`;
+      headers.filter(h => h !== 'sno' && h !== 'module' && h !== 'moduleName').forEach(h => {
+        tableHTML += `<td style="border: 1px solid #e2e8f0; padding: 8px; color: #334155;">${row[h] || '-'}</td>`;
+      });
+      tableHTML += `</tr>`;
+    });
+    tableHTML += `</table>`;
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${exportPdfTitle}</title>
+          <style>
+            body { font-family: 'Inter', sans-serif; padding: 25px; color: #1e293b; }
+            h1 { font-size: 20px; color: #0f417a; margin-bottom: 5px; }
+          </style>
+        </head>
+        <body>
+          <h1>${exportPdfTitle}</h1>
+          <p>Generated on ${new Date().toLocaleDateString()}</p>
+          ${tableHTML}
+          <script>
+            window.onload = function() { window.print(); window.close(); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  return (
+    <div className="space-y-4 w-full">
+      <div className="ag-theme-quartz rounded-2xl overflow-x-auto">
+        <AgGridReact
+          ref={ref}
+          theme="legacy"
+          rowData={rowData}
+          columnDefs={finalColDefs}
+          defaultColDef={defaultColDef}
+          domLayout="autoHeight"
+          rowHeight={rowHeight}
+          headerHeight={headerHeight}
+          onRowClicked={onRowClicked}
+          pagination={pagination}
+          paginationPageSize={paginationPageSize}
+          suppressPaginationPanel={suppressPaginationPanel}
+          onPaginationChanged={onPaginationChanged}
+          suppressColumnVirtualisation={true}
+          autoSizeStrategy={{ type: 'fitCellContents' }}
+          {...props}
+        />
+      </div>
+
+      {enableExport && (
+        <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500 select-none pt-2">
+          <span>Export as:</span>
+          <button onClick={handleExportPDF} className="p-1.5 hover:bg-slate-100 rounded-lg text-rose-600 cursor-pointer transition">
+            <FileText className="h-4.5 w-4.5" />
+          </button>
+          <button onClick={handleExportExcel} className="p-1.5 hover:bg-slate-100 rounded-lg text-emerald-600 cursor-pointer transition">
+            <FileSpreadsheet className="h-4.5 w-4.5" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
+
+Table.displayName = 'Table';
+
+export default Table;

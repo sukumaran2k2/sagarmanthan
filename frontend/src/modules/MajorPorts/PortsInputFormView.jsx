@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Search, ArrowLeft } from 'lucide-react';
-import CommonTable from '../../components/CommonTable';
+import Table from '../../components/Table';
 
 export default function PortsInputFormView({ userPermissions }) {
   const [subView, setSubView] = useState('list'); // 'list' or 'details'
@@ -307,7 +307,7 @@ export default function PortsInputFormView({ userPermissions }) {
             </div>
           </div>
 
-          <CommonTable 
+          <Table 
             rowData={filteredDetailsData}
             columnDefs={detailColDefs}
             rowHeight={46}

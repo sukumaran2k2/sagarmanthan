@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, Search, ArrowLeft } from 'lucide-react';
-import CommonTable from '../../components/CommonTable';
+import Table from '../../components/Table';
 
 export default function PortsReportsView() {
   const [subView, setSubView] = useState('list'); // 'list' or 'details'
@@ -287,7 +287,7 @@ export default function PortsReportsView() {
             </div>
           </div>
 
-          <CommonTable 
+          <Table 
             rowData={getFilteredData()}
             columnDefs={getReportColDefs()}
             rowHeight={46}

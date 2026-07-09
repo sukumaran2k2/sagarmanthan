@@ -30,7 +30,7 @@ import {
   Edit
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
-import CommonTable from '../../components/CommonTable';
+import Table from '../../components/Table';
 import UpdateProjectOverlay from './UpdateProjectOverlay';
 
 export default function ProjectTable({
@@ -568,15 +568,16 @@ export default function ProjectTable({
 
       {/* Main Responsive Table */}
       <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-        <CommonTable 
+        <Table 
           ref={gridRef}
           rowData={filteredProjects}
           columnDefs={colDefs}
           defaultColDef={{ minWidth: 80, suppressSizeToFit: false }}
-          entriesLimit={entriesLimit}
+          paginationPageSize={entriesLimit}
           onPaginationChanged={onPaginationChanged}
           rowHeight={64}
           headerHeight={48}
+          suppressPaginationPanel={true}
           autoSize={false}
           autoSizeStrategy={{
             type: 'fitCellContents'
