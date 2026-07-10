@@ -202,6 +202,7 @@ async function updateVipReference(req, res) {
     }
 }
 
+/*
 async function getVipReference (req, res) 
 {
     const conn = await pool;
@@ -226,6 +227,268 @@ async function getVipReference (req, res)
         return res.sendStatus(500);
     }
 };
+*/
+
+/*
+async function getVipReference(req, res) {
+    const conn = await pool;
+
+    // Optional page and limit parameters
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+
+    try {
+        if (page && limit) {
+            const offset = (page - 1) * limit;
+            const request = conn.request();
+            request.input('offset', offset);
+            request.input('limit', limit);
+
+            const result = await request.query(`
+                SELECT *, COUNT(*) OVER() AS total_count 
+                FROM tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
+                ORDER BY stage_id
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `);
+
+            const total = result.recordset.length > 0 ? result.recordset[0].total_count : 0;
+            res.json({
+                data: result.recordset,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            });
+        } else {
+            const result = await conn.query(`
+                SELECT * from tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
+                ORDER BY stage_id;
+            `);
+            res.json(result.recordset);
+        }
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+*/
+
+/*
+async function getVipReference(req, res) {
+    const conn = await pool;
+
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+    const wing = req.query.wing || null;
+    const division = req.query.division || null;
+    const status = req.query.status || null;
+    const search = req.query.search || null;
+
+    try {
+        if (page && limit) {
+            const offset = (page - 1) * limit;
+            const request = conn.request();
+            request.input('offset', offset);
+            request.input('limit', limit);
+            request.input('wing', wing);
+            request.input('division', division);
+            request.input('status', status);
+            request.input('search', search);
+
+            const result = await request.query(`
+                SELECT *, COUNT(*) OVER() AS total_count 
+                FROM tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
+                WHERE 
+                    (@wing IS NULL OR @wing = 'All' OR mmt_wings.wing_name = @wing)
+                    AND (@division IS NULL OR @division = 'All' OR mmt_division.division_name = @division)
+                    AND (@status IS NULL OR @status = 'All' OR mmt_vip_stage.vip_stage_name = @status OR 
+                        (
+                            (@status = 'Received at Ministry' AND mmt_vip_stage.vip_stage_id = 1) OR
+                            (@status = 'Submitted for Approval' AND mmt_vip_stage.vip_stage_id = 2) OR
+                            (@status = 'Comments Sought' AND mmt_vip_stage.vip_stage_id = 3) OR
+                            (@status = 'Comments Received' AND mmt_vip_stage.vip_stage_id = 4) OR
+                            (@status = 'Reply Furnished' AND mmt_vip_stage.vip_stage_id = 5) OR
+                            (@status = 'Disposed' AND mmt_vip_stage.vip_stage_id = 6)
+                        )
+                    )
+                    AND (
+                        @search IS NULL OR @search = '' 
+                        OR tbl_vip_reference.subject LIKE '%' + @search + '%'
+                        OR tbl_vip_reference.ref_letter_num LIKE '%' + @search + '%'
+                        OR tbl_vip_reference.received_from LIKE '%' + @search + '%'
+                        OR mmt_wings.wing_name LIKE '%' + @search + '%'
+                        OR mmt_division.division_name LIKE '%' + @search + '%'
+                    )
+                ORDER BY stage_id
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `);
+
+            const total = result.recordset.length > 0 ? result.recordset[0].total_count : 0;
+            res.json({
+                data: result.recordset,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            });
+        } else {
+            const request = conn.request();
+            request.input('wing', wing);
+            request.input('division', division);
+            request.input('status', status);
+            request.input('search', search);
+
+            const result = await request.query(`
+                SELECT * from tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
+                WHERE 
+                    (@wing IS NULL OR @wing = 'All' OR mmt_wings.wing_name = @wing)
+                    AND (@division IS NULL OR @division = 'All' OR mmt_division.division_name = @division)
+                    AND (@status IS NULL OR @status = 'All' OR mmt_vip_stage.vip_stage_name = @status OR 
+                        (
+                            (@status = 'Received at Ministry' AND mmt_vip_stage.vip_stage_id = 1) OR
+                            (@status = 'Submitted for Approval' AND mmt_vip_stage.vip_stage_id = 2) OR
+                            (@status = 'Comments Sought' AND mmt_vip_stage.vip_stage_id = 3) OR
+                            (@status = 'Comments Received' AND mmt_vip_stage.vip_stage_id = 4) OR
+                            (@status = 'Reply Furnished' AND mmt_vip_stage.vip_stage_id = 5) OR
+                            (@status = 'Disposed' AND mmt_vip_stage.vip_stage_id = 6)
+                        )
+                    )
+                    AND (
+                        @search IS NULL OR @search = '' 
+                        OR tbl_vip_reference.subject LIKE '%' + @search + '%'
+                        OR tbl_vip_reference.ref_letter_num LIKE '%' + @search + '%'
+                        OR tbl_vip_reference.received_from LIKE '%' + @search + '%'
+                        OR mmt_wings.wing_name LIKE '%' + @search + '%'
+                        OR mmt_division.division_name LIKE '%' + @search + '%'
+                    )
+                ORDER BY stage_id;
+            `);
+            res.json(result.recordset);
+        }
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+*/
+
+async function getVipReference(req, res) {
+    const conn = await pool;
+
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+    const wing = req.query.wing && req.query.wing !== 'All' ? req.query.wing : null;
+    const division = req.query.division && req.query.division !== 'All' ? req.query.division : null;
+    const status = req.query.status && req.query.status !== 'All' ? req.query.status : null;
+    const search = req.query.search || null;
+
+    try {
+        const request = conn.request();
+        let whereClauses = [];
+
+        if (wing) {
+            whereClauses.push("mmt_wings.wing_name = @wing");
+            request.input('wing', wing);
+        }
+        if (division) {
+            whereClauses.push("mmt_division.division_name = @division");
+            request.input('division', division);
+        }
+        if (status) {
+            if (status === 'Received at Ministry') {
+                whereClauses.push("mmt_vip_stage.vip_stage_id = 1");
+            } else if (status === 'Submitted for Approval') {
+                whereClauses.push("mmt_vip_stage.vip_stage_id = 2");
+            } else if (status === 'Comments Sought') {
+                whereClauses.push("mmt_vip_stage.vip_stage_id = 3");
+            } else if (status === 'Comments Received') {
+                whereClauses.push("mmt_vip_stage.vip_stage_id = 4");
+            } else if (status === 'Reply Furnished') {
+                whereClauses.push("mmt_vip_stage.vip_stage_id = 5");
+            } else if (status === 'Disposed') {
+                whereClauses.push("mmt_vip_stage.vip_stage_id = 6");
+            } else {
+                whereClauses.push("mmt_vip_stage.vip_stage_name = @status");
+                request.input('status', status);
+            }
+        }
+        if (search) {
+            whereClauses.push(`(
+                tbl_vip_reference.subject LIKE '%' + @search + '%'
+                OR tbl_vip_reference.ref_letter_num LIKE '%' + @search + '%'
+                OR tbl_vip_reference.received_from LIKE '%' + @search + '%'
+                OR mmt_wings.wing_name LIKE '%' + @search + '%'
+                OR mmt_division.division_name LIKE '%' + @search + '%'
+            )`);
+            request.input('search', search);
+        }
+
+        const whereSql = whereClauses.length > 0 ? "WHERE " + whereClauses.join(" AND ") : "";
+
+        if (page && limit) {
+            const offset = (page - 1) * limit;
+            request.input('offset', offset);
+            request.input('limit', limit);
+
+            const query = `
+                SELECT *, COUNT(*) OVER() AS total_count 
+                FROM tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
+                ${whereSql}
+                ORDER BY stage_id
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `;
+
+            const result = await request.query(query);
+            const total = result.recordset.length > 0 ? result.recordset[0].total_count : 0;
+            res.json({
+                data: result.recordset,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            });
+        } else {
+            const query = `
+                SELECT * from tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
+                ${whereSql}
+                ORDER BY stage_id;
+            `;
+            const result = await request.query(query);
+            res.json(result.recordset);
+        }
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
 
 async function createVipReferenceStage(req, res) {
     const vipReferenceID = req.body.vipReferenceID;

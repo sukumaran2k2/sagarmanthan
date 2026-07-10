@@ -55,7 +55,9 @@ export default function VIPReference() {
   };
 
   useEffect(() => {
-    fetchData();
+    if (activeSubTab === 'reports') {
+      fetchData();
+    }
   }, [activeSubTab]);
 
   return (

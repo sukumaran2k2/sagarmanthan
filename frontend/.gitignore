@@ -27,3 +27,6 @@ dist-ssr
 *.sql
 
 .env
+
+sagarmanthan-main/
+.sagarmanthan-main/*

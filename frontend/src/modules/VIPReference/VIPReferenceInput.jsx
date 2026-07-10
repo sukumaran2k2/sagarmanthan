@@ -1,64 +1,20 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  FileSpreadsheet,
   Plus,
   Search,
-  Copy,
-  FileText,
   ChevronLeft,
   ChevronRight,
-  Filter,
-  ArrowLeft,
+  X,
   Edit
 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import axios from 'axios';
 
+import FilterBar from './FilterBar';
+import ReferenceForm from './ReferenceForm';
+
 ModuleRegistry.registerModules([AllCommunityModule]);
-
-const DB_WINGS = [
-  { wing_id: 1, wing_name: "Shipping" },
-  { wing_id: 2, wing_name: "Vigilance" },
-  { wing_id: 3, wing_name: "Ports" },
-  { wing_id: 4, wing_name: "IWT" },
-  { wing_id: 5, wing_name: "Administration" },
-  { wing_id: 6, wing_name: "Coord-I" },
-  { wing_id: 7, wing_name: "Coord-II" },
-  { wing_id: 8, wing_name: "DGLL, Parliament & TRW" },
-  { wing_id: 9, wing_name: "Development" },
-  { wing_id: 10, wing_name: "Finance" },
-  { wing_id: 11, wing_name: "Sagarmala" },
-  { wing_id: 12, wing_name: "Information Technology" },
-  { wing_id: 13, wing_name: "Office of Economic Advisor" },
-  { wing_id: 14, wing_name: "Special Initiatives & Projects" }
-];
-
-const DB_DIVISIONS = [
-  { division_id: 1, division_name: "Shipping-I" },
-  { division_id: 2, division_name: "Shipping-II" },
-  { division_id: 3, division_name: "Shipping-III" },
-  { division_id: 4, division_name: "Vigilance" },
-  { division_id: 5, division_name: "PD-I" },
-  { division_id: 6, division_name: "PD-II" },
-  { division_id: 7, division_name: "PPP" },
-  { division_id: 8, division_name: "PHRD" },
-  { division_id: 9, division_name: "IWT-I" },
-  { division_id: 10, division_name: "IWT-II" },
-  { division_id: 11, division_name: "Admn." },
-  { division_id: 12, division_name: "Coord-I" },
-  { division_id: 13, division_name: "Coord-II" },
-  { division_id: 14, division_name: "DGLL, Parl. & TRW" },
-  { division_id: 15, division_name: "Devlopment" },
-  { division_id: 16, division_name: "Finance" },
-  { division_id: 17, division_name: "Sagarmala -I" },
-  { division_id: 18, division_name: "Sagarmala -II" },
-  { division_id: 19, division_name: "Sagarmala-III , ALHW & Media" },
-  { division_id: 20, division_name: "IT" },
-  { division_id: 21, division_name: "PD-III" },
-  { division_id: 22, division_name: "PD- IV" },
-  { division_id: 23, division_name: "Special Initiatives & Projects" }
-];
 
 const STATUS_STEPS = {
   1: 'Received at Ministry',
@@ -72,6 +28,14 @@ const STATUS_STEPS = {
 export default function VIPReferenceInput({ vipReferences, setVipReferences, refreshData }) {
   const gridRef = useRef();
 
+  // Dropdown options loaded from database
+  const [wings, setWings] = useState([]);
+  const [divisions, setDivisions] = useState([]);
+
+  // Server-side reference data
+  const [serverVipReferences, setServerVipReferences] = useState([]);
+  const [totalEntries, setTotalEntries] = useState(0);
+
   const [selectedWing, setSelectedWing] = useState('All');
   const [selectedDivision, setSelectedDivision] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -80,26 +44,90 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences, ref
   const [currentPage, setCurrentPage] = useState(1);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
 
-  // Form states
+  // Form state
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingRef, setEditingRef] = useState(null);
 
-  // Fields
-  const [formSubject, setFormSubject] = useState('');
-  const [formEofficeFile, setFormEofficeFile] = useState('');
-  const [formWing, setFormWing] = useState('Ports');
-  const [formDivision, setFormDivision] = useState('PD-III');
-  const [formRefNumber, setFormRefNumber] = useState('');
-  const [formReceivedFrom, setFormReceivedFrom] = useState('');
-  const [formRemarks, setFormRemarks] = useState('');
-  const [formDeadline, setFormDeadline] = useState('');
-  const [formStatusSteps, setFormStatusSteps] = useState({
-    1: 'Yes', 2: 'No', 3: 'No', 4: 'No', 5: 'No', 6: 'No'
-  });
-  const [formStatusDates, setFormStatusDates] = useState({});
+  // Debounced search query
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
 
-  const WINGS = DB_WINGS.map(w => w.wing_name);
-  const DIVISIONS = DB_DIVISIONS.map(d => d.division_name);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // Fetch wings and divisions from the database on mount
+  useEffect(() => {
+    axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
+      .then(res => {
+        setWings(res.data || []);
+      })
+      .catch(err => console.error("Error fetching wings:", err));
+
+    axios.get("http://localhost:3000/mmt-dropdown/mmt_division")
+      .then(res => {
+        setDivisions(res.data || []);
+      })
+      .catch(err => console.error("Error fetching divisions:", err));
+  }, []);
+
+  // Fetch references dynamically from the server based on pagination and filters
+  const fetchReferences = () => {
+    axios.get("http://localhost:3000/vip-reference", {
+      params: {
+        page: currentPage,
+        limit: entriesLimit,
+        wing: selectedWing,
+        division: selectedDivision,
+        status: selectedStatus,
+        search: debouncedSearch
+      }
+    })
+      .then(res => {
+        const dataArray = res.data.data || [];
+        const mapped = dataArray.map(r => {
+          const steps = {
+            1: r.received_at_ministry || 'No',
+            2: r.submitted_for_approval || 'No',
+            3: r.comments_sought || 'No',
+            4: r.comments_received || 'No',
+            5: r.reply_furnished || 'No',
+            6: r.disposed || 'No'
+          };
+          const dates = {
+            1: r.received_at_ministry_date ? new Date(r.received_at_ministry_date).toISOString().split('T')[0] : '',
+            2: r.submitted_for_approval_date ? new Date(r.submitted_for_approval_date).toISOString().split('T')[0] : '',
+            3: r.comments_sought_date ? new Date(r.comments_sought_date).toISOString().split('T')[0] : '',
+            4: r.comments_received_date ? new Date(r.comments_received_date).toISOString().split('T')[0] : '',
+            5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : '',
+            6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : ''
+          };
+          return {
+            id: r.vip_reference_id,
+            subject: r.subject || '',
+            eofficeFile: r.eoffice_file_number || '',
+            wing: r.wing_name || '',
+            division: r.division_name || '',
+            refNumber: r.ref_letter_num || '',
+            receivedFrom: r.received_from || '',
+            remarks: r.remarks || '',
+            deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
+            statusSteps: steps,
+            statusDates: dates,
+            lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
+          };
+        });
+        setServerVipReferences(mapped);
+        setTotalEntries(res.data.pagination?.total || 0);
+      })
+      .catch(err => console.error("Error loading VIP references:", err));
+  };
+
+  useEffect(() => {
+    fetchReferences();
+  }, [currentPage, entriesLimit, selectedWing, selectedDivision, selectedStatus, debouncedSearch]);
 
   const getRefStatusText = (steps) => {
     let currentStatus = 'Draft';
@@ -113,97 +141,49 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences, ref
 
   const handleOpenAdd = () => {
     setEditingRef(null);
-    setFormSubject('');
-    setFormEofficeFile('');
-    setFormWing('Ports');
-    setFormDivision('PD-III');
-    setFormRefNumber('');
-    setFormReceivedFrom('');
-    setFormRemarks('');
-    setFormDeadline('');
-    setFormStatusSteps({
-      1: 'Yes', 2: 'No', 3: 'No', 4: 'No', 5: 'No', 6: 'No'
-    });
-    setFormStatusDates({ 1: new Date().toISOString().split('T')[0] });
     setIsFormOpen(true);
   };
 
   const handleOpenEdit = (refData) => {
     setEditingRef(refData);
-    setFormSubject(refData.subject);
-    setFormEofficeFile(refData.eofficeFile);
-    setFormWing(refData.wing);
-    setFormDivision(refData.division);
-    setFormRefNumber(refData.refNumber);
-    setFormReceivedFrom(refData.receivedFrom);
-    setFormRemarks(refData.remarks || '');
-    setFormDeadline(refData.deadline || '');
-    setFormStatusSteps({ ...refData.statusSteps });
-    setFormStatusDates(refData.statusDates || {});
     setIsFormOpen(true);
   };
 
-  const handleSaveRef = async (e) => {
-    e.preventDefault();
-    if (
-      !formSubject.trim() ||
-      !formEofficeFile.trim() ||
-      !formWing.trim() ||
-      !formDivision.trim() ||
-      !formRefNumber.trim() ||
-      !formReceivedFrom.trim()
-    ) {
-      alert('Please fill in all required fields marked with *');
-      return;
-    }
-
-    // Step 1 Received Date validation
-    if (formStatusSteps[1] === 'Yes' && !formStatusDates[1]) {
-      alert('Please enter the Date Received for Step 1.');
-      return;
-    }
-
-    // Word count check for remarks
-    const wordCount = formRemarks.trim().split(/\s+/).filter(Boolean).length;
-    if (wordCount > 250) {
-      alert('Remarks cannot exceed 250 words.');
-      return;
-    }
-
-    const wingObj = DB_WINGS.find(w => w.wing_name === formWing) || { wing_id: 1 };
-    const divisionObj = DB_DIVISIONS.find(d => d.division_name === formDivision) || { division_id: 1 };
+  const handleSaveRef = async (formData) => {
+    const wingObj = wings.find(w => w.wing_name === formData.wing) || { wing_id: 1 };
+    const divisionObj = divisions.find(d => d.division_name === formData.division) || { division_id: 1 };
     const wingId = wingObj.wing_id;
     const divisionId = divisionObj.division_id;
 
     let selectedStage = 1;
     for (let i = 1; i <= 6; i++) {
-      if (formStatusSteps[i] === 'Yes') {
+      if (formData.statusSteps[i] === 'Yes') {
         selectedStage = i;
       }
     }
 
     const payload = {
-      vipSubject: formSubject,
-      eofficeFileNumber: formEofficeFile,
+      vipSubject: formData.subject,
+      eofficeFileNumber: formData.eofficeFile,
       wing: wingId,
       division: divisionId,
-      referenceLetterNumber: formRefNumber,
-      receivedFrom: formReceivedFrom,
-      vipReceivedMinistry: formStatusSteps[1] || 'No',
-      vipReceivedMinistryDate: formStatusDates[1] || '',
-      vipSubmittedForApproval: formStatusSteps[2] || 'No',
-      vipSubmittedForApprovalDate: formStatusDates[2] || '',
-      vipCommentsSought: formStatusSteps[3] || 'No',
-      vipCommentsSoughtDate: formStatusDates[3] || '',
-      vipCommentsReceived: formStatusSteps[4] || 'No',
-      vipCommentsReceivedDate: formStatusDates[4] || '',
-      vipReplyFurnished: formStatusSteps[5] || 'No',
-      vipReplyFurnishedDate: formStatusDates[5] || '',
-      vipDisposed: formStatusSteps[6] || 'No',
-      vipDisposedDate: formStatusDates[6] || '',
-      vipRemarks: formRemarks,
+      referenceLetterNumber: formData.refNumber,
+      receivedFrom: formData.receivedFrom,
+      vipReceivedMinistry: formData.statusSteps[1] || 'No',
+      vipReceivedMinistryDate: formData.statusDates[1] || '',
+      vipSubmittedForApproval: formData.statusSteps[2] || 'No',
+      vipSubmittedForApprovalDate: formData.statusDates[2] || '',
+      vipCommentsSought: formData.statusSteps[3] || 'No',
+      vipCommentsSoughtDate: formData.statusDates[3] || '',
+      vipCommentsReceived: formData.statusSteps[4] || 'No',
+      vipCommentsReceivedDate: formData.statusDates[4] || '',
+      vipReplyFurnished: formData.statusSteps[5] || 'No',
+      vipReplyFurnishedDate: formData.statusDates[5] || '',
+      vipDisposed: formData.statusSteps[6] || 'No',
+      vipDisposedDate: formData.statusDates[6] || '',
+      vipRemarks: formData.remarks,
       selectedStage: selectedStage,
-      deadline: formDeadline || '',
+      deadline: formData.deadline || '',
       userID: 1
     };
 
@@ -215,6 +195,7 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences, ref
         await axios.post("http://localhost:3000/vip-reference", payload);
       }
       setIsFormOpen(false);
+      fetchReferences();
       if (refreshData) refreshData();
     } catch (err) {
       console.error("Error saving VIP reference:", err);
@@ -222,41 +203,7 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences, ref
     }
   };
 
-  // Filtering and Searching
-  const filteredData = useMemo(() => {
-    let result = [...vipReferences];
-
-    if (selectedWing !== 'All') {
-      result = result.filter(p => p.wing.toLowerCase() === selectedWing.toLowerCase());
-    }
-    if (selectedDivision !== 'All') {
-      result = result.filter(p => p.division.toLowerCase() === selectedDivision.toLowerCase());
-    }
-    if (selectedStatus !== 'All') {
-      result = result.filter(p => getRefStatusText(p.statusSteps).toLowerCase() === selectedStatus.toLowerCase());
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(p =>
-        p.subject.toLowerCase().includes(q) ||
-        p.refNumber.toLowerCase().includes(q) ||
-        p.receivedFrom.toLowerCase().includes(q) ||
-        p.wing.toLowerCase().includes(q) ||
-        p.division.toLowerCase().includes(q)
-      );
-    }
-
-    return result;
-  }, [vipReferences, selectedWing, selectedDivision, selectedStatus, searchQuery]);
-
-  const totalEntries = filteredData.length;
   const totalPages = Math.ceil(totalEntries / entriesLimit);
-
-  const paginatedData = useMemo(() => {
-    const start = (currentPage - 1) * entriesLimit;
-    return filteredData.slice(start, start + entriesLimit);
-  }, [filteredData, currentPage, entriesLimit]);
 
   const onPaginationChanged = () => {
     if (gridRef.current && gridRef.current.api) {
@@ -382,231 +329,17 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences, ref
     }
   };
 
-  const handleStepCheckboxChange = (stepNum, checked) => {
-    setFormStatusSteps(prev => {
-      const updated = { ...prev };
-      if (checked) {
-        // Checking a step should check all prior steps
-        for (let i = 1; i <= stepNum; i++) {
-          updated[i] = 'Yes';
-        }
-      } else {
-        // Unchecking a step should uncheck all subsequent steps
-        for (let i = stepNum; i <= 6; i++) {
-          updated[i] = 'No';
-        }
-      }
-      return updated;
-    });
-
-    setFormStatusDates(prev => {
-      const updated = { ...prev };
-      if (checked) {
-        // Fill dates for checked steps if they do not exist
-        const today = new Date().toISOString().split('T')[0];
-        for (let i = 1; i <= stepNum; i++) {
-          if (!updated[i]) {
-            updated[i] = today;
-          }
-        }
-      } else {
-        // Clear dates for unchecked steps
-        for (let i = stepNum; i <= 6; i++) {
-          delete updated[i];
-        }
-      }
-      return updated;
-    });
-  };
-
-  const handleDateChangeForStep = (stepNum, dateVal) => {
-    setFormStatusDates(prev => ({
-      ...prev,
-      [stepNum]: dateVal
-    }));
-  };
-
   return (
     <div className="space-y-6">
       {isFormOpen ? (
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 shadow-inner space-y-6 animate-fade-in">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-            <h2 className="text-base font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-              <Plus className="h-5 w-5 text-blue-800" />
-              {editingRef ? 'Update VIP Reference Letter' : 'Register New VIP Letter'}
-            </h2>
-            <button
-              onClick={() => setIsFormOpen(false)}
-              className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600 transition cursor-pointer"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          <form onSubmit={handleSaveRef} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject of VIP Reference *</label>
-                <textarea
-                  value={formSubject}
-                  onChange={(e) => setFormSubject(e.target.value)}
-                  placeholder="Details of the letter..."
-                  required
-                  rows={2}
-                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-slate-800 placeholder-slate-400"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">E-Office File Number *</label>
-                <input
-                  type="text"
-                  value={formEofficeFile}
-                  onChange={(e) => setFormEofficeFile(e.target.value)}
-                  placeholder="e.g. E-100244"
-                  required
-                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-800 placeholder-slate-400"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing *</label>
-                <select
-                  value={formWing}
-                  onChange={(e) => setFormWing(e.target.value)}
-                  required
-                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
-                >
-                  {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division *</label>
-                <select
-                  value={formDivision}
-                  onChange={(e) => setFormDivision(e.target.value)}
-                  required
-                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
-                >
-                  {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Reference Letter Number *</label>
-                <input
-                  type="text"
-                  value={formRefNumber}
-                  onChange={(e) => setFormRefNumber(e.target.value)}
-                  placeholder="e.g. 647/25"
-                  required
-                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-800"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Received From (Sender) *</label>
-                <input
-                  type="text"
-                  value={formReceivedFrom}
-                  onChange={(e) => setFormReceivedFrom(e.target.value)}
-                  placeholder="e.g. Shri Ajay Kumar Mandal, MP"
-                  required
-                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-800"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Remarks</label>
-                <textarea
-                  value={formRemarks}
-                  onChange={(e) => setFormRemarks(e.target.value)}
-                  placeholder="Max 250 words"
-                  rows={2}
-                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-slate-800"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Deadline</label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={formDeadline}
-                    onChange={(e) => setFormDeadline(e.target.value)}
-                    className="w-full text-xs pl-9 pr-3.5 py-2.5 bg-white border border-slate-250 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
-                  />
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3.5">
-              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-200 pb-2">
-                Processing Milestone Stages & Action Dates
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {[1, 2, 3, 4, 5, 6].map((stepNum) => {
-                  const stepLabel = STATUS_STEPS[stepNum];
-                  const isChecked = formStatusSteps[stepNum] === 'Yes';
-                  return (
-                    <div
-                      key={stepNum}
-                      className={`p-3.5 rounded-2xl border transition-all ${isChecked ? 'bg-white border-blue-200 shadow-sm' : 'bg-slate-50 border-slate-200'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="flex items-center space-x-2 text-xs font-bold text-slate-800 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => handleStepCheckboxChange(stepNum, e.target.checked)}
-                            className="rounded border-slate-350 text-blue-800 focus:ring-blue-500 h-4 w-4 cursor-pointer"
-                          />
-                          <span>{stepNum}. {stepLabel}</span>
-                        </label>
-                      </div>
-
-                      {isChecked && (
-                        <div className="space-y-1 pl-6">
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date of Action</label>
-                          <input
-                            type="date"
-                            value={formStatusDates[stepNum] || ''}
-                            onChange={(e) => handleDateChangeForStep(stepNum, e.target.value)}
-                            required={isChecked}
-                            className="w-full text-xs px-2.5 py-1.5 border border-slate-250 rounded-lg focus:outline-none focus:border-blue-500 font-semibold text-slate-700"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => setIsFormOpen(false)}
-                className="px-4.5 py-2.5 border border-slate-250 text-slate-655 rounded-xl text-xs font-bold hover:bg-slate-50 hover:text-slate-850 transition cursor-pointer"
-              >
-                Discard
-              </button>
-              <button
-                type="submit"
-                className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer"
-              >
-                Save Reference
-              </button>
-            </div>
-          </form>
-        </div>
+        <ReferenceForm
+          editingRef={editingRef}
+          onClose={() => setIsFormOpen(false)}
+          onSave={handleSaveRef}
+          wings={wings}
+          divisions={divisions}
+          statusSteps={STATUS_STEPS}
+        />
       ) : (
         <div className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -640,43 +373,18 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences, ref
           </div>
 
           {isFiltersExpanded && (
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-3 gap-4 shadow-inner">
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Wing</label>
-                <select
-                  value={selectedWing}
-                  onChange={(e) => { setSelectedWing(e.target.value); setCurrentPage(1); }}
-                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700"
-                >
-                  <option value="All">All Wings</option>
-                  {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Division</label>
-                <select
-                  value={selectedDivision}
-                  onChange={(e) => { setSelectedDivision(e.target.value); setCurrentPage(1); }}
-                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700"
-                >
-                  <option value="All">All Divisions</option>
-                  {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700"
-                >
-                  <option value="All">All Statuses</option>
-                  {Object.values(STATUS_STEPS).map(status => <option key={status} value={status}>{status}</option>)}
-                </select>
-              </div>
-            </div>
+            <FilterBar
+              selectedWing={selectedWing}
+              setSelectedWing={setSelectedWing}
+              selectedDivision={selectedDivision}
+              setSelectedDivision={setSelectedDivision}
+              selectedStatus={selectedStatus}
+              setSelectedStatus={setSelectedStatus}
+              wings={wings}
+              divisions={divisions}
+              statusSteps={STATUS_STEPS}
+              setCurrentPage={setCurrentPage}
+            />
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
@@ -699,7 +407,7 @@ export default function VIPReferenceInput({ vipReferences, setVipReferences, ref
             <AgGridReact
               ref={gridRef}
               theme="legacy"
-              rowData={filteredData}
+              rowData={serverVipReferences}
               columnDefs={colDefs}
               pagination={true}
               paginationPageSize={entriesLimit}

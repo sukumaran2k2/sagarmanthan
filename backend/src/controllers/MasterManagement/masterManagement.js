@@ -378,6 +378,18 @@ async function getDropDownData(req, res) {
             query = "SELECT ministry_id, ministry_name FROM mmt_ministry WHERE status = 1 ORDER BY ministry_name";
             break;
 
+        case "mmt_traffic_category":
+            query = "SELECT category_id, category_name FROM mmt_traffic_category ORDER BY category_name";
+            break;
+
+        case "mmt_traffic_direction":
+            query = "SELECT direction_id, direction_name FROM mmt_traffic_direction ORDER BY direction_name";
+            break;
+
+        case "mmt_traffic_flag_type":
+            query = "SELECT flag_type_id, flag_type_name FROM mmt_traffic_flag_type ORDER BY flag_type_name";
+            break;
+
         case "mmt_new_initiatives":
             query = "SELECT Initiaitive_ID, Initiaitive_name FROM mmt_new_initiatives";
             break;

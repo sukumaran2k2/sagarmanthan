@@ -522,6 +522,7 @@ async function getYearTrafficTrendData(req, res) {
     }
 }
 
+/*
 async function getTrafficActualData(req, res) {
     const conn = await pool;
 
@@ -557,6 +558,104 @@ async function getTrafficActualData(req, res) {
         `);
 
         return res.status(200).json(result.recordset);
+    } catch (error) {
+        console.error("Error fetching traffic actual data:", error);
+        return res.sendStatus(500);
+    }
+}
+*/
+
+async function getTrafficActualData(req, res) {
+    const conn = await pool;
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+
+    try {
+        const request = conn.request();
+
+        if (page && limit) {
+            const offset = (page - 1) * limit;
+            request.input('offset', offset);
+            request.input('limit', limit);
+
+            // High performance metadata-based partition count query (instantaneous)
+            const countResult = await conn.query(`
+                SELECT SUM(row_count) AS total_count 
+                FROM sys.dm_db_partition_stats WITH (NOLOCK) 
+                WHERE object_id = OBJECT_ID('tbl_traffic_commodity_data') 
+                  AND index_id < 2;
+            `);
+            const total = countResult.recordset[0]?.total_count || 0;
+
+            const result = await request.query(`
+                SELECT
+                    data.id,
+                    data.fiscal_year,
+                    DATENAME(MONTH, DATEFROMPARTS(2000, data.month, 1)) AS month,
+                    data.organisation_id,      
+                    org.organisation_name,
+                    cat.category_name,
+                    cg.commodity_group_name,
+                    com.commodity_name,
+                    dir.direction_name,
+                    flag.flag_type_name,
+                    data.value,
+                    data.category_id,
+                    data.commodity_group_id,
+                    data.commodity_id,
+                    data.direction_id,
+                    data.flag_type_id
+                FROM tbl_traffic_commodity_data data WITH (NOLOCK)
+                INNER JOIN mmt_organisation org WITH (NOLOCK) ON data.organisation_id = org.organisation_id
+                INNER JOIN mmt_traffic_category cat WITH (NOLOCK) ON data.category_id = cat.category_id
+                INNER JOIN mmt_traffic_commodity_group cg WITH (NOLOCK) ON data.commodity_group_id = cg.commodity_group_id
+                INNER JOIN mmt_traffic_commodity com WITH (NOLOCK) ON data.commodity_id = com.commodity_id
+                INNER JOIN mmt_traffic_direction dir WITH (NOLOCK) ON data.direction_id = dir.direction_id
+                INNER JOIN mmt_traffic_flag_type flag WITH (NOLOCK) ON data.flag_type_id = flag.flag_type_id
+                ORDER BY data.id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `);
+
+            return res.status(200).json({
+                data: result.recordset,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            });
+        } else {
+            const result = await request.query(`
+                SELECT
+                    data.id,
+                    data.fiscal_year,
+                    DATENAME(MONTH, DATEFROMPARTS(2000, data.month, 1)) AS month,
+                    data.organisation_id,      
+                    org.organisation_name,
+                    cat.category_name,
+                    cg.commodity_group_name,
+                    com.commodity_name,
+                    dir.direction_name,
+                    flag.flag_type_name,
+                    data.value,
+                    data.category_id,
+                    data.commodity_group_id,
+                    data.commodity_id,
+                    data.direction_id,
+                    data.flag_type_id
+                FROM tbl_traffic_commodity_data data WITH (NOLOCK)
+                INNER JOIN mmt_organisation org WITH (NOLOCK) ON data.organisation_id = org.organisation_id
+                INNER JOIN mmt_traffic_category cat WITH (NOLOCK) ON data.category_id = cat.category_id
+                INNER JOIN mmt_traffic_commodity_group cg WITH (NOLOCK) ON data.commodity_group_id = cg.commodity_group_id
+                INNER JOIN mmt_traffic_commodity com WITH (NOLOCK) ON data.commodity_id = com.commodity_id
+                INNER JOIN mmt_traffic_direction dir WITH (NOLOCK) ON data.direction_id = dir.direction_id
+                INNER JOIN mmt_traffic_flag_type flag WITH (NOLOCK) ON data.flag_type_id = flag.flag_type_id
+                ORDER BY data.id DESC
+            `);
+            return res.status(200).json(result.recordset);
+        }
     } catch (error) {
         console.error("Error fetching traffic actual data:", error);
         return res.sendStatus(500);
@@ -613,8 +712,8 @@ function getFinancialYears() {
     let startYear = month >= 4 ? year : year - 1;
 
     return {
-        currentFY: `${startYear}-${startYear + 1}`,   
-        lastFY: `${startYear - 1}-${startYear}`       
+        currentFY: `${startYear}-${startYear + 1}`,
+        lastFY: `${startYear - 1}-${startYear}`
     };
 }
 
@@ -663,7 +762,7 @@ async function getKPITrafficDashboard(req, res) {
         monthsList.forEach((m, i) => request.input(`month${i}`, m));
         const monthParamList = monthsList.map((_, i) => `@month${i}`).join(',');
 
-        const allOrgs = [1,2,3,5,6,7,8,9,10,11,12,54,55];
+        const allOrgs = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 54, 55];
         const orgFilter = organisationID ? [organisationID] : allOrgs;
         orgFilter.forEach((id, i) => request.input(`org${i}`, id));
         const orgParamList = orgFilter.map((_, i) => `@org${i}`).join(',');
@@ -1503,12 +1602,12 @@ MAX(
             LEFT JOIN median_weighted_result mw ON 1=1
                 `;
 
-                const result = await request.query(query);
-                return res.status(200).json(result.recordset[0]);
+        const result = await request.query(query);
+        return res.status(200).json(result.recordset[0]);
 
-        } catch (error) {
-            console.error("Error:", error);
-            return res.status(500).json({ message: "Error fetching data." });
+    } catch (error) {
+        console.error("Error:", error);
+        return res.status(500).json({ message: "Error fetching data." });
     }
 }
 
@@ -1540,13 +1639,13 @@ function getKpiConfig(kpi) {
 async function getTopPerformingPorts(req, res) {
     try {
 
-        const kpi = req.params.kpi? parseInt(req.params.kpi, 10) : null;
-        const fyParam = req.params.fy && req.params.fy !== "all"? req.params.fy.replace(/\s/g, ""): null;
+        const kpi = req.params.kpi ? parseInt(req.params.kpi, 10) : null;
+        const fyParam = req.params.fy && req.params.fy !== "all" ? req.params.fy.replace(/\s/g, "") : null;
 
         const conn = await pool;
         const request = conn.request();
 
-        const allOrgs = [1,2,3,5,6,7,8,9,10,11,12,54,55];
+        const allOrgs = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 54, 55];
 
         let currentFY, lastFY;
 
@@ -1557,7 +1656,7 @@ async function getTopPerformingPorts(req, res) {
 
         } else {
             const today = new Date();
-            const year = today.getMonth() >= 3 ? today.getFullYear(): today.getFullYear() - 1;
+            const year = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
 
             currentFY = `${year}-${year + 1}`;
             lastFY = `${year - 1}-${year}`;
@@ -1849,20 +1948,20 @@ async function getTopPerformingPorts(req, res) {
 
     } catch (error) {
         console.error("Error in getTopPerformingPorts:", error);
-        return res.status(500).json({error:"Error fetching top performing ports"});
+        return res.status(500).json({ error: "Error fetching top performing ports" });
     }
 }
 
 async function getLeastPerformingPorts(req, res) {
     try {
 
-        const kpi = req.params.kpi? parseInt(req.params.kpi, 10) : null;
-        const fyParam = req.params.fy && req.params.fy !== "all"? req.params.fy.replace(/\s/g, ""): null;
+        const kpi = req.params.kpi ? parseInt(req.params.kpi, 10) : null;
+        const fyParam = req.params.fy && req.params.fy !== "all" ? req.params.fy.replace(/\s/g, "") : null;
 
         const conn = await pool;
         const request = conn.request();
 
-        const allOrgs = [1,2,3,5,6,7,8,9,10,11,12,54,55];
+        const allOrgs = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 54, 55];
 
         let currentFY, lastFY;
 
@@ -1873,7 +1972,7 @@ async function getLeastPerformingPorts(req, res) {
 
         } else {
             const today = new Date();
-            const year = today.getMonth() >= 3 ? today.getFullYear(): today.getFullYear() - 1;
+            const year = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
 
             currentFY = `${year}-${year + 1}`;
             lastFY = `${year - 1}-${year}`;
@@ -2165,7 +2264,7 @@ async function getLeastPerformingPorts(req, res) {
 
     } catch (error) {
         console.error("Error in getLeastPerforming", error);
-        return res.status(500).json({error:"Error fetching Least performing ports"});
+        return res.status(500).json({ error: "Error fetching Least performing ports" });
     }
 }
 
@@ -2181,19 +2280,19 @@ async function detailedKPITrafficCardDashboard(req, res) {
         const kpi = getKpiConfig(rawKpi) || "traffic";
 
         const kpiTypeMap = {
-            total_traffic:    0, 
-            avg_trt:          1,
-            median_trt:       2,
-            osbd:             3, 
-            import_dwell:     9,
-            export_dwell:     10,
-            container_trt:    12, 
-            gross_crane:      13,
-            loading_dry:      14,
-            loading_break:    15,
-            loading_liquid:   16,
-            unloading_dry:    17,
-            unloading_break:  18,
+            total_traffic: 0,
+            avg_trt: 1,
+            median_trt: 2,
+            osbd: 3,
+            import_dwell: 9,
+            export_dwell: 10,
+            container_trt: 12,
+            gross_crane: 13,
+            loading_dry: 14,
+            loading_break: 15,
+            loading_liquid: 16,
+            unloading_dry: 17,
+            unloading_break: 18,
             unloading_liquid: 19,
         };
 
@@ -2241,11 +2340,11 @@ async function detailedKPITrafficCardDashboard(req, res) {
         ytdMonths.forEach((m, i) => request.input(`ytd${i}`, m));
         fullMonths.forEach((m, i) => request.input(`full${i}`, m));
 
-        const ytdParams  = ytdMonths.map((_, i) => `@ytd${i}`).join(",");
+        const ytdParams = ytdMonths.map((_, i) => `@ytd${i}`).join(",");
         const fullParams = fullMonths.map((_, i) => `@full${i}`).join(",");
 
         /* ================= ORGS ================= */
-        const allOrgs   = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 54, 55];
+        const allOrgs = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 54, 55];
         const orgFilter = organisationID ? [organisationID] : allOrgs;
         orgFilter.forEach((id, i) => request.input(`org${i}`, id));
         const orgParams = orgFilter.map((_, i) => `@org${i}`).join(",");
@@ -3191,7 +3290,7 @@ async function getKPICargoDashboard(req, res) {
         monthsList.forEach((m, i) => request.input(`month${i}`, m));
         const monthParamList = monthsList.map((_, i) => `@month${i}`).join(',');
 
-        const allOrgs = [1,2,3,5,6,7,8,9,10,11,12,54,55];
+        const allOrgs = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 54, 55];
         const orgFilter = organisationID ? [organisationID] : allOrgs;
         orgFilter.forEach((id, i) => request.input(`org${i}`, id));
         const orgParamList = orgFilter.map((_, i) => `@org${i}`).join(',');
@@ -4004,12 +4103,12 @@ async function getKPICargoDashboard(req, res) {
 
                 `;
 
-                const result = await request.query(query);
-                return res.status(200).json(result.recordset[0]);
+        const result = await request.query(query);
+        return res.status(200).json(result.recordset[0]);
 
-        } catch (error) {
-            console.error("Error:", error);
-            return res.status(500).json({ message: "Error fetching data." });
+    } catch (error) {
+        console.error("Error:", error);
+        return res.status(500).json({ message: "Error fetching data." });
     }
 }
 
@@ -4028,15 +4127,15 @@ function getKpiCargoConfig(kpi) {
     }
 
     switch (parseInt(kpi)) {
-        case 1:  return "total_traffic_liquid";
-        case 2:  return "total_traffic_dry";
-        case 3:  return "total_traffic_break";
-        case 4:  return "total_traffic_container";
-        case 5:  return "avg_dry";
-        case 6:  return "avg_break";
-        case 7:  return "avg_liquid";
-        case 8:  return "avg_container";
-        case 9:  return "median_dry";
+        case 1: return "total_traffic_liquid";
+        case 2: return "total_traffic_dry";
+        case 3: return "total_traffic_break";
+        case 4: return "total_traffic_container";
+        case 5: return "avg_dry";
+        case 6: return "avg_break";
+        case 7: return "avg_liquid";
+        case 8: return "avg_container";
+        case 9: return "median_dry";
         case 10: return "median_break";
         case 11: return "median_liquid";
         case 12: return "median_container";
@@ -4044,8 +4143,8 @@ function getKpiCargoConfig(kpi) {
         case 14: return "osbd_break";
         case 15: return "osbd_liquid";
         case 16: return "osbd_container";
-        case 17:  return "total_traffic_container_teus";
-        default: return null; 
+        case 17: return "total_traffic_container_teus";
+        default: return null;
     }
 }
 async function detailedKPICargoCardDashboard(req, res) {
@@ -4165,9 +4264,9 @@ async function detailedKPICargoCardDashboard(req, res) {
         const orgParams = orgFilter.map((_, i) => `@org${i}`).join(",");
 
         /* ================= KPI FORMULA ================= */
-         // target_value is always NULL for those KPIs.
+        // target_value is always NULL for those KPIs.
         const targetJoin = kpiTypeId !== null
-        ? `LEFT JOIN (
+            ? `LEFT JOIN (
                 SELECT
                     organisation_id,
                     REPLACE(financial_year,' ','') AS financial_year,
@@ -4178,7 +4277,7 @@ async function detailedKPICargoCardDashboard(req, res) {
         ) tar
             ON tar.organisation_id = org.organisation_id
             AND tar.financial_year = fy.fiscal_year`
-        : `LEFT JOIN (
+            : `LEFT JOIN (
                 SELECT
                     CAST(NULL AS INT) AS organisation_id,
                     CAST(NULL AS VARCHAR(20)) AS financial_year,
@@ -5267,7 +5366,7 @@ async function getAllTrafficDashboardKPIs(req, res) {
         monthsList.forEach((m, i) => request.input(`month${i}`, m));
         const monthParamList = monthsList.map((_, i) => `@month${i}`).join(',');
 
-        const allOrgs = [1,2,3,5,6,7,8,9,10,11,12,54,55];
+        const allOrgs = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 54, 55];
         const orgFilter = organisationID ? [organisationID] : allOrgs;
         orgFilter.forEach((id, i) => request.input(`org${i}`, id));
         const orgParamList = orgFilter.map((_, i) => `@org${i}`).join(',');
@@ -6198,26 +6297,26 @@ function getKpiConfigcargo(kpi) {
             "total_sailed_vessel_handled", "container_vessel_handled", , "average_dry_bulk_idle_time",
             "average_break_bulk_idle_time", "average_liquid_bulk_idle_time", "average_container_idle_time", "overall_average_idle_time",
             "avg_container_trt_less_than_251", "avg_container_trt_251_to_500", "avg_container_trt_501_to_1000", "avg_container_trt_1001_to_1500",
-            "avg_container_trt_1501_to_2000","avg_container_trt_2001_to_2500","avg_container_trt_2501_to_3000",
-            "avg_container_trt_3001_to_4000","avg_container_trt_4001_to_6000","avg_container_trt_greater_than_6000",
-            "dry_bulk_parcel_size","break_bulk_parcel_size","liquid_bulk_parcel_size","container_parcel_size",
-            "total_parcel_time","dry_bulk_port","break_bulk_port","liquid_bulk_port","container_port","total_port",
-            "dry_bulk_non_port","break_bulk_non_port","liquid_bulk_non_port","container_non_port","total_non_port",
+            "avg_container_trt_1501_to_2000", "avg_container_trt_2001_to_2500", "avg_container_trt_2501_to_3000",
+            "avg_container_trt_3001_to_4000", "avg_container_trt_4001_to_6000", "avg_container_trt_greater_than_6000",
+            "dry_bulk_parcel_size", "break_bulk_parcel_size", "liquid_bulk_parcel_size", "container_parcel_size",
+            "total_parcel_time", "dry_bulk_port", "break_bulk_port", "liquid_bulk_port", "container_port", "total_port",
+            "dry_bulk_non_port", "break_bulk_non_port", "liquid_bulk_non_port", "container_non_port", "total_non_port",
 
         ];
         return valid.includes(kpi) ? kpi : null;
     }
 
     switch (parseInt(kpi)) {
-        case 1:  return "osbd_container_teus";
-        case 2:  return "dry_bulk_vessel_handled";
-        case 3:  return "break_bulk_vessel_handled";
-        case 4:  return "liquid_bulk_vessel_handled";
-        case 5:  return "total_sailed_vessel_handled";
-        case 6:  return "container_vessel_handled";
-        case 7:  return "average_dry_bulk_idle_time";
-        case 8:  return "average_break_bulk_idle_time";
-        case 9:  return "average_liquid_bulk_idle_time";
+        case 1: return "osbd_container_teus";
+        case 2: return "dry_bulk_vessel_handled";
+        case 3: return "break_bulk_vessel_handled";
+        case 4: return "liquid_bulk_vessel_handled";
+        case 5: return "total_sailed_vessel_handled";
+        case 6: return "container_vessel_handled";
+        case 7: return "average_dry_bulk_idle_time";
+        case 8: return "average_break_bulk_idle_time";
+        case 9: return "average_liquid_bulk_idle_time";
         case 10: return "average_container_idle_time";
         case 11: return "overall_average_idle_time";
         case 12: return "avg_container_trt_less_than_251";
@@ -6225,15 +6324,15 @@ function getKpiConfigcargo(kpi) {
         case 14: return "avg_container_trt_501_to_1000";
         case 15: return "avg_container_trt_1001_to_1500";
         case 16: return "avg_container_trt_1501_to_2000";
-        case 17:  return "avg_container_trt_2001_to_2500";
-        case 18:  return "avg_container_trt_2501_to_3000";
-        case 19:  return "avg_container_trt_3001_to_4000";
-        case 20:  return "avg_container_trt_3501_to_4000";
-        case 21:  return "avg_container_trt_4001_to_6000";
-        case 22:  return "avg_container_trt_greater_than_6000";
-        case 23:  return "dry_bulk_parcel_size";
-        case 24:  return "break_bulk_parcel_size";
-        case 25:  return "liquid_bulk_parcel_size";
+        case 17: return "avg_container_trt_2001_to_2500";
+        case 18: return "avg_container_trt_2501_to_3000";
+        case 19: return "avg_container_trt_3001_to_4000";
+        case 20: return "avg_container_trt_3501_to_4000";
+        case 21: return "avg_container_trt_4001_to_6000";
+        case 22: return "avg_container_trt_greater_than_6000";
+        case 23: return "dry_bulk_parcel_size";
+        case 24: return "break_bulk_parcel_size";
+        case 25: return "liquid_bulk_parcel_size";
         case 26: return "container_parcel_size";
         case 27: return "total_parcel_time";
         case 28: return "dry_bulk_port";
@@ -6247,7 +6346,7 @@ function getKpiConfigcargo(kpi) {
         case 36: return "container_non_port";
         case 37: return "total_non_port";
 
-        default: return null; 
+        default: return null;
     }
 }
 
@@ -6333,12 +6432,12 @@ async function detailedAllTrafficDashboardKPIs(req, res) {
         switch (kpi) {
 
             case "osbd_container_teus":
-            kpiFormula = `
+                kpiFormula = `
                 SUM(osbd_num)
                 /
                 NULLIF(SUM(osbd_den),0)
             `;
-            break;
+                break;
 
             case "total_sailed_vessel_handled":
                 kpiFormula = `SUM(ISNULL(total_sailed_vessel_handled,0))`;
@@ -6348,7 +6447,7 @@ async function detailedAllTrafficDashboardKPIs(req, res) {
                 kpiFormula = `SUM(ISNULL(break_bulk_vessel_handled,0))`;
                 break;
 
-           case "container_vessel_handled":
+            case "container_vessel_handled":
                 kpiFormula = `SUM(ISNULL(container_vessel_handled,0))`;
                 break;
 
@@ -6396,7 +6495,7 @@ async function detailedAllTrafficDashboardKPIs(req, res) {
                 `;
                 break;
 
-                
+
             case "avg_container_trt_less_than_251":
                 kpiFormula = `
                     SUM(avg_trt_callsize_less_than_251_num) /
@@ -6455,7 +6554,7 @@ async function detailedAllTrafficDashboardKPIs(req, res) {
                 `;
                 break;
 
-        
+
             case "avg_container_trt_4001_to_6000":
                 kpiFormula = `
                     SUM(avg_trt_callsize_4001_to_6000_num) /
@@ -6504,7 +6603,7 @@ async function detailedAllTrafficDashboardKPIs(req, res) {
                     NULLIF(SUM(avg_idle_den_total),0)
                 `;
                 break;
-            
+
             case "dry_bulk_port":
                 kpiFormula = `
                     NULLIF(SUM(avg_pre_birth_waiting_port_dry),0) /
@@ -7432,8 +7531,8 @@ traffic_full AS
 const TrafficTab = {
     getFiscalYearTargetData, submitFiscalYearTargetData, getFiscalYearTargetList, updateFiscalYearTargetData, getCommoditiesByGroup, submitCommodityData, getCommodityData,
     getMonthTrafficTrendData, getYearTrafficTrendData, getTrafficActualData, getTrafficCommodityGroup, getTrafficCommodities,
-    getKPITrafficDashboard,getTopPerformingPorts,getLeastPerformingPorts,detailedKPITrafficCardDashboard,getrorotrafficData,
-    detailedKPICargoCardDashboard,getKPICargoDashboard,getAllTrafficDashboardKPIs,detailedAllTrafficDashboardKPIs
+    getKPITrafficDashboard, getTopPerformingPorts, getLeastPerformingPorts, detailedKPITrafficCardDashboard, getrorotrafficData,
+    detailedKPICargoCardDashboard, getKPICargoDashboard, getAllTrafficDashboardKPIs, detailedAllTrafficDashboardKPIs
 };
 
 export default TrafficTab;
