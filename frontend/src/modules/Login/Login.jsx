@@ -499,17 +499,17 @@ export default function LoginView({ onLogin }) {
                 </div>
               </div>
 
-              {/* Email Field */}
+              {/* Email/Username Field */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-white tracking-wide block">
-                  Email
+                  Email / Username
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email id"
+                  placeholder="Enter your email id or username"
                   className="w-full text-xs px-4 py-3 bg-white text-slate-800 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-semibold"
                 />
               </div>

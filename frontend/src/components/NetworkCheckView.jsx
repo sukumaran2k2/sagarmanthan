@@ -196,10 +196,10 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
   const angle = -90 + (Math.min(displaySpeed || 0, 100) / 100) * 180;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 md:p-6 overflow-y-auto font-sans select-none text-slate-800 animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto font-sans select-none text-slate-800 animate-fade-in">
       
-      {/* Width set to max-w-6xl (Wider), padding reduced to p-5 md:p-6, spacing reduced to space-y-4 */}
-      <div className="w-full max-w-6xl bg-[#eef2f6] border border-slate-200/80 rounded-3xl p-5 md:p-6 shadow-2xl relative z-10 space-y-4 my-auto">
+      {/* Width set to max-w-6xl (Wider), padding reduced to p-3.5 sm:p-5 md:p-6, spacing reduced to space-y-4 */}
+      <div className="w-full max-w-6xl bg-[#eef2f6] border border-slate-200/80 rounded-3xl p-3.5 sm:p-5 md:p-6 shadow-2xl relative z-10 space-y-4 my-auto">
         
         {isManual && (
           <button 
@@ -461,8 +461,8 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
                 <span className="text-[9px] text-slate-400 font-mono">Platform: Web</span>
               </div>
               
-              {/* Premium 6-card grid (reduced gap to gap-2.5, item padding to p-2.5) */}
-              <div className="grid grid-cols-3 gap-2.5">
+              {/* Premium 6-card grid (responsive grid-cols-2 sm:grid-cols-3) */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 
                 {/* 1. Browser */}
                 <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-2.5 flex flex-col items-center text-center space-y-1 hover:shadow-md transition-all duration-300">
