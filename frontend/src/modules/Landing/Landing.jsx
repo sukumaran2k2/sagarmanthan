@@ -3,11 +3,13 @@ import {
   ChevronDown,
   ChevronUp,
   Table as TableIcon,
-  BarChart2 as ChartIcon
+  BarChart2 as ChartIcon,
+  LayoutDashboard
 } from 'lucide-react';
 import axios from 'axios';
 import Table from '../../components/table';
 import Chart from '../../components/Chart';
+import PageBanner from '../../components/PageBanner';
 
 const decodeToken = (token) => {
   try {
@@ -282,26 +284,11 @@ export default function LandingView({ onNavigate }) {
 
   return (
     <div className="space-y-8 animate-fade-in pb-12 font-sans">
-      <div className="space-y-4 mt-2">
-        <div className="relative w-full h-48 md:h-60 rounded-2xl overflow-hidden shadow-2xl shadow-slate-900/30 border border-slate-200">
-          <img
-            src="/cargo-ship.jpg"
-            alt="Maritime Port Banner"
-            className="w-full h-full object-cover object-center"
-            onError={(e) => {
-              e.target.src = "https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?auto=format&fit=crop&w=1200&q=80";
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent flex flex-col justify-end p-6 text-left">
-            <span className="text-[10px] text-white tracking-widest uppercase font-bold">
-              Ministry of Ports, Shipping and Waterways
-            </span>
-            <h1 className="text-xl md:text-5xl font-black text-white tracking-tight uppercase mt-1">
-              Data Entry Dashboard
-            </h1>
-          </div>
-        </div>
-      </div>
+      <PageBanner
+        title="Data Entry Dashboard"
+        description="Ministry of Ports, Shipping and Waterways"
+        icon={LayoutDashboard}
+      />
 
       {/* MINISTRY EXCLUSIVE MODULES */}
       <div className="space-y-6">

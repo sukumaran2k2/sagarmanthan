@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Mail, Phone, Copy, Check, Search, Filter, HelpCircle, ShieldAlert } from "lucide-react";
+import PageBanner from "../../components/PageBanner";
 
 const CONTACTS_DATA = [
   {
@@ -159,18 +160,11 @@ export default function ContactUs() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Page Title & General Support Info */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 dark:from-slate-900 dark:via-slate-800 dark:to-slate-950 p-6 sm:p-8 rounded-2xl border border-blue-800 dark:border-slate-800 text-white shadow-lg relative overflow-hidden">
-        <div className="absolute right-0 top-0 opacity-10">
-          <HelpCircle className="h-48 w-48 -mr-10 -mt-10" />
-        </div>
-        <div className="relative z-10 space-y-2">
-          <h2 className="text-2xl sm:text-3xl font-black font-display tracking-tight">
-            Contact Us
-          </h2>
-          <p className="text-xs sm:text-sm text-blue-100 dark:text-slate-300 max-w-xl font-medium leading-relaxed">
-            Have questions about modules or systems? Reach out to the respective Under Secretary or Division in charge listed below.
-          </p>
-          <div className="inline-flex items-center space-x-2 bg-white/10 dark:bg-slate-800/60 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-semibold mt-2 border border-white/15">
+      <PageBanner
+        title="Contact Us"
+        description="Have questions about modules or systems? Reach out to the respective Under Secretary or Division in charge listed below."
+        info={
+          <>
             <span className="text-blue-200 dark:text-blue-300">Technical Queries:</span>
             <a
               href="mailto:support@ntcpwc.iitm.ac.in"
@@ -178,9 +172,10 @@ export default function ContactUs() {
             >
               support@ntcpwc.iitm.ac.in
             </a>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+        icon={HelpCircle}
+      />
 
       {/* Filtering System */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">

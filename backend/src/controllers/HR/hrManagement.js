@@ -1122,9 +1122,9 @@ async function getHRAllEmployeeData(req, res) {
             LEFT JOIN mmt_organisation mmo ON em.emp_parent_org_id = mmo.organisation_id
 
             WHERE (
-                (ps.vacant_or_filled = 'filled' ${orgFilterActive} )
+                (ps.vacant_or_filled = 'filled' ${orgFilterActive})
                 OR (LTRIM(RTRIM(lt.activity_name)) = 'Deputation Out' ${orgFilterDeputation})
-                OR ( LTRIM(RTRIM(lt.activity_name)) = 'Transfer Out' ${orgFilterTransfer} )
+                OR ( LTRIM(RTRIM(lt.activity_name)) = 'Transfer Out' ${orgFilterTransfer})
                 OR( ps.emp_master_id IS NULL ${orgFilterInactive}) 
             )
         )

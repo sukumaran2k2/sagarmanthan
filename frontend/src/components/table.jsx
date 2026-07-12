@@ -95,7 +95,7 @@ const Table = forwardRef(({
           suppressPaginationPanel={suppressPaginationPanel}
           onPaginationChanged={onPaginationChanged}
           suppressColumnVirtualisation={true}
-          autoSizeStrategy={{ type: 'fitCellContents' }}
+          autoSizeStrategy={{ type: 'fitGridWidth' }}
           {...props}
         />
       </div>
