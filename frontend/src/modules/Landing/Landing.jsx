@@ -7,7 +7,7 @@ import {
   LayoutDashboard
 } from 'lucide-react';
 import axios from 'axios';
-import Table from '../../components/table';
+import Table from '../../components/Table';
 import Chart from '../../components/Chart';
 import PageBanner from '../../components/PageBanner';
 

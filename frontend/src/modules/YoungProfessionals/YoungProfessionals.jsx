@@ -7,67 +7,23 @@ import {
   FileSpreadsheet,
   Download,
   Home,
-  X,
   Calendar,
-  User,
-  Activity,
-  Layers,
-  CheckCircle2,
-  ArrowLeft
+  ArrowLeft,
+  Users,
+  Eye,
+  UserMinus,
+  Trash2,
+  X
 } from 'lucide-react';
-import { AgGridReact } from 'ag-grid-react';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import InternalNavigation from '../../components/InternalNavigation';
+import PageBanner from '../../components/PageBanner';
+import Table from '../../components/Table';
 import axios from 'axios';
-
-ModuleRegistry.registerModules([AllCommunityModule]);
-
-const DB_WINGS = [
-  { wing_id: 1, wing_name: "Shipping" },
-  { wing_id: 2, wing_name: "Vigilance" },
-  { wing_id: 3, wing_name: "Ports" },
-  { wing_id: 4, wing_name: "IWT" },
-  { wing_id: 5, wing_name: "Administration" },
-  { wing_id: 6, wing_name: "Coord-I" },
-  { wing_id: 7, wing_name: "Coord-II" },
-  { wing_id: 8, wing_name: "DGLL, Parliament & TRW" },
-  { wing_id: 9, wing_name: "Development" },
-  { wing_id: 10, wing_name: "Finance" },
-  { wing_id: 11, wing_name: "Sagarmala" },
-  { wing_id: 12, wing_name: "Information Technology" },
-  { wing_id: 13, wing_name: "Office of Economic Advisor" },
-  { wing_id: 14, wing_name: "Special Initiatives & Projects" }
-];
-
-const DB_DIVISIONS = [
-  { division_id: 1, division_name: "Shipping-I" },
-  { division_id: 2, division_name: "Shipping-II" },
-  { division_id: 3, division_name: "Shipping-III" },
-  { division_id: 4, division_name: "Vigilance" },
-  { division_id: 5, division_name: "PD-I" },
-  { division_id: 6, division_name: "PD-II" },
-  { division_id: 7, division_name: "PPP" },
-  { division_id: 8, division_name: "PHRD" },
-  { division_id: 9, division_name: "IWT-I" },
-  { division_id: 10, division_name: "IWT-II" },
-  { division_id: 11, division_name: "Admn." },
-  { division_id: 12, division_name: "Coord-I" },
-  { division_id: 13, division_name: "Coord-II" },
-  { division_id: 14, division_name: "DGLL, Parl. & TRW" },
-  { division_id: 15, division_name: "Devlopment" },
-  { division_id: 16, division_name: "Finance" },
-  { division_id: 17, division_name: "Sagarmala -I" },
-  { division_id: 18, division_name: "Sagarmala -II" },
-  { division_id: 19, division_name: "Sagarmala-III , ALHW & Media" },
-  { division_id: 20, division_name: "IT" },
-  { division_id: 21, division_name: "PD-III" },
-  { division_id: 22, division_name: "PD- IV" },
-  { division_id: 23, division_name: "Special Initiatives & Projects" }
-];
 
 export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, triggerNotification, userPermissions }) {
   const [inputGridData, setInputGridData] = useState([]);
   const [reportGridData, setReportGridData] = useState([]);
+  const [reportColDefs, setReportColDefs] = useState([]);
   const [isAdding, setIsAdding] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [wingFilter, setWingFilter] = useState('');
@@ -75,14 +31,28 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
   // Form Fields State
   const [formWing, setFormWing] = useState('');
   const [formDivision, setFormDivision] = useState('');
+  const [postStatus, setPostStatus] = useState('Vacant'); // Vacant or Filled
+  const [vacancyAriseDate, setVacancyAriseDate] = useState('');
+  const [vacancyAdvertisedDate, setVacancyAdvertisedDate] = useState('');
   const [formAppointmentDate, setFormAppointmentDate] = useState('');
-  const [formCandidateDetails, setFormCandidateDetails] = useState('');
+  const [formCandidateDocument, setFormCandidateDocument] = useState('');
+
+  // Candidate Detail Fields
+  const [candName, setCandName] = useState('');
+  const [candQualification, setCandQualification] = useState('');
+  const [candExperience, setCandExperience] = useState('');
+  const [candSkill, setCandSkill] = useState('');
+  const [candCategory, setCandCategory] = useState('General');
+  const [candSalary, setCandSalary] = useState('');
+
+  const [showCandidateModal, setShowCandidateModal] = useState(false);
 
   const fileInputRef = useRef(null);
 
-  // Available wings for dropdown selection
-  const WINGS = DB_WINGS.map(w => w.wing_name);
-  const DIVISIONS = DB_DIVISIONS.map(d => d.division_name);
+  const [wings, setWings] = useState([]);
+  const [divisions, setDivisions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [reportLoading, setReportLoading] = useState(true);
 
   // Sub-tabs configuration for internal navigation
   const SUB_TABS = [
@@ -94,17 +64,24 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
   const currentTab = SUB_TABS.some(t => t.id === activeSubTab) ? activeSubTab : 'YP Input Form';
 
   const fetchData = () => {
+    setLoading(true);
     axios.get("http://localhost:3000/young-professional")
       .then(res => {
         const mapped = res.data.map((item, idx) => ({
           sNo: idx + 1,
+          id: item.young_professional_id,
+          candidateId: item.candidate_id,
           wing: item.wing_name || 'Unknown',
           division: item.division_name || 'Unknown',
-          inPosition: item.inposition > 0 ? item.inposition : '--'
+          inPosition: item.inposition > 0 ? item.inposition : '--',
+          document: item.appointment_order_document
         }));
         setInputGridData(mapped);
       })
-      .catch(err => console.error("Error loading YP data:", err));
+      .catch(err => console.error("Error loading YP data:", err))
+      .finally(() => setLoading(false));
+
+    setReportLoading(true);
 
     axios.get("http://localhost:3000/yp-report")
       .then(res => {
@@ -118,12 +95,24 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
         }));
         setReportGridData(mapped);
       })
-      .catch(err => console.error("Error loading YP report:", err));
+      .catch(err => console.error("Error loading YP report:", err))
+      .finally(() => setReportLoading(false));
   };
 
   useEffect(() => {
     fetchData();
   }, [isAdding]);
+
+  useEffect(() => {
+    axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
+      .then(res => setWings(res.data || []))
+      .catch(err => console.error(err));
+    axios.get("http://localhost:3000/mmt-dropdown/mmt_division")
+      .then(res => setDivisions(res.data || []))
+      .catch(err => console.error(err));
+  }, []);
+
+
 
   // Filtered Input Grid Data
   const filteredInputGridData = useMemo(() => {
@@ -158,97 +147,91 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
   ], []);
 
   // Report Column Definitions
-  const reportColDefs = useMemo(() => [
-    { field: 'sNo', headerName: 'S No', width: 90, cellClass: 'font-mono text-slate-600 text-center', headerClass: 'text-center' },
-    {
-      field: 'wing',
-      headerName: 'Wing',
-      flex: 1.5,
-      minWidth: 150,
-      cellClass: 'font-extrabold text-blue-700 hover:underline cursor-pointer'
-    },
-    { field: 'total', headerName: 'Total No of Post', flex: 1, minWidth: 130, cellClass: 'text-center font-bold text-slate-800', headerClass: 'text-center' },
-    {
-      field: 'filled',
-      headerName: 'No of Vacancy Filled Up',
-      flex: 1,
-      minWidth: 160,
-      cellClass: 'text-center text-emerald-600 font-bold',
-      headerClass: 'text-center'
-    },
-    // {
-    //   field: 'vacant',
-    //   headerName: 'No of Vacancy In Process',
-    //   flex: 1,
-    //   minWidth: 160,
-    //   cellClass: 'text-center text-amber-600 font-bold',
-    //   headerClass: 'text-center'
-    // }
-  ], []);
+  // Removed duplicate reportColDefs
 
   // Form submit handler
   const handleAddPostSubmit = async (e) => {
     e.preventDefault();
-    if (!formWing || !formDivision || !formAppointmentDate) {
+    if (!formWing || !formDivision) {
       alert('Please fill out all required fields.');
       return;
     }
 
-    const selectedWingObj = DB_WINGS.find(w => w.wing_name === formWing);
-    const selectedDivisionObj = DB_DIVISIONS.find(d => d.division_name === formDivision);
-    const wingId = selectedWingObj ? selectedWingObj.wing_id : null;
-    const divisionId = selectedDivisionObj ? selectedDivisionObj.division_id : null;
+    if (postStatus === 'Filled' && !formAppointmentDate) {
+      alert('Please enter Date of Appointment for a Filled post.');
+      return;
+    }
+
+    if (postStatus === 'Vacant' && !vacancyAriseDate) {
+      alert('Please enter Date of Arise in Vacancy.');
+      return;
+    }
+
+    const wingId = formWing;
+    const divisionId = formDivision;
 
     try {
       // 1. Create Young Professional post record
       const ypResponse = await axios.post("http://localhost:3000/young-professional", {
         wing: wingId,
         division: divisionId,
-        postStatus: "Filled",
-        vacancyAriseDate: null,
-        dateOfVacancyAdvertise: null,
-        dateOfAppointment: formAppointmentDate,
+        postStatus: postStatus,
+        vacancyAriseDate: postStatus === 'Vacant' ? vacancyAriseDate : null,
+        dateOfVacancyAdvertise: postStatus === 'Vacant' ? vacancyAdvertisedDate : null,
+        dateOfAppointment: postStatus === 'Filled' ? formAppointmentDate : null,
         postID: Math.floor(Math.random() * 1000).toString(),
         userID: 1
       });
 
       const youngProfessionalId = ypResponse.data.insertedYPId;
 
-      // 2. Add YP Candidate details
-      const candResponse = await axios.post("http://localhost:3000/candidate-detail", {
-        name: "Candidate",
-        qualification: "B.Tech",
-        category: "General",
-        salary: 50000,
-        appointmentDate: formAppointmentDate,
-        experience: "2 years",
-        skill: "Software Development",
-        youngProfessionalId: youngProfessionalId
-      });
-
-      const candidateId = candResponse.data.candidate_id;
-
-      // 3. Upload candidate document if a file is selected
-      if (fileInputRef.current && fileInputRef.current.files[0]) {
-        const formData = new FormData();
-        formData.append("file", fileInputRef.current.files[0]);
-        await axios.post(`http://localhost:3000/upload-yp-document/${candidateId}`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
+      if (postStatus === 'Filled' && candName) {
+        // 2. Add YP Candidate details
+        const candResponse = await axios.post("http://localhost:3000/candidate-detail", {
+          name: candName,
+          qualification: candQualification,
+          category: candCategory,
+          salary: candSalary,
+          appointmentDate: formAppointmentDate,
+          experience: candExperience,
+          skill: candSkill,
+          youngProfessionalId: youngProfessionalId
         });
+
+        const candidateId = candResponse.data.candidate_id;
+
+        // 3. Upload candidate document if a file is selected
+        if (fileInputRef.current && fileInputRef.current.files[0]) {
+          const formData = new FormData();
+          formData.append("file", fileInputRef.current.files[0]);
+          await axios.post(`http://localhost:3000/upload-yp-document/${candidateId}`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+        }
       }
 
       setIsAdding(false);
+      fetchData();
 
       // Clear form
       setFormWing('');
       setFormDivision('');
+      setPostStatus('Vacant');
+      setVacancyAriseDate('');
+      setVacancyAdvertisedDate('');
       setFormAppointmentDate('');
-      setFormCandidateDetails('');
+      setFormCandidateDocument('');
+      setCandName('');
+      setCandQualification('');
+      setCandExperience('');
+      setCandSkill('');
+      setCandCategory('General');
+      setCandSalary('');
 
       if (triggerNotification) {
-        triggerNotification(`New Young Professional post successfully registered for ${formWing} (${formDivision}).`);
+        triggerNotification(`New Young Professional post successfully registered.`);
       }
     } catch (err) {
       console.error("Error creating Young Professional:", err);
@@ -263,41 +246,29 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
   };
 
   return (
-    <div className="space-y-6 pt-5 pb-4 px-1 md:px-2 animate-fade-in text-slate-800">
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
 
-      {/* Breadcrumbs Row */}
-      <div className="flex items-center space-x-1 text-slate-400 text-xs font-semibold px-2 pb-1">
-        <Home className="h-3.5 w-3.5 text-slate-400" />
-        <span className="text-slate-400">/</span>
-        {currentTab === 'YP Input Form' ? (
-          <>
-            <span className="text-slate-600">Young Professionals</span>
-            <span className="text-slate-400">/</span>
-            <span className="text-blue-800 font-bold">Input Form</span>
-          </>
-        ) : (
-          <>
-            <span className="text-slate-600">Young Professionals</span>
-            <span className="text-slate-400">/</span>
-            <span className="text-blue-800 font-bold">Reports</span>
-          </>
-        )}
-      </div>
-
-      {/* Header Container Row: Title & Navigation in a single visible container block */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* Header Row: Title & Navigation Tab Switcher on the same line */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 font-display uppercase tracking-wide">
+          <h2 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
             Young Professionals
           </h2>
         </div>
 
+        {/* Modern Segmented Control Tab Switcher */}
         <InternalNavigation
           tabs={SUB_TABS}
           currentTab={currentTab}
           onTabChange={setActiveSubTab}
         />
       </div>
+
+      <PageBanner 
+        title={currentTab === 'YP Input Form' ? "YP Input Form" : "Young Professionals Reports"} 
+        description={currentTab === 'YP Input Form' ? "Comprehensive repository of Young Professionals." : "Detailed reports of Young Professionals."}
+        icon={Users}
+      />
 
       {/* Conditional rendering for Input Form Tab */}
       {currentTab === 'YP Input Form' && (
@@ -334,7 +305,7 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
                       className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
                     >
                       <option value="">--Select Wing--</option>
-                      {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
+                      {wings.map(w => <option key={w.wing_id} value={w.wing_id}>{w.wing_name}</option>)}
                     </select>
                   </div>
 
@@ -347,45 +318,56 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
                       className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
                     >
                       <option value="">--Select Division--</option>
-                      {DIVISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                      {divisions.map(d => <option key={d.division_id} value={d.division_id}>{d.division_name}</option>)}
                     </select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-wide border-b border-slate-200 pb-2 mt-8 mb-5">Status</h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
                   <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Date of Appointment*</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={formAppointmentDate}
-                        onChange={(e) => setFormAppointmentDate(e.target.value)}
-                        required
-                        className="w-full text-xs pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700"
-                      />
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Post Status</label>
+                    <div className="flex items-center space-x-4 mt-2">
+                      <label className="flex items-center space-x-1.5 cursor-pointer text-xs font-semibold text-slate-700">
+                        <input type="radio" name="postStatus" value="Vacant" checked={postStatus === 'Vacant'} onChange={() => setPostStatus('Vacant')} className="accent-blue-600 h-4 w-4" />
+                        <span>Vacant</span>
+                      </label>
+                      <label className="flex items-center space-x-1.5 cursor-pointer text-xs font-semibold text-slate-700">
+                        <input type="radio" name="postStatus" value="Filled" checked={postStatus === 'Filled'} onChange={() => setPostStatus('Filled')} className="accent-blue-600 h-4 w-4" />
+                        <span>Filled</span>
+                      </label>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Candidate Details (Resume/CV)*</label>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      accept=".pdf,.doc,.docx"
-                      required
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          setFormCandidateDetails(file.name);
-                        }
-                      }}
-                      className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-255 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
-                    />
-                    <p className="text-[10px] font-bold text-rose-600 mt-1">
-                      * Accepted formats: PDF, DOC, DOCX (Max size: 5MB)
-                    </p>
-                  </div>
+                  {postStatus === 'Vacant' && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Date of Arise in Vacancy*</label>
+                        <input type="date" value={vacancyAriseDate} onChange={e => setVacancyAriseDate(e.target.value)} className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700" required={postStatus === 'Vacant'} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Date of Vacancy Advertised</label>
+                        <input type="date" value={vacancyAdvertisedDate} onChange={e => setVacancyAdvertisedDate(e.target.value)} className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700" />
+                      </div>
+                    </>
+                  )}
+
+                  {postStatus === 'Filled' && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Date of Appointment*</label>
+                        <input type="date" value={formAppointmentDate} onChange={e => setFormAppointmentDate(e.target.value)} className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700" required={postStatus === 'Filled'} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Candidate Details</label>
+                        <button type="button" onClick={() => setShowCandidateModal(true)} className={`w-full inline-flex items-center justify-center space-x-2 px-4 py-2.5 ${candName ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'} text-white rounded-xl text-xs font-bold shadow-md cursor-pointer transition`}>
+                          {candName ? <FileEdit className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                          <span>{candName ? 'Edit Candidate Details' : 'Add Candidate Details'}</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100">
@@ -440,22 +422,24 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
                 </div>
               </div>
 
-              {/* ag-Grid */}
-              <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                <AgGridReact
-                  theme="legacy"
+              {/* ag-Grid wrapped in Table */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                <Table
                   rowData={filteredInputGridData}
                   columnDefs={inputColDefs}
-                  domLayout="autoHeight"
-                  rowHeight={45}
-                  headerHeight={45}
-                  autoSizeStrategy={{
-                    type: 'fitGridWidth',
-                    defaultMinWidth: 90
-                  }}
+                  loading={loading}
                   pagination={true}
                   paginationPageSize={10}
-                  paginationPageSizeSelector={[10, 20, 50]}
+                  enableExport={true}
+                  exportFileName="Young_Professionals_Register"
+                  exportPdfTitle="Young Professionals Register"
+                  defaultColDef={{
+                    minWidth: 90,
+                    flex: 1,
+                    filter: true,
+                    sortable: true,
+                    resizable: true
+                  }}
                 />
               </div>
             </div>
@@ -508,33 +492,118 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
                 className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700"
               >
                 <option value="">--Show All--</option>
-                {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
+                {wings.map(w => <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>)}
               </select>
             </div>
           </div>
 
-          {/* AG Grid Report Table */}
+          {/* AG Grid Report Table using Table wrapper */}
           <div className="space-y-3">
-            <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-              <AgGridReact
-                theme="legacy"
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+              <Table
                 rowData={filteredReportGridData}
                 columnDefs={reportColDefs}
-                domLayout="autoHeight"
-                rowHeight={45}
-                headerHeight={45}
-                autoSizeStrategy={{
-                  type: 'fitGridWidth',
-                  defaultMinWidth: 95
-                }}
+                loading={reportLoading}
                 pagination={true}
                 paginationPageSize={10}
-                paginationPageSizeSelector={[10, 20, 50]}
+                enableExport={true}
+                exportFileName="Young_Professionals_Report"
+                exportPdfTitle="Young Professionals Report"
+                defaultColDef={{
+                  minWidth: 95,
+                  flex: 1,
+                  filter: true,
+                  sortable: true,
+                  resizable: true
+                }}
               />
             </div>
 
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 px-1">
               <span>Total Rows: {filteredReportGridData.length}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Candidate Modal */}
+      {showCandidateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-fade-in-up">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-[#0f417a] text-white">
+              <h3 className="text-base font-black font-display uppercase tracking-wider">Candidate Details</h3>
+              <button onClick={() => setShowCandidateModal(false)} className="text-blue-200 hover:text-white transition">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Name*</label>
+                  <input type="text" value={candName} onChange={e => setCandName(e.target.value)} required className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700" placeholder="Enter full name" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Educational Qualification*</label>
+                  <input type="text" value={candQualification} onChange={e => setCandQualification(e.target.value)} required className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700" placeholder="e.g. B.Tech, MBA" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Work Experience (Years)*</label>
+                  <input type="number" step="0.1" value={candExperience} onChange={e => setCandExperience(e.target.value)} required className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700" placeholder="e.g. 2.5" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Skill Set*</label>
+                  <input type="text" value={candSkill} onChange={e => setCandSkill(e.target.value)} required className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700" placeholder="e.g. Project Management" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Category*</label>
+                  <select value={candCategory} onChange={e => setCandCategory(e.target.value)} required className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700">
+                    <option value="General">General</option>
+                    <option value="OBC">OBC</option>
+                    <option value="SC/ST">SC/ST</option>
+                    <option value="EWS">EWS</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Salary (LPA)*</label>
+                  <input type="number" step="0.1" value={candSalary} onChange={e => setCandSalary(e.target.value)} required className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700" placeholder="e.g. 6.5" />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Appointment Order Document*</label>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".pdf,.doc,.docx"
+                    required={!formCandidateDocument}
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setFormCandidateDocument(file.name);
+                      }
+                    }}
+                    className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-255 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 cursor-pointer"
+                  />
+                  {formCandidateDocument && (
+                    <p className="text-[10px] font-bold text-emerald-600 mt-1">Current file: {formCandidateDocument}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+              <button onClick={() => setShowCandidateModal(false)} className="px-4 py-2 border border-slate-250 text-slate-655 rounded-xl text-xs font-bold hover:bg-slate-200 transition">Cancel</button>
+              <button 
+                onClick={() => {
+                  if (!candName || !candQualification || !candExperience || !candSkill || !candSalary || (!fileInputRef.current?.files[0] && !formCandidateDocument)) {
+                    alert("Please fill out all candidate details and upload a document before saving.");
+                    return;
+                  }
+                  setShowCandidateModal(false);
+                }} 
+                className="px-4 py-2 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md transition"
+              >
+                Save Details
+              </button>
             </div>
           </div>
         </div>

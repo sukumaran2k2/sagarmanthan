@@ -90,6 +90,7 @@ const getStatusFromStages = (stages) => {
 export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTab, triggerNotification, userPermissions }) {
   const [appointments, setAppointments] = useState([]);
   const [reportGridDataFromServer, setReportGridDataFromServer] = useState([]);
+  const [reportColDefs, setReportColDefs] = useState([]);
   const [isAdding, setIsAdding] = useState(false);
   const [updatingAppointment, setUpdatingAppointment] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -389,14 +390,7 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
     }
   ], [appointments]);
 
-  const reportColDefs = useMemo(() => [
-    { field: 'sNo', headerName: 'S No', width: 90, cellClass: 'font-mono text-slate-600 text-center', headerClass: 'text-center' },
-    { field: 'wing', headerName: 'Wing', flex: 1.5, minWidth: 150, cellClass: 'font-extrabold text-blue-700 hover:underline cursor-pointer' },
-    { field: 'total', headerName: 'Total Resources Engaged', flex: 1.2, minWidth: 140, cellClass: 'text-center font-bold text-slate-800', headerClass: 'text-center' },
-    { field: 'adminApproved', headerName: 'Admin Approved', flex: 1, minWidth: 120, cellClass: 'text-center text-amber-600 font-bold', headerClass: 'text-center' },
-    { field: 'tenderPublished', headerName: 'Tender Active', flex: 1, minWidth: 120, cellClass: 'text-center text-blue-600 font-bold', headerClass: 'text-center' },
-    { field: 'activeContracts', headerName: 'Contract Signed', flex: 1, minWidth: 120, cellClass: 'text-center text-emerald-600 font-bold', headerClass: 'text-center' }
-  ], []);
+  // Removed duplicate reportColDefs
 
   const handleExport = (type) => {
     if (triggerNotification) {
