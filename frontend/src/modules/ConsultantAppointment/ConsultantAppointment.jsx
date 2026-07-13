@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   FileEdit,
   FilePieChart,
@@ -14,11 +14,13 @@ import {
   Layers,
   CheckCircle2,
   ArrowLeft,
-  Edit
+  Edit,
+  ChevronLeft
 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import InternalNavigation from '../../components/InternalNavigation';
+import Table from '../../components/Table';
 import axios from 'axios';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -96,6 +98,13 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
   const [searchTerm, setSearchTerm] = useState('');
   const [wingFilter, setWingFilter] = useState('');
 
+  // CA Report Drill-down State
+  const [drillDownPath, setDrillDownPath] = useState([{ type: 'abstract', title: 'Abstract ( Wing Wise )' }]);
+  const [drillDownData, setDrillDownData] = useState([]);
+  const [drillDownColDefs, setDrillDownColDefs] = useState([]);
+  const [drillDownLoading, setDrillDownLoading] = useState(false);
+  const [drillDownError, setDrillDownError] = useState(null);
+
   // Form Fields State
   const [formWing, setFormWing] = useState('');
   const [formDivision, setFormDivision] = useState('');
@@ -148,21 +157,171 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
       })
       .catch(err => console.error("Error loading CA data:", err));
 
-    axios.get("http://localhost:3000/consultantapp-report")
-      .then(res => {
-        const dataArray = res.data.rowData || [];
-        const mappedReport = dataArray.map((r, idx) => ({
-          sNo: idx + 1,
-          wing: r["Wing Name"] || 'Unknown',
-          total: r["No of Consultant Officer"] || 0,
-          adminApproved: r["Admin Approval for engaging Consultant"] || 0,
-          tenderPublished: r["Tender Published"] || 0,
-          activeContracts: r["Contract Signed"] || 0
-        }));
-        setReportGridDataFromServer(mappedReport);
-      })
-      .catch(err => console.error("Error loading CA report:", err));
   };
+
+  const currentView = drillDownPath[drillDownPath.length - 1];
+
+  const mapColDefs = useCallback((cols) => {
+    return cols.map(col => {
+      if (col.children) {
+        return { ...col, children: mapColDefs(col.children) };
+      }
+      
+      const fieldLower = col.field?.toLowerCase() || '';
+      const isWingName = fieldLower === 'wing name' || fieldLower === 'wing';
+
+      return {
+        ...col,
+        filter: true,
+        sortable: true,
+        resizable: true,
+        minWidth: col.width || 120,
+        cellRenderer: (params) => {
+          if (params.value === null || params.value === undefined) return '';
+
+          // 1. Click Wing Name -> go to Division Report
+          if (isWingName && currentView.type === 'abstract') {
+            return (
+              <button
+                className="text-blue-600 font-bold hover:text-blue-800 underline cursor-pointer"
+                onClick={() => {
+                  const wingId = params.data["Wing ID"] || params.data["wing_id"] || 0;
+                  setDrillDownPath(prev => [...prev, {
+                    type: 'division',
+                    wingId,
+                    title: `Division Wise Report - ${params.value}`
+                  }]);
+                }}
+              >
+                {params.value}
+              </button>
+            );
+          }
+
+          // 2. Click Total Posts -> go to Division Report (if on Abstract)
+          if (col.field === 'No of Consultant Officer' && currentView.type === 'abstract') {
+            return (
+              <button
+                className="text-blue-600 font-bold hover:text-blue-800 underline cursor-pointer"
+                onClick={() => {
+                  const wingId = params.data["Wing ID"] || params.data["wing_id"] || 0;
+                  const wingName = params.data["Wing Name"] || '';
+                  setDrillDownPath(prev => [...prev, {
+                    type: 'division',
+                    wingId,
+                    title: `Division Wise Report - ${wingName}`
+                  }]);
+                }}
+              >
+                {params.value}
+              </button>
+            );
+          }
+
+          // 3. Click any metrics -> go to Candidates
+          if (col.field !== 'S No' && col.field !== 'Wing ID' && col.field !== 'Wing Name' && col.field !== 'Division ID' && col.field !== 'Division Name') {
+            return (
+              <button
+                className="text-blue-600 font-bold hover:text-blue-800 underline cursor-pointer"
+                onClick={() => {
+                  if (currentView.type === 'abstract') {
+                    const wingId = params.data["Wing ID"] || params.data["wing_id"] || 0;
+                    const wingName = params.data["Wing Name"] || '';
+                    setDrillDownPath(prev => [...prev, {
+                      type: 'candidates_wing',
+                      wingId,
+                      title: `Consultants List (Wing: ${wingName})`
+                    }]);
+                  } else if (currentView.type === 'division') {
+                    const divisionId = params.data["Division ID"] || params.data["division_id"] || 0;
+                    const divisionName = params.data["Division Name"] || '';
+                    setDrillDownPath(prev => [...prev, {
+                      type: 'candidates_div',
+                      divisionId,
+                      title: `Consultants List (Division: ${divisionName})`
+                    }]);
+                  }
+                }}
+              >
+                {params.value}
+              </button>
+            );
+          }
+
+          return params.value;
+        }
+      };
+    });
+  }, [currentView]);
+
+  const fetchDrillDownData = useCallback(() => {
+    setDrillDownLoading(true);
+    setDrillDownError(null);
+    let endpoint = '';
+    
+    if (currentView.type === 'abstract') {
+      endpoint = '/consultantapp-report';
+    } else if (currentView.type === 'division') {
+      endpoint = `/cadivision-report/${currentView.wingId}/`;
+    } else if (currentView.type === 'candidates_wing') {
+      endpoint = `/wingwise-cacandidate/${currentView.wingId}/`;
+    } else if (currentView.type === 'candidates_div') {
+      endpoint = `/divisionwise-cacandidate/${currentView.divisionId}/`;
+    }
+
+    if (!endpoint) return;
+
+    axios.get(`http://localhost:3000${endpoint}`)
+      .then(res => {
+        const fetchedData = res.data?.rowData || res.data?.value || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setDrillDownData(fetchedData);
+        
+        if (res.data?.columnDefs) {
+          setDrillDownColDefs(mapColDefs(res.data.columnDefs));
+        } else {
+          if (fetchedData.length > 0) {
+            const fallbackDefs = Object.keys(fetchedData[0]).map(key => {
+              const isNumerical = fetchedData.some(row => typeof row[key] === 'number');
+              const isIdColumn = key.toLowerCase().includes('id');
+              return {
+                field: key,
+                headerName: key.replace(/_/g, ' ').toUpperCase(),
+                minWidth: 150,
+                filter: true,
+                sortable: true,
+                cellRenderer: (isNumerical && !isIdColumn) ? (params) => {
+                  if (params.value === null || params.value === undefined) return '';
+                  return (
+                    <button
+                      className="text-blue-600 font-semibold hover:text-blue-800 underline cursor-pointer"
+                      onClick={() => {
+                        // fallback cell click if needed
+                      }}
+                    >
+                      {params.value}
+                    </button>
+                  );
+                } : undefined
+              };
+            });
+            setDrillDownColDefs(fallbackDefs);
+          } else {
+            setDrillDownColDefs([]);
+          }
+        }
+      })
+      .catch(err => {
+        console.error("Error loading CA drill-down data:", err);
+        setDrillDownError("Failed to load report data.");
+      })
+      .finally(() => setDrillDownLoading(false));
+  }, [currentView, mapColDefs]);
+
+  useEffect(() => {
+    if (currentTab === 'Consultant Reports') {
+      fetchDrillDownData();
+    }
+  }, [currentTab, drillDownPath, fetchDrillDownData]);
 
   useEffect(() => {
     fetchData();
@@ -685,14 +844,27 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
 
       {currentTab === 'Consultant Reports' && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in">
-          <div className="text-center space-y-1.5 py-3 border-b border-slate-100">
-            <h3 className="text-base md:text-lg font-black text-slate-800 font-display">
-              Report No.: 2.3A - Abstract ( Wing Wise ) - Consultant Appointment
-            </h3>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs font-semibold text-slate-500">
-              <span>As On date: <strong className="text-slate-700">30-6-2026</strong></span>
-              <span className="hidden sm:inline text-slate-300">|</span>
-              <span>(Report for the Month - <strong className="text-slate-700">June 2026</strong>)</span>
+          
+          {/* Back button and title */}
+          <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
+            {drillDownPath.length > 1 && (
+              <button
+                onClick={() => setDrillDownPath(prev => prev.slice(0, -1))}
+                className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition cursor-pointer"
+                title="Back"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            )}
+            <div>
+              <h3 className="text-base md:text-lg font-black text-slate-800 font-display">
+                {drillDownPath.length === 1 ? 'Report No.: 2.3A - Abstract ( Wing Wise ) - Consultant Appointment' : currentView.title}
+              </h3>
+              <div className="flex flex-col sm:flex-row items-center gap-2 text-xs font-semibold text-slate-500 mt-1">
+                <span>As On date: <strong className="text-slate-700">30-6-2026</strong></span>
+                <span className="hidden sm:inline text-slate-300">|</span>
+                <span>(Report for the Month - <strong className="text-slate-700">June 2026</strong>)</span>
+              </div>
             </div>
           </div>
 
@@ -714,40 +886,47 @@ export default function ConsultantAppointmentView({ activeSubTab, setActiveSubTa
               </button>
             </div>
 
-            <div className="w-full sm:max-w-xs">
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">Wing</label>
-              <select
-                value={wingFilter}
-                onChange={(e) => setWingFilter(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700"
-              >
-                <option value="">--Show All--</option>
-                {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </div>
+            {currentView.type === 'abstract' && (
+              <div className="w-full sm:max-w-xs">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Wing</label>
+                <select
+                  value={wingFilter}
+                  onChange={(e) => setWingFilter(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700"
+                >
+                  <option value="">--Show All--</option>
+                  {WINGS.map(w => <option key={w} value={w}>{w}</option>)}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
-            <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-              <AgGridReact
-                theme="legacy"
-                rowData={filteredReportGridData}
-                columnDefs={reportColDefs}
-                domLayout="autoHeight"
-                rowHeight={45}
-                headerHeight={45}
-                autoSizeStrategy={{
-                  type: 'fitGridWidth',
-                  defaultMinWidth: 95
-                }}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+              <Table
+                rowData={
+                  currentView.type === 'abstract' 
+                    ? drillDownData.filter(item => !wingFilter || item["Wing Name"] === wingFilter) 
+                    : drillDownData
+                }
+                columnDefs={drillDownColDefs}
+                loading={drillDownLoading}
                 pagination={true}
                 paginationPageSize={10}
-                paginationPageSizeSelector={[10, 20, 50]}
+                enableExport={true}
+                exportFileName="Consultant_Appointment_Report"
+                exportPdfTitle="Consultant Appointment Report"
+                defaultColDef={{
+                  minWidth: 95,
+                  filter: true,
+                  sortable: true,
+                  resizable: true
+                }}
               />
             </div>
 
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 px-1">
-              <span>Total Rows: {filteredReportGridData.length}</span>
+              <span>Total Rows: {drillDownData.length}</span>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   FileEdit,
   FilePieChart,
@@ -13,7 +13,9 @@ import {
   Eye,
   UserMinus,
   Trash2,
-  X
+  X,
+  ChevronLeft,
+  Clock
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import PageBanner from '../../components/PageBanner';
@@ -27,6 +29,19 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
   const [isAdding, setIsAdding] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [wingFilter, setWingFilter] = useState('');
+
+  // YP Report Drill-down State
+  const [drillDownPath, setDrillDownPath] = useState([{ type: 'abstract', title: 'Abstract ( Wing Wise )' }]);
+  const [drillDownData, setDrillDownData] = useState([]);
+  const [drillDownColDefs, setDrillDownColDefs] = useState([]);
+  const [drillDownLoading, setDrillDownLoading] = useState(false);
+  const [drillDownError, setDrillDownError] = useState(null);
+
+  // Vacancies In Process modal state
+  const [showVacancyAgeModal, setShowVacancyAgeModal] = useState(false);
+  const [vacancyAgeData, setVacancyAgeData] = useState([]);
+  const [vacancyAgeLoading, setVacancyAgeLoading] = useState(false);
+  const [vacancyAgeWingName, setVacancyAgeWingName] = useState('');
 
   // Form Fields State
   const [formWing, setFormWing] = useState('');
@@ -81,23 +96,204 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
       .catch(err => console.error("Error loading YP data:", err))
       .finally(() => setLoading(false));
 
-    setReportLoading(true);
-
-    axios.get("http://localhost:3000/yp-report")
-      .then(res => {
-        const dataArray = res.data.rowData || [];
-        const mapped = dataArray.map((item, idx) => ({
-          sNo: idx + 1,
-          wing: item["Wing"] || 'Unknown',
-          total: item["Total No of Post"] || 0,
-          filled: item["No of Vacancy Filled Up"] || 0,
-          vacant: item["No of Vacancy In Process"] || 0
-        }));
-        setReportGridData(mapped);
-      })
-      .catch(err => console.error("Error loading YP report:", err))
-      .finally(() => setReportLoading(false));
   };
+
+  const handleVacancyAgeClick = useCallback((wingId, wingName) => {
+    setVacancyAgeLoading(true);
+    setVacancyAgeWingName(wingName);
+    setShowVacancyAgeModal(true);
+    
+    axios.get(`http://localhost:3000/yp-wing-wise-report/0/${wingId}`)
+      .then(res => {
+        const data = Array.isArray(res.data) ? res.data : [];
+        const filtered = data.filter(item => item.wing == wingId);
+        setVacancyAgeData(filtered);
+      })
+      .catch(err => {
+        console.error("Error loading vacancy age details:", err);
+      })
+      .finally(() => setVacancyAgeLoading(false));
+  }, []);
+
+  const currentView = drillDownPath[drillDownPath.length - 1];
+
+  const mapColDefs = useCallback((cols) => {
+    return cols.map(col => {
+      if (col.children) {
+        return { ...col, children: mapColDefs(col.children) };
+      }
+      
+      const fieldLower = col.field?.toLowerCase() || '';
+      const isWingName = fieldLower === 'wing';
+
+      return {
+        ...col,
+        filter: true,
+        sortable: true,
+        resizable: true,
+        minWidth: col.width || 120,
+        cellRenderer: (params) => {
+          if (params.value === null || params.value === undefined) return '';
+
+          // 1. Click Wing Name -> go to Division Report
+          if (isWingName && currentView.type === 'abstract') {
+            return (
+              <button
+                className="text-blue-600 font-bold hover:text-blue-800 underline cursor-pointer"
+                onClick={() => {
+                  const wingId = params.data["Wing ID"] || params.data["wing_id"] || 0;
+                  setDrillDownPath(prev => [...prev, {
+                    type: 'division',
+                    wingId,
+                    title: `Division Wise Report - ${params.value}`
+                  }]);
+                }}
+              >
+                {params.value}
+              </button>
+            );
+          }
+
+          // 2. Click Total Posts -> go to Division Report (if on Abstract)
+          if (col.field === 'Total No of Post' && currentView.type === 'abstract') {
+            return (
+              <button
+                className="text-blue-600 font-bold hover:text-blue-800 underline cursor-pointer"
+                onClick={() => {
+                  const wingId = params.data["Wing ID"] || params.data["wing_id"] || 0;
+                  const wingName = params.data["Wing"] || '';
+                  setDrillDownPath(prev => [...prev, {
+                    type: 'division',
+                    wingId,
+                    title: `Division Wise Report - ${wingName}`
+                  }]);
+                }}
+              >
+                {params.value}
+              </button>
+            );
+          }
+
+          // 3. Click Filled Up -> go to Candidate List
+          if (col.field === 'No of Vacancy Filled Up') {
+            return (
+              <button
+                className="text-blue-600 font-bold hover:text-blue-800 underline cursor-pointer"
+                onClick={() => {
+                  if (currentView.type === 'abstract') {
+                    const wingId = params.data["Wing ID"] || params.data["wing_id"] || 0;
+                    const wingName = params.data["Wing"] || '';
+                    setDrillDownPath(prev => [...prev, {
+                      type: 'candidates_wing',
+                      wingId,
+                      title: `Candidates List (Wing: ${wingName})`
+                    }]);
+                  } else if (currentView.type === 'division') {
+                    const divisionId = params.data["Division ID"] || params.data["division_id"] || 0;
+                    const divisionName = params.data["Division Name"] || '';
+                    setDrillDownPath(prev => [...prev, {
+                      type: 'candidates_div',
+                      divisionId,
+                      title: `Candidates List (Division: ${divisionName})`
+                    }]);
+                  }
+                }}
+              >
+                {params.value}
+              </button>
+            );
+          }
+
+          // 4. Click In Process -> Open Vacancy Age Modal (only on Wing level)
+          if (col.field === 'No of Vacancy In Process' && currentView.type === 'abstract') {
+            return (
+              <button
+                className="text-amber-600 font-bold hover:text-amber-800 underline cursor-pointer"
+                onClick={() => {
+                  const wingId = params.data["Wing ID"] || params.data["wing_id"] || 0;
+                  const wingName = params.data["Wing"] || '';
+                  handleVacancyAgeClick(wingId, wingName);
+                }}
+              >
+                {params.value}
+              </button>
+            );
+          }
+
+          return params.value;
+        }
+      };
+    });
+  }, [currentView, handleVacancyAgeClick]);
+
+  const fetchDrillDownData = useCallback(() => {
+    setDrillDownLoading(true);
+    setDrillDownError(null);
+    let endpoint = '';
+    
+    if (currentView.type === 'abstract') {
+      endpoint = '/yp-report';
+    } else if (currentView.type === 'division') {
+      endpoint = `/ypdivision-report/0/${currentView.wingId}`;
+    } else if (currentView.type === 'candidates_wing') {
+      endpoint = `/wingwise-ypcandidate/0/${currentView.wingId}`;
+    } else if (currentView.type === 'candidates_div') {
+      endpoint = `/divisionwise-ypcandidate/0/${currentView.divisionId}`;
+    }
+
+    if (!endpoint) return;
+
+    axios.get(`http://localhost:3000${endpoint}`)
+      .then(res => {
+        const fetchedData = res.data?.rowData || res.data?.value || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setDrillDownData(fetchedData);
+        
+        if (res.data?.columnDefs) {
+          setDrillDownColDefs(mapColDefs(res.data.columnDefs));
+        } else {
+          if (fetchedData.length > 0) {
+            const fallbackDefs = Object.keys(fetchedData[0]).map(key => {
+              const isNumerical = fetchedData.some(row => typeof row[key] === 'number');
+              const isIdColumn = key.toLowerCase().includes('id');
+              return {
+                field: key,
+                headerName: key.replace(/_/g, ' ').toUpperCase(),
+                minWidth: 150,
+                filter: true,
+                sortable: true,
+                cellRenderer: (isNumerical && !isIdColumn) ? (params) => {
+                  if (params.value === null || params.value === undefined) return '';
+                  return (
+                    <button
+                      className="text-blue-600 font-semibold hover:text-blue-800 underline cursor-pointer"
+                      onClick={() => {
+                        // fallback cell click if needed
+                      }}
+                    >
+                      {params.value}
+                    </button>
+                  );
+                } : undefined
+              };
+            });
+            setDrillDownColDefs(fallbackDefs);
+          } else {
+            setDrillDownColDefs([]);
+          }
+        }
+      })
+      .catch(err => {
+        console.error("Error loading YP drill-down data:", err);
+        setDrillDownError("Failed to load report data.");
+      })
+      .finally(() => setDrillDownLoading(false));
+  }, [currentView, mapColDefs]);
+
+  useEffect(() => {
+    if (currentTab === 'YP Reports') {
+      fetchDrillDownData();
+    }
+  }, [currentTab, drillDownPath, fetchDrillDownData]);
 
   useEffect(() => {
     fetchData();
@@ -451,21 +647,32 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
       {currentTab === 'YP Reports' && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in">
 
-          {/* Report Metadata Block */}
-          <div className="text-center space-y-1.5 py-3 border-b border-slate-100">
-            <h3 className="text-base md:text-lg font-black text-slate-800 font-display">
-              Report No.: 2.2A - Abstract ( Wing Wise ) - Young Professionals
-            </h3>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs font-semibold text-slate-500">
-              <span>As On date: <strong className="text-slate-700">30-6-2026</strong></span>
-              <span className="hidden sm:inline text-slate-300">|</span>
-              <span>(Report for the Month - <strong className="text-slate-700">June 2026</strong>)</span>
+          {/* Back button and title */}
+          <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
+            {drillDownPath.length > 1 && (
+              <button
+                onClick={() => setDrillDownPath(prev => prev.slice(0, -1))}
+                className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition cursor-pointer"
+                title="Back"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            )}
+            <div>
+              <h3 className="text-base md:text-lg font-black text-slate-800 font-display">
+                {drillDownPath.length === 1 ? 'Report No.: 2.2A - Abstract ( Wing Wise ) - Young Professionals' : currentView.title}
+              </h3>
+              <div className="flex flex-col sm:flex-row items-center gap-2 text-xs font-semibold text-slate-500 mt-1">
+                <span>As On date: <strong className="text-slate-700">30-6-2026</strong></span>
+                <span className="hidden sm:inline text-slate-300">|</span>
+                <span>(Report for the Month - <strong className="text-slate-700">June 2026</strong>)</span>
+              </div>
             </div>
           </div>
 
           {/* Filtering & Export Options (Exports on the left, filters on the right) */}
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-end">
-            {/* Export Buttons (Left aligned matching ProjectTable pattern) */}
+            {/* Export Buttons */}
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
               <button
                 onClick={() => handleExport('Excel')}
@@ -483,27 +690,33 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
               </button>
             </div>
 
-            {/* Wing Selection (Right aligned) */}
-            <div className="w-full sm:max-w-xs">
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">Wing</label>
-              <select
-                value={wingFilter}
-                onChange={(e) => setWingFilter(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700"
-              >
-                <option value="">--Show All--</option>
-                {wings.map(w => <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>)}
-              </select>
-            </div>
+            {/* Wing Selection (Only relevant on wing-wise abstract) */}
+            {currentView.type === 'abstract' && (
+              <div className="w-full sm:max-w-xs">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Wing</label>
+                <select
+                  value={wingFilter}
+                  onChange={(e) => setWingFilter(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700"
+                >
+                  <option value="">--Show All--</option>
+                  {wings.map(w => <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* AG Grid Report Table using Table wrapper */}
           <div className="space-y-3">
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
               <Table
-                rowData={filteredReportGridData}
-                columnDefs={reportColDefs}
-                loading={reportLoading}
+                rowData={
+                  currentView.type === 'abstract' 
+                    ? drillDownData.filter(item => !wingFilter || item["Wing"] === wingFilter) 
+                    : drillDownData
+                }
+                columnDefs={drillDownColDefs}
+                loading={drillDownLoading}
                 pagination={true}
                 paginationPageSize={10}
                 enableExport={true}
@@ -511,7 +724,6 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
                 exportPdfTitle="Young Professionals Report"
                 defaultColDef={{
                   minWidth: 95,
-                  flex: 1,
                   filter: true,
                   sortable: true,
                   resizable: true
@@ -520,7 +732,7 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
             </div>
 
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 px-1">
-              <span>Total Rows: {filteredReportGridData.length}</span>
+              <span>Total Rows: {drillDownData.length}</span>
             </div>
           </div>
         </div>
@@ -604,6 +816,59 @@ export default function YoungProfessionalsView({ activeSubTab, setActiveSubTab, 
               >
                 Save Details
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Vacancy Age Modal */}
+      {showVacancyAgeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-fade-in-up">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-amber-600 text-white">
+              <div className="flex items-center space-x-2">
+                <Clock className="h-5 w-5" />
+                <h3 className="text-sm font-black uppercase tracking-wider font-display">
+                  Vacancies in process: {vacancyAgeWingName}
+                </h3>
+              </div>
+              <button onClick={() => setShowVacancyAgeModal(false)} className="text-amber-200 hover:text-white transition">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              {vacancyAgeLoading ? (
+                <div className="text-center py-6 text-slate-500 font-semibold">Loading details...</div>
+              ) : vacancyAgeData.length > 0 ? (
+                <div className="space-y-3">
+                  {vacancyAgeData.map((item, idx) => {
+                    let badgeColor = "bg-green-50 text-green-700 border-green-200";
+                    if (item.vacancyAgeDescription?.includes("6 months")) badgeColor = "bg-rose-50 text-rose-700 border-rose-200";
+                    else if (item.vacancyAgeDescription?.includes("3 months")) badgeColor = "bg-amber-50 text-amber-700 border-amber-200";
+
+                    return (
+                      <div key={idx} className="p-4 border border-slate-200 rounded-xl space-y-2 hover:bg-slate-50 transition">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] font-bold text-slate-400">Post ID: {item.postID}</span>
+                          <span className={`px-2 py-0.5 border text-[10px] font-bold rounded-full ${badgeColor}`}>
+                            {item.vacancyAgeDescription}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-600 font-semibold">
+                          Date of Arise: <span className="text-slate-800">{item.formattedDateOfArise}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-slate-500">No vacancy age details found for this wing.</div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button onClick={() => setShowVacancyAgeModal(false)} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition">Close</button>
             </div>
           </div>
         </div>

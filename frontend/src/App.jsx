@@ -35,8 +35,8 @@ function decodeToken(token) {
   try {
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
     }).join(''));
     return JSON.parse(jsonPayload);
   } catch (e) {
@@ -163,7 +163,7 @@ const INITIAL_PROJECTS = [
 const getBreadcrumbs = (tab) => {
   if (tab === 'landing') return ['Home'];
   if (tab === 'Ports Reports') return ['KPI - Major Ports - (Output Reports)'];
-  
+
   // Projects tab routes
   if (tab === 'dashboard') return ['Home', 'Projects', 'Project', 'Project Dashboard'];
   if (tab === 'projects') return ['Home', 'Projects', 'Project', 'Project List'];
@@ -176,7 +176,7 @@ const getBreadcrumbs = (tab) => {
   if (tab === 'Audit Paras') return ['Home', 'Governance', 'Audit Paras'];
   if (tab === 'VIP Reference') return ['Home', 'Governance', 'VIP Reference'];
   if (tab === 'User Management') return ['Home', 'Governance', 'User Management'];
-  
+
   // Dynamic lookup for other tabs
   const kpiItems = {
     'Major Ports Dashboard': ['KPI', 'Major Ports'],
@@ -252,7 +252,7 @@ const getBreadcrumbs = (tab) => {
 const ROUTE_MAP = {
   'landing': 'landing',
   'profile': 'profile',
-  
+
   // Projects nested routes
   'dashboard': 'projects/project/project-dashboard',
   'projects': 'projects/project/project-list',
@@ -260,12 +260,12 @@ const ROUTE_MAP = {
   'lumpsum': 'projects/project/lumpsum-iwai',
   'dropRequests': 'projects/project/view-drop-request',
   'reports': 'projects/project/reports',
-  
+
   // KPI nested routes
   'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
   'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
-  
+
   // Governance nested routes
   'E Office': 'governance/e-office',
   'Attendance': 'governance/attendance',
@@ -276,41 +276,41 @@ const ROUTE_MAP = {
   'Parliamentary Issue': 'governance/parliamentary-issue',
   'Media Outreach': 'governance/media-outreach',
   'Audit Paras': 'governance/audit-paras',
-  
+
   // Legal nested routes
   'Courtcases': 'legal/courtcases',
   'Acts & Rules': 'legal/acts-rules',
   'Bills/PreConstitutions Act': 'legal/bills-preconstitutions',
-  
+
   // Strategies nested routes
   'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
   'Blue Economy Policy': 'strategies/blue-economy-policy',
-  
+
   // Knowledge nested routes
   'Research Papers': 'knowledge/research-papers',
   'Policy Documents': 'knowledge/policy-documents',
   'Guidelines': 'knowledge/guidelines',
-  
+
   // Form Builder nested routes
   'Create Dynamic Form': 'formBuilder/create-dynamic-form',
   'View Submissions': 'formBuilder/view-submissions',
-  
+
   // Tracker nested routes
   'Project Milestones': 'tracker/project-milestones',
   'Delay Analysis': 'tracker/delay-analysis',
-  
+
   // Meetings nested routes
   'Meeting Schedule': 'meeting/meeting-schedule',
   'Minutes of Meeting': 'meeting/minutes-of-meeting',
   'Action Taken Report': 'meeting/action-taken-report',
-  
+
   // Contacts nested routes
   'Contact Us': 'contact/contact-us',
-  
+
   // User Management
   'User Management': 'userManagement/user-management',
-  
+
   // HR nested routes
   'HR Dashboard': 'hr/hr-management/hr-dashboard',
   'Employee Database': 'hr/hr-management/employee-database',
@@ -374,7 +374,7 @@ export default function App() {
             roleLabel: roleMapping[decoded.roleId] || 'User'
           };
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     return null;
   });
@@ -403,7 +403,7 @@ export default function App() {
             roleLabel: roleMapping[decoded.roleId] || 'User'
           });
         }
-      } catch (e) {}
+      } catch (e) { }
     } else {
       setCurrentUser(null);
     }
@@ -462,7 +462,7 @@ export default function App() {
           setIsTabLoading(true);
         }
       });
-      
+
       const simulateDataFetch = async () => {
         try {
           // Instantly resolve to remove simulated delay
@@ -561,7 +561,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
-      
+
       {/* Toast Notification Alert Banner */}
       {notification && (
         <div className="fixed top-6 right-6 z-55 flex items-center justify-between space-x-4 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in max-w-sm">
@@ -574,7 +574,7 @@ export default function App() {
               <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{notification}</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => setNotification(null)}
             className="p-1 hover:bg-white/10 active:scale-95 rounded-lg transition cursor-pointer text-slate-400 hover:text-white"
             title="Close"
@@ -585,23 +585,23 @@ export default function App() {
       )}
 
       {/* Government Portal Header */}
-      <Header 
+      <Header
         onLogout={() => {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           setIsLoggedIn(false);
-        }} 
+        }}
         onProfileClick={() => setActiveTab('profile')}
         onAdminClick={() => setActiveTab('User Management')}
         currentUser={currentUser}
       />
 
       {/* Tab Navigation Menu */}
-      <Tabs 
+      <Tabs
         key={currentUser?.role + '_' + JSON.stringify(permissions)}
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        projectCount={projects.length} 
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        projectCount={projects.length}
         userRole={currentUser?.role}
       />
 
@@ -621,7 +621,7 @@ export default function App() {
             ))}
           </div>
         )}
-        
+
         {isTabLoading ? (
           <div className="py-12 animate-fade-in">
             <Loader message={`Fetching telemetry and compiling active panels for ${activeTab}...`} fullPage={false} />
@@ -686,26 +686,26 @@ export default function App() {
           })() || (
             <>
               {activeTab === 'landing' && (
-                <LandingView 
+                <LandingView
                   onNavigate={(tab, subKpi) => {
                     if (subKpi) {
                       setEOfficeKpi(subKpi);
                     }
                     setActiveTab(tab);
-                  }} 
+                  }}
                 />
               )}
 
               {activeTab === 'dashboard' && (
-                <DashboardView 
-                  projects={projects} 
-                  activeTab={activeTab} 
-                  setActiveTab={setActiveTab} 
+                <DashboardView
+                  projects={projects}
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
                 />
               )}
-              
+
               {activeTab === 'projects' && (
-                <Projects 
+                <Projects
                   projects={projects}
                   onAddProject={handleAddProject}
                   onAddSubProject={handleAddSubProject}
@@ -716,23 +716,23 @@ export default function App() {
               )}
 
               {activeTab === 'less5cr' && (
-                <ProjectsLess5Cr 
-                  activeTab={activeTab} 
-                  setActiveTab={setActiveTab} 
+                <ProjectsLess5Cr
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
                 />
               )}
 
               {activeTab === 'lumpsum' && (
-                <LumpsumIWAI 
-                  activeTab={activeTab} 
-                  setActiveTab={setActiveTab} 
+                <LumpsumIWAI
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
                 />
               )}
 
               {activeTab === 'dropRequests' && (
-                <ViewDropRequest 
-                  activeTab={activeTab} 
-                  setActiveTab={setActiveTab} 
+                <ViewDropRequest
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
                 />
               )}
 
@@ -826,7 +826,7 @@ export default function App() {
                   <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
                     This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
                   </p>
-                  <button 
+                  <button
                     onClick={() => setActiveTab('dashboard')}
                     className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
                   >
@@ -840,7 +840,7 @@ export default function App() {
       </main>
 
       {/* Background Compatibility and Network Speed Checker Alert Overlay */}
-      <CompatibilityChecker />
+      {/* <CompatibilityChecker /> */}
 
       {/* Government Footer */}
       <Footer />

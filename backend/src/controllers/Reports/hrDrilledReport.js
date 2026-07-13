@@ -71,7 +71,7 @@ async function hrDrilledDirectRecruitmentCompleteReport(req, res) {
         CONVERT(VARCHAR, ps.result_declared_date,120) AS [Result Declared],
         CONVERT(VARCHAR, ps.appointment_letter_issued_date,120)  AS [Appointment Letter issued]` : 'ps.reason_for_process_not_initiated AS [Reason For Process Not Initiated]'}
         FROM
-            tbl_hr_post_strength_log ps
+            tbl_hr_post_strength ps
         LEFT JOIN
             mmt_hr_post p ON ps.post_id = p.post_id
         LEFT JOIN
@@ -101,8 +101,8 @@ async function hrDrilledDirectRecruitmentCompleteReport(req, res) {
                 )
             )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
             ${whereCondition}
     `);
 
@@ -256,7 +256,7 @@ async function hrDrilledPromotionCompleteReport(req, res) {
         CONVERT(VARCHAR, ps.approval_by_ca_date,120) AS [Approval by Competent authority],
         CONVERT(VARCHAR, ps.promotion_order_issued_date,120) AS [Promotion order issued]` : 'ps.reason_for_process_not_initiated AS [Reason For Process Not Initiated]'}
         FROM
-            tbl_hr_post_strength_log ps
+            tbl_hr_post_strength ps
         LEFT JOIN
             mmt_hr_post p ON ps.post_id = p.post_id
         LEFT JOIN
@@ -286,8 +286,8 @@ async function hrDrilledPromotionCompleteReport(req, res) {
                 )
             )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
             ${whereCondition}
     `);
     
@@ -431,7 +431,7 @@ async function hrDrilledDeputationCompleteReport(req, res) {
         CONVERT(VARCHAR, ps.approval_received_date,120) AS [Approval Received],
         CONVERT(VARCHAR, ps.order_issued_date,120) AS [Order issued]
         FROM
-            tbl_hr_post_strength_log ps
+            tbl_hr_post_strength ps
         LEFT JOIN
             mmt_hr_post p ON ps.post_id = p.post_id
         LEFT JOIN
@@ -461,8 +461,8 @@ async function hrDrilledDeputationCompleteReport(req, res) {
                 )
             )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
             ${whereCondition}
     `);
 
@@ -607,7 +607,7 @@ async function hrDrilledCompositeMethodCompleteReport(req, res) {
         CONVERT(VARCHAR, ps.approval_received_date,120) AS [Approval Received],
         CONVERT(VARCHAR, ps.order_issued_date,120) AS [Order issued]
         FROM
-            tbl_hr_post_strength_log ps
+            tbl_hr_post_strength ps
         LEFT JOIN
             mmt_hr_post p ON ps.post_id = p.post_id
         LEFT JOIN
@@ -637,8 +637,8 @@ async function hrDrilledCompositeMethodCompleteReport(req, res) {
                 )
             )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
             ${whereCondition}
     `);
 
@@ -757,7 +757,7 @@ async function hrDrilledForMethodofAppDateAriseReport(req, res) {
           ps.method_of_appointment AS 'Method of Appointment'
       FROM
           mmt_organisation org
-          INNER JOIN tbl_hr_post_strength_log ps ON org.organisation_id = ps.organisation_id
+          INNER JOIN tbl_hr_post_strength ps ON org.organisation_id = ps.organisation_id
           INNER JOIN mmt_hr_post p ON ps.post_id = p.post_id
           INNER JOIN mmt_hr_department department ON ps.department_id = department.department_id
           INNER JOIN mmt_class mc ON p.class_id = mc.class_id
@@ -766,8 +766,8 @@ async function hrDrilledForMethodofAppDateAriseReport(req, res) {
       WHERE
           org.organisation_id = @organisationID
           AND mc.class_id = @classID
-          AND ps.log_year = @logYear
-          AND ps.log_month = 3
+          AND 1=1
+          AND 1=1
           AND ps.method_of_appointment IN (
               SELECT TRIM(value) FROM STRING_SPLIT(@methodOfAppointment, ',')
           )
@@ -908,7 +908,7 @@ async function hrDrilledForMethodofAppVacancyRisenReport(req,res) {
         FORMAT(ps.date_of_arise_in_vacancy, 'yyyy-MM-dd') AS [Date of Arise Vacancy]
     FROM
         mmt_organisation org
-    INNER JOIN tbl_hr_post_strength_log ps ON org.organisation_id = ps.organisation_id
+    INNER JOIN tbl_hr_post_strength ps ON org.organisation_id = ps.organisation_id
     INNER JOIN mmt_hr_post p ON ps.post_id = p.post_id
     INNER JOIN mmt_hr_department department ON ps.department_id = department.department_id
     INNER JOIN mmt_class mc ON p.class_id = mc.class_id
@@ -919,8 +919,8 @@ async function hrDrilledForMethodofAppVacancyRisenReport(req,res) {
         AND ps.method_of_appointment IN (SELECT value FROM STRING_SPLIT(@methodOfAppointment, ','))
         --AND ps.method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
         AND ps.date_of_arise_in_vacancy BETWEEN @financialYearStart AND @financialYearEnd
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-        AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+        AND 1=1
     ORDER BY
         org.organisation_id;
 
@@ -1030,7 +1030,7 @@ async function hrDrilledFillingUpVacanciesReport(req, res) {
         ps.post_code AS [Post Code],
         FORMAT(ps.date_of_arise_in_vacancy, 'yyyy-MM-dd') AS [Date of Arise Vacancy]
       FROM
-        tbl_hr_post_strength_log ps
+        tbl_hr_post_strength ps
       LEFT JOIN mmt_hr_post p ON ps.post_id = p.post_id
       LEFT JOIN mmt_hr_department d ON p.department_id = d.department_id
       LEFT JOIN mmt_class c ON p.class_id = c.class_id
@@ -1041,8 +1041,8 @@ async function hrDrilledFillingUpVacanciesReport(req, res) {
         AND c.class_id = @classID
         AND ps.organisation_id = @organisationID 
         AND (${vacancyCondition})
-        AND ps.log_month = 3
-        AND ps.log_year = ${startYear}
+        AND 1=1
+        AND 1=1
         AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
       ORDER BY
         d.department_name
@@ -1126,7 +1126,7 @@ async function hrDrilledOccurredDuringFYReport(req, res) {
         ps.post_code AS [Post Code],
         FORMAT(ps.date_of_arise_in_vacancy, 'yyyy-MM-dd') AS [Date of Arise Vacancy]
       FROM
-        tbl_hr_post_strength_log ps
+        tbl_hr_post_strength ps
       LEFT JOIN mmt_hr_post p ON ps.post_id = p.post_id
       LEFT JOIN mmt_hr_department d ON p.department_id = d.department_id
       LEFT JOIN mmt_class c ON p.class_id = c.class_id
@@ -1136,8 +1136,8 @@ async function hrDrilledOccurredDuringFYReport(req, res) {
         c.class_id = @classID
         AND ps.organisation_id = @organisationID
         AND ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-        AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-        AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+        AND 1=1
+        AND 1=1
       ORDER BY
         d.department_name
     `);
@@ -1218,7 +1218,7 @@ async function hrdrilledTotalFillUpVacanciesReport(req, res) {
         ps.post_code AS [Post Code],
         FORMAT(ps.date_of_arise_in_vacancy, 'yyyy-MM-dd') AS [Date of Arise Vacancy]
       FROM
-        tbl_hr_post_strength_log ps
+        tbl_hr_post_strength ps
       LEFT JOIN mmt_hr_post p ON ps.post_id = p.post_id
       LEFT JOIN mmt_hr_department d ON p.department_id = d.department_id
       LEFT JOIN mmt_class c ON p.class_id = c.class_id
@@ -1250,8 +1250,8 @@ async function hrdrilledTotalFillUpVacanciesReport(req, res) {
             AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
           )
         )
-        AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+        AND 1=1
       ORDER BY
         d.department_name
     `);
@@ -1332,7 +1332,7 @@ async function drilledDownFillupVacanciesinMOAwise(req, res) {
 		em.emp_name AS 'Employee Name',
         ps.method_of_appointment AS 'Method of Appointment'
       FROM
-        tbl_hr_post_strength_log ps
+        tbl_hr_post_strength ps
       LEFT JOIN mmt_hr_post p ON ps.post_id = p.post_id
       LEFT JOIN mmt_hr_department d ON p.department_id = d.department_id
       LEFT JOIN mmt_class c ON p.class_id = c.class_id
@@ -1349,8 +1349,8 @@ async function drilledDownFillupVacanciesinMOAwise(req, res) {
               SELECT value FROM STRING_SPLIT(@methodOfAppointment, ',')
             )
           )
-        AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+        AND 1=1
       ORDER BY d.department_name
     `);
 
@@ -1452,7 +1452,7 @@ async function drilledDownBalanceToBeFillupMOAwise(req, res) {
         ps.post_code AS [Post Code],
         FORMAT(ps.date_of_arise_in_vacancy, 'yyyy-MM-dd') AS [Date of Arise Vacancy]
       FROM
-        tbl_hr_post_strength_log ps
+        tbl_hr_post_strength ps
       LEFT JOIN mmt_hr_post p ON ps.post_id = p.post_id
       LEFT JOIN mmt_hr_department d ON p.department_id = d.department_id
       LEFT JOIN mmt_class c ON p.class_id = c.class_id
@@ -1483,8 +1483,8 @@ async function drilledDownBalanceToBeFillupMOAwise(req, res) {
         AND ps.date_of_arise_in_vacancy <= @fiscalYearEnd
 
         -- LAST MONTH LOG
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-        AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+        AND 1=1
         
       ORDER BY d.department_name
     `;

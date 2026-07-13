@@ -2,10 +2,10 @@ import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 
 export default function Footer() {
   return (
-    <footer className="bg-[#0a2540] text-slate-355 border-t-4 border-[#008ca3] text-[11px] font-medium mt-auto py-5">
+    <footer className="bg-[#0a2540] text-slate-355 text-[11px] font-medium mt-auto py-5">
       <div className="w-full max-w-full px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4 text-center">
-          
+
           {/* Column 1: Brand Logo & Ministry Subtitle - Left aligned on desktop */}
           <div className="flex items-center justify-center md:justify-start space-x-3">
             <img src={sagarmanthanLogo} alt="Sagarmanthan Logo" className="h-8.5 w-auto object-contain" />

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
-import { FilePieChart, Search, Download, FileSpreadsheet, FileCheck, Filter, X } from 'lucide-react';
+import { FilePieChart, Search, ChevronLeft, Database } from 'lucide-react';
 import PageBanner from '../../../components/PageBanner';
+import Table from '../../../components/Table'; // Reusable Table component
 
 const REPORT_LIST = [
   // Major Ports
@@ -40,28 +41,276 @@ const REPORT_LIST = [
   { category: 'Training Details Report', code: 'H-4.1', name: 'Abstract - Training Details Report', type: 'training' }
 ];
 
-export default function Reports() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [organisations, setOrganisations] = useState([]);
-  const [selectedOrg, setSelectedOrg] = useState('All');
-  const [selectedReport, setSelectedReport] = useState(null); // Selected report for config modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
+// Drill Down Component fetching dynamic API data
+const ReportDataDrillDown = ({ report, onBack }) => {
+  const [data, setData] = useState([]);
+  const [apiColDefs, setApiColDefs] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [detailedData, setDetailedData] = useState(null);
+  const [detailedLoading, setDetailedLoading] = useState(false);
+  const [detailedError, setDetailedError] = useState(null);
+  const [detailedTitle, setDetailedTitle] = useState('');
+
+  const handleCellClick = useCallback((params) => {
+    // Basic logic for generic detailed drill down
+    let detailEndpoint = '';
+    const orgId = params.data.organisation_id || params.data.organization_id || params.data.organisationID || 0;
+    const classId = params.data.class_id || params.data.class_Id || 0;
+    const type = 1; // Generic type 1 used in old UI for abstract
+
+    // Use similar logic to API endpoints based on report code
+    if (report.code.includes('H-1.1')) detailEndpoint = `/hrdetailed-report/${orgId}/${type}/0`;
+    else if (report.code.includes('H-1.3')) detailEndpoint = `/hrdetailed-abstarct-report/${orgId}/${classId}`;
+    else if (report.code.includes('H-1.4')) detailEndpoint = `/hrfourth-detailed-report/${orgId}/${classId}`;
+    else if (report.code.includes('H-1.5')) detailEndpoint = `/hrfifth-detailed-report/${orgId}/${classId}`;
+    else if (report.code.includes('H-1.6')) detailEndpoint = `/hrsixth-detailed-report/${orgId}/${classId}`;
+    else if (report.code.includes('H-1.7')) detailEndpoint = `/hrseventh-detailed-report/${orgId}/${classId}`;
+    else if (report.code.includes('H-1.8')) detailEndpoint = `/hreighth-detailed-report/${orgId}/${classId}`;
+
+    if (!detailEndpoint) {
+      console.warn("Detailed drill-down not supported for this report yet.");
+      return;
+    }
+
+    setDetailedLoading(true);
+    setDetailedError(null);
+    setDetailedTitle(`Detailed View: ${params.colDef.headerName} for ${params.data.organisation_name || 'Organization'}`);
+
+    axios.get(`http://localhost:3000${detailEndpoint}`)
+      .then(res => {
+        const dData = res.data?.value || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setDetailedData(dData);
+        setDetailedLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching detailed data:', err);
+        setDetailedError('Failed to load detailed drill down data.');
+        setDetailedLoading(false);
+      });
+  }, [report.code]);
 
   useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_organisation")
-      .then(res => setOrganisations(res.data || []))
-      .catch(err => console.error("Error loading organisations:", err));
-  }, []);
+    setLoading(true);
+    // Map report codes to their corresponding backend endpoints exactly as in sagarmanthan-main.
+    let endpoint = '/hrfirst-report/0/0/0'; // Default fallback
 
-  const handleOpenConfig = (report) => {
-    setSelectedReport(report);
-    setIsModalOpen(true);
-  };
+    // Major Ports (A) and Other Orgs (B) mappings
+    if (report.code === 'H-1.1 A') endpoint = '/hrfirst-report/0/0/0';
+    else if (report.code === 'H-1.1 B') endpoint = '/hrfirst-report-other-org/0/0';
+    else if (report.code === 'H-1.2 A') endpoint = '/hrsecond-report/0/0';
+    else if (report.code === 'H-1.2 B') endpoint = '/hrsecond-report-other-org/0/0';
+    else if (report.code === 'H-1.3 A') endpoint = '/hrabstarct-report/0/0/0';
+    else if (report.code === 'H-1.3 B') endpoint = '/hrabstarct-report-other-org/0/0';
+    else if (report.code === 'H-1.4 A') endpoint = '/hrfourth-report/0/0/0';
+    else if (report.code === 'H-1.4 B') endpoint = '/hrfourth-report-other-org/0/0';
+    else if (report.code === 'H-1.5 A') endpoint = '/hrfifth-report/0/0/0';
+    else if (report.code === 'H-1.5 B') endpoint = '/hrfifth-report-other-org/0/0';
+    else if (report.code === 'H-1.6 A') endpoint = '/hrsixth-report/0/0/0';
+    else if (report.code === 'H-1.6 B') endpoint = '/hrsixth-report-other-org/0/0';
+    else if (report.code === 'H-1.7 A') endpoint = '/hrseventh-report/0/0/0';
+    else if (report.code === 'H-1.7 B') endpoint = '/hrseventh-report-other-org/0/0';
+    else if (report.code === 'H-1.8 A') endpoint = '/hreighth-report/0/0/0';
+    else if (report.code === 'H-1.8 B') endpoint = '/hreighth-report-other-org/0/0';
+    // MIS Reports
+    else if (report.code === 'H-2.0.1') endpoint = '/hrfirst-report/0/0/0'; // Fallback
+    else if (report.code === 'H-2.1.1') endpoint = '/get-hr-staffing-overview-report/1';
+    else if (report.code === 'H-2.1.2') endpoint = '/get-hr-staffing-overview-report/2';
+    else if (report.code === 'H-2.2.1') endpoint = '/get-hr-mis-total-manpower-actual/0/0/1/0';
+    else if (report.code === 'H-2.2.2') endpoint = '/get-hr-mis-total-manpower-actual/0/0/2/0';
+    else if (report.code === 'H-2.3.1') endpoint = '/get-hr-mis-gender-wise-major-port/1';
+    else if (report.code === 'H-2.3.2') endpoint = '/get-hr-mis-gender-wise-major-port/2';
+    else if (report.code === 'H-2.4.1') endpoint = '/get-total-manpower-class-wise-report/1/0';
+    else if (report.code === 'H-2.4.2') endpoint = '/get-total-manpower-class-wise-report/2/0';
 
-  const handleDownload = (format) => {
-    if (!selectedReport) return;
-    alert(`Compiling & Downloading ${selectedReport.code} - ${selectedReport.name} in ${format} format for Organisation: ${selectedOrg}...`);
-    setIsModalOpen(false);
+    // Contractual & Training Details
+    else if (report.code === 'H-3.1') endpoint = '/get-contract-details-report/0/0';
+    else if (report.code === 'H-4.1') endpoint = '/get-training-details-report/0/0';
+
+    axios.get(`http://localhost:3000${endpoint}`)
+      .then(res => {
+        // Handle variations in response format safely (including when backend returns { columnDefs, rowData })
+        const fetchedData = res.data?.rowData || res.data?.value || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        setData(fetchedData);
+        if (res.data?.columnDefs) {
+          setApiColDefs(res.data.columnDefs);
+        } else {
+          setApiColDefs(null);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching report data:', err);
+        setError('Failed to load data for this report.');
+        setLoading(false);
+      });
+  }, [report.code]);
+
+  // Determine dynamic columns based on data keys
+  const drillDownColDefs = useMemo(() => {
+    if (apiColDefs && apiColDefs.length > 0) {
+      // Inject drill-down cell renderer into the backend-provided column definitions
+      const injectRenderer = (cols) => {
+        return cols.map(col => {
+          if (col.children) {
+            return { ...col, children: injectRenderer(col.children) };
+          }
+          const isIdColumn = col.field?.toLowerCase().includes('_id');
+          return {
+            ...col,
+            cellRenderer: !isIdColumn ? (params) => {
+              if (params.value === null || params.value === undefined) return '';
+              // Treat numeric or number-like strings as clickable metrics
+              if (typeof params.value === 'number' || (!isNaN(Number(params.value)) && String(params.value).trim() !== '')) {
+                return (
+                  <button
+                    className="text-blue-600 font-semibold hover:text-blue-800 underline cursor-pointer"
+                    onClick={() => handleCellClick(params)}
+                  >
+                    {params.value}
+                  </button>
+                );
+              }
+              return params.value;
+            } : undefined
+          };
+        });
+      };
+      return injectRenderer(apiColDefs);
+    }
+
+    if (data.length === 0) return [];
+
+    // Fallback if no columnDefs are provided
+    return Object.keys(data[0]).map(key => {
+      const isNumerical = data.some(row => typeof row[key] === 'number');
+      const isIdColumn = key.toLowerCase().includes('_id');
+
+      return {
+        field: key,
+        headerName: key.replace(/_/g, ' ').toUpperCase(),
+        minWidth: 150,
+        filter: true,
+        sortable: true,
+        cellRenderer: (isNumerical && !isIdColumn) ? (params) => {
+          if (params.value === null || params.value === undefined) return '';
+          return (
+            <button
+              className="text-blue-600 font-semibold hover:text-blue-800 underline cursor-pointer"
+              onClick={() => handleCellClick(params)}
+            >
+              {params.value}
+            </button>
+          )
+        } : undefined
+      };
+    });
+  }, [data, apiColDefs, handleCellClick]);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in">
+      <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
+        <button
+          onClick={onBack}
+          className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition cursor-pointer"
+          title="Back to Reports Catalog"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-black uppercase rounded-full">
+              {report.code}
+            </span>
+            <h3 className="text-lg font-extrabold text-[#0f417a]">{report.name}</h3>
+          </div>
+          <p className="text-xs text-slate-500 font-medium mt-1">{report.category}</p>
+        </div>
+      </div>
+
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center space-y-4">
+        {/* <div className="h-12 w-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center border border-blue-200 shadow-sm mb-2">
+          <Database className="h-6 w-6 text-[#0f417a]" />
+        </div>
+        <div>
+          <h4 className="text-md font-bold text-slate-800">Live Data View for {report.name}</h4>
+          <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto mb-6">
+            This data is dynamically fetched from the database in real-time. Use the table below to explore or export the records.
+          </p>
+        </div> */}
+
+        {error ? (
+          <div className="text-sm font-bold text-red-600 mt-8 py-10">
+            {error}
+          </div>
+        ) : (
+          <div className="w-full text-left space-y-8">
+            <Table
+              rowData={data}
+              columnDefs={drillDownColDefs}
+              loading={loading}
+              pagination={true}
+              paginationPageSize={10}
+              enableExport={true}
+              exportFileName={`${report.code}_Export`}
+              exportPdfTitle={report.name}
+              defaultColDef={{
+                minWidth: 150,
+                filter: true,
+                sortable: true,
+                resizable: true
+              }}
+            />
+
+            {/* Detailed Drill Down Section */}
+            {(detailedData || detailedLoading || detailedError) && (
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm mt-8 animate-fade-in relative">
+                <button
+                  onClick={() => { setDetailedData(null); setDetailedError(null); setDetailedLoading(false); }}
+                  className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full text-slate-400 transition cursor-pointer"
+                  title="Close Details"
+                >
+                  ✕
+                </button>
+                <div className="mb-4">
+                  <h4 className="text-md font-bold text-slate-800">{detailedTitle}</h4>
+                </div>
+
+                {detailedError ? (
+                  <div className="text-sm font-bold text-red-600 py-4">{detailedError}</div>
+                ) : (
+                  <div className="max-h-[500px] overflow-auto">
+                    <Table
+                      rowData={detailedData || []}
+                      columnDefs={detailedData && detailedData.length > 0 ? Object.keys(detailedData[0]).map(k => ({
+                        field: k, headerName: k.replace(/_/g, ' ').toUpperCase(), minWidth: 120, filter: true, sortable: true
+                      })) : []}
+                      loading={detailedLoading}
+                      pagination={true}
+                      paginationPageSize={10}
+                      enableExport={true}
+                      exportFileName="Detailed_DrillDown_Export"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default function Reports() {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // State for drill-down view
+  const [activeDrillDownReport, setActiveDrillDownReport] = useState(null);
+
+  const handleDrillDown = (report) => {
+    setActiveDrillDownReport(report);
   };
 
   const filteredReports = useMemo(() => {
@@ -75,15 +324,41 @@ export default function Reports() {
     });
   }, [searchTerm]);
 
-  // Group reports by category for header rendering
-  const groupedReports = useMemo(() => {
-    const groups = {};
-    filteredReports.forEach(rep => {
-      if (!groups[rep.category]) groups[rep.category] = [];
-      groups[rep.category].push(rep);
-    });
-    return groups;
-  }, [filteredReports]);
+  const catalogColDefs = useMemo(() => [
+    { field: 'category', headerName: 'Category', minWidth: 250, cellClass: 'font-bold text-slate-800' },
+    { field: 'code', headerName: 'Report Code', minWidth: 120, cellClass: 'font-mono font-bold text-slate-700 text-center' },
+    {
+      field: 'name',
+      headerName: 'Description (Click to View)',
+      minWidth: 400,
+      cellRenderer: (params) => {
+        return (
+          <button
+            onClick={() => handleDrillDown(params.data)}
+            className="text-left font-semibold text-blue-700 hover:text-blue-900 cursor-pointer hover:underline underline-offset-4 transition"
+          >
+            {params.value}
+          </button>
+        )
+      }
+    }
+  ], []);
+
+  if (activeDrillDownReport) {
+    return (
+      <div className="space-y-6 animate-fade-in pb-12">
+        <PageBanner
+          title="HR Reports Analysis"
+          description="Detailed drill-down view for the selected report."
+          icon={FilePieChart}
+        />
+        <ReportDataDrillDown
+          report={activeDrillDownReport}
+          onBack={() => setActiveDrillDownReport(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -97,7 +372,7 @@ export default function Reports() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
             <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-tight">Reports Catalog</h3>
-            <p className="text-xs text-slate-400 font-medium">Select any ministry review sheet or MIS log to configure and export.</p>
+            <p className="text-xs text-slate-400 font-medium">Select any ministry review sheet to view its live data.</p>
           </div>
 
           <div className="relative w-full md:w-80">
@@ -112,118 +387,25 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Reports Index Table */}
-        <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-inner">
-          <table className="w-full text-xs text-left border-collapse">
-            <thead>
-              <tr className="bg-[#0f417a] text-white font-bold text-center">
-                <th className="py-3 px-4 w-16 text-center">S.No</th>
-                <th className="py-3 px-4 w-28 text-center border-l border-blue-900">Report Code</th>
-                <th className="py-3 px-4 text-left border-l border-blue-900">Description</th>
-                <th className="py-3 px-4 w-32 text-center border-l border-blue-900">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(groupedReports).map(([category, items]) => (
-                <React.Fragment key={category}>
-                  {/* Category Header Row */}
-                  <tr className="bg-slate-100 font-bold border-y border-slate-200">
-                    <td colSpan={4} className="py-2.5 px-4 text-slate-800 font-extrabold font-display">
-                      {category}
-                    </td>
-                  </tr>
-                  {items.map((item, idx) => (
-                    <tr key={item.code} className="border-b border-slate-150 hover:bg-slate-50 transition">
-                      <td className="py-2.5 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
-                      <td className="py-2.5 px-4 text-center font-mono font-bold text-slate-700 bg-slate-50/50">{item.code}</td>
-                      <td className="py-2.5 px-4 font-semibold text-slate-805">
-                        <button
-                          onClick={() => handleOpenConfig(item)}
-                          className="hover:text-blue-800 text-left font-semibold cursor-pointer"
-                        >
-                          {item.name}
-                        </button>
-                      </td>
-                      <td className="py-2.5 px-4 text-center">
-                        <button
-                          onClick={() => handleOpenConfig(item)}
-                          className="px-3 py-1 bg-blue-50 text-blue-700 hover:bg-[#0f417a] hover:text-white rounded-lg border border-blue-200 font-bold text-[10px] uppercase tracking-wider transition cursor-pointer"
-                        >
-                          Configure
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </React.Fragment>
-              ))}
-              {Object.keys(groupedReports).length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-8 text-center font-bold text-slate-400">
-                    No matching reports found in catalog.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="w-full">
+          <Table
+            rowData={filteredReports}
+            columnDefs={catalogColDefs}
+            loading={false}
+            pagination={true}
+            paginationPageSize={10}
+            enableExport={true}
+            exportFileName="HR_Reports_Catalog"
+            exportPdfTitle="HR Reports Catalog"
+            defaultColDef={{
+              minWidth: 120,
+              filter: true,
+              sortable: true,
+              resizable: true
+            }}
+          />
         </div>
       </div>
-
-      {/* Configuration & Download Modal */}
-      {isModalOpen && selectedReport && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl p-6 relative animate-scale-up space-y-6">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute right-4 top-4 p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition cursor-pointer"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="space-y-1.5 pr-8">
-              <span className="inline-flex px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-black uppercase rounded-full">
-                {selectedReport.code}
-              </span>
-              <h4 className="text-sm font-extrabold text-slate-900">{selectedReport.name}</h4>
-              <p className="text-[10px] text-slate-400 font-medium leading-relaxed">{selectedReport.category}</p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-1 text-xs">
-                <label className="block text-slate-500 font-bold">Filter Organisation</label>
-                <div className="relative">
-                  <select
-                    value={selectedOrg}
-                    onChange={(e) => setSelectedOrg(e.target.value)}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-105 cursor-pointer"
-                  >
-                    <option value="All">Show All Organisations</option>
-                    {organisations.map(o => (
-                      <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
-              <button
-                onClick={() => handleDownload('Excel')}
-                className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                <span>Export Excel</span>
-              </button>
-              <button
-                onClick={() => handleDownload('PDF')}
-                className="py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <FileCheck className="h-4 w-4" />
-                <span>Export PDF</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

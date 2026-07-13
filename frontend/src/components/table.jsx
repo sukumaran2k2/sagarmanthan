@@ -92,6 +92,7 @@ const Table = forwardRef(({
           onRowClicked={onRowClicked}
           pagination={pagination}
           paginationPageSize={paginationPageSize}
+          paginationPageSizeSelector={[10, 20, 50, 100]}
           suppressPaginationPanel={suppressPaginationPanel}
           onPaginationChanged={onPaginationChanged}
           suppressColumnVirtualisation={true}

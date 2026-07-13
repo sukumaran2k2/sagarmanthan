@@ -918,7 +918,7 @@ async function updatePostStrengthLog(req, res) {
     switch (methodOfAppointment) {
         case 'directRecruitment':
             try {
-                //     await request.query(`UPDATE tbl_hr_post_strength_log
+                //     await request.query(`UPDATE tbl_hr_post_strength
                 // SET process_initiated_date = @processInitiatedDate,
                 //  notification_adv_issued_date = @notificationIssuedDate,
                 //  renotification_adv_issued_date = @reNotificationIssuedDate,
@@ -1116,7 +1116,7 @@ async function updatePostStrengthLog(req, res) {
 
         case 'deputationIn':
             try {
-                //     await request.query(`UPDATE tbl_hr_post_strength_log
+                //     await request.query(`UPDATE tbl_hr_post_strength
                 //    SET process_initiated_date = @processInitiatedDate,
                 //     notification_adv_issued_date = @notificationIssuedDate,
                 //     application_received_date = @applicationReceivedDeputation,
@@ -2141,7 +2141,7 @@ async function updateHRPostActivitiy(req, res) {
     switch (methodOfAppointment) {
         case 'directRecruitment':
             try {
-                //     await request.query(`UPDATE tbl_hr_post_strength_log
+                //     await request.query(`UPDATE tbl_hr_post_strength
                 // SET process_initiated_date = @processInitiatedDate,
                 //  notification_adv_issued_date = @notificationIssuedDate,
                 //  renotification_adv_issued_date = @reNotificationIssuedDate,
@@ -2341,7 +2341,7 @@ async function updateHRPostActivitiy(req, res) {
 
         case 'deputationIn':
             try {
-                //     await request.query(`UPDATE tbl_hr_post_strength_log
+                //     await request.query(`UPDATE tbl_hr_post_strength
                 //    SET process_initiated_date = @processInitiatedDate,
                 //     notification_adv_issued_date = @notificationIssuedDate,
                 //     application_received_date = @applicationReceivedDeputation,
