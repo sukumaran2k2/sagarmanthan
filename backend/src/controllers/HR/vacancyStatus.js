@@ -1321,7 +1321,7 @@ async function updateReasonForProcessNotInitiated(req,res){
     console.log("postCode,")
 
     try{
-        let result = await request.query(`UPDATE tbl_hr_post_strength_log SET reason_for_process_not_initiated = @reason WHERE post_code=@postCode AND log_month = MONTH(DATEADD(MONTH, -1, GETDATE())) AND log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))`);
+        let result = await request.query(`UPDATE tbl_hr_post_strength SET reason_for_process_not_initiated = @reason WHERE post_code=@postCode AND 1=1 AND 1=1`);
         return res.status(201).json({ message: "Reason for process not initiated updated successfully" });
     }catch(e){
         console.log("error",e);
@@ -1447,7 +1447,7 @@ async function updateHRPostActivitiy(req, res) {
     switch (methodOfAppointment) {
         case 'directRecruitment':
             try {
-                //     await request.query(`UPDATE tbl_hr_post_strength_log
+                //     await request.query(`UPDATE tbl_hr_post_strength
                 // SET process_initiated_date = @processInitiatedDate,
                 //  notification_adv_issued_date = @notificationIssuedDate,
                 //  renotification_adv_issued_date = @reNotificationIssuedDate,
@@ -1594,8 +1594,8 @@ async function getHRDashboardContentDataFiltered(req, res) {
     if (organisationID !== 0) conditions.push("o.organisation_id = @organisationID");
     if (clusterID !== 0) conditions.push("o.hr_cluster_id = @clusterID");
 
-    conditions.push("log_year = @year");
-    conditions.push("log_month = @month");
+    conditions.push("1=1");
+    conditions.push("1=1");
 
     let whereClause = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
 
@@ -1604,14 +1604,14 @@ async function getHRDashboardContentDataFiltered(req, res) {
             SELECT
                 COUNT(ps.post_code) AS total_sanctioned_strength,
                 COUNT(CASE WHEN ps.vacant_or_filled = 'filled' THEN 1 END) AS filled_post
-            FROM tbl_hr_post_strength_log ps
+            FROM tbl_hr_post_strength ps
             INNER JOIN mmt_organisation o ON ps.organisation_id = o.organisation_id
             ${whereClause} 
         `;
 
         const totalLiveVacantPost = `
             SELECT COUNT(*) AS totalLivePost
-            FROM tbl_hr_post_strength_log ps
+            FROM tbl_hr_post_strength ps
             INNER JOIN mmt_organisation o ON ps.organisation_id = o.organisation_id
             WHERE
                 ps.vacant_or_filled = 'vacant'
@@ -1623,12 +1623,12 @@ async function getHRDashboardContentDataFiltered(req, res) {
                 )
                 ${organisationID !== 0 ? 'AND o.organisation_id = @organisationID' : ''}
                 ${clusterID !== 0 ? 'AND o.hr_cluster_id = @clusterID' : ''}
-            AND log_year = @year AND log_month = @month
+            AND 1=1 AND 1=1
         `;
 
         const totalAbolishedVacantPost = `
             SELECT COUNT(*) AS totalAbolishedPost
-            FROM tbl_hr_post_strength_log ps
+            FROM tbl_hr_post_strength ps
             INNER JOIN mmt_organisation o ON ps.organisation_id = o.organisation_id
             WHERE
                 ps.vacant_or_filled = 'vacant'
@@ -1639,7 +1639,7 @@ async function getHRDashboardContentDataFiltered(req, res) {
                 )
                 ${organisationID !== 0 ? 'AND o.organisation_id = @organisationID' : ''}
                 ${clusterID !== 0 ? 'AND o.hr_cluster_id = @clusterID' : ''}
-            AND log_year = @year AND log_month = @month
+            AND 1=1 AND 1=1
         `;
 
         const [result1, result2, result3] = await Promise.all([
@@ -1681,8 +1681,8 @@ async function getDepartmentWiseEmpContByOrgFiltered(req, res) {
     if (organisationID !== 0) whereClause.push("ps.organisation_id = @organisationID");
     if (clusterID !== 0) whereClause.push("mo.hr_cluster_id = @clusterID");
 
-    whereClause.push("ps.log_year = @year");
-    whereClause.push("ps.log_month = @month");
+    whereClause.push("1=1");
+    whereClause.push("1=1");
 
     const finalWhereClause =
         whereClause.length > 0 ? `WHERE ${whereClause.join(" AND ")}` : "";
@@ -1712,7 +1712,7 @@ async function getDepartmentWiseEmpContByOrgFiltered(req, res) {
                         AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) <= GETDATE()
                     )
                 THEN 1 ELSE 0 END), 0) AS totalAbolishedPost
-            FROM dbo.tbl_hr_post_strength_log ps
+            FROM dbo.tbl_hr_post_strength ps
             LEFT JOIN mmt_hr_department d ON ps.department_id = d.department_id
             LEFT JOIN mmt_organisation mo ON ps.organisation_id = mo.organisation_id
             LEFT JOIN mmt_hr_post p ON ps.post_id = p.post_id

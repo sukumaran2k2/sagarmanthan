@@ -88,6 +88,7 @@ async function createFinancialParameter(req, res) {
     }
 }
 
+/*
 async function getFinancialParameter(req, res) {
     const conn = await pool;
     const request = conn.request();
@@ -126,6 +127,111 @@ async function getFinancialParameter(req, res) {
         return res.sendStatus(500);
     }
 };
+*/
+
+async function getFinancialParameter(req, res) {
+    const conn = await pool;
+    const request = conn.request();
+
+    const userID = req.params.userID;
+    request.input("userID", userID);
+
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+
+    try {
+        const userResult = await request.query(`
+            SELECT role_id
+            FROM tbl_user
+            WHERE user_id = @userID
+        `);
+            
+        const { role_id } = userResult.recordset[0];
+       
+        let query;
+        let countQuery = "";
+
+        if (page && limit) {
+            const offset = (page - 1) * limit;
+            request.input('offset', offset);
+            request.input('limit', limit);
+
+            if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+                query = `
+                    SELECT 
+                        tf.*, 
+                        org.organisation_name,
+                        COUNT(*) OVER() AS total_count
+                    FROM tbl_financial_parameter tf
+                    LEFT JOIN mmt_organisation org ON tf.organisation_id = org.organisation_id
+                    ORDER BY tf.year DESC, tf.month
+                    OFFSET @offset ROWS
+                    FETCH NEXT @limit ROWS ONLY
+                `;
+            } else {
+                const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
+                const organisationID = orgResult.recordset[0].organisation_id;
+
+                request.input('organisationID', organisationID);
+                query = `
+                    SELECT 
+                        tf.*, 
+                        org.organisation_name,
+                        COUNT(*) OVER() AS total_count
+                    FROM tbl_financial_parameter tf
+                    LEFT JOIN mmt_organisation org ON tf.organisation_id = org.organisation_id
+                    WHERE tf.organisation_id = @organisationID
+                    ORDER BY tf.year DESC, tf.month
+                    OFFSET @offset ROWS
+                    FETCH NEXT @limit ROWS ONLY
+                `;
+            }
+
+            const result = await request.query(query);
+            const total = result.recordset.length > 0 ? result.recordset[0].total_count : 0;
+            return res.status(200).json({
+                data: result.recordset,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            });
+        } else {
+            if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+                query = `
+                    SELECT 
+                        tf.*, 
+                        org.organisation_name
+                    FROM tbl_financial_parameter tf
+                    LEFT JOIN mmt_organisation org ON tf.organisation_id = org.organisation_id
+                    ORDER BY tf.year DESC, tf.month
+                `;
+            } else {
+                const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
+                const organisationID = orgResult.recordset[0].organisation_id;
+
+                request.input('organisationID', organisationID);
+                query = `
+                    SELECT 
+                        tf.*, 
+                        org.organisation_name
+                    FROM tbl_financial_parameter tf
+                    LEFT JOIN mmt_organisation org ON tf.organisation_id = org.organisation_id
+                    WHERE tf.organisation_id = @organisationID
+                    ORDER BY tf.year DESC, tf.month
+                `;
+            }
+
+            const result = await request.query(query);
+            return res.status(200).json(result.recordset);
+        }
+    } catch (err) {
+        console.error(err);
+        return res.sendStatus(500);
+    }
+}
 
 async function getMonthlyFinancialParameter(req, res) {
     const conn = await pool;

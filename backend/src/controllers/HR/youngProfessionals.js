@@ -12,11 +12,11 @@ async function createYoungProfessional(req, res) {
     let dateOfAppointment = req.body.dateOfAppointment;
     let postID = req.body.postID;
     const userID = req.body.userID;
-  
+
     if (wing == undefined) {
         return res.status(201).json({ message: "All fields are null. Nothing to insert." });
     }
-   
+
     if (dateOfAriseInVacancy == "") {
         dateOfAriseInVacancy = null;
     }
@@ -50,17 +50,17 @@ async function createYoungProfessional(req, res) {
         WHERE wing_id = @wing
     `);
 
-    const divisionQuery = await request.query(`
+        const divisionQuery = await request.query(`
         SELECT division_code
         FROM mmt_division
         WHERE division_id = @division
     `);
 
-    const wingCode = wingQuery.recordset[0].wing_code;
-    const divisionCode = divisionQuery.recordset[0].division_code;
+        const wingCode = wingQuery.recordset[0].wing_code;
+        const divisionCode = divisionQuery.recordset[0].division_code;
 
-    let combinedValue = `YP${wingCode}${divisionCode}${postID}`;
-    request.input("combinedValue", combinedValue);
+        let combinedValue = `YP${wingCode}${divisionCode}${postID}`;
+        request.input("combinedValue", combinedValue);
 
         const result = await request.query(`
             INSERT INTO tbl_young_professional (post_id, wing, division, post_status, date_of_arise_in_vacancy, date_of_vacancy_advertised, date_of_appointment, created_by)
@@ -77,8 +77,7 @@ async function createYoungProfessional(req, res) {
     }
 }
 
-async function getYoungProfessional (req, res) 
-{
+async function getYoungProfessional(req, res) {
     const conn = await pool;
 
     try {
@@ -93,8 +92,8 @@ async function getYoungProfessional (req, res)
 `);
         res.json(result.recordset);
     }
-    
-    catch(err) {
+
+    catch (err) {
         console.log(err);
         return res.sendStatus(500);
     }
@@ -112,7 +111,7 @@ async function addCandidateDetail(req, res) {
     const salary = req.body.salary;
     const appointmentDate = req.body.appointmentDate;
     const experience = req.body.experience;
-    const skill = req.body.skill;  
+    const skill = req.body.skill;
     const youngProfessionalId = req.body.youngProfessionalId;
     const conn = await pool;
     const request = conn.request();
@@ -130,27 +129,26 @@ async function addCandidateDetail(req, res) {
         const result = await request.query(`INSERT INTO tbl_yp_candidate (name, qualification, category, salary, date_of_appointment, experience, skill, young_professional_id) 
         OUTPUT INSERTED.candidate_id
         VALUES (@name, @qualification, @category, @salary, @appointmentDate, @experience, @skill, @youngProfessionalId)`);
-      
+
         if (result.recordset && result.recordset.length > 0) {
             const candidate_id = result.recordset[0].candidate_id;
             // console.log(candidate_id);
             res.status(201).json({ candidate_id });
         } else {
-           
+
             // console.log("No record inserted");
-            res.sendStatus(500); 
+            res.sendStatus(500);
         }
 
     } catch (err) {
         console.error(err);
         return res.status(500);
-        
+
     }
 }
 
-async function getCandidateDetail ( req, res)
-{
-    const youngProfessionalId = req.params.youngProfessionalId; 
+async function getCandidateDetail(req, res) {
+    const youngProfessionalId = req.params.youngProfessionalId;
     // console.log("Young Professional ID:", youngProfessionalId);
     // console.log(youngProfessionalId);
     const data = req.body;
@@ -160,49 +158,42 @@ async function getCandidateDetail ( req, res)
     const request = conn.request();
     request.input("Id", youngProfessionalId);
 
-    try
-    {   
+    try {
         const result = await request.query(`SELECT * FROM tbl_yp_candidate WHERE young_professional_id = @Id`);
         // console.log(result.recordset);
         res.json(result.recordset);
     }
-    catch(err)
-    {
+    catch (err) {
         console.log(err);
         return res.sendStatus(500);
     }
 };
 
-async function getCandidateDetailDocument ( req, res)
-{
+async function getCandidateDetailDocument(req, res) {
     const Id = req.params.candidate_id;
     const conn = await pool;
     const request = conn.request();
     request.input("Id", Id);
     // console.log("Id",Id);
-        
-    try
-    {
+
+    try {
         const result = await request.query(`SELECT * FROM tbl_yp_candidate_document WHERE candidate_id = @Id`);
         // console.log("result, result.recordset",result.recordset);
         res.json(result.recordset);
     }
-    catch(err)
-    {
+    catch (err) {
         console.log(err);
         return res.status(500);
     }
 };
 
-async function updateCandidateDocument ( req, res)
-{
+async function updateCandidateDocument(req, res) {
     const Id = req.params.Id;
     const conn = await pool;
     const request = conn.request();
     request.input("Id", Id);
 
-    try
-    {
+    try {
         const result = await request.query(`
         
         IF EXISTS (SELECT 1 FROM tbl_yp_candidate_document WHERE id = @Id)
@@ -221,8 +212,7 @@ async function updateCandidateDocument ( req, res)
         res.json(result.recordset);
 
     }
-    catch(err)
-    {
+    catch (err) {
         console.log(err);
         return res.status(500);
     }
@@ -230,7 +220,7 @@ async function updateCandidateDocument ( req, res)
 
 
 async function updateYoungProfessional(req, res) {
-        
+
     const data = req.body;
     // console.log("data",data);
 
@@ -265,7 +255,7 @@ async function updateYoungProfessional(req, res) {
     request.input("dateOfVacancyAdvertised", dateOfVacancyAdvertised);
     request.input("dateOfAppointment", dateOfAppointment);
     request.input("userId", userId);
-    
+
     const query = `
         UPDATE tbl_young_professional
         SET post_status = @postStatus,
@@ -276,7 +266,7 @@ async function updateYoungProfessional(req, res) {
             updated_by = @userId
         WHERE young_professional_id = @id
     `;
-    
+
     try {
 
         const result = await request.query(query);
@@ -284,7 +274,7 @@ async function updateYoungProfessional(req, res) {
         // console.log(result);
 
         res.sendStatus(201);
-        
+
     } catch (err) {
         console.error(err);
         return res.sendStatus(500);
@@ -292,34 +282,32 @@ async function updateYoungProfessional(req, res) {
 }
 
 
-async function deleteYoungProfessionalData(req, res) 
-{
+async function deleteYoungProfessionalData(req, res) {
     const youngProfessionalId = req.params.youngProfessionalId;
 
     console.log(youngProfessionalId);
     const conn = await pool;
     const request = conn.request();
     request.input("youngProfessionalId", youngProfessionalId);
-  
+
     const query = `DELETE FROM tbl_yp_candidate 
         WHERE young_professional_id = @youngProfessionalId;
     `;
-    
-    try 
-    {
+
+    try {
         const result = await request.query(query);
         // console.log("Rows affected:", result.rowsAffected);
 
         res.status(200).send(result);
-        
+
     } catch (err) {
         console.error(err);
         return res.sendStatus(500);
     }
 }
 
-async function updateCandidateDetail(req,res){
-    
+async function updateCandidateDetail(req, res) {
+
     const data = req.body;
     // console.log("data",data);
 
@@ -411,48 +399,47 @@ async function deleteYpCandideData(req, res) {
 
     try {
         await request.query(query);
-        res.sendStatus(201); 
+        res.sendStatus(201);
         // console.log('Delete successful');
     } catch (err) {
         console.error(err);
-        return res.sendStatus(500); 
+        return res.sendStatus(500);
     }
 }
 
-async function deleteYpCandidateData(req, res) 
-{
+async function deleteYpCandidateData(req, res) {
     try {
 
         const now = new Date();
-        const datePart = now.toISOString().slice(0, 10).replace(/-/g, ''); 
-        const hourPart = String(now.getHours()).padStart(2, '0'); 
-        const minutePart = String(now.getMinutes()).padStart(2, '0'); 
-        const secondPart = String(now.getSeconds()).padStart(2, '0'); 
+        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+        const hourPart = String(now.getHours()).padStart(2, '0');
+        const minutePart = String(now.getMinutes()).padStart(2, '0');
+        const secondPart = String(now.getSeconds()).padStart(2, '0');
         const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
         const logFolder = `./delete_log/Young_Professionals`;
         const logFileName = `${logFolder}/deleted_Yp_log_${timestamp}.txt`;
 
         const youngProfessionalId = req.params.youngProfessionalId;
         const userID = req.params.userID;
-        console.log('userID',userID);
+        console.log('userID', userID);
 
         const conn = await pool;
         const request = conn.request();
-        request.input('youngProfessionalId',youngProfessionalId);
+        request.input('youngProfessionalId', youngProfessionalId);
         request.input('exisyoungProfessionalID', exisyoungProfessionalID);
         const result = await conn.query(
             `SELECT * FROM tbl_young_professional WHERE young_professional_id = @youngProfessionalId`
         );
-        
-        console.log("result",result);
+
+        console.log("result", result);
         const exisyoungProfessionalID = result.recordset[0].young_professional_id;
 
-        console.log('exisyoungProfessionalID',exisyoungProfessionalID);
+        console.log('exisyoungProfessionalID', exisyoungProfessionalID);
         const DocFileResult = await conn.query(`SELECT appointment_order_document FROM tbl_yp_candidate_document WHERE candidate_id = @exisyoungProfessionalID`);
         // console.log("DocFileResult",DocFileResult);
         const DocfileNamearray = DocFileResult.recordset.length > 0 ? DocFileResult.recordset.map(record => record.appointment_order_document) : [];
         // console.log("Document file Name array",DocfileNamearray);
-        
+
         let dbDeletions = 0;
         let dbDocDeletions = 0;
         let dbCandidateDetailsDeletions = 0;
@@ -467,7 +454,7 @@ async function deleteYpCandidateData(req, res)
                 }
             });
 
-            try{ 
+            try {
                 request.input('fileName', fileName);
                 const docDeleteQuery = `DELETE FROM tbl_yp_candidate_document WHERE appointment_order_document = @fileName`;
                 const result = await conn.query(docDeleteQuery);
@@ -475,7 +462,7 @@ async function deleteYpCandidateData(req, res)
                 dbDocDeletions++;
 
                 const filePath = `./fileuploads/Young_Professionals/${fileName}`;
-                
+
                 if (fs.existsSync(filePath)) {
                     fs.unlink(filePath, (err) => {
                         if (err) {
@@ -490,7 +477,7 @@ async function deleteYpCandidateData(req, res)
                     console.log(`File '${fileName}' does not exist, no deletion needed.`);
                 }
 
-            }catch (error) {
+            } catch (error) {
                 console.error(`Error deleting record with fileName '${fileName}' from the database:`, error);
             }
         }
@@ -499,7 +486,7 @@ async function deleteYpCandidateData(req, res)
 
         //delete query for tbl_yp_candidate
         const candidateResult = await conn.query(`SELECT * FROM tbl_yp_candidate WHERE young_professional_id = @exisyoungProfessionalID`);
-        console.log("candidateResult",candidateResult.recordset[0]);
+        console.log("candidateResult", candidateResult.recordset[0]);
         const candidateResultarray = candidateResult.recordset.length > 0 ? candidateResult.recordset.map(record => record.young_professional_id) : [];
         // console.log("candidate Result array", candidateResultarray);
         const candidateData = candidateResult.recordset[0];
@@ -514,13 +501,13 @@ async function deleteYpCandidateData(req, res)
             });
             request.input('candidates', candidates);
             const candidateDeleteQuery = `DELETE FROM tbl_yp_candidate WHERE young_professional_id = @candidates`;
-            
-            try{
+
+            try {
                 const result = await conn.query(candidateDeleteQuery);
                 // console.log(`Record with young_professional_id candidate '${candidates}' deleted from the database successfully.`);
                 dbCandidateDetailsDeletions++;
 
-            }catch (error) {
+            } catch (error) {
                 console.error(`Error deleting record with candidates '${candidates}' from the database:`, error);
             }
         }
@@ -576,14 +563,28 @@ async function deleteYpCandidateData(req, res)
 }
 
 async function getYoungProfessionalWingData(req, res) {
-    const wingId = req.params.wingId;
-    const divisionId = req.params.divisionId;
+    let wingId = req.params.wingId;
+    let divisionId = req.params.divisionId;
+
+    if (wingId === 'null' || wingId === 'undefined') {
+        wingId = null;
+    }
+    if (divisionId === 'null' || divisionId === 'undefined') {
+        divisionId = null;
+    }
+
+    // Parse query params for pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
 
     const conn = await pool;
     const request = conn.request();
 
     request.input('wingId', wingId);
     request.input('divisionId', divisionId);
+    request.input('offset', offset);
+    request.input('limit', limit);
 
     try {
         const query = `
@@ -597,7 +598,8 @@ async function getYoungProfessionalWingData(req, res) {
             ypc.salary,
             FORMAT(ypc.date_of_appointment, 'dd-MM-yyyy') AS candidate_date_of_appointment,
             ypdoc.appointment_order_document,
-            COUNT(yp.young_professional_id) OVER(PARTITION BY yp.wing, yp.division) AS inposition
+            COUNT(yp.young_professional_id) OVER(PARTITION BY yp.wing, yp.division) AS inposition,
+            COUNT(*) OVER() AS total_count
         FROM tbl_young_professional yp
         LEFT JOIN tbl_yp_candidate ypc ON ypc.young_professional_id = yp.young_professional_id
         LEFT JOIN tbl_yp_candidate_document ypdoc ON ypc.candidate_id = ypdoc.candidate_id
@@ -605,12 +607,23 @@ async function getYoungProfessionalWingData(req, res) {
         LEFT JOIN mmt_division d ON d.division_id = yp.division
         WHERE (@wingId IS NULL OR yp.wing = @wingId)
         AND (@divisionId IS NULL OR yp.division = @divisionId)
-        ORDER BY yp.wing, yp.division, yp.young_professional_id;
+        ORDER BY yp.wing, yp.division, yp.young_professional_id
+        OFFSET @offset ROWS
+        FETCH NEXT @limit ROWS ONLY;
         `;
 
         const result = await request.query(query);
+        const total = result.recordset.length > 0 ? result.recordset[0].total_count : 0;
 
-        res.json(result.recordset);
+        res.json({
+            data: result.recordset,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
     } catch (err) {
         console.error("Error fetching young professional wing data:", err);
         return res.status(500).json({ message: "Internal Server Error" });
@@ -637,7 +650,7 @@ const upload = multer({
 }).single('file');
 
 async function uploadYPDocument(req, res) {
-    upload(req, res, async function(err) {
+    upload(req, res, async function (err) {
         if (err) {
             console.error(err);
             return res.status(500).json({ error: 'Error uploading file' });
@@ -648,11 +661,11 @@ async function uploadYPDocument(req, res) {
         }
 
         try {
-            const candidateId =  parseInt(req.params.candidateId);
+            const candidateId = parseInt(req.params.candidateId);
             const fileName = req.uniqueFileName;
 
             const conn = await pool;
-            
+
             const checkRequest = conn.request();
             checkRequest.input('candidateId', candidateId);
             const existingFileResult = await checkRequest.query(`
@@ -687,12 +700,11 @@ async function uploadYPDocument(req, res) {
     });
 }
 
-async function ypFileDownload(req, res) 
-{
+async function ypFileDownload(req, res) {
     const { fileName } = req.query;
 
     const uploadDestinationBase = './fileuploads/yp_candidate_document';
-    const filePath = path.join(uploadDestinationBase, fileName); 
+    const filePath = path.join(uploadDestinationBase, fileName);
 
     fs.readFile(filePath, (err, data) => {
         if (err) {
@@ -719,7 +731,7 @@ async function relieveYoungProfessional(req, res) {
     request.input("candidateId", candidateId);
     request.input("lastWorkingDate", lastWorkingDate);
     request.input("remarks", remarks);
-    console.log({ candidateId, lastWorkingDate, remarks});
+    console.log({ candidateId, lastWorkingDate, remarks });
     try {
 
         await request.query(`
@@ -742,7 +754,9 @@ async function relieveYoungProfessional(req, res) {
         res.sendStatus(500);
     }
 }
-export default { createYoungProfessional, getYoungProfessional, addCandidateDetail, updateYoungProfessional, 
+export default {
+    createYoungProfessional, getYoungProfessional, addCandidateDetail, updateYoungProfessional,
     deleteYoungProfessionalData, getCandidateDetail, getCandidateDetailDocument, updateCandidateDocument,
-    updateCandidateDetail, deleteYpCandidateData,getYoungProfessionalWingData,uploadYPDocument,upload,ypFileDownload,
-relieveYoungProfessional};
+    updateCandidateDetail, deleteYpCandidateData, getYoungProfessionalWingData, uploadYPDocument, upload, ypFileDownload,
+    relieveYoungProfessional
+};
