@@ -94,7 +94,7 @@ export default function Header({ onLogout, onProfileClick }) {
           <div className="flex items-center justify-between h-20">
 
              {/* Left: Emblem and Government branding (GIGW Standard layout) */}
-            <div className="flex items-center space-x-4 scale-90 origin-left">
+            <div className="flex items-center space-x-2 sm:space-x-4 scale-[0.8] sm:scale-90 lg:scale-100 origin-left flex-shrink">
               <div className="flex items-center space-x-3 lg:border-r lg:border-white/20 lg:pr-4">
                 <img
                     src="/emblem.svg"
