@@ -14,6 +14,11 @@ import ProfileView from './modules/Profile/Profile';
 import CabinetNotes from './modules/CabinetNotes/CabinetNotes';
 import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotes';
 import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
+import AuditParaView from './modules/AuditPara/AuditPara';
+import VIPReferenceView from './modules/VIPReference/VIPReference';
+import BillsPreConstitutionsView from './modules/BillsPreConstitutions/BillsPreConstitutions';
+import YoungProfessionalsView from './modules/YoungProfessionals/YoungProfessionals';
+import ConsultantAppointmentView from './modules/ConsultantAppointment/ConsultantAppointment';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
 import Loader from './components/Loader';
@@ -548,8 +553,28 @@ export default function App() {
               <ProfileView triggerNotification={triggerNotification} />
             )}
 
+            {activeTab === 'Audit Paras' && (
+              <AuditParaView />
+            )}
+
+            {activeTab === 'VIP Reference' && (
+              <VIPReferenceView />
+            )}
+
+            {activeTab === 'Acts & Rules' && (
+              <BillsPreConstitutionsView triggerNotification={triggerNotification} />
+            )}
+
+            {['YP Input Form', 'YP Reports'].includes(activeTab) && (
+              <YoungProfessionalsView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
+            )}
+
+            {['Consultant Input Form', 'Consultant Reports'].includes(activeTab) && (
+              <ConsultantAppointmentView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
+            )}
+
             {/* Placeholder / Empty State for other inactive government menu views */}
-            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue'].includes(activeTab) && (
+            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Audit Paras', 'VIP Reference', 'Acts & Rules', 'YP Input Form', 'YP Reports', 'Consultant Input Form', 'Consultant Reports'].includes(activeTab) && (
               <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
                 <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                   <Sparkles className="h-7 w-7 text-blue-600" />
