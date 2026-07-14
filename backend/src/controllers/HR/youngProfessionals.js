@@ -265,7 +265,7 @@ async function relieveYoungProfessional(req, res) {
 }
 
 // 7. Multer Upload & Document File Download
-const uploadDestination = './fileuploads/yp_candidate_document';
+const uploadDestination = './demoFiles/yp_candidate_document';
 if (!fs.existsSync(uploadDestination)) {
     fs.mkdirSync(uploadDestination, { recursive: true });
 }
@@ -284,6 +284,7 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 } // 10 MB
 }).single('file');
 
+/*
 async function uploadYPDocument(req, res) {
     upload(req, res, async function (err) {
         if (err) {
@@ -323,10 +324,71 @@ async function ypFileDownload(req, res) {
     fs.readFile(filePath, (err, data) => {
         if (err) {
             console.error("Error reading file:", err);
-            res.status(500).send("Internal Server Error");
+            res.status(555).send("Internal Server Error");
         } else {
             res.setHeader('Content-disposition', 'attachment; filename=' + fileName);
             res.setHeader('Content-type', 'application/pdf');
+            res.send(data);
+        }
+    });
+}
+*/
+
+async function uploadYPDocument(req, res) {
+    upload(req, res, async function (err) {
+        if (err) {
+            console.error(err);
+            return res.status(550).json({ error: 'Error uploading file' });
+        }
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        try {
+            const ypId = parseInt(req.params.candidateId);
+            const fileName = req.uniqueFileName;
+            const relativePath = `${uploadDestination}/${fileName}`.replace(/\\/g, '/');
+
+            const conn = await pool;
+            const updateRequest = conn.request();
+            updateRequest.input('ypId', ypId);
+            updateRequest.input('fileName', relativePath);
+            await updateRequest.query(`
+                UPDATE dbo.tbl_young_professionals
+                SET appointment_document = @fileName
+                WHERE yp_id = @ypId
+            `);
+
+            res.status(201).json({ message: 'Document uploaded successfully', fileName: relativePath });
+        } catch (error) {
+            console.error("Error updating yp document in DB:", error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+}
+
+async function ypFileDownload(req, res) {
+    const { fileName } = req.query;
+    if (!fileName) {
+        return res.status(400).send("Bad Request: fileName is required");
+    }
+    
+    let filePath;
+    if (fileName.includes('/') || fileName.includes('\\')) {
+        filePath = path.resolve(fileName);
+    } else {
+        filePath = path.join(uploadDestination, fileName);
+    }
+    
+    const resolvedBase = path.basename(filePath);
+
+    fs.readFile(filePath, (err, data) => {
+        if (err) {
+            console.error("Error reading file:", err);
+            res.status(550).send("File Not Found");
+        } else {
+            res.setHeader('Content-disposition', 'attachment; filename=' + encodeURIComponent(resolvedBase));
+            res.setHeader('Content-type', 'application/octet-stream');
             res.send(data);
         }
     });

@@ -1,15 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Table from '../../../components/Table';
-import { Search, X, Edit, UserMinus, BarChart3, List, FileSpreadsheet, Download } from 'lucide-react';
+import { Search, X, Edit, UserMinus, BarChart3, List, FileSpreadsheet, Download, ChevronDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';
+import ExportButtons from '../../../components/ExportButtons';
 
-export default function ListView({ 
-  rowData, 
-  loading, 
-  onEdit, 
-  onRefresh, 
-  triggerNotification 
+export default function ListView({
+  rowData,
+  loading,
+  onEdit,
+  onRefresh,
+  triggerNotification
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
@@ -18,6 +19,28 @@ export default function ListView({
   const [lastWorkingDate, setLastWorkingDate] = useState('');
   const [remarks, setRemarks] = useState('');
   const [submittingRelieve, setSubmittingRelieve] = useState(false);
+  const [gridApi, setGridApi] = useState(null);
+
+  // Column visibility checklist dropdown states
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const colDropdownRef = useRef(null);
+  const [visibleCols, setVisibleCols] = useState({
+    name: true,
+    role: true,
+    wing: true,
+    division: true,
+    status: true
+  });
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const filteredData = useMemo(() => {
     return rowData.filter(item => {
@@ -83,57 +106,137 @@ export default function ListView({
   };
 
   const handleExport = (type) => {
-    if (triggerNotification) {
-      triggerNotification(`Exporting Register data to ${type}...`);
+    if (type === 'Excel') {
+      if (gridApi) {
+        gridApi.exportDataAsCsv({
+          fileName: `Young_Professionals_Register_export.csv`
+        });
+        if (triggerNotification) {
+          triggerNotification(`Register data exported to Excel (CSV) successfully!`);
+        }
+      } else {
+        alert("Grid is not ready for export yet.");
+      }
+    } else if (type === 'PDF') {
+      if (triggerNotification) {
+        triggerNotification(`Preparing PDF document...`);
+      }
+      
+      const printWindow = window.open('', '_blank');
+      const title = 'Young Professionals - Register List';
+      
+      let headersHtml = '';
+      columnDefs.forEach(col => {
+        if (col.headerName && col.headerName !== 'Action') {
+          headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${col.headerName}</th>`;
+        }
+      });
+
+      let rowsHtml = '';
+      filteredData.forEach((row, rowIndex) => {
+        rowsHtml += '<tr>';
+        columnDefs.forEach(col => {
+          if (col.headerName && col.headerName !== 'Action') {
+            let val = '';
+            if (col.field === 'sNo') {
+              val = rowIndex + 1;
+            } else if (col.field === 'is_active') {
+              val = row[col.field] ? 'Active' : 'Relieved';
+            } else {
+              val = row[col.field] !== undefined ? row[col.field] : '';
+            }
+            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${val}</td>`;
+          }
+        });
+        rowsHtml += '</tr>';
+      });
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>${title}</title>
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
+              h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
+              table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            </style>
+          </head>
+          <body>
+            <h1>${title}</h1>
+            <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
+            <table>
+              <thead>
+                <tr>${headersHtml}</tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     }
   };
 
   const columnDefs = useMemo(() => [
-    { 
-      field: 'sNo', 
-      headerName: 'S.No', 
-      width: 70, 
-      cellClass: 'font-mono text-slate-600 text-center', 
-      headerClass: 'text-center' 
+    {
+      field: 'sNo',
+      headerName: 'S.No',
+      width: 70,
+      minWidth: 70,
+      cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center',
+      headerClass: 'text-center'
     },
-    { 
-      field: 'name', 
-      headerName: 'Name', 
-      flex: 1.5, 
-      minWidth: 150, 
-      cellClass: 'font-bold text-slate-800' 
+    {
+      field: 'name',
+      headerName: 'Name',
+      flex: 1.5,
+      minWidth: 150,
+      cellClass: 'font-bold text-slate-800 dark:text-slate-200',
+      hide: !visibleCols.name
     },
-    { 
-      field: 'role', 
-      headerName: 'Role', 
-      flex: 1.2, 
-      minWidth: 120, 
-      cellClass: 'text-slate-700 font-semibold' 
+    {
+      field: 'role',
+      headerName: 'Role',
+      flex: 1.2,
+      minWidth: 120,
+      cellClass: 'text-slate-700 dark:text-slate-350 font-semibold',
+      hide: !visibleCols.role
     },
-    { 
-      field: 'wing', 
-      headerName: 'Wing', 
-      flex: 1.2, 
-      minWidth: 120, 
-      cellClass: 'text-slate-600 font-medium' 
+    {
+      field: 'wing',
+      headerName: 'Wing',
+      flex: 1.2,
+      minWidth: 120,
+      cellClass: 'text-slate-600 dark:text-slate-400 font-medium',
+      hide: !visibleCols.wing
     },
-    { 
-      field: 'division', 
-      headerName: 'Division', 
-      flex: 1.2, 
-      minWidth: 120, 
-      cellClass: 'text-slate-655 font-medium' 
+    {
+      field: 'division',
+      headerName: 'Division',
+      flex: 1.2,
+      minWidth: 120,
+      cellClass: 'text-slate-655 dark:text-slate-400 font-medium',
+      hide: !visibleCols.division
     },
     {
       field: 'is_active',
       headerName: 'Status',
       width: 100,
+      minWidth: 100,
+      hide: !visibleCols.status,
       cellRenderer: (params) => {
         const isActive = params.value;
         return (
-          <span className={`text-xs font-black uppercase ${
-            isActive ? 'text-emerald-600' : 'text-rose-600'
-          }`}>
+          <span className={`text-xs font-black uppercase ${isActive ? 'text-emerald-600' : 'text-rose-600'
+            }`}>
             {isActive ? 'Active' : 'Relieved'}
           </span>
         );
@@ -142,13 +245,14 @@ export default function ListView({
     {
       headerName: 'Action',
       width: 120,
+      minWidth: 110,
       cellRenderer: (params) => {
         const yp = params.data;
         return (
           <div className="flex items-center space-x-3 py-2">
             <button
               onClick={() => onEdit(yp)}
-              className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
               title="Update"
             >
               <Edit className="h-4 w-4" />
@@ -166,13 +270,13 @@ export default function ListView({
         );
       }
     }
-  ], [onEdit]);
+  ], [onEdit, visibleCols]);
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative">
-      
+
       {/* Title & View Switcher Row with Search */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between border-b border-slate-100 pb-4">
         <div className="relative w-full sm:max-w-xs">
           <input
             type="text"
@@ -183,23 +287,53 @@ export default function ListView({
           />
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
         </div>
-        
-        {/* Toggle Switch Button Pair */}
-        <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50 dark:bg-slate-900 dark:border-slate-800">
-          <button
-            onClick={() => setViewMode('chart')}
-            className={`p-1.5 rounded transition ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
-            title="Chart View"
-          >
-            <BarChart3 className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('table')}
-            className={`p-1.5 rounded transition ${viewMode === 'table' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
-            title="Table View"
-          >
-            <List className="h-4 w-4" />
-          </button>
+
+        <div className="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+          {/* Column Visibility Dropdown */}
+          {viewMode === 'table' && (
+            <div className="relative" ref={colDropdownRef}>
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {dropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  {Object.keys(visibleCols).map(col => (
+                    <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[col]}
+                        onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{col === 'status' ? 'Status' : col}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Toggle Switch Button Pair */}
+          <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50 dark:bg-slate-900 dark:border-slate-800 ml-auto sm:ml-0">
+            <button
+              onClick={() => setViewMode('chart')}
+              className={`p-1.5 rounded transition ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
+              title="Chart View"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-1.5 rounded transition ${viewMode === 'table' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
+              title="Table View"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -213,6 +347,7 @@ export default function ListView({
             paginationPageSize={10}
             paginationPageSizeSelector={[10, 20, 50]}
             enableExport={false} // Disable Table.jsx built-in top-right Export button
+            onGridReady={(params) => setGridApi(params.api)}
             defaultColDef={{
               minWidth: 90,
               flex: 1,
@@ -222,7 +357,8 @@ export default function ListView({
             }}
           />
           {/* Style overrides to guarantee pagination visibility in light and dark themes and remove border radius */}
-          <style dangerouslySetInnerHTML={{__html: `
+          <style dangerouslySetInnerHTML={{
+            __html: `
             .ag-theme-quartz.rounded-xl {
               border-radius: 0px !important;
             }
@@ -297,23 +433,10 @@ export default function ListView({
 
       {/* Bottom left export options */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-        <div className="flex items-center space-x-2">
-          <span className="text-xs font-bold text-slate-500 mr-1 uppercase">Export as</span>
-          <button
-            onClick={() => handleExport('Excel')}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold hover:bg-emerald-100/50 transition cursor-pointer"
-            title="Export Excel"
-          >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-          </button>
-          <button
-            onClick={() => handleExport('PDF')}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold hover:bg-rose-100/50 transition cursor-pointer"
-            title="Export PDF"
-          >
-            <Download className="h-4 w-4 text-rose-600" />
-          </button>
-        </div>
+        <ExportButtons
+          onExportExcel={() => handleExport('Excel')}
+          onExportPdf={() => handleExport('PDF')}
+        />
         {viewMode === 'table' && (
           <div className="text-xs font-bold text-slate-550 uppercase tracking-wider">
             Total Rows: {filteredData.length}

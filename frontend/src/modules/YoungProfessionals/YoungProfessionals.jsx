@@ -5,7 +5,7 @@ import ListView from './pages/ListView';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 
-export default function YoungProfessionalsView({ triggerNotification }) {
+export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
   const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
   const [loading, setLoading] = useState(false);
   const [rowData, setRowData] = useState([]);
@@ -16,9 +16,19 @@ export default function YoungProfessionalsView({ triggerNotification }) {
 
   const tabs = [
     { id: 'list', label: 'List View' },
-    { id: 'report', label: 'Reports' },
+    { id: 'report', label: 'Report' },
     { id: 'add', label: 'Input Form' }
   ];
+
+  useEffect(() => {
+    if (activeSubTabProp === 'Input Form') {
+      setActiveSubTab('add');
+    } else if (activeSubTabProp === 'Report') {
+      setActiveSubTab('report');
+    } else if (activeSubTabProp === 'List View') {
+      setActiveSubTab('list');
+    }
+  }, [activeSubTabProp]);
 
   useEffect(() => {
     axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
@@ -80,6 +90,11 @@ export default function YoungProfessionalsView({ triggerNotification }) {
               setEditData(null);
             }
             setActiveSubTab(tabId);
+            if (setActiveSubTabProp) {
+              if (tabId === 'add') setActiveSubTabProp('Input Form');
+              else if (tabId === 'report') setActiveSubTabProp('Report');
+              else if (tabId === 'list') setActiveSubTabProp('List View');
+            }
           }}
         />
       </div>

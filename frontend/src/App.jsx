@@ -184,8 +184,9 @@ const getBreadcrumbs = (tab) => {
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
     'HR Reports': ['HR & Institutional', 'HR Management'],
-    'YP Input Form': ['HR & Institutional', 'Young Professionals'],
-    'YP Reports': ['HR & Institutional', 'Young Professionals'],
+    'List View': ['HR & Institutional', 'Young Professionals'],
+    'Input Form': ['HR & Institutional', 'Young Professionals'],
+    'Report': ['HR & Institutional', 'Young Professionals'],
     'Consultant Input Form': ['HR & Institutional', 'Consultant Appointment'],
     'Consultant Reports': ['HR & Institutional', 'Consultant Appointment'],
   };
@@ -292,10 +293,19 @@ const ROUTE_MAP = {
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
   'HR Reports': 'hr/hr-management/hr-reports',
+
+  // Young Professionals routes
+  'List View': 'hr/young-professionals/list-view',
+  'Input Form': 'hr/young-professionals/input-form',
+  'Report': 'hr/young-professionals/report',
+
+  // Consultant routes
+  'Consultant Input Form': 'hr/consultant-appointment/input-form',
+  'Consultant Reports': 'hr/consultant-appointment/reports',
 };
 
 const getTabFromSlug = (slug) => {
-  const cleanSlug = slug.replace(/^\//, '').replace(/\/$/, '');
+  const cleanSlug = decodeURIComponent(slug).replace(/^\//, '').replace(/\/$/, '');
   const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);
   return entry ? entry[0] : cleanSlug;
 };
@@ -565,7 +575,7 @@ export default function App() {
               <BillsPreConstitutionsView triggerNotification={triggerNotification} />
             )}
 
-            {['YP Input Form', 'YP Reports'].includes(activeTab) && (
+            {['List View', 'Input Form', 'Report'].includes(activeTab) && (
               <YoungProfessionalsView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
             )}
 
@@ -574,7 +584,7 @@ export default function App() {
             )}
 
             {/* Placeholder / Empty State for other inactive government menu views */}
-            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Audit Paras', 'VIP Reference', 'Acts & Rules', 'YP Input Form', 'YP Reports', 'Consultant Input Form', 'Consultant Reports'].includes(activeTab) && (
+            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Audit Paras', 'VIP Reference', 'Acts & Rules', 'List View', 'Input Form', 'Report', 'Consultant Input Form', 'Consultant Reports'].includes(activeTab) && (
               <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
                 <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                   <Sparkles className="h-7 w-7 text-blue-600" />
