@@ -225,8 +225,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Young Professionals',
           icon: UserCheck,
           items: [
-            { label: 'YP Input Form', icon: FileEdit },
-            { label: 'YP Reports', icon: FilePieChart }
+            { label: 'List View', icon: ClipboardList },
+            { label: 'Input Form', icon: FileEdit },
+            { label: 'Report', icon: FilePieChart }
           ]
         },
         {
@@ -474,7 +475,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
         </button>
 
         {/* Current Active Tab Info Badge */}
-        <div className="flex items-center space-x-1.5 bg-blue-50/70 border border-blue-100 rounded-full px-3 py-1.5 select-none">
+        <div className="hidden sm:flex items-center space-x-1.5 bg-blue-50/70 border border-blue-100 rounded-full px-3 py-1.5 select-none">
           <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
           <span className="text-[10px] font-black text-blue-800 uppercase tracking-tight truncate max-w-[160px] md:max-w-xs" title={activeTab}>
             {activeTab === 'landing' ? 'Home' : activeTab}

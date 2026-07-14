@@ -109,16 +109,16 @@ async function hrDetailedAbstarctReport(req, res) {
                     AND ps.employee_joined_date > '${previousYrEnd}'
                 )
             )
-            AND ps.log_month = 3
-            AND ps.log_year = ${startYear}
+            AND 1=1
+            AND 1=1
         THEN 1 ELSE 0
         END
     ) AS 'At the beginning of the FY',
 	SUM(CASE
         WHEN
                 ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, - 1, GETDATE()))
-                AND ps.log_month = MONTH(DATEADD(month, - 1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN
             1
         ELSE 0
@@ -142,8 +142,8 @@ async function hrDetailedAbstarctReport(req, res) {
                 (ps.vacant_or_filled = 'filled'  AND ps.employee_joined_date > '${previousYrEnd}' )
             )))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
         THEN 1
         ELSE 0
     END
@@ -151,8 +151,8 @@ async function hrDetailedAbstarctReport(req, res) {
 	SUM(CASE
         WHEN
             ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment IN('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -160,8 +160,8 @@ async function hrDetailedAbstarctReport(req, res) {
 	SUM(CASE
         WHEN
         	ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment = 'Promotion'
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -169,8 +169,8 @@ async function hrDetailedAbstarctReport(req, res) {
 	SUM(CASE
         WHEN
         	ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment = 'Deputation In'
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -178,8 +178,8 @@ async function hrDetailedAbstarctReport(req, res) {
 	SUM(CASE
         WHEN
         	ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment = 'Composite Method'
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -187,8 +187,8 @@ async function hrDetailedAbstarctReport(req, res) {
 	SUM(CASE
         WHEN
             ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment = 'Transfer In'
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -197,8 +197,8 @@ async function hrDetailedAbstarctReport(req, res) {
         WHEN
             ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
             	AND method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)', 'Promotion', 'Composite Method','Deputation In','Transfer In')
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -217,8 +217,8 @@ async function hrDetailedAbstarctReport(req, res) {
                     ps.exception_abolish = 1
                 )))
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -237,8 +237,8 @@ async function hrDetailedAbstarctReport(req, res) {
                     ps.exception_abolish = 1
                 )))
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -257,8 +257,8 @@ async function hrDetailedAbstarctReport(req, res) {
                     ps.exception_abolish = 1
                 )))
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -277,8 +277,8 @@ async function hrDetailedAbstarctReport(req, res) {
                     ps.exception_abolish = 1
                 )))
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -297,8 +297,8 @@ async function hrDetailedAbstarctReport(req, res) {
                     ps.exception_abolish = 1
                 )))
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -317,8 +317,8 @@ async function hrDetailedAbstarctReport(req, res) {
                     ps.exception_abolish = 1
                 )))
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -326,7 +326,7 @@ async function hrDetailedAbstarctReport(req, res) {
     FROM
     mmt_organisation m
 LEFT JOIN
-    tbl_hr_post_strength_log ps ON m.organisation_id = ps.organisation_id
+    tbl_hr_post_strength ps ON m.organisation_id = ps.organisation_id
 LEFT JOIN
     mmt_hr_post p ON
 	ps.post_id = p.post_id
@@ -746,7 +746,7 @@ async function hrAbstarctReport(req, res) {
   // FROM
   //     mmt_organisation m
   // LEFT JOIN
-  //     tbl_hr_post_strength_log ps ON m.organisation_id = ps.organisation_id
+  //     tbl_hr_post_strength ps ON m.organisation_id = ps.organisation_id
   // LEFT JOIN
   //     mmt_hr_post p ON ps.post_id = p.post_id
   // LEFT JOIN
@@ -774,7 +774,7 @@ async function hrAbstarctReport(req, res) {
   //         WHERE
   //             class_id = p.class_id) AS 'Total No of Posts Strength',
   //     (SELECT COUNT(*)
-  //         FROM tbl_hr_post_strength_log
+  //         FROM tbl_hr_post_strength
   //         WHERE organisation_id = mmt.organisation_id AND vacant_or_filled = 'vacant' AND
   //       date_of_arise_in_vacancy IS NOT NULL AND
   //       date_of_arise_in_vacancy <= '${previousYrEnd}' AND
@@ -784,13 +784,13 @@ async function hrAbstarctReport(req, res) {
   //       OR
   //       (exception_abolish = 1 AND exception_abolish_date IS NOT NULL AND
   //       '${previousYrEnd}' < exception_abolish_date)
-  //       ) AND log_month = 3 AND log_year = ${startYear} ) AS [At the beginning of the FY],
+  //       ) AND 1=1 AND 1=1 ) AS [At the beginning of the FY],
   //     SUM(CASE
   //         WHEN
   //             date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
   //                 AND ps.vacant_or_filled = 'vacant'
-  //                 AND ps.log_year = YEAR(DATEADD(month, - 1, GETDATE()))
-  //                 AND ps.log_month = MONTH(DATEADD(month, - 1, GETDATE()))
+  //                 AND 1=1
+  //                 AND 1=1
   //         THEN
   //             1
   //         ELSE 0
@@ -801,8 +801,8 @@ async function hrAbstarctReport(req, res) {
   //                 OR (vacant_or_filled = 'filled'
   //                 AND employee_joined_date >= '${fiscalYearStart}'))
   //                 AND DATEADD(YEAR, 5, ps.date_of_arise_in_vacancy) >= EOMONTH(DATEADD(MONTH, -1, GETDATE()))
-  //                 AND ps.log_year = YEAR(DATEADD(month, - 1, GETDATE()))
-  //                 AND ps.log_month = MONTH(DATEADD(month, - 1, GETDATE()))
+  //                 AND 1=1
+  //                 AND 1=1
   //         THEN
   //             1
   //         ELSE 0
@@ -810,8 +810,8 @@ async function hrAbstarctReport(req, res) {
   //     SUM(CASE
   //         WHEN
   //             ps.vacant_or_filled ='vacant' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment IN('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
-  // 				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-  // 				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+  // 				AND 1=1
+  // 				AND 1=1
   //         THEN
   //             1
   //         ELSE 0
@@ -819,8 +819,8 @@ async function hrAbstarctReport(req, res) {
   //     SUM(CASE
   //         WHEN
   //         	ps.vacant_or_filled ='filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment ='Promotion'
-  // 				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-  // 				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+  // 				AND 1=1
+  // 				AND 1=1
   //         THEN
   //             1
   //         ELSE 0
@@ -828,8 +828,8 @@ async function hrAbstarctReport(req, res) {
   //     SUM(CASE
   //         WHEN
   //         	ps.vacant_or_filled ='filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment ='Deputation'
-  // 				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-  // 				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+  // 				AND 1=1
+  // 				AND 1=1
   //         THEN
   //             1
   //         ELSE 0
@@ -837,8 +837,8 @@ async function hrAbstarctReport(req, res) {
   //     SUM(CASE
   //         WHEN
   //         	ps.vacant_or_filled ='filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment ='Composite Method'
-  // 				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-  // 				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+  // 				AND 1=1
+  // 				AND 1=1
   //         THEN
   //             1
   //         ELSE 0
@@ -846,8 +846,8 @@ async function hrAbstarctReport(req, res) {
   //     SUM(CASE
   //         WHEN
   //             ps.vacant_or_filled ='filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment ='Transfer'
-  // 				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-  // 				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+  // 				AND 1=1
+  // 				AND 1=1
   //         THEN
   //             1
   //         ELSE 0
@@ -856,8 +856,8 @@ async function hrAbstarctReport(req, res) {
   //         WHEN
   //             ps.vacant_or_filled ='filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
   //             	AND method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)', 'Promotion',  'Composite Method')
-  // 				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-  // 				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+  // 				AND 1=1
+  // 				AND 1=1
   //         THEN
   //             1
   //         ELSE 0
@@ -909,7 +909,7 @@ async function hrAbstarctReport(req, res) {
   // FROM
   //     mmt_organisation m
   //         LEFT JOIN
-  //     tbl_hr_post_strength_log ps ON m.organisation_id = ps.organisation_id
+  //     tbl_hr_post_strength ps ON m.organisation_id = ps.organisation_id
   //         LEFT JOIN
   //     mmt_hr_post p ON ps.post_id = p.post_id
   //         LEFT JOIN
@@ -927,13 +927,13 @@ async function hrAbstarctReport(req, res) {
 	p.class_id AS 'classId',
 
     COUNT(DISTINCT CASE
-        WHEN ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-          AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+        WHEN 1=1
+          AND 1=1
         THEN ps.post_id END) AS 'No of Posts',
 
     COUNT(CASE
-        WHEN ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-         AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+        WHEN 1=1
+         AND 1=1
         THEN ps.post_code END) AS 'Total No of Posts Strength',
 	SUM(
         CASE
@@ -961,16 +961,16 @@ async function hrAbstarctReport(req, res) {
                     AND ps.employee_joined_date > '${previousYrEnd}'
                 )
             )
-            AND ps.log_month = 3
-            AND ps.log_year = ${startYear}
+            AND 1=1
+            AND 1=1
         THEN 1 ELSE 0
         END
     ) AS 'At the beginning of the FY',
 	SUM(CASE
         WHEN
                 ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, - 1, GETDATE()))
-                AND ps.log_month = MONTH(DATEADD(month, - 1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN
             1
         ELSE 0
@@ -1002,8 +1002,8 @@ async function hrAbstarctReport(req, res) {
                 AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
             )
         )
-        AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+        AND 1=1
     THEN 1
     ELSE 0
 END
@@ -1011,8 +1011,8 @@ END
 	SUM(CASE
         WHEN
             ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment IN('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
-			AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-			AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+			AND 1=1
+			AND 1=1
         THEN
             1
         ELSE 0
@@ -1020,8 +1020,8 @@ END
 	SUM(CASE
         WHEN
         	ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}'  AND '${fiscalYearEnd}' AND method_of_appointment = 'Promotion'
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1029,8 +1029,8 @@ END
 	SUM(CASE
         WHEN
         	ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}'  AND '${fiscalYearEnd}' AND method_of_appointment = 'Deputation In'
-			AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-			AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+			AND 1=1
+			AND 1=1
         THEN
             1
         ELSE 0
@@ -1038,8 +1038,8 @@ END
 	SUM(CASE
         WHEN
         	ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}'  AND '${fiscalYearEnd}' AND method_of_appointment = 'Composite Method'
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1047,8 +1047,8 @@ END
 	SUM(CASE
         WHEN
             ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment = 'Transfer In'
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1056,8 +1056,8 @@ END
     SUM(CASE
         WHEN
             ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}' AND method_of_appointment = 'Absorption'
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1066,8 +1066,8 @@ END
         WHEN
             ps.vacant_or_filled = 'filled' AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
             	AND method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)', 'Promotion', 'Composite Method','Deputation In','Transfer In','Absorption')
-				AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+				AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1090,8 +1090,8 @@ END
                     )
                 )
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1114,8 +1114,8 @@ END
                     )
                 )
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1138,8 +1138,8 @@ END
                     )
                 )
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1162,8 +1162,8 @@ END
                     )
                 )
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1186,8 +1186,8 @@ END
                     )
                 )
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1210,8 +1210,8 @@ END
                     )
                 )
                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-				AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                AND 1=1
+				AND 1=1
         THEN
             1
         ELSE 0
@@ -1219,7 +1219,7 @@ END
 FROM
 	mmt_organisation m
 LEFT JOIN
-    tbl_hr_post_strength_log ps ON
+    tbl_hr_post_strength ps ON
 	m.organisation_id = ps.organisation_id
 LEFT JOIN
     mmt_hr_post p ON
@@ -1694,7 +1694,7 @@ async function hrFirstReport(req, res) {
             FROM
                 [mmt_organisation] o
             LEFT JOIN
-                [tbl_hr_post_strength_log] p ON o.[organisation_id] = p.[organisation_id]
+                [tbl_hr_post_strength] p ON o.[organisation_id] = p.[organisation_id]
             LEFT JOIN
                 [tbl_hr_anticipated] a ON o.[organisation_id] = a.[organisation_id] AND a.[fiscl_yr] = '${financialDrop}'
             LEFT JOIN
@@ -1702,7 +1702,7 @@ async function hrFirstReport(req, res) {
             LEFT JOIN
                 [mmt_organisation_category] oc ON o.[organisation_category_id] = oc.[organisation_category_id]
             WHERE
-                p.log_year = ${startYear} AND p.log_month = 3
+                1=1 AND 1=1
                 AND o.organisation_usermatrix_category_id = 2`;
 
   if (orgCatDrop === "0" && orgDrop === "0") {
@@ -1881,7 +1881,7 @@ async function detailedHrReport(req, res) {
         FROM
             [mmt_organisation] o
         LEFT JOIN
-            [tbl_hr_post_strength_log] p ON o.[organisation_id] = p.[organisation_id]
+            [tbl_hr_post_strength] p ON o.[organisation_id] = p.[organisation_id]
         LEFT JOIN
             [mmt_hr_post] po ON p.[post_id] = po.[post_id]
         LEFT JOIN
@@ -1892,7 +1892,7 @@ async function detailedHrReport(req, res) {
 		    [mmt_class] c ON po.[class_id] = c.[class_id]
         WHERE
                         o.organisation_id = ${organisationID} AND
-            p.log_month = 3 AND p.log_year = ${startYear} AND
+            1=1 AND 1=1 AND
             ( (p.date_of_arise_in_vacancy < '${fiscalYearStart}' AND p.vacant_or_filled = 'vacant'
              AND (
                 pa.abolish_required = 0
@@ -1916,7 +1916,7 @@ async function detailedHrReport(req, res) {
         FROM
             [mmt_organisation] o
         LEFT JOIN
-            [tbl_hr_post_strength_log] p ON o.[organisation_id] = p.[organisation_id]
+            [tbl_hr_post_strength] p ON o.[organisation_id] = p.[organisation_id]
         LEFT JOIN
             [mmt_hr_post] po ON p.[post_id] = po.[post_id]
         LEFT JOIN
@@ -1925,7 +1925,7 @@ async function detailedHrReport(req, res) {
 		    [mmt_class] c ON po.[class_id] = c.[class_id]
         WHERE
             o.organisation_id = ${organisationID} AND
-            p.log_month = 3 AND p.log_year = ${startYear} AND
+            1=1 AND 1=1 AND
             p.vacant_or_filled = 'vacant' AND
             p.date_of_arise_in_vacancy IS NOT NULL AND
             ((p.exception_abolish IS NULL OR p.exception_abolish = 0) AND
@@ -2065,8 +2065,8 @@ SELECT
                     AND ps.employee_joined_date > '${previousYrEnd}'
                 )
             )
-            AND ps.log_month = 3
-            AND ps.log_year = ${startYear}
+            AND 1=1
+            AND 1=1
         THEN 1 ELSE 0
         END
     ) AS [At the beginning of the FY],
@@ -2075,8 +2075,8 @@ SELECT
     SUM(
         CASE
             WHEN ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
         THEN 1 ELSE 0
         END
     ) AS [Occurred during the FY],
@@ -2108,8 +2108,8 @@ SELECT
                     AND ps.employee_joined_date > '${previousYrEnd}'
                 )
             )
-            AND ps.log_month = 3
-            AND ps.log_year = ${startYear}
+            AND 1=1
+            AND 1=1
         THEN 1 ELSE 0
         END
     )
@@ -2117,8 +2117,8 @@ SELECT
         SUM(
             CASE
                 WHEN ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0
             END
         )
@@ -2132,8 +2132,8 @@ SELECT
         CASE
             WHEN ps.vacant_or_filled = 'filled'
             AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND EOMONTH(GETDATE(), -2)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
         THEN 1 ELSE 0
         END
     ) AS [Filled from Beginning of the FY till last month],
@@ -2144,8 +2144,8 @@ SELECT
             WHEN ps.vacant_or_filled = 'filled'
             AND ps.employee_joined_date BETWEEN DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()) - 1, 1)
                 AND EOMONTH(GETDATE(), -1)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
         THEN 1 ELSE 0
         END
     ) AS [Filled during the month],
@@ -2155,8 +2155,8 @@ SELECT
         CASE
             WHEN ps.vacant_or_filled = 'filled'
             AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND EOMONTH(GETDATE(), -1)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
         THEN 1 ELSE 0
         END
     ) AS [Total filled up]
@@ -2164,7 +2164,7 @@ SELECT
 FROM
     mmt_organisation mmt
 LEFT JOIN
-    tbl_hr_post_strength_log ps ON mmt.organisation_id = ps.organisation_id
+    tbl_hr_post_strength ps ON mmt.organisation_id = ps.organisation_id
 LEFT JOIN
     tbl_hr_anticipated a ON mmt.organisation_id = a.organisation_id
     AND a.fiscl_yr = '${financialYear}'
@@ -2349,13 +2349,13 @@ async function detailedHrStatusFillingReport(req, res) {
   let result,
     query2 = "";
   if (type == 1) {
-    query2 = `WHERE p.log_month = MONTH(DATEADD(MONTH, -1, GETDATE())) AND p.log_year = YEAR(DATEADD(MONTH, -1, GETDATE())) AND
+    query2 = `WHERE 1=1 AND 1=1 AND
         o.organisation_id = ${organisationID} AND p.vacant_or_filled='filled' AND (p.employee_joined_date BETWEEN '${fiscalYearStart}' AND EOMONTH(GETDATE(), -2))`;
   } else if (type == 2) {
-    query2 = `WHERE  p.log_month = MONTH(DATEADD(MONTH, -1, GETDATE())) AND p.log_year = YEAR(DATEADD(MONTH, -1, GETDATE())) AND
+    query2 = `WHERE  1=1 AND 1=1 AND
         o.organisation_id = ${organisationID} AND p.vacant_or_filled='filled' AND (p.employee_joined_date BETWEEN DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE())-1, 1) AND EOMONTH(GETDATE(),-1))`;
   } else if (type == 3) {
-    query2 = `WHERE  p.log_month = MONTH(DATEADD(MONTH, -1, GETDATE())) AND p.log_year = YEAR(DATEADD(MONTH, -1, GETDATE())) AND
+    query2 = `WHERE  1=1 AND 1=1 AND
         o.organisation_id = ${organisationID} AND p.vacant_or_filled='filled' AND (p.employee_joined_date BETWEEN '${fiscalYearStart}' AND EOMONTH(GETDATE(),-1))`;
   }
 
@@ -2374,7 +2374,7 @@ async function detailedHrStatusFillingReport(req, res) {
         FROM
             [mmt_organisation] o
         LEFT JOIN
-            [tbl_hr_post_strength_log] p ON o.[organisation_id] = p.[organisation_id]
+            [tbl_hr_post_strength] p ON o.[organisation_id] = p.[organisation_id]
 
         LEFT JOIN
             [mmt_hr_post] po ON p.[post_id] = po.[post_id]
@@ -2469,8 +2469,8 @@ async function hrFourthReport(req, res) {
         -- At the Beginning of the FY
         SUM(CASE
             WHEN
-                ps.log_year = @logYear -- Use parameter for log_year
-                AND ps.log_month = 3
+                1=1 -- Use parameter for log_year
+                AND 1=1
                 AND ps.method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
                 AND (
                     (
@@ -2505,8 +2505,8 @@ async function hrFourthReport(req, res) {
             WHEN
                 ps.date_of_arise_in_vacancy BETWEEN @financialYearStart AND @financialYearEnd
                 AND ps.method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Vacancy risen during the year',
 
@@ -2520,8 +2520,8 @@ async function hrFourthReport(req, res) {
                 AND ps.method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
                 AND ps.employee_joined_date IS NOT NULL
                 AND ps.employee_joined_date BETWEEN @financialYearStart AND @financialYearEnd
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Filled during FY',
 
@@ -2529,8 +2529,8 @@ async function hrFourthReport(req, res) {
             (
             SUM(CASE
                 WHEN
-                    ps.log_year = @logYear
-                    AND ps.log_month = 3
+                    1=1
+                    AND 1=1
                     AND ps.method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
                     AND (
                         (
@@ -2563,8 +2563,8 @@ async function hrFourthReport(req, res) {
                 WHEN
                     ps.date_of_arise_in_vacancy BETWEEN @financialYearStart AND @financialYearEnd
                     AND ps.method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
-                    AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                    AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                    AND 1=1
+                    AND 1=1
                 THEN 1 ELSE 0
             END)
             -
@@ -2574,8 +2574,8 @@ async function hrFourthReport(req, res) {
                     AND ps.method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
                     AND ps.employee_joined_date IS NOT NULL
                     AND ps.employee_joined_date BETWEEN @financialYearStart AND @financialYearEnd
-                    AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                    AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                    AND 1=1
+                    AND 1=1
                 THEN 1 ELSE 0
             END)
             -
@@ -2597,8 +2597,8 @@ async function hrFourthReport(req, res) {
                         )
                     )
                     AND ps.date_of_arise_in_vacancy <= @financialYearEnd
-                    AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                    AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                    AND 1=1
+                    AND 1=1
                 THEN 1 ELSE 0
             END)
         ) AS [Filled by Other method Appointment],
@@ -2623,8 +2623,8 @@ async function hrFourthReport(req, res) {
                     )
                 )
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Balance to be filled up',
 
@@ -2649,8 +2649,8 @@ async function hrFourthReport(req, res) {
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
                 AND ps.method_of_appointment IN ('Direct Recruitment', 'Direct Recruitment (Compassionate Method)')
                 AND ps.process_initiated_date IS NULL
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Process not initiated',
 
@@ -2679,8 +2679,8 @@ async function hrFourthReport(req, res) {
                 AND ps.selection_process_completed_date IS NULL
                 AND ps.result_declared_date IS NULL
                 AND ps.appointment_letter_issued_date IS NULL
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Process started but advertisement yet to be published',
 
@@ -2709,8 +2709,8 @@ async function hrFourthReport(req, res) {
                 AND ps.selection_process_completed_date IS NULL
                 AND ps.result_declared_date IS NULL
                 AND ps.appointment_letter_issued_date IS NULL
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Notification/Adv Issued',
 
@@ -2738,8 +2738,8 @@ async function hrFourthReport(req, res) {
                 AND ps.selection_process_completed_date IS NULL
                 AND ps.result_declared_date IS NULL
                 AND ps.appointment_letter_issued_date IS NULL
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Exam Conducted',
 
@@ -2766,8 +2766,8 @@ async function hrFourthReport(req, res) {
                 AND ps.selection_process_completed_date IS NULL
                 AND ps.result_declared_date IS NULL
                 AND ps.appointment_letter_issued_date IS NULL
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Interview Conducted',
 
@@ -2793,8 +2793,8 @@ async function hrFourthReport(req, res) {
                 AND ps.selection_process_completed_date IS NOT NULL
                 AND ps.result_declared_date IS NULL
                 AND ps.appointment_letter_issued_date IS NULL
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Selection Process Completed',
 
@@ -2819,8 +2819,8 @@ async function hrFourthReport(req, res) {
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
                 AND ps.result_declared_date IS NOT NULL
                 AND ps.appointment_letter_issued_date IS NULL
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Result Declared',
 
@@ -2844,13 +2844,13 @@ async function hrFourthReport(req, res) {
                 )
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
                 AND ps.appointment_letter_issued_date IS NOT NULL
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
             THEN 1 ELSE 0 END
         ) AS 'Appointment Letter issued'
 
     FROM mmt_organisation mmt
-    INNER JOIN tbl_hr_post_strength_log ps ON mmt.organisation_id = ps.organisation_id
+    INNER JOIN tbl_hr_post_strength ps ON mmt.organisation_id = ps.organisation_id
     INNER JOIN mmt_hr_post post ON ps.post_id = post.post_id
     INNER JOIN mmt_class mmtc ON post.class_id = mmtc.class_id
     INNER JOIN mmt_hr_department department ON post.department_id = department.department_id
@@ -3187,8 +3187,8 @@ async function hrFourthDetailedReport(req, res) {
      -- At the Beginning of the FY
     SUM(CASE
         WHEN
-            ps.log_year = ${startYear}
-            AND ps.log_month = 3
+            1=1
+            AND 1=1
             AND (
                 (ps.date_of_arise_in_vacancy < '${fiscalYearStart}'
                  AND ps.vacant_or_filled = 'vacant'
@@ -3213,8 +3213,8 @@ async function hrFourthDetailedReport(req, res) {
     SUM(CASE
         WHEN
             ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Vacancy risen during the year',
 
     -- Filled Posts During FY
@@ -3223,8 +3223,8 @@ async function hrFourthDetailedReport(req, res) {
             ps.vacant_or_filled = 'filled'
             AND ps.employee_joined_date IS NOT NULL
             AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Filled during FY',
 
     -- Balance to be Filled
@@ -3242,8 +3242,8 @@ async function hrFourthDetailedReport(req, res) {
                                  ps.exception_abolish = 1
                 )))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Balance to be filled up',
 
     -- Process Not Started
@@ -3262,8 +3262,8 @@ async function hrFourthDetailedReport(req, res) {
 )))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process not initiated',
 
     -- Process Started but No Advertisement Yet
@@ -3283,8 +3283,8 @@ async function hrFourthDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NOT NULL AND (ps.[notification_adv_issued_date] IS NULL AND ps.[exam_conducted_date] IS NULL AND ps.[interview_conducted_date] IS NULL
             AND ps.[selection_process_completed_date] IS NULL AND ps.[result_declared_date] IS NULL AND ps.[appointment_letter_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process started but advertisement yet to be published',
 
     -- Notifications/Advertisements Issued
@@ -3304,8 +3304,8 @@ async function hrFourthDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.notification_adv_issued_date IS NOT NULL AND ( ps.[exam_conducted_date] IS NULL AND ps.[interview_conducted_date] IS NULL
             AND ps.[selection_process_completed_date] IS NULL AND ps.[result_declared_date] IS NULL AND ps.[appointment_letter_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Notification/Adv Issued',
 
     -- Exams Conducted/Selection Process Completed
@@ -3325,8 +3325,8 @@ async function hrFourthDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.exam_conducted_date IS NOT NULL AND ( ps.[interview_conducted_date] IS NULL
             AND ps.[selection_process_completed_date] IS NULL AND ps.[result_declared_date] IS NULL AND ps.[appointment_letter_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Exam Conducted',
 
         -- Interview Conducted
@@ -3345,8 +3345,8 @@ async function hrFourthDetailedReport(req, res) {
 )))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.interview_conducted_date IS NOT NULL AND (ps.[selection_process_completed_date] IS NULL AND ps.[result_declared_date] IS NULL AND ps.[appointment_letter_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Interview Conducted',
 
     -- Selection Process Completed
@@ -3365,8 +3365,8 @@ async function hrFourthDetailedReport(req, res) {
 )))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.selection_process_completed_date IS NOT NULL AND (ps.[result_declared_date] IS NULL AND ps.[appointment_letter_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Selection Process Completed',
 
 
@@ -3386,8 +3386,8 @@ async function hrFourthDetailedReport(req, res) {
 )))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.result_declared_date IS NOT NULL AND (ps.[appointment_letter_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Result Declared',
 
     -- Appointment Letters Issued
@@ -3406,11 +3406,11 @@ async function hrFourthDetailedReport(req, res) {
 )))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.appointment_letter_issued_date IS NOT NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Appointment Letter issued'
 FROM mmt_organisation mmt
-INNER JOIN tbl_hr_post_strength_log ps ON mmt.organisation_id = ps.organisation_id
+INNER JOIN tbl_hr_post_strength ps ON mmt.organisation_id = ps.organisation_id
 INNER JOIN mmt_hr_post post ON ps.post_id = post.post_id
 INNER JOIN mmt_class mmtc ON post.class_id = mmtc.class_id
 INNER JOIN mmt_hr_department department ON post.department_id = department.department_id
@@ -3740,9 +3740,9 @@ async function hrFifthReport(req, res) {
         -- At the Beginning of the FY
         SUM(CASE
             WHEN
-                ps.log_year = @logYear
+                1=1
                 AND ps.method_of_appointment = 'Promotion'
-                AND ps.log_month = 3
+                AND 1=1
                 AND (
                     (ps.date_of_arise_in_vacancy < @financialYearStart
                         AND ps.vacant_or_filled = 'vacant'
@@ -3771,8 +3771,8 @@ async function hrFifthReport(req, res) {
             WHEN
                 ps.date_of_arise_in_vacancy BETWEEN @financialYearStart AND @financialYearEnd
                 AND ps.method_of_appointment = 'Promotion'
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN 1 ELSE 0 END) AS 'Vacancy risen during the year',
 
         -- Anticipated Vacancies from CTE
@@ -3785,16 +3785,16 @@ async function hrFifthReport(req, res) {
                 AND ps.method_of_appointment = 'Promotion'
                 AND ps.employee_joined_date IS NOT NULL
                 AND ps.employee_joined_date BETWEEN @financialYearStart AND @financialYearEnd
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN 1 ELSE 0 END) AS 'Filled during FY',
           -- Filled by Other method Appointment (Promotion) with non-negative clamp
           CASE
               WHEN (
                   SUM(CASE WHEN
                       ps.method_of_appointment = 'Promotion'
-                      AND ps.log_year = @logYear
-                      AND ps.log_month = 3
+                      AND 1=1
+                      AND 1=1
                       AND ps.date_of_arise_in_vacancy < @financialYearStart
                       AND (
                           (ps.vacant_or_filled = 'vacant'
@@ -3821,16 +3821,16 @@ async function hrFifthReport(req, res) {
                   SUM(CASE WHEN
                       ps.method_of_appointment = 'Promotion'
                       AND ps.date_of_arise_in_vacancy BETWEEN @financialYearStart AND @financialYearEnd
-                      AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-                      AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+                      AND 1=1
+                      AND 1=1
                   THEN 1 ELSE 0 END)
                   -
                   SUM(CASE WHEN
                       ps.method_of_appointment = 'Promotion'
                       AND ps.vacant_or_filled = 'filled'
                       AND ps.employee_joined_date BETWEEN @financialYearStart AND @financialYearEnd
-                      AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-                      AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+                      AND 1=1
+                      AND 1=1
                   THEN 1 ELSE 0 END)
                   -
                   SUM(CASE WHEN
@@ -3848,8 +3848,8 @@ async function hrFifthReport(req, res) {
                               )
                           )
                       )
-                      AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-                      AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+                      AND 1=1
+                      AND 1=1
                   THEN 1 ELSE 0 END)
               ) < 0 
               THEN 0
@@ -3857,8 +3857,8 @@ async function hrFifthReport(req, res) {
                   -- Repeat the same expression for positive results
                   SUM(CASE WHEN
                       ps.method_of_appointment = 'Promotion'
-                      AND ps.log_year = @logYear
-                      AND ps.log_month = 3
+                      AND 1=1
+                      AND 1=1
                       AND ps.date_of_arise_in_vacancy < @financialYearStart
                       AND (
                           (ps.vacant_or_filled = 'vacant'
@@ -3883,15 +3883,15 @@ async function hrFifthReport(req, res) {
                   + SUM(CASE WHEN
                       ps.method_of_appointment = 'Promotion'
                       AND ps.date_of_arise_in_vacancy BETWEEN @financialYearStart AND @financialYearEnd
-                      AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-                      AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+                      AND 1=1
+                      AND 1=1
                   THEN 1 ELSE 0 END)
                   - SUM(CASE WHEN
                       ps.method_of_appointment = 'Promotion'
                       AND ps.vacant_or_filled = 'filled'
                       AND ps.employee_joined_date BETWEEN @financialYearStart AND @financialYearEnd
-                      AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-                      AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+                      AND 1=1
+                      AND 1=1
                   THEN 1 ELSE 0 END)
                   - SUM(CASE WHEN
                       ps.method_of_appointment = 'Promotion'
@@ -3908,8 +3908,8 @@ async function hrFifthReport(req, res) {
                               )
                           )
                       )
-                      AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-                      AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+                      AND 1=1
+                      AND 1=1
                   THEN 1 ELSE 0 END)
               )
           END AS [Filled by Other method Appointment],
@@ -3932,8 +3932,8 @@ async function hrFifthReport(req, res) {
                         )
                     )
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN 1 ELSE 0 END) AS 'Balance to be filled up',
 
         -- Process Not Started
@@ -3955,8 +3955,8 @@ async function hrFifthReport(req, res) {
                     )
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
                 AND ps.process_initiated_date IS NULL
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN 1 ELSE 0 END) AS 'Process not initiated',
 
         -- Process initiated vc not received
@@ -3979,8 +3979,8 @@ async function hrFifthReport(req, res) {
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
                 AND ps.process_initiated_date IS NOT NULL AND (ps.[vigilance_clr_received_date] IS NULL AND ps.[dpc_conducted_date] IS NULL AND ps.[approval_by_ca_date] IS NULL
                 AND ps.[promotion_order_issued_date] IS NULL )
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN 1 ELSE 0 END) AS 'Process initiated vc not received',
 
         -- Vigilance clearance received
@@ -4003,8 +4003,8 @@ async function hrFifthReport(req, res) {
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
                 AND ps.vigilance_clr_received_date IS NOT NULL AND ( ps.[dpc_conducted_date] IS NULL AND ps.[approval_by_ca_date] IS NULL
                 AND ps.[promotion_order_issued_date] IS NULL)
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN 1 ELSE 0 END) AS 'Vigilance clearance received',
 
         -- DPC conducted
@@ -4027,8 +4027,8 @@ async function hrFifthReport(req, res) {
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
                 AND ps.dpc_conducted_date IS NOT NULL AND ( ps.[approval_by_ca_date] IS NULL
                 AND ps.[promotion_order_issued_date] IS NULL )
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN 1 ELSE 0 END) AS 'DPC conducted',
 
             -- Approval by competent authority
@@ -4050,8 +4050,8 @@ async function hrFifthReport(req, res) {
                     )
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
                 AND ps.approval_by_ca_date IS NOT NULL AND (ps.[promotion_order_issued_date] IS NULL)
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN 1 ELSE 0 END) AS 'Approval by competent authority',
 
         -- Promotion order issued
@@ -4073,12 +4073,12 @@ async function hrFifthReport(req, res) {
                     )
                 AND ps.date_of_arise_in_vacancy <= @financialYearEnd
                 AND ps.promotion_order_issued_date IS NOT NULL
-                AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                AND 1=1
+                AND 1=1
         THEN 1 ELSE 0 END) AS 'Promotion order issued'
 
     FROM mmt_organisation mmt
-    LEFT JOIN tbl_hr_post_strength_log ps ON mmt.organisation_id = ps.organisation_id
+    LEFT JOIN tbl_hr_post_strength ps ON mmt.organisation_id = ps.organisation_id
     LEFT JOIN mmt_hr_post post ON ps.post_id = post.post_id
     LEFT JOIN mmt_class mmtc ON post.class_id = mmtc.class_id
     LEFT JOIN mmt_hr_department department ON post.department_id = department.department_id
@@ -4390,8 +4390,8 @@ async function hrFifthDetailedReport(req, res) {
     -- At the Beginning of the FY
     SUM(CASE
         WHEN
-            ps.log_year = ${startYear}
-            AND ps.log_month = 3
+            1=1
+            AND 1=1
             AND (
                 (ps.date_of_arise_in_vacancy < '${fiscalYearStart}'
                  AND ps.vacant_or_filled = 'vacant'
@@ -4418,8 +4418,8 @@ async function hrFifthDetailedReport(req, res) {
     SUM(CASE
         WHEN
             ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Vacancy risen during the year',
 
     -- Filled Posts During FY
@@ -4428,8 +4428,8 @@ async function hrFifthDetailedReport(req, res) {
             ps.vacant_or_filled = 'filled'
             AND ps.employee_joined_date IS NOT NULL
             AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Filled during FY',
 
     -- Balance to be Filled
@@ -4449,8 +4449,8 @@ async function hrFifthDetailedReport(req, res) {
                     )
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Balance to be filled up',
 
     -- Process Not Started
@@ -4471,8 +4471,8 @@ async function hrFifthDetailedReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process not initiated',
 
     -- Process initiated vc not received
@@ -4494,8 +4494,8 @@ async function hrFifthDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NOT NULL AND (ps.[vigilance_clr_received_date] IS NULL AND ps.[dpc_conducted_date] IS NULL AND ps.[approval_by_ca_date] IS NULL
             AND ps.[promotion_order_issued_date] IS NULL )
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process initiated vc not received',
 
     -- Vigilance clearance received
@@ -4517,8 +4517,8 @@ async function hrFifthDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.vigilance_clr_received_date IS NOT NULL AND ( ps.[dpc_conducted_date] IS NULL AND ps.[approval_by_ca_date] IS NULL
             AND ps.[promotion_order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Vigilance clearance received',
 
     -- DPC conducted
@@ -4540,8 +4540,8 @@ async function hrFifthDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.dpc_conducted_date IS NOT NULL AND ( ps.[approval_by_ca_date] IS NULL
             AND ps.[promotion_order_issued_date] IS NULL )
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'DPC conducted',
 
         -- Approval by competent authority
@@ -4562,8 +4562,8 @@ async function hrFifthDetailedReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.approval_by_ca_date IS NOT NULL AND (ps.[promotion_order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Approval by competent authority',
 
     -- Promotion order issued
@@ -4584,12 +4584,12 @@ async function hrFifthDetailedReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.promotion_order_issued_date IS NOT NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Promotion order issued'
         FROM
             mmt_organisation mmt
-        LEFT JOIN tbl_hr_post_strength_log ps ON mmt.organisation_id = ps.organisation_id
+        LEFT JOIN tbl_hr_post_strength ps ON mmt.organisation_id = ps.organisation_id
         LEFT JOIN mmt_hr_post post ON ps.post_id = post.post_id
         LEFT JOIN mmt_class mmtc ON post.class_id = mmtc.class_id
         LEFT JOIN mmt_hr_department department ON post.department_id = department.department_id
@@ -4891,8 +4891,8 @@ async function hrSixthReport(req, res) {
     -- At the Beginning of the FY
     SUM(CASE
         WHEN
-            ps.log_year = ${startYear}
-            AND ps.log_month = 3
+            1=1
+            AND 1=1
             AND (
                 (ps.date_of_arise_in_vacancy < '${fiscalYearStart}'
                  AND ps.vacant_or_filled = 'vacant'
@@ -4918,8 +4918,8 @@ async function hrSixthReport(req, res) {
     SUM(CASE
         WHEN
             ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Vacancy risen during the year',
 
     -- Filled Posts During FY
@@ -4928,8 +4928,8 @@ async function hrSixthReport(req, res) {
             ps.vacant_or_filled = 'filled'
             AND ps.employee_joined_date IS NOT NULL
             AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Filled during FY',
 
     -- Balance to be Filled
@@ -4949,8 +4949,8 @@ async function hrSixthReport(req, res) {
                     )
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Balance to be filled up',
 
     -- Process Not Started
@@ -4971,8 +4971,8 @@ async function hrSixthReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process not initiated',
 
     -- Process initiated but notification yet to be issued
@@ -4994,8 +4994,8 @@ async function hrSixthReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NOT NULL AND (ps.[notification_adv_issued_date] IS NULL AND ps.[application_received_date] IS NULL AND ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process initiated but notification yet to be issued',
 
     -- Notification Adv Issued
@@ -5017,8 +5017,8 @@ async function hrSixthReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.notification_adv_issued_date IS NOT NULL AND ( ps.[application_received_date] IS NULL AND ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Notification Adv Issued',
 
     -- Application Received
@@ -5040,8 +5040,8 @@ async function hrSixthReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.application_received_date IS NOT NULL AND ( ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Application Received',
 
         -- Review of application by Committee
@@ -5062,8 +5062,8 @@ async function hrSixthReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.review_application_by_comm IS NOT NULL AND (ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Review of application by Committee',
 
     -- Approval Received
@@ -5084,8 +5084,8 @@ async function hrSixthReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.approval_received_date IS NOT NULL AND ps.[order_issued_date] IS NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Approval Received',
 
     SUM(CASE
@@ -5105,12 +5105,12 @@ async function hrSixthReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.[order_issued_date] IS NOT NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Order issued'
 
 FROM mmt_organisation mmt
-LEFT JOIN tbl_hr_post_strength_log ps ON mmt.organisation_id = ps.organisation_id
+LEFT JOIN tbl_hr_post_strength ps ON mmt.organisation_id = ps.organisation_id
 LEFT JOIN mmt_hr_post post ON ps.post_id = post.post_id
 LEFT JOIN mmt_class mmtc ON post.class_id = mmtc.class_id
 LEFT JOIN mmt_hr_department department ON post.department_id = department.department_id
@@ -5415,8 +5415,8 @@ async function hrSixthDetailedReport(req, res) {
     -- At the Beginning of the FY
     SUM(CASE
         WHEN
-            ps.log_year = ${startYear}
-            AND ps.log_month = 3
+            1=1
+            AND 1=1
             AND (
                 (ps.date_of_arise_in_vacancy < '${fiscalYearStart}'
                  AND ps.vacant_or_filled = 'vacant'
@@ -5443,8 +5443,8 @@ async function hrSixthDetailedReport(req, res) {
     SUM(CASE
         WHEN
             ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Vacancy risen during the year',
 
     -- Filled Posts During FY
@@ -5453,8 +5453,8 @@ async function hrSixthDetailedReport(req, res) {
             ps.vacant_or_filled = 'filled'
             AND ps.employee_joined_date IS NOT NULL
             AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Filled during FY',
 
     -- Balance to be Filled
@@ -5474,8 +5474,8 @@ async function hrSixthDetailedReport(req, res) {
                     )
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Balance to be filled up',
 
     -- Process Not Started
@@ -5496,8 +5496,8 @@ async function hrSixthDetailedReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process not initiated',
 
     -- Process initiated but notification yet to be issued
@@ -5519,8 +5519,8 @@ async function hrSixthDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NOT NULL AND (ps.[notification_adv_issued_date] IS NULL AND ps.[application_received_date] IS NULL AND ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process initiated but notification yet to be issued',
 
     -- Notification Adv Issued
@@ -5542,8 +5542,8 @@ async function hrSixthDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.notification_adv_issued_date IS NOT NULL AND ( ps.[application_received_date] IS NULL AND ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Notification Adv Issued',
 
     -- Application Received
@@ -5565,8 +5565,8 @@ async function hrSixthDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.application_received_date IS NOT NULL AND ( ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Application Received',
 
         -- Review of application by Committee
@@ -5587,8 +5587,8 @@ async function hrSixthDetailedReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.review_application_by_comm IS NOT NULL AND (ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Review of application by Committee',
 
     -- Approval Received
@@ -5609,8 +5609,8 @@ async function hrSixthDetailedReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.approval_received_date IS NOT NULL AND ps.[order_issued_date] IS NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Approval Received',
 
     SUM(CASE
@@ -5630,11 +5630,11 @@ async function hrSixthDetailedReport(req, res) {
                 )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.[order_issued_date] IS NOT NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Order issued'
     FROM mmt_organisation mmt
-    LEFT JOIN tbl_hr_post_strength_log ps ON mmt.organisation_id = ps.organisation_id
+    LEFT JOIN tbl_hr_post_strength ps ON mmt.organisation_id = ps.organisation_id
     LEFT JOIN mmt_hr_post post ON ps.post_id = post.post_id
     LEFT JOIN mmt_class mmtc ON post.class_id = mmtc.class_id
     LEFT JOIN mmt_hr_department department ON post.department_id = department.department_id
@@ -5945,8 +5945,8 @@ async function hrSeventhReport(req, res) {
     -- At the Beginning of the FY
     SUM(CASE
         WHEN
-            ps.log_year = ${startYear}
-            AND ps.log_month = 3
+            1=1
+            AND 1=1
             AND (
                 (
                     ps.date_of_arise_in_vacancy < '${fiscalYearStart}'
@@ -5977,8 +5977,8 @@ async function hrSeventhReport(req, res) {
     SUM(CASE
         WHEN
             ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Vacancy risen during the year',
 
     -- Filled Posts During FY
@@ -5987,8 +5987,8 @@ async function hrSeventhReport(req, res) {
             ps.vacant_or_filled = 'filled'
             AND ps.employee_joined_date IS NOT NULL
             AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Filled during FY',
 
     -- Balance to be Filled
@@ -6009,8 +6009,8 @@ async function hrSeventhReport(req, res) {
                 )
             )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Balance to be filled up',
 
     -- Process Not Started
@@ -6032,8 +6032,8 @@ async function hrSeventhReport(req, res) {
             )
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process not initiated',
 
     -- Process initiated but notification yet to be issued
@@ -6056,8 +6056,8 @@ async function hrSeventhReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NOT NULL AND (ps.[notification_adv_issued_date] IS NULL AND ps.[application_received_date] IS NULL AND ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process initiated but notification yet to be issued',
 
     -- Notification Adv Issued
@@ -6073,8 +6073,8 @@ async function hrSeventhReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.notification_adv_issued_date IS NOT NULL AND ( ps.[application_received_date] IS NULL AND ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Notification Adv Issued',
 
     -- Application Received
@@ -6090,8 +6090,8 @@ async function hrSeventhReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.application_received_date IS NOT NULL AND ( ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Application Received',
 
         -- Review of application by Committee
@@ -6106,8 +6106,8 @@ async function hrSeventhReport(req, res) {
             ))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.review_application_by_comm IS NOT NULL AND (ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Review of application by Committee',
 
     -- Approval Received
@@ -6122,8 +6122,8 @@ async function hrSeventhReport(req, res) {
             ))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.approval_received_date IS NOT NULL AND ps.[order_issued_date] IS NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Approval Received',
 
     SUM(CASE
@@ -6137,12 +6137,12 @@ async function hrSeventhReport(req, res) {
             ))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.[order_issued_date] IS NOT NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Order issued'
 
 FROM mmt_organisation mmt
-LEFT JOIN tbl_hr_post_strength_log ps ON mmt.organisation_id = ps.organisation_id
+LEFT JOIN tbl_hr_post_strength ps ON mmt.organisation_id = ps.organisation_id
 LEFT JOIN mmt_hr_post post ON ps.post_id = post.post_id
 LEFT JOIN mmt_class mmtc ON post.class_id = mmtc.class_id
 LEFT JOIN mmt_hr_department department ON post.department_id = department.department_id
@@ -6446,8 +6446,8 @@ async function hrSeventhDetailedReport(req, res) {
             -- At the Beginning of the FY
     SUM(CASE
         WHEN
-            ps.log_year = ${startYear}
-            AND ps.log_month = 3
+            1=1
+            AND 1=1
             AND (
                 (ps.date_of_arise_in_vacancy < '${fiscalYearStart}'
                  AND ps.vacant_or_filled = 'vacant'
@@ -6468,8 +6468,8 @@ async function hrSeventhDetailedReport(req, res) {
     SUM(CASE
         WHEN
             ps.date_of_arise_in_vacancy BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Vacancy risen during the year',
 
     -- Filled Posts During FY
@@ -6478,8 +6478,8 @@ async function hrSeventhDetailedReport(req, res) {
             ps.vacant_or_filled = 'filled'
             AND ps.employee_joined_date IS NOT NULL
             AND ps.employee_joined_date BETWEEN '${fiscalYearStart}' AND '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Filled during FY',
 
     -- Balance to be Filled
@@ -6493,8 +6493,8 @@ async function hrSeventhDetailedReport(req, res) {
                                  ps.exception_abolish = 1
                              ))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Balance to be filled up',
 
     -- Process Not Started
@@ -6509,8 +6509,8 @@ async function hrSeventhDetailedReport(req, res) {
                              ))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process not initiated',
 
     -- Process initiated but notification yet to be issued
@@ -6527,8 +6527,8 @@ async function hrSeventhDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.process_initiated_date IS NOT NULL AND (ps.[notification_adv_issued_date] IS NULL AND ps.[application_received_date] IS NULL AND ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Process initiated but notification yet to be issued',
 
     -- Notification Adv Issued
@@ -6544,8 +6544,8 @@ async function hrSeventhDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.notification_adv_issued_date IS NOT NULL AND ( ps.[application_received_date] IS NULL AND ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Notification Adv Issued',
 
     -- Application Received
@@ -6561,8 +6561,8 @@ async function hrSeventhDetailedReport(req, res) {
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.application_received_date IS NOT NULL AND ( ps.[review_application_by_comm] IS NULL
             AND ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Application Received',
 
         -- Review of application by Committee
@@ -6577,8 +6577,8 @@ async function hrSeventhDetailedReport(req, res) {
                              ))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.review_application_by_comm IS NOT NULL AND (ps.[approval_received_date] IS NULL AND ps.[order_issued_date] IS NULL)
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Review of application by Committee',
 
     -- Approval Received
@@ -6593,8 +6593,8 @@ async function hrSeventhDetailedReport(req, res) {
                              ))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.approval_received_date IS NOT NULL AND ps.[order_issued_date] IS NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Approval Received',
 
     SUM(CASE
@@ -6608,12 +6608,12 @@ async function hrSeventhDetailedReport(req, res) {
                              ))
             AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
             AND ps.[order_issued_date] IS NOT NULL
-            AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            AND 1=1
+            AND 1=1
     THEN 1 ELSE 0 END) AS 'Order issued'
 
             FROM mmt_organisation mmt
-            LEFT JOIN tbl_hr_post_strength_log ps ON mmt.organisation_id = ps.organisation_id
+            LEFT JOIN tbl_hr_post_strength ps ON mmt.organisation_id = ps.organisation_id
             LEFT JOIN mmt_hr_post post ON ps.post_id = post.post_id
             LEFT JOIN mmt_class mmtc ON post.class_id = mmtc.class_id
             LEFT JOIN mmt_hr_department department ON post.department_id = department.department_id
@@ -6932,7 +6932,7 @@ async function hrDrilledDirectRecruitmentReport(req, res) {
                         CONVERT(VARCHAR, ps.result_declared_date,120) AS [Result Declared],
                         CONVERT(VARCHAR, ps.appointment_letter_issued_date,120) AS [Appointment Letter issued]
                             FROM
-                                tbl_hr_post_strength_log ps
+                                tbl_hr_post_strength ps
                             INNER JOIN
                                 mmt_hr_post post ON ps.post_id = post.post_id
                             INNER JOIN 
@@ -6953,8 +6953,8 @@ async function hrDrilledDirectRecruitmentReport(req, res) {
                                                         AND '${previousYrEnd}' < ps.exception_abolish_date)
                                 )))
                                 AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-                                AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-                                AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+                                AND 1=1
+                                AND 1=1
                         ${whereCondition}
                 ;
         `);
@@ -7062,7 +7062,7 @@ async function hrDrilledPromotionReport(req, res) {
         CONVERT(VARCHAR, ps.approval_by_ca_date,120)  AS [Approval by competent authority],
         CONVERT(VARCHAR, ps.promotion_order_issued_date,120)  AS [Promotion order issued]
     FROM
-        tbl_hr_post_strength_log ps
+        tbl_hr_post_strength ps
     LEFT JOIN
         mmt_hr_post p ON ps.post_id = p.post_id
     LEFT JOIN
@@ -7086,8 +7086,8 @@ async function hrDrilledPromotionReport(req, res) {
             )
         )
         AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-        AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-        AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+        AND 1=1
+        AND 1=1
         ${whereCondition}
 `);
 
@@ -7196,7 +7196,7 @@ async function hrDrilledDeputationReport(req, res) {
         CONVERT(VARCHAR, ps.approval_received_date,120)  AS [Approval received],
         CONVERT(VARCHAR, ps.order_issued_date,120)  AS [Order issued]
     FROM
-        tbl_hr_post_strength_log ps
+        tbl_hr_post_strength ps
     LEFT JOIN
         mmt_hr_post p ON ps.post_id = p.post_id
     LEFT JOIN
@@ -7220,8 +7220,8 @@ async function hrDrilledDeputationReport(req, res) {
             )
         )
         AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-        AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-        AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+        AND 1=1
+        AND 1=1
         ${whereCondition}
 `);
 
@@ -7335,7 +7335,7 @@ async function hrDrilledCompositeMethodReport(req, res) {
         CONVERT(VARCHAR, ps.approval_received_date,120)  AS [Approval received],
         CONVERT(VARCHAR, ps.order_issued_date,120)  AS [Order issued]
     FROM
-        tbl_hr_post_strength_log ps
+        tbl_hr_post_strength ps
     LEFT JOIN
         mmt_hr_post p ON ps.post_id = p.post_id
     LEFT JOIN
@@ -7359,8 +7359,8 @@ async function hrDrilledCompositeMethodReport(req, res) {
             )
         )
         AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-        AND ps.log_year = YEAR(DATEADD(month, -1, GETDATE()))
-        AND ps.log_month = MONTH(DATEADD(month, -1, GETDATE()))
+        AND 1=1
+        AND 1=1
         ${whereCondition}
     `);
     const rowData = result.recordset;
@@ -7471,7 +7471,7 @@ async function hrDrilledTransferReport(req, res) {
       FROM
           mmt_organisation m
       LEFT JOIN
-          tbl_hr_post_strength_log ps ON m.organisation_id = ps.organisation_id
+          tbl_hr_post_strength ps ON m.organisation_id = ps.organisation_id
       LEFT JOIN
           mmt_hr_post p ON ps.post_id = p.post_id
       LEFT JOIN
@@ -7499,8 +7499,8 @@ async function hrDrilledTransferReport(req, res) {
               )
           )
           AND ps.date_of_arise_in_vacancy <= '${fiscalYearEnd}'
-          AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
-          AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
+          AND 1=1
+          AND 1=1
           ${whereCondition};
 
           `);
@@ -7578,8 +7578,8 @@ async function hrEighthReport(req, res) {
 	mmtc.class AS 'Class / Group',
 	p.[class_id] AS 'classId',
 	SUM(CASE WHEN
-     ps.log_year = ${startYear}
-            AND ps.log_month = 3
+     1=1
+            AND 1=1
             AND ps.vacant_or_filled ='vacant'
             AND (
                     oa.abolish_required = 0
@@ -7601,8 +7601,8 @@ async function hrEighthReport(req, res) {
      AS 'At the Beginning of the FY',
 	SUM(CASE
         WHEN
-            ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            1=1
+            AND 1=1
             AND ps.[vacant_or_filled] = 'vacant'
             AND (
                     oa.abolish_required = 0
@@ -7624,8 +7624,8 @@ async function hrEighthReport(req, res) {
     THEN 1 ELSE 0 END) AS 'Abolished during the year',
 	SUM(CASE WHEN (ps.[vacant_or_filled] = 'vacant' AND ps.revival_stage_id = 9
      	AND ps.order_of_revival_issued_date BETWEEN '${fiscalYearStart}' AND GETDATE()) THEN 1 ELSE 0 END) AS 'Revived During the FY',
-	SUM(CASE WHEN ps.[vacant_or_filled] = 'vacant' AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE())) AND ( ps.revival_stage_id IS NULL OR ps.revival_stage_id !=9)
+	SUM(CASE WHEN ps.[vacant_or_filled] = 'vacant' AND 1=1
+		AND 1=1 AND ( ps.revival_stage_id IS NULL OR ps.revival_stage_id !=9)
 		AND (
                     oa.abolish_required = 0
                     OR (
@@ -7644,8 +7644,8 @@ async function hrEighthReport(req, res) {
                     )
                 THEN 1 ELSE 0 END) AS 'Balance to be Revived',
 	SUM(CASE WHEN ps.[vacant_or_filled] = 'vacant' AND ( ps.revival_stage_id IS NULL OR revival_stage_id = 0)
-    AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+    AND 1=1
+		AND 1=1
 	AND (
                     oa.abolish_required = 0
                     OR (
@@ -7666,8 +7666,8 @@ async function hrEighthReport(req, res) {
      	THEN 1 ELSE 0 END) AS 'Process not initiated',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND revival_stage_id = 1
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -7687,8 +7687,8 @@ async function hrEighthReport(req, res) {
                     THEN 1 ELSE 0 END) AS 'Process initiated but decision not taken',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND (revival_stage_id = 3 OR revival_stage_id = 4)
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -7708,8 +7708,8 @@ async function hrEighthReport(req, res) {
                     THEN 1 ELSE 0 END) AS 'Decision Taken for Revival at Organisation Level By Competent Authority',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND revival_stage_id = 4
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -7729,8 +7729,8 @@ async function hrEighthReport(req, res) {
                     THEN 1 ELSE 0 END) AS 'Rejected for Revival at Organisation Level By Competent Authority',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND revival_stage_id = 5
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -7749,8 +7749,8 @@ async function hrEighthReport(req, res) {
                     ) THEN 1 ELSE 0 END) AS 'Proposal Submitted to Ministry',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND revival_stage_id = 6
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -7769,8 +7769,8 @@ async function hrEighthReport(req, res) {
                     ) THEN 1 ELSE 0 END) AS 'Proposal Sent to DoE',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND revival_stage_id = 7
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -7789,8 +7789,8 @@ async function hrEighthReport(req, res) {
                     ) THEN 1 ELSE 0 END) AS 'Approval Received from DoE',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND revival_stage_id = 8
-        AND ps.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND ps.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -7808,7 +7808,7 @@ async function hrEighthReport(req, res) {
                         )
                     ) THEN 1 ELSE 0 END) AS 'Proposal Rejected by DoE'
 FROM  mmt_organisation mmt
-    LEFT JOIN [tbl_hr_post_strength_log] ps ON mmt.organisation_id = ps.organisation_id
+    LEFT JOIN [tbl_hr_post_strength] ps ON mmt.organisation_id = ps.organisation_id
     LEFT JOIN [mmt_hr_post] p ON ps.post_id = p.post_id
     LEFT JOIN [mmt_class] mmtc ON p.class_id = mmtc.class_id
     LEFT JOIN mmt_organisation_category mo ON mmt.organisation_category_id = mo.organisation_category_id
@@ -8129,8 +8129,8 @@ async function hrEighthDetailedReport(req, res) {
              p.post_name AS 'Post Name',
              p.[post_id] AS 'postId',
              SUM(CASE WHEN
-     psl.log_year = ${startYear}
-            AND psl.log_month = 3
+     1=1
+            AND 1=1
             AND ps.vacant_or_filled ='vacant'
             AND (
                     oa.abolish_required = 0
@@ -8152,8 +8152,8 @@ async function hrEighthDetailedReport(req, res) {
      AS 'At the Beginning of the FY',
 	SUM(CASE
         WHEN
-            psl.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-            AND psl.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+            1=1
+            AND 1=1
             AND ps.[vacant_or_filled] = 'vacant'
             AND (
                     oa.abolish_required = 0
@@ -8175,8 +8175,8 @@ async function hrEighthDetailedReport(req, res) {
     THEN 1 ELSE 0 END) AS 'Abolished during the year',
 	SUM(CASE WHEN (ps.[vacant_or_filled] = 'vacant' AND ps.revival_stage_id = 9
      	AND ps.order_of_revival_issued_date BETWEEN '${fiscalYearStart}' AND GETDATE()) THEN 1 ELSE 0 END) AS 'Revived During the FY',
-	SUM(CASE WHEN ps.[vacant_or_filled] = 'vacant' AND psl.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND psl.log_year = YEAR(DATEADD(MONTH, -1, GETDATE())) AND ( ps.revival_stage_id IS NULL OR ps.revival_stage_id !=9)
+	SUM(CASE WHEN ps.[vacant_or_filled] = 'vacant' AND 1=1
+		AND 1=1 AND ( ps.revival_stage_id IS NULL OR ps.revival_stage_id !=9)
 		AND (
                     oa.abolish_required = 0
                     OR (
@@ -8195,8 +8195,8 @@ async function hrEighthDetailedReport(req, res) {
                     )
                 THEN 1 ELSE 0 END) AS 'Balance to be Revived',
 	SUM(CASE WHEN ps.[vacant_or_filled] = 'vacant' AND ( ps.revival_stage_id IS NULL OR ps.revival_stage_id = 0)
-    AND psl.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND psl.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+    AND 1=1
+		AND 1=1
 	AND (
                     oa.abolish_required = 0
                     OR (
@@ -8217,8 +8217,8 @@ async function hrEighthDetailedReport(req, res) {
      	THEN 1 ELSE 0 END) AS 'Process not initiated',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND ps.revival_stage_id = 1
-        AND psl.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND psl.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -8238,8 +8238,8 @@ async function hrEighthDetailedReport(req, res) {
                     THEN 1 ELSE 0 END) AS 'Process initiated but decision not taken',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND (ps.revival_stage_id = 3 OR ps.revival_stage_id = 4)
-        AND psl.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND psl.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -8259,8 +8259,8 @@ async function hrEighthDetailedReport(req, res) {
                     THEN 1 ELSE 0 END) AS 'Decision Taken for Revival at Organisation Level By Competent Authority',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND ps.revival_stage_id = 4
-        AND psl.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND psl.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -8280,8 +8280,8 @@ async function hrEighthDetailedReport(req, res) {
                     THEN 1 ELSE 0 END) AS 'Rejected for Revival at Organisation Level By Competent Authority',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND ps.revival_stage_id = 5
-        AND psl.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND psl.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -8300,8 +8300,8 @@ async function hrEighthDetailedReport(req, res) {
                     ) THEN 1 ELSE 0 END) AS 'Proposal Submitted to Ministry',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND ps.revival_stage_id = 6
-        AND psl.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND psl.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -8320,8 +8320,8 @@ async function hrEighthDetailedReport(req, res) {
                     ) THEN 1 ELSE 0 END) AS 'Proposal Sent to DoE',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND ps.revival_stage_id = 7
-        AND psl.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND psl.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -8340,8 +8340,8 @@ async function hrEighthDetailedReport(req, res) {
                     ) THEN 1 ELSE 0 END) AS 'Approval Received from DoE',
 	SUM(CASE WHEN
      	ps.[vacant_or_filled] = 'vacant' AND ps.revival_stage_id = 8
-        AND psl.log_month = MONTH(DATEADD(MONTH, -1, GETDATE()))
-		AND psl.log_year = YEAR(DATEADD(MONTH, -1, GETDATE()))
+        AND 1=1
+		AND 1=1
      	AND (
                     oa.abolish_required = 0
                     OR (
@@ -8365,7 +8365,7 @@ async function hrEighthDetailedReport(req, res) {
             LEFT JOIN [mmt_class] mmtc ON p.class_id = mmtc.class_id
             LEFT JOIN mmt_organisation_category mo ON mmt.organisation_category_id = mo.organisation_category_id
             LEFT JOIN tbl_hr_organisation_abolish oa ON ps.organisation_id = oa.organisation_id
-            LEFT JOIN tbl_hr_post_strength_log psl ON ps.post_id = psl.post_id
+            LEFT JOIN tbl_hr_post_strength psl ON ps.post_id = psl.post_id
         WHERE mmt.organisation_id=${organisationId} AND p.class_id=${classId}
         GROUP BY
             mmt.organisation_id, mmt.organisation_name, mo.organisation_category_name, mmtc.class, p.class_id,p.post_name,p.post_id,d.department_name

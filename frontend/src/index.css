@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+@variant dark (&:where(.dark, .dark *));
 @import "ag-grid-community/styles/ag-grid.css";
 @import "ag-grid-community/styles/ag-theme-quartz.css";
 
@@ -79,7 +80,7 @@ body {
 }
 
 /* Style filter and sort icons on header to be white */
-.ag-theme-quartz .ag-icon {
+.ag-theme-quartz .ag-header .ag-icon {
   color: #ffffff !important;
 }
 
@@ -174,6 +175,8 @@ body {
 /* AG Grid Dark Theme support */
 .dark .ag-theme-quartz {
   --ag-background-color: #111827 !important;
+  --ag-foreground-color: #f1f5f9 !important;
+  --ag-secondary-foreground-color: #9ca3af !important;
   --ag-data-color: #f1f5f9 !important;
   --ag-border-color: #374151 !important;
   --ag-row-hover-color: #1f2937 !important;
@@ -217,4 +220,28 @@ body {
 
 .animate-ken-burns {
   animation: kenBurns 8.2s ease-out forwards;
+}
+
+/* Mobile responsive pagination fixes for AG Grid (e.g. iPhone SE) */
+@media (max-width: 520px) {
+  /* Hide row range indicator text */
+  .ag-theme-quartz .ag-paging-row-summary-panel {
+    display: none !important;
+  }
+  .ag-theme-quartz .ag-paging-panel {
+    justify-content: space-between !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+  /* Hide middle page status text (e.g. "Page 1 of X") */
+  .ag-theme-quartz .ag-paging-page-summary-panel > span {
+    display: none !important;
+  }
+  /* Hide first and last page buttons */
+  .ag-theme-quartz .ag-paging-page-summary-panel button:first-child,
+  .ag-theme-quartz .ag-paging-page-summary-panel button:last-child,
+  .ag-theme-quartz .ag-paging-button:has(.ag-icon-first),
+  .ag-theme-quartz .ag-paging-button:has(.ag-icon-last) {
+    display: none !important;
+  }
 }

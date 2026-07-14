@@ -56,7 +56,6 @@ export default function Header({ onLogout, onProfileClick }) {
         console.error('Failed to load user details in header:', err);
       });
   }, []);
-
   // Handle opening one dropdown and forcing the others to close
   const handleDropdownOpen = (targetOpen) => {
     if (targetOpen === 'lang') {
