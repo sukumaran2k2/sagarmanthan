@@ -108,7 +108,8 @@ async function updateYoungProfessional(req, res) {
         skills,
         is_active,
         last_working_date,
-        remarks
+        remarks,
+        updated_by
     } = req.body;
 
     const conn = await pool;
@@ -123,9 +124,11 @@ async function updateYoungProfessional(req, res) {
     request.input("salary", salary !== undefined ? salary : null);
     request.input("total_experience", total_experience !== undefined ? total_experience : null);
     request.input("skills", skills || null);
-    request.input("is_active", is_active !== undefined ? is_active : 1);
+    request.input("is_active", is_active);
+    // request.input("is_active", is_active !== undefined ? is_active : 1);
     request.input("last_working_date", last_working_date || null);
     request.input("remarks", remarks || null);
+    request.input("updated_by", updated_by || null);
 
     try {
         await request.query(`
@@ -140,9 +143,10 @@ async function updateYoungProfessional(req, res) {
                 salary = @salary,
                 total_experience = @total_experience,
                 skills = @skills,
-                is_active = @is_active,
+                -- is_active = @is_active,
                 last_working_date = @last_working_date,
                 remarks = @remarks,
+                updated_by = @updated_by,
                 last_updated_date = GETDATE()
             WHERE yp_id = @ypId
         `);
@@ -233,15 +237,17 @@ async function getYoungProfessionalWingData(req, res) {
 
 // 6. Relieve Young Professional
 async function relieveYoungProfessional(req, res) {
-    const ypId = req.body.candidateId; // React passes candidateId
+    const ypId = req.body.candidateId;
     const lastWorkingDate = req.body.lastWorkingDate;
     const remarks = req.body.remarks;
+    const updated_by = req.body.updated_by;
 
     const conn = await pool;
     const request = conn.request();
     request.input("ypId", ypId);
     request.input("lastWorkingDate", lastWorkingDate);
     request.input("remarks", remarks);
+    request.input("updated_by", updated_by || null);
 
     try {
         await request.query(`
@@ -251,6 +257,7 @@ async function relieveYoungProfessional(req, res) {
                 last_working_date = @lastWorkingDate,
                 remarks = @remarks,
                 relieved_at = GETDATE(),
+                updated_by = @updated_by,
                 last_updated_date = GETDATE()
             WHERE yp_id = @ypId
         `);
@@ -372,14 +379,14 @@ async function ypFileDownload(req, res) {
     if (!fileName) {
         return res.status(400).send("Bad Request: fileName is required");
     }
-    
+
     let filePath;
     if (fileName.includes('/') || fileName.includes('\\')) {
         filePath = path.resolve(fileName);
     } else {
         filePath = path.join(uploadDestination, fileName);
     }
-    
+
     const resolvedBase = path.basename(filePath);
 
     fs.readFile(filePath, (err, data) => {

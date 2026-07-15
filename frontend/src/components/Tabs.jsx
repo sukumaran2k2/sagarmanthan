@@ -225,8 +225,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Young Professionals',
           icon: UserCheck,
           items: [
-            { label: 'List View', icon: ClipboardList },
             { label: 'Input Form', icon: FileEdit },
+            { label: 'Data List', icon: ClipboardList },
             { label: 'Report', icon: FilePieChart }
           ]
         },

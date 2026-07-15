@@ -362,7 +362,8 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
   const handleGridWheel = (e) => {
     if (gridRef.current && gridRef.current.api) {
       const scrollAmount = e.deltaY;
-      const gridContainer = gridRef.current.api.getGridBodyViewportElement?.() || gridRef.current.api.getGridBodyElement?.();
+      const gridRoot = document.querySelector(`.ag-root-wrapper[grid-id="${gridRef.current.api.getGridId()}"]`);
+      const gridContainer = gridRoot ? gridRoot.querySelector('.ag-body-viewport') : null;
       if (gridContainer) {
         gridContainer.scrollLeft += scrollAmount;
       }

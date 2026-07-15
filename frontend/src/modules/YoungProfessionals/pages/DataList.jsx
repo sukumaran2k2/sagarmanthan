@@ -1,25 +1,42 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import Table from '../../../components/Table';
-import { Search, X, Edit, UserMinus, BarChart3, List, FileSpreadsheet, Download, ChevronDown } from 'lucide-react';
+import Table from '../../../components/table';
+import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';
 import ExportButtons from '../../../components/ExportButtons';
 
-export default function ListView({
+function decodeToken(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
+export default function DataList({
   rowData,
   loading,
   onEdit,
   onRefresh,
-  triggerNotification
+  triggerNotification,
+  wings = [],
+  divisions = []
 }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
+  const [selectedWing, setSelectedWing] = useState('');
+  const [selectedDivision, setSelectedDivision] = useState('');
+  const [viewMode, setViewMode] = useState('table'); // table or visualisation switching
   const [relieveModalOpen, setRelieveModalOpen] = useState(false);
   const [selectedYp, setSelectedYp] = useState(null);
   const [lastWorkingDate, setLastWorkingDate] = useState('');
   const [remarks, setRemarks] = useState('');
   const [submittingRelieve, setSubmittingRelieve] = useState(false);
-  const [gridApi, setGridApi] = useState(null);
+  const [gridApi, setGridApi] = useState(null); //Ag Grid API
 
   // Column visibility checklist dropdown states
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -42,20 +59,73 @@ export default function ListView({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Static fallback lists (used if API is unavailable / returns empty)
+  const STATIC_WINGS = [
+    'Shipping', 'Vigilance', 'Ports', 'IWT', 'Administration',
+    'Coord-I', 'Coord-II', 'DGLL, Parliament & TRW', 'Development',
+    'Finance', 'Sagarmala', 'Information Technology',
+    'Office of Economic Advisor', 'Special Initiatives & Projects'
+  ];
+
+  const STATIC_DIVISIONS = [
+    'Shipping-I', 'Shipping-II', 'Shipping-III', 'Vigilance',
+    'PD-I', 'PD-II', 'PPP', 'PHRD', 'IWT-I', 'IWT-II', 'Admn.',
+    'Coord-I', 'Coord-II', 'DGLL, Parl. & TRW', 'Devlopment',
+    'Finance', 'Sagarmala -I', 'Sagarmala -II',
+    'Sagarmala-III , ALHW & Media', 'IT', 'PD-III', 'PD- IV',
+    'Special Initiatives & Projects'
+  ];
+
+  // Derive display options — API shape: { wing_id, wing_name } / { division_id, division_name }
+  const wingOptions = useMemo(() => {
+    if (wings.length > 0) {
+      return wings.map(w => ({
+        value: w.wing_name ?? w.label ?? w.value ?? String(w),
+        label: w.wing_name ?? w.label ?? w.value ?? String(w)
+      }));
+    }
+    // Fallback: derive unique names from rowData, or use static list
+    const fromData = [...new Set(rowData.map(r => r.wing).filter(Boolean))].sort();
+    const source = fromData.length > 0 ? fromData : STATIC_WINGS;
+    return source.map(name => ({ value: name, label: name }));
+  }, [wings, rowData]);
+
+  const divisionOptions = useMemo(() => {
+    if (divisions.length > 0) {
+      return divisions.map(d => ({
+        value: d.division_name ?? d.label ?? d.value ?? String(d),
+        label: d.division_name ?? d.label ?? d.value ?? String(d)
+      }));
+    }
+    // Fallback: derive unique names from rowData, or use static list
+    const fromData = [...new Set(rowData.map(r => r.division).filter(Boolean))].sort();
+    const source = fromData.length > 0 ? fromData : STATIC_DIVISIONS;
+    return source.map(name => ({ value: name, label: name }));
+  }, [divisions, rowData]);
+
   const filteredData = useMemo(() => {
     return rowData.filter(item => {
       const search = searchTerm.toLowerCase();
-      return (
+      const matchesSearch =
         (item.name || '').toLowerCase().includes(search) ||
         (item.role || '').toLowerCase().includes(search) ||
         (item.wing || '').toLowerCase().includes(search) ||
-        (item.division || '').toLowerCase().includes(search)
-      );
+        (item.division || '').toLowerCase().includes(search);
+
+      const matchesWing = selectedWing
+        ? (item.wing || '') === selectedWing
+        : true;
+
+      const matchesDivision = selectedDivision
+        ? (item.division || '') === selectedDivision
+        : true;
+
+      return matchesSearch && matchesWing && matchesDivision;
     }).map((item, index) => ({
       ...item,
       sNo: index + 1
     }));
-  }, [rowData, searchTerm]);
+  }, [rowData, searchTerm, selectedWing, selectedDivision]);
 
   // Group data by wing for the chart visualization
   const chartData = useMemo(() => {
@@ -86,11 +156,22 @@ export default function ListView({
       return;
     }
     setSubmittingRelieve(true);
+
+    const token = localStorage.getItem('accessToken');
+    let activeUserId = 1;
+    if (token) {
+      const decoded = decodeToken(token);
+      if (decoded && decoded.userId) {
+        activeUserId = decoded.userId;
+      }
+    }
+
     try {
       await axios.put("http://localhost:3000/relieve-young-professional", {
         candidateId: selectedYp.yp_id,
         lastWorkingDate,
-        remarks
+        remarks,
+        updated_by: activeUserId
       });
       if (triggerNotification) {
         triggerNotification(`${selectedYp.name} has been relieved successfully.`);
@@ -121,10 +202,10 @@ export default function ListView({
       if (triggerNotification) {
         triggerNotification(`Preparing PDF document...`);
       }
-      
+
       const printWindow = window.open('', '_blank');
-      const title = 'Young Professionals - Register List';
-      
+      const title = 'Young Professionals - Data List';
+
       let headersHtml = '';
       columnDefs.forEach(col => {
         if (col.headerName && col.headerName !== 'Action') {
@@ -189,8 +270,7 @@ export default function ListView({
     {
       field: 'sNo',
       headerName: 'S.No',
-      width: 70,
-      minWidth: 70,
+      minWidth: 95,
       cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center',
       headerClass: 'text-center'
     },
@@ -198,7 +278,7 @@ export default function ListView({
       field: 'name',
       headerName: 'Name',
       flex: 1.5,
-      minWidth: 150,
+      minWidth: 160,
       cellClass: 'font-bold text-slate-800 dark:text-slate-200',
       hide: !visibleCols.name
     },
@@ -206,7 +286,7 @@ export default function ListView({
       field: 'role',
       headerName: 'Role',
       flex: 1.2,
-      minWidth: 120,
+      minWidth: 130,
       cellClass: 'text-slate-700 dark:text-slate-350 font-semibold',
       hide: !visibleCols.role
     },
@@ -214,7 +294,7 @@ export default function ListView({
       field: 'wing',
       headerName: 'Wing',
       flex: 1.2,
-      minWidth: 120,
+      minWidth: 130,
       cellClass: 'text-slate-600 dark:text-slate-400 font-medium',
       hide: !visibleCols.wing
     },
@@ -222,15 +302,14 @@ export default function ListView({
       field: 'division',
       headerName: 'Division',
       flex: 1.2,
-      minWidth: 120,
+      minWidth: 130,
       cellClass: 'text-slate-655 dark:text-slate-400 font-medium',
       hide: !visibleCols.division
     },
     {
       field: 'is_active',
       headerName: 'Status',
-      width: 100,
-      minWidth: 100,
+      minWidth: 120,
       hide: !visibleCols.status,
       cellRenderer: (params) => {
         const isActive = params.value;
@@ -244,28 +323,33 @@ export default function ListView({
     },
     {
       headerName: 'Action',
-      width: 120,
-      minWidth: 110,
+      minWidth: 120,
       cellRenderer: (params) => {
         const yp = params.data;
         return (
-          <div className="flex items-center space-x-3 py-2">
-            <button
-              onClick={() => onEdit(yp)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
-              title="Update"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
-            {yp.is_active && (
+          <div className="flex items-center w-full h-full py-1">
+            <div className="w-1/2 flex justify-end pr-2">
               <button
-                onClick={() => handleOpenRelieve(yp)}
-                className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
-                title="Relieve"
+                onClick={() => onEdit(yp)}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                title="Update"
               >
-                <UserMinus className="h-4 w-4" />
+                <Edit className="h-4 w-4" />
               </button>
-            )}
+            </div>
+            <div className="w-1/2 flex justify-start pl-2">
+              {yp.is_active ? (
+                <button
+                  onClick={() => handleOpenRelieve(yp)}
+                  className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
+                  title="Relieve"
+                >
+                  <UserMinus className="h-4 w-4" />
+                </button>
+              ) : (
+                <div className="w-7 h-7" /> /* Spacer to match button size and maintain layout alignment */
+              )}
+            </div>
           </div>
         );
       }
@@ -275,20 +359,74 @@ export default function ListView({
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative">
 
-      {/* Title & View Switcher Row with Search */}
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between border-b border-slate-100 pb-4">
-        <div className="relative w-full sm:max-w-xs">
-          <input
-            type="text"
-            placeholder="Search YP details..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full text-xs pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
-          />
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+      {/* Title & View Switcher Row with Search + Filters */}
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 pb-4">
+
+        {/* Left cluster: Search + Wing filter + Division filter */}
+        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+          {/* Wing dropdown filter */}
+          <div className="relative">
+            <select
+              value={selectedWing}
+              onChange={(e) => setSelectedWing(e.target.value)}
+              className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[120px]"
+            >
+              <option value="">All Wings</option>
+              {wingOptions.map((w) => (
+                <option key={w.value} value={w.value}>{w.label}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          </div>
+
+          {/* Division dropdown filter */}
+          <div className="relative">
+            <select
+              value={selectedDivision}
+              onChange={(e) => setSelectedDivision(e.target.value)}
+              className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[130px]"
+            >
+              <option value="">All Divisions</option>
+              {divisionOptions.map((d) => (
+                <option key={d.value} value={d.value}>{d.label}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          </div>
+          {/* Search input */}
+          <div className="relative min-w-[160px] max-w-xs flex-1">
+            <input
+              type="text"
+              placeholder="Search YP details..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full text-xs pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+            />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Clear filters pill */}
+          {(selectedWing || selectedDivision) && (
+            <button
+              onClick={() => { setSelectedWing(''); setSelectedDivision(''); }}
+              className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition"
+            >
+              <X className="h-3 w-3" />
+              Clear filters
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+        {/* Right cluster: Column visibility + View toggle */}
+        <div className="flex items-center space-x-2 flex-shrink-0">
           {/* Column Visibility Dropdown */}
           {viewMode === 'table' && (
             <div className="relative" ref={colDropdownRef}>
@@ -318,7 +456,7 @@ export default function ListView({
           )}
 
           {/* Toggle Switch Button Pair */}
-          <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50 dark:bg-slate-900 dark:border-slate-800 ml-auto sm:ml-0">
+          <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50 dark:bg-slate-900 dark:border-slate-800">
             <button
               onClick={() => setViewMode('chart')}
               className={`p-1.5 rounded transition ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
@@ -338,7 +476,7 @@ export default function ListView({
       </div>
 
       {viewMode === 'table' ? (
-        <div className="ag-theme-quartz w-full relative">
+        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <Table
             rowData={filteredData}
             columnDefs={columnDefs}
@@ -346,24 +484,23 @@ export default function ListView({
             pagination={true}
             paginationPageSize={10}
             paginationPageSizeSelector={[10, 20, 50]}
-            enableExport={false} // Disable Table.jsx built-in top-right Export button
+            enableExport={false}
             onGridReady={(params) => setGridApi(params.api)}
             defaultColDef={{
               minWidth: 90,
-              flex: 1,
               filter: true,
               sortable: true,
               resizable: true
             }}
           />
-          {/* Style overrides to guarantee pagination visibility in light and dark themes and remove border radius */}
           <style dangerouslySetInnerHTML={{
             __html: `
-            .ag-theme-quartz.rounded-xl {
-              border-radius: 0px !important;
+            .ag-theme-quartz.rounded-xl,
+            .ag-theme-quartz.rounded-2xl {
+              border-radius: 16px !important;
             }
             .ag-theme-quartz .ag-root-wrapper {
-              border-radius: 0px !important;
+              border-radius: 16px !important;
             }
             .ag-theme-quartz .ag-paging-panel {
               color: #1e293b !important;

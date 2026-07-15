@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { FileSpreadsheet, Loader2 } from 'lucide-react';
@@ -14,6 +14,9 @@ export default function Table({
   enableExport = false,
   exportFileName = 'export',
   defaultColDef = {},
+  autoSizeStrategy,
+  onGridSizeChanged,
+  onFirstDataRendered,
   ...props
 }) {
   const gridRef = useRef();
@@ -24,6 +27,37 @@ export default function Table({
         fileName: exportFileName,
       });
     }
+  };
+
+  const handleGridSizeChanged = (params) => {
+    if (onGridSizeChanged) {
+      onGridSizeChanged(params);
+    }
+  };
+
+  const handleFirstDataRendered = (params) => {
+    if (onFirstDataRendered) {
+      onFirstDataRendered(params);
+    }
+  };
+
+  const processedColumnDefs = useMemo(() => {
+    return columnDefs.map(col => {
+      const headerText = col.headerName || col.field || '';
+      // User Algorithm: (columnHeaderText.length() + 5)
+      // Since AG Grid width values are in pixels, we multiply the character count by 12px (approximate char width + cell margins)
+      const estimatedWidth = (headerText.length + 5) * 12;
+      return {
+        ...col,
+        minWidth: col.minWidth ? Math.max(col.minWidth, estimatedWidth) : estimatedWidth
+      };
+    });
+  }, [columnDefs]);
+
+  const activeAutoSizeStrategy = autoSizeStrategy || {
+    type: 'fitCellContents',
+    skipHeader: false,
+    scaleUpToFitGridWidth: true
   };
 
   return (
@@ -49,23 +83,27 @@ export default function Table({
             </div>
           </div>
         )}
-        
+
         <div className="w-full overflow-x-auto">
           <AgGridReact
             ref={gridRef}
             theme="legacy"
             rowData={rowData}
-            columnDefs={columnDefs}
+            columnDefs={processedColumnDefs}
             defaultColDef={{
               sortable: true,
               filter: true,
               resizable: true,
+              cellStyle: { textAlign: 'center' },
               ...defaultColDef
             }}
             pagination={pagination}
             paginationPageSize={paginationPageSize}
             domLayout="autoHeight"
             suppressColumnVirtualisation={true}
+            autoSizeStrategy={activeAutoSizeStrategy}
+            onGridSizeChanged={handleGridSizeChanged}
+            onFirstDataRendered={handleFirstDataRendered}
             {...props}
           />
         </div>

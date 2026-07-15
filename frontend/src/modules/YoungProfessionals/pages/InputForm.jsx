@@ -2,6 +2,19 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, X, Upload } from 'lucide-react';
 import axios from 'axios';
 
+function decodeToken(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
 const COMMON_SKILLS = [
   'SQL', 'Python', 'Java', 'React', 'Javascript', 'HTML', 'CSS',
   'Project Management', 'Data Analysis', 'Excel', 'Word', 'PowerPoint',
@@ -71,6 +84,26 @@ export default function InputForm({
       }
       return updated;
     });
+  };
+
+  const [touched, setTouched] = useState({});
+
+  const handleBlur = (field) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+  };
+
+  const isFieldInvalid = (field, val) => {
+    if (errors[field]) return true;
+    if (touched[field]) {
+      if (field === 'skills') {
+        return skillsList.length === 0;
+      }
+      if (field === 'documentName' && !isEdit) {
+        return !documentName;
+      }
+      return !val || (typeof val === 'string' && !val.trim());
+    }
+    return false;
   };
 
   useEffect(() => {
@@ -182,6 +215,15 @@ export default function InputForm({
 
     setSubmitting(true);
 
+    const token = localStorage.getItem('accessToken');
+    let activeUserId = 1;
+    if (token) {
+      const decoded = decodeToken(token);
+      if (decoded && decoded.userId) {
+        activeUserId = decoded.userId;
+      }
+    }
+
     const payload = {
       wing_id: parseInt(wing),
       division_id: parseInt(division),
@@ -192,7 +234,8 @@ export default function InputForm({
       salary: parseFloat(salary),
       total_experience: parseInt(experience),
       skills: skillsList.join(', '),
-      created_by: 1
+      created_by: activeUserId,
+      updated_by: activeUserId
     };
 
     try {
@@ -226,6 +269,20 @@ export default function InputForm({
     }
   };
 
+  const isFormDisabled =
+    !wing ||
+    !division ||
+    !name.trim() ||
+    !qualification.trim() ||
+    !role.trim() ||
+    !appointmentDate ||
+    salary === '' ||
+    experience === '' ||
+    skillsList.length === 0 ||
+    (!isEdit && !documentName) ||
+    Object.keys(errors).length > 0 ||
+    submitting;
+
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
       <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4.5 flex items-center justify-between text-white border-b border-blue-900/20">
@@ -235,14 +292,6 @@ export default function InputForm({
           </h3>
           <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
         </div>
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center space-x-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold text-white transition cursor-pointer"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          <span>Back to List</span>
-        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -251,12 +300,13 @@ export default function InputForm({
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Wing*</label>
             <select
               value={wing}
-              onChange={(e) => setWing(e.target.value)}
+              onChange={(e) => { setWing(e.target.value); if (touched.wing) handleBlur('wing'); }}
+              onBlur={() => handleBlur('wing')}
               required
-              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer"
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
             >
-              <option value="" className="dark:bg-slate-950 dark:text-slate-300">--Select Wing--</option>
-              {wings.map(w => <option key={w.wing_id} value={w.wing_id} className="dark:bg-slate-950 dark:text-slate-300">{w.wing_name}</option>)}
+              <option value="" className="dark:bg-slate-955 dark:text-slate-300">--Select Wing--</option>
+              {wings.map(w => <option key={w.wing_id} value={w.wing_id} className="dark:bg-slate-955 dark:text-slate-300">{w.wing_name}</option>)}
             </select>
           </div>
 
@@ -264,12 +314,13 @@ export default function InputForm({
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Division*</label>
             <select
               value={division}
-              onChange={(e) => setDivision(e.target.value)}
+              onChange={(e) => { setDivision(e.target.value); if (touched.division) handleBlur('division'); }}
+              onBlur={() => handleBlur('division')}
               required
-              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer"
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
             >
-              <option value="" className="dark:bg-slate-950 dark:text-slate-300">--Select Division--</option>
-              {divisions.map(d => <option key={d.division_id} value={d.division_id} className="dark:bg-slate-950 dark:text-slate-300">{d.division_name}</option>)}
+              <option value="" className="dark:bg-slate-955 dark:text-slate-300">--Select Division--</option>
+              {divisions.map(d => <option key={d.division_id} value={d.division_id} className="dark:bg-slate-955 dark:text-slate-300">{d.division_name}</option>)}
             </select>
           </div>
         </div>
@@ -283,9 +334,10 @@ export default function InputForm({
               type="text" 
               value={name} 
               onChange={e => { setName(e.target.value); validateField('name', e.target.value); }} 
+              onBlur={() => handleBlur('name')}
               required 
               placeholder="Enter full name"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${errors.name ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('name', name) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
             />
             {errors.name && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.name}</p>}
           </div>
@@ -295,10 +347,11 @@ export default function InputForm({
             <input 
               type="text" 
               value={qualification} 
-              onChange={e => setQualification(e.target.value)} 
+              onChange={e => { setQualification(e.target.value); if (touched.qualification) handleBlur('qualification'); }} 
+              onBlur={() => handleBlur('qualification')}
               required 
               placeholder="e.g. B.Tech, MBA"
-              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200" 
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('qualification', qualification) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
             />
           </div>
 
@@ -307,10 +360,11 @@ export default function InputForm({
             <input 
               type="text" 
               value={role} 
-              onChange={e => setRole(e.target.value)} 
+              onChange={e => { setRole(e.target.value); if (touched.role) handleBlur('role'); }} 
+              onBlur={() => handleBlur('role')}
               required 
               placeholder="e.g. Young Professional (HR)"
-              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200" 
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('role', role) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
             />
           </div>
 
@@ -320,8 +374,9 @@ export default function InputForm({
               type="date" 
               value={appointmentDate} 
               onChange={e => { setAppointmentDate(e.target.value); validateField('appointmentDate', e.target.value); }} 
+              onBlur={() => handleBlur('appointmentDate')}
               required 
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${errors.appointmentDate ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('appointmentDate', appointmentDate) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
             />
             {errors.appointmentDate && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.appointmentDate}</p>}
           </div>
@@ -333,9 +388,10 @@ export default function InputForm({
               step="0.01"
               value={salary} 
               onChange={e => { setSalary(e.target.value); validateField('salary', e.target.value); }} 
+              onBlur={() => handleBlur('salary')}
               required 
               placeholder="e.g. 70000"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${errors.salary ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('salary', salary) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
             />
             {errors.salary && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.salary}</p>}
           </div>
@@ -346,9 +402,10 @@ export default function InputForm({
               type="number" 
               value={experience} 
               onChange={e => { setExperience(e.target.value); validateField('experience', e.target.value); }} 
+              onBlur={() => handleBlur('experience')}
               required 
               placeholder="e.g. 2"
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${errors.experience ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('experience', experience) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
             />
             {errors.experience && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.experience}</p>}
           </div>
@@ -414,23 +471,40 @@ export default function InputForm({
         {/* Appointment document - Minimized towards the left */}
         <div className="space-y-1.5 max-w-sm">
           <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Appointment Order Document*</label>
-          <div className="flex items-center justify-center border-2 border-dashed border-slate-250 dark:border-slate-800 rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative">
+          <div className={`flex items-center justify-center border-2 border-dashed ${isFieldInvalid('documentName', documentName) ? 'border-red-500 bg-red-50/10' : 'border-slate-250 dark:border-slate-800'} rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative`}>
             <input 
               type="file" 
               ref={fileInputRef}
-              accept=".pdf,.doc,.docx"
+              accept=".pdf"
               required={!isEdit}
+              onBlur={() => handleBlur('documentName')}
               onChange={(e) => {
                 const file = e.target.files[0];
                 if (file) {
+                  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                    alert("Invalid file type. Only PDF files are allowed.");
+                    e.target.value = '';
+                    setDocumentName('');
+                    if (touched.documentName) handleBlur('documentName');
+                    return;
+                  }
+                  if (file.size > 10 * 1024 * 1024) {
+                    alert("File size exceeds 10 MB. Please choose a smaller file.");
+                    e.target.value = '';
+                    setDocumentName('');
+                    if (touched.documentName) handleBlur('documentName');
+                    return;
+                  }
                   setDocumentName(file.name);
+                  if (touched.documentName) handleBlur('documentName');
                 }
               }}
               className="absolute inset-0 opacity-0 cursor-pointer"
             />
             <div className="text-center space-y-1">
               <Upload className="mx-auto h-6 w-6 text-slate-400" />
-              <p className="text-[11px] font-bold text-slate-655 dark:text-slate-400 uppercase tracking-wide">Upload file</p>
+              <p className="text-[11px] font-bold text-slate-655 dark:text-slate-400 uppercase tracking-wide">Upload PDF file</p>
+              <p className="text-[9px] text-slate-400 font-semibold">(Only PDF under 10 MB is allowed)</p>
               {documentName && (
                 <p className="text-[11px] font-black text-emerald-600">Selected: {documentName}</p>
               )}
@@ -464,10 +538,10 @@ export default function InputForm({
           </button>
           <button
             type="submit"
-            disabled={submitting}
-            className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer dark:bg-blue-600 dark:hover:bg-blue-700"
+            disabled={isFormDisabled}
+            className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer dark:bg-blue-600 dark:hover:bg-blue-700"
           >
-            {submitting ? 'Saving...' : 'Save Young Professional'}
+            {isEdit ? (submitting ? 'Updating...' : 'Update Young Professional') : (submitting ? 'Saving...' : 'Save Young Professional')}
           </button>
         </div>
       </form>
