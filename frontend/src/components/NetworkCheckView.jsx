@@ -128,7 +128,7 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
     localStorage: true,
     crypto: true,
     screenSize: true,
-    browserName: 'Modern Browser'
+    browserName: 'Other Browser'
   });
 
   const checkCompatibility = () => {
@@ -137,7 +137,7 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
       localStorage: false,
       crypto: typeof window.crypto !== 'undefined' && typeof window.crypto.subtle !== 'undefined',
       screenSize: window.innerWidth >= 1024,
-      browserName: 'Modern Browser'
+      browserName: 'Other Browser'
     };
     
     try {
@@ -149,10 +149,11 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
     }
 
     const ua = navigator.userAgent;
-    if (ua.indexOf('Edge') > -1) results.browserName = 'Microsoft Edge';
+    if (ua.indexOf('Edg') > -1 || ua.indexOf('Edge') > -1) results.browserName = 'Microsoft Edge';
     else if (ua.indexOf('Firefox') > -1) results.browserName = 'Mozilla Firefox';
     else if (ua.indexOf('Chrome') > -1) results.browserName = 'Google Chrome';
     else if (ua.indexOf('Safari') > -1) results.browserName = 'Apple Safari';
+    else results.browserName = 'Other Browser';
 
     setCompatibility(results);
   };
@@ -180,20 +181,38 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
     return { text: 'Poor', color: 'text-red-500' };
   };
 
+  const getAngleForSpeed = (val) => {
+    const speedVal = parseFloat(val) || 0;
+    // Quadrant 1: 0 to 2 Mbps -> maps to -90 to -45 deg
+    if (speedVal <= 2) {
+      return -90 + (speedVal / 2) * 45;
+    }
+    // Quadrant 2: 2 to 10 Mbps -> maps to -45 to 0 deg
+    if (speedVal <= 10) {
+      return -45 + ((speedVal - 2) / (10 - 2)) * 45;
+    }
+    // Quadrant 3: 10 to 30 Mbps -> maps to 0 to 45 deg
+    if (speedVal <= 30) {
+      return 0 + ((speedVal - 10) / (30 - 10)) * 45;
+    }
+    // Quadrant 4: 30 to 100 Mbps -> maps to 45 to 90 deg
+    return 45 + (Math.min(speedVal - 30, 70) / 70) * 45;
+  };
+
   const ticks = [
     { label: '0', speed: 0 },
+    { label: '1', speed: 1 },
+    { label: '2', speed: 2 },
+    { label: '5', speed: 5 },
     { label: '10', speed: 10 },
     { label: '20', speed: 20 },
     { label: '30', speed: 30 },
-    { label: '50', speed: 50 },
-    { label: '70', speed: 70 },
-    { label: '90', speed: 90 },
+    { label: '60', speed: 60 },
     { label: '100+', speed: 100 }
   ];
 
   const category = getCategory(status === 'testing' ? displaySpeed : speed);
-  // Map dynamic displaySpeed 0-100 Mbps to angle -90 to 90 degrees
-  const angle = -90 + (Math.min(displaySpeed || 0, 100) / 100) * 180;
+  const angle = getAngleForSpeed(displaySpeed);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto font-sans select-none text-slate-800 animate-fade-in">
@@ -307,27 +326,39 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
                     style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.34, 1.56, 0.64, 1), stroke 0.8s ease' }}
                   />
 
-                  {/* Zone Ticks */}
+                  {/* Zone Ticks (color-coded by speed threshold zones) */}
                   {ticks.map((tick, index) => {
-                    const angleRad = (Math.PI * (180 - (tick.speed / 100) * 180)) / 180;
+                    const tickAngle = getAngleForSpeed(tick.speed);
+                    const angleRad = (Math.PI * (90 - tickAngle)) / 180;
                     const x1 = 110 + 78 * Math.cos(angleRad);
                     const y1 = 120 - 78 * Math.sin(angleRad);
                     const x2 = 110 + 88 * Math.cos(angleRad);
                     const y2 = 120 - 88 * Math.sin(angleRad);
+                    
+                    const tickColor = 
+                      tick.speed < 2 ? 'rgba(239, 68, 68, 0.8)' : // Red
+                      tick.speed < 10 ? 'rgba(245, 158, 11, 0.8)' : // Amber
+                      tick.speed < 30 ? 'rgba(59, 130, 246, 0.8)' : // Blue
+                      'rgba(16, 185, 129, 0.8)'; // Emerald
+
                     return (
                       <line 
                         key={`tick-${index}`} 
                         x1={x1} y1={y1} 
                         x2={x2} y2={y2} 
-                        stroke="rgba(0,0,0,0.12)" 
-                        strokeWidth="1.5" 
+                        stroke={tickColor} 
+                        strokeWidth="2.5" 
                       />
                     );
                   })}
 
-                  {/* Digital Speed Limits on Dial */}
+                  {/* Digital Speed Limits on Dial (increased color contrast) */}
                   {ticks.map((tick, index) => {
-                    const angleRad = (Math.PI * (180 - (tick.speed / 100) * 180)) / 180;
+                    // Only render main labels to prevent clutter on non-linear scale
+                    if (!['0', '2', '10', '30', '100+'].includes(tick.label)) return null;
+
+                    const tickAngle = getAngleForSpeed(tick.speed);
+                    const angleRad = (Math.PI * (90 - tickAngle)) / 180;
                     const tx = 110 + 98 * Math.cos(angleRad);
                     const ty = 120 - 98 * Math.sin(angleRad);
                     return (
@@ -335,8 +366,8 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
                         key={`label-${index}`} 
                         x={tx} 
                         y={ty + 3} 
-                        fill="rgba(0,0,0,0.3)" 
-                        fontSize="8" 
+                        fill="#0f172a" 
+                        fontSize="8.5" 
                         fontWeight="black" 
                         textAnchor="middle"
                       >
@@ -345,8 +376,61 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
                     );
                   })}
 
-                  {/* Needle */}
-                  <g transform="translate(110, 120)">
+                  {/* Category Zones text labels outside the Speedometer Dial (high-contrast active/inactive styling) */}
+                  <text 
+                    x="16" y="78" 
+                    fill={category === 'Poor' ? '#b91c1c' : '#475569'} 
+                    fontSize={category === 'Poor' ? '8.5' : '7'} 
+                    fontWeight={category === 'Poor' ? '900' : 'bold'} 
+                    textAnchor="middle" 
+                    opacity={category === 'Poor' ? 1.0 : 0.7}
+                    style={{ transition: 'all 0.4s ease', tracking: '0.05em' }}
+                  >
+                    POOR
+                  </text>
+                  <text 
+                    x="47" y="26" 
+                    fill={category === 'Medium' ? '#b45309' : '#475569'} 
+                    fontSize={category === 'Medium' ? '8.5' : '7'} 
+                    fontWeight={category === 'Medium' ? '900' : 'bold'} 
+                    textAnchor="middle" 
+                    opacity={category === 'Medium' ? 1.0 : 0.7}
+                    style={{ transition: 'all 0.4s ease', tracking: '0.05em' }}
+                  >
+                    MEDIUM
+                  </text>
+                  <text 
+                    x="120" y="10" 
+                    fill={category === 'Good' ? '#1d4ed8' : '#475569'} 
+                    fontSize={category === 'Good' ? '8.5' : '7'} 
+                    fontWeight={category === 'Good' ? '900' : 'bold'} 
+                    textAnchor="middle" 
+                    opacity={category === 'Good' ? 1.0 : 0.7}
+                    style={{ transition: 'all 0.4s ease', tracking: '0.05em' }}
+                  >
+                    GOOD
+                  </text>
+                  <text 
+                    x="208" y="60" 
+                    fill={category === 'Excellent' ? '#047857' : '#475569'} 
+                    fontSize={category === 'Excellent' ? '8.5' : '7'} 
+                    fontWeight={category === 'Excellent' ? '900' : 'bold'} 
+                    textAnchor="middle" 
+                    opacity={category === 'Excellent' ? 1.0 : 0.7}
+                    style={{ transition: 'all 0.4s ease', tracking: '0.05em' }}
+                  >
+                    EXCELLENT
+                  </text>
+
+                  {/* Needle (rotated natively in SVG for 100% cross-browser accuracy) */}
+                  <g 
+                    transform={`translate(110, 120) rotate(${angle})`}
+                    style={{ 
+                      transition: status === 'testing' 
+                        ? 'transform 0.07s linear' 
+                        : 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    }}
+                  >
                     <line 
                       x1="0" y1="0" 
                       x2="0" y2="-76" 
@@ -354,13 +438,6 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
                       strokeWidth="4" 
                       strokeLinecap="round" 
                       filter="url(#glow)"
-                      style={{ 
-                        transform: `rotate(${angle}deg)`, 
-                        transformOrigin: '0px 0px', 
-                        transition: status === 'testing' 
-                          ? 'transform 0.07s linear' 
-                          : 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
-                      }} 
                     />
                   </g>
                 </svg>
@@ -368,52 +445,16 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
                 {/* Center Digital Speed text */}
                 <div className="absolute bottom-3 flex flex-col items-center select-none">
                   <span className={`text-4xl font-black font-display tracking-tight leading-none transition-colors duration-500 ${
-                    category === 'Poor' ? 'text-red-600' :
-                    category === 'Medium' ? 'text-amber-600' :
-                    category === 'Good' ? 'text-blue-600' :
-                    category === 'Excellent' ? 'text-emerald-600' : 'text-slate-800'
+                    category === 'Poor' ? 'text-red-650' :
+                    category === 'Medium' ? 'text-amber-650' :
+                    category === 'Good' ? 'text-blue-650' :
+                    category === 'Excellent' ? 'text-emerald-650' : 'text-slate-800'
                   }`}>
                     {status === 'testing' ? displaySpeed.toFixed(1) : speed || '0.00'}
                   </span>
                   <span className="text-[10px] text-slate-550 font-extrabold uppercase tracking-widest mt-0.5">
                     Mbps
                   </span>
-                </div>
-              </div>
-
-              {/* 3. 4 Colored Category Indicator Badges */}
-              <div className="grid grid-cols-4 gap-1.5 w-full mt-1 px-1">
-                <div className={`py-1.5 rounded-xl border text-[9px] font-black transition-all duration-500 flex flex-col items-center gap-0.5 ${
-                  category === 'Poor' 
-                    ? 'bg-red-50 text-red-700 border-red-200 shadow-sm scale-105' 
-                    : 'bg-slate-100 text-slate-400 border-slate-200/60 opacity-60 hover:opacity-80'
-                }`}>
-                  <span className="h-1 w-1 rounded-full bg-red-505"></span>
-                  <span>POOR</span>
-                </div>
-                <div className={`py-1.5 rounded-xl border text-[9px] font-black transition-all duration-500 flex flex-col items-center gap-0.5 ${
-                  category === 'Medium' 
-                    ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm scale-105' 
-                    : 'bg-slate-100 text-slate-400 border-slate-200/60 opacity-60 hover:opacity-80'
-                }`}>
-                  <span className="h-1 w-1 rounded-full bg-amber-505"></span>
-                  <span>MEDIUM</span>
-                </div>
-                <div className={`py-1.5 rounded-xl border text-[9px] font-black transition-all duration-500 flex flex-col items-center gap-0.5 ${
-                  category === 'Good' 
-                    ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm scale-105' 
-                    : 'bg-slate-100 text-slate-400 border-slate-200/60 opacity-60 hover:opacity-80'
-                }`}>
-                  <span className="h-1 w-1 rounded-full bg-blue-505"></span>
-                  <span>GOOD</span>
-                </div>
-                <div className={`py-1.5 rounded-xl border text-[9px] font-black transition-all duration-500 flex flex-col items-center gap-0.5 ${
-                  category === 'Excellent' 
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm scale-105' 
-                    : 'bg-slate-100 text-slate-400 border-slate-200/60 opacity-60 hover:opacity-80'
-                }`}>
-                  <span className="h-1 w-1 rounded-full bg-emerald-505"></span>
-                  <span>EXCELLENT</span>
                 </div>
               </div>
 

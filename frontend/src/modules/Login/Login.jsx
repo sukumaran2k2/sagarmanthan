@@ -237,7 +237,7 @@ export default function LoginView({ onLogin }) {
       <div className="fixed inset-0 bg-gradient-to-tr from-slate-950/70 via-slate-900/30 to-transparent"></div>
 
       {/* Main Container */}
-      <div className="relative w-full max-w-7xl mx-auto px-6 sm:px-12 lg:px-16 flex flex-col lg:flex-row items-center justify-between gap-12 z-10">
+      <div className="relative w-full max-w-7xl mx-auto pl-1 pr-6 sm:pl-2 sm:pr-12 lg:pl-0 lg:pr-16 flex flex-col lg:flex-row items-center justify-between gap-12 z-10">
         {/* Left Side: Dynamic Marine Typography & Branding */}
         <div className="text-left max-w-xl text-white space-y-6 animate-fade-in select-none">
           {/* 1. Government of India Emblem & Ministry Info (Top) */}
@@ -257,25 +257,28 @@ export default function LoginView({ onLogin }) {
             </div>
           </div>
 
-          {/* 3. MONITOR OCEANS Giant Typography (Bottom) */}
-          <div className="space-y-1 pt-2">
-            <h1 className="text-5xl sm:text-7xl font-extrabold tracking-wider leading-none select-text">
-              MONITOR
+          {/* 3. Welcome to Sagarmanthan Info */}
+          <div className="space-y-3 pt-2">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white select-text">
+              Welcome to Sagarmanthan
             </h1>
-            <h1 className="text-5xl sm:text-7xl font-extrabold tracking-wider leading-none select-text">
-              OCEANS
-            </h1>
+            <h2 className="text-base sm:text-lg font-bold text-cyan-300 tracking-wide select-text leading-snug">
+              Unified Governance Monitoring & Decision Support Platform
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium max-w-md select-text">
+              An integrated digital platform enabling data-driven governance, performance monitoring and informed decision-making across the Ministry of Ports, Shipping and Waterways.
+            </p>
           </div>
 
-          {/* 4. Description Text */}
-          <div className="space-y-2 pt-2">
-            <h3 className="text-base sm:text-lg font-semibold text-slate-100 select-text leading-snug">
-              Where Data-Driven Insights Optimize National Ports
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium max-w-md select-text">
-              Real-time monitoring, financial tracking, and operational
-              intelligence for modern shipping channels.
-            </p>
+          {/* 4. Tagline */}
+          <div className="pt-2">
+            <div className="inline-flex items-center space-x-2 bg-white/10 backdrop-blur-sm border border-white/15 px-3.5 py-1.5 rounded-full text-[10px] sm:text-xs text-cyan-250 font-black select-text tracking-wide shadow-sm">
+              <span>One Platform</span>
+              <span className="text-cyan-400 font-black">•</span>
+              <span>One Source of Truth</span>
+              <span className="text-cyan-400 font-black">•</span>
+              <span>Better Governance</span>
+            </div>
           </div>
         </div>
 
