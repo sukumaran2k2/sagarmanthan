@@ -327,23 +327,29 @@ export default function DataList({
       cellRenderer: (params) => {
         const yp = params.data;
         return (
-          <div className="flex items-center space-x-3 py-2">
-            <button
-              onClick={() => onEdit(yp)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
-              title="Update"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
-            {yp.is_active && (
+          <div className="flex items-center w-full h-full py-1">
+            <div className="w-1/2 flex justify-end pr-2">
               <button
-                onClick={() => handleOpenRelieve(yp)}
-                className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
-                title="Relieve"
+                onClick={() => onEdit(yp)}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                title="Update"
               >
-                <UserMinus className="h-4 w-4" />
+                <Edit className="h-4 w-4" />
               </button>
-            )}
+            </div>
+            <div className="w-1/2 flex justify-start pl-2">
+              {yp.is_active ? (
+                <button
+                  onClick={() => handleOpenRelieve(yp)}
+                  className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
+                  title="Relieve"
+                >
+                  <UserMinus className="h-4 w-4" />
+                </button>
+              ) : (
+                <div className="w-7 h-7" /> /* Spacer to match button size and maintain layout alignment */
+              )}
+            </div>
           </div>
         );
       }

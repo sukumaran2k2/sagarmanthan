@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { FileSpreadsheet, Loader2 } from 'lucide-react';
@@ -30,36 +30,29 @@ export default function Table({
   };
 
   const handleGridSizeChanged = (params) => {
-    const allCols = params.api.getAllGridColumns();
-    if (allCols && allCols.length > 0) {
-      params.api.autoSizeColumns(allCols, false);
-      const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-      const gridRoot = document.querySelector(`.ag-root-wrapper[grid-id="${params.api.getGridId()}"]`);
-      const containerWidth = gridRoot?.clientWidth || 0;
-      if (containerWidth > 0 && totalColWidth < containerWidth) {
-        params.api.sizeColumnsToFit();
-      }
-    }
     if (onGridSizeChanged) {
       onGridSizeChanged(params);
     }
   };
 
   const handleFirstDataRendered = (params) => {
-    const allCols = params.api.getAllGridColumns();
-    if (allCols && allCols.length > 0) {
-      params.api.autoSizeColumns(allCols, false);
-      const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-      const gridRoot = document.querySelector(`.ag-root-wrapper[grid-id="${params.api.getGridId()}"]`);
-      const containerWidth = gridRoot?.clientWidth || 0;
-      if (containerWidth > 0 && totalColWidth < containerWidth) {
-        params.api.sizeColumnsToFit();
-      }
-    }
     if (onFirstDataRendered) {
       onFirstDataRendered(params);
     }
   };
+
+  const processedColumnDefs = useMemo(() => {
+    return columnDefs.map(col => {
+      const headerText = col.headerName || col.field || '';
+      // User Algorithm: (columnHeaderText.length() + 5)
+      // Since AG Grid width values are in pixels, we multiply the character count by 12px (approximate char width + cell margins)
+      const estimatedWidth = (headerText.length + 5) * 12;
+      return {
+        ...col,
+        minWidth: col.minWidth ? Math.max(col.minWidth, estimatedWidth) : estimatedWidth
+      };
+    });
+  }, [columnDefs]);
 
   const activeAutoSizeStrategy = autoSizeStrategy || {
     type: 'fitCellContents',
@@ -96,12 +89,12 @@ export default function Table({
             ref={gridRef}
             theme="legacy"
             rowData={rowData}
-            columnDefs={columnDefs}
+            columnDefs={processedColumnDefs}
             defaultColDef={{
               sortable: true,
               filter: true,
               resizable: true,
-              cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
+              cellStyle: { textAlign: 'center' },
               ...defaultColDef
             }}
             pagination={pagination}

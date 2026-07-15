@@ -106,10 +106,14 @@ body {
 }
 
 .ag-cell {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
   text-align: center !important;
+}
+
+.ag-cell,
+.ag-cell * {
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
 }
 
 /* Style filter and sort icons on header to be white */
