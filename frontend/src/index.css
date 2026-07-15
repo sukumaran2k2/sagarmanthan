@@ -73,10 +73,43 @@ body {
 }
 
 /* Custom CSS to style header text & properties */
-.ag-theme-quartz .ag-header-cell-label {
+.ag-header-cell-label {
   font-weight: 700 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.05em !important;
+  justify-content: center !important;
+  width: 100% !important;
+}
+
+.ag-header-cell,
+.ag-header-cell * {
+  white-space: nowrap !important;
+  word-break: normal !important;
+  text-overflow: clip !important;
+}
+
+.ag-header-cell-comp-wrapper {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+.ag-cell-label-container {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+.ag-header-cell {
+  text-align: center !important;
+}
+
+.ag-cell {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
 }
 
 /* Style filter and sort icons on header to be white */
@@ -224,19 +257,23 @@ body {
 
 /* Mobile responsive pagination fixes for AG Grid (e.g. iPhone SE) */
 @media (max-width: 520px) {
+
   /* Hide row range indicator text */
   .ag-theme-quartz .ag-paging-row-summary-panel {
     display: none !important;
   }
+
   .ag-theme-quartz .ag-paging-panel {
     justify-content: space-between !important;
     padding-left: 8px !important;
     padding-right: 8px !important;
   }
+
   /* Hide middle page status text (e.g. "Page 1 of X") */
-  .ag-theme-quartz .ag-paging-page-summary-panel > span {
+  .ag-theme-quartz .ag-paging-page-summary-panel>span {
     display: none !important;
   }
+
   /* Hide first and last page buttons */
   .ag-theme-quartz .ag-paging-page-summary-panel button:first-child,
   .ag-theme-quartz .ag-paging-page-summary-panel button:last-child,

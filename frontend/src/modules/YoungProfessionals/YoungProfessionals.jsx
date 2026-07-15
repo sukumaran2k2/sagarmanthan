@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import InternalNavigation from '../../components/InternalNavigation';
-import ListView from './pages/ListView';
+import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 
@@ -10,14 +10,13 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
   const [loading, setLoading] = useState(false);
   const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
-
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
 
   const tabs = [
-    { id: 'list', label: 'List View' },
-    { id: 'report', label: 'Report' },
-    { id: 'add', label: 'Input Form' }
+    { id: 'add', label: 'Input Form' },
+    { id: 'list', label: 'Data List' },
+    { id: 'report', label: 'Report' }
   ];
 
   useEffect(() => {
@@ -25,7 +24,7 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
       setActiveSubTab('add');
     } else if (activeSubTabProp === 'Report') {
       setActiveSubTab('report');
-    } else if (activeSubTabProp === 'List View') {
+    } else if (activeSubTabProp === 'Data List') {
       setActiveSubTab('list');
     }
   }, [activeSubTabProp]);
@@ -93,7 +92,7 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
             if (setActiveSubTabProp) {
               if (tabId === 'add') setActiveSubTabProp('Input Form');
               else if (tabId === 'report') setActiveSubTabProp('Report');
-              else if (tabId === 'list') setActiveSubTabProp('List View');
+              else if (tabId === 'list') setActiveSubTabProp('Data List');
             }
           }}
         />
@@ -112,12 +111,14 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
               editData={editData}
             />
           ) : (
-            <ListView
+            <DataList
               rowData={rowData}
               loading={loading}
               onEdit={handleEdit}
               onRefresh={fetchData}
               triggerNotification={triggerNotification}
+              wings={wings}
+              divisions={divisions}
             />
           )
         )}

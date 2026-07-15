@@ -14,6 +14,9 @@ export default function Table({
   enableExport = false,
   exportFileName = 'export',
   defaultColDef = {},
+  autoSizeStrategy,
+  onGridSizeChanged,
+  onFirstDataRendered,
   ...props
 }) {
   const gridRef = useRef();
@@ -24,6 +27,44 @@ export default function Table({
         fileName: exportFileName,
       });
     }
+  };
+
+  const handleGridSizeChanged = (params) => {
+    const allCols = params.api.getAllGridColumns();
+    if (allCols && allCols.length > 0) {
+      params.api.autoSizeColumns(allCols, false);
+      const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+      const gridRoot = document.querySelector(`.ag-root-wrapper[grid-id="${params.api.getGridId()}"]`);
+      const containerWidth = gridRoot?.clientWidth || 0;
+      if (containerWidth > 0 && totalColWidth < containerWidth) {
+        params.api.sizeColumnsToFit();
+      }
+    }
+    if (onGridSizeChanged) {
+      onGridSizeChanged(params);
+    }
+  };
+
+  const handleFirstDataRendered = (params) => {
+    const allCols = params.api.getAllGridColumns();
+    if (allCols && allCols.length > 0) {
+      params.api.autoSizeColumns(allCols, false);
+      const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
+      const gridRoot = document.querySelector(`.ag-root-wrapper[grid-id="${params.api.getGridId()}"]`);
+      const containerWidth = gridRoot?.clientWidth || 0;
+      if (containerWidth > 0 && totalColWidth < containerWidth) {
+        params.api.sizeColumnsToFit();
+      }
+    }
+    if (onFirstDataRendered) {
+      onFirstDataRendered(params);
+    }
+  };
+
+  const activeAutoSizeStrategy = autoSizeStrategy || {
+    type: 'fitCellContents',
+    skipHeader: false,
+    scaleUpToFitGridWidth: true
   };
 
   return (
@@ -49,7 +90,7 @@ export default function Table({
             </div>
           </div>
         )}
-        
+
         <div className="w-full overflow-x-auto">
           <AgGridReact
             ref={gridRef}
@@ -60,12 +101,16 @@ export default function Table({
               sortable: true,
               filter: true,
               resizable: true,
+              cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
               ...defaultColDef
             }}
             pagination={pagination}
             paginationPageSize={paginationPageSize}
             domLayout="autoHeight"
             suppressColumnVirtualisation={true}
+            autoSizeStrategy={activeAutoSizeStrategy}
+            onGridSizeChanged={handleGridSizeChanged}
+            onFirstDataRendered={handleFirstDataRendered}
             {...props}
           />
         </div>

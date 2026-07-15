@@ -29,14 +29,14 @@ export default function Reports({ triggerNotification }) {
         setData(response.data.rowData || []);
 
         setColumns([
-          { field: 'S No', headerName: 'S.No', width: 80, minWidth: 80, cellClass: 'font-mono text-center' },
+          { field: 'S No', headerName: 'S.No', minWidth: 95, cellClass: 'font-mono text-center' },
           { field: 'Wing', headerName: 'Wing', flex: 1.5, minWidth: 150 },
           { field: 'Division', headerName: 'Division', flex: 1.5, minWidth: 150 },
           {
             field: 'In Position',
             headerName: 'In Position',
             flex: 1,
-            minWidth: 120,
+            minWidth: 130,
             cellClass: 'text-center font-bold text-blue-600 dark:text-blue-400',
             cellRenderer: (params) => {
               const val = params.value;
@@ -70,19 +70,18 @@ export default function Reports({ triggerNotification }) {
         const response = await axios.get(`http://localhost:3000/divisionwise-ypcandidate/0/${currentView.divisionId}`);
         setData(response.data.rowData || []);
         setColumns([
-          { field: 'S No', headerName: 'S.No', width: 70, minWidth: 70, pinned: 'left', cellClass: 'font-mono text-center font-bold' },
-          { field: 'Name', headerName: 'Name', width: 160, minWidth: 150, pinned: 'left', cellClass: 'font-bold text-slate-800 dark:text-slate-200' },
-          { field: 'Qualification', headerName: 'Qualification', width: 140, minWidth: 150 },
-          { field: 'Experience (Years)', headerName: 'Experience', width: 110, minWidth: 110, cellClass: 'text-center font-semibold' },
-          { field: 'Skills', headerName: 'Skill', width: 180, minWidth: 120, cellClass: 'font-semibold' },
-          { field: 'Role', headerName: 'Role', width: 150, minWidth: 120 },
-          { field: 'Salary (per month)', headerName: 'Salary', width: 120, minWidth: 100, valueFormatter: params => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '--' },
-          { field: 'Appointment Date', headerName: 'Date of Appointment', width: 155, minWidth: 185, cellClass: 'text-center font-medium' },
+          { field: 'S No', headerName: 'S.No', minWidth: 95, pinned: 'left', cellClass: 'font-mono text-center font-bold' },
+          { field: 'Name', headerName: 'Name', minWidth: 160, pinned: 'left', cellClass: 'font-bold text-slate-800 dark:text-slate-200' },
+          { field: 'Qualification', headerName: 'Qualification', minWidth: 160 },
+          { field: 'Experience (Years)', headerName: 'Experience', minWidth: 130, cellClass: 'text-center font-semibold' },
+          { field: 'Skills', headerName: 'Skill', minWidth: 130, cellClass: 'font-semibold' },
+          { field: 'Role', headerName: 'Role', minWidth: 130 },
+          { field: 'Salary (per month)', headerName: 'Salary', minWidth: 110, valueFormatter: params => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '--' },
+          { field: 'Appointment Date', headerName: 'Date of Appointment', minWidth: 200, cellClass: 'text-center font-medium' },
           {
             field: 'Document',
             headerName: 'Appointment Order',
-            width: 160,
-            minWidth: 180,
+            minWidth: 200,
             cellClass: 'text-center',
             cellRenderer: (params) => {
               const fileName = params.value;
@@ -101,9 +100,9 @@ export default function Reports({ triggerNotification }) {
               return <span className="text-slate-400 dark:text-slate-500 font-medium">--</span>;
             }
           },
-          { field: 'Created At', headerName: 'Created At', width: 150, minWidth: 120, cellClass: 'text-center text-slate-550 dark:text-slate-400 font-medium' },
-          { field: 'Created By', headerName: 'Created By', width: 130, minWidth: 120, cellClass: 'text-slate-655 dark:text-slate-350 font-semibold' },
-          { field: 'Last Updated At', headerName: 'Last Updated At', width: 150, minWidth: 150, cellClass: 'text-center text-slate-550 dark:text-slate-400 font-medium' }
+          { field: 'Created At', headerName: 'Created At', minWidth: 160, cellClass: 'text-center text-slate-550 dark:text-slate-400 font-medium' },
+          { field: 'Created By', headerName: 'Created By', minWidth: 140, cellClass: 'text-slate-655 dark:text-slate-350 font-semibold' },
+          { field: 'Last Updated At', headerName: 'Last Updated At', minWidth: 165, cellClass: 'text-center text-slate-550 dark:text-slate-400 font-medium' }
         ]);
       }
     } catch (err) {
@@ -224,7 +223,8 @@ export default function Reports({ triggerNotification }) {
       </div>
 
       {/* AG Grid table wrapper */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm ag-theme-quartz yp-report-grid">
+      {/* AG Grid table wrapper */}
+      <div className="border border-slate-200 rounded-2xl shadow-sm ag-theme-quartz yp-report-grid overflow-hidden">
         <Table
           rowData={data}
           columnDefs={columns}
@@ -233,11 +233,6 @@ export default function Reports({ triggerNotification }) {
           paginationPageSize={10}
           paginationPageSizeSelector={[10, 20, 50]}
           enableExport={false} // Disable Table.jsx built-in top-right Export CSV button
-          onFirstDataRendered={(params) => {
-            if (currentView.type === 'drilldown') {
-              params.api.autoSizeAllColumns(false);
-            }
-          }}
           onGridReady={(params) => setGridApi(params.api)}
           defaultColDef={{
             minWidth: 95,
@@ -246,9 +241,15 @@ export default function Reports({ triggerNotification }) {
             resizable: true
           }}
         />
-        {/* Style injection to style the column headers red */}
+        {/* Style injection to style the column headers red and apply border radius */}
         <style dangerouslySetInnerHTML={{
           __html: `
+          .yp-report-grid.ag-theme-quartz {
+            border-radius: 16px !important;
+          }
+          .yp-report-grid .ag-root-wrapper {
+            border-radius: 16px !important;
+          }
           .yp-report-grid .ag-header {
             background-color: #bc3d5ceb !important;
           }

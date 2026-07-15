@@ -794,7 +794,8 @@ export default function LandingView({ onNavigate }) {
                 onFirstDataRendered={(params) => {
                   const allCols = params.api.getAllGridColumns();
                   const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  const gridRoot = document.querySelector(`.ag-root-wrapper[grid-id="${params.api.getGridId()}"]`);
+                  const containerWidth = gridRoot?.clientWidth || 0;
                   if (containerWidth > 0 && totalColWidth < containerWidth) {
                     params.api.sizeColumnsToFit();
                   }
@@ -894,7 +895,8 @@ export default function LandingView({ onNavigate }) {
                 onFirstDataRendered={(params) => {
                   const allCols = params.api.getAllGridColumns();
                   const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-                  const containerWidth = params.api.getGridBodyElement()?.clientWidth || 0;
+                  const gridRoot = document.querySelector(`.ag-root-wrapper[grid-id="${params.api.getGridId()}"]`);
+                  const containerWidth = gridRoot?.clientWidth || 0;
                   if (containerWidth > 0 && totalColWidth < containerWidth) params.api.sizeColumnsToFit();
                 }}
               />
