@@ -45,8 +45,7 @@ export default function Table({
     return columnDefs.map(col => {
       const headerText = col.headerName || col.field || '';
       // User Algorithm: (columnHeaderText.length() + 5)
-      // Since AG Grid width values are in pixels, we multiply the character count by 12px (approximate char width + cell margins)
-      const estimatedWidth = (headerText.length + 5) * 12;
+      const estimatedWidth = ((headerText.length + 5) * 12) + 10;
       return {
         ...col,
         minWidth: col.minWidth ? Math.max(col.minWidth, estimatedWidth) : estimatedWidth

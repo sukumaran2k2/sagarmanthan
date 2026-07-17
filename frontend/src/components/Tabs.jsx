@@ -235,6 +235,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: UserPlus,
           items: [
             { label: 'Consultant Input Form', icon: FileEdit },
+            { label: 'Consultant Data List', icon: ClipboardList },
             { label: 'Consultant Reports', icon: FilePieChart }
           ]
         }

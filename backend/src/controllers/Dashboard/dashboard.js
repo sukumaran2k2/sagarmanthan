@@ -73,7 +73,7 @@ async function getDashboardDataEntryStatus(req,res){
             GROUP BY wing) vr ON mmt_wings.wing_id = vr.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_cabinet_notes_mopsw] 
-            FROM tbl_cabinet_notes_mopsw 
+            FROM tbl_cabinet_notes_mopsw_change 
             GROUP BY wing) cnm ON mmt_wings.wing_id = cnm.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_cabinet_notes_other_ministries]
@@ -900,7 +900,7 @@ const moduleConfig = {
   },
 
   "Cabinet Notes-MoPSW": {
-    table: "tbl_cabinet_notes_mopsw",
+    table: "tbl_cabinet_notes_mopsw_change",
     wingColumn: "wing",
     dateExpression: `
       CASE 

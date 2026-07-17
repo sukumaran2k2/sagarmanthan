@@ -139,7 +139,7 @@ async function caDivisionWiseReport (req, res)
         LEFT JOIN 
             tbl_consultant_appointment ON mmt_division.division_id = tbl_consultant_appointment.division
         LEFT JOIN 
-            mmt_wings ON mmt_wings.wing_id = tbl_consultant_appointment.wing
+            mmt_wings ON mmt_wings.wing_id = mmt_division.wing_id
         WHERE 
             mmt_division.wing_id = @wingID
         GROUP BY 
