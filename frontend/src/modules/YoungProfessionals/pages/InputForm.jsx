@@ -285,17 +285,17 @@ export default function InputForm({
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4.5 flex items-center justify-between text-white border-b border-blue-900/20">
+      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider font-display">
             {isEdit ? "Update Young Professional" : "Add Young Professional"}
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Wing*</label>
             <select
@@ -327,7 +327,7 @@ export default function InputForm({
 
         <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mt-8 mb-5">Personal & Professional Info</h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Name*</label>
             <input 
@@ -418,7 +418,7 @@ export default function InputForm({
               {skillsList.map(skill => (
                 <span 
                   key={skill} 
-                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-750 dark:text-blue-300 border border-blue-200 dark:border-blue-900/30 rounded-lg text-[11px] font-black uppercase"
+                  className="inline-flex items-center space-x-1 px-2.5 py-1 bg-[#fdfcfc] dark:bg-blue-950/40 text-blue-750 dark:text-blue-300 border border-[#eadede] dark:border-blue-900/30 rounded-lg text-[11px] font-black uppercase"
                 >
                   <span
                     onClick={() => handleSkillLabelClick(skill)}
@@ -458,7 +458,7 @@ export default function InputForm({
                     key={s}
                     type="button"
                     onClick={() => handleSelectSuggestion(s)}
-                    className="w-full text-left px-3.5 py-2 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-700 dark:hover:text-blue-300 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 transition-all cursor-pointer"
+                    className="w-full text-left px-3.5 py-2 hover:bg-[#fdfcfc] dark:hover:bg-blue-950/50 hover:text-[#2a1313] dark:hover:text-blue-300 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 transition-all cursor-pointer"
                   >
                     {COMMON_SKILLS.includes(s) ? s : `+ Add "${s}"`}
                   </button>
@@ -539,7 +539,7 @@ export default function InputForm({
           <button
             type="submit"
             disabled={isFormDisabled}
-            className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer dark:bg-blue-600 dark:hover:bg-blue-700"
+            className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer dark:bg-[#0f417a] dark:hover:bg-[#0a2d55]"
           >
             {isEdit ? (submitting ? 'Updating...' : 'Update Young Professional') : (submitting ? 'Saving...' : 'Save Young Professional')}
           </button>
