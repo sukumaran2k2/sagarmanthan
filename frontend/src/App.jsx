@@ -1,4 +1,4 @@
-  import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Tabs from './components/Tabs';
 import Projects from './modules/Projects/Projects';
@@ -24,6 +24,7 @@ import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
 import Loader from './components/Loader';
 import NetworkCheckView from './components/NetworkCheckView';
+import Notification from './components/Notification';
 
 const PROJECT_TABS = [
   { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
@@ -440,17 +441,7 @@ export default function App() {
       )}
       
       {/* Toast Notification Alert Banner */}
-      {notification && (
-        <div className="fixed top-6 right-6 z-55 flex items-center space-x-2.5 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in">
-          <div className="p-1 bg-emerald-500 rounded-lg">
-            <CheckCircle2 className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div>
-            <p className="text-xs font-bold font-display leading-tight">Notification</p>
-            <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{notification}</p>
-          </div>
-        </div>
-      )}
+      <Notification message={notification} />
 
       {/* Government Portal Header */}
       <Header 

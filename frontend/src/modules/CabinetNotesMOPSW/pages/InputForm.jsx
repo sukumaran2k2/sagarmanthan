@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Save, Upload, FileText } from 'lucide-react';
 
@@ -59,7 +59,30 @@ export default function InputForm({
   const [touched, setTouched] = useState({
     subject: false,
     wing: false,
-    division: false
+    division: false,
+    remarks: false
+  });
+
+  // Track initial values for dirty checks
+  const [initialValues, setInitialValues] = useState({
+    subject: '',
+    wing: '',
+    division: '',
+    remarks: '',
+    stages: {
+      1: { date: '', remark: '' },
+      2: { date: '', remark: '' },
+      3: { date: '', remark: '' },
+      4: { date: '', remark: '' },
+      5: { date: '', remark: '' },
+      6: { date: '', remark: '' },
+      7: { date: '', remark: '' },
+      8: { date: '', remark: '' },
+      9: { date: '', remark: '' },
+      10: { date: '', remark: '' },
+      11: { date: '', remark: '' }
+    },
+    selectedFile: null
   });
 
   // Track currently focused stage
@@ -89,11 +112,29 @@ export default function InputForm({
     setUploadProgress(0);
     setNoteDocs([]);
 
+    let initSubject = '';
+    let initWing = '';
+    let initDivision = '';
+    let initRemarks = '';
+    let initStages = {
+      1: { date: '', remark: '' },
+      2: { date: '', remark: '' },
+      3: { date: '', remark: '' },
+      4: { date: '', remark: '' },
+      5: { date: '', remark: '' },
+      6: { date: '', remark: '' },
+      7: { date: '', remark: '' },
+      8: { date: '', remark: '' },
+      9: { date: '', remark: '' },
+      10: { date: '', remark: '' },
+      11: { date: '', remark: '' }
+    };
+
     if (editData) {
-      setSubject(editData.subject || '');
-      setWing(editData.wing || '');
-      setDivision(editData.division || '');
-      setRemarks(editData.remarks || '');
+      initSubject = editData.subject || '';
+      initWing = editData.wing || '';
+      initDivision = editData.division || '';
+      initRemarks = editData.remarks || '';
 
       const fetchDocs = async () => {
         setLoadingDocs(true);
@@ -108,7 +149,7 @@ export default function InputForm({
       };
       fetchDocs();
 
-      setStages({
+      initStages = {
         1: { date: editData.pre_dcn_prepared_date ? editData.pre_dcn_prepared_date.split('T')[0] : '', remark: editData.pre_dcn_prepared_remarks || '' },
         2: { date: (editData.pre_dcn_approved_date || editData.pre_dcn__approved_date) ? (editData.pre_dcn_approved_date || editData.pre_dcn__approved_date).split('T')[0] : '', remark: editData.pre_dcn_approved_remarks || editData.pre_dcn__approved_remarks || '' },
         3: { date: (editData.circulated_for_imc_date || editData.cirucalted_for_imc_date) ? (editData.circulated_for_imc_date || editData.cirucalted_for_imc_date).split('T')[0] : '', remark: editData.circulated_for_imc_remarks || editData.cirucalted_for_imc_remarks || '' },
@@ -120,32 +161,55 @@ export default function InputForm({
         9: { date: editData.cabinet_approved_date ? editData.cabinet_approved_date.split('T')[0] : '', remark: editData.cabinet_approved_remarks || '' },
         10: { date: editData.on_hold_date ? editData.on_hold_date.split('T')[0] : '', remark: editData.on_hold_remarks || '' },
         11: { date: editData.completed_date ? editData.completed_date.split('T')[0] : '', remark: editData.completed_remarks || '' }
-      });
-    } else {
-      setSubject('');
-      setWing('');
-      setDivision('');
-      setRemarks('');
-      setStages({
-        1: { date: '', remark: '' },
-        2: { date: '', remark: '' },
-        3: { date: '', remark: '' },
-        4: { date: '', remark: '' },
-        5: { date: '', remark: '' },
-        6: { date: '', remark: '' },
-        7: { date: '', remark: '' },
-        8: { date: '', remark: '' },
-        9: { date: '', remark: '' },
-        10: { date: '', remark: '' },
-        11: { date: '', remark: '' }
-      });
+      };
     }
+
+    setSubject(initSubject);
+    setWing(initWing);
+    setDivision(initDivision);
+    setRemarks(initRemarks);
+    setStages(initStages);
+
+    setInitialValues({
+      subject: initSubject,
+      wing: initWing,
+      division: initDivision,
+      remarks: initRemarks,
+      stages: initStages,
+      selectedFile: null
+    });
+
     setTouched({
       subject: false,
       wing: false,
-      division: false
+      division: false,
+      remarks: false
     });
   }, [editData]);
+
+  const isDirty = useMemo(() => {
+    if (subject !== initialValues.subject) return true;
+    if (wing !== initialValues.wing) return true;
+    if (division !== initialValues.division) return true;
+    if (remarks !== initialValues.remarks) return true;
+    if (selectedFile !== initialValues.selectedFile) return true;
+
+    for (let i = 1; i <= 11; i++) {
+      if (stages[i].date !== initialValues.stages[i].date) return true;
+      if (stages[i].remark !== initialValues.stages[i].remark) return true;
+    }
+
+    return false;
+  }, [subject, wing, division, remarks, selectedFile, stages, initialValues]);
+
+  const isFormValid = useMemo(() => {
+    return (
+      subject.trim() !== '' &&
+      String(wing).trim() !== '' &&
+      String(division).trim() !== '' &&
+      remarks.trim() !== ''
+    );
+  }, [subject, wing, division, remarks]);
 
   const handleStageChange = (num, field, val) => {
     setStages(prev => {
@@ -184,7 +248,7 @@ export default function InputForm({
   };
 
   const isFieldInvalid = (field, val) => {
-    return touched[field] && (!val || !val.trim());
+    return touched[field] && (!val || !String(val).trim());
   };
 
   const handleSubmit = async (e) => {
@@ -395,7 +459,7 @@ export default function InputForm({
             {/* Remarks Field */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks (Max 250 words)</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks* (Max 250 words)</label>
                 <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-red-500' : 'text-slate-400'}`}>
                   {getWordCount(remarks)} / 250 words
                 </span>
@@ -403,11 +467,15 @@ export default function InputForm({
               <textarea
                 value={remarks}
                 onChange={e => { setRemarks(e.target.value); validateRemarks(e.target.value); }}
+                onBlur={() => handleBlur('remarks')}
                 rows={4}
                 placeholder="Enter remarks..."
                 disabled={readOnly}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${errors.remarks ? 'border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('remarks', remarks) || errors.remarks ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
               />
+              {isFieldInvalid('remarks', remarks) && (
+                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              )}
               {errors.remarks && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.remarks}</p>}
             </div>
 
@@ -495,7 +563,7 @@ export default function InputForm({
           </div>
 
           {/* Right Panel: Scrollable Stages list */}
-          <div 
+          <div
             className="lg:col-span-7 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-950"
             style={{ maxHeight: `${Math.max(480, 480 + noteDocs.length * 32)}px` }}
           >
@@ -574,20 +642,14 @@ export default function InputForm({
         </div>
 
         <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-3">
-          {(isEdit || readOnly) && (
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-5 py-2.5 bg-slate-500 hover:bg-slate-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer"
-            >
-              {readOnly ? "Close" : "Back"}
-            </button>
-          )}
           {!readOnly && (
             <button
               type="submit"
-              disabled={submitting}
-              className="flex items-center space-x-2 text-xs bg-[#0f417a] text-white hover:bg-blue-800 transition px-5 py-2.5 rounded-xl font-bold tracking-wider uppercase cursor-pointer disabled:opacity-50"
+              disabled={submitting || !isFormValid || (isEdit && !isDirty)}
+              className={`flex items-center space-x-2 text-xs transition px-5 py-2.5 rounded-xl font-bold tracking-wider uppercase ${(submitting || !isFormValid || (isEdit && !isDirty))
+                  ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                  : 'bg-[#0f417a] text-white hover:bg-blue-800 cursor-pointer'
+                }`}
             >
               <Save className="h-4 w-4" />
               <span>{isEdit ? "Update Note" : "Save Cabinet Note"}</span>

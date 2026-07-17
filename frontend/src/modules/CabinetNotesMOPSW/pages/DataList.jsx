@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Table from '../../../components/Table';
-import { Search, X, Edit, Eye, Download, FileText } from 'lucide-react';
+import { Search, X, Edit, Eye, Download, FileText, ChevronDown, BarChart3, List } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';
+import ExportButtons from '../../../components/ExportButtons';
 
 export default function DataList({
   rowData,
@@ -15,6 +17,27 @@ export default function DataList({
 }) {
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
+  const [viewMode, setViewMode] = useState('table'); // table or chart switching
+  const [gridApi, setGridApi] = useState(null); // Ag Grid API reference
+  const [dropdownOpen, setDropdownOpen] = useState(false); // Visibility checklist dropdown
+  const colDropdownRef = useRef(null);
+  const [visibleCols, setVisibleCols] = useState({
+    subject: true,
+    wing: true,
+    division: true,
+    status: true
+  });
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Category state: 'active' or 'completed'
   const [activeCategory, setActiveCategory] = useState('active');
@@ -26,9 +49,11 @@ export default function DataList({
   const [loadingDocs, setLoadingDocs] = useState(false);
 
   const fetchNoteDocs = async (noteId) => {
+    console.log("fetchNoteDocs called with noteId:", noteId);
     setLoadingDocs(true);
     try {
       const res = await axios.get(`http://localhost:3000/mopsw-document/${noteId}`);
+      console.log("Documents fetched response for noteId:", noteId, res.data);
       setNoteDocs(res.data || []);
     } catch (err) {
       console.error("Error loading note documents:", err);
@@ -38,8 +63,10 @@ export default function DataList({
   };
 
   const handleOpenDownloadModal = (note) => {
+    console.log("Opening download modal, active note data:", note);
     setActiveNote(note);
     setDocModalOpen(true);
+    // Use notesId (notes.cabinet_notes_mopsw_id)
     fetchNoteDocs(note.cabinet_notes_mopsw_id);
   };
 
@@ -77,13 +104,27 @@ export default function DataList({
     });
   }, [rowData, selectedWing, selectedDivision, activeCategory]);
 
+  const chartData = useMemo(() => {
+    const counts = {};
+    filteredData.forEach(item => {
+      const w = item.wing_name || 'Unknown';
+      counts[w] = (counts[w] || 0) + 1;
+    });
+    return Object.keys(counts).map(key => ({
+      name: key,
+      'Active Notes': counts[key]
+    }));
+  }, [filteredData]);
+
+  const COLORS = ['#0f417a', '#1e5ea8', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
   const columnDefs = useMemo(() => [
     {
       headerName: 'S.No',
       valueGetter: (params) => params.node.rowIndex + 1,
-      width: 60,
-      minWidth: 60,
-      maxWidth: 70,
+      width: 90,
+      minWidth: 90,
+      maxWidth: 95,
       pinned: 'left',
       cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center border-r border-slate-100 dark:border-slate-800',
       headerClass: 'text-center border-r border-slate-100 dark:border-slate-800'
@@ -97,7 +138,8 @@ export default function DataList({
       cellStyle: { textAlign: 'left' },
       cellClass: 'text-left font-semibold text-slate-800 dark:text-slate-200 whitespace-normal leading-normal py-2 border-r border-slate-150 dark:border-slate-800',
       headerClass: 'border-r border-slate-150 dark:border-slate-800',
-      autoHeight: true
+      autoHeight: true,
+      hide: !visibleCols.subject
     },
     {
       field: 'wing_name',
@@ -105,7 +147,8 @@ export default function DataList({
       flex: 1.2,
       minWidth: 130,
       cellStyle: { textAlign: 'left' },
-      cellClass: 'text-slate-700 dark:text-slate-300 font-medium'
+      cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+      hide: !visibleCols.wing
     },
     {
       field: 'division_name',
@@ -113,23 +156,26 @@ export default function DataList({
       flex: 1.2,
       minWidth: 130,
       cellStyle: { textAlign: 'left' },
-      cellClass: 'text-slate-700 dark:text-slate-300 font-medium'
+      cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+      hide: !visibleCols.division
     },
     {
       field: 'mopsw_stage_name',
       headerName: 'Status',
       flex: 1.2,
       minWidth: 130,
-      cellClass: 'text-slate-700 dark:text-slate-300 font-bold text-center'
+      cellClass: 'text-slate-700 dark:text-slate-300 font-bold text-center',
+      hide: !visibleCols.status
     },
     {
       headerName: 'Documents',
-      flex: 1.5,
-      minWidth: 180,
+      flex: 1,
+      minWidth: 90,
       cellClass: 'text-center',
       cellRenderer: (params) => {
         const note = params.data;
-        const hasDocs = note.doc_count > 0;
+        console.log("Documents cellRenderer - note details:", note?.cabinet_notes_mopsw_id, "doc_count:", note?.doc_count);
+        const hasDocs = note && note.doc_count > 0;
         return (
           <div className="flex items-center justify-center space-x-2">
             {hasDocs ? (
@@ -165,10 +211,85 @@ export default function DataList({
         );
       }
     }
-  ], [onEdit, activeCategory]);
+  ], [onEdit, activeCategory, visibleCols, handleOpenDownloadModal]);
 
   const activeCount = useMemo(() => rowData.filter(r => !r.completed_date).length, [rowData]);
   const completedCount = useMemo(() => rowData.filter(r => !!r.completed_date).length, [rowData]);
+
+  const handleExport = (type) => {
+    if (type === 'Excel') {
+      if (gridApi) {
+        gridApi.exportDataAsCsv({
+          fileName: `Cabinet_Notes_MoPSW_Register_export.csv`
+        });
+        if (triggerNotification) {
+          triggerNotification(`Register data exported to Excel (CSV) successfully!`);
+        }
+      } else {
+        alert("Grid is not ready for export yet.");
+      }
+    } else if (type === 'PDF') {
+      if (triggerNotification) {
+        triggerNotification(`Preparing PDF document...`);
+      }
+      const printWindow = window.open('', '_blank');
+      const title = 'Cabinet Notes MoPSW Register';
+
+      let headersHtml = '';
+      columnDefs.forEach(col => {
+        if (col.headerName && !col.hide && col.headerName !== 'Documents' && col.headerName !== 'Update') {
+          headersHtml += `<th style="border:1px solid #0f417a; padding:10px 14px; text-align:left; background:#0f417a; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${col.headerName}</th>`;
+        }
+      });
+
+      let rowsHtml = '';
+      filteredData.forEach((row, i) => {
+        const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+        rowsHtml += `<tr style="background:${bg}">`;
+        columnDefs.forEach(col => {
+          if (col.headerName && !col.hide && col.headerName !== 'Documents' && col.headerName !== 'Update') {
+            let val = '';
+            if (col.headerName === 'S.No') val = i + 1;
+            else if (col.field) val = row[col.field] !== undefined ? row[col.field] : '';
+            rowsHtml += `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155;">${val}</td>`;
+          }
+        });
+        rowsHtml += '</tr>';
+      });
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>${title}</title>
+            <style>
+              body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; padding: 24px; }
+              h1 { font-size: 18px; margin-bottom: 4px; color: #0f417a; }
+              table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+            </style>
+          </head>
+          <body>
+            <h1>${title}</h1>
+            <p style="font-size:11px; color:#64748b; margin:0 0 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
+            <table>
+              <thead>
+                <tr>${headersHtml}</tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -198,72 +319,159 @@ export default function DataList({
       {/* Main Ag Grid Table & Filters */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
         {/* Filter Toolbar */}
-        <div className="flex flex-wrap items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
-          {/* Wing Dropdown */}
-          <div className="w-48 relative">
-            <select
-              value={selectedWing}
-              onChange={(e) => setSelectedWing(e.target.value)}
-              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
-            >
-              <option value="">Show all Wings</option>
-              {wingOptions.map(w => (
-                <option key={w.value} value={w.value}>{w.label}</option>
-              ))}
-            </select>
+        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+            {/* Wing Dropdown */}
+            <div className="w-48 relative">
+              <select
+                value={selectedWing}
+                onChange={(e) => setSelectedWing(e.target.value)}
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+              >
+                <option value="">Show all Wings</option>
+                {wingOptions.map(w => (
+                  <option key={w.value} value={w.value}>{w.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Division Dropdown */}
+            <div className="w-48 relative">
+              <select
+                value={selectedDivision}
+                onChange={(e) => setSelectedDivision(e.target.value)}
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+              >
+                <option value="">Show all Divisions</option>
+                {divisionOptions.map(d => (
+                  <option key={d.value} value={d.value}>{d.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Clear Button */}
+            {(selectedWing || selectedDivision) && (
+              <button
+                onClick={() => { setSelectedWing(''); setSelectedDivision(''); }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>Clear</span>
+              </button>
+            )}
           </div>
 
-          {/* Division Dropdown */}
-          <div className="w-48 relative">
-            <select
-              value={selectedDivision}
-              onChange={(e) => setSelectedDivision(e.target.value)}
-              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
-            >
-              <option value="">Show all Divisions</option>
-              {divisionOptions.map(d => (
-                <option key={d.value} value={d.value}>{d.label}</option>
-              ))}
-            </select>
-          </div>
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            {/* Column Visibility Dropdown */}
+            {viewMode === 'table' && (
+              <div className="relative" ref={colDropdownRef}>
+                <button
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 dark:bg-slate-950 dark:border-slate-850 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900 transition cursor-pointer flex items-center space-x-1.5 dark:text-slate-200"
+                >
+                  <span>Visibility</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                </button>
+                {dropdownOpen && (
+                  <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                    {Object.keys(visibleCols).map(col => (
+                      <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={visibleCols[col]}
+                          onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                          className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span>{col}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-          {/* Clear Button */}
-          {(selectedWing || selectedDivision) && (
-            <button
-              onClick={() => { setSelectedWing(''); setSelectedDivision(''); }}
-              className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
-            >
-              <X className="h-3.5 w-3.5" />
-              <span>Clear</span>
-            </button>
+            {/* Toggle Switch Button Pair */}
+            <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 bg-slate-50 dark:bg-slate-900">
+              <button
+                onClick={() => setViewMode('chart')}
+                className={`p-2 rounded-lg transition cursor-pointer ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
+                title="Chart View"
+              >
+                <BarChart3 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-2 rounded-lg transition cursor-pointer ${viewMode === 'table' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
+                title="Table View"
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {viewMode === 'table' ? (
+          <Table
+            rowData={filteredData}
+            columnDefs={columnDefs}
+            loading={loading}
+            pagination={true}
+            paginationPageSize={10}
+            enableExport={false}
+            onGridReady={(params) => setGridApi(params.api)}
+            autoSizeStrategy={{
+              type: 'fitGridWidth'
+            }}
+            defaultColDef={{
+              minWidth: 100,
+              filter: true,
+              sortable: true,
+              resizable: true,
+              autoHeight: true,
+              wrapHeaderText: true,
+              autoHeaderHeight: true
+            }}
+          />
+        ) : (
+          <div className="w-full h-[350px] p-4 flex items-center justify-center bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} fontWeight={600} />
+                  <YAxis stroke="#64748b" fontSize={11} fontWeight={600} />
+                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '11px' }} />
+                  <Legend verticalAlign="top" height={36} />
+                  <Bar dataKey="Active Notes" fill="#0f417a" radius={[6, 6, 0, 0]}>
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm font-semibold text-slate-500">No data available for chart representation.</p>
+            )}
+          </div>
+        )}
+
+        {/* Bottom left export options */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <ExportButtons
+            onExportExcel={() => handleExport('Excel')}
+            onExportPdf={() => handleExport('PDF')}
+          />
+          {viewMode === 'table' && (
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Total Notes: {filteredData.length}
+            </div>
           )}
         </div>
-        <Table
-          rowData={filteredData}
-          columnDefs={columnDefs}
-          loading={loading}
-          pagination={true}
-          paginationPageSize={10}
-          enableExport={false}
-          autoSizeStrategy={{
-            type: 'fitGridWidth'
-          }}
-          defaultColDef={{
-            minWidth: 100,
-            filter: true,
-            sortable: true,
-            resizable: true,
-            autoHeight: true,
-            wrapHeaderText: true,
-            autoHeaderHeight: true
-          }}
-        />
       </div>
 
       {/* Document Management Modal */}
       {docModalOpen && activeNote && createPortal(
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg shadow-xl overflow-hidden animate-fade-in">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg shadow-xl overflow-hidden">
             <div className="bg-[#0f417a] text-white px-5 py-4 flex justify-between items-center">
               <div>
                 <h3 className="text-xs font-black uppercase tracking-wider font-display">
