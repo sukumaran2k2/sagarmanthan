@@ -268,12 +268,12 @@ export default function InputForm({
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4.5 flex items-center justify-between text-white border-b border-blue-900/20">
+      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider font-display">
             {isEdit ? "Update Consultant Appointment" : "Add Consultant Appointment"}
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
         </div>
       </div>
 
@@ -471,7 +471,11 @@ export default function InputForm({
           <button
             type="submit"
             disabled={isFormDisabled}
-            className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer dark:bg-blue-600 dark:hover:bg-blue-700"
+            className={`px-5.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              isFormDisabled
+                ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-550 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg dark:bg-[#0f417a] dark:hover:bg-[#0a2d55]'
+            }`}
           >
             {isEdit ? (submitting ? 'Updating...' : 'Update Appointment') : (submitting ? 'Saving...' : 'Save Post')}
           </button>

@@ -372,6 +372,58 @@ export default function DataList({
               resizable: true
             }}
           />
+          <style dangerouslySetInnerHTML={{
+            __html: `
+            .ag-theme-quartz.rounded-xl,
+            .ag-theme-quartz.rounded-2xl {
+              border-radius: 16px !important;
+            }
+            .ag-theme-quartz .ag-root-wrapper {
+              border-radius: 16px !important;
+            }
+            .ag-theme-quartz .ag-paging-panel {
+              color: #1e293b !important;
+              font-weight: 700 !important;
+              opacity: 1 !important;
+            }
+            .dark .ag-theme-quartz .ag-paging-panel {
+              color: #f1f5f9 !important;
+            }
+            .ag-theme-quartz .ag-paging-button {
+              color: #0f417a !important;
+              opacity: 1 !important;
+            }
+            .dark .ag-theme-quartz .ag-paging-button {
+              color: #3b82f6 !important;
+            }
+            .ag-theme-quartz .ag-paging-panel .ag-icon {
+              color: #0f417a !important;
+              opacity: 1 !important;
+            }
+            .dark .ag-theme-quartz .ag-paging-panel .ag-icon {
+              color: #3b82f6 !important;
+            }
+            .ag-theme-quartz .ag-paging-row-summary-panel select {
+              color: #1e293b !important;
+              background-color: #fff !important;
+              opacity: 1 !important;
+              border: 1px solid #cbd5e1 !important;
+              border-radius: 4px !important;
+            }
+            .dark .ag-theme-quartz .ag-paging-row-summary-panel select {
+              color: #f1f5f9 !important;
+              background-color: #1f2937 !important;
+              border: 1px solid #4b5563 !important;
+            }
+            .ag-theme-quartz select option {
+              color: #1e293b !important;
+              background-color: #ffffff !important;
+            }
+            .dark .ag-theme-quartz select option {
+              color: #f1f5f9 !important;
+              background-color: #1f2937 !important;
+            }
+          `}} />
         </div>
       ) : (
         <div className="w-full h-[350px] p-4 flex items-center justify-center bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm">

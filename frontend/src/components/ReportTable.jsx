@@ -84,7 +84,7 @@ export default function ReportTable({
     let tsv = '';
     const activeCols = columns.filter(c => c.headerName && c.field !== 'Document');
     tsv += activeCols.map(c => c.headerName).join('\t') + '\n';
-    
+
     let index = 1;
     gridRef.current.api.forEachNodeAfterFilterAndSort((node) => {
       const row = node.data;
@@ -99,7 +99,7 @@ export default function ReportTable({
       }).join('\t');
       tsv += rowTsv + '\n';
     });
-    
+
     navigator.clipboard.writeText(tsv).then(() => {
       triggerNotification?.('Report copied to clipboard!');
     }).catch(err => {
@@ -195,16 +195,16 @@ export default function ReportTable({
           </div>
 
           {/* Total Pill */}
-          <div style={{
+          {/* <div style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '8px 14px', borderRadius: 9,
             background: '#fff', border: '1px solid #e2e8f0',
           }}>
-            <Users size={14} color={brandColor} /> 
+            <Users size={14} color={brandColor} />
             <span style={{ fontSize: 13, color: '#475569' }}>
               {totalLabel} <strong style={{ color: brandColor, fontFamily: "'JetBrains Mono', monospace", fontSize: 13.5 }}>{viewData.length}</strong>
             </span>
-          </div>
+          </div> */}
 
           {/* Copy button */}
           <button
@@ -330,32 +330,32 @@ export default function ReportTable({
 
         <div className={`ag-theme-quartz ${themeClass}`} style={{ width: '100%' }}>
           <AgGridReact
-             ref={gridRef}
-             theme="legacy"
-             rowData={viewData}
-             columnDefs={columns}
-             defaultColDef={defaultColDef}
-             pagination={pagination}
-             paginationPageSize={15}
-             paginationPageSizeSelector={[10, 15, 25, 50]}
-             domLayout="autoHeight"
-             suppressColumnVirtualisation={true}
-             quickFilterText={quickFilter}
-             animateRows={true}
-             headerHeight={46}
-             sideBar={{
-               toolPanels: ['columns', 'filters'],
-               defaultToolPanel: ''
-             }}
-             onGridReady={(params) => {
-               if (gridRef.current) gridRef.current.api = params.api;
-               params.api.sizeColumnsToFit();
-             }}
-             autoSizeStrategy={{
-               type: 'fitCellContents',
-               skipHeader: false,
-               scaleUpToFitGridWidth: true
-             }}
+            ref={gridRef}
+            theme="legacy"
+            rowData={viewData}
+            columnDefs={columns}
+            defaultColDef={defaultColDef}
+            pagination={pagination}
+            paginationPageSize={15}
+            paginationPageSizeSelector={[10, 15, 25, 50]}
+            domLayout="autoHeight"
+            suppressColumnVirtualisation={true}
+            quickFilterText={quickFilter}
+            animateRows={true}
+            headerHeight={46}
+            sideBar={{
+              toolPanels: ['columns', 'filters'],
+              defaultToolPanel: ''
+            }}
+            onGridReady={(params) => {
+              if (gridRef.current) gridRef.current.api = params.api;
+              params.api.sizeColumnsToFit();
+            }}
+            autoSizeStrategy={{
+              type: 'fitCellContents',
+              skipHeader: false,
+              scaleUpToFitGridWidth: true
+            }}
           />
         </div>
       </div>
@@ -366,14 +366,15 @@ export default function ReportTable({
         padding: '12px 20px',
         background: '#f8fafc', borderTop: '1px solid #e2e8f0'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {/* <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           <FileSpreadsheet size={14} color="#cbd5e1" />
           <span>Showing {viewData.length} records</span>
-        </div>
+        </div> */}
       </div>
 
       {/* ─ AG Grid Custom Styles Stylesheet Injection ─ */}
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .${themeClass}.ag-theme-quartz {
           --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
           --ag-font-size: 13.5px;
