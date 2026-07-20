@@ -69,7 +69,7 @@ async function getDashboardDataEntryStatus(req,res){
             GROUP BY wing) ca ON mmt_wings.wing_id = ca.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS total_vip_reference 
-            FROM tbl_vip_reference 
+            FROM tbl_vip_reference_change 
             GROUP BY wing) vr ON mmt_wings.wing_id = vr.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_cabinet_notes_mopsw] 

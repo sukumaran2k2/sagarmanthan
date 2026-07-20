@@ -1,23 +1,40 @@
-import { useState, useEffect } from 'react';
-import { Home, FileText, ClipboardList } from 'lucide-react';
-import InternalNavigation from '../../components/InternalNavigation';
-import VIPReferenceInput from './VIPReferenceInput';
-import VIPReferenceReports from './VIPReferenceReports';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import InternalNavigation from '../../components/InternalNavigation';
+import DataList from './pages/DataList';
+import InputForm from './pages/InputForm';
+import Reports from './pages/Reports';
 
-export default function VIPReference() {
+export default function VIPReference({ triggerNotification }) {
+  const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
   const [vipReferences, setVipReferences] = useState([]);
-  const [activeSubTab, setActiveSubTab] = useState('input'); // 'input' or 'reports'
+  const [wings, setWings] = useState([]);
+  const [divisions, setDivisions] = useState([]);
+  const [editData, setEditData] = useState(null);
 
-  const navTabs = [
-    { id: 'input', label: 'Input Form', icon: ClipboardList },
-    { id: 'reports', label: 'Reports', icon: FileText }
+  const tabs = [
+    { id: 'add', label: 'Input Form' },
+    { id: 'list', label: 'Data List' },
+    { id: 'report', label: 'Report' }
   ];
+
+  // Fetch wings and divisions on mount
+  useEffect(() => {
+    axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
+      .then(res => setWings(res.data || []))
+      .catch(err => console.error("Error loading wings:", err));
+
+    axios.get("http://localhost:3000/mmt-dropdown/mmt_division")
+      .then(res => setDivisions(res.data || []))
+      .catch(err => console.error("Error loading divisions:", err));
+  }, []);
 
   const fetchData = () => {
     axios.get("http://localhost:3000/vip-reference")
       .then(res => {
-        const mapped = res.data.map(r => {
+        // Handle paginated or list format
+        const dataArray = Array.isArray(res.data) ? res.data : (res.data.data || []);
+        const mapped = dataArray.map(r => {
           const steps = {
             1: r.received_at_ministry || 'No',
             2: r.submitted_for_approval || 'No',
@@ -51,59 +68,95 @@ export default function VIPReference() {
         });
         setVipReferences(mapped);
       })
-      .catch(err => console.error("Error fetching VIP references:", err));
+      .catch(err => console.error("Error loading VIP references:", err));
   };
 
   useEffect(() => {
-    if (activeSubTab === 'reports') {
-      fetchData();
-    }
-  }, [activeSubTab]);
+    fetchData();
+  }, []);
+
+  const handleEdit = (refData) => {
+    setEditData(refData);
+  };
+
+  const handleSuccess = () => {
+    setEditData(null);
+    fetchData();
+    setActiveSubTab('list');
+  };
+
+  const handleBack = () => {
+    setEditData(null);
+    setActiveSubTab('list');
+  };
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
       
-      {/* Breadcrumbs */}
-      <div className="flex items-center space-x-1 text-slate-400 text-xs font-semibold px-2">
-        <Home className="h-3.5 w-3.5 text-slate-400" />
-        <span className="text-slate-400">/</span>
-        <span className="text-slate-600 hover:underline cursor-pointer">Governance</span>
-        <span className="text-slate-400">/</span>
-        <span className="text-slate-600 hover:underline cursor-pointer">VIP Reference</span>
-        <span className="text-slate-400">/</span>
-        <span className="text-blue-800 font-bold">
-          {activeSubTab === 'input' ? 'Input Form' : 'Output Reports'}
-        </span>
-      </div>
-
-      {/* Main Page Title and Internal Navigation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+      {/* Header Row */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
-            VIP Reference - {activeSubTab === 'input' ? 'Input Form' : 'Reports'}
+            VIP Reference
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
+          <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
             Manage VIP Reference letters, comments sought from organisations, and track processing workflow status.
           </p>
         </div>
-        <div>
-          <InternalNavigation
-            tabs={navTabs}
-            currentTab={activeSubTab}
-            onTabChange={(tabId) => setActiveSubTab(tabId)}
-          />
-        </div>
+
+        <InternalNavigation
+          tabs={tabs}
+          currentTab={activeSubTab}
+          onTabChange={(tabId) => {
+            if (tabId !== 'add') {
+              setEditData(null);
+            }
+            setActiveSubTab(tabId);
+          }}
+        />
       </div>
 
-      {/* Content Section */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        {activeSubTab === 'input' ? (
-          <VIPReferenceInput vipReferences={vipReferences} setVipReferences={setVipReferences} refreshData={fetchData} />
-        ) : (
-          <VIPReferenceReports vipReferences={vipReferences} />
+      {/* Dynamic Tab Render Area */}
+      <div className="space-y-8">
+        {activeSubTab === 'list' && (
+          editData ? (
+            <InputForm
+              wings={wings}
+              divisions={divisions}
+              onBack={handleBack}
+              onSuccess={handleSuccess}
+              triggerNotification={triggerNotification}
+              editData={editData}
+            />
+          ) : (
+            <DataList
+              wings={wings}
+              divisions={divisions}
+              onEdit={handleEdit}
+              onAddClick={() => setActiveSubTab('add')}
+              triggerNotification={triggerNotification}
+            />
+          )
+        )}
+
+        {activeSubTab === 'add' && (
+          <InputForm
+            wings={wings}
+            divisions={divisions}
+            onBack={handleBack}
+            onSuccess={handleSuccess}
+            triggerNotification={triggerNotification}
+            editData={null}
+          />
+        )}
+
+        {activeSubTab === 'report' && (
+          <Reports
+            vipReferences={vipReferences}
+            triggerNotification={triggerNotification}
+          />
         )}
       </div>
-
     </div>
   );
 }

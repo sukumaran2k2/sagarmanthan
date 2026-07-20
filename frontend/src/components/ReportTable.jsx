@@ -343,10 +343,6 @@ export default function ReportTable({
             quickFilterText={quickFilter}
             animateRows={true}
             headerHeight={46}
-            sideBar={{
-              toolPanels: ['columns', 'filters'],
-              defaultToolPanel: ''
-            }}
             onGridReady={(params) => {
               if (gridRef.current) gridRef.current.api = params.api;
               params.api.sizeColumnsToFit();
