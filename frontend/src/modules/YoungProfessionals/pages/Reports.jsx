@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllEnterpriseModule, ModuleRegistry } from 'ag-grid-enterprise';
-import { ChevronLeft, FileSpreadsheet, Download, Search, Users, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
+import { ChevronLeft, Search, Users, Loader2, RefreshCw, X, TrendingUp, Copy, FileSpreadsheet } from 'lucide-react';
 import axios from 'axios';
+import ExportDropdown from '../../../components/ExportDropdown';
+import CopyButton from '../../../components/CopyButton';
 
 ModuleRegistry.registerModules([AllEnterpriseModule]);
 
@@ -10,25 +12,12 @@ const initials = n => n ? n.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join(
 
 export default function Reports({ triggerNotification }) {
   const gridRef = useRef(null);
-  const dropdownRef = useRef(null);
   const [drillDownPath, setDrillDownPath] = useState([
     { type: 'summary', title: 'Report No. 2.2A - Abstract ( Wing & Division Wise ) - Young Professionals' }
   ]);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [quickFilter, setQuickFilter] = useState('');
-  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
-
-  // Close dropdown on click outside
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setExportDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const currentView = drillDownPath[drillDownPath.length - 1];
 
@@ -490,86 +479,20 @@ export default function Reports({ triggerNotification }) {
           </div>
 
           {/* Copy button */}
-          <button
-            onClick={handleCopy}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 7,
-              padding: '9px 16px', borderRadius: 9,
-              background: '#fff',
-              color: '#4b2424', fontWeight: 600, fontSize: 13,
-              border: '1px solid #eadede', cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#f7f3f3'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
-          >
-            <Copy size={15} />
-            <span>Copy</span>
-          </button>
+          <CopyButton
+            onCopy={handleCopy}
+            color="#4b2424"
+            hoverBg="#f7f3f3"
+            className="!rounded-[9px] !py-[9px] !px-[16px]"
+          />
 
           {/* Export button */}
-          <div ref={dropdownRef} style={{ position: 'relative' }}>
-            <button
-              onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 7,
-                padding: '9px 16px', borderRadius: 9,
-                background: '#4b2424',
-                color: '#fff', fontWeight: 600, fontSize: 13,
-                border: 'none', cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#6b3535'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#4b2424'; }}
-            >
-              <span>Export</span>
-              <span style={{ fontSize: 10 }}>▾</span>
-            </button>
-
-            {exportDropdownOpen && (
-              <div style={{
-                position: 'absolute', right: 0, top: 'calc(100% + 6px)',
-                background: '#ffffff', border: '1px solid #E4E6E2', borderRadius: 10,
-                boxShadow: '0 14px 34px -18px rgba(11,37,69,.35)',
-                zIndex: 50, minWidth: 160, overflow: 'hidden', padding: '0'
-              }}>
-                <button
-                  onClick={() => {
-                    handleExport('Excel');
-                    setExportDropdownOpen(false);
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                    padding: '10px 14px', border: 'none', background: 'none',
-                    color: '#4b2424', fontSize: 13,
-                    textAlign: 'left', cursor: 'pointer', transition: 'background 0.15s'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#F3F4F1'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                >
-                  <FileSpreadsheet size={14} color="#0F6E56" />
-                  <span>CSV (Excel)</span>
-                </button>
-                <button
-                  onClick={() => {
-                    handleExport('PDF');
-                    setExportDropdownOpen(false);
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                    padding: '10px 14px', border: 'none', background: 'none',
-                    color: '#4b2424', fontSize: 13,
-                    textAlign: 'left', cursor: 'pointer', transition: 'background 0.15s'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#F3F4F1'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                >
-                  <Download size={14} color="#D8572A" />
-                  <span>Print / PDF</span>
-                </button>
-              </div>
-            )}
-          </div>
+          <ExportDropdown
+            onExportExcel={() => handleExport('Excel')}
+            onExportPdf={() => handleExport('PDF')}
+            color="#4b2424"
+            hoverColor="#6b3535"
+          />
 
           {/* Reset / Refresh */}
           <button
@@ -624,10 +547,7 @@ export default function Reports({ triggerNotification }) {
              quickFilterText={quickFilter}
              animateRows={true}
              headerHeight={46}
-             sideBar={{
-               toolPanels: ['columns', 'filters'],
-               defaultToolPanel: ''
-             }}
+             sideBar={false}
              onGridReady={onGridReady}
              autoSizeStrategy={{
                type: 'fitCellContents',

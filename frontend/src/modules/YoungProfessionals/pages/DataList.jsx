@@ -3,7 +3,8 @@ import Table from '../../../components/table';
 import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';
-import ExportButtons from '../../../components/ExportButtons';
+import ExportDropdown from '../../../components/ExportDropdown';
+import CopyButton from '../../../components/CopyButton';
 
 function decodeToken(token) {
   try {
@@ -187,7 +188,44 @@ export default function DataList({
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel') {
+    if (type === 'Copy') {
+      if (gridApi) {
+        let tsv = '';
+        const headers = [];
+        columnDefs.forEach(col => {
+          if (col.headerName && col.headerName !== 'Action') {
+            headers.push(col.headerName);
+          }
+        });
+        tsv += headers.join('\t') + '\n';
+        
+        filteredData.forEach((row, rowIndex) => {
+          const line = [];
+          columnDefs.forEach(col => {
+            if (col.headerName && col.headerName !== 'Action') {
+              let val = '';
+              if (col.field === 'sNo') {
+                val = rowIndex + 1;
+              } else if (col.field === 'is_active') {
+                val = row[col.field] ? 'Active' : 'Relieved';
+              } else {
+                val = row[col.field] !== undefined ? row[col.field] : '';
+              }
+              line.push(val);
+            }
+          });
+          tsv += line.join('\t') + '\n';
+        });
+        
+        navigator.clipboard.writeText(tsv)
+          .then(() => {
+            if (triggerNotification) triggerNotification('Table data copied to clipboard!');
+          })
+          .catch(() => alert('Failed to copy table data.'));
+      } else {
+        alert("Grid is not ready for copy yet.");
+      }
+    } else if (type === 'Excel') {
       if (gridApi) {
         gridApi.exportDataAsCsv({
           fileName: `Young_Professionals_Register_export.csv`
@@ -425,8 +463,27 @@ export default function DataList({
           )}
         </div>
 
-        {/* Right cluster: Column visibility + View toggle */}
+        {/* Right cluster: Export + Column visibility + View toggle */}
         <div className="flex items-center space-x-2 flex-shrink-0">
+          {viewMode === 'table' && (
+            <>
+              <div className="text-xs font-bold text-slate-550 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                Total Rows: {filteredData.length}
+              </div>
+              <CopyButton
+                onCopy={() => handleExport('Copy')}
+                color="#0f417a"
+                hoverBg="#f1f5f9"
+              />
+              <ExportDropdown
+                onExportExcel={() => handleExport('Excel')}
+                onExportPdf={() => handleExport('PDF')}
+                color="#0f417a"
+                hoverColor="#1d5594"
+              />
+            </>
+          )}
+
           {/* Column Visibility Dropdown */}
           {viewMode === 'table' && (
             <div className="relative" ref={colDropdownRef}>
@@ -568,18 +625,7 @@ export default function DataList({
         </div>
       )}
 
-      {/* Bottom left export options */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-        <ExportButtons
-          onExportExcel={() => handleExport('Excel')}
-          onExportPdf={() => handleExport('PDF')}
-        />
-        {viewMode === 'table' && (
-          <div className="text-xs font-bold text-slate-550 uppercase tracking-wider">
-            Total Rows: {filteredData.length}
-          </div>
-        )}
-      </div>
+      {/* Bottom info row removed */}
 
       {/* Relieve Modal */}
       {relieveModalOpen && selectedYp && (
