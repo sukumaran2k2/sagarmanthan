@@ -1,11 +1,11 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { FileSpreadsheet, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-export default function Table({
+const Table = forwardRef(({
   rowData = [],
   columnDefs = [],
   loading = false,
@@ -19,9 +19,13 @@ export default function Table({
   onFirstDataRendered,
   onGridReady,
   onPaginationChanged,
+  domLayout = 'autoHeight',
+  color = '#28408f',
   ...props
-}) {
-  const gridRef = useRef();
+}, ref) => {
+  const localGridRef = useRef();
+  const activeRef = ref || localGridRef;
+  const [gridApi, setGridApi] = useState(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(0);
@@ -29,9 +33,15 @@ export default function Table({
   const [totalRows, setTotalRows] = useState(0);
   const [pageSize, setPageSize] = useState(paginationPageSize);
 
+  // Sync pageSize state with paginationPageSize prop when changed dynamically from parent toolbar
+  useEffect(() => {
+    setPageSize(paginationPageSize);
+  }, [paginationPageSize]);
+
   const onBtnExport = () => {
-    if (gridRef.current && gridRef.current.api) {
-      gridRef.current.api.exportDataAsCsv({
+    const api = gridApi || activeRef.current?.api;
+    if (api) {
+      api.exportDataAsCsv({
         fileName: exportFileName,
       });
     }
@@ -51,6 +61,7 @@ export default function Table({
 
   const handleGridReady = (params) => {
     if (params.api) {
+      setGridApi(params.api);
       setCurrentPage(params.api.paginationGetCurrentPage());
       setTotalPages(params.api.paginationGetTotalPages());
       setTotalRows(params.api.paginationGetRowCount());
@@ -63,6 +74,9 @@ export default function Table({
 
   const handlePaginationChanged = (params) => {
     if (params.api) {
+      if (!gridApi) {
+        setGridApi(params.api);
+      }
       setCurrentPage(params.api.paginationGetCurrentPage());
       setTotalPages(params.api.paginationGetTotalPages());
       setTotalRows(params.api.paginationGetRowCount());
@@ -74,32 +88,40 @@ export default function Table({
   };
 
   const handlePageClick = (pageIndex) => {
-    if (gridRef.current && gridRef.current.api) {
-      gridRef.current.api.paginationGoToPage(pageIndex);
+    const api = gridApi || activeRef.current?.api;
+    if (api) {
+      api.paginationGoToPage(pageIndex);
     }
   };
 
   const handlePrevPage = () => {
-    if (gridRef.current && gridRef.current.api) {
-      gridRef.current.api.paginationGoToPreviousPage();
+    const api = gridApi || activeRef.current?.api;
+    if (api) {
+      api.paginationGoToPreviousPage();
     }
   };
 
   const handleNextPage = () => {
-    if (gridRef.current && gridRef.current.api) {
-      gridRef.current.api.paginationGoToNextPage();
+    const api = gridApi || activeRef.current?.api;
+    if (api) {
+      api.paginationGoToNextPage();
     }
   };
 
   const processedColumnDefs = useMemo(() => {
-    return columnDefs.map(col => {
+    const processCol = (col) => {
       const headerText = col.headerName || col.field || '';
       const estimatedWidth = (headerText.length + 5) * 12;
-      return {
+      const updatedCol = {
         ...col,
         minWidth: col.minWidth ? Math.max(col.minWidth, estimatedWidth) : estimatedWidth
       };
-    });
+      if (updatedCol.children) {
+        updatedCol.children = updatedCol.children.map(processCol);
+      }
+      return updatedCol;
+    };
+    return columnDefs.map(processCol);
   }, [columnDefs]);
 
   const activeAutoSizeStrategy = autoSizeStrategy || {
@@ -124,9 +146,9 @@ export default function Table({
       let end = Math.min(totalPages - 2, currentPage + 1);
       
       if (currentPage <= 2) {
-        end = 3;
+        end = maxVisiblePages - 1;
       } else if (currentPage >= totalPages - 3) {
-        start = totalPages - 4;
+        start = totalPages - maxVisiblePages;
       }
       
       if (start > 1) {
@@ -175,7 +197,7 @@ export default function Table({
 
         <div className="w-full overflow-x-auto">
           <AgGridReact
-            ref={gridRef}
+            ref={activeRef}
             theme="legacy"
             rowData={rowData}
             columnDefs={processedColumnDefs}
@@ -189,7 +211,7 @@ export default function Table({
             pagination={pagination}
             paginationPageSize={paginationPageSize}
             suppressPaginationPanel={true}
-            domLayout="autoHeight"
+            domLayout={domLayout}
             suppressColumnVirtualisation={true}
             autoSizeStrategy={activeAutoSizeStrategy}
             onGridSizeChanged={handleGridSizeChanged}
@@ -216,8 +238,9 @@ export default function Table({
                 className={`flex items-center justify-center px-3 py-1.5 rounded border text-xs font-bold transition cursor-pointer select-none ${
                   currentPage === 0
                     ? 'bg-white text-slate-350 border-slate-150 cursor-not-allowed'
-                    : 'bg-white text-[#28408f] border-slate-250 hover:bg-slate-50'
+                    : 'bg-white border-slate-250 hover:bg-slate-50'
                 }`}
+                style={currentPage !== 0 ? { color: color } : {}}
               >
                 <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
                 <span>Previous</span>
@@ -241,9 +264,10 @@ export default function Table({
                     onClick={() => handlePageClick(p)}
                     className={`px-3 py-1.5 rounded text-xs font-extrabold transition cursor-pointer select-none ${
                       isActive
-                        ? 'bg-[#28408f] text-white border border-[#28408f] shadow-sm'
+                        ? 'text-white border shadow-sm'
                         : 'bg-white text-slate-700 border border-slate-250 hover:bg-slate-50'
                     }`}
+                    style={isActive ? { backgroundColor: color, borderColor: color } : {}}
                   >
                     {p + 1}
                   </button>
@@ -258,8 +282,9 @@ export default function Table({
                 className={`flex items-center justify-center px-3 py-1.5 rounded border text-xs font-bold transition cursor-pointer select-none ${
                   currentPage === totalPages - 1
                     ? 'bg-white text-slate-355 border-slate-150 cursor-not-allowed'
-                    : 'bg-white text-[#28408f] border-slate-250 hover:bg-slate-50'
+                    : 'bg-white border-slate-250 hover:bg-slate-50'
                 }`}
+                style={currentPage !== totalPages - 1 ? { color: color } : {}}
               >
                 <span>Next</span>
                 <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
@@ -270,4 +295,6 @@ export default function Table({
       </div>
     </div>
   );
-}
+});
+
+export default Table;

@@ -1,7 +1,6 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import Table from '../../../components/table';
-import { Pencil, ChevronDown, Copy, FileSpreadsheet, FileText, LayoutGrid } from 'lucide-react';
-import CopyButton from '../../../components/CopyButton';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import TableWithToolbar from '../../../components/TableWithToolbar';
+import { Pencil, SlidersHorizontal, ChevronDown, Landmark, Anchor, Building } from 'lucide-react';
 
 const SOCIAL_CHANNELS = ['facebook', 'instagram', 'linkedIn', 'twitter', 'youTube'];
 const SOCIAL_METRICS = ['posts', 'engagement', 'impression']; // Ordered as shown in screenshot
@@ -16,38 +15,24 @@ export default function DataList({
   onAddNew,
   onRefresh,
   organisations,
-  getOrgName
+  getOrgName,
+  triggerNotification
 }) {
   const [gridApi, setGridApi] = useState(null);
 
   // States for filters
   const [financialYearFilter, setFinancialYearFilter] = useState('');
-  const [organisationFilter, setOrganisationFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showYearWise, setShowYearWise] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all'); // 'all' | 'major_port' | 'ministry' | 'non_port'
   const [selectedSubOrgId, setSelectedSubOrgId] = useState('');
+  const [isFiltersOpen, setIsFiltersOpen] = useState(true);
   
   // Clear selectedSubOrgId whenever activeCategory changes
   useEffect(() => {
     setSelectedSubOrgId('');
   }, [activeCategory]);
-  
-  // Column visibility checklist dropdown states
-  const [colDropdownOpen, setColDropdownOpen] = useState(false);
-  const colDropdownRef = useRef(null);
-
-  // Close dropdown on click outside
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
-        setColDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Set default visibility for columns depending on media type
   const [visibleCols, setVisibleCols] = useState({
@@ -113,7 +98,6 @@ export default function DataList({
   const categoryCounts = useMemo(() => {
     const baseFiltered = rowData.filter(row => {
       const matchesFY = financialYearFilter ? row.financial_year === financialYearFilter : true;
-      const matchesOrg = organisationFilter ? String(row.organisation_id) === String(organisationFilter) : true;
       const matchesMonth = monthFilter ? row.month === monthFilter : true;
       
       const search = searchTerm.toLowerCase();
@@ -124,7 +108,7 @@ export default function DataList({
         (row.month || '').toLowerCase().includes(search)
       ) : true;
 
-      return matchesFY && matchesOrg && matchesMonth && matchesSearch;
+      return matchesFY && matchesMonth && matchesSearch;
     });
 
     let majorPort = 0;
@@ -139,7 +123,7 @@ export default function DataList({
     });
 
     return { majorPort, ministry, nonPort };
-  }, [rowData, financialYearFilter, organisationFilter, monthFilter, searchTerm, getOrgName, getOrgCategory]);
+  }, [rowData, financialYearFilter, monthFilter, searchTerm, getOrgName, getOrgCategory]);
 
   // Unique list of sub-organisations belonging to the active category
   const subOrganisations = useMemo(() => {
@@ -161,7 +145,6 @@ export default function DataList({
     if (!showYearWise) {
       return rowData.filter(row => {
         const matchesFY = financialYearFilter ? row.financial_year === financialYearFilter : true;
-        const matchesOrg = organisationFilter ? String(row.organisation_id) === String(organisationFilter) : true;
         const matchesMonth = monthFilter ? row.month === monthFilter : true;
         
         // Category filter
@@ -183,7 +166,7 @@ export default function DataList({
           (row.month || '').toLowerCase().includes(search)
         ) : true;
 
-        return matchesFY && matchesOrg && matchesMonth && matchesSearch;
+        return matchesFY && matchesMonth && matchesSearch;
       });
     }
 
@@ -235,7 +218,6 @@ export default function DataList({
 
     return Object.values(groups).filter(row => {
       const matchesFY = financialYearFilter ? row.financial_year === financialYearFilter : true;
-      const matchesOrg = organisationFilter ? String(row.organisation_id) === String(organisationFilter) : true;
       
       // Category filter
       if (activeCategory !== 'all') {
@@ -255,9 +237,9 @@ export default function DataList({
         (row.financial_year || '').toLowerCase().includes(search)
       ) : true;
 
-      return matchesFY && matchesOrg && matchesSearch;
+      return matchesFY && matchesSearch;
     });
-  }, [rowData, showYearWise, financialYearFilter, organisationFilter, monthFilter, searchTerm, getOrgName, activeCategory, organisations, selectedSubOrgId, getOrgCategory]);
+  }, [rowData, showYearWise, financialYearFilter, monthFilter, searchTerm, getOrgName, activeCategory, organisations, selectedSubOrgId, getOrgCategory]);
 
   // Define table columns
   const columnDefs = useMemo(() => {
@@ -332,7 +314,8 @@ export default function DataList({
           children: SOCIAL_METRICS.map(metric => ({
             headerName: metric.charAt(0).toUpperCase() + metric.slice(1),
             field: `${channel}_${metric}`,
-            minWidth: 110,
+            minWidth: 130,
+            flex: 1,
             headerClass: 'text-center-header font-bold text-white',
             cellStyle: { color: '#000000', textAlign: 'center' },
             valueFormatter: (params) => params.value ?? '0',
@@ -370,7 +353,7 @@ export default function DataList({
           <Pencil className="h-4 w-4 text-white" />
         </button>
       ),
-      hide: showYearWise || !visibleCols.action
+      hide: !visibleCols.action
     };
 
     return [...baseCols, ...dataCols, actionCol];
@@ -381,6 +364,9 @@ export default function DataList({
     filter: true,
     resizable: true,
     suppressMovable: true,
+    flex: 1,
+    wrapHeaderText: true,
+    autoHeaderHeight: true
   }), []);
 
   // Export handlers
@@ -427,8 +413,14 @@ export default function DataList({
     });
 
     navigator.clipboard.writeText(tsv)
-      .then(() => alert('Table data copied to clipboard!'))
-      .catch(() => alert('Failed to copy table data.'));
+      .then(() => {
+        if (triggerNotification) triggerNotification('Table data copied to clipboard!');
+        else alert('Table data copied to clipboard!');
+      })
+      .catch(() => {
+        if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
+        else alert('Failed to copy table data.');
+      });
   };
 
   const handleExportCSV = () => {
@@ -522,81 +514,87 @@ export default function DataList({
       
 
 
-      {/* KPI Card Style Tabs (Glassmorphism effect) */}
+      {/* KPI Card Style Tabs (Glassmorphism effect with Landmark/Anchor/Building Icons) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Major Port Category Card */}
-        <div
-          onClick={() => setActiveCategory(prev => prev === 'major_port' ? 'all' : 'major_port')}
-          className={`flex items-center justify-between p-4.5 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
-            activeCategory === 'major_port'
-              ? 'bg-emerald-500/10 border-emerald-500/40 shadow-sm ring-1 ring-emerald-500/30 text-emerald-900 transform scale-[1.01]'
-              : 'bg-white/45 hover:bg-slate-50/50 text-slate-700 border-slate-200/60 shadow-sm'
-          }`}
-        >
-          <div className="space-y-0.5">
-            <span className={`text-[10px] font-extrabold uppercase tracking-wider ${activeCategory === 'major_port' ? 'text-emerald-700' : 'text-slate-400'}`}>
-              Category
-            </span>
-            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'major_port' ? 'text-emerald-900' : 'text-slate-800'}`}>
-              Major Port Organisations
-            </h3>
-          </div>
-          <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
-            activeCategory === 'major_port'
-              ? 'bg-emerald-600 text-white shadow-sm scale-105'
-              : 'bg-slate-100/80 text-slate-600 border border-slate-200/50'
-          }`}>
-            {categoryCounts.majorPort}
-          </div>
-        </div>
-
         {/* Ministry Category Card */}
         <div
           onClick={() => setActiveCategory(prev => prev === 'ministry' ? 'all' : 'ministry')}
-          className={`flex items-center justify-between p-4.5 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
+          className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
             activeCategory === 'ministry'
-              ? 'bg-amber-500/10 border-amber-500/40 shadow-sm ring-1 ring-amber-500/30 text-amber-900 transform scale-[1.01]'
-              : 'bg-white/45 hover:bg-slate-50/50 text-slate-700 border-slate-200/60 shadow-sm'
+              ? 'bg-amber-500/10 border-amber-500/40 shadow-sm ring-1 ring-amber-500/30 text-amber-900 dark:text-amber-400 transform scale-[1.01]'
+              : 'bg-white/45 hover:bg-slate-50/50 text-slate-700 border-slate-200/60 shadow-sm dark:bg-slate-900/45 dark:hover:bg-slate-900/60 dark:border-slate-800/60 dark:text-slate-300'
           }`}
         >
-          <div className="space-y-0.5">
-            <span className={`text-[10px] font-extrabold uppercase tracking-wider ${activeCategory === 'ministry' ? 'text-amber-700' : 'text-slate-400'}`}>
-              Category
-            </span>
-            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'ministry' ? 'text-amber-900' : 'text-slate-800'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
+              activeCategory === 'ministry' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+            }`}>
+              <Landmark className="h-4 w-4" />
+            </div>
+            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'ministry' ? 'text-amber-900 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
               Ministry
             </h3>
           </div>
           <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
             activeCategory === 'ministry'
               ? 'bg-amber-600 text-white shadow-sm scale-105'
-              : 'bg-slate-100/80 text-slate-600 border border-slate-200/50'
+              : 'bg-slate-100/80 text-slate-600 border border-slate-200/50 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700/50'
           }`}>
             {categoryCounts.ministry}
+          </div>
+        </div>
+
+        {/* Major Port Category Card */}
+        <div
+          onClick={() => setActiveCategory(prev => prev === 'major_port' ? 'all' : 'major_port')}
+          className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
+            activeCategory === 'major_port'
+              ? 'bg-emerald-500/10 border-emerald-500/40 shadow-sm ring-1 ring-emerald-500/30 text-emerald-900 dark:text-emerald-400 transform scale-[1.01]'
+              : 'bg-white/45 hover:bg-slate-50/50 text-slate-700 border-slate-200/60 shadow-sm dark:bg-slate-900/45 dark:hover:bg-slate-900/60 dark:border-slate-800/60 dark:text-slate-300'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
+              activeCategory === 'major_port' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+            }`}>
+              <Anchor className="h-4 w-4" />
+            </div>
+            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'major_port' ? 'text-emerald-900 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
+              Major Port Organisations
+            </h3>
+          </div>
+          <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
+            activeCategory === 'major_port'
+              ? 'bg-emerald-600 text-white shadow-sm scale-105'
+              : 'bg-slate-100/80 text-slate-600 border border-slate-200/50 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700/50'
+          }`}>
+            {categoryCounts.majorPort}
           </div>
         </div>
 
         {/* Non-Port Category Card */}
         <div
           onClick={() => setActiveCategory(prev => prev === 'non_port' ? 'all' : 'non_port')}
-          className={`flex items-center justify-between p-4.5 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
+          className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
             activeCategory === 'non_port'
-              ? 'bg-indigo-500/10 border-indigo-500/40 shadow-sm ring-1 ring-indigo-500/30 text-indigo-900 transform scale-[1.01]'
-              : 'bg-white/45 hover:bg-slate-50/50 text-slate-700 border-slate-200/60 shadow-sm'
+              ? 'bg-indigo-500/10 border-indigo-500/40 shadow-sm ring-1 ring-indigo-500/30 text-indigo-900 dark:text-indigo-400 transform scale-[1.01]'
+              : 'bg-white/45 hover:bg-slate-50/50 text-slate-700 border-slate-200/60 shadow-sm dark:bg-slate-900/45 dark:hover:bg-slate-900/60 dark:border-slate-800/60 dark:text-slate-300'
           }`}
         >
-          <div className="space-y-0.5">
-            <span className={`text-[10px] font-extrabold uppercase tracking-wider ${activeCategory === 'non_port' ? 'text-indigo-700' : 'text-slate-400'}`}>
-              Category
-            </span>
-            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'non_port' ? 'text-indigo-900' : 'text-slate-800'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
+              activeCategory === 'non_port' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+            }`}>
+              <Building className="h-4 w-4" />
+            </div>
+            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'non_port' ? 'text-indigo-900 dark:text-indigo-400' : 'text-slate-800 dark:text-slate-200'}`}>
               Non-Port Organisations
             </h3>
           </div>
           <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
             activeCategory === 'non_port'
               ? 'bg-indigo-600 text-white shadow-sm scale-105'
-              : 'bg-slate-100/80 text-slate-600 border border-slate-200/50'
+              : 'bg-slate-100/80 text-slate-600 border border-slate-200/50 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700/50'
           }`}>
             {categoryCounts.nonPort}
           </div>
@@ -604,49 +602,62 @@ export default function DataList({
       </div>
 
       {/* Deep-down Organisation Selector */}
-      {activeCategory !== 'all' && subOrganisations.length > 0 && (
-        <div className="bg-slate-50/50 border border-slate-200/50 rounded-2xl p-4.5 space-y-2.5 backdrop-blur-sm animate-fade-in shadow-sm animate-duration-300">
+      {activeCategory !== 'all' && activeCategory !== 'ministry' && subOrganisations.length > 0 && (
+        <div className={`border rounded-2xl p-5 space-y-3.5 backdrop-blur-md animate-fade-in shadow-xs transition-all duration-300 dark:bg-slate-900/10 dark:border-slate-800/80 ${
+          activeCategory === 'major_port'
+            ? 'bg-emerald-50/15 border-emerald-255/30 border-l-4 border-l-emerald-500'
+            : activeCategory === 'ministry'
+              ? 'bg-amber-50/15 border-amber-255/30 border-l-4 border-l-amber-500'
+              : 'bg-indigo-50/15 border-indigo-255/30 border-l-4 border-l-indigo-500'
+        }`}>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-              Filter by {activeCategory === 'major_port' ? 'Major Port' : activeCategory === 'ministry' ? 'Ministry' : 'Non-Port'} Organisation
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className={`h-1.5 w-1.5 rounded-full ${
+                activeCategory === 'major_port' ? 'bg-emerald-500 animate-pulse' : activeCategory === 'ministry' ? 'bg-amber-500 animate-pulse' : 'bg-indigo-500 animate-pulse'
+              }`} />
+              <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                activeCategory === 'major_port' ? 'text-emerald-700 dark:text-emerald-455' : activeCategory === 'ministry' ? 'text-amber-700 dark:text-amber-455' : 'text-indigo-700 dark:text-indigo-405'
+              }`}>
+                Filter by {activeCategory === 'major_port' ? 'Major Port' : activeCategory === 'ministry' ? 'Ministry' : 'Non-Port'} Organisation
+              </span>
+            </div>
             {selectedSubOrgId && (
               <button
                 onClick={() => setSelectedSubOrgId('')}
-                className="text-[10px] font-extrabold text-[#28408f] hover:underline uppercase tracking-wide cursor-pointer"
+                className="text-[10px] font-black text-[#28408f] dark:text-blue-400 hover:underline uppercase tracking-wide cursor-pointer flex items-center gap-1"
               >
                 Clear Selection
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1">
+          <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
             <button
               onClick={() => setSelectedSubOrgId('')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer border ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
                 !selectedSubOrgId
-                  ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  ? 'bg-slate-800 text-white border-slate-800 shadow-sm transform scale-[1.02] dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-350 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
               }`}
             >
               All {activeCategory === 'major_port' ? 'Major Ports' : activeCategory === 'ministry' ? 'Ministries' : 'Non-Ports'}
             </button>
             {subOrganisations.map(org => {
               const isSelected = String(org.organisation_id) === String(selectedSubOrgId);
-              let activeColorClass = 'bg-emerald-600 border-emerald-600 text-white shadow-sm';
+              let activeColorClass = 'bg-emerald-600 border-emerald-600 text-white shadow-md transform scale-[1.02]';
               if (activeCategory === 'ministry') {
-                activeColorClass = 'bg-amber-600 border-amber-600 text-white shadow-sm';
+                activeColorClass = 'bg-amber-600 border-amber-600 text-white shadow-md transform scale-[1.02]';
               } else if (activeCategory === 'non_port') {
-                activeColorClass = 'bg-indigo-600 border-indigo-600 text-white shadow-sm';
+                activeColorClass = 'bg-indigo-600 border-indigo-600 text-white shadow-md transform scale-[1.02]';
               }
               
               return (
                 <button
                   key={org.organisation_id}
                   onClick={() => setSelectedSubOrgId(prev => String(prev) === String(org.organisation_id) ? '' : org.organisation_id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
                     isSelected
                       ? activeColorClass
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-355 hover:scale-[1.01] dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
                   }`}
                 >
                   {org.organisation_name}
@@ -657,178 +668,105 @@ export default function DataList({
         </div>
       )}
 
-      {/* Filters Box (Fully open, styled exactly like the screenshots) */}
-      <div className="bg-white border border-[#e2e8f0] rounded-xl p-5 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-5 border-l-4 border-l-[#28408f]">
-        <div className="space-y-1">
-          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Financial Year</label>
-          <select
-            value={financialYearFilter}
-            onChange={(e) => setFinancialYearFilter(e.target.value)}
-            className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-355 rounded focus:outline-none focus:bg-white font-semibold text-slate-700 cursor-pointer"
+      {/* Unified Filters Card Panel */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col transition-all duration-300 border-l-4 border-l-[#28408f] dark:bg-slate-950 dark:border-slate-800 dark:border-l-blue-500">
+        
+        {/* Card Header (Title & Toggle Button) */}
+        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50">
+          <h2 className="text-xs font-black text-[#28408f] dark:text-blue-400 uppercase tracking-wider">Outreach Reports Filters</h2>
+          <button
+            type="button"
+            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl shadow-xs text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition-all cursor-pointer select-none"
           >
-            <option value="">Show All</option>
-            {financialYears.map(fy => <option key={fy} value={fy}>{fy}</option>)}
-          </select>
+            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-550" />
+            <span>{isFiltersOpen ? 'Hide Filters' : 'Show Filters'}</span>
+            <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-300 ${isFiltersOpen ? 'rotate-180' : ''}`} />
+          </button>
         </div>
-        <div className="space-y-1">
-          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Organisation</label>
-          <select
-            value={organisationFilter}
-            onChange={(e) => setOrganisationFilter(e.target.value)}
-            className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-355 rounded focus:outline-none focus:bg-white font-semibold text-slate-700 cursor-pointer"
-          >
-            <option value="">--Show All Organisation--</option>
-            {organisations.map(o => (
-              <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-            ))}
-          </select>
-        </div>
-        {!showYearWise ? (
-          <div className="space-y-1">
-            <div className="flex justify-between items-center">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Month</label>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showYearWise}
-                  onChange={(e) => {
-                    setShowYearWise(e.target.checked);
-                    if (e.target.checked) setMonthFilter('');
-                  }}
-                  className="h-3.5 w-3.5 text-[#28408f] focus:ring-[#28408f] border-gray-300 rounded cursor-pointer"
-                />
-                <span className="text-[10px] font-extrabold text-[#28408f] uppercase tracking-wide">Year Wise</span>
-              </label>
+
+        {/* Card Body (Collapsible Filter Fields Grid) */}
+        {isFiltersOpen && (
+          <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-5 animate-fade-in animate-duration-300">
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Financial Year</label>
+              <select
+                value={financialYearFilter}
+                onChange={(e) => setFinancialYearFilter(e.target.value)}
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
+              >
+                <option value="">Show All</option>
+                {financialYears.map(fy => <option key={fy} value={fy}>{fy}</option>)}
+              </select>
             </div>
-            <select
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-355 rounded focus:outline-none focus:bg-white font-semibold text-slate-700 cursor-pointer"
-            >
-              <option value="">Show All</option>
-              {months.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-        ) : (
-          <div className="space-y-1 flex flex-col justify-end pb-1">
-            <label className="flex items-center gap-2 cursor-pointer p-2.5 bg-indigo-50/50 border border-indigo-100 rounded-lg shadow-sm">
-              <input
-                type="checkbox"
-                checked={showYearWise}
-                onChange={(e) => {
-                  setShowYearWise(e.target.checked);
-                  if (e.target.checked) setMonthFilter('');
-                }}
-                className="h-4 w-4 text-[#28408f] focus:ring-[#28408f] border-gray-300 rounded cursor-pointer"
-              />
-              <span className="text-xs font-bold text-[#28408f] uppercase tracking-wide">Year-Wise Summary Enabled</span>
-            </label>
+
+            <div className={`space-y-1.5 transition-all duration-300 ${showYearWise ? 'opacity-40 pointer-events-none' : ''}`}>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Month</label>
+              <select
+                value={monthFilter}
+                disabled={showYearWise}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
+              >
+                <option value="">{showYearWise ? 'N/A - Year Wise' : 'Show All'}</option>
+                {!showYearWise && months.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Summary View</label>
+              <div className="flex items-center border border-slate-200 rounded-xl p-1 bg-slate-50 w-full h-[42px] dark:border-slate-800 dark:bg-slate-900">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowYearWise(false);
+                  }}
+                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    !showYearWise
+                      ? 'bg-[#28408f] dark:bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-855 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Month-Wise
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowYearWise(true);
+                    setMonthFilter('');
+                  }}
+                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    showYearWise
+                      ? 'bg-[#28408f] dark:bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-855 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Year-Wise
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Toolbar: Export options and search box */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-slate-200 bg-[#f8fafc] px-4 py-2.5 rounded-lg">
-        <div className="flex flex-wrap gap-1.5">
-          <CopyButton
-            onCopy={handleCopy}
-            color="#1e293b"
-            hoverBg="#e2e8f0"
-            className="!py-1.5 !px-3 bg-[#e2e8f0] border-slate-300 text-slate-800 rounded font-semibold transition"
-          />
-          <button
-            onClick={handleExportCSV}
-            className="px-3 py-1.5 bg-[#e2e8f0] text-black border border-slate-300 text-xs font-semibold hover:bg-slate-300 transition rounded cursor-pointer"
-          >
-            Excel
-          </button>
-          <button
-            onClick={handlePrintPDF}
-            className="px-3 py-1.5 bg-[#e2e8f0] text-black border border-slate-300 text-xs font-semibold hover:bg-slate-300 transition rounded cursor-pointer"
-          >
-            PDF
-          </button>
-
-          {/* Column visibility dropdown */}
-          <div className="relative inline-block" ref={colDropdownRef}>
-            <button
-              onClick={() => setColDropdownOpen(prev => !prev)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#e2e8f0] text-black border border-slate-300 text-xs font-semibold hover:bg-slate-300 transition rounded cursor-pointer"
-            >
-              <span>Column visibility</span>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-            </button>
-
-            {colDropdownOpen && (
-              <div className="absolute left-0 mt-2 w-56 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded shadow-xl z-20 py-1.5">
-                <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-semibold">
-                  <input type="checkbox" checked={visibleCols.sNo} onChange={() => handleToggleColumn('sNo')} />
-                  <span>S.No</span>
-                </label>
-                <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-semibold">
-                  <input type="checkbox" checked={visibleCols.organisation} onChange={() => handleToggleColumn('organisation')} />
-                  <span>Organisation</span>
-                </label>
-                <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-semibold">
-                  <input type="checkbox" checked={visibleCols.financialYear} onChange={() => handleToggleColumn('financialYear')} />
-                  <span>Financial Year</span>
-                </label>
-                <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-semibold">
-                  <input type="checkbox" checked={visibleCols.month} onChange={() => handleToggleColumn('month')} />
-                  <span>Month</span>
-                </label>
-
-                {activeMediaType === 'social_media' ? (
-                  SOCIAL_CHANNELS.map(ch => (
-                    <label key={ch} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-semibold">
-                      <input type="checkbox" checked={visibleCols[ch]} onChange={() => handleToggleColumn(ch)} />
-                      <span>{ch.charAt(0).toUpperCase() + ch.slice(1)}</span>
-                    </label>
-                  ))
-                ) : (
-                  <>
-                    <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-semibold">
-                      <input type="checkbox" checked={visibleCols.national} onChange={() => handleToggleColumn('national')} />
-                      <span>{activeMediaType === 'online' ? 'English' : 'National'}</span>
-                    </label>
-                    <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-semibold">
-                      <input type="checkbox" checked={visibleCols.regional} onChange={() => handleToggleColumn('regional')} />
-                      <span>{activeMediaType === 'online' ? 'Vernacular' : 'Regional'}</span>
-                    </label>
-                    <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-semibold">
-                      <input type="checkbox" checked={visibleCols.overall} onChange={() => handleToggleColumn('overall')} />
-                      <span>Overall</span>
-                    </label>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Search bar on the right */}
-        <div className="flex items-center gap-2.5 self-end sm:self-auto">
-          <span className="text-xs font-semibold text-slate-700">Search:</span>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-2.5 py-1.5 border border-slate-350 rounded text-xs focus:outline-none focus:border-[#28408f] font-semibold bg-white text-black"
-            placeholder=""
-          />
-        </div>
-      </div>
-
-      {/* Styled AG Grid using reusable Table component */}
-      <Table
+      <TableWithToolbar
         rowData={filteredRowData}
         columnDefs={columnDefs}
         defaultColDef={defaultColDef}
         onGridReady={(params) => setGridApi(params.api)}
-        pagination={true}
-        paginationPageSize={10}
         loading={loading}
-        enableExport={false}
+        searchPlaceholder="Search media outreach details..."
+        exportFileName={`Media_Outreach_${activeMediaType}_Export`}
+        color="#0f417a"
+        hoverColor="#1d5594"
+        triggerNotification={triggerNotification}
+        onCopy={handleCopy}
+        onExportExcel={handleExportCSV}
+        onExportPdf={handlePrintPDF}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        visibleCols={visibleCols}
+        onVisibleColsChange={setVisibleCols}
       />
 
       {/* Global CSS injection to match the table headers and cell text */}
@@ -900,6 +838,28 @@ export default function DataList({
         .ag-theme-quartz select option {
           color: #1e293b !important;
           background-color: #ffffff !important;
+        }
+        .media-outreach-table-wrapper > div {
+          margin-top: 0 !important;
+        }
+        .media-outreach-table-wrapper .ag-theme-quartz {
+          border: none !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.2);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 0, 0, 0.3);
         }
       ` }} />
     </div>

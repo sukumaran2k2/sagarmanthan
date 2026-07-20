@@ -69,14 +69,14 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
   };
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
       {/* Header Row similar to Cabinet Notes Other Ministry */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
+          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
             Young Professionals
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
             Manage, register and monitor Young Professionals recruited across various wings and divisions.
           </p>
         </div>

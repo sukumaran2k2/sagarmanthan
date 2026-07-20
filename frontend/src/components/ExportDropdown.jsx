@@ -43,7 +43,7 @@ export default function ExportDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 bottom-full mb-2 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-25 overflow-hidden animate-fade-in">
+        <div className="absolute left-0 top-full mt-2 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
           <button
             type="button"
             onClick={() => {
