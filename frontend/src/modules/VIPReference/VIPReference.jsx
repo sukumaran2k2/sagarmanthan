@@ -5,7 +5,7 @@ import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 
-export default function VIPReference({ triggerNotification }) {
+export default function VIPReference({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
   const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
   const [vipReferences, setVipReferences] = useState([]);
   const [wings, setWings] = useState([]);
@@ -17,6 +17,16 @@ export default function VIPReference({ triggerNotification }) {
     { id: 'list', label: 'Data List' },
     { id: 'report', label: 'Report' }
   ];
+
+  useEffect(() => {
+    if (activeSubTabProp === 'Input Form') {
+      setActiveSubTab('add');
+    } else if (activeSubTabProp === 'Reports' || activeSubTabProp === 'Report') {
+      setActiveSubTab('report');
+    } else if (activeSubTabProp === 'Data List') {
+      setActiveSubTab('list');
+    }
+  }, [activeSubTabProp]);
 
   // Fetch wings and divisions on mount
   useEffect(() => {

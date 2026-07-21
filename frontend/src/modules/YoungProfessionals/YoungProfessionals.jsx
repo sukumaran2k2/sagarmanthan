@@ -20,11 +20,11 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
   ];
 
   useEffect(() => {
-    if (activeSubTabProp === 'Input Form') {
+    if (activeSubTabProp === 'Input Form' || activeSubTabProp === 'YP Input Form') {
       setActiveSubTab('add');
-    } else if (activeSubTabProp === 'Report') {
+    } else if (activeSubTabProp === 'Report' || activeSubTabProp === 'YP Report') {
       setActiveSubTab('report');
-    } else if (activeSubTabProp === 'Data List') {
+    } else if (activeSubTabProp === 'Data List' || activeSubTabProp === 'YP Data List' || activeSubTabProp === 'Young Professionals') {
       setActiveSubTab('list');
     }
   }, [activeSubTabProp]);
@@ -89,11 +89,6 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
               setEditData(null);
             }
             setActiveSubTab(tabId);
-            if (setActiveSubTabProp) {
-              if (tabId === 'add') setActiveSubTabProp('Input Form');
-              else if (tabId === 'report') setActiveSubTabProp('Report');
-              else if (tabId === 'list') setActiveSubTabProp('Data List');
-            }
           }}
         />
       </div>
