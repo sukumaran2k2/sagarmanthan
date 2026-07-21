@@ -1334,7 +1334,7 @@ async function getFilterDependecyDropDown(req, res) {
             break;
 
         case "mmt_organisation":
-            query = `SELECT organisation_name, mmt_organisation_category.organisation_category_name FROM mmt_organisation 
+            query = `SELECT organisation_id, organisation_name, mmt_organisation_category.organisation_category_name FROM mmt_organisation 
                 INNER JOIN mmt_organisation_category on mmt_organisation_category.organisation_category_id = mmt_organisation.organisation_category_id 
                 WHERE mmt_organisation.status = 1`;
             break;

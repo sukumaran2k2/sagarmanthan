@@ -90,6 +90,18 @@ export default function UserMatrix() {
 
   // ---- FETCH USER DATA AND DROPDOWNS FROM DATABASE ----
   useEffect(() => {
+    // Load master roles
+    axios.get('http://localhost:3000/mmt-dropdown/tbl_role')
+      .then(res => setMasterRoles(res.data))
+      .catch(err => console.error("Error loading roles:", err));
+
+    // Load master organisations
+    axios.get('http://localhost:3000/mmt-dropdown/mmt_organisation')
+      .then(res => setMasterOrgs(res.data))
+      .catch(err => console.error("Error loading organisations:", err));
+  }, []);
+
+  useEffect(() => {
     if (activeMainTab === 'userlist') {
       setDbLoading(true);
       
@@ -104,18 +116,31 @@ export default function UserMatrix() {
           showToast("⚠ Failed to load users from database", "#EF4444");
           setDbLoading(false);
         });
-
-      // Load master roles
-      axios.get('http://localhost:3000/mmt-dropdown/tbl_role')
-        .then(res => setMasterRoles(res.data))
-        .catch(err => console.error("Error loading roles:", err));
-
-      // Load master organisations
-      axios.get('http://localhost:3000/mmt-dropdown/mmt_organisation')
-        .then(res => setMasterOrgs(res.data))
-        .catch(err => console.error("Error loading organisations:", err));
     }
   }, [activeMainTab]);
+
+  // When masterOrgs loads, dynamically populate the state for all database organisations
+  useEffect(() => {
+    if (masterOrgs && masterOrgs.length > 0) {
+      // Pick the first organisation name as default
+      const defaultOrg = masterOrgs[0].organisation_name;
+      setSelectedModuleOrg(defaultOrg);
+
+      setOrgModuleState(prev => {
+        const next = { ...prev };
+        masterOrgs.forEach(org => {
+          const name = org.organisation_name;
+          if (!next[name]) {
+            next[name] = {};
+            FULL_MODULE_LIST.forEach(m => {
+              next[name][m] = true;
+            });
+          }
+        });
+        return next;
+      });
+    }
+  }, [masterOrgs]);
 
   // Filtered DB users based on search criteria and card filter
   const filteredDbUsers = useMemo(() => {
@@ -504,6 +529,7 @@ export default function UserMatrix() {
 
         {activeMainTab === "modules" && (
           <ModulePermissionsTab
+            masterOrgs={masterOrgs}
             selectedModuleOrg={selectedModuleOrg}
             setSelectedModuleOrg={setSelectedModuleOrg}
             orgModuleState={orgModuleState}
