@@ -1,5 +1,6 @@
 
 import { pool } from "../../db.js";
+import sql from 'mssql';
 import fs from 'fs';
 
 async function createMinistryCabinet(req, res) {
@@ -89,10 +90,12 @@ async function createMinistryCabinet(req, res) {
 
     const conn = await pool;
     const request = conn.request();
+    const safeMinText = (cabinetMinistryNameText && String(cabinetMinistryNameText).trim()) ? String(cabinetMinistryNameText).trim() : 'Department of Atomic Energy';
+
     request.input("cabinetSubject", cabinetSubject);
     request.input("cabinetMinistryName", cabinetMinistryName);
     request.input("eofficeFileNumber", eofficeFileNumber);
-    request.input("cabinetMinistryNameText", cabinetMinistryNameText);
+    request.input("cabinetMinistryNameText", safeMinText);
     request.input("deadline", deadline);
     request.input("receivedMinistryDate", receivedMinistryDate);
     request.input("sentForCommentDate", sentForCommentDate);
@@ -175,8 +178,8 @@ async function createMinistryCabinet(req, res) {
         res.status(201).json({ cabinet_notes_ministry_id });
     }
     catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        console.log("Error in createMinistryCabinet:", err);
+        return res.status(500).json({ error: err.message });
     }
 };
 
@@ -250,33 +253,35 @@ async function editMinistryCabinet(req, res) {
 
     const conn = await pool;
     const request = conn.request();
-    request.input("ministryCabinetID", ministryCabinetID);
-    request.input("cabinetSubject", cabinetSubject);
-    request.input("cabinetMinistryName", cabinetMinistryName);
-    request.input("cabinetMinistryNameText", cabinetMinistryNameText);
-    request.input("eofficeFileNumber", eofficeFileNumber);
-    request.input("deadline", deadline);
+    const safeMinText = (cabinetMinistryNameText && String(cabinetMinistryNameText).trim()) ? String(cabinetMinistryNameText).trim() : 'Department of Atomic Energy';
 
-    request.input("receivedMinistryDate", receivedMinistryDate);
-    request.input("sentForCommentDate", sentForCommentDate);
-    request.input('wings', wings);
-    request.input("commentsReceivedDate", commentsReceivedDate);
-    request.input("shippingDate", shippingDate);
-    request.input("vigilanceDate", vigilanceDate);
-    request.input("portsDate", portsDate);
-    request.input("iwtDate", iwtDate);
-    request.input("administrationDate", administrationDate);
-    request.input("coordIDate", coordIDate);
-    request.input("coordIIDate", coordIIDate);
-    request.input("dgllDate", dgllDate);
-    request.input("developmentDate", developmentDate);
-    request.input("financeDate", financeDate);
-    request.input("sagarmalaDate", sagarmalaDate);
-    request.input("fileSubmittedDate", fileSubmittedDate);
-    request.input("replyFurnishedDate", replyFurnishedDate);
-    request.input("remarks", remarks);
-    request.input("selectedMinistryNotesStage", selectedMinistryNotesStage);
-    request.input("userID", userID);
+    request.input("ministryCabinetID", ministryCabinetID ? parseInt(ministryCabinetID) : null);
+    request.input("cabinetSubject", cabinetSubject || null);
+    request.input("cabinetMinistryName", cabinetMinistryName ? parseInt(cabinetMinistryName) : null);
+    request.input("cabinetMinistryNameText", safeMinText);
+    request.input("eofficeFileNumber", eofficeFileNumber || null);
+    request.input("deadline", deadline || null);
+
+    request.input("receivedMinistryDate", receivedMinistryDate || null);
+    request.input("sentForCommentDate", sentForCommentDate || null);
+    request.input('wings', wings ? String(wings) : null);
+    request.input("commentsReceivedDate", commentsReceivedDate || null);
+    request.input("shippingDate", shippingDate || null);
+    request.input("vigilanceDate", vigilanceDate || null);
+    request.input("portsDate", portsDate || null);
+    request.input("iwtDate", iwtDate || null);
+    request.input("administrationDate", administrationDate || null);
+    request.input("coordIDate", coordIDate || null);
+    request.input("coordIIDate", coordIIDate || null);
+    request.input("dgllDate", dgllDate || null);
+    request.input("developmentDate", developmentDate || null);
+    request.input("financeDate", financeDate || null);
+    request.input("sagarmalaDate", sagarmalaDate || null);
+    request.input("fileSubmittedDate", fileSubmittedDate || null);
+    request.input("replyFurnishedDate", replyFurnishedDate || null);
+    request.input("remarks", remarks || null);
+    request.input("selectedMinistryNotesStage", selectedMinistryNotesStage ? parseInt(selectedMinistryNotesStage) : 1);
+    request.input("userID", userID ? parseInt(userID) : 1);
 
     request.input("receivedMinistryRemarks", receivedMinistryRemarks);
     request.input("sentForCommentsRemarks", sentForCommentsRemarks);
@@ -351,11 +356,11 @@ async function editMinistryCabinet(req, res) {
             WHERE cabinet_notes_ministry_id = @ministryCabinetID
         `);
 
-        const cabinet_notes_ministry_id = result.recordset[0].cabinet_notes_ministry_id;
-        res.status(201).json({ cabinet_notes_ministry_id });
+        const cabinet_notes_ministry_id = (result.recordset && result.recordset.length > 0) ? result.recordset[0].cabinet_notes_ministry_id : ministryCabinetID;
+        res.status(200).json({ cabinet_notes_ministry_id });
     } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        console.log("Error in editMinistryCabinet:", err);
+        return res.status(500).json({ error: err.message });
     }
 }
 

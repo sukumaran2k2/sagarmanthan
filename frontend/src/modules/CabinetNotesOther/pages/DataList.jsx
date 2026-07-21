@@ -96,9 +96,8 @@ export default function DataList({
     {
       headerName: 'S.No',
       valueGetter: (params) => params.node.rowIndex + 1,
-      width: 90,
+      width: 100,
       minWidth: 90,
-      maxWidth: 95,
       pinned: 'left',
       cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center border-r border-slate-100 dark:border-slate-800',
       headerClass: 'text-center border-r border-slate-100 dark:border-slate-800'
@@ -106,8 +105,9 @@ export default function DataList({
     {
       field: 'subject',
       headerName: 'Name of the Subject',
-      flex: 2,
-      minWidth: 260,
+      width: 250,
+      minWidth: 100,
+      maxWidth: 300,
       pinned: 'left',
       cellStyle: { textAlign: 'left' },
       cellClass: 'text-left font-semibold text-slate-800 dark:text-slate-200 whitespace-normal leading-normal py-2 border-r border-slate-150 dark:border-slate-800',
@@ -118,8 +118,9 @@ export default function DataList({
     {
       field: 'ministry_name',
       headerName: 'Name of the Ministry',
-      flex: 1.5,
+      // flex: 1.5,
       minWidth: 160,
+      width: 250,
       cellStyle: { textAlign: 'left' },
       cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
       hide: !visibleCols.ministry
@@ -127,7 +128,7 @@ export default function DataList({
     {
       field: 'eoffice_file_number',
       headerName: 'E-Office File No',
-      flex: 1.2,
+      // flex: 1.2,
       minWidth: 140,
       cellStyle: { textAlign: 'left' },
       cellClass: 'text-slate-600 dark:text-slate-400 font-mono text-xs',
@@ -239,106 +240,90 @@ export default function DataList({
 
   return (
     <div className="space-y-6">
-      
-      {/* Category Tabs: Active vs Completed */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-200 pb-3">
-        <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-auto">
-          <button
-            onClick={() => setActiveCategory('active')}
-            className={`flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2 text-xs font-bold rounded-lg transition ${
-              activeCategory === 'active'
-                ? 'bg-white dark:bg-slate-700 text-[#0f417a] dark:text-blue-400 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <span>Active Cabinet Notes</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-              activeCategory === 'active' ? 'bg-[#0f417a]/10 text-[#0f417a] dark:bg-blue-400/20 dark:text-blue-300' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-            }`}>
-              {activeCount}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveCategory('completed')}
-            className={`flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2 text-xs font-bold rounded-lg transition ${
-              activeCategory === 'completed'
-                ? 'bg-white dark:bg-slate-700 text-[#0f417a] dark:text-blue-400 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <span>Completed Cabinet Notes</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-              activeCategory === 'completed' ? 'bg-[#0f417a]/10 text-[#0f417a] dark:bg-blue-400/20 dark:text-blue-300' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-            }`}>
-              {completedCount}
-            </span>
-          </button>
-        </div>
 
-        {/* View mode toggle */}
-        <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-          <button
-            onClick={() => setViewMode('table')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition ${
-              viewMode === 'table' ? 'bg-white dark:bg-slate-700 text-[#0f417a] dark:text-blue-400 shadow-sm' : 'text-slate-600 dark:text-slate-400'
+      {/* Category selector tabs matching CabinetNotesMOPSW */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none">
+        <button
+          onClick={() => setActiveCategory('active')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeCategory === 'active'
+            ? 'border-[#0f417a] text-[#0f417a] dark:text-blue-400 dark:border-blue-400'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
             }`}
-          >
-            <List className="w-4 h-4" />
-            <span>Table View</span>
-          </button>
-          <button
-            onClick={() => setViewMode('chart')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition ${
-              viewMode === 'chart' ? 'bg-white dark:bg-slate-700 text-[#0f417a] dark:text-blue-400 shadow-sm' : 'text-slate-600 dark:text-slate-400'
+        >
+          ACTIVE NOTES ({activeCount})
+        </button>
+        <button
+          onClick={() => setActiveCategory('completed')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeCategory === 'completed'
+            ? 'border-[#0f417a] text-[#0f417a] dark:text-blue-400 dark:border-blue-400'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
             }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span>Visual Analytics</span>
-          </button>
-        </div>
+        >
+          COMPLETED NOTES ({completedCount})
+        </button>
       </div>
 
-      {viewMode === 'table' ? (
-        <Table
-          rowData={filteredData}
-          columnDefs={columnDefs}
-          loading={loading}
-          pagination={true}
-          paginationPageSize={10}
-          onGridReady={(params) => setGridApi(params.api)}
-          filterOptions={[
-            {
-              id: 'ministry',
-              label: 'Name Of The Ministry',
-              options: ministryOptions,
-              value: selectedMinistry,
-              onChange: setSelectedMinistry
-            },
-            {
-              id: 'status',
-              label: 'Status',
-              options: statusOptions,
-              value: selectedStatus,
-              onChange: setSelectedStatus
-            }
-          ]}
-          headerRightSlot={
-            <div className="flex items-center space-x-2">
-              <ExportDropdown onExport={handleExport} />
-              
-              {/* Column Selector */}
+      {/* Main Container Card */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+        
+        {/* Filter Toolbar */}
+        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+            {/* Ministry Dropdown */}
+            <div className="w-56 relative">
+              <select
+                value={selectedMinistry}
+                onChange={(e) => setSelectedMinistry(e.target.value)}
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+              >
+                <option value="">Show all Ministries</option>
+                {ministryOptions.map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Status Dropdown */}
+            <div className="w-48 relative">
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+              >
+                <option value="">Show all Statuses</option>
+                {statusOptions.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Clear Button */}
+            {(selectedMinistry || selectedStatus) && (
+              <button
+                onClick={() => { setSelectedMinistry(''); setSelectedStatus(''); }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>Clear</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            {/* Column Visibility Dropdown */}
+            {viewMode === 'table' && (
               <div className="relative" ref={colDropdownRef}>
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 transition"
+                  className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 dark:bg-slate-950 dark:border-slate-850 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-900 transition cursor-pointer flex items-center space-x-1.5 dark:text-slate-200"
                 >
-                  <span>Select Columns</span>
-                  <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Visibility</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                 </button>
 
                 {dropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-2 text-xs space-y-1 animate-fade-in">
-                    <label className="flex items-center space-x-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded cursor-pointer">
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 p-2 text-xs space-y-1 animate-fade-in">
+                    <label className="flex items-center space-x-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded cursor-pointer text-slate-700 dark:text-slate-200">
                       <input
                         type="checkbox"
                         checked={visibleCols.subject}
@@ -347,7 +332,7 @@ export default function DataList({
                       />
                       <span>Subject</span>
                     </label>
-                    <label className="flex items-center space-x-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded cursor-pointer">
+                    <label className="flex items-center space-x-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded cursor-pointer text-slate-700 dark:text-slate-200">
                       <input
                         type="checkbox"
                         checked={visibleCols.ministry}
@@ -356,7 +341,7 @@ export default function DataList({
                       />
                       <span>Ministry</span>
                     </label>
-                    <label className="flex items-center space-x-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded cursor-pointer">
+                    <label className="flex items-center space-x-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded cursor-pointer text-slate-700 dark:text-slate-200">
                       <input
                         type="checkbox"
                         checked={visibleCols.fileNumber}
@@ -365,7 +350,7 @@ export default function DataList({
                       />
                       <span>E-Office File No</span>
                     </label>
-                    <label className="flex items-center space-x-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded cursor-pointer">
+                    <label className="flex items-center space-x-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded cursor-pointer text-slate-700 dark:text-slate-200">
                       <input
                         type="checkbox"
                         checked={visibleCols.status}
@@ -377,31 +362,70 @@ export default function DataList({
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Chart / Table Toggle Icons */}
+            <div className="flex items-center bg-slate-50 dark:bg-slate-955 p-1 border border-slate-200 dark:border-slate-850 rounded-xl space-x-1">
+              <button
+                onClick={() => setViewMode('chart')}
+                title="Visual Analytics"
+                className={`p-2 rounded-lg transition cursor-pointer ${viewMode === 'chart'
+                  ? 'bg-white dark:bg-slate-800 text-[#0f417a] dark:text-blue-400 shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                  }`}
+              >
+                <BarChart3 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                title="Table View"
+                className={`p-2 rounded-lg transition cursor-pointer ${viewMode === 'table'
+                  ? 'bg-white dark:bg-slate-800 text-[#0f417a] dark:text-blue-400 shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                  }`}
+              >
+                <List className="h-4 w-4" />
+              </button>
             </div>
-          }
-        />
-      ) : (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-            Ministry-wise Breakdown ({activeCategory === 'active' ? 'Active Notes' : 'Completed Notes'})
-          </h3>
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
-                <XAxis dataKey="name" angle={-25} textAnchor="end" interval={0} tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="Active Notes" fill="#0f417a" radius={[6, 6, 0, 0]}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+
+            <ExportDropdown onExport={handleExport} />
           </div>
         </div>
-      )}
+
+        {/* View Mode Content */}
+        {viewMode === 'table' ? (
+          <Table
+            rowData={filteredData}
+            columnDefs={columnDefs}
+            loading={loading}
+            pagination={true}
+            paginationPageSize={10}
+            onGridReady={(params) => setGridApi(params.api)}
+          />
+        ) : (
+          <div className="pt-2">
+            <h3 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider mb-4">
+              Ministry-wise Breakdown ({activeCategory === 'active' ? 'Active Notes' : 'Completed Notes'})
+            </h3>
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                  <XAxis dataKey="name" angle={-25} textAnchor="end" interval={0} tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="Active Notes" fill="#0f417a" radius={[6, 6, 0, 0]}>
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+      </div>
 
     </div>
   );

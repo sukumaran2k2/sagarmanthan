@@ -35,10 +35,23 @@ export default function CabinetNotesOther({ activeSubTab: activeSubTabProp, setA
       .catch(err => console.error("Error loading wings:", err));
   }, []);
 
+  const getActiveUserId = () => {
+    try {
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+      if (token) {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.userId || payload.user_id || payload.id || 1;
+      }
+    } catch (e) {
+      console.error("Error decoding token:", e);
+    }
+    return 1;
+  };
+
   const fetchData = () => {
     setLoading(true);
-    // User ID set to 1 by default or extracted from context
-    axios.get("http://localhost:3000/cabinet-ministry/1")
+    const userId = getActiveUserId();
+    axios.get(`http://localhost:3000/cabinet-ministry/${userId}`)
       .then(res => {
         setRowData(res.data || []);
       })

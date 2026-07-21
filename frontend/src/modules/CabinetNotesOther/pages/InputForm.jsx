@@ -131,7 +131,7 @@ export default function InputForm({
 
     if (editData) {
       initSubject = editData.subject || '';
-      initMinId = editData.ministry_id || '';
+      initMinId = editData.ministry_id !== undefined && editData.ministry_id !== null ? String(editData.ministry_id) : '';
       initMinName = editData.ministry_name || '';
       initFileNo = editData.eoffice_file_number || '';
       initDeadline = editData.deadline ? editData.deadline.split('T')[0] : '';
@@ -184,6 +184,9 @@ export default function InputForm({
         Finance: { date: editData.finance_date ? editData.finance_date.split('T')[0] : '', remark: editData.finance_remarks || '' },
         Sagarmala: { date: editData.sagarmala_date ? editData.sagarmala_date.split('T')[0] : '', remark: editData.sagarmala_remarks || '' }
       });
+    } else if (ministries.length > 0) {
+      initMinId = String(ministries[0].ministry_id);
+      initMinName = ministries[0].ministry_name;
     }
 
     setSubject(initSubject);
@@ -206,7 +209,7 @@ export default function InputForm({
 
     setTouched({});
     setErrors({});
-  }, [editData]);
+  }, [editData, wingsList, ministries]);
 
   // Wing suggestions dropdown filtering
   const wingSuggestions = useMemo(() => {
@@ -334,10 +337,10 @@ export default function InputForm({
 
   const getUserId = () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
       if (token) {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.user_id || payload.userID || payload.id || 1;
+        return payload.userId || payload.user_id || payload.id || 1;
       }
     } catch (e) {
       console.error("Error decoding token:", e);
@@ -356,63 +359,72 @@ export default function InputForm({
 
     setSubmitting(true);
 
-    const payload = {
-      cabinet_notes_ministry_id: isEdit ? editData.cabinet_notes_ministry_id : undefined,
-      ministryCabinetID: isEdit ? editData.cabinet_notes_ministry_id : undefined,
-      cabinetSubject: subject,
-      subject: subject,
-      cabinetMinistryName: ministryId,
-      ministry_id: ministryId,
-      cabinetMinistryNameText: ministryName,
-      eofficeFileNumber: eofficeFileNumber,
-      deadline: deadline,
-      remarks: remarks,
+    const resolvedMinName = ministryName || (ministries.find(m => String(m.ministry_id) === String(ministryId))?.ministry_name || editData?.ministry_name || 'Department of Atomic Energy');
 
-      receivedMinistryDate: stages[1].date || '',
-      receivedMinistryRemarks: stages[1].remark || '',
+      let selectedMinistryNotesStage = 1;
+      for (let i = 1; i <= 5; i++) {
+        if (stages[i]?.date) {
+          selectedMinistryNotesStage = i;
+        }
+      }
 
-      sentForCommentDate: stages[2].date || '',
-      sentForCommentsRemarks: stages[2].remark || '',
-      wings: selectedWings.map(wName => {
-        const found = wingsList.find(w => w.wing_name === wName);
-        return found ? found.wing_id : wName;
-      }).filter(Boolean),
+      const payload = {
+        cabinet_notes_ministry_id: isEdit ? editData.cabinet_notes_ministry_id : undefined,
+        ministryCabinetID: isEdit ? editData.cabinet_notes_ministry_id : undefined,
+        cabinetSubject: subject,
+        subject: subject,
+        cabinetMinistryName: ministryId,
+        ministry_id: ministryId,
+        cabinetMinistryNameText: resolvedMinName,
+        eofficeFileNumber: eofficeFileNumber,
+        deadline: deadline,
+        remarks: remarks,
 
-      commentsReceivedDate: stages[3].date || '',
-      commentsRecRemarks: stages[3].remark || '',
+        receivedMinistryDate: stages[1].date || '',
+        receivedMinistryRemarks: stages[1].remark || '',
 
-      fileSubmittedDate: stages[4].date || '',
-      fileSubmittedRemarks: stages[4].remark || '',
+        sentForCommentDate: stages[2].date || '',
+        sentForCommentsRemarks: stages[2].remark || '',
+        wings: selectedWings.map(wName => {
+          const found = wingsList.find(w => w.wing_name === wName);
+          return found ? found.wing_id : wName;
+        }).filter(Boolean),
 
-      replyFurnishedDate: stages[5].date || '',
-      replyFurnishedRemarks: stages[5].remark || '',
+        commentsReceivedDate: stages[3].date || '',
+        commentsRecRemarks: stages[3].remark || '',
 
-      shippingDate: wingDetails.Shipping?.date || '',
-      shippingRemarks: wingDetails.Shipping?.remark || '',
-      vigilanceDate: wingDetails.Vigilance?.date || '',
-      vigilanceRemarks: wingDetails.Vigilance?.remark || '',
-      portsDate: wingDetails.Ports?.date || '',
-      portsRemarks: wingDetails.Ports?.remark || '',
-      iwtDate: wingDetails.IWT?.date || '',
-      iwtRemarks: wingDetails.IWT?.remark || '',
-      administrationDate: wingDetails.Administration?.date || '',
-      administrationRemarks: wingDetails.Administration?.remark || '',
-      coordIDate: wingDetails['Coord-I']?.date || '',
-      coordIRemarks: wingDetails['Coord-I']?.remark || '',
-      coordIIDate: wingDetails['Coord-II']?.date || '',
-      coordIIRemarks: wingDetails['Coord-II']?.remark || '',
-      dgllDate: wingDetails['DGLL, Parliament & TRW']?.date || '',
-      dgllRemarks: wingDetails['DGLL, Parliament & TRW']?.remark || '',
-      developmentDate: wingDetails.Development?.date || '',
-      developmentRemarks: wingDetails.Development?.remark || '',
-      financeDate: wingDetails.Finance?.date || '',
-      financeRemarks: wingDetails.Finance?.remark || '',
-      sagarmalaDate: wingDetails.Sagarmala?.date || '',
-      sagarmalaRemarks: wingDetails.Sagarmala?.remark || '',
+        fileSubmittedDate: stages[4].date || '',
+        fileSubmittedRemarks: stages[4].remark || '',
 
-      selectedMinistryNotesStage: 1,
-      userID: getUserId()
-    };
+        replyFurnishedDate: stages[5].date || '',
+        replyFurnishedRemarks: stages[5].remark || '',
+
+        shippingDate: wingDetails.Shipping?.date || '',
+        shippingRemarks: wingDetails.Shipping?.remark || '',
+        vigilanceDate: wingDetails.Vigilance?.date || '',
+        vigilanceRemarks: wingDetails.Vigilance?.remark || '',
+        portsDate: wingDetails.Ports?.date || '',
+        portsRemarks: wingDetails.Ports?.remark || '',
+        iwtDate: wingDetails.IWT?.date || '',
+        iwtRemarks: wingDetails.IWT?.remark || '',
+        administrationDate: wingDetails.Administration?.date || '',
+        administrationRemarks: wingDetails.Administration?.remark || '',
+        coordIDate: wingDetails['Coord-I']?.date || '',
+        coordIRemarks: wingDetails['Coord-I']?.remark || '',
+        coordIIDate: wingDetails['Coord-II']?.date || '',
+        coordIIRemarks: wingDetails['Coord-II']?.remark || '',
+        dgllDate: wingDetails['DGLL, Parliament & TRW']?.date || '',
+        dgllRemarks: wingDetails['DGLL, Parliament & TRW']?.remark || '',
+        developmentDate: wingDetails.Development?.date || '',
+        developmentRemarks: wingDetails.Development?.remark || '',
+        financeDate: wingDetails.Finance?.date || '',
+        financeRemarks: wingDetails.Finance?.remark || '',
+        sagarmalaDate: wingDetails.Sagarmala?.date || '',
+        sagarmalaRemarks: wingDetails.Sagarmala?.remark || '',
+
+        selectedMinistryNotesStage,
+        userID: getUserId()
+      };
 
     try {
       if (isEdit) {
@@ -425,8 +437,8 @@ export default function InputForm({
       }
       onSuccess();
     } catch (err) {
-      console.error(err);
-      alert("Failed to save Cabinet Note. Please try again.");
+      console.error("Save error details:", err.response?.data || err.message || err);
+      alert(err.response?.data?.error || "Failed to save Cabinet Note. Please try again.");
     } finally {
       setSubmitting(false);
     }

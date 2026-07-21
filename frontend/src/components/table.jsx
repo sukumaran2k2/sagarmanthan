@@ -93,19 +93,21 @@ export default function Table({
 
   const processedColumnDefs = useMemo(() => {
     return columnDefs.map(col => {
+      if (col.width || col.minWidth) {
+        return col;
+      }
       const headerText = col.headerName || col.field || '';
       const estimatedWidth = (headerText.length + 5) * 12;
       return {
         ...col,
-        minWidth: col.minWidth ? Math.max(col.minWidth, estimatedWidth) : estimatedWidth
+        minWidth: estimatedWidth
       };
     });
   }, [columnDefs]);
 
-  const activeAutoSizeStrategy = autoSizeStrategy || {
-    type: 'fitCellContents',
-    skipHeader: false,
-    scaleUpToFitGridWidth: true
+  const activeAutoSizeStrategy = autoSizeStrategy !== undefined ? autoSizeStrategy : {
+    type: 'fitGridWidth',
+    defaultMinWidth: 100
   };
 
   // Pagination Ellipses Generator
