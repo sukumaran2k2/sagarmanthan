@@ -114,7 +114,7 @@ const Table = forwardRef(({
       const estimatedWidth = (headerText.length + 5) * 12;
       const updatedCol = {
         ...col,
-        minWidth: col.minWidth ? Math.max(col.minWidth, estimatedWidth) : estimatedWidth
+        minWidth: col.minWidth !== undefined ? col.minWidth : estimatedWidth
       };
       if (updatedCol.children) {
         updatedCol.children = updatedCol.children.map(processCol);
