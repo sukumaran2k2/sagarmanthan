@@ -1122,7 +1122,7 @@ export default function AttendanceView() {
                 </button>
                 <button 
                   onClick={() => handleExportRawData('PDF')}
-                  className="px-4 py-2 bg-[#b33a3a] hover:bg-[#962f2f] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                  className="px-4 py-2 bg-[#4b2424] hover:bg-[#6b3535] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
                 >
                   <FileCheck className="h-3.5 w-3.5" />
                   <span>Report to PDF</span>
@@ -1154,7 +1154,7 @@ export default function AttendanceView() {
                   type: 'fitGridWidth',
                   defaultMinWidth: 50
                 }}
-                color="#b33a3a"
+                color="#4b2424"
               />
             </div>
           </div>
@@ -1318,9 +1318,9 @@ export default function AttendanceView() {
           --ag-border-color: #B9BDC2;
           --ag-row-border-color: #D3D6D9;
           --ag-row-height: 48px;
-          --ag-active-color: #b33a3a;
-          --ag-checkbox-checked-color: #b33a3a;
-          --ag-input-focus-border-color: #b33a3a;
+          --ag-active-color: #4b2424;
+          --ag-checkbox-checked-color: #4b2424;
+          --ag-input-focus-border-color: #4b2424;
           --ag-selected-row-background-color: #fcf9f9;
           font-size: 13px;
         }
@@ -1329,8 +1329,8 @@ export default function AttendanceView() {
           border-radius: 0 !important;
         }
         .attendance-pro-grid .ag-header {
-          background: #b33a3a !important;
-          border-bottom: 2px solid #962f2f !important;
+          background: #4b2424 !important;
+          border-bottom: 2px solid #6b3535 !important;
         }
         .attendance-pro-grid .ag-header-row {
           background: transparent !important;
@@ -1341,7 +1341,7 @@ export default function AttendanceView() {
           font-size: 11px !important;
           text-transform: uppercase !important;
           letter-spacing: 0.05em !important;
-          border-right: 1px solid #962f2f !important;
+          border-right: 1px solid #6b3535 !important;
           transition: background 0.15s !important;
         }
         .attendance-pro-grid .ag-header-cell-label {
@@ -1350,7 +1350,7 @@ export default function AttendanceView() {
           width: 100% !important;
         }
         .attendance-pro-grid .ag-header-cell:hover {
-          background: #962f2f !important;
+          background: #6b3535 !important;
         }
         .attendance-pro-grid .ag-header-cell-label .ag-header-cell-text {
           color: #ffffff !important;
