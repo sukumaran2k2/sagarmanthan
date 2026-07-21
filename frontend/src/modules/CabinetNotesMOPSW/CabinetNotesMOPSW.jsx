@@ -86,11 +86,6 @@ export default function CabinetNotesMOPSW({ activeSubTab: activeSubTabProp, setA
           onTabChange={(tabId) => {
             setEditData(null);
             setActiveSubTab(tabId);
-            if (setActiveSubTabProp) {
-              if (tabId === 'add') setActiveSubTabProp('Input Form');
-              else if (tabId === 'report') setActiveSubTabProp('Reports');
-              else if (tabId === 'list') setActiveSubTabProp('Cabinet Notes-MoPSW');
-            }
           }}
         />
       </div>

@@ -122,9 +122,9 @@ export default function DataList({
     {
       headerName: 'S.No',
       valueGetter: (params) => params.node.rowIndex + 1,
-      width: 90,
+      width: 130,
       minWidth: 90,
-      maxWidth: 95,
+      maxWidth: 150,
       pinned: 'left',
       cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center border-r border-slate-100 dark:border-slate-800',
       headerClass: 'text-center border-r border-slate-100 dark:border-slate-800'
@@ -171,6 +171,7 @@ export default function DataList({
       headerName: 'Documents',
       flex: 1,
       minWidth: 90,
+      width: 90,
       cellClass: 'text-center',
       cellRenderer: (params) => {
         const note = params.data;
@@ -196,7 +197,7 @@ export default function DataList({
     {
       headerName: 'Update',
       minWidth: 95,
-      flex: 0.5,
+      flex: 1,
       cellClass: 'text-center',
       cellRenderer: (params) => {
         const note = params.data;

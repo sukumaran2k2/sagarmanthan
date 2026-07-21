@@ -185,14 +185,39 @@ export default function Tabs({ activeTab, setActiveTab }) {
       items: [
         { label: 'Attendance', icon: UserCheck },
         { label: 'CPGRAMS', icon: PhoneCall },
-        { label: 'Cabinet Notes - Other Ministries', icon: FileText },
+        {
+          label: 'Cabinet Notes - Other Ministries', icon: FileText,
+          targetTab: 'Cabinet Notes - Other Ministries',
+          subItems: [
+            { label: 'Data List', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'Reports', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Reports', icon: FilePieChart },
+          ]
+        },
         { label: 'E Office', icon: Briefcase },
         { label: 'Parliamentary Issue', icon: Scale },
         { label: 'GEM Procurements', icon: Coins },
-        { label: 'Cabinet Notes - MoPSW', icon: FileText },
-        { label: 'VIP Reference', icon: Users },
+        {
+          label: 'Cabinet Notes - MoPSW', icon: FileText,
+          targetTab: 'Cabinet Notes - MoPSW',
+          subItems: [
+            { label: 'Data List', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'Reports', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Reports', icon: FilePieChart },
+          ]
+        },
+        {
+          label: 'VIP Reference', icon: Users,
+          targetTab: 'VIP Reference',
+          subItems: [
+            { label: 'Data List', tab: 'VIP Reference', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'VIP Reference', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'Reports', tab: 'VIP Reference', targetSubTab: 'Reports', icon: FilePieChart },
+          ]
+        },
         {
           label: 'Media Outreach', icon: Globe,
+          targetTab: 'Media Outreach',
           subItems: [
             { label: 'Broadcast / TV Media', tab: 'Media Outreach', mediaType: 'broadcast', icon: FileText },
             { label: 'Print Media', tab: 'Media Outreach', mediaType: 'print_media', icon: FileText },
@@ -234,9 +259,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Young Professionals',
           icon: UserCheck,
           items: [
-            { label: 'Input Form', tab: 'Input Form', icon: FileEdit },
-            { label: 'Data List', tab: 'Data List', icon: ClipboardList },
-            { label: 'Report', tab: 'Report', icon: FilePieChart },
+            { label: 'Input Form', tab: 'YP Input Form', icon: FileEdit },
+            { label: 'Data List', tab: 'YP Data List', icon: ClipboardList },
+            { label: 'Report', tab: 'YP Report', icon: FilePieChart },
           ]
         },
         {
@@ -255,10 +280,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
       label: 'Legal',
       icon: Scale,
       align: 'left-0',
-      width: 'w-[200px]',
+      width: 'w-[260px]',
       items: [
         { label: 'Courtcases', icon: Gavel },
-        { label: 'Bills/PreConstitutions Act', icon: BookMarked }
+        {
+          label: 'Bills/PreConstitutions Act', icon: BookMarked,
+          targetTab: 'Bills/PreConstitutions Act',
+          subItems: [
+            { label: 'Data List', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'Reports', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Reports', icon: FilePieChart },
+          ]
+        }
       ]
     },
     {
@@ -521,7 +554,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                 {/* Flyout sub-panel on hover */}
                                 <div className="absolute left-full top-0 ml-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[60] transition-all duration-200 origin-left scale-95 opacity-0 invisible group-hover/flyout:scale-100 group-hover/flyout:opacity-100 group-hover/flyout:visible space-y-1">
                                   <h5 className="text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2">
-                                    Media Outreach
+                                    {item.label}
                                   </h5>
                                   {item.subItems.map((sub, sIdx) => {
                                     const SubIcon = sub.icon;
@@ -530,10 +563,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                         key={sIdx}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          setActiveTab('Media Outreach');
+                                          const mainTab = sub.tab || item.targetTab || item.label;
+                                          setActiveTab(mainTab);
                                           setIsOpen(false);
-                                          // Store mediaType intent for MediaOutreach module to pick up
-                                          sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
+                                          if (sub.mediaType) {
+                                            sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
+                                          }
                                         }}
                                         className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all py-1.5 px-2.5 rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-slate-700 cursor-pointer"
                                       >
@@ -774,8 +809,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                           <button
                                             key={sIdx}
                                             onClick={() => {
-                                              setActiveTab('Media Outreach');
-                                              sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
+                                              const mainTab = sub.tab || item.targetTab || item.label;
+                                              setActiveTab(mainTab);
+                                              if (sub.mediaType) {
+                                                sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
+                                              }
                                               setIsOpen(false);
                                             }}
                                             className="flex items-center space-x-2 text-left text-[11px] font-semibold transition-all py-1.5 px-2 rounded-md text-slate-500 hover:text-blue-600 hover:bg-slate-100"

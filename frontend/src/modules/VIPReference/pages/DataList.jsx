@@ -5,7 +5,7 @@ import axios from 'axios';
 import Table from '../../../components/table';
 import ExportDropdown from '../../../components/ExportDropdown';
 
-const STATUS_STEPS = {
+const STAGE_STEPS = {
   1: 'Received at Ministry',
   2: 'Submitted for Approval',
   3: 'Comments Sought',
@@ -30,7 +30,7 @@ export default function DataList({
   // Filters
   const [selectedWing, setSelectedWing] = useState('All');
   const [selectedDivision, setSelectedDivision] = useState('All');
-  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [selectedStage, setSelectedStage] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [entriesLimit, setEntriesLimit] = useState(10);
   const [viewMode, setViewMode] = useState('table'); // table or chart
@@ -51,7 +51,7 @@ export default function DataList({
     subject: true,
     wing: true,
     division: true,
-    status: true,
+    stage: true,
     refNumber: true,
     receivedFrom: true
   });
@@ -73,7 +73,7 @@ export default function DataList({
       params: {
         wing: selectedWing,
         division: selectedDivision,
-        status: selectedStatus,
+        status: selectedStage,
         search: debouncedSearch
       }
     })
@@ -106,8 +106,8 @@ export default function DataList({
             receivedFrom: r.received_from || '',
             remarks: r.remarks || '',
             deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
-            statusSteps: steps,
-            statusDates: dates,
+            stageSteps: steps,
+            stageDates: dates,
             lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
           };
         });
@@ -120,16 +120,16 @@ export default function DataList({
 
   useEffect(() => {
     fetchData();
-  }, [selectedWing, selectedDivision, selectedStatus, debouncedSearch]);
+  }, [selectedWing, selectedDivision, selectedStage, debouncedSearch]);
 
-  const getRefStatusText = (steps) => {
-    let currentStatus = 'Draft';
+  const getRefStageText = (steps) => {
+    let currentStage = 'Draft';
     for (let i = 1; i <= 6; i++) {
       if (steps[i] === 'Yes') {
-        currentStatus = STATUS_STEPS[i];
+        currentStage = STAGE_STEPS[i];
       }
     }
-    return currentStatus;
+    return currentStage;
   };
 
   const wingNames = useMemo(() => wings.map(w => w.wing_name), [wings]);
@@ -149,7 +149,7 @@ export default function DataList({
     const counts = {};
     rowData.forEach(item => {
       const w = item.wing || 'Unknown';
-      const isPending = item.statusSteps[6] !== 'Yes';
+      const isPending = item.stageSteps[6] !== 'Yes';
       if (isPending) {
         counts[w] = (counts[w] || 0) + 1;
       }
@@ -190,8 +190,8 @@ export default function DataList({
             let val = '';
             if (col.headerName === 'S.No') {
               val = rowIndex + 1;
-            } else if (col.field === 'statusSteps') {
-              val = getRefStatusText(row[col.field]);
+            } else if (col.field === 'stageSteps') {
+              val = getRefStageText(row[col.field]);
             } else {
               val = row[col.field] !== undefined ? row[col.field] : '';
             }
@@ -239,7 +239,7 @@ export default function DataList({
     {
       headerName: 'S.No',
       valueGetter: (params) => params.node.rowIndex + 1,
-      width: 75,
+      width: 130,
       pinned: 'left',
       cellClass: 'text-center font-bold text-slate-500 border-r border-slate-200 flex items-center justify-center'
     },
@@ -257,25 +257,25 @@ export default function DataList({
     {
       headerName: 'Wing',
       field: 'wing',
-      minWidth: 120,
+      width: 150,
       cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium',
       hide: !visibleCols.wing
     },
     {
       headerName: 'Division',
       field: 'division',
-      minWidth: 120,
+      width: 180,
       cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium',
       hide: !visibleCols.division
     },
     {
-      headerName: 'Status',
-      field: 'statusSteps',
+      headerName: 'Stage',
+      field: 'stageSteps',
       minWidth: 180,
       cellClass: 'text-center font-bold text-slate-800 border-r border-slate-100 flex items-center justify-center',
-      hide: !visibleCols.status,
-      cellRenderer: (params) => getRefStatusText(params.value),
-      valueFormatter: (params) => getRefStatusText(params.value) // Fix AG Grid object warning
+      hide: !visibleCols.stage,
+      cellRenderer: (params) => getRefStageText(params.value),
+      valueFormatter: (params) => getRefStageText(params.value) // Fix AG Grid object warning
     },
     {
       headerName: 'Reference Letter Number',
@@ -368,14 +368,14 @@ export default function DataList({
 
           <div className="relative">
             <select
-              value={selectedStatus}
+              value={selectedStage}
               onChange={(e) => {
-                setSelectedStatus(e.target.value);
+                setSelectedStage(e.target.value);
               }}
               className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 cursor-pointer min-w-[130px]"
             >
-              <option value="All">All Statuses</option>
-              {Object.values(STATUS_STEPS).map(status => <option key={status} value={status}>{status}</option>)}
+              <option value="All">All Stages</option>
+              {Object.values(STAGE_STEPS).map(stage => <option key={stage} value={stage}>{stage}</option>)}
             </select>
             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           </div>
@@ -399,9 +399,9 @@ export default function DataList({
             )}
           </div>
 
-          {(selectedWing !== 'All' || selectedDivision !== 'All' || selectedStatus !== 'All') && (
+          {(selectedWing !== 'All' || selectedDivision !== 'All' || selectedStage !== 'All') && (
             <button
-              onClick={() => { setSelectedWing('All'); setSelectedDivision('All'); setSelectedStatus('All'); }}
+              onClick={() => { setSelectedWing('All'); setSelectedDivision('All'); setSelectedStage('All'); }}
               className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition"
             >
               <X className="h-3 w-3" />

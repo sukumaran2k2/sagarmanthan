@@ -56,7 +56,7 @@ export default function DataList({
     subject: true,
     wing: true,
     division: true,
-    status: true
+    stage: true
   });
 
   const activeUserId = useMemo(() => {
@@ -95,7 +95,7 @@ export default function DataList({
     }));
   }, [divisions]);
 
-  const getBillStatusText = (item) => {
+  const getBillStageText = (item) => {
     if (item.completed_date) return STAGES[15];
     if (item.bill_notified_date) return STAGES[14];
     if (item.bill_passed_date) return STAGES[13];
@@ -196,12 +196,12 @@ export default function DataList({
       hide: !visibleCols.division
     },
     {
-      headerName: 'Status',
+      headerName: 'Stage',
       flex: 1.2,
       minWidth: 180,
       cellClass: 'text-slate-700 dark:text-slate-300 font-bold text-center',
-      hide: !visibleCols.status,
-      valueGetter: (params) => getBillStatusText(params.data)
+      hide: !visibleCols.stage,
+      valueGetter: (params) => getBillStageText(params.data)
     },
     {
       headerName: 'Actions',

@@ -27,6 +27,7 @@ import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, Clip
 import Loader from './components/Loader';
 import NetworkCheckView from './components/NetworkCheckView';
 import Notification from './components/Notification';
+import ContactUs from './modules/Contact/Contact';
 
 const PROJECT_TABS = [
   { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
@@ -543,12 +544,12 @@ export default function App() {
               <CPGRAMSView />
             )}
 
-            {activeTab === 'Cabinet Notes - MoPSW' && (
-              <CabinetNotes />
+            {['Cabinet Notes - MoPSW', 'Cabinet Notes-MoPSW'].includes(activeTab) && (
+              <CabinetNotes activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
             )}
 
-            {activeTab === 'Cabinet Notes - Other Ministries' && (
-              <CabinetNotesOther />
+            {['Cabinet Notes - Other Ministries', 'Cabinet Notes-Other Ministry'].includes(activeTab) && (
+              <CabinetNotesOther activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
             )}
 
             {activeTab === 'Parliamentary Issue' && (
@@ -571,8 +572,8 @@ export default function App() {
               <AuditParaView />
             )}
 
-            {activeTab === 'VIP Reference' && (
-              <VIPReferenceView />
+            {['VIP Reference', 'VIP Reference - Data List', 'VIP Reference - Input Form', 'VIP Reference - Reports'].includes(activeTab) && (
+              <VIPReferenceView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
             )}
 
             {activeTab === 'Media Outreach' && (
@@ -580,10 +581,10 @@ export default function App() {
             )}
 
             {['Bills/PreConstitutions Act', 'Acts & Rules'].includes(activeTab) && (
-              <BillsPreConstitutionsView triggerNotification={triggerNotification} />
+              <BillsPreConstitutionsView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
             )}
 
-            {['Data List', 'Input Form', 'Report'].includes(activeTab) && (
+            {['Young Professionals', 'YP Data List', 'YP Input Form', 'YP Report'].includes(activeTab) && (
               <YoungProfessionalsView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
             )}
 
@@ -595,8 +596,12 @@ export default function App() {
               <UserMatrix />
             )}
 
+            {['Ministry Contacts', 'Helpdesk Support'].includes(activeTab) && (
+              <ContactUs />
+            )}
+
             {/* Placeholder / Empty State for other inactive government menu views */}
-            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Audit Paras', 'VIP Reference', 'Bills/PreConstitutions Act', 'Acts & Rules', 'Data List', 'Input Form', 'Report', 'Consultant Input Form', 'Consultant Reports', 'Media Outreach', 'User Matrix'].includes(activeTab) && (
+            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Audit Paras', 'VIP Reference', 'Bills/PreConstitutions Act', 'Acts & Rules', 'Data List', 'Input Form', 'Report', 'Consultant Input Form', 'Consultant Reports', 'Media Outreach', 'User Matrix', 'Ministry Contacts', 'Helpdesk Support'].includes(activeTab) && (
               <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
                 <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                   <Sparkles className="h-7 w-7 text-blue-600" />

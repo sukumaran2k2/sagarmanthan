@@ -3,7 +3,6 @@ import Table from '../../../components/table';
 import { Search, Edit, Eye, ChevronDown, BarChart3, List } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';
-import ExportDropdown from '../../../components/ExportDropdown';
 
 export default function DataList({
   rowData = [],
@@ -13,7 +12,7 @@ export default function DataList({
   triggerNotification
 }) {
   const [selectedMinistry, setSelectedMinistry] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedStage, setSelectedStage] = useState('');
   const [viewMode, setViewMode] = useState('table'); // table or chart
   const [gridApi, setGridApi] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -23,7 +22,7 @@ export default function DataList({
     subject: true,
     ministry: true,
     fileNumber: true,
-    status: true
+    stage: true
   });
 
   useEffect(() => {
@@ -48,8 +47,8 @@ export default function DataList({
     return Array.from(set).map(m => ({ value: m, label: m }));
   }, [rowData]);
 
-  // Derive Status Options
-  const statusOptions = useMemo(() => {
+  // Derive Stage Options
+  const stageOptions = useMemo(() => {
     const set = new Set();
     rowData.forEach(item => {
       const st = item.stage_name || (item.reply_furnished_date ? 'Reply Furnished' : item.comments_rec_date ? 'Comments Received' : 'Pending');
@@ -69,14 +68,14 @@ export default function DataList({
         ? item.ministry_name === selectedMinistry
         : true;
 
-      const statusText = item.stage_name || (item.reply_furnished_date ? 'Reply Furnished' : item.comments_rec_date ? 'Comments Received' : 'Pending');
-      const matchesStatus = selectedStatus
-        ? statusText === selectedStatus
+      const stageText = item.stage_name || (item.reply_furnished_date ? 'Reply Furnished' : item.comments_rec_date ? 'Comments Received' : 'Pending');
+      const matchesStage = selectedStage
+        ? stageText === selectedStage
         : true;
 
-      return matchesMinistry && matchesStatus;
+      return matchesMinistry && matchesStage;
     });
-  }, [rowData, selectedMinistry, selectedStatus, activeCategory]);
+  }, [rowData, selectedMinistry, selectedStage, activeCategory]);
 
   const chartData = useMemo(() => {
     const counts = {};
@@ -136,7 +135,7 @@ export default function DataList({
     },
     {
       field: 'stage_name',
-      headerName: 'Status',
+      headerName: 'Stage',
       flex: 1.2,
       minWidth: 130,
       cellClass: 'text-slate-700 dark:text-slate-300 font-bold text-center',
@@ -144,7 +143,7 @@ export default function DataList({
         const item = params.data;
         return item.stage_name || (item.reply_furnished_date ? 'Reply Furnished' : item.comments_rec_date ? 'Comments Received' : 'Pending');
       },
-      hide: !visibleCols.status
+      hide: !visibleCols.stage
     },
     {
       headerName: 'Update',
@@ -265,7 +264,7 @@ export default function DataList({
 
       {/* Main Container Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
-        
+
         {/* Filter Toolbar */}
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
           <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
@@ -283,24 +282,24 @@ export default function DataList({
               </select>
             </div>
 
-            {/* Status Dropdown */}
+            {/* Stage Dropdown */}
             <div className="w-48 relative">
               <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
+                value={selectedStage}
+                onChange={(e) => setSelectedStage(e.target.value)}
                 className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
               >
-                <option value="">Show all Statuses</option>
-                {statusOptions.map(s => (
+                <option value="">Show all Stages</option>
+                {stageOptions.map(s => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
             </div>
 
             {/* Clear Button */}
-            {(selectedMinistry || selectedStatus) && (
+            {(selectedMinistry || selectedStage) && (
               <button
-                onClick={() => { setSelectedMinistry(''); setSelectedStatus(''); }}
+                onClick={() => { setSelectedMinistry(''); setSelectedStage(''); }}
                 className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
@@ -353,11 +352,11 @@ export default function DataList({
                     <label className="flex items-center space-x-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded cursor-pointer text-slate-700 dark:text-slate-200">
                       <input
                         type="checkbox"
-                        checked={visibleCols.status}
-                        onChange={(e) => setVisibleCols({ ...visibleCols, status: e.target.checked })}
+                        checked={visibleCols.stage}
+                        onChange={(e) => setVisibleCols({ ...visibleCols, stage: e.target.checked })}
                         className="rounded text-[#0f417a]"
                       />
-                      <span>Status</span>
+                      <span>Stage</span>
                     </label>
                   </div>
                 )}
@@ -387,8 +386,6 @@ export default function DataList({
                 <List className="h-4 w-4" />
               </button>
             </div>
-
-            <ExportDropdown onExport={handleExport} />
           </div>
         </div>
 
