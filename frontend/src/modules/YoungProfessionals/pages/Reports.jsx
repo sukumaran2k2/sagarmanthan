@@ -550,29 +550,6 @@ export default function Reports({ triggerNotification }) {
         )}
 
         <div className="ag-theme-quartz yp-pro-grid" style={{ width: '100%' }}>
-<<<<<<< HEAD
-          <AgGridReact
-            ref={gridRef}
-            theme="legacy"
-            rowData={data}
-            columnDefs={columns}
-            defaultColDef={defaultColDef}
-            pagination={true}
-            paginationPageSize={15}
-            paginationPageSizeSelector={[10, 15, 25, 50]}
-            domLayout="autoHeight"
-            suppressColumnVirtualisation={true}
-            quickFilterText={quickFilter}
-            animateRows={true}
-            headerHeight={46}
-            sideBar={false}
-            onGridReady={onGridReady}
-            autoSizeStrategy={{
-              type: 'fitCellContents',
-              skipHeader: false,
-              scaleUpToFitGridWidth: true
-            }}
-=======
           <Table
              ref={gridRef}
              theme="legacy"
@@ -594,7 +571,6 @@ export default function Reports({ triggerNotification }) {
              }}
              enableExport={false}
              color="#4b2424"
->>>>>>> b40cb6244e68797cfe8ee635945543db0f19a4d7
           />
         </div>
       </div>
