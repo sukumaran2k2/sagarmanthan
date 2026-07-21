@@ -3,6 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { AllEnterpriseModule, ModuleRegistry } from 'ag-grid-enterprise';
 import { ChevronLeft, Search, Users, Loader2, RefreshCw, X, TrendingUp, Copy, FileSpreadsheet } from 'lucide-react';
 import axios from 'axios';
+import Table from '../../../components/table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 
@@ -18,6 +19,7 @@ export default function Reports({ triggerNotification }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [quickFilter, setQuickFilter] = useState('');
+  const [pageSize, setPageSize] = useState(15);
 
   const currentView = drillDownPath[drillDownPath.length - 1];
 
@@ -138,7 +140,7 @@ export default function Reports({ triggerNotification }) {
       width: 60,
       suppressMovable: true,
       cellRenderer: (p) => (
-        <span style={{ fontWeight: 800, color: '#000000', fontSize: 11, fontFamily: 'monospace' }}>
+        <span style={{ fontWeight: 800, fontSize: 11, fontFamily: 'monospace' }}>
           {p.value}
         </span>
       )
@@ -150,7 +152,7 @@ export default function Reports({ triggerNotification }) {
       minWidth: 200,
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
-        return <span style={{ fontWeight: 600, color: '#000000', fontSize: 13.5 }}>{p.value}</span>;
+        return <span style={{ fontWeight: 600, fontSize: 13.5 }}>{p.value}</span>;
       }
     },
     {
@@ -160,7 +162,7 @@ export default function Reports({ triggerNotification }) {
       minWidth: 200,
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
-        return <span style={{ fontWeight: 600, color: '#000000', fontSize: 13.5 }}>{p.value}</span>;
+        return <span style={{ fontWeight: 600, fontSize: 13.5 }}>{p.value}</span>;
       }
     },
     {
@@ -186,11 +188,12 @@ export default function Reports({ triggerNotification }) {
                   display: 'inline-flex', alignItems: 'center',
                   padding: 0,
                   background: 'none',
-                  color: '#4b2424', fontWeight: 800, fontSize: 12,
+                  fontWeight: 700, fontSize: 12,
                   textDecoration: 'underline',
                   border: 'none', cursor: 'pointer',
                   transition: 'opacity 0.15s ease'
                 }}
+                className="text-[#4b2424] dark:text-[#eadede]"
                 onMouseEnter={e => { e.currentTarget.style.opacity = '0.7'; }}
                 onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
               >
@@ -213,7 +216,7 @@ export default function Reports({ triggerNotification }) {
       width: 60,
       suppressMovable: true,
       cellRenderer: (p) => (
-        <span style={{ fontWeight: 800, color: '#000000', fontSize: 11, fontFamily: 'monospace' }}>
+        <span style={{ fontWeight: 800, fontSize: 11, fontFamily: 'monospace' }}>
           {p.value}
         </span>
       )
@@ -225,7 +228,7 @@ export default function Reports({ triggerNotification }) {
       pinned: 'left',
       cellRenderer: (p) => {
         if (!p.value) return '—';
-        return <span style={{ fontWeight: 600, color: '#000000', fontSize: 13.5 }}>{p.value}</span>;
+        return <span style={{ fontWeight: 600, fontSize: 13.5 }}>{p.value}</span>;
       }
     },
     {
@@ -234,7 +237,7 @@ export default function Reports({ triggerNotification }) {
       minWidth: 180,
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
-        return <span style={{ fontWeight: 600, color: '#000000', fontSize: 13 }}>{p.value}</span>;
+        return <span style={{ fontWeight: 600, fontSize: 13 }}>{p.value}</span>;
       }
     },
     {
@@ -243,7 +246,7 @@ export default function Reports({ triggerNotification }) {
       minWidth: 135,
       cellRenderer: (p) => {
         if (!p.value && p.value !== 0) return '—';
-        return <span style={{ fontWeight: 600, color: '#000000', fontSize: 13 }}>{p.value} Yrs</span>;
+        return <span style={{ fontWeight: 600, fontSize: 13 }}>{p.value} Yrs</span>;
       }
     },
     {
@@ -255,7 +258,6 @@ export default function Reports({ triggerNotification }) {
       autoHeight: true,
       cellClass: 'yp-wrap-cell',
       cellStyle: {
-        color: '#000000',
         fontSize: '13px',
         lineHeight: '1.6',
         paddingTop: '10px',
@@ -270,7 +272,7 @@ export default function Reports({ triggerNotification }) {
       minWidth: 155,
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
-        return <span style={{ fontWeight: 600, color: '#000000', fontSize: 13 }}>{p.value}</span>;
+        return <span style={{ fontWeight: 600, fontSize: 13 }}>{p.value}</span>;
       }
     },
     {
@@ -298,7 +300,7 @@ export default function Reports({ triggerNotification }) {
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
         return (
-          <span style={{ fontWeight: 600, color: '#000000', fontSize: 12.5, textAlign: 'center', width: '100%', display: 'block' }}>
+          <span style={{ fontWeight: 600, fontSize: 12.5, textAlign: 'center', width: '100%', display: 'block' }}>
             {p.value}
           </span>
         );
@@ -318,9 +320,14 @@ export default function Reports({ triggerNotification }) {
                 target="_blank"
                 rel="noreferrer"
                 style={{
+<<<<<<< HEAD
                   color: '#4b2424', fontWeight: 800, fontSize: 13,
+=======
+                  fontWeight: 600, fontSize: 13,
+>>>>>>> b40cb6244e68797cfe8ee635945543db0f19a4d7
                   textDecoration: 'underline',
                 }}
+                className="text-blue-600 dark:text-blue-400"
               >
                 Download Order
               </a>
@@ -455,6 +462,31 @@ export default function Reports({ triggerNotification }) {
             )}
           </div>
 
+          {/* Rows Limit Select Dropdown */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '8px 14px', borderRadius: 9,
+            background: '#fff', border: '1px solid #eadede',
+            fontSize: 13, color: '#8c4242', fontWeight: 600
+          }}>
+            <span style={{ fontSize: 10, uppercase: true, fontWeight: 800, color: '#94a3b8' }}>Rows:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              style={{
+                background: 'transparent', border: 'none',
+                fontSize: 13, fontWeight: 700, color: '#4b2424',
+                outline: 'none', cursor: 'pointer'
+              }}
+            >
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+
           {/* Total Pill */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6,
@@ -522,6 +554,7 @@ export default function Reports({ triggerNotification }) {
         )}
 
         <div className="ag-theme-quartz yp-pro-grid" style={{ width: '100%' }}>
+<<<<<<< HEAD
           <AgGridReact
             ref={gridRef}
             theme="legacy"
@@ -543,19 +576,30 @@ export default function Reports({ triggerNotification }) {
               skipHeader: false,
               scaleUpToFitGridWidth: true
             }}
+=======
+          <Table
+             ref={gridRef}
+             theme="legacy"
+             rowData={data}
+             columnDefs={columns}
+             defaultColDef={defaultColDef}
+             pagination={true}
+             paginationPageSize={pageSize}
+             domLayout="autoHeight"
+             suppressColumnVirtualisation={true}
+             quickFilterText={quickFilter}
+             animateRows={true}
+             headerHeight={46}
+             onGridReady={onGridReady}
+             autoSizeStrategy={{
+               type: 'fitCellContents',
+               skipHeader: false,
+               scaleUpToFitGridWidth: true
+             }}
+             enableExport={false}
+             color="#4b2424"
+>>>>>>> b40cb6244e68797cfe8ee635945543db0f19a4d7
           />
-        </div>
-      </div>
-
-      {/* ─ Footer ─ */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-        padding: '12px 20px',
-        background: '#f8faf6', borderTop: '1px solid #D3D6D9'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#657386', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          <FileSpreadsheet size={14} color="#cbd5e1" />
-          <span>Showing {data.length} records</span>
         </div>
       </div>
 

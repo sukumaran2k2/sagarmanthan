@@ -85,13 +85,13 @@ export default function MediaOutreachReports({ triggerNotification }) {
           const base = {
             ...col,
             headerClass: 'text-center-header font-bold',
-            cellStyle: { color: '#000000', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+            cellStyle: { textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }
           };
           if (col.children) {
             base.children = col.children.map(child => ({
               ...child,
               headerClass: 'text-center-header font-bold',
-              cellStyle: { color: '#000000', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+              cellStyle: { textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }
             }));
           }
           return base;
@@ -100,7 +100,7 @@ export default function MediaOutreachReports({ triggerNotification }) {
         // Ensure "S No" styling
         const sNoColIdx = cols.findIndex(c => c.field === 'S No');
         if (sNoColIdx !== -1) {
-          cols[sNoColIdx].cellStyle = { color: '#000000', fontWeight: 'bold', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+          cols[sNoColIdx].cellStyle = { fontWeight: 'bold', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' };
         }
 
         setColumnDefs(cols);
@@ -212,31 +212,31 @@ export default function MediaOutreachReports({ triggerNotification }) {
     sortable: true,
     filter: true,
     resizable: true,
-    cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000000' }
+    cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
   }), []);
 
   return (
-    <div className="font-sans text-black space-y-5">
+    <div className="font-sans text-black dark:text-slate-200 space-y-5">
       
       {/* ─ Filters row exactly like YP ─ */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-5 select-none">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-5 select-none dark:bg-slate-950 dark:border-slate-800">
         <div className="space-y-1">
-          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Platform</label>
+          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Platform</label>
           <select
             value={platform}
             onChange={(e) => setPlatform(e.target.value)}
-            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 cursor-pointer"
+            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
           >
             {PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
         </div>
 
         <div className="space-y-1">
-          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Financial Year</label>
+          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Financial Year</label>
           <select
             value={financialYear}
             onChange={(e) => setFinancialYear(e.target.value)}
-            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 cursor-pointer"
+            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
           >
             {FINANCIAL_YEARS.map(fy => <option key={fy} value={fy}>{fy}</option>)}
           </select>
@@ -244,11 +244,11 @@ export default function MediaOutreachReports({ triggerNotification }) {
 
         <div className="space-y-1">
           
-          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Month</label>
+          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Month</label>
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 cursor-pointer"
+            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
           >
             {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -256,7 +256,7 @@ export default function MediaOutreachReports({ triggerNotification }) {
       </div>
 
       {/* ─ Header & Toolbar ─ */}
-      <div className="bg-gradient-to-r from-[#fdfcfc] to-[#f7f3f3] px-6 py-4.5 border border-slate-200 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 select-none">
+      <div className="bg-gradient-to-r from-[#fdfcfc] to-[#f7f3f3] dark:from-slate-900 dark:to-slate-950 px-6 py-4.5 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 select-none">
         <div>
           <div className="flex items-center gap-1.5 mb-1">
             <TrendingUp className="h-3.5 w-3.5 text-blue-800" strokeWidth={2.5} />
@@ -264,7 +264,7 @@ export default function MediaOutreachReports({ triggerNotification }) {
               Media Outreach Report
             </span>
           </div>
-          <h3 className="text-sm font-black uppercase text-slate-800 tracking-wide font-display">
+          <h3 className="text-sm font-black uppercase text-slate-800 dark:text-slate-100 tracking-wide font-display">
             Monthly Abstract Report — {platform.toUpperCase()}
           </h3>
         </div>
@@ -272,18 +272,18 @@ export default function MediaOutreachReports({ triggerNotification }) {
         <div className="flex items-center gap-2.5 flex-wrap">
           {/* Search box */}
           <div className="relative w-60">
-            <Search className="h-4.5 w-4.5 text-blue-800 absolute left-3 top-1/2 transform -translate-y-1/2" />
+            <Search className="h-4.5 w-4.5 text-blue-800 dark:text-blue-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search data..."
               value={quickFilter}
               onChange={(e) => setQuickFilter(e.target.value)}
-              className="w-full text-xs pl-9 pr-8 py-2 border border-slate-250 rounded-xl focus:outline-none focus:border-blue-800 font-semibold bg-white text-black"
+              className="w-full text-xs pl-9 pr-8 py-2 border border-slate-250 rounded-xl focus:outline-none focus:border-blue-800 font-semibold bg-white text-black dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
             />
             {quickFilter && (
               <button
                 onClick={() => setQuickFilter('')}
-                className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-655"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -293,7 +293,7 @@ export default function MediaOutreachReports({ triggerNotification }) {
           {/* Copy button */}
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1.5 px-4 py-2 border border-slate-250 text-slate-700 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 transition cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 border border-slate-250 text-slate-700 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 transition cursor-pointer dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             <Copy className="h-4 w-4 text-slate-500" />
             <span>Copy</span>
@@ -310,13 +310,13 @@ export default function MediaOutreachReports({ triggerNotification }) {
             </button>
 
             {exportDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-xl shadow-xl z-20 overflow-hidden">
+              <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-xl shadow-xl z-20 overflow-hidden dark:bg-slate-900 dark:border-slate-800">
                 <button
                   onClick={() => {
                     handleExport('Excel');
                     setExportDropdownOpen(false);
                   }}
-                  className="flex items-center gap-2 w-full px-4 py-2.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer border-none bg-none text-left"
+                  className="flex items-center gap-2 w-full px-4 py-2.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer border-none bg-none text-left dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
                   <span>CSV (Excel)</span>
@@ -326,7 +326,7 @@ export default function MediaOutreachReports({ triggerNotification }) {
                     handleExport('PDF');
                     setExportDropdownOpen(false);
                   }}
-                  className="flex items-center gap-2 w-full px-4 py-2.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer border-none bg-none text-left"
+                  className="flex items-center gap-2 w-full px-4 py-2.5 hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer border-none bg-none text-left dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   <Download className="h-4 w-4 text-rose-600" />
                   <span>Print / PDF</span>
@@ -338,7 +338,7 @@ export default function MediaOutreachReports({ triggerNotification }) {
           {/* Refresh button */}
           <button
             onClick={fetchReportData}
-            className="flex items-center justify-center w-9 h-9 border border-slate-200 rounded-xl text-slate-500 hover:text-[#0f417a] hover:border-[#0f417a] bg-white cursor-pointer transition"
+            className="flex items-center justify-center w-9 h-9 border border-slate-200 rounded-xl text-slate-500 hover:text-[#0f417a] hover:border-[#0f417a] bg-white cursor-pointer transition dark:bg-slate-900 dark:border-slate-855 dark:text-slate-300 dark:hover:border-[#0f417a]"
           >
             <RefreshCw className={`h-4.5 w-4.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -385,17 +385,25 @@ export default function MediaOutreachReports({ triggerNotification }) {
           font-weight: bold !important;
         }
         .ag-cell {
-          color: #000000 !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
           font-weight: 500 !important;
         }
+        .dark .ag-cell {
+          color: #f1f5f9 !important;
+        }
         .ag-row {
           border-bottom: 1px solid #cbd5e1 !important;
         }
+        .dark .ag-row {
+          border-bottom: 1px solid #374151 !important;
+        }
         .ag-row-odd {
           background-color: #f8fafc !important;
+        }
+        .dark .ag-row-odd {
+          background-color: #111827 !important;
         }
       ` }} />
     </div>

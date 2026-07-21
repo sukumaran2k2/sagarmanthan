@@ -233,20 +233,20 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
   // Input field component
   const Field = ({ label, value, onChange, disabled = false, placeholder = '' }) => (
     <div className="space-y-1.5">
-      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">{label}</label>
+      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">{label}</label>
       <input
         type="number"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={placeholder}
-        className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100' : ''}`}
+        className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900/60 dark:text-slate-400' : ''}`}
       />
     </div>
   );
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
+    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] dark:bg-slate-950 dark:border-slate-800 animate-fade-in">
       {/* Header */}
       <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
@@ -264,24 +264,24 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
         {/* Financial Year & Month selectors */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Financial Year*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Financial Year*</label>
             <select
               value={financialYear}
               onChange={(e) => setFinancialYear(e.target.value)}
               disabled={isEdit}
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 cursor-pointer ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
               <option value="">--Select Financial Year--</option>
               {FINANCIAL_YEARS.map(fy => <option key={fy} value={fy}>{fy}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Month*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Month*</label>
             <select
               value={month}
               onChange={(e) => setMonth(e.target.value)}
               disabled={isEdit}
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 cursor-pointer ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
               <option value="">--Select Month--</option>
               {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
@@ -289,39 +289,39 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
           </div>
           {isEdit && (
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Organisation</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Organisation</label>
               <input
                 type="text"
                 value={getOrgName(editData.organisation_id)}
                 disabled
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 border border-slate-250 rounded-xl font-semibold text-slate-500 cursor-not-allowed"
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 border border-slate-250 rounded-xl font-semibold text-slate-500 dark:bg-slate-900/60 dark:border-slate-800 dark:text-slate-400 cursor-not-allowed"
               />
             </div>
           )}
         </div>
 
         {!isEdit && (
-          <p className="text-[11px] font-bold text-red-500 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
+          <p className="text-[11px] font-bold text-red-500 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 dark:bg-red-950/20 dark:border-red-900/30 dark:text-red-400">
             Note: Financial Year and Month apply to all media types below. Fill in all tabs before submitting.
           </p>
         )}
 
         {/* Step Navigation */}
         {!isEdit && (
-          <div className="flex items-center border-b border-slate-200 overflow-x-auto">
+          <div className="flex items-center border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
             {STEPS.map((step) => (
               <button
                 key={step.id}
                 onClick={() => setCurrentStep(step.id)}
                 className={`relative px-5 py-3 text-xs font-bold uppercase tracking-wide whitespace-nowrap transition-all cursor-pointer
                   ${currentStep === step.id
-                    ? 'text-[#0f417a]'
-                    : 'text-slate-400 hover:text-slate-600'
+                    ? 'text-[#0f417a] dark:text-blue-400'
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                   }`}
               >
                 {step.label}
                 {currentStep === step.id && (
-                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#0f417a] rounded-t-full" />
+                  <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#0f417a] dark:bg-blue-500 rounded-t-full" />
                 )}
               </button>
             ))}
@@ -430,7 +430,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
               <button
                 type="button"
                 onClick={() => setCurrentStep(s => s - 1)}
-                className="flex items-center gap-1.5 px-4 py-2.5 border border-slate-250 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2.5 border border-slate-250 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition cursor-pointer dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
                 Previous
@@ -440,7 +440,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
               <button
                 type="button"
                 onClick={() => setCurrentStep(s => s + 1)}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition cursor-pointer dark:bg-slate-900 dark:text-slate-350 dark:hover:bg-slate-800"
               >
                 Next
                 <ChevronRight className="h-3.5 w-3.5" />
@@ -452,7 +452,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
             <button
               type="button"
               onClick={onBack}
-              className="px-4.5 py-2.5 border border-slate-250 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition cursor-pointer"
+              className="px-4.5 py-2.5 border border-slate-250 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition cursor-pointer dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
             >
               Discard
             </button>

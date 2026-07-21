@@ -38,6 +38,8 @@ export default function DataList({
   const [remarks, setRemarks] = useState('');
   const [submittingRelieve, setSubmittingRelieve] = useState(false);
   const [gridApi, setGridApi] = useState(null); //Ag Grid API
+  const [pageSize, setPageSize] = useState(10);
+  const [activeStatusTab, setActiveStatusTab] = useState('active'); // 'active' | 'relieved'
 
   // Column visibility checklist dropdown states
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -104,7 +106,7 @@ export default function DataList({
     return source.map(name => ({ value: name, label: name }));
   }, [divisions, rowData]);
 
-  const filteredData = useMemo(() => {
+  const baseFilteredData = useMemo(() => {
     return rowData.filter(item => {
       const search = searchTerm.toLowerCase();
       const matchesSearch =
@@ -122,11 +124,28 @@ export default function DataList({
         : true;
 
       return matchesSearch && matchesWing && matchesDivision;
-    }).map((item, index) => ({
-      ...item,
-      sNo: index + 1
-    }));
+    });
   }, [rowData, searchTerm, selectedWing, selectedDivision]);
+
+  const activeYpCount = useMemo(() => {
+    return baseFilteredData.filter(yp => yp.is_active === 1 || yp.is_active === true).length;
+  }, [baseFilteredData]);
+
+  const relievedYpCount = useMemo(() => {
+    return baseFilteredData.filter(yp => yp.is_active === 0 || yp.is_active === false).length;
+  }, [baseFilteredData]);
+
+  const filteredData = useMemo(() => {
+    return baseFilteredData
+      .filter(yp => {
+        const isActive = yp.is_active === 1 || yp.is_active === true;
+        return activeStatusTab === 'active' ? isActive : !isActive;
+      })
+      .map((item, index) => ({
+        ...item,
+        sNo: index + 1
+      }));
+  }, [baseFilteredData, activeStatusTab]);
 
   // Group data by wing for the chart visualization
   const chartData = useMemo(() => {
@@ -395,10 +414,10 @@ export default function DataList({
   ], [onEdit, visibleCols]);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative">
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative dark:bg-slate-950 dark:border-slate-800">
 
       {/* Title & View Switcher Row with Search + Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 pb-4">
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
 
         {/* Left cluster: Search + Wing filter + Division filter */}
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
@@ -467,7 +486,23 @@ export default function DataList({
         <div className="flex items-center space-x-2 flex-shrink-0">
           {viewMode === 'table' && (
             <>
-              <div className="text-xs font-bold text-slate-550 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              {/* Rows Limit Select Dropdown */}
+              <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="bg-transparent border-none text-xs font-bold text-slate-755 focus:outline-none cursor-pointer p-0"
+                >
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="500">500</option>
+                </select>
+              </div>
+
+              <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
                 Total Rows: {filteredData.length}
               </div>
               <CopyButton
@@ -532,6 +567,34 @@ export default function DataList({
         </div>
       </div>
 
+      {/* Active vs Relieved Sub-tabs */}
+      {viewMode === 'table' && (
+        <div className="flex border-b border-slate-100 select-none pb-3">
+          <div className="flex items-center border border-slate-200 rounded-xl p-1 bg-slate-50 dark:bg-slate-900 dark:border-slate-800">
+            <button
+              onClick={() => setActiveStatusTab('active')}
+              className={`px-5 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all duration-200 cursor-pointer ${
+                activeStatusTab === 'active'
+                  ? 'bg-[#0f417a] text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              Active YPs ({activeYpCount})
+            </button>
+            <button
+              onClick={() => setActiveStatusTab('relieved')}
+              className={`px-5 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all duration-200 cursor-pointer ${
+                activeStatusTab === 'relieved'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              Relieved YPs ({relievedYpCount})
+            </button>
+          </div>
+        </div>
+      )}
+
       {viewMode === 'table' ? (
         <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <Table
@@ -539,8 +602,7 @@ export default function DataList({
             columnDefs={columnDefs}
             loading={loading}
             pagination={true}
-            paginationPageSize={10}
-            paginationPageSizeSelector={[10, 20, 50]}
+            paginationPageSize={pageSize}
             enableExport={false}
             onGridReady={(params) => setGridApi(params.api)}
             defaultColDef={{
@@ -604,7 +666,7 @@ export default function DataList({
           `}} />
         </div>
       ) : (
-        <div className="w-full h-[350px] p-4 flex items-center justify-center bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm">
+        <div className="w-full h-[350px] p-4 flex items-center justify-center bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm dark:bg-slate-900/50 dark:border-slate-800">
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>

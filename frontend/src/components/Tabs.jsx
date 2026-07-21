@@ -191,7 +191,16 @@ export default function Tabs({ activeTab, setActiveTab }) {
         { label: 'GEM Procurements', icon: Coins },
         { label: 'Cabinet Notes - MoPSW', icon: FileText },
         { label: 'VIP Reference', icon: Users },
-        { label: 'Media Outreach', icon: Globe },
+        {
+          label: 'Media Outreach', icon: Globe,
+          subItems: [
+            { label: 'Broadcast / TV Media', tab: 'Media Outreach', mediaType: 'broadcast', icon: FileText },
+            { label: 'Print Media', tab: 'Media Outreach', mediaType: 'print_media', icon: FileText },
+            { label: 'Online', tab: 'Media Outreach', mediaType: 'online', icon: Globe },
+            { label: 'Social Media', tab: 'Media Outreach', mediaType: 'social_media', icon: Network },
+            { label: 'Input Form', tab: 'Media Outreach', mediaType: 'add_details', icon: FileEdit },
+          ]
+        },
         { label: 'Audit Paras', icon: CheckCircle },
         { label: 'Inter State & Inter Ministerial', icon: Network },
         { label: 'Foreign Visit', icon: Globe },
@@ -225,9 +234,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Young Professionals',
           icon: UserCheck,
           items: [
-            { label: 'Input Form', icon: FileEdit },
-            { label: 'Data List', icon: ClipboardList },
-            { label: 'Report', icon: FilePieChart }
+            { label: 'Input Form', tab: 'Input Form', icon: FileEdit },
+            { label: 'Data List', tab: 'Data List', icon: ClipboardList },
+            { label: 'Report', tab: 'Report', icon: FilePieChart },
           ]
         },
         {
@@ -308,6 +317,16 @@ export default function Tabs({ activeTab, setActiveTab }) {
         { label: 'Meeting Schedule', icon: ClipboardList },
         { label: 'Minutes of Meeting', icon: FileText },
         { label: 'Action Taken Report', icon: CheckCircle }
+      ]
+    },
+    {
+      id: 'admin',
+      label: 'Admin',
+      icon: Users,
+      align: 'right-0',
+      width: 'w-[200px]',
+      items: [
+        { label: 'User Matrix', icon: UserCheck }
       ]
     },
     {
@@ -405,13 +424,19 @@ export default function Tabs({ activeTab, setActiveTab }) {
                           const SubIcon = sub.icon;
                           return (
                             <div key={sIdx} className="relative group/sub">
-                              <div className="w-full text-left text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition-all flex items-center justify-between text-slate-700 hover:bg-blue-50 hover:text-blue-700">
+                              <button
+                                onClick={() => {
+                                  const first = sub.items[0];
+                                  handleItemClick(first?.tab ?? first?.label);
+                                }}
+                                className="w-full text-left text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition-all flex items-center justify-between text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                              >
                                 <div className="flex items-center space-x-2">
                                   {SubIcon && <SubIcon className="h-4 w-4 text-slate-400 group-hover/sub:text-blue-600 transition-colors" />}
                                   <span>{sub.title}</span>
                                 </div>
                                 <span className="text-[10px] text-slate-400 group-hover/sub:text-blue-600 transition-colors">➔</span>
-                              </div>
+                              </button>
 
                               <div className={`absolute ${menu.id === 'hr' ? 'right-full -top-3 mr-3 origin-right' : 'left-full -top-3 ml-3 origin-left'} w-60 bg-white text-slate-800 border border-slate-200 shadow-2xl rounded-2xl p-4 transition-all duration-200 scale-95 opacity-0 invisible group-hover/sub:scale-100 group-hover/sub:opacity-100 group-hover/sub:visible z-50 space-y-3`}>
                                 <h4 className="text-[11px] font-bold text-[#0f417a] uppercase tracking-widest block border-b border-slate-150 pb-2">
@@ -420,10 +445,46 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                 <div className="flex flex-col space-y-1.5">
                                   {sub.items.map((item, iIdx) => {
                                     const ItemIcon = item.icon;
+                                    if (item.subItems) {
+                                      return (
+                                        <div key={iIdx} className="relative group/ypfly">
+                                          <button
+                                            className="flex items-center justify-between w-full text-left text-xs font-semibold text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-all py-1.5 px-2 rounded border border-transparent hover:border-slate-100 cursor-pointer"
+                                          >
+                                            <div className="flex items-center space-x-2">
+                                              {ItemIcon && <ItemIcon className="h-3.5 w-3.5 text-slate-400" />}
+                                              <span>{item.label}</span>
+                                            </div>
+                                            <ChevronRight className="h-3 w-3 text-slate-350" />
+                                          </button>
+                                          {/* Sub-flyout for YP tabs */}
+                                          <div className="absolute right-full top-0 mr-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[70] transition-all duration-200 origin-right scale-95 opacity-0 invisible group-hover/ypfly:scale-100 group-hover/ypfly:opacity-100 group-hover/ypfly:visible space-y-1">
+                                            <h5 className="text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2">
+                                              Young Professionals
+                                            </h5>
+                                            {item.subItems.map((sub2, s2Idx) => {
+                                              const Sub2Icon = sub2.icon;
+                                              return (
+                                                <button
+                                                  key={s2Idx}
+                                                  onClick={() => {
+                                                    handleItemClick(sub2.tab);
+                                                  }}
+                                                  className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all py-1.5 px-2.5 rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-slate-700 cursor-pointer"
+                                                >
+                                                  {Sub2Icon && <Sub2Icon className="h-3.5 w-3.5 text-slate-400" />}
+                                                  <span>{sub2.label}</span>
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    }
                                     return (
                                       <button
                                         key={iIdx}
-                                        onClick={() => handleItemClick(item.label)}
+                                        onClick={() => handleItemClick(item.tab ?? item.label)}
                                         className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-all py-1.5 px-2 rounded border border-transparent hover:border-slate-100 cursor-pointer"
                                       >
                                         {ItemIcon && <ItemIcon className="h-3.5 w-3.5 text-slate-400 group-hover/sub:text-blue-600 transition-colors" />}
@@ -439,11 +500,52 @@ export default function Tabs({ activeTab, setActiveTab }) {
                       </div>
                     )}
 
-                    {/* Render Grid Items (Governance, Legal,vision, etc.) */}
+                    {/* Render Grid Items (Governance, Legal, vision, etc.) */}
                     {menu.items && (
                       <div className={`grid ${menu.gridCols || 'grid-cols-1'} gap-3`}>
                         {menu.items.map((item, iIdx) => {
                           const ItemIcon = item.icon;
+                          if (item.subItems) {
+                            return (
+                              <div key={iIdx} className="relative group/flyout">
+                                <button
+                                  onClick={() => handleItemClick(item.label)}
+                                  className="flex items-center justify-between space-x-2 w-full text-left text-xs font-semibold text-slate-655 hover:text-blue-605 hover:bg-slate-55 transition-all px-2.5 py-1.5 rounded-lg border border-transparent hover:border-slate-100 cursor-pointer group/flyoutbtn"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    {ItemIcon && <ItemIcon className="h-4 w-4 text-slate-400" />}
+                                    <span>{item.label}</span>
+                                  </div>
+                                  <ChevronRight className="h-3 w-3 text-slate-350 group-hover/flyoutbtn:text-blue-500 transition-colors" />
+                                </button>
+                                {/* Flyout sub-panel on hover */}
+                                <div className="absolute left-full top-0 ml-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[60] transition-all duration-200 origin-left scale-95 opacity-0 invisible group-hover/flyout:scale-100 group-hover/flyout:opacity-100 group-hover/flyout:visible space-y-1">
+                                  <h5 className="text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2">
+                                    Media Outreach
+                                  </h5>
+                                  {item.subItems.map((sub, sIdx) => {
+                                    const SubIcon = sub.icon;
+                                    return (
+                                      <button
+                                        key={sIdx}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveTab('Media Outreach');
+                                          setIsOpen(false);
+                                          // Store mediaType intent for MediaOutreach module to pick up
+                                          sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
+                                        }}
+                                        className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all py-1.5 px-2.5 rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-slate-700 cursor-pointer"
+                                      >
+                                        {SubIcon && <SubIcon className="h-3.5 w-3.5 text-slate-400" />}
+                                        <span>{sub.label}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          }
                           return (
                             <button
                               key={iIdx}
@@ -585,20 +687,58 @@ export default function Tabs({ activeTab, setActiveTab }) {
 
                               {isSubExpanded && (
                                 <div className="pl-3 border-l border-slate-200/80 py-1 flex flex-col space-y-1">
-                                  {sub.items.map((item, iIdx) => (
-                                    <button
-                                      key={iIdx}
-                                      onClick={() => handleItemClick(item.label)}
-                                      className={`flex items-center space-x-2 text-left text-[11px] font-semibold transition-all py-1.5 px-2 rounded-md ${
-                                        activeTab === item.label 
-                                          ? 'bg-blue-600 text-white font-bold shadow-sm' 
-                                          : 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'
-                                      }`}
-                                    >
-                                      {item.icon && React.createElement(item.icon, { className: "h-3 w-3 opacity-80" })}
-                                      <span>{item.label}</span>
-                                    </button>
-                                  ))}
+                                  {sub.items.map((item, iIdx) => {
+                                    if (item.subItems) {
+                                      const ypKey = `mobile-yp-${sub.title}-${item.label}`;
+                                      const isYpExpanded = !!expandedMenus[ypKey];
+                                      return (
+                                        <div key={iIdx} className="space-y-1">
+                                          <button
+                                            onClick={() => toggleExpand(ypKey)}
+                                            className="flex items-center justify-between w-full text-left text-[11px] font-semibold transition-all py-1.5 px-2 rounded-md text-slate-600 hover:bg-slate-50"
+                                          >
+                                            <div className="flex items-center space-x-2">
+                                              {item.icon && React.createElement(item.icon, { className: "h-3 w-3 opacity-80" })}
+                                              <span>{item.label}</span>
+                                            </div>
+                                            <ChevronRight className={`h-3 w-3 opacity-60 transition-transform duration-200 ${isYpExpanded ? 'rotate-90' : ''}`} />
+                                          </button>
+                                          {isYpExpanded && (
+                                            <div className="pl-3 border-l border-slate-200/80 py-1 flex flex-col space-y-1 animate-fade-in">
+                                              {item.subItems.map((sub2, s2Idx) => (
+                                                <button
+                                                  key={s2Idx}
+                                                  onClick={() => { handleItemClick(sub2.tab); setIsOpen(false); }}
+                                                  className={`flex items-center space-x-2 text-left text-[11px] font-semibold transition-all py-1.5 px-2 rounded-md ${
+                                                    activeTab === sub2.tab
+                                                      ? 'bg-blue-600 text-white font-bold shadow-sm'
+                                                      : 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'
+                                                  }`}
+                                                >
+                                                  {sub2.icon && React.createElement(sub2.icon, { className: "h-3 w-3 opacity-80" })}
+                                                  <span>{sub2.label}</span>
+                                                </button>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <button
+                                        key={iIdx}
+                                        onClick={() => { handleItemClick(item.tab ?? item.label); setIsOpen(false); }}
+                                        className={`flex items-center space-x-2 text-left text-[11px] font-semibold transition-all py-1.5 px-2 rounded-md ${
+                                          activeTab === (item.tab ?? item.label)
+                                            ? 'bg-blue-600 text-white font-bold shadow-sm' 
+                                            : 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'
+                                        }`}
+                                      >
+                                        {item.icon && React.createElement(item.icon, { className: "h-3 w-3 opacity-80" })}
+                                        <span>{item.label}</span>
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -608,20 +748,62 @@ export default function Tabs({ activeTab, setActiveTab }) {
                         {/* Flat Items (Governance, Legal, etc.) */}
                         {menu.items && (
                           <div className="flex flex-col space-y-1">
-                            {menu.items.map((item, iIdx) => (
-                              <button
-                                key={iIdx}
-                                onClick={() => handleItemClick(item.label)}
-                                className={`flex items-center space-x-2.5 text-left text-[11px] font-semibold transition-all py-2 px-3 rounded-lg border border-transparent ${
-                                  activeTab === item.label 
-                                    ? 'bg-blue-600 text-white font-bold shadow-sm border-blue-500' 
-                                    : 'text-slate-600 hover:bg-slate-50'
-                                }`}
-                              >
-                                {item.icon && React.createElement(item.icon, { className: "h-3.5 w-3.5 opacity-80 text-slate-400" })}
-                                <span>{item.label}</span>
-                              </button>
-                            ))}
+                            {menu.items.map((item, iIdx) => {
+                              if (item.subItems) {
+                                const subKey = `mobile-${menu.id}-${item.label}`;
+                                const isSubExpanded = !!expandedMenus[subKey];
+                                return (
+                                  <div key={iIdx} className="space-y-1">
+                                    <button
+                                      onClick={() => toggleExpand(subKey)}
+                                      className={`flex items-center justify-between w-full text-left text-[11px] font-semibold transition-all py-2 px-3 rounded-lg border border-transparent ${
+                                        activeTab === item.label
+                                          ? 'bg-blue-600 text-white font-bold shadow-sm border-blue-500'
+                                          : 'text-slate-600 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      <div className="flex items-center space-x-2.5">
+                                        {item.icon && React.createElement(item.icon, { className: "h-3.5 w-3.5 opacity-80 text-slate-400" })}
+                                        <span>{item.label}</span>
+                                      </div>
+                                      <ChevronRight className={`h-3 w-3 opacity-60 transition-transform duration-200 ${isSubExpanded ? 'rotate-90' : ''}`} />
+                                    </button>
+                                    {isSubExpanded && (
+                                      <div className="pl-4 border-l border-slate-200 py-1 space-y-1 animate-fade-in">
+                                        {item.subItems.map((sub, sIdx) => (
+                                          <button
+                                            key={sIdx}
+                                            onClick={() => {
+                                              setActiveTab('Media Outreach');
+                                              sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
+                                              setIsOpen(false);
+                                            }}
+                                            className="flex items-center space-x-2 text-left text-[11px] font-semibold transition-all py-1.5 px-2 rounded-md text-slate-500 hover:text-blue-600 hover:bg-slate-100"
+                                          >
+                                            {sub.icon && React.createElement(sub.icon, { className: "h-3 w-3 opacity-80" })}
+                                            <span>{sub.label}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <button
+                                  key={iIdx}
+                                  onClick={() => handleItemClick(item.label)}
+                                  className={`flex items-center space-x-2.5 text-left text-[11px] font-semibold transition-all py-2 px-3 rounded-lg border border-transparent ${
+                                    activeTab === item.label 
+                                      ? 'bg-blue-600 text-white font-bold shadow-sm border-blue-500' 
+                                      : 'text-slate-600 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {item.icon && React.createElement(item.icon, { className: "h-3.5 w-3.5 opacity-80 text-slate-400" })}
+                                  <span>{item.label}</span>
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
 

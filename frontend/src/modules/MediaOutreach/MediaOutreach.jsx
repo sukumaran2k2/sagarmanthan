@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import InternalNavigation from '../../components/InternalNavigation';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 
@@ -10,12 +11,21 @@ const MEDIA_TABS = [
   { id: 'print_media', label: 'Print Media' },
   { id: 'online', label: 'Online' },
   { id: 'social_media', label: 'Social Media' },
-  { id: 'add_details', label: 'Add Details' },
+  { id: 'add_details', label: 'Input Form' },
 ];
 
 export default function MediaOutreachView({ triggerNotification }) {
-  const [activeMediaType, setActiveMediaType] = useState('broadcast');
-  const [prevMediaType, setPrevMediaType] = useState('broadcast');
+  // Read initial tab from sessionStorage if navigated via nav flyout
+  const initTab = (() => {
+    try {
+      const t = sessionStorage.getItem('mediaOutreachInitTab');
+      if (t) { sessionStorage.removeItem('mediaOutreachInitTab'); return t; }
+    } catch(e) {}
+    return 'broadcast';
+  })();
+
+  const [activeMediaType, setActiveMediaType] = useState(initTab);
+  const [prevMediaType, setPrevMediaType] = useState(initTab === 'add_details' ? 'broadcast' : initTab);
   const [editData, setEditData] = useState(null);
   const [rowData, setRowData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -89,43 +99,24 @@ export default function MediaOutreachView({ triggerNotification }) {
   };
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
       
       {/* Header Row with Page Title and Integrated Pill Switcher */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
+          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
             Media Outreach
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
             Track, analyze and report across Broadcast, Print, Online and Social Media outreach metrics.
           </p>
         </div>
 
-        {/* Platform buttons (Modern Pill-style tab switcher including Add Details) */}
-        <div className="flex p-1 bg-slate-100/90 border border-slate-200/50 rounded-2xl gap-1 max-w-full overflow-x-auto sm:overflow-visible">
-          {MEDIA_TABS.map(tab => {
-            const isActive = activeMediaType === tab.id;
-            const isAddDetails = tab.id === 'add_details';
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`whitespace-nowrap px-5 py-2.5 text-xs font-semibold tracking-wide rounded-xl transition-all duration-300 cursor-pointer ${
-                  isActive
-                    ? isAddDetails
-                      ? 'bg-emerald-600 text-white font-bold shadow-sm'
-                      : 'bg-white text-[#28408f] font-bold shadow-sm'
-                    : isAddDetails
-                      ? 'text-emerald-600 hover:bg-emerald-50/50 hover:text-emerald-700'
-                      : 'text-slate-600 hover:text-[#28408f] hover:bg-white/40'
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        <InternalNavigation
+          tabs={MEDIA_TABS}
+          currentTab={activeMediaType}
+          onTabChange={handleTabChange}
+        />
       </div>
 
       {activeMediaType === 'add_details' ? (
@@ -149,6 +140,7 @@ export default function MediaOutreachView({ triggerNotification }) {
           onRefresh={fetchData}
           organisations={organisations}
           getOrgName={getOrgName}
+          triggerNotification={triggerNotification}
         />
       )}
     </div>
