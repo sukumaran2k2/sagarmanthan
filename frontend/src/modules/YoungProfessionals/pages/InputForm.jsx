@@ -453,10 +453,11 @@ export default function InputForm({
             <input 
               type="date" 
               value={appointmentDate} 
+              max={new Date().toISOString().split('T')[0]}
               onChange={e => { setAppointmentDate(e.target.value); validateField('appointmentDate', e.target.value); }} 
               onBlur={() => handleBlur('appointmentDate')}
               required 
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('appointmentDate', appointmentDate) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('appointmentDate', appointmentDate) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 dark:[color-scheme:dark]`} 
             />
             {errors.appointmentDate && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.appointmentDate}</p>}
           </div>

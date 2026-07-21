@@ -937,7 +937,8 @@ async function getMonthlyBroadPrintReport(req,res){
             const orgResult = await request.query(
             `SELECT organisation_id FROM tbl_user WHERE user_id = @userID`
             );
-            const organisationID = orgResult.recordset[0].organisation_id;
+            const organisationID = orgResu
+            lt.recordset[0].organisation_id;
 
             request.input("organisationID", organisationID);
     

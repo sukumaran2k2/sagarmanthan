@@ -13,13 +13,14 @@ import HRDashboardView from './modules/HR/HR';
 import ProfileView from './modules/Profile/Profile';
 import UserManagementView from './modules/UserManagement/UserManagement';
 import CabinetNotes from './modules/CabinetNotesMOPSW/CabinetNotesMOPSW';
-import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotes';
+import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotesOther';
 import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
 import AuditParaView from './modules/AuditPara/AuditPara';
 import VIPReferenceView from './modules/VIPReference/VIPReference';
 import BillsPreConstitutionsView from './modules/BillsPreConstitutions/BillsPreConstitutions';
 import YoungProfessionalsView from './modules/YoungProfessionals/YoungProfessionals';
 import ConsultantAppointmentView from './modules/ConsultantAppointment/ConsultantAppointment';
+import MediaOutreachView from './modules/MediaOutreach/MediaOutreach';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
 import Loader from './components/Loader';
@@ -145,7 +146,7 @@ const INITIAL_PROJECTS = [
 const getBreadcrumbs = (tab) => {
   if (tab === 'landing') return ['Home'];
   if (tab === 'Ports Reports') return ['KPI - Major Ports - (Output Reports)'];
-  
+
   // Projects tab routes
   if (tab === 'dashboard') return ['Home', 'Projects', 'Project', 'Project Dashboard'];
   if (tab === 'projects') return ['Home', 'Projects', 'Project', 'Project List'];
@@ -153,7 +154,7 @@ const getBreadcrumbs = (tab) => {
   if (tab === 'lumpsum') return ['Home', 'Projects', 'Project', 'Lumpsum - IWAI'];
   if (tab === 'dropRequests') return ['Home', 'Projects', 'Project', 'View Drop Request'];
   if (tab === 'reports') return ['Home', 'Projects', 'Project', 'Reports'];
-  
+
   // Dynamic lookup for other tabs
   const kpiItems = {
     'Major Ports Dashboard': ['KPI', 'Major Ports'],
@@ -202,6 +203,7 @@ const getBreadcrumbs = (tab) => {
     'Inter State & Inter Ministerial', 'Foreign Visit', 'Cruise Shipping',
     'Flagged Ships / FOB Basis', 'MOM Of PSW Meetings', 'Review Items'
   ];
+  if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
 
   const legalItems = ['Courtcases', 'Bills/PreConstitutions Act'];
@@ -231,7 +233,7 @@ const getBreadcrumbs = (tab) => {
 const ROUTE_MAP = {
   'landing': 'landing',
   'profile': 'profile',
-  
+
   // Projects nested routes
   'dashboard': 'projects/project/project-dashboard',
   'projects': 'projects/project/project-list',
@@ -239,12 +241,12 @@ const ROUTE_MAP = {
   'lumpsum': 'projects/project/lumpsum-iwai',
   'dropRequests': 'projects/project/view-drop-request',
   'reports': 'projects/project/reports',
-  
+
   // KPI nested routes
   'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
   'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
-  
+
   // Governance nested routes
   'E Office': 'governance/e-office',
   'Attendance': 'governance/attendance',
@@ -252,42 +254,44 @@ const ROUTE_MAP = {
   'Cabinet Notes - MoPSW': 'governance/cabinet-notes',
   'Cabinet Notes - Other Ministries': 'governance/cabinet-notes-other-ministry',
   'VIP Reference': 'governance/vip-reference',
+  'Media Outreach': 'governance/media-outreach',
   'Parliamentary Issue': 'governance/parliamentary-issue',
-  
+
   // Legal nested routes
   'Courtcases': 'legal/courtcases',
   'Bills/PreConstitutions Act': 'legal/acts-rules',
-  
+  'Acts & Rules': 'legal/acts-rules',
+
   // Strategies nested routes
   'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
   'Blue Economy Policy': 'strategies/blue-economy-policy',
-  
+
   // Knowledge nested routes
   'Research Papers': 'knowledge/research-papers',
   'Policy Documents': 'knowledge/policy-documents',
   'Guidelines': 'knowledge/guidelines',
-  
+
   // Form Builder nested routes
   'Create Dynamic Form': 'formBuilder/create-dynamic-form',
   'View Submissions': 'formBuilder/view-submissions',
-  
+
   // Tracker nested routes
   'Project Milestones': 'tracker/project-milestones',
   'Delay Analysis': 'tracker/delay-analysis',
-  
+
   // Meetings nested routes
   'Meeting Schedule': 'meeting/meeting-schedule',
   'Minutes of Meeting': 'meeting/minutes-of-meeting',
   'Action Taken Report': 'meeting/action-taken-report',
-  
+
   // Contacts nested routes
   'Ministry Contacts': 'contact/ministry-contacts',
   'Helpdesk Support': 'contact/helpdesk-support',
-  
+
   // User Management
   'User Management': 'userManagement/user-management',
-  
+
   // HR nested routes
   'HR Dashboard': 'hr/hr-management/hr-dashboard',
   'Employee Database': 'hr/hr-management/employee-database',
@@ -339,7 +343,7 @@ export default function App() {
           setIsTabLoading(true);
         }
       });
-      
+
       const simulateDataFetch = async () => {
         try {
           // Instantly resolve to remove simulated delay
@@ -428,7 +432,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
       {showNetworkCheck && (
-        <NetworkCheckView 
+        <NetworkCheckView
           isManual={isManualNetworkCheck}
           onContinue={() => setShowNetworkCheck(false)}
           onCancel={() => {
@@ -439,26 +443,26 @@ export default function App() {
           }}
         />
       )}
-      
+
       {/* Toast Notification Alert Banner */}
       <Notification message={notification} />
 
       {/* Government Portal Header */}
-      <Header 
+      <Header
         onLogout={() => {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           setIsLoggedIn(false);
-        }} 
+        }}
         onProfileClick={() => setActiveTab('profile')}
         onUserManagementClick={() => setActiveTab('usermanagement')}
       />
 
       {/* Tab Navigation Menu */}
-      <Tabs 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        projectCount={projects.length} 
+      <Tabs
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        projectCount={projects.length}
       />
 
       {/* Main Content Viewport */}
@@ -477,7 +481,7 @@ export default function App() {
             ))}
           </div>
         )}
-        
+
         {isTabLoading ? (
           <div className="py-12 animate-fade-in">
             <Loader message={`Fetching telemetry and compiling active panels for ${activeTab}...`} fullPage={false} />
@@ -485,26 +489,26 @@ export default function App() {
         ) : (
           <>
             {activeTab === 'landing' && (
-              <LandingView 
+              <LandingView
                 onNavigate={(tab, subKpi) => {
                   if (subKpi) {
                     setEOfficeKpi(subKpi);
                   }
                   setActiveTab(tab);
-                }} 
+                }}
               />
             )}
 
             {activeTab === 'dashboard' && (
-              <DashboardView 
-                projects={projects} 
-                activeTab={activeTab} 
-                setActiveTab={setActiveTab} 
+              <DashboardView
+                projects={projects}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
               />
             )}
-            
+
             {activeTab === 'projects' && (
-              <Projects 
+              <Projects
                 projects={projects}
                 onAddProject={handleAddProject}
                 onAddSubProject={handleAddSubProject}
@@ -570,7 +574,11 @@ export default function App() {
               <VIPReferenceView />
             )}
 
-            {activeTab === 'Bills/PreConstitutions Act' && (
+            {activeTab === 'Media Outreach' && (
+              <MediaOutreachView triggerNotification={triggerNotification} />
+            )}
+
+            {['Bills/PreConstitutions Act', 'Acts & Rules'].includes(activeTab) && (
               <BillsPreConstitutionsView triggerNotification={triggerNotification} />
             )}
 
@@ -583,7 +591,7 @@ export default function App() {
             )}
 
             {/* Placeholder / Empty State for other inactive government menu views */}
-            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Audit Paras', 'VIP Reference', 'Bills/PreConstitutions Act', 'Data List', 'Input Form', 'Report', 'Consultant Input Form', 'Consultant Data List', 'Consultant Reports'].includes(activeTab) && (
+            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Audit Paras', 'VIP Reference', 'Bills/PreConstitutions Act', 'Acts & Rules', 'Data List', 'Input Form', 'Report', 'Consultant Input Form', 'Consultant Reports', 'Media Outreach'].includes(activeTab) && (
               <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
                 <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                   <Sparkles className="h-7 w-7 text-blue-600" />
@@ -592,7 +600,7 @@ export default function App() {
                 <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
                   This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
                 </p>
-                <button 
+                <button
                   onClick={() => setActiveTab('dashboard')}
                   className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
                 >

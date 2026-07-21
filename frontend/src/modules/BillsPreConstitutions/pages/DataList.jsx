@@ -4,7 +4,7 @@ import Table from '../../../components/table';
 import { Search, X, Edit, Trash2, ChevronDown, BarChart3, List } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';
-import ExportButtons from '../../../components/ExportButtons';
+import ExportDropdown from '../../../components/ExportDropdown';
 
 const STAGES = {
   1: 'Pre-Draft Bill Prepared',
@@ -446,9 +446,11 @@ export default function DataList({
 
         {/* Bottom export bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <ExportButtons
+          <ExportDropdown
             onExportExcel={() => handleExport('Excel')}
             onExportPdf={() => handleExport('PDF')}
+            color="#0f417a"
+            hoverColor="#1e5ea8"
           />
           {viewMode === 'table' && (
             <div className="text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider">

@@ -202,14 +202,31 @@ export default function InputForm({
     return false;
   }, [subject, wing, division, remarks, selectedFile, stages, initialValues]);
 
+  // Helper to get today's date YYYY-MM-DD
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // Compute min/max limits for stage dates
+  const getDateLimits = (stageNum) => {
+    let min = undefined;
+    let max = todayStr;
+
+    if (stageNum > 1 && stages[stageNum - 1]?.date) {
+      min = stages[stageNum - 1].date;
+    }
+
+    return { min, max };
+  };
+
   const isFormValid = useMemo(() => {
+    const hasAtLeastOneDate = Object.values(stages).some(st => !!st.date);
     return (
       subject.trim() !== '' &&
       String(wing).trim() !== '' &&
       String(division).trim() !== '' &&
-      remarks.trim() !== ''
+      remarks.trim() !== '' &&
+      hasAtLeastOneDate
     );
-  }, [subject, wing, division, remarks]);
+  }, [subject, wing, division, remarks, stages]);
 
   const handleStageChange = (num, field, val) => {
     setStages(prev => {
@@ -600,12 +617,14 @@ export default function InputForm({
                         <input
                           type="date"
                           value={currentStage.date}
+                          min={getDateLimits(stageNum).min}
+                          max={getDateLimits(stageNum).max}
                           onChange={e => handleStageChange(stageNum, 'date', e.target.value)}
                           onFocus={() => !isStageDisabled && !readOnly && setFocusedStage(stageNum)}
                           onBlur={() => setFocusedStage(null)}
                           disabled={isStageDisabled || readOnly}
                           className={`text-xs px-2.5 py-1.5 border rounded-lg focus:outline-none font-semibold dark:[color-scheme:dark] ${(isStageDisabled || readOnly)
-                            ? 'bg-slate-100 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-600'
+                            ? 'bg-slate-100 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-600 cursor-not-allowed'
                             : 'bg-white border-slate-200 text-slate-700 cursor-pointer dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 focus:border-[#0f417a]'
                             }`}
                         />

@@ -3,7 +3,7 @@ import { Search, X, Edit, BarChart3, List, ChevronDown, ChevronLeft, ChevronRigh
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';
 import Table from '../../../components/table';
-import ExportButtons from '../../../components/ExportButtons';
+import ExportDropdown from '../../../components/ExportDropdown';
 
 const STATUS_STEPS = {
   1: 'Received at Ministry',
@@ -494,9 +494,11 @@ export default function DataList({
       {/* Export Footer */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-100">
         <div className="flex items-center space-x-2">
-          <ExportButtons
+          <ExportDropdown
             onExportExcel={() => handleExport('Excel')}
             onExportPdf={() => handleExport('PDF')}
+            color="#0f417a"
+            hoverColor="#1e5ea8"
           />
         </div>
         <div className="text-xs font-bold text-slate-550 uppercase tracking-wider">

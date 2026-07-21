@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { ArrowLeft, Save, Sparkles } from 'lucide-react';
+import { ArrowLeft, Save } from 'lucide-react';
 
 function decodeToken(token) {
   try {
@@ -16,21 +16,21 @@ function decodeToken(token) {
 }
 
 const STAGES_LIST = [
-  { id: 1, label: 'Pre-Draft Bill Prepared', key: 'preDraftBillPrepDate' },
-  { id: 2, label: 'Pre-Draft Bill Approved', key: 'preDraftBillApprovedDate' },
-  { id: 3, label: 'Circulated for IMC', key: 'circulatedImcDate' },
-  { id: 4, label: 'IMC Comments Received', key: 'imcCommentsRecDate' },
-  { id: 5, label: 'DCN Draft Prepared', key: 'dcnDraftBillPreparedDate' },
-  { id: 6, label: 'DCN Draft Approved', key: 'dcnDraftBillApprovedDate' },
-  { id: 7, label: 'Submitted for Legal Vetting', key: 'submitedLegalVettingDate' },
-  { id: 8, label: 'Legal Vetting Completed', key: 'legalVettingCompletedDate' },
-  { id: 9, label: 'Final DCN Approved', key: 'finalDcnApprovedDate' },
-  { id: 10, label: 'Advance Copy Sent', key: 'advanceCopyDate' },
-  { id: 11, label: 'Approved by Cabinet', key: 'approvedByCabinetDate' },
-  { id: 12, label: 'Introduced in Parliament', key: 'billIntroducedInParliamentDate' },
-  { id: 13, label: 'Bill Passed', key: 'billPassedDate' },
-  { id: 14, label: 'Bill Notified', key: 'billNotifiedDate' },
-  { id: 15, label: 'Completed', key: 'completedDate' }
+  { id: 1, label: 'Pre-Draft Bill Prepared', dateKey: 'draftBillPreparedDate', remarkKey: 'draftBillPreparedRemark' },
+  { id: 2, label: 'Pre-Draft Bill Approved', dateKey: 'dcnDraftBillApprovedMinisterDate', remarkKey: 'dcnDraftBillApprovedMinisterRemark' },
+  { id: 3, label: 'Circulated for IMC', dateKey: 'circulatedImcDate', remarkKey: 'circulatedImcRemark' },
+  { id: 4, label: 'IMC Comments Received', dateKey: 'imcCommentsRecDate', remarkKey: 'imcCommentsRecRemark' },
+  { id: 5, label: 'DCN Draft Prepared', dateKey: 'dcnDraftBillPreparedDate', remarkKey: 'dcnDraftBillPreparedRemark' },
+  { id: 6, label: 'DCN Draft Approved', dateKey: 'dcnDraftBillApprovedDate', remarkKey: 'dcnDraftBillApprovedRemark' },
+  { id: 7, label: 'Submitted for Legal Vetting', dateKey: 'submittedLegalVettingDate', remarkKey: 'submittedLegalVettingRemark' },
+  { id: 8, label: 'Legal Vetting Completed', dateKey: 'legalVettingCompletedDate', remarkKey: 'legalVettingCompletedRemark' },
+  { id: 9, label: 'Final DCN Approved', dateKey: 'finalDcnDraftApprovedDate', remarkKey: 'finalDcnDraftApprovedRemark' },
+  { id: 10, label: 'Advance Copy Sent', dateKey: 'advanceCopyDate', remarkKey: 'advanceCopyRemark' },
+  { id: 11, label: 'Approved by Cabinet', dateKey: 'approvedByCabinetDate', remarkKey: 'approvedByCabinetRemark' },
+  { id: 12, label: 'Introduced in Parliament', dateKey: 'billIntroducedInParliamentDate', remarkKey: 'billIntroducedInParliamentRemark' },
+  { id: 13, label: 'Bill Passed', dateKey: 'billPassedDate', remarkKey: 'billPassedRemark' },
+  { id: 14, label: 'Bill Notified', dateKey: 'billNotifiedDate', remarkKey: 'billNotifiedRemark' },
+  { id: 15, label: 'Completed', dateKey: 'completedDate', remarkKey: 'completedRemark' }
 ];
 
 export default function InputForm({
@@ -51,11 +51,15 @@ export default function InputForm({
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Stages dates
+  // Focused/Hovered stages for remarks
+  const [focusedStage, setFocusedStage] = useState(null);
+  const [hoveredStage, setHoveredStage] = useState(null);
+
+  // Stages dates and remarks
   const [stages, setStages] = useState(() => {
     const s = {};
     STAGES_LIST.forEach(stage => {
-      s[stage.id] = { date: '' };
+      s[stage.id] = { date: '', remark: '' };
     });
     return s;
   });
@@ -70,7 +74,7 @@ export default function InputForm({
     let initRemarks = '';
     let initStages = {};
     STAGES_LIST.forEach(stage => {
-      initStages[stage.id] = { date: '' };
+      initStages[stage.id] = { date: '', remark: '' };
     });
 
     if (editData) {
@@ -80,21 +84,21 @@ export default function InputForm({
       initRemarks = editData.remarks || '';
 
       initStages = {
-        1: { date: editData.pre_draft_bill_prepared_date ? editData.pre_draft_bill_prepared_date.split('T')[0] : '' },
-        2: { date: editData.pre_draft_bill_approved_date ? editData.pre_draft_bill_approved_date.split('T')[0] : '' },
-        3: { date: editData.circulated_imc_date ? editData.circulated_imc_date.split('T')[0] : '' },
-        4: { date: editData.imc_comments_rec_date ? editData.imc_comments_rec_date.split('T')[0] : '' },
-        5: { date: editData.dcn_draft_bill_prepared_date ? editData.dcn_draft_bill_prepared_date.split('T')[0] : '' },
-        6: { date: editData.dcn_draft_bill_approved_date ? editData.dcn_draft_bill_approved_date.split('T')[0] : '' },
-        7: { date: editData.submited_legal_vetting_date ? editData.submited_legal_vetting_date.split('T')[0] : '' },
-        8: { date: editData.legal_vetting_completed_date ? editData.legal_vetting_completed_date.split('T')[0] : '' },
-        9: { date: editData.final_dcn_approved_date ? editData.final_dcn_approved_date.split('T')[0] : '' },
-        10: { date: editData.advance_copy_date ? editData.advance_copy_date.split('T')[0] : '' },
-        11: { date: editData.approved_by_cabinet_date ? editData.approved_by_cabinet_date.split('T')[0] : '' },
-        12: { date: editData.bill_introduced_in_parliament_date ? editData.bill_introduced_in_parliament_date.split('T')[0] : '' },
-        13: { date: editData.bill_passed_date ? editData.bill_passed_date.split('T')[0] : '' },
-        14: { date: editData.bill_notified_date ? editData.bill_notified_date.split('T')[0] : '' },
-        15: { date: editData.completed_date ? editData.completed_date.split('T')[0] : '' }
+        1: { date: editData.draft_bill_prepared_date ? editData.draft_bill_prepared_date.split('T')[0] : '', remark: editData.draft_bill_prepared_remarks || '' },
+        2: { date: editData.dcn_draft_bill_approved_minister_date ? editData.dcn_draft_bill_approved_minister_date.split('T')[0] : '', remark: editData.dcn_draft_bill_approved_minister_remarks || '' },
+        3: { date: editData.circulated_imc_date ? editData.circulated_imc_date.split('T')[0] : '', remark: editData.circulated_imc_remarks || '' },
+        4: { date: editData.imc_comments_rec_date ? editData.imc_comments_rec_date.split('T')[0] : '', remark: editData.imc_comments_rec_remarks || '' },
+        5: { date: editData.dcn_draft_bill_prepared_date ? editData.dcn_draft_bill_prepared_date.split('T')[0] : '', remark: editData.dcn_draft_bill_prepared_remarks || '' },
+        6: { date: editData.dcn_draft_bill_approved_date ? editData.dcn_draft_bill_approved_date.split('T')[0] : '', remark: editData.dcn_draft_bill_approved_remarks || '' },
+        7: { date: editData.submitted_legal_vetting_date ? editData.submitted_legal_vetting_date.split('T')[0] : '', remark: editData.submitted_legal_vetting_remarks || '' },
+        8: { date: editData.legal_vetting_completed_date ? editData.legal_vetting_completed_date.split('T')[0] : '', remark: editData.legal_vetting_completed_remarks || '' },
+        9: { date: editData.final_dcn_draft_approved_date ? editData.final_dcn_draft_approved_date.split('T')[0] : '', remark: editData.final_dcn_draft_approved_remarks || '' },
+        10: { date: editData.advance_copy_date ? editData.advance_copy_date.split('T')[0] : '', remark: editData.advance_copy_remarks || '' },
+        11: { date: editData.approved_by_cabinet_date ? editData.approved_by_cabinet_date.split('T')[0] : '', remark: editData.approved_by_cabinet_remarks || '' },
+        12: { date: editData.bill_introduced_in_parliament_date ? editData.bill_introduced_in_parliament_date.split('T')[0] : '', remark: editData.bill_introduced_in_parliament_remarks || '' },
+        13: { date: editData.bill_passed_date ? editData.bill_passed_date.split('T')[0] : '', remark: editData.bill_passed_remarks || '' },
+        14: { date: editData.bill_notified_date ? editData.bill_notified_date.split('T')[0] : '', remark: editData.bill_notified_remarks || '' },
+        15: { date: editData.completed_date ? editData.completed_date.split('T')[0] : '', remark: editData.completed_remarks || '' }
       };
     }
 
@@ -128,6 +132,7 @@ export default function InputForm({
 
     for (let i = 1; i <= 15; i++) {
       if (stages[i]?.date !== initialValues.stages?.[i]?.date) return true;
+      if (stages[i]?.remark !== initialValues.stages?.[i]?.remark) return true;
     }
     return false;
   }, [subject, wing, division, remarks, stages, initialValues]);
@@ -145,26 +150,47 @@ export default function InputForm({
     }
   };
 
+  // Helper to get today's date YYYY-MM-DD
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // Compute min/max limits for stage dates
+  const getDateLimits = (idx) => {
+    let min = undefined;
+    let max = todayStr;
+
+    if (idx > 0 && stages[STAGES_LIST[idx - 1].id]?.date) {
+      min = stages[STAGES_LIST[idx - 1].id].date;
+    }
+
+    return { min, max };
+  };
+
   const isFormValid = useMemo(() => {
+    const hasAtLeastOneDate = Object.values(stages).some(st => !!st.date);
     return (
       subject.trim() !== '' &&
       String(wing).trim() !== '' &&
       String(division).trim() !== '' &&
       remarks.trim() !== '' &&
-      !errors.remarks
+      !errors.remarks &&
+      hasAtLeastOneDate
     );
-  }, [subject, wing, division, remarks, errors]);
+  }, [subject, wing, division, remarks, errors, stages]);
 
-  const handleStageChange = (num, val) => {
+  const handleStageChange = (num, field, val) => {
     setStages(prev => {
       const updated = { ...prev };
-      updated[num] = { date: val };
+      updated[num] = {
+        ...updated[num],
+        [field]: val
+      };
 
-      // Clear subsequent dates if this date is deleted
-      if (!val) {
+      // Clear subsequent dates and remarks if this date is deleted
+      if (field === 'date' && !val) {
         for (let i = num + 1; i <= 15; i++) {
-          updated[i] = { date: '' };
+          updated[i] = { date: '', remark: '' };
         }
+        updated[num].remark = '';
       }
       return updated;
     });
@@ -227,21 +253,36 @@ export default function InputForm({
       selectedBillStage,
       userID: activeUserId,
 
-      preDraftBillPrepDate: stages[1].date || '',
-      preDraftBillApprovedDate: stages[2].date || '',
+      draftBillPreparedDate: stages[1].date || '',
+      draftBillPreparedRemark: stages[1].remark || '',
+      dcnDraftBillApprovedMinisterDate: stages[2].date || '',
+      dcnDraftBillApprovedMinisterRemark: stages[2].remark || '',
       circulatedImcDate: stages[3].date || '',
+      circulatedImcRemark: stages[3].remark || '',
       imcCommentsRecDate: stages[4].date || '',
+      imcCommentsRecRemark: stages[4].remark || '',
       dcnDraftBillPreparedDate: stages[5].date || '',
+      dcnDraftBillPreparedRemark: stages[5].remark || '',
       dcnDraftBillApprovedDate: stages[6].date || '',
-      submitedLegalVettingDate: stages[7].date || '',
+      dcnDraftBillApprovedRemark: stages[6].remark || '',
+      submittedLegalVettingDate: stages[7].date || '',
+      submittedLegalVettingRemark: stages[7].remark || '',
       legalVettingCompletedDate: stages[8].date || '',
-      finalDcnApprovedDate: stages[9].date || '',
+      legalVettingCompletedRemark: stages[8].remark || '',
+      finalDcnDraftApprovedDate: stages[9].date || '',
+      finalDcnDraftApprovedRemark: stages[9].remark || '',
       advanceCopyDate: stages[10].date || '',
+      advanceCopyRemark: stages[10].remark || '',
       approvedByCabinetDate: stages[11].date || '',
+      approvedByCabinetRemark: stages[11].remark || '',
       billIntroducedInParliamentDate: stages[12].date || '',
+      billIntroducedInParliamentRemark: stages[12].remark || '',
       billPassedDate: stages[13].date || '',
+      billPassedRemark: stages[13].remark || '',
       billNotifiedDate: stages[14].date || '',
-      completedDate: stages[15].date || ''
+      billNotifiedRemark: stages[14].remark || '',
+      completedDate: stages[15].date || '',
+      completedRemark: stages[15].remark || ''
     };
 
     try {
@@ -385,14 +426,17 @@ export default function InputForm({
             </h4>
             <div className="space-y-3.5">
               {STAGES_LIST.map((stage, idx) => {
-                // Sequential filling rules (can only fill stage N if N-1 is filled)
+                const stageNum = stage.id;
+                const stageVal = stages[stageNum] || { date: '', remark: '' };
                 const isStageDisabled = !isEdit && idx > 0 && !stages[STAGES_LIST[idx - 1].id]?.date;
-                const stageVal = stages[stage.id] || { date: '' };
+                const isRemarkFieldVisible = stageNum === focusedStage || !!stageVal.date;
 
                 return (
                   <div
                     key={stage.id}
-                    className={`p-4 border rounded-xl transition ${
+                    onMouseEnter={() => !isStageDisabled && setHoveredStage(stageNum)}
+                    onMouseLeave={() => setHoveredStage(null)}
+                    className={`flex flex-col gap-3 p-4 border rounded-xl transition ${
                       stageVal.date
                         ? 'border-emerald-250 bg-emerald-50/20'
                         : 'border-slate-150 bg-white'
@@ -410,12 +454,39 @@ export default function InputForm({
                         <input
                           type="date"
                           value={stageVal.date}
-                          onChange={e => handleStageChange(stage.id, e.target.value)}
+                          min={getDateLimits(idx).min}
+                          max={getDateLimits(idx).max}
+                          onChange={e => handleStageChange(stageNum, 'date', e.target.value)}
+                          onFocus={() => !isStageDisabled && !readOnly && setFocusedStage(stageNum)}
+                          onBlur={() => setFocusedStage(null)}
                           disabled={readOnly || isStageDisabled}
-                          className="w-full sm:w-auto text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700"
+                          className={`w-full sm:w-auto text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:[color-scheme:dark] ${isStageDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                         />
                       </div>
                     </div>
+
+                    {/* Dynamically reveal Stage Remark field with transition animation */}
+                    {!isStageDisabled && (
+                      <div
+                        className={`transition-all duration-300 ease-in-out overflow-hidden origin-top ${isRemarkFieldVisible
+                          ? 'max-h-[50px] opacity-100 mt-1 scale-y-100'
+                          : 'max-h-0 opacity-0 scale-y-95 pointer-events-none'
+                          }`}
+                      >
+                        <div className="border-t border-slate-100 pt-2">
+                          <input
+                            type="text"
+                            placeholder="Add stage-specific remark (optional)"
+                            value={stageVal.remark}
+                            onChange={e => handleStageChange(stageNum, 'remark', e.target.value)}
+                            onFocus={() => !readOnly && setFocusedStage(stageNum)}
+                            onBlur={() => setFocusedStage(null)}
+                            disabled={readOnly}
+                            className="w-full text-[11px] px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white font-medium text-slate-700 placeholder-slate-400"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

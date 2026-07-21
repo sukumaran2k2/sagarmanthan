@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import Table from '../../../components/Table';
+import Table from '../../../components/table';
 import { Search, X, Edit, BarChart3, List, ChevronDown, Plus } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import ExportButtons from '../../../components/ExportButtons';
+import ExportDropdown from '../../../components/ExportDropdown';
 
 export default function DataList({
   rowData = [],
@@ -448,9 +448,11 @@ export default function DataList({
       )}
 
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-        <ExportButtons
+        <ExportDropdown
           onExportExcel={() => handleExport('Excel')}
           onExportPdf={() => handleExport('PDF')}
+          color="#0f417a"
+          hoverColor="#1e5ea8"
         />
         {viewMode === 'table' && (
           <div className="text-xs font-bold text-slate-550 uppercase tracking-wider">

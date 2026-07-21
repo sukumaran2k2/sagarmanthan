@@ -5,61 +5,122 @@ async function createBill(req, res) {
     const subject = req.body.subject;
     const wing = req.body.wing;
     const division = req.body.division;
-    let preDraftBillPrepDate = req.body.preDraftBillPrepDate || null;
-    let preDraftBillApprovedDate = req.body.preDraftBillApprovedDate || req.body.preDcnDraftBillApprovedDate || null;
-    let circulatedImcDate = req.body.circulatedImcDate || req.body.circulatedForImcDate || null;
+
+    let draftBillPreparedDate = req.body.draftBillPreparedDate || req.body.preDraftBillPrepDate || null;
+    let draftBillPreparedRemark = req.body.draftBillPreparedRemark || req.body.preDraftBillPrepRemark || null;
+
+    let dcnDraftBillApprovedMinisterDate = req.body.dcnDraftBillApprovedMinisterDate || req.body.preDraftBillApprovedDate || null;
+    let dcnDraftBillApprovedMinisterRemark = req.body.dcnDraftBillApprovedMinisterRemark || req.body.preDraftBillApprovedRemark || null;
+
+    let circulatedImcDate = req.body.circulatedImcDate || null;
+    let circulatedImcRemark = req.body.circulatedImcRemark || null;
+
     let imcCommentsRecDate = req.body.imcCommentsRecDate || null;
+    let imcCommentsRecRemark = req.body.imcCommentsRecRemark || null;
+
     let dcnDraftBillPreparedDate = req.body.dcnDraftBillPreparedDate || null;
+    let dcnDraftBillPreparedRemark = req.body.dcnDraftBillPreparedRemark || null;
+
     let dcnDraftBillApprovedDate = req.body.dcnDraftBillApprovedDate || null;
-    let submitedLegalVettingDate = req.body.submitedLegalVettingDate || req.body.submittedLegalVettingDate || null;
+    let dcnDraftBillApprovedRemark = req.body.dcnDraftBillApprovedRemark || null;
+
+    let submittedLegalVettingDate = req.body.submittedLegalVettingDate || req.body.submitedLegalVettingDate || null;
+    let submittedLegalVettingRemark = req.body.submittedLegalVettingRemark || req.body.submitedLegalVettingRemark || null;
+
     let legalVettingCompletedDate = req.body.legalVettingCompletedDate || null;
-    let finalDcnApprovedDate = req.body.finalDcnApprovedDate || null;
-    let advanceCopyDate = req.body.advanceCopyDate || req.body.advanceCopyToPmoDate || null;
+    let legalVettingCompletedRemark = req.body.legalVettingCompletedRemark || null;
+
+    let finalDcnDraftApprovedDate = req.body.finalDcnDraftApprovedDate || req.body.finalDcnApprovedDate || null;
+    let finalDcnDraftApprovedRemark = req.body.finalDcnDraftApprovedRemark || req.body.finalDcnApprovedRemark || null;
+
+    let advanceCopyDate = req.body.advanceCopyDate || null;
+    let advanceCopyRemark = req.body.advanceCopyRemark || null;
+
     let approvedByCabinetDate = req.body.approvedByCabinetDate || null;
-    let billIntroducedInParliamentDate = req.body.billIntroducedInParliamentDate || req.body.billIntroducedDate || null;
+    let approvedByCabinetRemark = req.body.approvedByCabinetRemark || null;
+
+    let billIntroducedInParliamentDate = req.body.billIntroducedInParliamentDate || null;
+    let billIntroducedInParliamentRemark = req.body.billIntroducedInParliamentRemark || null;
+
     let billPassedDate = req.body.billPassedDate || null;
+    let billPassedRemark = req.body.billPassedRemark || null;
+
     let billNotifiedDate = req.body.billNotifiedDate || null;
+    let billNotifiedRemark = req.body.billNotifiedRemark || null;
+
     let completedDate = req.body.completedDate || null;
+    let completedRemark = req.body.completedRemark || null;
+
     const remarks = req.body.remarks || '';
     const selectedBillStage = req.body.selectedBillStage || null;    
     const userID = req.body.userID || null;
 
-    if (preDraftBillPrepDate === "") preDraftBillPrepDate = null;
-    if (preDraftBillApprovedDate === "") preDraftBillApprovedDate = null;
+    if (draftBillPreparedDate === "") draftBillPreparedDate = null;
+    if (draftBillPreparedRemark === "") draftBillPreparedRemark = null;
+    if (dcnDraftBillApprovedMinisterDate === "") dcnDraftBillApprovedMinisterDate = null;
+    if (dcnDraftBillApprovedMinisterRemark === "") dcnDraftBillApprovedMinisterRemark = null;
     if (circulatedImcDate === "") circulatedImcDate = null;
+    if (circulatedImcRemark === "") circulatedImcRemark = null;
     if (imcCommentsRecDate === "") imcCommentsRecDate = null;
+    if (imcCommentsRecRemark === "") imcCommentsRecRemark = null;
     if (dcnDraftBillPreparedDate === "") dcnDraftBillPreparedDate = null;
+    if (dcnDraftBillPreparedRemark === "") dcnDraftBillPreparedRemark = null;
     if (dcnDraftBillApprovedDate === "") dcnDraftBillApprovedDate = null;
-    if (submitedLegalVettingDate === "") submitedLegalVettingDate = null;
+    if (dcnDraftBillApprovedRemark === "") dcnDraftBillApprovedRemark = null;
+    if (submittedLegalVettingDate === "") submittedLegalVettingDate = null;
+    if (submittedLegalVettingRemark === "") submittedLegalVettingRemark = null;
     if (legalVettingCompletedDate === "") legalVettingCompletedDate = null;
-    if (finalDcnApprovedDate === "") finalDcnApprovedDate = null;
+    if (legalVettingCompletedRemark === "") legalVettingCompletedRemark = null;
+    if (finalDcnDraftApprovedDate === "") finalDcnDraftApprovedDate = null;
+    if (finalDcnDraftApprovedRemark === "") finalDcnDraftApprovedRemark = null;
     if (advanceCopyDate === "") advanceCopyDate = null;
+    if (advanceCopyRemark === "") advanceCopyRemark = null;
     if (approvedByCabinetDate === "") approvedByCabinetDate = null;
+    if (approvedByCabinetRemark === "") approvedByCabinetRemark = null;
     if (billIntroducedInParliamentDate === "") billIntroducedInParliamentDate = null;
+    if (billIntroducedInParliamentRemark === "") billIntroducedInParliamentRemark = null;
     if (billPassedDate === "") billPassedDate = null;
+    if (billPassedRemark === "") billPassedRemark = null;
     if (billNotifiedDate === "") billNotifiedDate = null;
+    if (billNotifiedRemark === "") billNotifiedRemark = null;
     if (completedDate === "") completedDate = null;
+    if (completedRemark === "") completedRemark = null;
 
     const conn = await pool;
     const request = conn.request();
     request.input("subject", subject);
     request.input("wing", wing);
     request.input("division", division);
-    request.input("preDraftBillPrepDate", preDraftBillPrepDate);
-    request.input("preDraftBillApprovedDate", preDraftBillApprovedDate);
+    request.input("draftBillPreparedDate", draftBillPreparedDate);
+    request.input("draftBillPreparedRemark", draftBillPreparedRemark);
+    request.input("dcnDraftBillApprovedMinisterDate", dcnDraftBillApprovedMinisterDate);
+    request.input("dcnDraftBillApprovedMinisterRemark", dcnDraftBillApprovedMinisterRemark);
     request.input("circulatedImcDate", circulatedImcDate);
+    request.input("circulatedImcRemark", circulatedImcRemark);
     request.input("imcCommentsRecDate", imcCommentsRecDate);
+    request.input("imcCommentsRecRemark", imcCommentsRecRemark);
     request.input("dcnDraftBillPreparedDate", dcnDraftBillPreparedDate);
+    request.input("dcnDraftBillPreparedRemark", dcnDraftBillPreparedRemark);
     request.input("dcnDraftBillApprovedDate", dcnDraftBillApprovedDate);
-    request.input("submitedLegalVettingDate", submitedLegalVettingDate);
+    request.input("dcnDraftBillApprovedRemark", dcnDraftBillApprovedRemark);
+    request.input("submittedLegalVettingDate", submittedLegalVettingDate);
+    request.input("submittedLegalVettingRemark", submittedLegalVettingRemark);
     request.input("legalVettingCompletedDate", legalVettingCompletedDate);
-    request.input("finalDcnApprovedDate", finalDcnApprovedDate);
+    request.input("legalVettingCompletedRemark", legalVettingCompletedRemark);
+    request.input("finalDcnDraftApprovedDate", finalDcnDraftApprovedDate);
+    request.input("finalDcnDraftApprovedRemark", finalDcnDraftApprovedRemark);
     request.input("advanceCopyDate", advanceCopyDate);
+    request.input("advanceCopyRemark", advanceCopyRemark);
     request.input("approvedByCabinetDate", approvedByCabinetDate);
+    request.input("approvedByCabinetRemark", approvedByCabinetRemark);
     request.input("billIntroducedInParliamentDate", billIntroducedInParliamentDate);
+    request.input("billIntroducedInParliamentRemark", billIntroducedInParliamentRemark);
     request.input("billPassedDate", billPassedDate);
+    request.input("billPassedRemark", billPassedRemark);
     request.input("billNotifiedDate", billNotifiedDate);
+    request.input("billNotifiedRemark", billNotifiedRemark);
     request.input("completedDate", completedDate);
+    request.input("completedRemark", completedRemark);
     request.input("remarks", remarks);
     request.input("selectedBillStage", selectedBillStage);    
     request.input("userID", userID);
@@ -67,24 +128,38 @@ async function createBill(req, res) {
     try {
         await request.query(`INSERT INTO tbl_bill_change (
             subject, wing, division, 
-            pre_draft_bill_prepared_date, pre_draft_bill_approved_date, 
+            draft_bill_prepared_date, dcn_draft_bill_approved_minister_date, 
             circulated_imc_date, imc_comments_rec_date, 
             dcn_draft_bill_prepared_date, dcn_draft_bill_approved_date, 
-            submited_legal_vetting_date, legal_vetting_completed_date, 
-            final_dcn_approved_date, advance_copy_date, 
+            submitted_legal_vetting_date, legal_vetting_completed_date, 
+            final_dcn_draft_approved_date, advance_copy_date, 
             approved_by_cabinet_date, bill_introduced_in_parliament_date, 
             bill_passed_date, bill_notified_date, 
-            completed_date, remarks, stage_id, created_by, created_date, updated_date
+            completed_date, remarks, stage_id, created_by, created_date, updated_date,
+            draft_bill_prepared_remarks, dcn_draft_bill_approved_minister_remarks,
+            circulated_imc_remarks, imc_comments_rec_remarks,
+            dcn_draft_bill_prepared_remarks, dcn_draft_bill_approved_remarks,
+            submitted_legal_vetting_remarks, legal_vetting_completed_remarks,
+            final_dcn_draft_approved_remarks, advance_copy_remarks,
+            approved_by_cabinet_remarks, bill_introduced_in_parliament_remarks,
+            bill_passed_remarks, bill_notified_remarks, completed_remarks
         ) VALUES (
             @subject, @wing, @division, 
-            @preDraftBillPrepDate, @preDraftBillApprovedDate, 
+            @draftBillPreparedDate, @dcnDraftBillApprovedMinisterDate, 
             @circulatedImcDate, @imcCommentsRecDate, 
             @dcnDraftBillPreparedDate, @dcnDraftBillApprovedDate, 
-            @submitedLegalVettingDate, @legalVettingCompletedDate, 
-            @finalDcnApprovedDate, @advanceCopyDate, 
+            @submittedLegalVettingDate, @legalVettingCompletedDate, 
+            @finalDcnDraftApprovedDate, @advanceCopyDate, 
             @approvedByCabinetDate, @billIntroducedInParliamentDate, 
             @billPassedDate, @billNotifiedDate, 
-            @completedDate, @remarks, @selectedBillStage, @userID, GETDATE(), GETDATE()
+            @completedDate, @remarks, @selectedBillStage, @userID, GETDATE(), GETDATE(),
+            @draftBillPreparedRemark, @dcnDraftBillApprovedMinisterRemark,
+            @circulatedImcRemark, @imcCommentsRecRemark,
+            @dcnDraftBillPreparedRemark, @dcnDraftBillApprovedRemark,
+            @submittedLegalVettingRemark, @legalVettingCompletedRemark,
+            @finalDcnDraftApprovedRemark, @advanceCopyRemark,
+            @approvedByCabinetRemark, @billIntroducedInParliamentRemark,
+            @billPassedRemark, @billNotifiedRemark, @completedRemark
         )`);
         res.sendStatus(201);  
     }
@@ -98,14 +173,21 @@ async function getBill(req, res) {
     const conn = await pool;
     try {
         const result = await conn.query(`SELECT bill_id, subject, wing, division, stage_id,
-            pre_draft_bill_prepared_date, pre_draft_bill_approved_date, 
+            draft_bill_prepared_date, dcn_draft_bill_approved_minister_date, 
             circulated_imc_date, imc_comments_rec_date, 
             dcn_draft_bill_prepared_date, dcn_draft_bill_approved_date, 
-            submited_legal_vetting_date, legal_vetting_completed_date, 
-            final_dcn_approved_date, advance_copy_date, 
+            submitted_legal_vetting_date, legal_vetting_completed_date, 
+            final_dcn_draft_approved_date, advance_copy_date, 
             approved_by_cabinet_date, bill_introduced_in_parliament_date, 
             bill_passed_date, bill_notified_date, 
             completed_date, remarks, created_by, updated_by, created_date, updated_date,
+            draft_bill_prepared_remarks, dcn_draft_bill_approved_minister_remarks,
+            circulated_imc_remarks, imc_comments_rec_remarks,
+            dcn_draft_bill_prepared_remarks, dcn_draft_bill_approved_remarks,
+            submitted_legal_vetting_remarks, legal_vetting_completed_remarks,
+            final_dcn_draft_approved_remarks, advance_copy_remarks,
+            approved_by_cabinet_remarks, bill_introduced_in_parliament_remarks,
+            bill_passed_remarks, bill_notified_remarks, completed_remarks,
             wing_name, division_name, bill_stage_name
             FROM tbl_bill_change
             INNER JOIN mmt_division ON tbl_bill_change.division = mmt_division.division_id
@@ -140,40 +222,86 @@ async function updateBill(req, res) {
     const subject = req.body.subject;
     const wing = req.body.wing;
     const division = req.body.division;
-    let preDraftBillPrepDate = req.body.preDraftBillPrepDate || null;
-    let preDraftBillApprovedDate = req.body.preDraftBillApprovedDate || req.body.preDcnDraftBillApprovedDate || null;
-    let circulatedImcDate = req.body.circulatedImcDate || req.body.circulatedForImcDate || null;
+
+    let draftBillPreparedDate = req.body.draftBillPreparedDate || req.body.preDraftBillPrepDate || null;
+    let draftBillPreparedRemark = req.body.draftBillPreparedRemark || req.body.preDraftBillPrepRemark || null;
+
+    let dcnDraftBillApprovedMinisterDate = req.body.dcnDraftBillApprovedMinisterDate || req.body.preDraftBillApprovedDate || null;
+    let dcnDraftBillApprovedMinisterRemark = req.body.dcnDraftBillApprovedMinisterRemark || req.body.preDraftBillApprovedRemark || null;
+
+    let circulatedImcDate = req.body.circulatedImcDate || null;
+    let circulatedImcRemark = req.body.circulatedImcRemark || null;
+
     let imcCommentsRecDate = req.body.imcCommentsRecDate || null;
+    let imcCommentsRecRemark = req.body.imcCommentsRecRemark || null;
+
     let dcnDraftBillPreparedDate = req.body.dcnDraftBillPreparedDate || null;
+    let dcnDraftBillPreparedRemark = req.body.dcnDraftBillPreparedRemark || null;
+
     let dcnDraftBillApprovedDate = req.body.dcnDraftBillApprovedDate || null;
-    let submitedLegalVettingDate = req.body.submitedLegalVettingDate || req.body.submittedLegalVettingDate || null;
+    let dcnDraftBillApprovedRemark = req.body.dcnDraftBillApprovedRemark || null;
+
+    let submittedLegalVettingDate = req.body.submittedLegalVettingDate || req.body.submitedLegalVettingDate || null;
+    let submittedLegalVettingRemark = req.body.submittedLegalVettingRemark || req.body.submitedLegalVettingRemark || null;
+
     let legalVettingCompletedDate = req.body.legalVettingCompletedDate || null;
-    let finalDcnApprovedDate = req.body.finalDcnApprovedDate || null;
-    let advanceCopyDate = req.body.advanceCopyDate || req.body.advanceCopyToPmoDate || null;
+    let legalVettingCompletedRemark = req.body.legalVettingCompletedRemark || null;
+
+    let finalDcnDraftApprovedDate = req.body.finalDcnDraftApprovedDate || req.body.finalDcnApprovedDate || null;
+    let finalDcnDraftApprovedRemark = req.body.finalDcnDraftApprovedRemark || req.body.finalDcnApprovedRemark || null;
+
+    let advanceCopyDate = req.body.advanceCopyDate || null;
+    let advanceCopyRemark = req.body.advanceCopyRemark || null;
+
     let approvedByCabinetDate = req.body.approvedByCabinetDate || null;
-    let billIntroducedInParliamentDate = req.body.billIntroducedInParliamentDate || req.body.billIntroducedDate || null;
+    let approvedByCabinetRemark = req.body.approvedByCabinetRemark || null;
+
+    let billIntroducedInParliamentDate = req.body.billIntroducedInParliamentDate || null;
+    let billIntroducedInParliamentRemark = req.body.billIntroducedInParliamentRemark || null;
+
     let billPassedDate = req.body.billPassedDate || null;
+    let billPassedRemark = req.body.billPassedRemark || null;
+
     let billNotifiedDate = req.body.billNotifiedDate || null;
+    let billNotifiedRemark = req.body.billNotifiedRemark || null;
+
     let completedDate = req.body.completedDate || null;
+    let completedRemark = req.body.completedRemark || null;
+
     const remarks = req.body.remarks || '';
     const selectedBillStage = req.body.selectedBillStage || null;  
     const userID = req.body.userID || null;
 
-    if (preDraftBillPrepDate === "") preDraftBillPrepDate = null;
-    if (preDraftBillApprovedDate === "") preDraftBillApprovedDate = null;
+    if (draftBillPreparedDate === "") draftBillPreparedDate = null;
+    if (draftBillPreparedRemark === "") draftBillPreparedRemark = null;
+    if (dcnDraftBillApprovedMinisterDate === "") dcnDraftBillApprovedMinisterDate = null;
+    if (dcnDraftBillApprovedMinisterRemark === "") dcnDraftBillApprovedMinisterRemark = null;
     if (circulatedImcDate === "") circulatedImcDate = null;
+    if (circulatedImcRemark === "") circulatedImcRemark = null;
     if (imcCommentsRecDate === "") imcCommentsRecDate = null;
+    if (imcCommentsRecRemark === "") imcCommentsRecRemark = null;
     if (dcnDraftBillPreparedDate === "") dcnDraftBillPreparedDate = null;
+    if (dcnDraftBillPreparedRemark === "") dcnDraftBillPreparedRemark = null;
     if (dcnDraftBillApprovedDate === "") dcnDraftBillApprovedDate = null;
-    if (submitedLegalVettingDate === "") submitedLegalVettingDate = null;
+    if (dcnDraftBillApprovedRemark === "") dcnDraftBillApprovedRemark = null;
+    if (submittedLegalVettingDate === "") submittedLegalVettingDate = null;
+    if (submittedLegalVettingRemark === "") submittedLegalVettingRemark = null;
     if (legalVettingCompletedDate === "") legalVettingCompletedDate = null;
-    if (finalDcnApprovedDate === "") finalDcnApprovedDate = null;
+    if (legalVettingCompletedRemark === "") legalVettingCompletedRemark = null;
+    if (finalDcnDraftApprovedDate === "") finalDcnDraftApprovedDate = null;
+    if (finalDcnDraftApprovedRemark === "") finalDcnDraftApprovedRemark = null;
     if (advanceCopyDate === "") advanceCopyDate = null;
+    if (advanceCopyRemark === "") advanceCopyRemark = null;
     if (approvedByCabinetDate === "") approvedByCabinetDate = null;
+    if (approvedByCabinetRemark === "") approvedByCabinetRemark = null;
     if (billIntroducedInParliamentDate === "") billIntroducedInParliamentDate = null;
+    if (billIntroducedInParliamentRemark === "") billIntroducedInParliamentRemark = null;
     if (billPassedDate === "") billPassedDate = null;
+    if (billPassedRemark === "") billPassedRemark = null;
     if (billNotifiedDate === "") billNotifiedDate = null;
+    if (billNotifiedRemark === "") billNotifiedRemark = null;
     if (completedDate === "") completedDate = null;
+    if (completedRemark === "") completedRemark = null;
 
     const conn = await pool;
     const request = conn.request();
@@ -181,21 +309,36 @@ async function updateBill(req, res) {
     request.input("subject", subject);
     request.input("wing", wing);
     request.input("division", division);
-    request.input("preDraftBillPrepDate", preDraftBillPrepDate);
-    request.input("preDraftBillApprovedDate", preDraftBillApprovedDate);
+    request.input("draftBillPreparedDate", draftBillPreparedDate);
+    request.input("draftBillPreparedRemark", draftBillPreparedRemark);
+    request.input("dcnDraftBillApprovedMinisterDate", dcnDraftBillApprovedMinisterDate);
+    request.input("dcnDraftBillApprovedMinisterRemark", dcnDraftBillApprovedMinisterRemark);
     request.input("circulatedImcDate", circulatedImcDate);
+    request.input("circulatedImcRemark", circulatedImcRemark);
     request.input("imcCommentsRecDate", imcCommentsRecDate);
+    request.input("imcCommentsRecRemark", imcCommentsRecRemark);
     request.input("dcnDraftBillPreparedDate", dcnDraftBillPreparedDate);
+    request.input("dcnDraftBillPreparedRemark", dcnDraftBillPreparedRemark);
     request.input("dcnDraftBillApprovedDate", dcnDraftBillApprovedDate);
-    request.input("submitedLegalVettingDate", submitedLegalVettingDate);
+    request.input("dcnDraftBillApprovedRemark", dcnDraftBillApprovedRemark);
+    request.input("submittedLegalVettingDate", submittedLegalVettingDate);
+    request.input("submittedLegalVettingRemark", submittedLegalVettingRemark);
     request.input("legalVettingCompletedDate", legalVettingCompletedDate);
-    request.input("finalDcnApprovedDate", finalDcnApprovedDate);
+    request.input("legalVettingCompletedRemark", legalVettingCompletedRemark);
+    request.input("finalDcnDraftApprovedDate", finalDcnDraftApprovedDate);
+    request.input("finalDcnDraftApprovedRemark", finalDcnDraftApprovedRemark);
     request.input("advanceCopyDate", advanceCopyDate);
+    request.input("advanceCopyRemark", advanceCopyRemark);
     request.input("approvedByCabinetDate", approvedByCabinetDate);
+    request.input("approvedByCabinetRemark", approvedByCabinetRemark);
     request.input("billIntroducedInParliamentDate", billIntroducedInParliamentDate);
+    request.input("billIntroducedInParliamentRemark", billIntroducedInParliamentRemark);
     request.input("billPassedDate", billPassedDate);
+    request.input("billPassedRemark", billPassedRemark);
     request.input("billNotifiedDate", billNotifiedDate);
+    request.input("billNotifiedRemark", billNotifiedRemark);
     request.input("completedDate", completedDate);
+    request.input("completedRemark", completedRemark);
     request.input("remarks", remarks);
     request.input("selectedBillStage", selectedBillStage);  
     request.input("userID", userID);
@@ -205,15 +348,15 @@ async function updateBill(req, res) {
             subject = @subject,
             wing = @wing,
             division = @division,
-            pre_draft_bill_prepared_date = @preDraftBillPrepDate,
-            pre_draft_bill_approved_date = @preDraftBillApprovedDate,
+            draft_bill_prepared_date = @draftBillPreparedDate,
+            dcn_draft_bill_approved_minister_date = @dcnDraftBillApprovedMinisterDate,
             circulated_imc_date = @circulatedImcDate,
             imc_comments_rec_date = @imcCommentsRecDate,
             dcn_draft_bill_prepared_date = @dcnDraftBillPreparedDate,
             dcn_draft_bill_approved_date = @dcnDraftBillApprovedDate,
-            submited_legal_vetting_date = @submitedLegalVettingDate,
+            submitted_legal_vetting_date = @submittedLegalVettingDate,
             legal_vetting_completed_date = @legalVettingCompletedDate,
-            final_dcn_approved_date = @finalDcnApprovedDate,
+            final_dcn_draft_approved_date = @finalDcnDraftApprovedDate,
             advance_copy_date = @advanceCopyDate,
             approved_by_cabinet_date = @approvedByCabinetDate,
             bill_introduced_in_parliament_date = @billIntroducedInParliamentDate,
@@ -223,7 +366,22 @@ async function updateBill(req, res) {
             remarks = @remarks,
             stage_id = @selectedBillStage,
             updated_by = @userID,
-            updated_date = GETDATE()
+            updated_date = GETDATE(),
+            draft_bill_prepared_remarks = @draftBillPreparedRemark,
+            dcn_draft_bill_approved_minister_remarks = @dcnDraftBillApprovedMinisterRemark,
+            circulated_imc_remarks = @circulatedImcRemark,
+            imc_comments_rec_remarks = @imcCommentsRecRemark,
+            dcn_draft_bill_prepared_remarks = @dcnDraftBillPreparedRemark,
+            dcn_draft_bill_approved_remarks = @dcnDraftBillApprovedRemark,
+            submitted_legal_vetting_remarks = @submittedLegalVettingRemark,
+            legal_vetting_completed_remarks = @legalVettingCompletedRemark,
+            final_dcn_draft_approved_remarks = @finalDcnDraftApprovedRemark,
+            advance_copy_remarks = @advanceCopyRemark,
+            approved_by_cabinet_remarks = @approvedByCabinetRemark,
+            bill_introduced_in_parliament_remarks = @billIntroducedInParliamentRemark,
+            bill_passed_remarks = @billPassedRemark,
+            bill_notified_remarks = @billNotifiedRemark,
+            completed_remarks = @completedRemark
             WHERE bill_id = @billID`);
         res.sendStatus(201);  
     } catch (err) {
