@@ -20,8 +20,18 @@ export default function DataList({
 }) {
   const [gridApi, setGridApi] = useState(null);
 
+  // Compute current Indian financial year (April–March)
+  const currentFY = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1; // 1-based
+    // FY starts in April (month 4); if Jan–Mar we are still in previous FY
+    const fyStart = month >= 4 ? year : year - 1;
+    return `${fyStart}-${fyStart + 1}`;
+  }, []);
+
   // States for filters
-  const [financialYearFilter, setFinancialYearFilter] = useState('');
+  const [financialYearFilter, setFinancialYearFilter] = useState(currentFY);
   const [monthFilter, setMonthFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showYearWise, setShowYearWise] = useState(false);
@@ -521,24 +531,24 @@ export default function DataList({
           onClick={() => setActiveCategory(prev => prev === 'ministry' ? 'all' : 'ministry')}
           className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
             activeCategory === 'ministry'
-              ? 'bg-amber-500/10 border-amber-500/40 shadow-sm ring-1 ring-amber-500/30 text-amber-900 dark:text-amber-400 transform scale-[1.01]'
-              : 'bg-white/45 hover:bg-slate-50/50 text-slate-700 border-slate-200/60 shadow-sm dark:bg-slate-900/45 dark:hover:bg-slate-900/60 dark:border-slate-800/60 dark:text-slate-300'
+              ? 'bg-amber-500/15 border-amber-500/50 shadow-md ring-2 ring-amber-500/30 transform scale-[1.02]'
+              : 'bg-amber-50/60 hover:bg-amber-50/90 border-amber-200/60 shadow-sm hover:shadow-md hover:scale-[1.01] dark:bg-amber-950/20 dark:hover:bg-amber-950/35 dark:border-amber-900/40'
           }`}
         >
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
-              activeCategory === 'ministry' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+              activeCategory === 'ministry' ? 'bg-amber-600 text-white shadow-sm' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400'
             }`}>
               <Landmark className="h-4 w-4" />
             </div>
-            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'ministry' ? 'text-amber-900 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
+            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'ministry' ? 'text-amber-900 dark:text-amber-300' : 'text-amber-800 dark:text-amber-400'}`}>
               Ministry
             </h3>
           </div>
           <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
             activeCategory === 'ministry'
               ? 'bg-amber-600 text-white shadow-sm scale-105'
-              : 'bg-slate-100/80 text-slate-600 border border-slate-200/50 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700/50'
+              : 'bg-amber-100 text-amber-700 border border-amber-200/70 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-800/50'
           }`}>
             {categoryCounts.ministry}
           </div>
@@ -549,24 +559,24 @@ export default function DataList({
           onClick={() => setActiveCategory(prev => prev === 'major_port' ? 'all' : 'major_port')}
           className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
             activeCategory === 'major_port'
-              ? 'bg-emerald-500/10 border-emerald-500/40 shadow-sm ring-1 ring-emerald-500/30 text-emerald-900 dark:text-emerald-400 transform scale-[1.01]'
-              : 'bg-white/45 hover:bg-slate-50/50 text-slate-700 border-slate-200/60 shadow-sm dark:bg-slate-900/45 dark:hover:bg-slate-900/60 dark:border-slate-800/60 dark:text-slate-300'
+              ? 'bg-emerald-500/15 border-emerald-500/50 shadow-md ring-2 ring-emerald-500/30 transform scale-[1.02]'
+              : 'bg-emerald-50/60 hover:bg-emerald-50/90 border-emerald-200/60 shadow-sm hover:shadow-md hover:scale-[1.01] dark:bg-emerald-950/20 dark:hover:bg-emerald-950/35 dark:border-emerald-900/40'
           }`}
         >
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
-              activeCategory === 'major_port' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+              activeCategory === 'major_port' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400'
             }`}>
               <Anchor className="h-4 w-4" />
             </div>
-            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'major_port' ? 'text-emerald-900 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
+            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'major_port' ? 'text-emerald-900 dark:text-emerald-300' : 'text-emerald-800 dark:text-emerald-400'}`}>
               Major Port Organisations
             </h3>
           </div>
           <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
             activeCategory === 'major_port'
               ? 'bg-emerald-600 text-white shadow-sm scale-105'
-              : 'bg-slate-100/80 text-slate-600 border border-slate-200/50 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700/50'
+              : 'bg-emerald-100 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800/50'
           }`}>
             {categoryCounts.majorPort}
           </div>
@@ -577,24 +587,24 @@ export default function DataList({
           onClick={() => setActiveCategory(prev => prev === 'non_port' ? 'all' : 'non_port')}
           className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
             activeCategory === 'non_port'
-              ? 'bg-indigo-500/10 border-indigo-500/40 shadow-sm ring-1 ring-indigo-500/30 text-indigo-900 dark:text-indigo-400 transform scale-[1.01]'
-              : 'bg-white/45 hover:bg-slate-50/50 text-slate-700 border-slate-200/60 shadow-sm dark:bg-slate-900/45 dark:hover:bg-slate-900/60 dark:border-slate-800/60 dark:text-slate-300'
+              ? 'bg-indigo-500/15 border-indigo-500/50 shadow-md ring-2 ring-indigo-500/30 transform scale-[1.02]'
+              : 'bg-indigo-50/60 hover:bg-indigo-50/90 border-indigo-200/60 shadow-sm hover:shadow-md hover:scale-[1.01] dark:bg-indigo-950/20 dark:hover:bg-indigo-950/35 dark:border-indigo-900/40'
           }`}
         >
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
-              activeCategory === 'non_port' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+              activeCategory === 'non_port' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400'
             }`}>
               <Building className="h-4 w-4" />
             </div>
-            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'non_port' ? 'text-indigo-900 dark:text-indigo-400' : 'text-slate-800 dark:text-slate-200'}`}>
+            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'non_port' ? 'text-indigo-900 dark:text-indigo-300' : 'text-indigo-800 dark:text-indigo-400'}`}>
               Non-Port Organisations
             </h3>
           </div>
           <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
             activeCategory === 'non_port'
               ? 'bg-indigo-600 text-white shadow-sm scale-105'
-              : 'bg-slate-100/80 text-slate-600 border border-slate-200/50 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700/50'
+              : 'bg-indigo-100 text-indigo-700 border border-indigo-200/70 dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-800/50'
           }`}>
             {categoryCounts.nonPort}
           </div>
