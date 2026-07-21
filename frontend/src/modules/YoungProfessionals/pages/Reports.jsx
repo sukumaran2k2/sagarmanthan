@@ -320,11 +320,7 @@ export default function Reports({ triggerNotification }) {
                 target="_blank"
                 rel="noreferrer"
                 style={{
-<<<<<<< HEAD
-                  color: '#4b2424', fontWeight: 800, fontSize: 13,
-=======
                   fontWeight: 600, fontSize: 13,
->>>>>>> b40cb6244e68797cfe8ee635945543db0f19a4d7
                   textDecoration: 'underline',
                 }}
                 className="text-blue-600 dark:text-blue-400"
