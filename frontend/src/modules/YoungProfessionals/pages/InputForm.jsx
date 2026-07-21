@@ -51,6 +51,19 @@ export default function InputForm({
 
   const [errors, setErrors] = useState({});
 
+  const [initialValues, setInitialValues] = useState({
+    wing: '',
+    division: '',
+    name: '',
+    qualification: '',
+    role: '',
+    appointmentDate: '',
+    salary: '',
+    experience: '',
+    skillsList: [],
+    documentName: ''
+  });
+
   const validateField = (field, value) => {
     let err = '';
     if (field === 'name') {
@@ -148,24 +161,90 @@ export default function InputForm({
 
 
   useEffect(() => {
+    let initWing = '';
+    let initDivision = '';
+    let initName = '';
+    let initQualification = '';
+    let initRole = '';
+    let initAppointmentDate = '';
+    let initSalary = '';
+    let initExperience = '';
+    let initSkillsList = [];
+    let initDocumentName = '';
+
     if (editData) {
-      setWing(editData.wing_id || '');
-      setDivision(editData.division_id || '');
-      setName(editData.name || '');
-      setQualification(editData.qualification || '');
-      setRole(editData.role || '');
-      setAppointmentDate(editData.appointment_date || '');
-      setSalary(editData.salary || '');
-      setExperience(editData.total_experience || '');
+      initWing = editData.wing_id || '';
+      initDivision = editData.division_id || '';
+      initName = editData.name || '';
+      initQualification = editData.qualification || '';
+      initRole = editData.role || '';
+      initAppointmentDate = editData.appointment_date ? editData.appointment_date.split('T')[0] : '';
+      initSalary = editData.salary !== undefined && editData.salary !== null ? String(editData.salary) : '';
+      initExperience = editData.total_experience !== undefined && editData.total_experience !== null ? String(editData.total_experience) : '';
       
       if (editData.skills) {
-        setSkillsList(editData.skills.split(',').map(s => s.trim()).filter(Boolean));
-      } else {
-        setSkillsList([]);
+        initSkillsList = editData.skills.split(',').map(s => s.trim()).filter(Boolean);
       }
-      setDocumentName(editData.appointment_document || '');
+      initDocumentName = editData.appointment_document || '';
+
+      setWing(initWing);
+      setDivision(initDivision);
+      setName(initName);
+      setQualification(initQualification);
+      setRole(initRole);
+      setAppointmentDate(initAppointmentDate);
+      setSalary(initSalary);
+      setExperience(initExperience);
+      setSkillsList(initSkillsList);
+      setDocumentName(initDocumentName);
+    } else {
+      setWing('');
+      setDivision('');
+      setName('');
+      setQualification('');
+      setRole('');
+      setAppointmentDate('');
+      setSalary('');
+      setExperience('');
+      setSkillsList([]);
+      setDocumentName('');
     }
+
+    setInitialValues({
+      wing: initWing,
+      division: initDivision,
+      name: initName,
+      qualification: initQualification,
+      role: initRole,
+      appointmentDate: initAppointmentDate,
+      salary: initSalary,
+      experience: initExperience,
+      skillsList: initSkillsList,
+      documentName: initDocumentName
+    });
+
+    setTouched({});
   }, [editData]);
+
+  const isDirty = useMemo(() => {
+    if (wing !== initialValues.wing) return true;
+    if (division !== initialValues.division) return true;
+    if (name !== initialValues.name) return true;
+    if (qualification !== initialValues.qualification) return true;
+    if (role !== initialValues.role) return true;
+    if (appointmentDate !== initialValues.appointmentDate) return true;
+    if (salary !== initialValues.salary) return true;
+    if (experience !== initialValues.experience) return true;
+    if (documentName !== initialValues.documentName) return true;
+    
+    // Compare skills lists
+    if (skillsList.length !== initialValues.skillsList.length) return true;
+    for (let i = 0; i < skillsList.length; i++) {
+      if (skillsList[i] !== initialValues.skillsList[i]) return true;
+    }
+
+    return false;
+  }, [wing, division, name, qualification, role, appointmentDate, salary, experience, documentName, skillsList, initialValues]);
 
   const handleAddSkill = (e) => {
     if (e.key === 'Enter' || e.key === ',') {
@@ -281,7 +360,8 @@ export default function InputForm({
     skillsList.length === 0 ||
     (!isEdit && !documentName) ||
     Object.keys(errors).length > 0 ||
-    submitting;
+    submitting ||
+    (isEdit && !isDirty);
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
@@ -373,10 +453,11 @@ export default function InputForm({
             <input 
               type="date" 
               value={appointmentDate} 
+              max={new Date().toISOString().split('T')[0]}
               onChange={e => { setAppointmentDate(e.target.value); validateField('appointmentDate', e.target.value); }} 
               onBlur={() => handleBlur('appointmentDate')}
               required 
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('appointmentDate', appointmentDate) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200`} 
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('appointmentDate', appointmentDate) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 dark:[color-scheme:dark]`} 
             />
             {errors.appointmentDate && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.appointmentDate}</p>}
           </div>
@@ -539,7 +620,11 @@ export default function InputForm({
           <button
             type="submit"
             disabled={isFormDisabled}
-            className="px-5.5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/10 hover:shadow-lg transition-all cursor-pointer dark:bg-[#0f417a] dark:hover:bg-[#0a2d55]"
+            className={`px-5.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              isFormDisabled
+                ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-550 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg dark:bg-[#0f417a] dark:hover:bg-[#0a2d55]'
+            }`}
           >
             {isEdit ? (submitting ? 'Updating...' : 'Update Young Professional') : (submitting ? 'Saving...' : 'Save Young Professional')}
           </button>

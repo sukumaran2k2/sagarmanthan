@@ -244,6 +244,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: UserPlus,
           items: [
             { label: 'Consultant Input Form', icon: FileEdit },
+            { label: 'Consultant Data List', icon: ClipboardList },
             { label: 'Consultant Reports', icon: FilePieChart }
           ]
         }
@@ -257,7 +258,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       width: 'w-[200px]',
       items: [
         { label: 'Courtcases', icon: Gavel },
-        { label: 'Acts & Rules', icon: BookMarked }
+        { label: 'Bills/PreConstitutions Act', icon: BookMarked }
       ]
     },
     {

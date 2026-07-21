@@ -110,11 +110,14 @@ const Table = forwardRef(({
 
   const processedColumnDefs = useMemo(() => {
     const processCol = (col) => {
+      if (col.width || col.minWidth) {
+        return col;
+      }
       const headerText = col.headerName || col.field || '';
       const estimatedWidth = (headerText.length + 5) * 12;
       const updatedCol = {
         ...col,
-        minWidth: col.minWidth ? Math.max(col.minWidth, estimatedWidth) : estimatedWidth
+        minWidth: estimatedWidth
       };
       if (updatedCol.children) {
         updatedCol.children = updatedCol.children.map(processCol);
@@ -124,45 +127,44 @@ const Table = forwardRef(({
     return columnDefs.map(processCol);
   }, [columnDefs]);
 
-  const activeAutoSizeStrategy = autoSizeStrategy || {
-    type: 'fitCellContents',
-    skipHeader: false,
-    scaleUpToFitGridWidth: true
+  const activeAutoSizeStrategy = autoSizeStrategy !== undefined ? autoSizeStrategy : {
+    type: 'fitGridWidth',
+    defaultMinWidth: 100
   };
 
   // Pagination Ellipses Generator
   const getPageNumbers = () => {
     const pages = [];
     const maxVisiblePages = 5;
-    
+
     if (totalPages <= maxVisiblePages + 2) {
       for (let i = 0; i < totalPages; i++) {
         pages.push(i);
       }
     } else {
       pages.push(0);
-      
+
       let start = Math.max(1, currentPage - 1);
       let end = Math.min(totalPages - 2, currentPage + 1);
-      
+
       if (currentPage <= 2) {
         end = maxVisiblePages - 1;
       } else if (currentPage >= totalPages - 3) {
         start = totalPages - maxVisiblePages;
       }
-      
+
       if (start > 1) {
         pages.push('...');
       }
-      
+
       for (let i = start; i <= end; i++) {
         pages.push(i);
       }
-      
+
       if (end < totalPages - 2) {
         pages.push('...');
       }
-      
+
       pages.push(totalPages - 1);
     }
     return pages;
@@ -235,8 +237,7 @@ const Table = forwardRef(({
                 type="button"
                 onClick={handlePrevPage}
                 disabled={currentPage === 0}
-                className={`flex items-center justify-center px-3 py-1.5 rounded border text-xs font-bold transition cursor-pointer select-none ${
-                  currentPage === 0
+                className={`flex items-center justify-center px-3 py-1.5 rounded border text-xs font-bold transition cursor-pointer select-none ${currentPage === 0
                     ? 'bg-white text-slate-350 border-slate-150 cursor-not-allowed'
                     : 'bg-white border-slate-250 hover:bg-slate-50'
                 }`}
@@ -279,8 +280,7 @@ const Table = forwardRef(({
                 type="button"
                 onClick={handleNextPage}
                 disabled={currentPage === totalPages - 1}
-                className={`flex items-center justify-center px-3 py-1.5 rounded border text-xs font-bold transition cursor-pointer select-none ${
-                  currentPage === totalPages - 1
+                className={`flex items-center justify-center px-3 py-1.5 rounded border text-xs font-bold transition cursor-pointer select-none ${currentPage === totalPages - 1
                     ? 'bg-white text-slate-355 border-slate-150 cursor-not-allowed'
                     : 'bg-white border-slate-250 hover:bg-slate-50'
                 }`}
