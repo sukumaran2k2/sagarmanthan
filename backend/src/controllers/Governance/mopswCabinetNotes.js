@@ -3,6 +3,20 @@ import { pool } from "../../db.js";
 import fs from 'fs';
 import sql from 'mssql';
 
+function parseDateTime(val) {
+    if (!val || val === "") return null;
+    const parts = val.split('-');
+    if (parts.length !== 3) return null;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // 0-indexed month
+    const day = parseInt(parts[2], 10);
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+
+    const d = new Date();
+    d.setFullYear(year, month, day);
+    return d;
+}
+
 async function createMopswCabinet(req, res) {
     
     const data = req.body;
@@ -10,108 +24,95 @@ async function createMopswCabinet(req, res) {
     const subject = req.body.subject;
     const wing = req.body.wing;
     const division = req.body.division;
-    const preliDcnPrepared = req.body.preliDcnPrepared;
     let preliDcnPreparedDate = req.body.preliDcnPreparedDate;
-    const preliDcnApproved = req.body.preliDcnApproved;
     let preliDcnApprovedDate = req.body.preliDcnApprovedDate;
-    const circulatedForImc = req.body.circulatedForImc;
     let circulatedForImcDate = req.body.circulatedForImcDate;
-    const imcCommentsRec = req.body.imcCommentsRec;
     let imcCommentsRecDate = req.body.imcCommentsRecDate;
-    const finalDcnPrepared = req.body.finalDcnPrepared;
-    let dcmbeemApprovedDate  = req.body.dcmbeemApprovedDate;
-    const dcmbeemApproved  = req.body.dcmbeemApproved;
+    let dcmbeenApprovedDate = req.body.dcmbeenApprovedDate || req.body.dcmbeemApprovedDate;
     let finalDcnPreparedDate = req.body.finalDcnPreparedDate;
-    const finalDcnApproved = req.body.finalDcnApproved;
     let finalDcnApprovedDate = req.body.finalDcnApprovedDate;
-    const advanceCopySentToPmo = req.body.advanceCopySentToPmo;
     let advanceCopySentToPmoDate = req.body.advanceCopySentToPmoDate;
-    const cabinetApproved = req.body.cabinetApproved;
     let cabinetApprovedDate = req.body.cabinetApprovedDate;
-    const onHold = req.body.onHold;
     let onHoldDate = req.body.onHoldDate;
-    const completed = req.body.completed;
     let completedDate = req.body.completedDate;
     const remarks = req.body.remarks;
     let selectedCabinetNotesStage = req.body.selectedCabinetNotesStage;
     const userID = req.body.userID;
 
-    if (preliDcnPreparedDate == "") {
-        preliDcnPreparedDate = null;
-    }
-    if (preliDcnApprovedDate == "") {
-        preliDcnApprovedDate = null;
-    }
-    if (circulatedForImcDate == "") {
-        circulatedForImcDate = null;
-    }
-    if (imcCommentsRecDate == "") {
-        imcCommentsRecDate = null;
-    }
-    if (finalDcnPreparedDate == "") {
-        finalDcnPreparedDate = null;
-    }
-    if (finalDcnApprovedDate == "") {
-        finalDcnApprovedDate = null;
-    }
-    if (advanceCopySentToPmoDate == "") {
-        advanceCopySentToPmoDate = null;
-    }
-    if (cabinetApprovedDate == "") {
-        cabinetApprovedDate = null;
-    }
-    if (onHoldDate == "") {
-        onHoldDate = null;
-    }
-    if (completedDate == "") {
-        completedDate = null;
-    }
+    const preliDcnPreparedRemark = req.body.preliDcnPreparedRemark || null;
+    const preliDcnApprovedRemark = req.body.preliDcnApprovedRemark || null;
+    const circulatedForImcRemark = req.body.circulatedForImcRemark || null;
+    const imcCommentsRecRemark = req.body.imcCommentsRecRemark || null;
+    const finalDcnPreparedRemark = req.body.finalDcnPreparedRemark || null;
+    const finalDcnApprovedRemark = req.body.finalDcnApprovedRemark || null;
+    const dcmbeenApprovedRemark = req.body.dcmbeenApprovedRemark || null;
+    const advanceCopySentToPmoRemark = req.body.advanceCopySentToPmoRemark || null;
+    const cabinetApprovedRemark = req.body.cabinetApprovedRemark || null;
+    const onHoldRemark = req.body.onHoldRemark || null;
+    const completedRemark = req.body.completedRemark || null;
 
     const conn = await pool;
     const request = conn.request();
     request.input("subject", subject);
     request.input("wing", wing);
     request.input("division", division);
-    request.input("preliDcnPrepared", preliDcnPrepared);
-    request.input("preliDcnPreparedDate", preliDcnPreparedDate);
-    request.input("preliDcnApproved", preliDcnApproved);
-    request.input("preliDcnApprovedDate", preliDcnApprovedDate);
-    request.input("circulatedForImc", circulatedForImc);
-    request.input("circulatedForImcDate", circulatedForImcDate);
-    request.input("imcCommentsRec", imcCommentsRec);
-    request.input("imcCommentsRecDate", imcCommentsRecDate);
-    request.input("finalDcnPrepared", finalDcnPrepared);
-    request.input("finalDcnPreparedDate", finalDcnPreparedDate);
-    request.input("finalDcnApproved", finalDcnApproved);
-    request.input("finalDcnApprovedDate", finalDcnApprovedDate);
-    request.input("advanceCopySentToPmo", advanceCopySentToPmo);
-    request.input("advanceCopySentToPmoDate", advanceCopySentToPmoDate);
-    request.input("dcmbeemApprovedDate", dcmbeemApprovedDate);
-    request.input("dcmbeemApproved", dcmbeemApproved  );
-    request.input("cabinetApproved", cabinetApproved);
-    request.input("cabinetApprovedDate", cabinetApprovedDate);
-    request.input("onHold", onHold);
-    request.input("onHoldDate", onHoldDate);
-    request.input("completed", completed);
-    request.input("completedDate", completedDate);
+    request.input("preliDcnPreparedDate", sql.Date, parseDateTime(preliDcnPreparedDate));
+    request.input("preliDcnApprovedDate", sql.Date, parseDateTime(preliDcnApprovedDate));
+    request.input("circulatedForImcDate", sql.Date, parseDateTime(circulatedForImcDate));
+    request.input("imcCommentsRecDate", sql.Date, parseDateTime(imcCommentsRecDate));
+    request.input("finalDcnPreparedDate", sql.Date, parseDateTime(finalDcnPreparedDate));
+    request.input("finalDcnApprovedDate", sql.Date, parseDateTime(finalDcnApprovedDate));
+    request.input("advanceCopySentToPmoDate", sql.Date, parseDateTime(advanceCopySentToPmoDate));
+    request.input("dcmbeenApprovedDate", sql.Date, parseDateTime(dcmbeenApprovedDate));
+    request.input("cabinetApprovedDate", sql.Date, parseDateTime(cabinetApprovedDate));
+    request.input("onHoldDate", sql.Date, parseDateTime(onHoldDate));
+    request.input("completedDate", sql.Date, parseDateTime(completedDate));
     request.input("remarks", remarks);
-    request.input("selectedCabinetNotesStage",selectedCabinetNotesStage);
+    request.input("selectedCabinetNotesStage", selectedCabinetNotesStage);
     request.input("userID", userID);
+
+    request.input("preliDcnPreparedRemark", preliDcnPreparedRemark);
+    request.input("preliDcnApprovedRemark", preliDcnApprovedRemark);
+    request.input("circulatedForImcRemark", circulatedForImcRemark);
+    request.input("imcCommentsRecRemark", imcCommentsRecRemark);
+    request.input("finalDcnPreparedRemark", finalDcnPreparedRemark);
+    request.input("finalDcnApprovedRemark", finalDcnApprovedRemark);
+    request.input("dcmbeenApprovedRemark", dcmbeenApprovedRemark);
+    request.input("advanceCopySentToPmoRemark", advanceCopySentToPmoRemark);
+    request.input("cabinetApprovedRemark", cabinetApprovedRemark);
+    request.input("onHoldRemark", onHoldRemark);
+    request.input("completedRemark", completedRemark);
 
     try {
         const result = await request.query(
-            `INSERT INTO tbl_cabinet_notes_mopsw (stage_id, wing, division, subject, pre_dcn_prepared, pre_dcn_prepared_date,
-            pre_dcn__approved, pre_dcn__approved_date, cirucalted_for_imc, cirucalted_for_imc_date, imc_comments_rec, imc_comments_rec_date,
-            final_dcn_prepared, final_dcn_prepared_date, final_dcn_approved, final_dcn_approved_date, 
-            advance_copy_sent_to_pmo, advance_copy_sent_to_pmo_date, cabinet_approved, cabinet_approved_date, on_hold, 
-            on_hold_date, completed, completed_date,dcmbeen_approved,dcmbeen_approved_date,remarks, created_by)
+            `INSERT INTO tbl_cabinet_notes_mopsw_change (stage_id, wing, division, subject, 
+            pre_dcn_prepared_date, pre_dcn_prepared_remarks,
+            pre_dcn_approved_date, pre_dcn__approved_remarks, 
+            circulated_for_imc_date, cirucalted_for_imc_remarks, 
+            imc_comments_rec_date, imc_comments_rec_remarks,
+            final_dcn_prepared_date, final_dcn_prepared_remarks, 
+            final_dcn_approved_date, final_dcn_approved_remarks, 
+            dcm_been_approved_date, dcmbeen_approved_remarks, 
+            advance_copy_sent_to_pmo_date, advance_copy_sent_to_pmo_remarks, 
+            cabinet_approved_date, cabinet_approved_remarks, 
+            on_hold_date, on_hold_remarks, 
+            completed_date, completed_remarks, 
+            remarks, created_by, created_date, updated_date)
             OUTPUT INSERTED.cabinet_notes_mopsw_id
              VALUES 
-            (@selectedCabinetNotesStage, @wing, @division, @subject, @preliDcnPrepared, @preliDcnPreparedDate, @preliDcnApproved, @preliDcnApprovedDate, 
-            @circulatedForImc, @circulatedForImcDate, @imcCommentsRec, @imcCommentsRecDate, 
-            @finalDcnPrepared, @finalDcnPreparedDate, @finalDcnApproved, @finalDcnApprovedDate, 
-            @advanceCopySentToPmo, @advanceCopySentToPmoDate, @cabinetApproved, @cabinetApprovedDate, @onHold, 
-            @onHoldDate, @completed, @completedDate,@dcmbeemApproved,@dcmbeemApprovedDate, @remarks, @userID)`
+            (@selectedCabinetNotesStage, @wing, @division, @subject, 
+            @preliDcnPreparedDate, @preliDcnPreparedRemark, 
+            @preliDcnApprovedDate, @preliDcnApprovedRemark, 
+            @circulatedForImcDate, @circulatedForImcRemark, 
+            @imcCommentsRecDate, @imcCommentsRecRemark, 
+            @finalDcnPreparedDate, @finalDcnPreparedRemark, 
+            @finalDcnApprovedDate, @finalDcnApprovedRemark, 
+            @dcmbeenApprovedDate, @dcmbeenApprovedRemark, 
+            @advanceCopySentToPmoDate, @advanceCopySentToPmoRemark, 
+            @cabinetApprovedDate, @cabinetApprovedRemark, 
+            @onHoldDate, @onHoldRemark, 
+            @completedDate, @completedRemark, 
+            @remarks, @userID, GETDATE(), NULL)`
         );
 
         const cabinet_notes_mopsw_id = result.recordset[0].cabinet_notes_mopsw_id;    
@@ -130,126 +131,92 @@ async function editMopswCabinet(req, res) {
     const subject = req.body.subject;
     const wing = req.body.wing;
     const division = req.body.division;
-    const preliDcnPrepared = req.body.preliDcnPrepared;
     let preliDcnPreparedDate = req.body.preliDcnPreparedDate;
-    const preliDcnApproved = req.body.preliDcnApproved;
     let preliDcnApprovedDate = req.body.preliDcnApprovedDate;
-    const circulatedForImc = req.body.circulatedForImc;
     let circulatedForImcDate = req.body.circulatedForImcDate;
-    const imcCommentsRec = req.body.imcCommentsRec;
     let imcCommentsRecDate = req.body.imcCommentsRecDate;
-    const finalDcnPrepared = req.body.finalDcnPrepared;
     let finalDcnPreparedDate = req.body.finalDcnPreparedDate;
-    const finalDcnApproved = req.body.finalDcnApproved;
     let finalDcnApprovedDate = req.body.finalDcnApprovedDate;
-    const dcmbeenApproved = req.body.dcmbeenApproved;
-    let dcmbeenApprovedDate = req.body.dcmbeenApprovedDate;
-    console.log("✅ DCM Approved:", dcmbeenApproved);
+    let dcmbeenApprovedDate = req.body.dcmbeenApprovedDate || req.body.dcmbeemApprovedDate;
+    const dcmbeenApprovedRemark = req.body.dcmbeenApprovedRemark;
     console.log("📅 DCM Approved Date:", dcmbeenApprovedDate);
-    const advanceCopySentToPmo = req.body.advanceCopySentToPmo;
     let advanceCopySentToPmoDate = req.body.advanceCopySentToPmoDate;
-    const cabinetApproved = req.body.cabinetApproved;
     let cabinetApprovedDate = req.body.cabinetApprovedDate;
-    const onHold = req.body.onHold;
     let onHoldDate = req.body.onHoldDate;
-    const completed = req.body.completed;
     let completedDate = req.body.completedDate;
     const remarks = req.body.remarks;
     let selectedCabinetNotesStage = req.body.selectedCabinetNotesStage;
     const userID = req.body.userID;
- 
 
-    if (preliDcnPreparedDate == "") {
-        preliDcnPreparedDate = null;
-    }
-    if (preliDcnApprovedDate == "") {
-        preliDcnApprovedDate = null;
-    }
-    if (circulatedForImcDate == "") {
-        circulatedForImcDate = null;
-    }
-    if (imcCommentsRecDate == "") {
-        imcCommentsRecDate = null;
-    }
-    if (finalDcnPreparedDate == "") {
-        finalDcnPreparedDate = null;
-    }
-    if (finalDcnApprovedDate == "") {
-        finalDcnApprovedDate = null;
-    }
-    if (advanceCopySentToPmoDate == "") {
-        advanceCopySentToPmoDate = null;
-    }
-    if (cabinetApprovedDate == "") {
-        cabinetApprovedDate = null;
-    }
-    if (onHoldDate == "") {
-        onHoldDate = null;
-    }
-    if (completedDate == "") {
-        completedDate = null;
-    }
-    if (dcmbeenApprovedDate == "") {
-        dcmbeenApprovedDate = null;
-    }
-    
+    const preliDcnPreparedRemark = req.body.preliDcnPreparedRemark || null;
+    const preliDcnApprovedRemark = req.body.preliDcnApprovedRemark || null;
+    const circulatedForImcRemark = req.body.circulatedForImcRemark || null;
+    const imcCommentsRecRemark = req.body.imcCommentsRecRemark || null;
+    const finalDcnPreparedRemark = req.body.finalDcnPreparedRemark || null;
+    const finalDcnApprovedRemark = req.body.finalDcnApprovedRemark || null;
+    const advanceCopySentToPmoRemark = req.body.advanceCopySentToPmoRemark || null;
+    const cabinetApprovedRemark = req.body.cabinetApprovedRemark || null;
+    const onHoldRemark = req.body.onHoldRemark || null;
+    const completedRemark = req.body.completedRemark || null;
+ 
     const conn = await pool;
     const request = conn.request();
     request.input("mopswCabinetID", mopswCabinetID);
     request.input("subject", subject);
     request.input("wing", wing);
     request.input("division", division);
-    request.input("preliDcnPrepared", preliDcnPrepared);
-    request.input("preliDcnPreparedDate", preliDcnPreparedDate);
-    request.input("preliDcnApproved", preliDcnApproved);
-    request.input("preliDcnApprovedDate", preliDcnApprovedDate);
-    request.input("circulatedForImc", circulatedForImc);
-    request.input("circulatedForImcDate", circulatedForImcDate);
-    request.input("imcCommentsRec", imcCommentsRec);
-    request.input("imcCommentsRecDate", imcCommentsRecDate);
-    request.input("finalDcnPrepared", finalDcnPrepared);
-    request.input("finalDcnPreparedDate", finalDcnPreparedDate);
-    request.input("finalDcnApproved", finalDcnApproved);
-    request.input("finalDcnApprovedDate", finalDcnApprovedDate);
-    request.input("dcmbeenApproved", dcmbeenApproved);
-    request.input("dcmbeenApprovedDate", dcmbeenApprovedDate);
-    request.input("advanceCopySentToPmo", advanceCopySentToPmo);
-    request.input("advanceCopySentToPmoDate", advanceCopySentToPmoDate);
-    request.input("cabinetApproved", cabinetApproved);
-    request.input("cabinetApprovedDate", cabinetApprovedDate);
-    request.input("onHold", onHold);
-    request.input("onHoldDate", onHoldDate);
-    request.input("completed", completed);
-    request.input("completedDate", completedDate);
+    request.input("preliDcnPreparedDate", sql.Date, parseDateTime(preliDcnPreparedDate));
+    request.input("preliDcnApprovedDate", sql.Date, parseDateTime(preliDcnApprovedDate));
+    request.input("circulatedForImcDate", sql.Date, parseDateTime(circulatedForImcDate));
+    request.input("imcCommentsRecDate", sql.Date, parseDateTime(imcCommentsRecDate));
+    request.input("finalDcnPreparedDate", sql.Date, parseDateTime(finalDcnPreparedDate));
+    request.input("finalDcnApprovedDate", sql.Date, parseDateTime(finalDcnApprovedDate));
+    request.input("dcmbeenApprovedDate", sql.Date, parseDateTime(dcmbeenApprovedDate));
+    request.input("advanceCopySentToPmoDate", sql.Date, parseDateTime(advanceCopySentToPmoDate));
+    request.input("cabinetApprovedDate", sql.Date, parseDateTime(cabinetApprovedDate));
+    request.input("onHoldDate", sql.Date, parseDateTime(onHoldDate));
+    request.input("completedDate", sql.Date, parseDateTime(completedDate));
     request.input("remarks", remarks);
     request.input("selectedCabinetNotesStage",selectedCabinetNotesStage);
     request.input("userID", userID);
 
+    request.input("preliDcnPreparedRemark", preliDcnPreparedRemark);
+    request.input("preliDcnApprovedRemark", preliDcnApprovedRemark);
+    request.input("circulatedForImcRemark", circulatedForImcRemark);
+    request.input("imcCommentsRecRemark", imcCommentsRecRemark);
+    request.input("finalDcnPreparedRemark", finalDcnPreparedRemark);
+    request.input("finalDcnApprovedRemark", finalDcnApprovedRemark);
+    request.input("dcmbeenApprovedRemark", dcmbeenApprovedRemark);
+    request.input("advanceCopySentToPmoRemark", advanceCopySentToPmoRemark);
+    request.input("cabinetApprovedRemark", cabinetApprovedRemark);
+    request.input("onHoldRemark", onHoldRemark);
+    request.input("completedRemark", completedRemark);
+
     try {
         const result = await request.query(
-            `UPDATE tbl_cabinet_notes_mopsw SET
-            pre_dcn_prepared = @preliDcnPrepared,
+            `UPDATE tbl_cabinet_notes_mopsw_change SET
             pre_dcn_prepared_date = @preliDcnPreparedDate,
-            pre_dcn__approved = @preliDcnApproved,
-            pre_dcn__approved_date = @preliDcnApprovedDate,
-            cirucalted_for_imc = @circulatedForImc,
-            cirucalted_for_imc_date = @circulatedForImcDate,
-            imc_comments_rec = @imcCommentsRec,
+            pre_dcn_prepared_remarks = @preliDcnPreparedRemark,
+            pre_dcn_approved_date = @preliDcnApprovedDate,
+            pre_dcn__approved_remarks = @preliDcnApprovedRemark,
+            circulated_for_imc_date = @circulatedForImcDate,
+            cirucalted_for_imc_remarks = @circulatedForImcRemark,
             imc_comments_rec_date = @imcCommentsRecDate,
-            final_dcn_prepared = @finalDcnPrepared,
+            imc_comments_rec_remarks = @imcCommentsRecRemark,
             final_dcn_prepared_date = @finalDcnPreparedDate,
-            final_dcn_approved = @finalDcnApproved,
+            final_dcn_prepared_remarks = @finalDcnPreparedRemark,
             final_dcn_approved_date = @finalDcnApprovedDate,
-            dcmbeen_approved = @dcmbeenApproved  ,
-            dcmbeen_approved_date = @dcmbeenApprovedDate,
-            advance_copy_sent_to_pmo = @advanceCopySentToPmo,
+            final_dcn_approved_remarks = @finalDcnApprovedRemark,
+            dcm_been_approved_date = @dcmbeenApprovedDate,
+            dcmbeen_approved_remarks = @dcmbeenApprovedRemark,
             advance_copy_sent_to_pmo_date = @advanceCopySentToPmoDate,
-            cabinet_approved = @cabinetApproved,
+            advance_copy_sent_to_pmo_remarks = @advanceCopySentToPmoRemark,
             cabinet_approved_date = @cabinetApprovedDate,
-            on_hold = @onHold,
+            cabinet_approved_remarks = @cabinetApprovedRemark,
             on_hold_date = @onHoldDate,
-            completed = @completed,
+            on_hold_remarks = @onHoldRemark,
             completed_date = @completedDate,
+            completed_remarks = @completedRemark,
             remarks = @remarks,
             subject = @subject,
             wing = @wing,
@@ -280,7 +247,7 @@ async function getUpdateMopswData (req, res)
 
     try
     {
-        const result = await request.query(`SELECT * FROM tbl_cabinet_notes_mopsw WHERE tbl_cabinet_notes_mopsw.cabinet_notes_mopsw_id = @mopswCabinetID;`);
+        const result = await request.query(`SELECT * FROM tbl_cabinet_notes_mopsw_change WHERE tbl_cabinet_notes_mopsw_change.cabinet_notes_mopsw_id = @mopswCabinetID;`);
         res.json(result.recordset);
     }
     catch(err)
@@ -339,7 +306,9 @@ async function getCabinetMopsw (req, res)
 
     try {
 
-        const result = await conn.query(`SELECT * FROM tbl_cabinet_notes_mopsw AS notes
+        const result = await conn.query(`SELECT *,
+        (SELECT COUNT(*) FROM tbl_cabinet_notes_mopsw_document WHERE mopsw_cabinet_id = notes.cabinet_notes_mopsw_id) AS doc_count
+        FROM tbl_cabinet_notes_mopsw_change AS notes
         INNER JOIN mmt_division AS division ON notes.division = division.division_id
         INNER JOIN mmt_wings AS wings ON notes.wing = wings.wing_id
         INNER JOIN mmt_cabinet_mopsw_stage AS stage ON notes.stage_id = stage.mopsw_stage_id
@@ -359,53 +328,54 @@ async function getAllCabinetMopsw (req, res)
     try {
 
         const result = await conn.query(`SELECT * ,
+        (SELECT COUNT(*) FROM tbl_cabinet_notes_mopsw_document WHERE mopsw_cabinet_id = notes.cabinet_notes_mopsw_id) AS doc_count,
         CASE 
-            WHEN notes.pre_dcn_prepared = '1' THEN 'Yes'
+            WHEN notes.pre_dcn_prepared_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS pre_dcn_prepared_op,
         CASE 
-            WHEN notes.pre_dcn__approved = '1' THEN 'Yes'
+            WHEN notes.pre_dcn_approved_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS pre_dcn__approved_op,
         CASE 
-            WHEN notes.cirucalted_for_imc = '1' THEN 'Yes'
+            WHEN notes.circulated_for_imc_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS cirucalted_for_imc_op,
         CASE 
-            WHEN notes.imc_comments_rec = '1' THEN 'Yes'
+            WHEN notes.imc_comments_rec_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS imc_comments_rec_op,
         CASE 
-            WHEN notes.final_dcn_prepared = '1' THEN 'Yes'
+            WHEN notes.final_dcn_prepared_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS final_dcn_prepared_op,
         CASE 
-            WHEN notes.final_dcn_approved = '1' THEN 'Yes'
+            WHEN notes.final_dcn_approved_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS final_dcn_approved_op,
           CASE 
-            WHEN notes.dcmbeen_approved = '1' THEN 'Yes'
+            WHEN notes.dcm_been_approved_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS dcmbeen_approved_op,
         
         CASE 
-            WHEN notes.advance_copy_sent_to_pmo = '1' THEN 'Yes'
+            WHEN notes.advance_copy_sent_to_pmo_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS advance_copy_sent_to_pmo_op,
         CASE 
-            WHEN notes.cabinet_approved = '1' THEN 'Yes'
+            WHEN notes.cabinet_approved_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS cabinet_approved_op,
         CASE 
-            WHEN notes.on_hold = '1' THEN 'Yes'
+            WHEN notes.on_hold_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS on_hold_op,
         CASE 
-            WHEN notes.completed = '1' THEN 'Yes'
+            WHEN notes.completed_date IS NOT NULL THEN 'Yes'
             ELSE 'No'
         END AS completed_op
     
-    FROM tbl_cabinet_notes_mopsw AS notes
+    FROM tbl_cabinet_notes_mopsw_change AS notes
         INNER JOIN mmt_division AS division ON notes.division = division.division_id
         INNER JOIN mmt_wings AS wings ON notes.wing = wings.wing_id
         INNER JOIN mmt_cabinet_mopsw_stage AS stage ON notes.stage_id = stage.mopsw_stage_id
@@ -457,7 +427,7 @@ async function deleteCabinetNotesMopsw(req, res) {
         const logFileName = `${logFolder}/deleted_cabinet_notes_mopsw_log_${timestamp}.txt`;
         
         const result = await request.query(
-            `SELECT * FROM tbl_cabinet_notes_mopsw WHERE cabinet_notes_mopsw_id = @mopswCabinetID`
+            `SELECT * FROM tbl_cabinet_notes_mopsw_change WHERE cabinet_notes_mopsw_id = @mopswCabinetID`
         );
 
         // console.log("result",result);
@@ -503,7 +473,7 @@ async function deleteCabinetNotesMopsw(req, res) {
                             fileSystemDeletions++;
                         }
                     });
-                } else {eNa
+                } else {
                     console.log(`File '${fileName}' does not exist, no deletion needed.`);
                 }
 
@@ -514,14 +484,14 @@ async function deleteCabinetNotesMopsw(req, res) {
 
         // console.log("Documents deleted successfully!");
         const resultData = result.recordset[0];
-        const logMessage = `Deleting document '${JSON.stringify(resultData)}' from tbl_cabinet_notes_mopsw...\n Deleted by userID -'${userID}'`;
+        const logMessage = `Deleting document '${JSON.stringify(resultData)}' from tbl_cabinet_notes_mopsw_change...\n Deleted by userID -'${userID}'`;
         fs.appendFile(logFileName, logMessage, (err) => {
             if (err) {
                 console.error('Error writing to delete_logs.txt:', err);
             }
         });
                 
-        const deleteexistMopswCabinetID = await request.query(`DELETE FROM tbl_cabinet_notes_mopsw WHERE cabinet_notes_mopsw_id = @mopswCabinetID`);
+        const deleteexistMopswCabinetID = await request.query(`DELETE FROM tbl_cabinet_notes_mopsw_change WHERE cabinet_notes_mopsw_id = @mopswCabinetID`);
 
         dbDeletions++;
 

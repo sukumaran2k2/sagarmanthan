@@ -9,26 +9,26 @@ async function billWingWiseData (req, res)
             const result = await conn.query(`SELECT
                 mmt_wings.wing_id,
                 mmt_wings.wing_name AS Wing,
-                COUNT(tbl_bill.bill_id) AS [No of Bills/PreConstitutions Act],
-                SUM(CASE WHEN tbl_bill.stage_id = 1 THEN 1 ELSE 0 END) AS [Draft Bill Prepared],
-                SUM(CASE WHEN tbl_bill.stage_id = 2 THEN 1 ELSE 0 END) AS [DCN And Draft Bill Approved by Minister],
-                SUM(CASE WHEN tbl_bill.stage_id = 3 THEN 1 ELSE 0 END) AS [Circulated for IMC] ,
-                SUM(CASE WHEN tbl_bill.stage_id = 4 THEN 1 ELSE 0 END) AS [IMC comments received],
-                SUM(CASE WHEN tbl_bill.stage_id = 5 THEN 1 ELSE 0 END) AS [DCN & Draft Bill prepared],
-                SUM(CASE WHEN tbl_bill.stage_id = 6 THEN 1 ELSE 0 END) AS [DCN & draft bill Approved by Minister],
-                SUM(CASE WHEN tbl_bill.stage_id = 7 THEN 1 ELSE 0 END) AS [Submitted for Legal Vetting],
-                SUM(CASE WHEN tbl_bill.stage_id = 8 THEN 1 ELSE 0 END) AS [Legal Vetting to be Completed],
-                SUM(CASE WHEN tbl_bill.stage_id = 9 THEN 1 ELSE 0 END) AS [Final DCN & draft bill Approved by Minister],
-                SUM(CASE WHEN tbl_bill.stage_id = 10 THEN 1 ELSE 0 END) AS [Advance Copy to be Sent to PMO & Cab Sectt],
-                SUM(CASE WHEN tbl_bill.stage_id = 11 THEN 1 ELSE 0 END) AS [Approved By Cabinet],
-                SUM(CASE WHEN tbl_bill.stage_id = 12 THEN 1 ELSE 0 END) AS [Bill introduced in parliament],
-                SUM(CASE WHEN tbl_bill.stage_id = 13 THEN 1 ELSE 0 END) AS [Bill Passed],
-                SUM(CASE WHEN tbl_bill.stage_id = 14 THEN 1 ELSE 0 END) AS [Bill Notified],
-                SUM(CASE WHEN tbl_bill.stage_id = 15 THEN 1 ELSE 0 END) AS [Completed]
+                COUNT(tbl_bill_change.bill_id) AS [No of Bills/PreConstitutions Act],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 1 THEN 1 ELSE 0 END) AS [Draft Bill Prepared],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 2 THEN 1 ELSE 0 END) AS [DCN And Draft Bill Approved by Minister],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 3 THEN 1 ELSE 0 END) AS [Circulated for IMC] ,
+                SUM(CASE WHEN tbl_bill_change.stage_id = 4 THEN 1 ELSE 0 END) AS [IMC comments received],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 5 THEN 1 ELSE 0 END) AS [DCN & Draft Bill prepared],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 6 THEN 1 ELSE 0 END) AS [DCN & draft bill Approved by Minister],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 7 THEN 1 ELSE 0 END) AS [Submitted for Legal Vetting],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 8 THEN 1 ELSE 0 END) AS [Legal Vetting to be Completed],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 9 THEN 1 ELSE 0 END) AS [Final DCN & draft bill Approved by Minister],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 10 THEN 1 ELSE 0 END) AS [Advance Copy to be Sent to PMO & Cab Sectt],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 11 THEN 1 ELSE 0 END) AS [Approved By Cabinet],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 12 THEN 1 ELSE 0 END) AS [Bill introduced in parliament],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 13 THEN 1 ELSE 0 END) AS [Bill Passed],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 14 THEN 1 ELSE 0 END) AS [Bill Notified],
+                SUM(CASE WHEN tbl_bill_change.stage_id = 15 THEN 1 ELSE 0 END) AS [Completed]
             FROM
                 mmt_wings
             LEFT JOIN
-                tbl_bill ON tbl_bill.wing = mmt_wings.wing_id
+                tbl_bill_change ON tbl_bill_change.wing = mmt_wings.wing_id
             GROUP BY
                 mmt_wings.wing_id,
                 mmt_wings.wing_name
@@ -56,16 +56,16 @@ async function billWingWiseData (req, res)
         }
     };
 
-// SELECT mmt_wings.wing_id AS wing, tbl_bill.stage_id, mmt_wings.wing_name, count(tbl_bill.bill_id) as bill_id 
+// SELECT mmt_wings.wing_id AS wing, tbl_bill_change.stage_id, mmt_wings.wing_name, count(tbl_bill_change.bill_id) as bill_id 
 //         FROM mmt_wings
         
-//         LEFT JOIN tbl_bill  on tbl_bill .wing = mmt_wings.wing_id
-//         LEFT JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill.stage_id
-//         GROUP BY mmt_wings.wing_id, tbl_bill.stage_id, wing_name
+//         LEFT JOIN tbl_bill_change  on tbl_bill_change .wing = mmt_wings.wing_id
+//         LEFT JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill_change.stage_id
+//         GROUP BY mmt_wings.wing_id, tbl_bill_change.stage_id, wing_name
 //         ORDER BY wing_name 
 //         ;
 
-// SELECT tbl_bill.wing, tbl_bill.division, 
+// SELECT tbl_bill_change.wing, tbl_bill_change.division, 
 //         mmt_wings.wing_name, mmt_division.division_name,  
 //         count(pre_draft_bill_prepared) as pre_draft_bill_prepared,  count(pre_draft_bill_approved) as pre_draft_bill_approved, 
 //         count(circulated_imc) as circulated_imc,  count(imc_comments_rec) as imc_comments_rec, 
@@ -75,12 +75,12 @@ async function billWingWiseData (req, res)
 //         count(approved_by_cabinet) as approved_by_cabinet, count(bill_introduced_in_parliament) as bill_introduced_in_parliament,
 //         count(bill_passed) as bill_passed, count(bill_notified) as bill_notified,
 //         count(completed) as completed
-//         FROM tbl_bill 
-//         INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_bill.wing
-//         INNER JOIN mmt_division on mmt_division.division_id = tbl_bill.division
+//         FROM tbl_bill_change 
+//         LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_bill_change.wing
+//         LEFT JOIN mmt_division on mmt_division.division_id = tbl_bill_change.division
 //         WHERE wing = @wingID
 //         GROUP BY mmt_wings.wing_name, mmt_division.division_name,
-//             tbl_bill.wing, tbl_bill.division
+//             tbl_bill_change.wing, tbl_bill_change.division
 
 async function billDivisionWiseData (req, res) 
 {
@@ -95,26 +95,26 @@ async function billDivisionWiseData (req, res)
         const result = await request.query(`SELECT
         mmt_division.division_id,
         mmt_division.division_name AS Division,
-        COUNT(tbl_bill.bill_id) AS [No of Bills/PreConstitutions Act],
-        SUM(CASE WHEN tbl_bill.stage_id = 1 THEN 1 ELSE 0 END) AS [Draft Bill Prepared],
-        SUM(CASE WHEN tbl_bill.stage_id = 2 THEN 1 ELSE 0 END) AS [DCN And Draft Bill Approved by Minister],
-        SUM(CASE WHEN tbl_bill.stage_id = 3 THEN 1 ELSE 0 END) AS [Circulated for IMC],
-        SUM(CASE WHEN tbl_bill.stage_id = 4 THEN 1 ELSE 0 END) AS [IMC comments received],
-        SUM(CASE WHEN tbl_bill.stage_id = 5 THEN 1 ELSE 0 END) AS [DCN & Draft Bill prepared],
-        SUM(CASE WHEN tbl_bill.stage_id = 6 THEN 1 ELSE 0 END) AS [DCN & draft bill Approved by Minister],
-        SUM(CASE WHEN tbl_bill.stage_id = 7 THEN 1 ELSE 0 END) AS [Submitted for Legal Vetting],
-        SUM(CASE WHEN tbl_bill.stage_id = 8 THEN 1 ELSE 0 END) AS [Legal Vetting to be Completed],
-        SUM(CASE WHEN tbl_bill.stage_id = 9 THEN 1 ELSE 0 END) AS [Final DCN & draft bill Approved by Minister],
-        SUM(CASE WHEN tbl_bill.stage_id = 10 THEN 1 ELSE 0 END) AS [Advance Copy to be Sent to PMO & Cab Sectt],
-        SUM(CASE WHEN tbl_bill.stage_id = 11 THEN 1 ELSE 0 END) AS [Approved By Cabinet],
-        SUM(CASE WHEN tbl_bill.stage_id = 12 THEN 1 ELSE 0 END) AS [Bill introduced in parliament],
-        SUM(CASE WHEN tbl_bill.stage_id = 13 THEN 1 ELSE 0 END) AS [Bill Passed],
-        SUM(CASE WHEN tbl_bill.stage_id = 14 THEN 1 ELSE 0 END) AS [Bill Notified],
-        SUM(CASE WHEN tbl_bill.stage_id = 15 THEN 1 ELSE 0 END) AS [Completed]
+        COUNT(tbl_bill_change.bill_id) AS [No of Bills/PreConstitutions Act],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 1 THEN 1 ELSE 0 END) AS [Draft Bill Prepared],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 2 THEN 1 ELSE 0 END) AS [DCN And Draft Bill Approved by Minister],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 3 THEN 1 ELSE 0 END) AS [Circulated for IMC],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 4 THEN 1 ELSE 0 END) AS [IMC comments received],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 5 THEN 1 ELSE 0 END) AS [DCN & Draft Bill prepared],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 6 THEN 1 ELSE 0 END) AS [DCN & draft bill Approved by Minister],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 7 THEN 1 ELSE 0 END) AS [Submitted for Legal Vetting],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 8 THEN 1 ELSE 0 END) AS [Legal Vetting to be Completed],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 9 THEN 1 ELSE 0 END) AS [Final DCN & draft bill Approved by Minister],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 10 THEN 1 ELSE 0 END) AS [Advance Copy to be Sent to PMO & Cab Sectt],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 11 THEN 1 ELSE 0 END) AS [Approved By Cabinet],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 12 THEN 1 ELSE 0 END) AS [Bill introduced in parliament],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 13 THEN 1 ELSE 0 END) AS [Bill Passed],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 14 THEN 1 ELSE 0 END) AS [Bill Notified],
+        SUM(CASE WHEN tbl_bill_change.stage_id = 15 THEN 1 ELSE 0 END) AS [Completed]
     FROM
         mmt_division
     LEFT JOIN
-        tbl_bill ON tbl_bill.division = mmt_division.division_id
+        tbl_bill_change ON tbl_bill_change.division = mmt_division.division_id
     WHERE
         mmt_division.wing_id = @wingID
     GROUP BY
@@ -145,17 +145,17 @@ async function billDivisionWiseData (req, res)
 
 // SELECT division_id as division, NULL as stage_id, division_name, NULL as bill_id FROM mmt_division 
 //         WHERE wing_id= @wingID AND division_name NOT IN (
-//         SELECT division_name FROM tbl_bill 
-//                     INNER JOIN mmt_division on mmt_division.division_id = tbl_bill.division
-//                     INNER JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill.stage_id
+//         SELECT division_name FROM tbl_bill_change 
+//                     LEFT JOIN mmt_division on mmt_division.division_id = tbl_bill_change.division
+//                     LEFT JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill_change.stage_id
 //                     WHERE wing = @wingID
 //                     GROUP BY  division_name)
 //                     UNION
 //         SELECT division, stage_id, division_name, 
-//                     count(tbl_bill.bill_id) as bill_id           
-//                     FROM tbl_bill 
-//                     INNER JOIN mmt_division on mmt_division.division_id = tbl_bill.division
-//                     INNER JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill.stage_id
+//                     count(tbl_bill_change.bill_id) as bill_id           
+//                     FROM tbl_bill_change 
+//                     LEFT JOIN mmt_division on mmt_division.division_id = tbl_bill_change.division
+//                     LEFT JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill_change.stage_id
 //                     WHERE wing = @wingID
 //                     GROUP BY division, stage_id, division_name
 //                     ORDER BY division_name                
@@ -163,17 +163,17 @@ async function billDivisionWiseData (req, res)
 
 // SELECT division_id as division, NULL as stage_id, division_name, NULL as bill_id FROM mmt_division 
 //         WHERE wing_id= @wingID AND division_name NOT IN (
-//         SELECT division_name FROM tbl_bill 
-//                     INNER JOIN mmt_division on mmt_division.division_id = tbl_bill.division
-//                     INNER JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill.stage_id
+//         SELECT division_name FROM tbl_bill_change 
+//                     LEFT JOIN mmt_division on mmt_division.division_id = tbl_bill_change.division
+//                     LEFT JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill_change.stage_id
 //                     WHERE wing = @wingID
 //                     GROUP BY  division_name)
 //                     UNION
 //         SELECT division, stage_id, division_name, 
-//                     count(tbl_bill.bill_id) as bill_id           
-//                     FROM tbl_bill 
-//                     INNER JOIN mmt_division on mmt_division.division_id = tbl_bill.division
-//                     INNER JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill.stage_id
+//                     count(tbl_bill_change.bill_id) as bill_id           
+//                     FROM tbl_bill_change 
+//                     LEFT JOIN mmt_division on mmt_division.division_id = tbl_bill_change.division
+//                     LEFT JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill_change.stage_id
 //                     WHERE wing = @wingID
 //                     GROUP BY division, stage_id, division_name
 //                     ORDER BY division_name                
@@ -201,14 +201,14 @@ async function billDivisionWiseData (req, res)
 //         legal_vetting_completed_date, final_dcn_approved_date, advance_copy_date, approved_by_cabinet_date,  
 //         bill_introduced_in_parliament_date, bill_passed_date, bill_notified_date, completed_date, remarks, updated_date
 
-//         FROM tbl_bill 
-//         INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_bill.wing
-//         INNER JOIN mmt_division on mmt_division.division_id = tbl_bill.division
-//         INNER JOIN tbl_bill_stage on tbl_bill_stage.bill_id = tbl_bill.bill_id
-//         INNER JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_name = tbl_bill_stage.stage_name
+//         FROM tbl_bill_change 
+//         LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_bill_change.wing
+//         LEFT JOIN mmt_division on mmt_division.division_id = tbl_bill_change.division
+//         INNER JOIN tbl_bill_change_stage on tbl_bill_change_stage.bill_id = tbl_bill_change.bill_id
+//         LEFT JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_name = tbl_bill_change_stage.stage_name
 
 //         WHERE (wing = @wingID AND division = @divisionID) 
-//         AND tbl_bill_stage.stage_name IN 
+//         AND tbl_bill_change_stage.stage_name IN 
 //         (
 //             SELECT bill_stage_name FROM mmt_bill_stage WHERE bill_stage_id >= 
 //                 (SELECT bill_stage_id FROM mmt_bill_stage t1 WHERE bill_stage_name = @billStage )
@@ -243,13 +243,13 @@ async function getDetailBillWingWise (req, res)
         bill_introduced_in_parliament_date AS [Bill Introduced In Parliament], bill_passed_date AS [Bill Passed], bill_notified_date AS [Bill Notified], completed_date AS [Completed], updated_date AS [Last Updated Date]
         --, remarks,wing, division,
 
-        FROM tbl_bill 
+        FROM tbl_bill_change 
 
-        INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_bill.wing
-        INNER JOIN mmt_division on mmt_division.division_id = tbl_bill.division
-        INNER JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill.stage_id
+        LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_bill_change.wing
+        LEFT JOIN mmt_division on mmt_division.division_id = tbl_bill_change.division
+        LEFT JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill_change.stage_id
 
-        WHERE (wing = @wingID) AND tbl_bill.stage_id = @billStage
+        WHERE (wing = @wingID) AND tbl_bill_change.stage_id = @billStage
         ORDER BY subject
        ;`);
         
@@ -288,13 +288,13 @@ async function getDetailBillDivisionWise (req, res)
             legal_vetting_completed_date AS [Legal Vetting to be Completed], final_dcn_approved_date AS [Final DCN & draft bill Approved by Minister], advance_copy_date AS [Advance Copy to be Sent to PMO & Cab Sectt], approved_by_cabinet_date AS [Approved By Cabinet],  
             bill_introduced_in_parliament_date AS [Bill Introduced In Parliament], bill_passed_date AS [Bill Passed], bill_notified_date AS [Bill Notified], completed_date AS [Completed], updated_date AS [Last Updated Date]
             -- wing, division,remarks, 
-            FROM tbl_bill 
+            FROM tbl_bill_change 
 
-            INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_bill.wing
-            INNER JOIN mmt_division on mmt_division.division_id = tbl_bill.division
-            INNER JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill.stage_id
+            LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_bill_change.wing
+            LEFT JOIN mmt_division on mmt_division.division_id = tbl_bill_change.division
+            LEFT JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_id = tbl_bill_change.stage_id
 
-            WHERE (division = @divisionID) AND tbl_bill.stage_id = @billStage
+            WHERE (division = @divisionID) AND tbl_bill_change.stage_id = @billStage
             ORDER BY subject        
         ;`);
             
@@ -340,14 +340,14 @@ async function getDetailBillDivisionWise (req, res)
 //             legal_vetting_completed_date, final_dcn_approved_date, advance_copy_date, approved_by_cabinet_date,  
 //             bill_introduced_in_parliament_date, bill_passed_date, bill_notified_date, completed_date, remarks, updated_date
 
-//             FROM tbl_bill 
-//             INNER JOIN mmt_wings on mmt_wings.wing_id = tbl_bill.wing
-//             INNER JOIN mmt_division on mmt_division.division_id = tbl_bill.division
-//             INNER JOIN tbl_bill_stage on tbl_bill_stage.bill_id = tbl_bill.bill_id
-//             INNER JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_name = tbl_bill_stage.stage_name
+//             FROM tbl_bill_change 
+//             LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_bill_change.wing
+//             LEFT JOIN mmt_division on mmt_division.division_id = tbl_bill_change.division
+//             INNER JOIN tbl_bill_change_stage on tbl_bill_change_stage.bill_id = tbl_bill_change.bill_id
+//             LEFT JOIN mmt_bill_stage on mmt_bill_stage.bill_stage_name = tbl_bill_change_stage.stage_name
 
 //             WHERE (division = @divisionID) 
-//             AND tbl_bill_stage.stage_name IN 
+//             AND tbl_bill_change_stage.stage_name IN 
 //             (
 //                 SELECT bill_stage_name FROM mmt_bill_stage WHERE bill_stage_id >= 
 //                     (SELECT bill_stage_id FROM mmt_bill_stage t1 WHERE bill_stage_name = @billStage )

@@ -26,18 +26,119 @@ export default function Reports({ triggerNotification }) {
   const handleBack = () => {
     if (drillDownPath.length > 1) {
       setDrillDownPath(prev => prev.slice(0, -1));
-      setQuickFilter('');
     }
   };
 
-  /* ── Summary Columns ──────────────────────────────────────── */
+  /* ── Data Fetching ─────────────────────────────────────────── */
+  const fetchReportData = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (currentView.type === 'summary') {
+        const response = await axios.get("http://localhost:3000/yp-report");
+        const list = response.data.rowData || [];
+        // Add S No helper values
+        setData(list.map((item, idx) => ({ ...item, 'S No': idx + 1 })));
+      } else if (currentView.type === 'drilldown') {
+        const response = await axios.get(`http://localhost:3000/divisionwise-ypcandidate/0/${currentView.divisionId}`);
+        const list = response.data.rowData || [];
+        // Add S No helper values
+        setData(list.map((item, idx) => ({ ...item, 'S No': idx + 1 })));
+      }
+    } catch (err) {
+      console.error(err);
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentView]);
+
+  useEffect(() => {
+    fetchReportData();
+  }, [fetchReportData]);
+
+  const onGridReady = (params) => {
+    // optional grid ready logic
+  };
+
+  const handleCopy = () => {
+    if (!gridRef.current?.api) return;
+    let tsv = '';
+    const activeCols = columns.filter(c => c.headerName && c.field !== 'Document');
+    tsv += activeCols.map(c => c.headerName).join('\t') + '\n';
+
+    let index = 1;
+    gridRef.current.api.forEachNodeAfterFilterAndSort((node) => {
+      const row = node.data;
+      if (!row) return;
+      const rowTsv = activeCols.map(col => {
+        let val = '';
+        if (col.field === 'S No' || col.headerName === 'S.No') val = index++;
+        else if (col.valueFormatter) val = col.valueFormatter({ value: row[col.field], data: row });
+        else val = row[col.field] !== undefined ? row[col.field] : '';
+        val = String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
+        return val;
+      }).join('\t');
+      tsv += rowTsv + '\n';
+    });
+
+    navigator.clipboard.writeText(tsv).then(() => {
+      triggerNotification?.('Report copied to clipboard!');
+    }).catch(err => {
+      console.error('Copy failed', err);
+    });
+  };
+
+  const handleExport = (type) => {
+    const title = currentView.title;
+    if (type === 'Excel') {
+      if (gridRef.current?.api) {
+        gridRef.current.api.exportDataAsCsv({
+          fileName: `${title.replace(/\s+/g, '_')}_export.csv`
+        });
+        triggerNotification?.(`Report exported to Excel (CSV) successfully!`);
+      }
+    } else if (type === 'PDF') {
+      triggerNotification?.(`Preparing PDF document...`);
+      const printWindow = window.open('', '_blank');
+      const docTitle = title || 'Report';
+      const brandColor = '#4b2424';
+      const oddRowColor = '#f8faf6';
+
+      let headersHtml = '';
+      columns.forEach(col => {
+        if (col.headerName) {
+          headersHtml += `<th style="border:1px solid ${brandColor}; padding:10px 14px; text-align:left; background:${brandColor}; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${col.headerName}</th>`;
+        }
+      });
+
+      let rowsHtml = '';
+      data.forEach((row, i) => {
+        const bg = i % 2 === 0 ? '#fff' : oddRowColor;
+        rowsHtml += `<tr style="background:${bg}">`;
+        columns.forEach(col => {
+          if (col.headerName) {
+            let val = '';
+            if (col.field === 'S No' || col.headerName === 'S.No') val = i + 1;
+            else if (col.valueFormatter) val = col.valueFormatter({ value: row[col.field], data: row });
+            else val = row[col.field] !== undefined ? row[col.field] : '';
+            rowsHtml += `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155;">${val}</td>`;
+          }
+        });
+        rowsHtml += '</tr>';
+      });
+
+      printWindow.document.write(`<html><head><title>${docTitle}</title><style>body{font-family:'Inter',system-ui,sans-serif;color:#334155;padding:24px}h1{font-size:18px;margin-bottom:4px;color:${brandColor}}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${docTitle}</h1><p style="font-size:11px;color:#64748b;margin:0 0 20px">Generated on: ${new Date().toLocaleDateString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
+      printWindow.document.close();
+    }
+  };
+
   const summaryColumns = useMemo(() => [
     {
       field: 'S No',
       headerName: 'S.No',
       pinned: 'left',
+      width: 60,
       suppressMovable: true,
-      headerClass: 'yp-h-sno',
       cellRenderer: (p) => (
         <span style={{ fontWeight: 800, fontSize: 11, fontFamily: 'monospace' }}>
           {p.value}
@@ -49,8 +150,6 @@ export default function Reports({ triggerNotification }) {
       headerName: 'Wing',
       flex: 1.5,
       minWidth: 200,
-      headerClass: 'yp-header-left yp-h-wing',
-      cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'flex-start' },
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
         return <span style={{ fontWeight: 600, fontSize: 13.5 }}>{p.value}</span>;
@@ -61,8 +160,6 @@ export default function Reports({ triggerNotification }) {
       headerName: 'Division',
       flex: 1.5,
       minWidth: 200,
-      headerClass: 'yp-header-left yp-h-division',
-      cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'flex-start' },
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
         return <span style={{ fontWeight: 600, fontSize: 13.5 }}>{p.value}</span>;
@@ -72,7 +169,6 @@ export default function Reports({ triggerNotification }) {
       field: 'In Position',
       headerName: 'In Post',
       width: 150,
-      headerClass: 'yp-h-position',
       cellRenderer: (p) => {
         const val = p.value;
         const divisionId = p.data["Division ID"];
@@ -87,7 +183,6 @@ export default function Reports({ triggerNotification }) {
                     ...prev,
                     { type: 'drilldown', divisionId, title: `Candidates List - Wing: ${wingName} | Division: ${divisionName}` }
                   ]);
-                  setQuickFilter('');
                 }}
                 style={{
                   display: 'inline-flex', alignItems: 'center',
@@ -118,8 +213,8 @@ export default function Reports({ triggerNotification }) {
       field: 'S No',
       headerName: 'S.No',
       pinned: 'left',
+      width: 60,
       suppressMovable: true,
-      headerClass: 'yp-h-sno',
       cellRenderer: (p) => (
         <span style={{ fontWeight: 800, fontSize: 11, fontFamily: 'monospace' }}>
           {p.value}
@@ -129,9 +224,8 @@ export default function Reports({ triggerNotification }) {
     {
       field: 'Name',
       headerName: 'Name',
-      minWidth: 200,
+      minWidth: 180,
       pinned: 'left',
-      headerClass: 'yp-h-name',
       cellRenderer: (p) => {
         if (!p.value) return '—';
         return <span style={{ fontWeight: 600, fontSize: 13.5 }}>{p.value}</span>;
@@ -141,7 +235,6 @@ export default function Reports({ triggerNotification }) {
       field: 'Qualification',
       headerName: 'Qualification',
       minWidth: 180,
-      headerClass: 'yp-h-qual',
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
         return <span style={{ fontWeight: 600, fontSize: 13 }}>{p.value}</span>;
@@ -151,7 +244,6 @@ export default function Reports({ triggerNotification }) {
       field: 'Experience (Years)',
       headerName: 'Experience',
       minWidth: 135,
-      headerClass: 'yp-h-exp',
       cellRenderer: (p) => {
         if (!p.value && p.value !== 0) return '—';
         return <span style={{ fontWeight: 600, fontSize: 13 }}>{p.value} Yrs</span>;
@@ -164,7 +256,6 @@ export default function Reports({ triggerNotification }) {
       flex: 1.5,
       wrapText: true,
       autoHeight: true,
-      headerClass: 'yp-h-skill',
       cellClass: 'yp-wrap-cell',
       cellStyle: {
         fontSize: '13px',
@@ -179,7 +270,6 @@ export default function Reports({ triggerNotification }) {
       field: 'Role',
       headerName: 'Role',
       minWidth: 155,
-      headerClass: 'yp-h-role',
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
         return <span style={{ fontWeight: 600, fontSize: 13 }}>{p.value}</span>;
@@ -189,13 +279,12 @@ export default function Reports({ triggerNotification }) {
       field: 'Salary (per month)',
       headerName: 'Salary',
       minWidth: 135,
-      headerClass: 'yp-h-salary',
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
         return (
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontWeight: 600,
+            fontWeight: 650,
             color: '#0F6E56',
             fontSize: 13.5
           }}>
@@ -208,7 +297,6 @@ export default function Reports({ triggerNotification }) {
       field: 'Appointment Date',
       headerName: 'Date of Appointment',
       minWidth: 180,
-      headerClass: 'yp-h-date',
       cellRenderer: (p) => {
         if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
         return (
@@ -222,7 +310,6 @@ export default function Reports({ triggerNotification }) {
       field: 'Document',
       headerName: 'Appointment Order',
       minWidth: 185,
-      headerClass: 'yp-h-doc',
       cellRenderer: (p) => {
         const fileName = p.value;
         if (fileName) {
@@ -250,9 +337,8 @@ export default function Reports({ triggerNotification }) {
       field: 'Created At',
       headerName: 'Created At',
       minWidth: 165,
-      headerClass: 'yp-h-meta',
       cellRenderer: (p) => (
-        <span style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8', textAlign: 'center', width: '100%', display: 'block' }}>
+        <span style={{ fontSize: 11, fontWeight: 550, color: '#94a3b8', textAlign: 'center', width: '100%', display: 'block' }}>
           {p.value || '—'}
         </span>
       )
@@ -261,7 +347,6 @@ export default function Reports({ triggerNotification }) {
       field: 'Created By',
       headerName: 'Created By',
       minWidth: 145,
-      headerClass: 'yp-h-meta',
       cellRenderer: (p) => (
         <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>
           {p.value || '—'}
@@ -272,9 +357,8 @@ export default function Reports({ triggerNotification }) {
       field: 'Last Updated At',
       headerName: 'Last Updated At',
       minWidth: 170,
-      headerClass: 'yp-h-meta',
       cellRenderer: (p) => (
-        <span style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8', textAlign: 'center', width: '100%', display: 'block' }}>
+        <span style={{ fontSize: 11, fontWeight: 550, color: '#94a3b8', textAlign: 'center', width: '100%', display: 'block' }}>
           {p.value || '—'}
         </span>
       )
@@ -282,101 +366,6 @@ export default function Reports({ triggerNotification }) {
   ], []);
 
   const columns = currentView.type === 'summary' ? summaryColumns : drilldownColumns;
-
-  /* ── Data ──────────────────────────────────────────────────── */
-  const fetchReportData = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (currentView.type === 'summary') {
-        const response = await axios.get("http://localhost:3000/yp-report");
-        setData(response.data.rowData || []);
-      } else if (currentView.type === 'drilldown') {
-        const response = await axios.get(`http://localhost:3000/divisionwise-ypcandidate/0/${currentView.divisionId}`);
-        setData(response.data.rowData || []);
-      }
-    } catch (err) {
-      console.error(err);
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentView]);
-
-  useEffect(() => { fetchReportData(); }, [fetchReportData]);
-
-  const onGridReady = useCallback((params) => {
-    params.api.sizeColumnsToFit();
-  }, []);
-
-  /* ── Export ────────────────────────────────────────────────── */
-  const handleExport = (type) => {
-    if (type === 'Excel') {
-      if (gridRef.current?.api) {
-        gridRef.current.api.exportDataAsCsv({
-          fileName: `${currentView.title.replace(/\s+/g, '_')}_export.csv`
-        });
-        triggerNotification?.(`Report exported to Excel (CSV) successfully!`);
-      }
-    } else if (type === 'PDF') {
-      triggerNotification?.(`Preparing PDF document...`);
-      const printWindow = window.open('', '_blank');
-      const title = currentView.title || 'Report';
-
-      let headersHtml = '';
-      columns.forEach(col => {
-        if (col.headerName) {
-          headersHtml += `<th style="border:1px solid #4b2424; padding:10px 14px; text-align:left; background:#4b2424; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${col.headerName}</th>`;
-        }
-      });
-
-      let rowsHtml = '';
-      data.forEach((row, i) => {
-        const bg = i % 2 === 0 ? '#fff' : '#f8faf6';
-        rowsHtml += `<tr style="background:${bg}">`;
-        columns.forEach(col => {
-          if (col.headerName) {
-            let val = '';
-            if (col.field === 'S No') val = i + 1;
-            else if (col.valueFormatter) val = col.valueFormatter({ value: row[col.field], data: row });
-            else val = row[col.field] !== undefined ? row[col.field] : '';
-            rowsHtml += `<td style="border:1px solid #D3D6D9; padding:8px 14px; font-size:12px; color:#4b2424;">${val}</td>`;
-          }
-        });
-        rowsHtml += '</tr>';
-      });
-
-      printWindow.document.write(`<html><head><title>${title}</title><style>body{font-family:'Inter',system-ui,sans-serif;color:#4b2424;padding:24px}h1{font-size:18px;margin-bottom:4px;color:#4b2424}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${title}</h1><p style="font-size:11px;color:#657386;margin:0 0 20px">Generated on: ${new Date().toLocaleDateString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
-      printWindow.document.close();
-    }
-  };
-
-  const handleCopy = () => {
-    if (!gridRef.current?.api) return;
-    let tsv = '';
-    const activeCols = columns.filter(c => c.headerName && c.field !== 'Document');
-    tsv += activeCols.map(c => c.headerName).join('\t') + '\n';
-    
-    let index = 1;
-    gridRef.current.api.forEachNodeAfterFilterAndSort((node) => {
-      const row = node.data;
-      if (!row) return;
-      const rowTsv = activeCols.map(col => {
-        let val = '';
-        if (col.field === 'S No') val = index++;
-        else if (col.valueFormatter) val = col.valueFormatter({ value: row[col.field], data: row });
-        else val = row[col.field] !== undefined ? row[col.field] : '';
-        val = String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
-        return val;
-      }).join('\t');
-      tsv += rowTsv + '\n';
-    });
-    
-    navigator.clipboard.writeText(tsv).then(() => {
-      triggerNotification?.('Report copied to clipboard!');
-    }).catch(err => {
-      console.error('Copy failed', err);
-    });
-  };
 
   const defaultColDef = useMemo(() => ({
     sortable: true,
@@ -500,7 +489,7 @@ export default function Reports({ triggerNotification }) {
             padding: '8px 14px', borderRadius: 9,
             background: '#fff', border: '1px solid #eadede',
           }}>
-            <Users size={14} color="#4b2424" /> 
+            <Users size={14} color="#4b2424" />
             <span style={{ fontSize: 13, color: '#8c4242' }}>
               Total <strong style={{ color: '#4b2424', fontFamily: "'JetBrains Mono', monospace", fontSize: 13.5 }}>{data.length}</strong>
             </span>
@@ -587,7 +576,8 @@ export default function Reports({ triggerNotification }) {
       </div>
 
       {/* ─ AG Grid Theme ─ */}
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .yp-pro-grid.ag-theme-quartz {
           --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
           --ag-font-size: 13.5px;
