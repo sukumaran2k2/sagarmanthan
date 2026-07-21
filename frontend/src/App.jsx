@@ -11,7 +11,7 @@ import AttendanceView from './modules/Attendance/Attendance';
 import CPGRAMSView from './modules/CPGRAMS/CPGRAMS';
 import HRDashboardView from './modules/HR/HR';
 import ProfileView from './modules/Profile/Profile';
-import UserManagementView from './modules/UserManagement/UserManagement';
+
 import CabinetNotes from './modules/CabinetNotesMOPSW/CabinetNotesMOPSW';
 import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotesOther';
 import UserMatrix from './modules/UserManagement/UserMatrix';
@@ -457,7 +457,7 @@ export default function App() {
           setIsLoggedIn(false);
         }}
         onProfileClick={() => setActiveTab('profile')}
-        onUserManagementClick={() => setActiveTab('usermanagement')}
+        onUserManagementClick={() => setActiveTab('User Matrix')}
       />
 
       {/* Tab Navigation Menu */}
@@ -564,9 +564,6 @@ export default function App() {
               <ProfileView triggerNotification={triggerNotification} />
             )}
 
-            {activeTab === 'usermanagement' && (
-              <UserManagementView />
-            )}
 
             {activeTab === 'Audit Paras' && (
               <AuditParaView />
