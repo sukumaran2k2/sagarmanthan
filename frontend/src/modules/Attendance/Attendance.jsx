@@ -285,7 +285,7 @@ export default function AttendanceView() {
       });
   };
 
-  // ---- COPY REPORT TO CLIPBOARD (YP REPLICATED ENGINE - themed brown) ----
+  // ---- COPY REPORT TO CLIPBOARD (YP REPLICATED ENGINE) ----
   const handleCopy = () => {
     if (!gridRef.current?.api) return;
     let tsv = '';
@@ -315,7 +315,7 @@ export default function AttendanceView() {
     });
   };
 
-  // ---- EXPORT REPORT TO EXCEL / PDF (YP REPLICATED ENGINE - themed brown) ----
+  // ---- EXPORT REPORT TO EXCEL / PDF (YP REPLICATED ENGINE) ----
   const handleExport = (type) => {
     const title = reportViewMode === 'summary' 
       ? `Form_1.3A_Abstract_Attendance_Week_${reportWeek}_${reportMonth}_${reportYear}`
@@ -370,6 +370,49 @@ export default function AttendanceView() {
           <td style="border:1px solid #D3D6D9; padding:8px 14px; font-size:12px; color:#4b2424; text-align:center;">${aggregates.totalBefore530}</td>
         </tr>`;
       }
+
+      printWindow.document.write(`<html><head><title>${title.replace(/_/g, ' ')}</title><style>body{font-family:'Inter',system-ui,sans-serif;color:#4b2424;padding:24px}h1{font-size:18px;margin-bottom:4px;color:#4b2424}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${title.replace(/_/g, ' ')}</h1><p style="font-size:11px;color:#657386;margin:0 0 20px">Generated on: ${new Date().toLocaleDateString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
+      printWindow.document.close();
+    }
+  };
+
+  // ---- EXPORT RAW EMPLOYEE DATA TO EXCEL / PDF (MATCHING SCREENSHOT ACTION) ----
+  const handleExportRawData = (type) => {
+    const title = `Employee_Attendance_Raw_Records_${reportMonth}_${reportYear}`;
+    if (type === 'Excel') {
+      if (gridRef.current?.api) {
+        gridRef.current.api.exportDataAsCsv({
+          fileName: `${title}_export.csv`
+        });
+        showToast('📈 Raw data exported to CSV successfully!', '#10B981');
+      }
+    } else if (type === 'PDF') {
+      showToast('📄 Preparing PDF document...', '#4b2424');
+      const printWindow = window.open('', '_blank');
+      const cols = colDefs;
+
+      let headersHtml = '';
+      cols.forEach(col => {
+        if (col.headerName) {
+          headersHtml += `<th style="border:1px solid #4b2424; padding:10px 14px; text-align:left; background:#4b2424; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${col.headerName}</th>`;
+        }
+      });
+
+      let rowsHtml = '';
+      filteredEmployeeRows.forEach((row, i) => {
+        const bg = i % 2 === 0 ? '#fff' : '#f8faf6';
+        rowsHtml += `<tr style="background:${bg}">`;
+        cols.forEach(col => {
+          if (col.headerName) {
+            let val = '';
+            if (col.field === 'S.No') val = i + 1;
+            else if (col.valueFormatter) val = col.valueFormatter({ value: row[col.field], data: row });
+            else val = row[col.field] !== undefined ? row[col.field] : '';
+            rowsHtml += `<td style="border:1px solid #D3D6D9; padding:8px 14px; font-size:12px; color:#4b2424;">${val}</td>`;
+          }
+        });
+        rowsHtml += '</tr>';
+      });
 
       printWindow.document.write(`<html><head><title>${title.replace(/_/g, ' ')}</title><style>body{font-family:'Inter',system-ui,sans-serif;color:#4b2424;padding:24px}h1{font-size:18px;margin-bottom:4px;color:#4b2424}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${title.replace(/_/g, ' ')}</h1><p style="font-size:11px;color:#657386;margin:0 0 20px">Generated on: ${new Date().toLocaleDateString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
       printWindow.document.close();
@@ -443,19 +486,19 @@ export default function AttendanceView() {
     }
   };
 
-  // ---- AG GRID COLUMNS FOR RAW EMPLOYEE RECORDS (FLEX STRETCHED) ----
+  // ---- AG GRID COLUMNS FOR RAW EMPLOYEE RECORDS (MATCHING SCREENSHOT LAYOUT) ----
   const colDefs = useMemo(() => [
     { 
       headerName: 'S.No', 
       valueGetter: (params) => params.node.rowIndex + 1, 
-      width: 55, 
-      minWidth: 55,
+      width: 60, 
+      minWidth: 60,
       pinned: 'left', 
       cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center' 
     },
     { 
       field: 'EmpId', 
-      headerName: 'Emp ID', 
+      headerName: 'EMP ID', 
       flex: 1,
       minWidth: 90, 
       pinned: 'left', 
@@ -463,7 +506,7 @@ export default function AttendanceView() {
     },
     { 
       field: 'EmpName', 
-      headerName: 'Employee Name', 
+      headerName: 'EMP Name', 
       flex: 2,
       minWidth: 160, 
       cellClass: 'font-extrabold text-slate-900 flex items-center text-left',
@@ -488,27 +531,21 @@ export default function AttendanceView() {
       )
     },
     { field: 'Designation', headerName: 'Designation', flex: 1.5, minWidth: 130, cellClass: 'flex items-center text-left' },
+    { field: 'Wing', headerName: 'Wing', flex: 1.2, minWidth: 120, cellClass: 'flex items-center text-left' },
+    { field: 'Division', headerName: 'Division', flex: 1.2, minWidth: 120, cellClass: 'flex items-center text-left' },
+    { field: 'AttendanceMarked', headerName: 'No of days Attendance Marked', flex: 1.3, minWidth: 130, type: 'numericColumn', cellClass: 'text-center font-bold text-slate-700 flex items-center justify-center' },
+    { field: 'WorkingHours', headerName: 'Average Working Hours', flex: 1.3, minWidth: 130, type: 'numericColumn', cellClass: 'text-center font-bold text-blue-700 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
+    { field: 'InTimeAvg', headerName: 'In Time Avg', flex: 1.2, minWidth: 110, type: 'numericColumn', cellClass: 'text-center font-medium text-emerald-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
+    { field: 'OutTimeAvg', headerName: 'Out Time Avg', flex: 1.2, minWidth: 110, type: 'numericColumn', cellClass: 'text-center font-medium text-amber-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
+    { field: 'Month', headerName: 'Month', flex: 1, minWidth: 90, cellClass: 'text-center flex items-center justify-center' },
+    { field: 'Year', headerName: 'Year', flex: 1, minWidth: 90, cellClass: 'text-center flex items-center justify-center' },
     { 
-      headerName: 'Wing / Division', 
-      flex: 1.8,
-      minWidth: 150, 
-      cellClass: 'flex items-center text-left',
-      valueGetter: (params) => {
-        const wing = params.data.Wing || '';
-        const div = params.data.Division || '';
-        return div && div !== '-' ? `${wing} / ${div}` : wing;
-      }
-    },
-    { field: 'AttendanceMarked', headerName: 'Days Present', flex: 1, minWidth: 95, type: 'numericColumn', cellClass: 'text-center font-bold text-slate-700 flex items-center justify-center' },
-    { field: 'WorkingHours', headerName: 'Avg Working Hours', flex: 1.2, minWidth: 110, type: 'numericColumn', cellClass: 'text-center font-bold text-blue-700 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
-    { field: 'InTimeAvg', headerName: 'Avg In-Time', flex: 1.1, minWidth: 95, type: 'numericColumn', cellClass: 'text-center font-medium text-emerald-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
-    { field: 'OutTimeAvg', headerName: 'Avg Out-Time', flex: 1.1, minWidth: 95, type: 'numericColumn', cellClass: 'text-center font-medium text-amber-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
-    { 
-      headerName: 'Period', 
-      flex: 1.1,
+      field: 'Week', 
+      headerName: 'Week', 
+      flex: 1.1, 
       minWidth: 100, 
       cellClass: 'text-center flex items-center justify-center',
-      valueGetter: (params) => `${params.data.Month || ''} ${params.data.Year || ''}` 
+      valueFormatter: (params) => params.value ? `Week ${params.value}` : ''
     }
   ], []);
 
@@ -706,11 +743,11 @@ export default function AttendanceView() {
   return (
     <div className="w-full py-4 animate-fade-in text-slate-800 relative">
       
-      {/* Page Heading Row replicating YP module layout (Themed to Sagarmanthan Navy Blue #0f417a) */}
+      {/* Page Heading Row styled with caption in Sagarmanthan Navy Blue (#0f417a) */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none px-4 md:px-6 text-left">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
-            Attendance
+            View Employee Attendance
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
             Manage, parse and monitor employee weekly abstract reports and raw attendance records.
@@ -789,13 +826,13 @@ export default function AttendanceView() {
               <button 
                 onClick={handleDownloadSample}
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                title="Download User Manual excel template"
               >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                <span>Data Template</span>
+                <span>User Manual</span>
               </button>
               <button 
                 onClick={() => setIsUploadModalOpen(true)}
-                className="px-4 py-2 bg-[#0f417a] hover:bg-[#0c3361] text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                className="px-4 py-2 bg-[#198754] hover:bg-[#157347] text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
               >
                 <Upload className="h-3.5 w-3.5" />
                 <span>Upload File</span>
@@ -1069,102 +1106,60 @@ export default function AttendanceView() {
               </div>
             )}
 
-            {/* Injected custom AG Grid themes replication from YP module (Report Brown theme) */}
-            <style dangerouslySetInnerHTML={{ __html: `
-              .attendance-pro-grid.ag-theme-quartz {
-                --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
-                --ag-font-size: 13px;
-                --ag-border-color: #B9BDC2;
-                --ag-row-border-color: #D3D6D9;
-                --ag-row-height: 48px;
-                --ag-active-color: #4b2424;
-                --ag-checkbox-checked-color: #4b2424;
-                --ag-input-focus-border-color: #4b2424;
-                --ag-selected-row-background-color: #f7f3f3;
-                font-size: 13px;
-              }
-              .attendance-pro-grid .ag-root-wrapper {
-                border: none !important;
-                border-radius: 0 !important;
-              }
-              .attendance-pro-grid .ag-header {
-                background: #4b2424 !important;
-                border-bottom: 2px solid #381a1a !important;
-              }
-              .attendance-pro-grid .ag-header-row {
-                background: transparent !important;
-              }
-              .attendance-pro-grid .ag-header-cell {
-                color: #ffffff !important;
-                font-weight: 750 !important;
-                font-size: 11px !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.05em !important;
-                border-right: 1px solid #381a1a !important;
-                transition: background 0.15s !important;
-              }
-              .attendance-pro-grid .ag-header-cell-label {
-                justify-content: center !important;
-                text-align: center !important;
-                width: 100% !important;
-              }
-              .attendance-pro-grid .ag-header-cell:hover {
-                background: #6b3535 !important;
-              }
-              .attendance-pro-grid .ag-header-cell-label .ag-header-cell-text {
-                color: #ffffff !important;
-              }
-              .attendance-pro-grid .ag-header-cell .ag-icon {
-                color: rgba(255, 255, 255, 0.7) !important;
-              }
-              .attendance-pro-grid .ag-row {
-                border-bottom: 1px solid #D3D6D9 !important;
-              }
-              /* Zebra styling: Even clean white, Odd soft brown sand tint */
-              .attendance-pro-grid .ag-row-even {
-                background: #ffffff !important;
-              }
-              .attendance-pro-grid .ag-row-odd {
-                background: #f8faf6 !important;
-              }
-              .attendance-pro-grid .ag-row:hover {
-                background: #f6f8f5 !important;
-              }
-            `}} />
-
           </div>
         ) : subTab === 'data' ? (
-          /* View Raw Employee Data rendered in FULL width Table Component (Navy Blue) */
-          <div className="space-y-4 pt-4">
-            <div className="flex justify-end px-4 sm:px-6">
+          /* View Raw Employee Data rendered in FULL width Table Component (matching original colors and layout) */
+          <div className="space-y-0 pt-0">
+            {/* Top Toolbar matching screenshot exactly with export buttons and search */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-6 pb-4 bg-slate-50/40 border-b border-slate-100">
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => handleExportRawData('Excel')}
+                  className="px-4 py-2 bg-[#198754] hover:bg-[#157347] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                  <span>Report to Excel</span>
+                </button>
+                <button 
+                  onClick={() => handleExportRawData('PDF')}
+                  className="px-4 py-2 bg-[#b33a3a] hover:bg-[#962f2f] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <FileCheck className="h-3.5 w-3.5" />
+                  <span>Report to PDF</span>
+                </button>
+              </div>
+
               <div className="relative max-w-xs w-full">
                 <input
                   type="text"
                   placeholder="Search employee attendance..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full text-xs pl-8 pr-3.5 py-2 bg-slate-55 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition font-medium"
+                  className="w-full text-xs pl-8 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition font-medium"
                 />
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-450" />
               </div>
             </div>
 
-            <div className="w-full border-t border-slate-200">
+            <div className="attendance-pro-grid ag-theme-quartz w-full border-b border-slate-200">
               <Table 
+                ref={gridRef}
                 rowData={filteredEmployeeRows}
                 columnDefs={colDefs}
                 pagination={true}
-                paginationPageSize={10}
+                paginationPageSize={pageSize}
                 domLayout="autoHeight"
+                quickFilterText={searchTerm}
                 autoSizeStrategy={{
                   type: 'fitGridWidth',
                   defaultMinWidth: 50
                 }}
+                color="#b33a3a"
               />
             </div>
           </div>
         ) : (
-          /* View History Files (Navy Blue) */
+          /* View History Files */
           <div className="space-y-4 p-4 sm:p-6">
             <div className="flex justify-end">
               <div className="relative max-w-xs w-full">
@@ -1173,7 +1168,7 @@ export default function AttendanceView() {
                   placeholder="Search uploaded files..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full text-xs pl-8 pr-3.5 py-2 bg-slate-55 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition font-medium"
+                  className="w-full text-xs pl-8 pr-3.5 py-2 bg-slate-55 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f7f3f3] focus:border-slate-500 transition font-medium"
                 />
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-450" />
               </div>
@@ -1182,7 +1177,7 @@ export default function AttendanceView() {
             <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white text-left">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-650 text-xs font-bold uppercase tracking-wider">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 text-xs font-bold uppercase tracking-wider">
                     <th className="py-3 px-4 text-center w-16">S.No</th>
                     <th className="py-3 px-4 text-left">File Name</th>
                     <th className="py-3 px-4 text-center w-52">Date of Upload</th>
@@ -1200,7 +1195,7 @@ export default function AttendanceView() {
                     filteredFiles.map((file, idx) => (
                       <tr key={file.id} className="hover:bg-slate-50/50 transition">
                         <td className="py-3.5 px-4 text-center font-bold text-slate-450">{idx + 1}</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-700">{file.file_name}</td>
+                        <td className="py-3.5 px-4 font-semibold text-slate-755">{file.file_name}</td>
                         <td className="py-3.5 px-4 text-center text-slate-500 font-medium">{formatDate(file.date_of_upload)}</td>
                         <td className="py-3.5 px-4 text-center">
                           <div className="flex items-center justify-center gap-2">
@@ -1244,7 +1239,7 @@ export default function AttendanceView() {
               </div>
               <button 
                 onClick={() => setIsUploadModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-655 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-650 rounded-lg hover:bg-slate-100 transition cursor-pointer"
                 style={{ border: 'none', background: 'none', fontSize: '1.2rem', fontWeight: 'bold' }}
               >
                 <X className="h-4.5 w-4.5" />
@@ -1276,7 +1271,7 @@ export default function AttendanceView() {
                 <button 
                   type="button" 
                   onClick={() => setIsUploadModalOpen(false)}
-                  className="px-4 py-2 border border-slate-655 rounded-lg text-slate-655 hover:bg-slate-50 cursor-pointer font-bold"
+                  className="px-4 py-2 border border-slate-250 rounded-lg text-slate-655 hover:bg-slate-50 cursor-pointer font-bold"
                 >
                   Cancel
                 </button>
@@ -1306,8 +1301,8 @@ export default function AttendanceView() {
         <span>{toastMsg}</span>
       </div>
       
-      {/* Slide-in styles override */}
-      <style>{`
+      {/* Custom Styles Injection to match YP Brown & Reddish Brown #b33a3a grid headers */}
+      <style dangerouslySetInnerHTML={{ __html: `
         .toast-box { position: fixed; bottom: 20px; right: 20px; background: #1E293B; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: .82rem; font-weight: 500; display: flex; align-items: center; gap: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.2); transform: translateY(70px); opacity: 0; transition: all .3s; z-index: 9999; }
         .toast-box.show { transform: translateY(0); opacity: 1; }
         .tdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
@@ -1316,7 +1311,67 @@ export default function AttendanceView() {
           from { transform: scale(0.95); opacity: 0; }
           to { transform: scale(1); opacity: 1; }
         }
-      `}</style>
+
+        .attendance-pro-grid.ag-theme-quartz {
+          --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          --ag-font-size: 13px;
+          --ag-border-color: #B9BDC2;
+          --ag-row-border-color: #D3D6D9;
+          --ag-row-height: 48px;
+          --ag-active-color: #b33a3a;
+          --ag-checkbox-checked-color: #b33a3a;
+          --ag-input-focus-border-color: #b33a3a;
+          --ag-selected-row-background-color: #fcf9f9;
+          font-size: 13px;
+        }
+        .attendance-pro-grid .ag-root-wrapper {
+          border: none !important;
+          border-radius: 0 !important;
+        }
+        .attendance-pro-grid .ag-header {
+          background: #b33a3a !important;
+          border-bottom: 2px solid #962f2f !important;
+        }
+        .attendance-pro-grid .ag-header-row {
+          background: transparent !important;
+        }
+        .attendance-pro-grid .ag-header-cell {
+          color: #ffffff !important;
+          font-weight: 750 !important;
+          font-size: 11px !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.05em !important;
+          border-right: 1px solid #962f2f !important;
+          transition: background 0.15s !important;
+        }
+        .attendance-pro-grid .ag-header-cell-label {
+          justify-content: center !important;
+          text-align: center !important;
+          width: 100% !important;
+        }
+        .attendance-pro-grid .ag-header-cell:hover {
+          background: #962f2f !important;
+        }
+        .attendance-pro-grid .ag-header-cell-label .ag-header-cell-text {
+          color: #ffffff !important;
+        }
+        .attendance-pro-grid .ag-header-cell .ag-icon {
+          color: rgba(255, 255, 255, 0.7) !important;
+        }
+        .attendance-pro-grid .ag-row {
+          border-bottom: 1px solid #D3D6D9 !important;
+        }
+        /* Zebra styling: Even clean white, Odd soft cream sand tint */
+        .attendance-pro-grid .ag-row-even {
+          background: #ffffff !important;
+        }
+        .attendance-pro-grid .ag-row-odd {
+          background: #fdfcfb !important;
+        }
+        .attendance-pro-grid .ag-row:hover {
+          background: #faf7f5 !important;
+        }
+      `}} />
 
     </div>
   );
