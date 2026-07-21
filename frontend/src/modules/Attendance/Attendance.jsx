@@ -419,6 +419,50 @@ export default function AttendanceView() {
     }
   };
 
+  // ---- EXPORT UPLOAD HISTORY FILE LIST TO EXCEL / PDF (MATCHING SCREENSHOT ACTION) ----
+  const handleExportHistory = (type) => {
+    const title = 'History_Of_Employee_Attendance_File_Uploaded';
+    if (type === 'Excel') {
+      if (gridRef.current?.api) {
+        gridRef.current.api.exportDataAsCsv({
+          fileName: `${title}_export.csv`
+        });
+        showToast('📈 Upload history exported to CSV successfully!', '#10B981');
+      }
+    } else if (type === 'PDF') {
+      showToast('📄 Preparing PDF document...', '#4b2424');
+      const printWindow = window.open('', '_blank');
+      const cols = historyColDefs.filter(c => c.headerName !== 'Actions');
+
+      let headersHtml = '';
+      cols.forEach(col => {
+        if (col.headerName) {
+          headersHtml += `<th style="border:1px solid #4b2424; padding:10px 14px; text-align:left; background:#4b2424; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${col.headerName}</th>`;
+        }
+      });
+
+      let rowsHtml = '';
+      filteredFiles.forEach((row, i) => {
+        const bg = i % 2 === 0 ? '#fff' : '#f8faf6';
+        rowsHtml += `<tr style="background:${bg}">`;
+        cols.forEach(col => {
+          if (col.headerName) {
+            let val = '';
+            if (col.field === 'S.No') val = i + 1;
+            else if (col.field === 'file_name') val = row.file_name;
+            else if (col.headerName === 'Uploaded By') val = 'Sandeep Gupta';
+            else if (col.field === 'date_of_upload') val = formatDate(row.date_of_upload);
+            rowsHtml += `<td style="border:1px solid #D3D6D9; padding:8px 14px; font-size:12px; color:#4b2424;">${val}</td>`;
+          }
+        });
+        rowsHtml += '</tr>';
+      });
+
+      printWindow.document.write(`<html><head><title>${title.replace(/_/g, ' ')}</title><style>body{font-family:'Inter',system-ui,sans-serif;color:#4b2424;padding:24px}h1{font-size:18px;margin-bottom:4px;color:#4b2424}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${title.replace(/_/g, ' ')}</h1><p style="font-size:11px;color:#657386;margin:0 0 20px">Generated on: ${new Date().toLocaleDateString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
+      printWindow.document.close();
+    }
+  };
+
   // ---- DRILL DOWN REPLACE-UI ACTION (NO OVERLAYS) ----
   const handleCellClick = (row, type, label) => {
     setDetailTitle(`${label} - ${row.Wing}`);
@@ -472,7 +516,7 @@ export default function AttendanceView() {
       });
   };
 
-  // Helper date formatter
+  // Helper date formatter to dd/mm/yyyy
   const formatDate = (dateStr) => {
     if (!dateStr) return '—';
     try {
@@ -480,7 +524,7 @@ export default function AttendanceView() {
       const day = String(d.getDate()).padStart(2, '0');
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const year = d.getFullYear();
-      return `${day}-${month}-${year}`;
+      return `${day}/${month}/${year}`;
     } catch (e) {
       return dateStr;
     }
@@ -717,6 +761,65 @@ export default function AttendanceView() {
     { field: 'Out Time Avg', headerName: 'Avg Out-Time', flex: 1.1, minWidth: 95, type: 'numericColumn', cellClass: 'text-center font-medium text-amber-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) }
   ], []);
 
+  // ---- AG GRID COLUMNS FOR UPLOADED FILE HISTORY (MATCHING SCREENSHOT LAYOUT) ----
+  const historyColDefs = useMemo(() => [
+    { 
+      headerName: 'S.No', 
+      valueGetter: (params) => params.node.rowIndex + 1, 
+      width: 60, 
+      minWidth: 60,
+      pinned: 'left', 
+      cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center' 
+    },
+    { 
+      field: 'file_name', 
+      headerName: 'File Name', 
+      flex: 3,
+      minWidth: 250,
+      cellClass: 'font-semibold flex items-center text-left',
+      cellRenderer: (params) => (
+        <span 
+          onClick={() => handleDownloadFile(params.data.id, params.value)}
+          className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer flex items-center gap-1.5"
+          title="Download File"
+        >
+          <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
+          <span className="truncate">{params.value}</span>
+        </span>
+      )
+    },
+    {
+      headerName: 'Uploaded By',
+      flex: 2,
+      minWidth: 150,
+      cellClass: 'flex items-center text-left text-slate-700 font-medium',
+      valueGetter: () => 'Sandeep Gupta'
+    },
+    { 
+      field: 'date_of_upload', 
+      headerName: 'Date of Upload', 
+      flex: 2,
+      minWidth: 150,
+      cellClass: 'text-center flex items-center justify-center font-medium text-slate-700',
+      valueFormatter: (params) => formatDate(params.value)
+    },
+    {
+      headerName: 'Actions',
+      width: 90,
+      minWidth: 90,
+      cellClass: 'text-center flex items-center justify-center',
+      cellRenderer: (params) => (
+        <button
+          onClick={() => handleDeleteFile(params.data.id)}
+          className="p-1 hover:bg-rose-50 text-rose-600 rounded-md transition cursor-pointer"
+          title="Delete Record"
+        >
+          <Trash2 size={15} />
+        </button>
+      )
+    }
+  ], []);
+
   // Pinned Bottom Totals Row for summary grid
   const pinnedBottomRowData = useMemo(() => {
     if (!aggregates) return [];
@@ -743,14 +846,28 @@ export default function AttendanceView() {
   return (
     <div className="w-full py-4 animate-fade-in text-slate-800 relative">
       
+      {/* Breadcrumb Row dynamically changed matching YP layout & user screenshot */}
+      <div className="flex items-center space-x-2 text-[11px] font-bold text-slate-400 select-none px-4 md:px-6 mb-3 text-left">
+        <span>Home</span>
+        <span>/</span>
+        <span>Attendance - Main page</span>
+        <span>/</span>
+        <span className="text-[#0f417a]">
+          {subTab === 'files' ? 'History Of Employee Attendance File Uploaded' : 'View Employee Attendance'}
+        </span>
+      </div>
+
       {/* Page Heading Row styled with caption in Sagarmanthan Navy Blue (#0f417a) */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none px-4 md:px-6 text-left">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
-            View Employee Attendance
+            {subTab === 'files' ? 'History Of Employee Attendance File Uploaded' : 'View Employee Attendance'}
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
-            Manage, parse and monitor employee weekly abstract reports and raw attendance records.
+            {subTab === 'files' 
+              ? 'View and manage history records of attendance spreadsheet files uploaded to the platform.'
+              : 'Manage, parse and monitor employee weekly abstract reports and raw attendance records.'
+            }
           </p>
         </div>
       </div>
@@ -1159,67 +1276,54 @@ export default function AttendanceView() {
             </div>
           </div>
         ) : (
-          /* View History Files */
-          <div className="space-y-4 p-4 sm:p-6">
-            <div className="flex justify-end">
+          /* View History Files rendered in AG Grid layout matching user's screenshot */
+          <div className="space-y-0 pt-0">
+            {/* Top Toolbar matching screenshot exactly with export buttons and search */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-6 pb-4 bg-slate-50/40 border-b border-slate-100">
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => handleExportHistory('Excel')}
+                  className="px-4 py-2 bg-[#198754] hover:bg-[#157347] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                  <span>Report to Excel</span>
+                </button>
+                <button 
+                  onClick={() => handleExportHistory('PDF')}
+                  className="px-4 py-2 bg-[#4b2424] hover:bg-[#6b3535] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <FileCheck className="h-3.5 w-3.5" />
+                  <span>Report to PDF</span>
+                </button>
+              </div>
+
               <div className="relative max-w-xs w-full">
                 <input
                   type="text"
                   placeholder="Search uploaded files..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full text-xs pl-8 pr-3.5 py-2 bg-slate-55 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#f7f3f3] focus:border-slate-500 transition font-medium"
+                  className="w-full text-xs pl-8 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition font-medium"
                 />
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-450" />
               </div>
             </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white text-left">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-655 text-xs font-bold uppercase tracking-wider">
-                    <th className="py-3 px-4 text-center w-16">S.No</th>
-                    <th className="py-3 px-4 text-left">File Name</th>
-                    <th className="py-3 px-4 text-center w-52">Date of Upload</th>
-                    <th className="py-3 px-4 text-center w-56">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {filteredFiles.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" className="py-12 text-center text-slate-450 font-bold text-xs">
-                        No uploaded attendance sheets found.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredFiles.map((file, idx) => (
-                      <tr key={file.id} className="hover:bg-slate-50/50 transition">
-                        <td className="py-3.5 px-4 text-center font-bold text-slate-450">{idx + 1}</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-755">{file.file_name}</td>
-                        <td className="py-3.5 px-4 text-center text-slate-500 font-medium">{formatDate(file.date_of_upload)}</td>
-                        <td className="py-3.5 px-4 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <button 
-                              onClick={() => handleDownloadFile(file.id, file.file_name)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-[#0f417a] hover:bg-blue-100 rounded-lg text-xs font-bold cursor-pointer transition-all active:scale-95 shadow-sm border border-slate-200"
-                            >
-                              <Download size={13} />
-                              <span>Download</span>
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteFile(file.id)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold cursor-pointer transition-all active:scale-95 shadow-sm border border-rose-100"
-                            >
-                              <Trash2 size={13} />
-                              <span>Delete</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="attendance-pro-grid ag-theme-quartz w-full border-b border-slate-200">
+              <Table 
+                ref={gridRef}
+                rowData={filteredFiles}
+                columnDefs={historyColDefs}
+                pagination={true}
+                paginationPageSize={pageSize}
+                domLayout="autoHeight"
+                quickFilterText={searchTerm}
+                autoSizeStrategy={{
+                  type: 'fitGridWidth',
+                  defaultMinWidth: 50
+                }}
+                color="#4b2424"
+              />
             </div>
           </div>
         )}
@@ -1301,7 +1405,7 @@ export default function AttendanceView() {
         <span>{toastMsg}</span>
       </div>
       
-      {/* Custom Styles Injection to match YP Brown & Reddish Brown #b33a3a grid headers */}
+      {/* Custom Styles Injection to match YP Brown grid headers */}
       <style dangerouslySetInnerHTML={{ __html: `
         .toast-box { position: fixed; bottom: 20px; right: 20px; background: #1E293B; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: .82rem; font-weight: 500; display: flex; align-items: center; gap: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.2); transform: translateY(70px); opacity: 0; transition: all .3s; z-index: 9999; }
         .toast-box.show { transform: translateY(0); opacity: 1; }
