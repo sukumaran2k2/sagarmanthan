@@ -347,7 +347,11 @@ async function getDropDownData(req, res) {
             break;
 
         case "mmt_organisation":
-            query = "SELECT organisation_id, organisation_name, organisation_code, organisation_label, organisation_category_id FROM mmt_organisation WHERE status = 1 ORDER BY organisation_name";
+            query = `SELECT organisation_id, organisation_name, organisation_code, organisation_label, mmt_organisation.organisation_category_id, mmt_organisation_category.organisation_category_name 
+                FROM mmt_organisation 
+                LEFT JOIN mmt_organisation_category ON mmt_organisation_category.organisation_category_id = mmt_organisation.organisation_category_id 
+                WHERE mmt_organisation.status = 1 
+                ORDER BY organisation_name`;
             break;
 
         case "tbl_project_stage":
@@ -1334,7 +1338,7 @@ async function getFilterDependecyDropDown(req, res) {
             break;
 
         case "mmt_organisation":
-            query = `SELECT organisation_name, mmt_organisation_category.organisation_category_name FROM mmt_organisation 
+            query = `SELECT organisation_id, organisation_name, mmt_organisation_category.organisation_category_name FROM mmt_organisation 
                 INNER JOIN mmt_organisation_category on mmt_organisation_category.organisation_category_id = mmt_organisation.organisation_category_id 
                 WHERE mmt_organisation.status = 1`;
             break;
