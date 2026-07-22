@@ -2,6 +2,7 @@ import React from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import ReCAPTCHA from 'react-google-recaptcha';
 import sagarmanthanLogo from '../../../assets/sagarmanthan_logo.png';
+import { RECAPTCHA_SITE_KEY } from '../constants';
 
 export default function LoginCard({
   email,
@@ -102,7 +103,7 @@ export default function LoginCard({
       <div className="w-full flex justify-center bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden">
         <div className="scale-100 sm:scale-105 origin-center flex justify-center w-full py-1">
           <ReCAPTCHA
-            sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
+            sitekey={RECAPTCHA_SITE_KEY}
             onChange={(val) => {
               dispatch({ type: 'SET_FIELD', field: 'recaptchaToken', value: val || "" });
               dispatch({ type: 'SET_FIELD', field: 'captchaVerified', value: !!val });

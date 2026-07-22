@@ -1,6 +1,7 @@
 import { useReducer } from "react";
 import axios from "axios";
 import { encryptPassword } from "./utils";
+import { API_BASE_URL } from "./constants";
 
 // Import Components
 import BackgroundRotator from "./components/BackgroundRotator";
@@ -107,7 +108,7 @@ export default function LoginView({ onLogin }) {
     }
 
     axios
-      .post("http://localhost:3000/login-validation", {
+      .post(`${API_BASE_URL}/login-validation`, {
         email,
         password: encrypted,
         recaptchaResponse: recaptchaToken,
@@ -158,7 +159,7 @@ export default function LoginView({ onLogin }) {
     }
 
     axios
-      .post("http://localhost:3000/password-reset-validation", {
+      .post(`${API_BASE_URL}/password-reset-validation`, {
         email: forgotEmail,
         updated_on: new Date().toISOString().slice(0, 19).replace("T", " "),
         recaptchaResponse: forgotRecaptchaToken,
@@ -202,7 +203,7 @@ export default function LoginView({ onLogin }) {
 
     // First fetch the user list to find the matching userID
     axios
-      .get("http://localhost:3000/userlist")
+      .get(`${API_BASE_URL}/userlist`)
       .then((userListRes) => {
         const users = userListRes.data || [];
         const matchedUser = users.find(
@@ -215,7 +216,7 @@ export default function LoginView({ onLogin }) {
         }
 
         // Send request with userID and loginUser properties
-        return axios.put("http://localhost:3000/edit-password", {
+        return axios.put(`${API_BASE_URL}/edit-password`, {
           userID: matchedUser.user_id,
           email: forgotEmail,
           loginUser: matchedUser.name,

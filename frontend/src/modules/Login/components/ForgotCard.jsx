@@ -1,6 +1,7 @@
 import React from 'react';
 import { Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import ReCAPTCHA from 'react-google-recaptcha';
+import { RECAPTCHA_SITE_KEY } from '../constants';
 
 export default function ForgotCard({
   forgotStep,
@@ -48,7 +49,7 @@ export default function ForgotCard({
           <div className="w-full flex justify-center bg-white/5 p-2 rounded-lg border border-white/10 shadow-inner overflow-hidden animate-fade-in">
             <div className="scale-95 origin-center flex justify-center w-full py-1">
               <ReCAPTCHA
-                sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
+                sitekey={RECAPTCHA_SITE_KEY}
                 onChange={(val) => {
                   dispatch({ type: 'SET_FIELD', field: 'forgotRecaptchaToken', value: val || "" });
                 }}
