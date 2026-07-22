@@ -420,7 +420,7 @@ export default function DataList({
         <button
           onClick={() => setActiveStatusTab('active')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeStatusTab === 'active'
-            ? 'border-[#0f417a] text-[#0f417a] dark:text-blue-400 dark:border-blue-400'
+            ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
             : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
             }`}
         >
@@ -429,7 +429,7 @@ export default function DataList({
         <button
           onClick={() => setActiveStatusTab('relieved')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeStatusTab === 'relieved'
-            ? 'border-[#0f417a] text-[#0f417a] dark:text-blue-400 dark:border-blue-400'
+            ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
             : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
             }`}
         >

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown, Plus, Search, ArrowLeft } from 'lucide-react';
+import axios from 'axios';
 import CommonTable from '../../components/CommonTable';
 
 export default function PortsInputFormView() {
@@ -9,6 +10,47 @@ export default function PortsInputFormView() {
   const [selectedMonth, setSelectedMonth] = useState('Show All');
   const [selectedOrg, setSelectedOrg] = useState('Show All');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Paged Traffic states
+  const [selectedForm, setSelectedForm] = useState('financial'); // 'financial' or 'traffic'
+  const [trafficData, setTrafficData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalEntries, setTotalEntries] = useState(0);
+  const [entriesLimit, setEntriesLimit] = useState(10);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (subView === 'details' && selectedForm === 'traffic') {
+      setLoading(true);
+      axios.get(`http://localhost:3000/get-traffic-actual-data`, {
+        params: {
+          page: currentPage,
+          limit: entriesLimit
+        }
+      })
+      .then(res => {
+        const resData = res.data;
+        if (resData && Array.isArray(resData.data)) {
+          setTrafficData(resData.data);
+          if (resData.pagination) {
+            setTotalPages(resData.pagination.totalPages || 1);
+            setTotalEntries(resData.pagination.total || 0);
+          }
+        } else if (Array.isArray(resData)) {
+          setTrafficData(resData);
+          setTotalPages(1);
+          setTotalEntries(resData.length);
+        }
+      })
+      .catch(err => {
+        console.error("Error fetching traffic data:", err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+    }
+  }, [subView, selectedForm, currentPage, entriesLimit]);
 
   // Main list data
   const formList = [
@@ -101,6 +143,11 @@ export default function PortsInputFormView() {
 
   const handleRowClick = (desc) => {
     if (desc === 'Financial Parameters for Major Ports') {
+      setSelectedForm('financial');
+      setSubView('details');
+    } else if (desc === 'Traffic') {
+      setSelectedForm('traffic');
+      setCurrentPage(1);
       setSubView('details');
     }
   };
@@ -114,7 +161,7 @@ export default function PortsInputFormView() {
       flex: 1,
       cellRenderer: (params) => {
         const desc = params.value;
-        const isClickable = desc === 'Financial Parameters for Major Ports';
+        const isClickable = desc === 'Financial Parameters for Major Ports' || desc === 'Traffic';
         return (
           <button
             onClick={() => handleRowClick(desc)}
@@ -127,6 +174,19 @@ export default function PortsInputFormView() {
         );
       }
     }
+  ];
+
+  const trafficColDefs = [
+    { headerName: 'S.No', valueGetter: (params) => params.node.rowIndex + 1 + (currentPage - 1) * entriesLimit, width: 80, pinned: 'left' },
+    { headerName: 'Fiscal Year', field: 'fiscal_year', width: 120 },
+    { headerName: 'Month', field: 'month', width: 120 },
+    { headerName: 'Organisation Name', field: 'organisation_name', width: 220, cellClass: 'font-extrabold text-slate-800' },
+    { headerName: 'Category Name', field: 'category_name', width: 180 },
+    { headerName: 'Commodity Group', field: 'commodity_group_name', width: 180 },
+    { headerName: 'Commodity Name', field: 'commodity_name', width: 180 },
+    { headerName: 'Direction Name', field: 'direction_name', width: 150 },
+    { headerName: 'Flag Type', field: 'flag_type_name', width: 150 },
+    { headerName: 'Value', field: 'value', width: 120, cellClass: 'text-right font-bold' }
   ];
 
   const detailColDefs = [
@@ -192,7 +252,7 @@ export default function PortsInputFormView() {
                 <ArrowLeft className="h-4 w-4" />
               </button>
               <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight font-display">
-                Financial Parameters for Major Ports
+                {selectedForm === 'traffic' ? 'Traffic for Major Ports' : 'Financial Parameters for Major Ports'}
               </h1>
             </div>
             
@@ -221,60 +281,62 @@ export default function PortsInputFormView() {
             </div>
           </div>
 
-          {/* Filter row */}
-          <div className="bg-slate-50/50 border border-slate-150 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-5 relative">
-            {/* Financial Year */}
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Financial Year</label>
-              <div className="relative">
-                <select
-                  value={selectedFy}
-                  onChange={(e) => setSelectedFy(e.target.value)}
-                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
-                >
-                  <option>Show All</option>
-                  <option>2026-2027</option>
-                </select>
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+          {/* Filter row - only show for financial parameters, since traffic pagination is backend-driven without filters currently */}
+          {selectedForm === 'financial' && (
+            <div className="bg-slate-50/50 border border-slate-150 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-5 relative">
+              {/* Financial Year */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Financial Year</label>
+                <div className="relative">
+                  <select
+                    value={selectedFy}
+                    onChange={(e) => setSelectedFy(e.target.value)}
+                    className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
+                  >
+                    <option>Show All</option>
+                    <option>2026-2027</option>
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
               </div>
-            </div>
 
-            {/* Month */}
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Month</label>
-              <div className="relative">
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
-                >
-                  <option>Show All</option>
-                  <option>May</option>
-                  <option>June</option>
-                </select>
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+              {/* Month */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Month</label>
+                <div className="relative">
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
+                  >
+                    <option>Show All</option>
+                    <option>May</option>
+                    <option>June</option>
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
               </div>
-            </div>
 
-            {/* Organisation Name */}
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Organisation Name</label>
-              <div className="relative">
-                <select
-                  value={selectedOrg}
-                  onChange={(e) => setSelectedOrg(e.target.value)}
-                  className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
-                >
-                  <option>Show All</option>
-                  <option>Chennai Port Authority</option>
-                  <option>Cochin Port Authority</option>
-                  <option>Kamarajar Port Limited</option>
-                  <option>Deendayal Port Authority</option>
-                </select>
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+              {/* Organisation Name */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Organisation Name</label>
+                <div className="relative">
+                  <select
+                    value={selectedOrg}
+                    onChange={(e) => setSelectedOrg(e.target.value)}
+                    className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
+                  >
+                    <option>Show All</option>
+                    <option>Chennai Port Authority</option>
+                    <option>Cochin Port Authority</option>
+                    <option>Kamarajar Port Limited</option>
+                    <option>Deendayal Port Authority</option>
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Table Controls and Search */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t border-slate-100 pt-4">
@@ -306,12 +368,42 @@ export default function PortsInputFormView() {
           </div>
 
           <CommonTable 
-            rowData={filteredDetailsData}
-            columnDefs={detailColDefs}
+            rowData={selectedForm === 'traffic' ? trafficData : filteredDetailsData}
+            columnDefs={selectedForm === 'traffic' ? trafficColDefs : detailColDefs}
             rowHeight={46}
             headerHeight={38}
             autoSize={false}
+            loading={loading}
           />
+
+          {/* Pagination Controls for Traffic */}
+          {selectedForm === 'traffic' && (
+            <div className="flex items-center justify-between border-t border-slate-100 pt-4 select-none">
+              <span className="text-xs text-slate-500 font-semibold">
+                Showing Page {currentPage} of {totalPages} ({totalEntries} total entries)
+              </span>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1 || loading}
+                  className={`px-3.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    currentPage === 1 ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages || loading}
+                  className={`px-3.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    currentPage === totalPages ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
