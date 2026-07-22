@@ -44,6 +44,14 @@ export default function DataList({
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
+  const [activeCategory, setActiveCategory] = useState('active'); // 'active' or 'disposed'
+
+  useEffect(() => {
+    if (activeCategory === 'disposed') {
+      setSelectedStage('All');
+    }
+  }, [activeCategory]);
+
   // Column visibility checklist
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
@@ -107,7 +115,7 @@ export default function DataList({
             remarks: r.remarks || '',
             deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
             stageSteps: steps,
-            stageDates: dates,
+            statusDates: dates,
             lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
           };
         });
@@ -144,10 +152,22 @@ export default function DataList({
       .map(d => d.division_name);
   }, [selectedWing, wings, divisions]);
 
-  // Group data by wing for chart visualization (based on total pending references)
+  const filteredData = useMemo(() => {
+    return rowData.filter(item => {
+      const isDisposed = item.stageSteps[6] === 'Yes';
+      if (activeCategory === 'active' && isDisposed) return false;
+      if (activeCategory === 'disposed' && !isDisposed) return false;
+      return true;
+    });
+  }, [rowData, activeCategory]);
+
+  const activeCount = useMemo(() => rowData.filter(item => item.stageSteps[6] !== 'Yes').length, [rowData]);
+  const disposedCount = useMemo(() => rowData.filter(item => item.stageSteps[6] === 'Yes').length, [rowData]);
+
+  // Group data by wing for chart visualization (based on filteredData)
   const chartData = useMemo(() => {
     const counts = {};
-    rowData.forEach(item => {
+    filteredData.forEach(item => {
       const w = item.wing || 'Unknown';
       const isPending = item.stageSteps[6] !== 'Yes';
       if (isPending) {
@@ -158,7 +178,7 @@ export default function DataList({
       name: key,
       'Pending References': counts[key]
     }));
-  }, [rowData]);
+  }, [filteredData]);
 
   const COLORS = ['#0f417a', '#1e5ea8', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -183,7 +203,7 @@ export default function DataList({
       });
 
       let rowsHtml = '';
-      rowData.forEach((row, rowIndex) => {
+      filteredData.forEach((row, rowIndex) => {
         rowsHtml += '<tr>';
         colDefs.forEach(col => {
           if (col.headerName && col.headerName !== 'Update') {
@@ -272,10 +292,14 @@ export default function DataList({
       headerName: 'Stage',
       field: 'stageSteps',
       minWidth: 180,
-      cellClass: 'text-center font-bold text-slate-800 border-r border-slate-100 flex items-center justify-center',
+      cellClass: 'text-center font-bold border-r border-slate-100 flex items-center justify-center',
       hide: !visibleCols.stage,
-      cellRenderer: (params) => getRefStageText(params.value),
-      valueFormatter: (params) => getRefStageText(params.value) // Fix AG Grid object warning
+      cellRenderer: (params) => {
+        const stageText = getRefStageText(params.value);
+        const color = activeCategory === 'disposed' ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500';
+        return <span className={color}>{stageText}</span>;
+      },
+      valueFormatter: (params) => getRefStageText(params.value)
     },
     {
       headerName: 'Reference Letter Number',
@@ -327,10 +351,33 @@ export default function DataList({
         </button>
       )
     }
-  ], [visibleCols]);
+  ], [visibleCols, onEdit, activeCategory]);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative">
+    <div className="space-y-6 animate-fade-in relative">
+      {/* Category selector tabs */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+        <button
+          onClick={() => setActiveCategory('active')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeCategory === 'active'
+            ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+            }`}
+        >
+          Active ({activeCount})
+        </button>
+        <button
+          onClick={() => setActiveCategory('disposed')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeCategory === 'disposed'
+            ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+            }`}
+        >
+          Disposed ({disposedCount})
+        </button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
 
       {/* Search & Actions Row */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 pb-4">
@@ -366,19 +413,21 @@ export default function DataList({
             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           </div> */}
 
-          <div className="relative">
-            <select
-              value={selectedStage}
-              onChange={(e) => {
-                setSelectedStage(e.target.value);
-              }}
-              className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 cursor-pointer min-w-[130px]"
-            >
-              <option value="All">All Stages</option>
-              {Object.values(STAGE_STEPS).map(stage => <option key={stage} value={stage}>{stage}</option>)}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          </div>
+          {activeCategory === 'active' && (
+            <div className="relative">
+              <select
+                value={selectedStage}
+                onChange={(e) => {
+                  setSelectedStage(e.target.value);
+                }}
+                className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 cursor-pointer min-w-[130px]"
+              >
+                <option value="All">All Stages</option>
+                {Object.values(STAGE_STEPS).filter(s => s !== 'Disposed').map(stage => <option key={stage} value={stage}>{stage}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            </div>
+          )}
 
           <div className="relative min-w-[160px] max-w-xs flex-1">
             <input
@@ -462,7 +511,7 @@ export default function DataList({
       {viewMode === 'table' ? (
         <Table
           ref={gridRef}
-          rowData={rowData}
+          rowData={filteredData}
           columnDefs={colDefs}
           pagination={true}
           paginationPageSize={entriesLimit}
@@ -502,10 +551,11 @@ export default function DataList({
           />
         </div>
         <div className="text-xs font-bold text-slate-550 uppercase tracking-wider">
-          Total Entries: {totalEntries}
+          Total Entries: {filteredData.length}
         </div>
       </div>
 
+      </div>
     </div>
   );
 }

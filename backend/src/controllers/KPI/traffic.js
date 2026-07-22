@@ -579,10 +579,10 @@ async function getTrafficActualData(req, res) {
             request.input('limit', limit);
 
             const countResult = await conn.query(`
-                // SELECT SUM(row_count) AS total_count 
-                // FROM sys.dm_db_partition_stats WITH (NOLOCK) 
-                // WHERE object_id = OBJECT_ID('tbl_traffic_commodity_data') 
-                //   AND index_id < 2;
+                -- SELECT SUM(row_count) AS total_count 
+                -- FROM sys.dm_db_partition_stats WITH (NOLOCK) 
+                -- WHERE object_id = OBJECT_ID('tbl_traffic_commodity_data') 
+                --   AND index_id < 2;
                 SELECT COUNT(*) AS total_count FROM tbl_traffic_commodity_data data;
             `);
             const total = countResult.recordset[0]?.total_count || 0;

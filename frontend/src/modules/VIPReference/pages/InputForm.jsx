@@ -246,6 +246,12 @@ export default function InputForm({
         [field]: val
       };
 
+      if (num === 1 && field === 'date' && val) {
+        const d = new Date(val);
+        d.setDate(d.getDate() + 15);
+        setDeadline(d.toISOString().split('T')[0]);
+      }
+
       // Cascade clear logic matching Cab Notes
       if (field === 'date' && !val) {
         for (let i = num + 1; i <= 6; i++) {
@@ -527,8 +533,9 @@ export default function InputForm({
               <input
                 type="date"
                 value={deadline}
+                readOnly
                 onChange={e => setDeadline(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none font-semibold text-slate-500 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-500 cursor-not-allowed"
               />
             </div>
 

@@ -414,7 +414,30 @@ export default function DataList({
   ], [onEdit, visibleCols]);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative dark:bg-slate-950 dark:border-slate-800">
+    <div className="space-y-6 animate-fade-in relative">
+      {/* Category selector tabs matching CabinetNotesMOPSW */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+        <button
+          onClick={() => setActiveStatusTab('active')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeStatusTab === 'active'
+            ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+            }`}
+        >
+          ACTIVE YPS ({activeYpCount})
+        </button>
+        <button
+          onClick={() => setActiveStatusTab('relieved')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeStatusTab === 'relieved'
+            ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+            }`}
+        >
+          RELIEVED YPS ({relievedYpCount})
+        </button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 dark:bg-slate-950 dark:border-slate-800">
 
       {/* Title & View Switcher Row with Search + Filters */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
@@ -567,33 +590,7 @@ export default function DataList({
         </div>
       </div>
 
-      {/* Active vs Relieved Sub-tabs */}
-      {viewMode === 'table' && (
-        <div className="flex border-b border-slate-100 select-none pb-3">
-          <div className="flex items-center border border-slate-200 rounded-xl p-1 bg-slate-50 dark:bg-slate-900 dark:border-slate-800">
-            <button
-              onClick={() => setActiveStatusTab('active')}
-              className={`px-5 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all duration-200 cursor-pointer ${
-                activeStatusTab === 'active'
-                  ? 'bg-[#0f417a] text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              Active YPs ({activeYpCount})
-            </button>
-            <button
-              onClick={() => setActiveStatusTab('relieved')}
-              className={`px-5 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all duration-200 cursor-pointer ${
-                activeStatusTab === 'relieved'
-                  ? 'bg-rose-600 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              Relieved YPs ({relievedYpCount})
-            </button>
-          </div>
-        </div>
-      )}
+
 
       {viewMode === 'table' ? (
         <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
@@ -753,6 +750,7 @@ export default function DataList({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
