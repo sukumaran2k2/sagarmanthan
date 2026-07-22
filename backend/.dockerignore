@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.env
+*.env
+temp env.txt
+fileuploads
+demoFiles
+*.log
+.git
