@@ -48,6 +48,7 @@ export default function DataList({
 }) {
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
+  const [selectedStage, setSelectedStage] = useState('');
   const [viewMode, setViewMode] = useState('table'); // table or chart switching
   const [gridApi, setGridApi] = useState(null); // Ag Grid API reference
   const [dropdownOpen, setDropdownOpen] = useState(false); // Visibility checklist dropdown
@@ -55,9 +56,13 @@ export default function DataList({
   const [visibleCols, setVisibleCols] = useState({
     subject: true,
     wing: true,
+    subject: true,
+    wing: true,
     division: true,
     stage: true
   });
+
+  const [activeCategory, setActiveCategory] = useState('active');
 
   const activeUserId = useMemo(() => {
     const token = localStorage.getItem('token');
@@ -114,8 +119,25 @@ export default function DataList({
     return 'Draft';
   };
 
+  // Derive Stage Options
+  const stageOptions = useMemo(() => {
+    const set = new Set();
+    rowData.forEach(item => {
+      const isDisposed = !!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date;
+      if (activeCategory === 'active' && isDisposed) return;
+      if (activeCategory === 'disposed' && !isDisposed) return;
+      const st = getBillStageText(item);
+      set.add(st);
+    });
+    return Array.from(set).map(s => ({ value: s, label: s }));
+  }, [rowData, activeCategory]);
+
   const filteredData = useMemo(() => {
     return rowData.filter(item => {
+      const isDisposed = !!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date;
+      if (activeCategory === 'active' && isDisposed) return false;
+      if (activeCategory === 'disposed' && !isDisposed) return false;
+
       const matchesWing = selectedWing
         ? String(item.wing) === String(selectedWing)
         : true;
@@ -124,9 +146,16 @@ export default function DataList({
         ? String(item.division) === String(selectedDivision)
         : true;
 
-      return matchesWing && matchesDivision;
+      const matchesStage = selectedStage
+        ? getBillStageText(item) === selectedStage
+        : true;
+
+      return matchesWing && matchesDivision && matchesStage;
     });
-  }, [rowData, selectedWing, selectedDivision]);
+  }, [rowData, selectedWing, selectedDivision, selectedStage, activeCategory]);
+
+  const activeCount = useMemo(() => rowData.filter(item => !(!!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date)).length, [rowData]);
+  const disposedCount = useMemo(() => rowData.filter(item => (!!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date)).length, [rowData]);
 
   const chartData = useMemo(() => {
     const counts = {};
@@ -199,8 +228,13 @@ export default function DataList({
       headerName: 'Stage',
       flex: 1.2,
       minWidth: 180,
-      cellClass: 'text-slate-700 dark:text-slate-300 font-bold text-center',
+      cellClass: 'font-bold text-center flex items-center justify-center',
       hide: !visibleCols.stage,
+      cellRenderer: (params) => {
+        const stageText = getBillStageText(params.data);
+        const color = activeCategory === 'disposed' ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500';
+        return <span className={color}>{stageText}</span>;
+      },
       valueGetter: (params) => getBillStageText(params.data)
     },
     {
@@ -221,9 +255,7 @@ export default function DataList({
         );
       }
     }
-  ], [onEdit, visibleCols, activeUserId]);
-
-
+  ], [onEdit, visibleCols, activeUserId, activeCategory]);
 
   const handleExport = (type) => {
     if (type === 'Excel') {
@@ -304,6 +336,27 @@ export default function DataList({
   return (
     <div className="space-y-6">
 
+      {/* Category selector tabs */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none">
+        <button
+          onClick={() => setActiveCategory('active')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeCategory === 'active'
+            ? 'border-[#0f417a] text-[#0f417a] dark:text-blue-400 dark:border-blue-400'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+            }`}
+        >
+          Active Bills ({activeCount})
+        </button>
+        <button
+          onClick={() => setActiveCategory('disposed')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeCategory === 'disposed'
+            ? 'border-[#0f417a] text-[#0f417a] dark:text-blue-400 dark:border-blue-400'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+            }`}
+        >
+          Disposed Bills ({disposedCount})
+        </button>
+      </div>
 
       {/* Table & Filters */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
@@ -338,10 +391,26 @@ export default function DataList({
               </select>
             </div>
 
+            {/* Stage Dropdown */}
+            {activeCategory === 'active' && (
+              <div className="w-48 relative">
+                <select
+                  value={selectedStage}
+                  onChange={(e) => setSelectedStage(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">Show all Stages</option>
+                  {stageOptions.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Clear Button */}
-            {(selectedWing || selectedDivision) && (
+            {(selectedWing || selectedDivision || selectedStage) && (
               <button
-                onClick={() => { setSelectedWing(''); setSelectedDivision(''); }}
+                onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSelectedStage(''); }}
                 className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
               >
                 <span className="h-3.5 w-3.5 text-center">✕</span>

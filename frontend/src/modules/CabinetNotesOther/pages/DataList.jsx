@@ -51,15 +51,18 @@ export default function DataList({
   const stageOptions = useMemo(() => {
     const set = new Set();
     rowData.forEach(item => {
+      const isCompleted = item.stage_name?.includes('Reply furnished to other ministry') || !!item.reply_furnished_date;
+      if (activeCategory === 'active' && isCompleted) return;
+      if (activeCategory === 'completed' && !isCompleted) return;
       const st = item.stage_name || (item.reply_furnished_date ? 'Reply Furnished' : item.comments_rec_date ? 'Comments Received' : 'Pending');
       set.add(st);
     });
     return Array.from(set).map(s => ({ value: s, label: s }));
-  }, [rowData]);
+  }, [rowData, activeCategory]);
 
   const filteredData = useMemo(() => {
     return rowData.filter(item => {
-      const isCompleted = !!item.reply_furnished_date;
+      const isCompleted = item.stage_name?.includes('Reply furnished to other ministry') || !!item.reply_furnished_date;
       const matchesCategory = activeCategory === 'completed' ? isCompleted : !isCompleted;
 
       if (!matchesCategory) return false;
@@ -138,10 +141,14 @@ export default function DataList({
       headerName: 'Stage',
       flex: 1.2,
       minWidth: 130,
-      cellClass: 'text-slate-700 dark:text-slate-300 font-bold text-center',
+      cellClass: 'font-bold text-center flex items-center justify-center',
       valueGetter: (params) => {
         const item = params.data;
-        return item.stage_name || (item.reply_furnished_date ? 'Reply Furnished' : item.comments_rec_date ? 'Comments Received' : 'Pending');
+        return item.stage_name || (item.reply_furnished_date ? 'Reply furnished to other ministry' : item.comments_rec_date ? 'Comments Received' : 'Pending');
+      },
+      cellRenderer: (params) => {
+        const color = activeCategory === 'completed' ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500';
+        return <span className={color}>{params.value}</span>;
       },
       hide: !visibleCols.stage
     },
@@ -163,10 +170,10 @@ export default function DataList({
         );
       }
     }
-  ], [onEdit, visibleCols]);
+  ], [onEdit, visibleCols, activeCategory]);
 
-  const activeCount = useMemo(() => rowData.filter(r => !r.reply_furnished_date).length, [rowData]);
-  const completedCount = useMemo(() => rowData.filter(r => !!r.reply_furnished_date).length, [rowData]);
+  const activeCount = useMemo(() => rowData.filter(r => !(r.stage_name?.includes('Reply furnished to other ministry') || !!r.reply_furnished_date)).length, [rowData]);
+  const completedCount = useMemo(() => rowData.filter(r => (r.stage_name?.includes('Reply furnished to other ministry') || !!r.reply_furnished_date)).length, [rowData]);
 
   const handleExport = (type) => {
     if (type === 'Excel') {
@@ -283,18 +290,20 @@ export default function DataList({
             </div>
 
             {/* Stage Dropdown */}
-            <div className="w-48 relative">
-              <select
-                value={selectedStage}
-                onChange={(e) => setSelectedStage(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
-              >
-                <option value="">Show all Stages</option>
-                {stageOptions.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-            </div>
+            {activeCategory === 'active' && (
+              <div className="w-48 relative">
+                <select
+                  value={selectedStage}
+                  onChange={(e) => setSelectedStage(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">Show all Stages</option>
+                  {stageOptions.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Clear Button */}
             {(selectedMinistry || selectedStage) && (

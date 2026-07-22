@@ -17,6 +17,7 @@ export default function DataList({
 }) {
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
+  const [selectedStage, setSelectedStage] = useState('');
   const [viewMode, setViewMode] = useState('table'); // table or chart switching
   const [gridApi, setGridApi] = useState(null); // Ag Grid API reference
   const [dropdownOpen, setDropdownOpen] = useState(false); // Visibility checklist dropdown
@@ -85,9 +86,21 @@ export default function DataList({
     }));
   }, [divisions]);
 
+  // Derive Stage Options
+  const stageOptions = useMemo(() => {
+    const set = new Set();
+    rowData.forEach(item => {
+      const isCompleted = item.mopsw_stage_name?.includes('DCM Been Approved') || !!item.completed_date;
+      if (activeCategory === 'active' && isCompleted) return;
+      if (activeCategory === 'completed' && !isCompleted) return;
+      if (item.mopsw_stage_name) set.add(item.mopsw_stage_name);
+    });
+    return Array.from(set).map(s => ({ value: s, label: s }));
+  }, [rowData, activeCategory]);
+
   const filteredData = useMemo(() => {
     return rowData.filter(item => {
-      const isCompleted = !!item.completed_date;
+      const isCompleted = item.mopsw_stage_name?.includes('DCM Been Approved') || !!item.completed_date;
       const matchesCategory = activeCategory === 'completed' ? isCompleted : !isCompleted;
 
       if (!matchesCategory) return false;
@@ -100,9 +113,13 @@ export default function DataList({
         ? String(item.division) === String(selectedDivision)
         : true;
 
-      return matchesWing && matchesDivision;
+      const matchesStage = selectedStage
+        ? item.mopsw_stage_name === selectedStage
+        : true;
+
+      return matchesWing && matchesDivision && matchesStage;
     });
-  }, [rowData, selectedWing, selectedDivision, activeCategory]);
+  }, [rowData, selectedWing, selectedDivision, selectedStage, activeCategory]);
 
   const chartData = useMemo(() => {
     const counts = {};
@@ -164,7 +181,11 @@ export default function DataList({
       headerName: 'Status',
       flex: 1.2,
       minWidth: 130,
-      cellClass: 'text-slate-700 dark:text-slate-300 font-bold text-center',
+      cellClass: 'font-bold text-center flex items-center justify-center',
+      cellRenderer: (params) => {
+        const color = activeCategory === 'completed' ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500';
+        return <span className={color}>{params.value}</span>;
+      },
       hide: !visibleCols.status
     },
     {
@@ -214,8 +235,8 @@ export default function DataList({
     }
   ], [onEdit, activeCategory, visibleCols, handleOpenDownloadModal]);
 
-  const activeCount = useMemo(() => rowData.filter(r => !r.completed_date).length, [rowData]);
-  const completedCount = useMemo(() => rowData.filter(r => !!r.completed_date).length, [rowData]);
+  const activeCount = useMemo(() => rowData.filter(r => !(r.mopsw_stage_name?.includes('DCM Been Approved') || !!r.completed_date)).length, [rowData]);
+  const completedCount = useMemo(() => rowData.filter(r => (r.mopsw_stage_name?.includes('DCM Been Approved') || !!r.completed_date)).length, [rowData]);
 
   const handleExport = (type) => {
     if (type === 'Excel') {
@@ -350,10 +371,26 @@ export default function DataList({
               </select>
             </div>
 
+            {/* Stage Dropdown */}
+            {activeCategory === 'active' && (
+              <div className="w-48 relative">
+                <select
+                  value={selectedStage}
+                  onChange={(e) => setSelectedStage(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">Show all Stages</option>
+                  {stageOptions.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Clear Button */}
-            {(selectedWing || selectedDivision) && (
+            {(selectedWing || selectedDivision || selectedStage) && (
               <button
-                onClick={() => { setSelectedWing(''); setSelectedDivision(''); }}
+                onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSelectedStage(''); }}
                 className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />

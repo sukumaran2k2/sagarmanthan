@@ -136,17 +136,6 @@ async function createMinistryCabinet(req, res) {
     request.input("replyFurnishedRemarks", replyFurnishedRemarks);
 
     try {
-        /*
-        -- PREVIOUS QUERY ON OLD TABLE:
-        const result = await request.query(`INSERT INTO tbl_cabinet_notes_ministry (subject, ministry_id, ministry_name, eoffice_file_number, deadline,
-            received_ministry, received_ministry_date, sent_for_comments, sent_for_comments_date, sent_for_comments_wings, comments_rec, comments_rec_date,
-            shipping, shipping_date, vigilance, vigilance_date, ports, ports_date, iwt, iwt_date, administration, 
-            administration_date, coord_I, coord_I_date, coord_II, coord_II_date, dgll_parliament_and_trw, 
-            dgll_parliament_and_trw_date, development, development_date, finance, finance_date, sagarmala, sagarmala_date,
-            file_submitted, file_submitted_date, reply_furnished, reply_furnished_date, remarks, stage_id, created_by)
-            OUTPUT INSERTED.cabinet_notes_ministry_id
-            VALUES (@cabinetSubject, ...`);
-        */
 
         const result = await request.query(`INSERT INTO tbl_cabinet_notes_ministry_change (
             subject, ministry_id, ministry_name, eoffice_file_number, deadline,
@@ -301,13 +290,6 @@ async function editMinistryCabinet(req, res) {
     request.input("replyFurnishedRemarks", replyFurnishedRemarks);
 
     try {
-        /*
-        -- PREVIOUS QUERY ON OLD TABLE:
-        const result = await request.query(`
-            UPDATE tbl_cabinet_notes_ministry SET
-            subject = @cabinetSubject, ...
-        `);
-        */
         const result = await request.query(`
             UPDATE tbl_cabinet_notes_ministry_change SET
             subject = @cabinetSubject,
@@ -379,13 +361,6 @@ async function getCabinetMinistry(req, res) {
         `);
 
         const role_id = userResult.recordset.length > 0 ? userResult.recordset[0].role_id : null;
-
-        /*
-        -- PREVIOUS QUERY ON OLD TABLE:
-        FROM tbl_cabinet_notes_ministry
-        INNER JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
-        INNER JOIN mmt_cabinet_ministry_stage AS stage ON tbl_cabinet_notes_ministry.stage_id = stage.cab_ministry_stage_id
-        */
 
         if (!role_id || role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
             const result = await conn.query(`
@@ -473,10 +448,6 @@ async function getUpdateCabinetMinistryData(req, res) {
     request.input("ministryCabinetID", ministryCabinetID);
 
     try {
-        /*
-        -- PREVIOUS QUERY ON OLD TABLE:
-        const result = await request.query(`SELECT * FROM tbl_cabinet_notes_ministry WHERE tbl_cabinet_notes_ministry.cabinet_notes_ministry_id = @ministryCabinetID;`);
-        */
         const result = await request.query(`SELECT * FROM tbl_cabinet_notes_ministry_change WHERE cabinet_notes_ministry_id = @ministryCabinetID;`);
         res.json(result.recordset);
     }
@@ -486,16 +457,15 @@ async function getUpdateCabinetMinistryData(req, res) {
     }
 };
 
-async function deleteCabinetNotesMinistry (req, res) 
-{    
+async function deleteCabinetNotesMinistry(req, res) {
     const cabinetNotesMinistryId = req.params.cabinet_notes_ministry_id;
     const userID = req.params.userID;
 
     const now = new Date();
-    const datePart = now.toISOString().slice(0, 10).replace(/-/g, ''); 
-    const hourPart = String(now.getHours()).padStart(2, '0'); 
-    const minutePart = String(now.getMinutes()).padStart(2, '0'); 
-    const secondPart = String(now.getSeconds()).padStart(2, '0'); 
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const hourPart = String(now.getHours()).padStart(2, '0');
+    const minutePart = String(now.getMinutes()).padStart(2, '0');
+    const secondPart = String(now.getSeconds()).padStart(2, '0');
     const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
     const logFolder = `./delete_log/cabinet_notes_other`;
     const logFileName = `${logFolder}/deleted_cabinet_notes_other_log_${timestamp}.txt`;
@@ -503,16 +473,10 @@ async function deleteCabinetNotesMinistry (req, res)
     const conn = await pool;
     const request = conn.request();
     request.input("cabinetNotesMinistryId", cabinetNotesMinistryId);
-    try
-    {
-        /*
-        -- PREVIOUS DELETE QUERY ON OLD TABLE:
-        const dataToDelete = await request.query(`SELECT * FROM tbl_cabinet_notes_ministry WHERE cabinet_notes_ministry_id = @cabinetNotesMinistryId;`);
-        const result = await request.query(`DELETE FROM tbl_cabinet_notes_ministry WHERE cabinet_notes_ministry_id = @cabinetNotesMinistryId;`);
-        */
+    try {
         const dataToDelete = await request.query(`SELECT * FROM tbl_cabinet_notes_ministry_change WHERE cabinet_notes_ministry_id = @cabinetNotesMinistryId;`);
         const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-    
+
         const result = await request.query(`DELETE FROM tbl_cabinet_notes_ministry_change WHERE cabinet_notes_ministry_id = @cabinetNotesMinistryId;`);
         if (result.rowsAffected[0] > 0) {
             const logMessage = `User ${userID} deleted Cabinet Notes Ministry data with Data ID ${cabinetNotesMinistryId}. Deleted Data: ${dataJSON}\n`;
@@ -531,18 +495,17 @@ async function deleteCabinetNotesMinistry (req, res)
             return res.status(404).send("Data not found");
         }
     }
-    catch(err)
-    {
+    catch (err) {
         console.log(err);
         return res.sendStatus(500);
     }
 };
 
-export default { 
-    createMinistryCabinet, 
-    getCabinetMinistry, 
-    editMinistryCabinet, 
-    getUpdateCabinetMinistryData, 
-    createCabinetNotesMinistryStage, 
-    deleteCabinetNotesMinistry 
-};
+export default {
+    createMinistryCabinet,
+    getCabinetMinistry,
+    editMinistryCabinet,
+    getUpdateCabinetMinistryData,
+    createCabinetNotesMinistryStage,
+    deleteCabinetNotesMinistry
+};

@@ -538,9 +538,9 @@ export default function InputForm({
               <input
                 type="date"
                 value={deadline}
+                readOnly
                 onChange={e => setDeadline(e.target.value)}
-                disabled={readOnly}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 focus:border-[#0f417a] rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none font-semibold text-slate-500 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-500 cursor-not-allowed"
               />
             </div>
 
