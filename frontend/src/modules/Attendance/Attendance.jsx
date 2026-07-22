@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 import { 
   UserCheck, 
   ChevronLeft, 
@@ -14,11 +15,15 @@ import {
   X,
   TrendingUp,
   RefreshCw,
-  Users
+  Users,
+  Edit3,
+  Check
 } from 'lucide-react';
 import Table from '../../components/table';
 import ExportDropdown from '../../components/ExportDropdown';
 import CopyButton from '../../components/CopyButton';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 function colorFromString(s = '') {
   let h = 0;
@@ -32,23 +37,59 @@ function getInits(n) {
   return n.split(' ').map(x => x[0]).join('').toUpperCase().slice(0, 2);
 }
 
-// Formats full ISO datetime string (e.g., "1970-01-01T09:30:00.000Z") to clean time string "09:30:00"
+// Formats full ISO datetime string, decimal numbers, or time strings to clean time string "09:30:00"
 function formatTimeStr(val) {
-  if (!val) return '—';
+  if (val === null || val === undefined || val === '') return '—';
+
+  // Handle numeric float or integer values (e.g. 8.5, -8.5, or 0.354 day fraction)
+  if (typeof val === 'number') {
+    if (isNaN(val)) return '—';
+    const absVal = Math.abs(val);
+    if (absVal === 0) return '00:00:00';
+    // If Excel fraction of day (e.g. 0.354)
+    if (absVal > 0 && absVal < 1) {
+      const totalSeconds = Math.round(absVal * 24 * 60 * 60);
+      const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+      const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+      const seconds = String(totalSeconds % 60).padStart(2, '0');
+      return `${hours}:${minutes}:${seconds}`;
+    }
+    // If decimal hours (e.g. 8.5)
+    if (absVal <= 24) {
+      const totalSeconds = Math.round(absVal * 3600);
+      const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+      const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+      const seconds = String(totalSeconds % 60).padStart(2, '0');
+      return `${hours}:${minutes}:${seconds}`;
+    }
+    return String(absVal);
+  }
+
   if (typeof val === 'string') {
-    if (val.includes('T')) {
-      const parts = val.split('T');
+    let cleanVal = val.trim();
+    // Strip leading minus sign if present
+    if (cleanVal.startsWith('-')) {
+      cleanVal = cleanVal.substring(1).trim();
+    }
+    if (cleanVal.includes('T')) {
+      const parts = cleanVal.split('T');
       if (parts[1]) {
         return parts[1].slice(0, 8);
       }
-    } else if (val.includes(' ')) {
-      const parts = val.split(' ');
+    } else if (cleanVal.includes(' ')) {
+      const parts = cleanVal.split(' ');
       if (parts[1]) {
         return parts[1].slice(0, 8);
       }
     }
-    return val;
+    // Check if string is a numeric representation (e.g., "-8.5" or "8.5")
+    const parsedNum = Number(cleanVal);
+    if (!isNaN(parsedNum) && cleanVal.indexOf(':') === -1) {
+      return formatTimeStr(parsedNum);
+    }
+    return cleanVal || '—';
   }
+
   // Handle Date objects
   if (val instanceof Date) {
     return val.toTimeString().split(' ')[0];
@@ -57,7 +98,7 @@ function formatTimeStr(val) {
 }
 
 export default function AttendanceView() {
-  const [subTab, setSubTab] = useState('report'); // 'report' | 'data' | 'files'
+  const [subTab, setSubTab] = useState('report'); // 'report' | 'data' | 'files' | 'upload'
   const [searchTerm, setSearchTerm] = useState('');
   
   // Data lists from DB
@@ -65,17 +106,31 @@ export default function AttendanceView() {
   const [employeeRows, setEmployeeRows] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Upload modal states
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  // Upload states & file data preview
   const [selectedFile, setSelectedFile] = useState(null);
+  const [previewRows, setPreviewRows] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadFinancialYear, setUploadFinancialYear] = useState('');
+  const [uploadMonth, setUploadMonth] = useState('');
+  const [uploadWeek, setUploadWeek] = useState('');
 
   // Toast notification states
   const [toastMsg, setToastMsg] = useState('');
   const [toastColor, setToastColor] = useState('#3B82F6');
   const [toastVisible, setToastVisible] = useState(false);
 
+  // View Data tab filter states
+  const [dataFilterWing, setDataFilterWing] = useState('All');
+  const [dataFilterMonth, setDataFilterMonth] = useState('All');
+  const [dataFilterYear, setDataFilterYear] = useState('All');
+  const [viewDataReportType, setViewDataReportType] = useState('monthly'); // 'monthly' | 'yearly'
+
+  // Update employee record modal state
+  const [editRecord, setEditRecord] = useState(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
   // ---- ABSTRACT REPORT TAB STATE ----
+  const [reportType, setReportType] = useState('weekly'); // 'weekly' | 'yearly'
   const [reportData, setReportData] = useState([]);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportMonth, setReportMonth] = useState('July');
@@ -104,12 +159,12 @@ export default function AttendanceView() {
     setLoading(true);
     
     // Fetch uploaded files list
-    const p1 = axios.get("http://localhost:3000/attendance")
+    const p1 = axios.get(`${API_BASE_URL}/attendance`)
       .then(res => setFilesList(res.data || []))
       .catch(err => console.error("Error fetching files list:", err));
 
     // Fetch parsed employee excel rows
-    const p2 = axios.get("http://localhost:3000/excelData")
+    const p2 = axios.get(`${API_BASE_URL}/excelData`)
       .then(res => setEmployeeRows(res.data || []))
       .catch(err => console.error("Error fetching employee attendance rows:", err));
 
@@ -121,7 +176,7 @@ export default function AttendanceView() {
   useEffect(() => {
     fetchFilesAndData();
 
-    axios.get("http://localhost:3000/employee-attendance-check")
+    axios.get(`${API_BASE_URL}/employee-attendance-check`)
       .then(res => {
         const data = res.data;
         if (data && data.length > 0) {
@@ -135,7 +190,7 @@ export default function AttendanceView() {
           
           // Fetch abstract report for these parameters
           setReportLoading(true);
-          axios.get(`http://localhost:3000/employee-attendance-weekone-report/${latestMonth}/${latestYear}/${latestWeek}`)
+          axios.get(`${API_BASE_URL}/employee-attendance-weekone-report/${latestMonth}/${latestYear}/${latestWeek}`)
             .then(r => setReportData(r.data.rowData || []))
             .catch(e => console.error("Report fetch error:", e))
             .finally(() => setReportLoading(false));
@@ -155,7 +210,7 @@ export default function AttendanceView() {
   const handleFetchReport = () => {
     setReportLoading(true);
     setReportViewMode('summary'); // Switch back to summary when fetching new parameters
-    axios.get(`http://localhost:3000/employee-attendance-weekone-report/${reportMonth}/${reportYear}/${reportWeek}`)
+    axios.get(`${API_BASE_URL}/employee-attendance-weekone-report/${reportMonth}/${reportYear}/${reportWeek}`)
       .then(res => {
         setReportData(res.data.rowData || []);
       })
@@ -193,27 +248,135 @@ export default function AttendanceView() {
     return (sum / employeeRows.length).toFixed(1) + ' Days';
   }, [employeeRows]);
 
+  // Aggregate yearly report rows from employee database records
+  const yearlyReportRows = useMemo(() => {
+    if (!employeeRows || employeeRows.length === 0) return [];
+    
+    // Filter employee rows by selected year
+    const yearFiltered = employeeRows.filter(r => String(r.Year || '') === String(reportYear));
+    if (yearFiltered.length === 0) return [];
+
+    const wingMap = {};
+    yearFiltered.forEach(r => {
+      const wing = r.Wing || 'Unassigned';
+      if (!wingMap[wing]) {
+        wingMap[wing] = {
+          Wing: wing,
+          empIds: new Set(),
+          hoursSum: 0,
+          hoursCount: 0,
+          less8Count: 0,
+          before930Count: 0,
+          after930Count: 0,
+          before530Count: 0,
+        };
+      }
+      const item = wingMap[wing];
+      if (r.EmpId) item.empIds.add(r.EmpId);
+      
+      const hrs = parseFloat(r.WorkingHours) || 0;
+      if (hrs > 0) {
+        item.hoursSum += hrs;
+        item.hoursCount += 1;
+      }
+      if (hrs > 0 && hrs < 8.5) item.less8Count += 1;
+      
+      const inTime = r.InTimeAvg || '';
+      const outTime = r.OutTimeAvg || '';
+      if (inTime) {
+        const timePart = formatTimeStr(inTime);
+        if (timePart < '09:30:00') item.before930Count += 1;
+        else item.after930Count += 1;
+      }
+      if (outTime) {
+        const timePart = formatTimeStr(outTime);
+        if (timePart < '17:30:00') item.before530Count += 1;
+      }
+    });
+
+    return Object.values(wingMap).map(w => ({
+      Wing: w.Wing,
+      'Number Of Employees': w.empIds.size || 1,
+      'Average Working Hours': w.hoursCount > 0 ? parseFloat((w.hoursSum / w.hoursCount).toFixed(1)) : 0,
+      'Number Of Employees - Average Working Hours Less Than 8 1/2 hrs': w.less8Count,
+      'Number Of Employees InTime Before 9:30AM': w.before930Count,
+      'Number Of Employees InTime After 9:30AM': w.after930Count,
+      'Number Of Employees OutTime before 5:30PM': w.before530Count,
+    }));
+  }, [employeeRows, reportYear]);
+
+  // Active report data depending on report mode (Weekly vs Yearly)
+  const activeReportData = useMemo(() => {
+    if (reportType === 'yearly') {
+      return yearlyReportRows;
+    }
+    return reportData;
+  }, [reportType, yearlyReportRows, reportData]);
+
   // ---- REPORT AGGREGATES ----
   const aggregates = useMemo(() => {
-    if (reportData.length === 0) return null;
-    const totalEmployees = reportData.reduce((sum, r) => sum + Number(r['Number Of Employees'] || 0), 0);
-    const avgHours = reportData.reduce((sum, r) => sum + Number(r['Average Working Hours'] || 0), 0) / reportData.length;
-    const totalLess8 = reportData.reduce((sum, r) => sum + Number(r['Number Of Employees - Average Working Hours Less Than 8 1/2 hrs'] || 0), 0);
-    const totalBefore930 = reportData.reduce((sum, r) => sum + Number(r['Number Of Employees InTime Before 9:30AM'] || 0), 0);
-    const totalAfter930 = reportData.reduce((sum, r) => sum + Number(r['Number Of Employees InTime After 9:30AM'] || 0), 0);
-    const totalBefore530 = reportData.reduce((sum, r) => sum + Number(r['Number Of Employees OutTime before 5:30PM'] || 0), 0);
-    
+    if (!activeReportData || activeReportData.length === 0) return null;
+    let totalEmployees = 0;
+    let sumHours = 0;
+    let countHours = 0;
+    let totalLess8 = 0;
+    let totalBefore930 = 0;
+    let totalAfter930 = 0;
+    let totalBefore530 = 0;
+
+    activeReportData.forEach(row => {
+      const emp = Number(row['Number Of Employees']) || 0;
+      const hrs = parseFloat(row['Average Working Hours']) || 0;
+      totalEmployees += emp;
+      if (hrs > 0) {
+        sumHours += hrs * emp;
+        countHours += emp;
+      }
+      totalLess8 += Number(row['Number Of Employees - Average Working Hours Less Than 8 1/2 hrs']) || 0;
+      totalBefore930 += Number(row['Number Of Employees InTime Before 9:30AM']) || 0;
+      totalAfter930 += Number(row['Number Of Employees InTime After 9:30AM']) || 0;
+      totalBefore530 += Number(row['Number Of Employees OutTime before 5:30PM']) || 0;
+    });
+
+    const avgHours = countHours > 0 ? (sumHours / countHours).toFixed(1) : '0.0';
     return {
       totalEmployees,
-      avgHours: avgHours.toFixed(2),
+      avgHours,
       totalLess8,
       totalBefore930,
       totalAfter930,
       totalBefore530
     };
-  }, [reportData]);
+  }, [activeReportData]);
 
-  // ---- FILTERS ----
+  // ---- FILE DATA PREVIEW PARSER ----
+  const handleFileSelect = (file) => {
+    setSelectedFile(file);
+    if (!file) {
+      setPreviewRows([]);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        setPreviewRows(rows || []);
+        if (rows && rows.length > 0) {
+          showToast(`📊 Loaded preview of ${rows.length} rows from spreadsheet`, "#3B82F6");
+        }
+      } catch (err) {
+        console.error("Preview parse error:", err);
+        setPreviewRows([]);
+        showToast("⚠ Could not parse file preview", "#F59E0B");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
   const filteredFiles = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return filesList;
@@ -223,21 +386,44 @@ export default function AttendanceView() {
     );
   }, [filesList, searchTerm]);
 
+  // Dynamic Wing options derived from employee records
+  const wingOptions = useMemo(() => {
+    const wings = new Set(employeeRows.map(r => r.Wing).filter(Boolean));
+    return Array.from(wings).sort();
+  }, [employeeRows]);
+
   const filteredEmployeeRows = useMemo(() => {
+    let result = employeeRows;
+
+    if (dataFilterWing !== 'All') {
+      result = result.filter(r => String(r.Wing || '').toLowerCase() === dataFilterWing.toLowerCase());
+    }
+
+    if (viewDataReportType === 'monthly' && dataFilterMonth !== 'All') {
+      result = result.filter(r => String(r.Month || '').toLowerCase() === dataFilterMonth.toLowerCase());
+    }
+
+    if (dataFilterYear !== 'All') {
+      result = result.filter(r => String(r.Year || '') === String(dataFilterYear));
+    }
+
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return employeeRows;
-    return employeeRows.filter(r => 
-      (r.EmpName || '').toLowerCase().includes(q) ||
-      (r.Designation || '').toLowerCase().includes(q) ||
-      (r.Wing || '').toLowerCase().includes(q) ||
-      (r.Division || '').toLowerCase().includes(q) ||
-      String(r.EmpId).toLowerCase().includes(q)
-    );
-  }, [employeeRows, searchTerm]);
+    if (q) {
+      result = result.filter(r => 
+        (r.EmpName || '').toLowerCase().includes(q) ||
+        (r.Designation || '').toLowerCase().includes(q) ||
+        (r.Wing || '').toLowerCase().includes(q) ||
+        (r.Division || '').toLowerCase().includes(q) ||
+        String(r.EmpId).toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [employeeRows, viewDataReportType, dataFilterWing, dataFilterMonth, dataFilterYear, searchTerm]);
 
   // ---- FILE ACTIONS ----
   const handleDownloadFile = (id, fileName) => {
-    axios.get(`http://localhost:3000/attendance/download/${id}`, { responseType: 'blob' })
+    axios.get(`${API_BASE_URL}/attendance/download/${id}`, { responseType: 'blob' })
       .then(res => {
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement('a');
@@ -256,7 +442,7 @@ export default function AttendanceView() {
   const handleDeleteFile = (id) => {
     if (!window.confirm("Deleting the record will also delete all employee rows parsed from this file. Are you sure you want to delete?")) return;
     
-    axios.delete(`http://localhost:3000/attendance/${id}`)
+    axios.delete(`${API_BASE_URL}/attendance/${id}`)
       .then(() => {
         showToast("✅ Attendance record deleted successfully", "#10B981");
         fetchFilesAndData();
@@ -269,7 +455,7 @@ export default function AttendanceView() {
   };
 
   const handleDownloadSample = () => {
-    axios.get('http://localhost:3000/attendance/downloadSampleDocument', { responseType: 'blob' })
+    axios.get(`${API_BASE_URL}/attendance/downloadSampleDocument`, { responseType: 'blob' })
       .then(res => {
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement('a');
@@ -469,7 +655,7 @@ export default function AttendanceView() {
     setDetailLoading(true);
     setReportViewMode('detail'); // Swap summary table view with detail table view directly in page
     
-    axios.get(`http://localhost:3000/employee-attendance-weekone-detail/${reportYear}/${reportMonth}/${row.WingID}/null/${type}/${reportWeek}`)
+    axios.get(`${API_BASE_URL}/employee-attendance-weekone-detail/${reportYear}/${reportMonth}/${row.WingID}/null/${type}/${reportWeek}`)
       .then(res => {
         setDetailData(res.data.rowData || []);
       })
@@ -486,26 +672,36 @@ export default function AttendanceView() {
   // ---- UPLOAD FLOW ----
   const handleUploadSubmit = (e) => {
     e.preventDefault();
+    if (!uploadFinancialYear) { showToast("⚠ Please select Financial Year", "#F59E0B"); return; }
+    if (!uploadMonth) { showToast("⚠ Please select Month", "#F59E0B"); return; }
+    if (!uploadWeek) { showToast("⚠ Please select Week", "#F59E0B"); return; }
     if (!selectedFile) { showToast("⚠ Please select an Excel file", "#F59E0B"); return; }
     
     setUploading(true);
     const formData = new FormData();
     formData.append("file", selectedFile);
+    formData.append("financialYear", uploadFinancialYear);
+    formData.append("month", uploadMonth);
+    formData.append("week", uploadWeek);
     
-    axios.post("http://localhost:3000/attendance", formData, {
+    axios.post(`${API_BASE_URL}/attendance`, formData, {
       headers: { "Content-Type": "multipart/form-data" }
     })
       .then(res => {
         const id = res.data.id;
         showToast("📁 Parsing file and storing spreadsheet rows...", "#3B82F6");
-        return axios.post(`http://localhost:3000/attendance/storecsv/${id}`);
+        return axios.post(`${API_BASE_URL}/attendance/storecsv/${id}`);
       })
       .then(() => {
         showToast("✅ Attendance sheets uploaded and stored successfully", "#10B981");
-        setIsUploadModalOpen(false);
         setSelectedFile(null);
+        setPreviewRows([]);
+        setUploadFinancialYear('');
+        setUploadMonth('');
+        setUploadWeek('');
         fetchFilesAndData();
         setReportData([]); // clear report cache
+        setSubTab('files'); // Switch to history view to see uploaded file listed
       })
       .catch(err => {
         console.error("Upload error:", err);
@@ -535,27 +731,27 @@ export default function AttendanceView() {
     { 
       headerName: 'S.No', 
       valueGetter: (params) => params.node.rowIndex + 1, 
-      width: 60, 
-      minWidth: 60,
+      width: 65, 
+      minWidth: 65,
       pinned: 'left', 
       cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center' 
     },
     { 
       field: 'EmpId', 
       headerName: 'EMP ID', 
-      flex: 1,
-      minWidth: 90, 
+      flex: 1.4,
+      minWidth: 125, 
       pinned: 'left', 
       cellClass: 'font-mono font-bold text-slate-800 flex items-center justify-center' 
     },
     { 
       field: 'EmpName', 
       headerName: 'EMP Name', 
-      flex: 2,
-      minWidth: 160, 
+      flex: 2.8,
+      minWidth: 230, 
       cellClass: 'font-extrabold text-slate-900 flex items-center text-left',
       cellRenderer: (params) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 truncate">
           <div className="avatar flex-shrink-0" style={{ 
             background: colorFromString(params.value || ''), 
             width: '26px', 
@@ -574,24 +770,108 @@ export default function AttendanceView() {
         </div>
       )
     },
-    { field: 'Designation', headerName: 'Designation', flex: 1.5, minWidth: 130, cellClass: 'flex items-center text-left' },
-    { field: 'Wing', headerName: 'Wing', flex: 1.2, minWidth: 120, cellClass: 'flex items-center text-left' },
-    { field: 'Division', headerName: 'Division', flex: 1.2, minWidth: 120, cellClass: 'flex items-center text-left' },
-    { field: 'AttendanceMarked', headerName: 'No of days Attendance Marked', flex: 1.3, minWidth: 130, type: 'numericColumn', cellClass: 'text-center font-bold text-slate-700 flex items-center justify-center' },
-    { field: 'WorkingHours', headerName: 'Average Working Hours', flex: 1.3, minWidth: 130, type: 'numericColumn', cellClass: 'text-center font-bold text-blue-700 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
-    { field: 'InTimeAvg', headerName: 'In Time Avg', flex: 1.2, minWidth: 110, type: 'numericColumn', cellClass: 'text-center font-medium text-emerald-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
-    { field: 'OutTimeAvg', headerName: 'Out Time Avg', flex: 1.2, minWidth: 110, type: 'numericColumn', cellClass: 'text-center font-medium text-amber-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
-    { field: 'Month', headerName: 'Month', flex: 1, minWidth: 90, cellClass: 'text-center flex items-center justify-center' },
-    { field: 'Year', headerName: 'Year', flex: 1, minWidth: 90, cellClass: 'text-center flex items-center justify-center' },
+    { field: 'Designation', headerName: 'Designation', flex: 2, minWidth: 180, cellClass: 'flex items-center text-left' },
+    { field: 'Wing', headerName: 'Wing', flex: 1.6, minWidth: 150, cellClass: 'flex items-center text-left' },
+    { field: 'Division', headerName: 'Division', flex: 1.6, minWidth: 150, cellClass: 'flex items-center text-left' },
+    { 
+      field: 'AttendanceMarked', 
+      headerName: 'Days Attendance Marked', 
+      flex: 2.2, 
+      minWidth: 210, 
+      wrapHeaderText: true,
+      autoHeaderHeight: true,
+      type: 'numericColumn', 
+      cellClass: 'text-center font-bold text-slate-700 flex items-center justify-center' 
+    },
+    { 
+      field: 'WorkingHours', 
+      headerName: 'Average Working Hours', 
+      flex: 2.1, 
+      minWidth: 200, 
+      wrapHeaderText: true,
+      autoHeaderHeight: true,
+      type: 'numericColumn', 
+      cellClass: 'text-center font-bold text-blue-700 flex items-center justify-center', 
+      valueFormatter: (params) => formatTimeStr(params.value) 
+    },
+    { 
+      field: 'InTimeAvg', 
+      headerName: 'In Time Avg', 
+      flex: 1.6, 
+      minWidth: 150, 
+      type: 'numericColumn', 
+      cellClass: 'text-center font-medium text-emerald-600 flex items-center justify-center', 
+      valueFormatter: (params) => formatTimeStr(params.value) 
+    },
+    { 
+      field: 'OutTimeAvg', 
+      headerName: 'Out Time Avg', 
+      flex: 1.6, 
+      minWidth: 150, 
+      type: 'numericColumn', 
+      cellClass: 'text-center font-medium text-amber-600 flex items-center justify-center', 
+      valueFormatter: (params) => formatTimeStr(params.value) 
+    },
+    { field: 'Month', headerName: 'Month', flex: 1.3, minWidth: 120, cellClass: 'text-center flex items-center justify-center' },
+    { field: 'Year', headerName: 'Year', flex: 1.1, minWidth: 100, cellClass: 'text-center flex items-center justify-center' },
     { 
       field: 'Week', 
       headerName: 'Week', 
-      flex: 1.1, 
-      minWidth: 100, 
+      flex: 1.3, 
+      minWidth: 120, 
       cellClass: 'text-center flex items-center justify-center',
       valueFormatter: (params) => params.value ? `Week ${params.value}` : ''
+    },
+    {
+      headerName: 'Actions',
+      width: 120,
+      minWidth: 120,
+      pinned: 'right',
+      cellClass: 'text-center flex items-center justify-center',
+      cellRenderer: (params) => (
+        <button
+          onClick={() => {
+            setEditRecord({ 
+              ...params.data,
+              InTimeAvg: formatTimeStr(params.data.InTimeAvg),
+              OutTimeAvg: formatTimeStr(params.data.OutTimeAvg),
+              WorkingHours: formatTimeStr(params.data.WorkingHours)
+            });
+            setEditModalOpen(true);
+          }}
+          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-[#0f417a] font-bold rounded-lg text-xs border border-blue-200 transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+          title="Update Employee Record"
+        >
+          <Edit3 size={13} />
+          <span>Update</span>
+        </button>
+      )
     }
   ], []);
+
+  // Dynamic column definitions for View Data table (skips Month & Week columns when Year-wise Report mode is selected)
+  const activeDataColDefs = useMemo(() => {
+    if (viewDataReportType === 'yearly') {
+      return colDefs.filter(c => c.field !== 'Month' && c.field !== 'Week');
+    }
+    return colDefs;
+  }, [colDefs, viewDataReportType]);
+
+  // Dynamic column definitions for file preview table
+  const previewColDefs = useMemo(() => {
+    if (!previewRows || previewRows.length === 0) return [];
+    const firstRow = previewRows[0] || {};
+    const keys = Object.keys(firstRow);
+    return keys.map((key) => ({
+      field: key,
+      headerName: key,
+      flex: key.toLowerCase().includes('name') ? 2.5 : 1.4,
+      minWidth: 140,
+      wrapHeaderText: true,
+      autoHeaderHeight: true,
+      cellClass: 'flex items-center text-xs font-semibold text-slate-800'
+    }));
+  }, [previewRows]);
 
   // ---- AG GRID COLUMNS FOR WEEKLY ABSTRACT SUMMARY REPORT (FLEX STRETCHED) ----
   const reportColDefs = useMemo(() => [
@@ -601,24 +881,24 @@ export default function AttendanceView() {
         if (params.data && params.data.Wing === 'Total') return '';
         return params.node.rowIndex + 1;
       }, 
-      width: 55, 
-      minWidth: 55,
+      width: 65, 
+      minWidth: 65,
       pinned: 'left', 
       cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center' 
     },
     { 
       field: 'Wing', 
       headerName: 'Wing', 
-      flex: 2,
-      minWidth: 140, 
+      flex: 2.2,
+      minWidth: 180, 
       pinned: 'left', 
       cellClass: 'font-semibold text-slate-800 flex items-center text-left' 
     },
     { 
       field: 'Number Of Employees', 
       headerName: 'Employees', 
-      flex: 1.1,
-      minWidth: 100, 
+      flex: 1.3,
+      minWidth: 130, 
       cellClass: (params) => params.data && params.data.Wing === 'Total' 
         ? 'text-center flex items-center justify-center font-black text-slate-900 animate-none'
         : 'text-center flex items-center justify-center font-bold text-blue-600 hover:underline cursor-pointer',
@@ -634,8 +914,8 @@ export default function AttendanceView() {
     { 
       field: 'Average Working Hours', 
       headerName: 'Avg Working Hours', 
-      flex: 1.2,
-      minWidth: 110, 
+      flex: 1.5,
+      minWidth: 150, 
       cellClass: (params) => params.data && params.data.Wing === 'Total' 
         ? 'text-center flex items-center justify-center font-black text-blue-700 animate-none'
         : 'text-center flex items-center justify-center font-bold text-blue-600 hover:underline cursor-pointer',
@@ -651,8 +931,8 @@ export default function AttendanceView() {
     { 
       field: 'Number Of Employees - Average Working Hours Less Than 8 1/2 hrs', 
       headerName: 'Avg Hours < 8.5', 
-      flex: 1.3,
-      minWidth: 120, 
+      flex: 1.6,
+      minWidth: 160, 
       cellClass: (params) => params.data && params.data.Wing === 'Total' 
         ? 'text-center flex items-center justify-center font-black text-slate-900 animate-none'
         : 'text-center flex items-center justify-center font-bold text-blue-600 hover:underline cursor-pointer',
@@ -668,8 +948,8 @@ export default function AttendanceView() {
     { 
       field: 'Number Of Employees InTime Before 9:30AM', 
       headerName: 'InTime Before 9:30 AM', 
-      flex: 1.3,
-      minWidth: 130, 
+      flex: 1.7,
+      minWidth: 170, 
       cellClass: (params) => params.data && params.data.Wing === 'Total' 
         ? 'text-center flex items-center justify-center font-black text-emerald-600 animate-none'
         : 'text-center flex items-center justify-center font-bold text-blue-600 hover:underline cursor-pointer',
@@ -685,8 +965,8 @@ export default function AttendanceView() {
     { 
       field: 'Number Of Employees InTime After 9:30AM', 
       headerName: 'InTime After 9:30 AM', 
-      flex: 1.3,
-      minWidth: 130, 
+      flex: 1.7,
+      minWidth: 170, 
       cellClass: (params) => params.data && params.data.Wing === 'Total' 
         ? 'text-center flex items-center justify-center font-black text-amber-600 animate-none'
         : 'text-center flex items-center justify-center font-bold text-blue-600 hover:underline cursor-pointer',
@@ -702,8 +982,8 @@ export default function AttendanceView() {
     { 
       field: 'Number Of Employees OutTime before 5:30PM', 
       headerName: 'OutTime Before 5:30 PM', 
-      flex: 1.3,
-      minWidth: 130, 
+      flex: 1.7,
+      minWidth: 170, 
       cellClass: (params) => params.data && params.data.Wing === 'Total' 
         ? 'text-center flex items-center justify-center font-black text-slate-900 animate-none'
         : 'text-center flex items-center justify-center font-bold text-blue-600 hover:underline cursor-pointer',
@@ -716,38 +996,38 @@ export default function AttendanceView() {
         );
       }
     }
-  ], [reportMonth, reportYear, reportWeek]);
+  ], [reportMonth, reportYear, reportWeek, aggregates]);
 
   // ---- AG GRID COLUMNS FOR DRILL DOWN EMPLOYEE DETAIL LIST (FLEX STRETCHED) ----
   const detailColDefs = useMemo(() => [
     { 
       headerName: 'S.No', 
       valueGetter: (params) => params.node.rowIndex + 1, 
-      width: 55, 
-      minWidth: 55,
+      width: 65, 
+      minWidth: 65,
       pinned: 'left', 
       cellClass: 'text-center font-bold text-slate-500 flex items-center justify-center' 
     },
     { 
       field: 'EMP ID', 
       headerName: 'Emp ID', 
-      flex: 1,
-      minWidth: 90, 
+      flex: 1.2,
+      minWidth: 110, 
       pinned: 'left', 
       cellClass: 'font-mono font-bold text-slate-800 flex items-center justify-center' 
     },
     { 
       field: 'EMP Name', 
       headerName: 'Employee Name', 
-      flex: 2,
-      minWidth: 160, 
+      flex: 2.2,
+      minWidth: 200, 
       cellClass: 'font-extrabold text-slate-900 flex items-center text-left'
     },
-    { field: 'Designation', headerName: 'Designation', flex: 1.5, minWidth: 130, cellClass: 'flex items-center text-left' },
+    { field: 'Designation', headerName: 'Designation', flex: 1.6, minWidth: 150, cellClass: 'flex items-center text-left' },
     { 
       headerName: 'Wing / Division', 
-      flex: 1.8,
-      minWidth: 150, 
+      flex: 2,
+      minWidth: 180, 
       cellClass: 'flex items-center text-left',
       valueGetter: (params) => {
         const wing = params.data.Wing || '';
@@ -755,10 +1035,10 @@ export default function AttendanceView() {
         return div && div !== '-' ? `${wing} / ${div}` : wing;
       }
     },
-    { field: 'No of days Attendance Marked', headerName: 'Days Marked', flex: 1, minWidth: 95, type: 'numericColumn', cellClass: 'text-center font-bold text-slate-700 flex items-center justify-center' },
-    { field: 'Average Working Hours', headerName: 'Avg Working Hours', flex: 1.2, minWidth: 110, type: 'numericColumn', cellClass: 'text-center font-bold text-blue-700 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
-    { field: 'In Time Avg', headerName: 'Avg In-Time', flex: 1.1, minWidth: 95, type: 'numericColumn', cellClass: 'text-center font-medium text-emerald-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
-    { field: 'Out Time Avg', headerName: 'Avg Out-Time', flex: 1.1, minWidth: 95, type: 'numericColumn', cellClass: 'text-center font-medium text-amber-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) }
+    { field: 'No of days Attendance Marked', headerName: 'Days Marked', flex: 1.3, minWidth: 130, type: 'numericColumn', cellClass: 'text-center font-bold text-slate-700 flex items-center justify-center' },
+    { field: 'Average Working Hours', headerName: 'Avg Working Hours', flex: 1.5, minWidth: 150, type: 'numericColumn', cellClass: 'text-center font-bold text-blue-700 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
+    { field: 'In Time Avg', headerName: 'Avg In-Time', flex: 1.3, minWidth: 130, type: 'numericColumn', cellClass: 'text-center font-medium text-emerald-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) },
+    { field: 'Out Time Avg', headerName: 'Avg Out-Time', flex: 1.3, minWidth: 130, type: 'numericColumn', cellClass: 'text-center font-medium text-amber-600 flex items-center justify-center', valueFormatter: (params) => formatTimeStr(params.value) }
   ], []);
 
   // ---- AG GRID COLUMNS FOR UPLOADED FILE HISTORY (MATCHING SCREENSHOT LAYOUT) ----
@@ -805,17 +1085,26 @@ export default function AttendanceView() {
     },
     {
       headerName: 'Actions',
-      width: 90,
-      minWidth: 90,
-      cellClass: 'text-center flex items-center justify-center',
+      width: 110,
+      minWidth: 110,
+      cellClass: 'text-center flex items-center justify-center gap-1.5',
       cellRenderer: (params) => (
-        <button
-          onClick={() => handleDeleteFile(params.data.id)}
-          className="p-1 hover:bg-rose-50 text-rose-600 rounded-md transition cursor-pointer"
-          title="Delete Record"
-        >
-          <Trash2 size={15} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => handleDownloadFile(params.data.id, params.data.file_name)}
+            className="p-1.5 hover:bg-blue-50 text-[#0f417a] rounded-md transition cursor-pointer"
+            title="Download Spreadsheet"
+          >
+            <Download size={15} />
+          </button>
+          <button
+            onClick={() => handleDeleteFile(params.data.id)}
+            className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-md transition cursor-pointer"
+            title="Delete Record"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
       )
     }
   ], []);
@@ -836,39 +1125,60 @@ export default function AttendanceView() {
 
   // Determine if top KPI cards should show
   const showKpiCards = useMemo(() => {
-    // Hide cards when we are deepdown in report details
-    if (subTab === 'report' && reportViewMode === 'detail') {
-      return false;
-    }
-    return true;
+    // Show KPI cards ONLY on the main report tab in summary view mode
+    return subTab === 'report' && reportViewMode === 'summary';
   }, [subTab, reportViewMode]);
 
   return (
     <div className="w-full py-4 animate-fade-in text-slate-800 relative">
-      
-      {/* Breadcrumb Row dynamically changed matching YP layout & user screenshot */}
-      <div className="flex items-center space-x-2 text-[11px] font-bold text-slate-400 select-none px-4 md:px-6 mb-3 text-left">
-        <span>Home</span>
-        <span>/</span>
-        <span>Attendance - Main page</span>
-        <span>/</span>
-        <span className="text-[#0f417a]">
-          {subTab === 'files' ? 'History Of Employee Attendance File Uploaded' : 'View Employee Attendance'}
-        </span>
-      </div>
 
       {/* Page Heading Row styled with caption in Sagarmanthan Navy Blue (#0f417a) */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none px-4 md:px-6 text-left">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
-            {subTab === 'files' ? 'History Of Employee Attendance File Uploaded' : 'View Employee Attendance'}
+            Employee Attendance
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
-            {subTab === 'files' 
-              ? 'View and manage history records of attendance spreadsheet files uploaded to the platform.'
-              : 'Manage, parse and monitor employee weekly abstract reports and raw attendance records.'
-            }
+            Manage, parse and monitor employee weekly abstract reports, history uploads, and raw database records.
           </p>
+        </div>
+
+        {/* Internal nav tabs on the heading line (replicated brand layout pattern) */}
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shadow-inner">
+            <button 
+              onClick={() => setSubTab('upload')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${subTab === 'upload' ? 'bg-[#0f417a] text-white shadow-md' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50 cursor-pointer'}`}
+            >
+              Upload
+            </button>
+            <button 
+              onClick={() => setSubTab('data')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${subTab === 'data' ? 'bg-[#0f417a] text-white shadow-md' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50 cursor-pointer'}`}
+            >
+              Data List
+            </button>
+            <button 
+              onClick={() => { setSubTab('report'); setReportViewMode('summary'); }}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${subTab === 'report' ? 'bg-[#0f417a] text-white shadow-md' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50 cursor-pointer'}`}
+            >
+              Report
+            </button>
+            <button 
+              onClick={() => setSubTab('files')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${subTab === 'files' ? 'bg-[#0f417a] text-white shadow-md' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50 cursor-pointer'}`}
+            >
+              View Files
+            </button>
+          </div>
+
+          <button 
+            onClick={handleDownloadSample}
+            className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
+            title="Download User Manual excel template"
+          >
+            <span>User Manual</span>
+          </button>
         </div>
       </div>
 
@@ -913,272 +1223,431 @@ export default function AttendanceView() {
       )}
 
       {/* Main Container taking absolute full width of parent viewport */}
-      <div className="bg-white border-y sm:border border-slate-200 sm:rounded-2xl shadow-sm overflow-hidden w-full">
-        
-        {/* Top Navigation Options: Padded */}
-        <div className="p-4 sm:p-6 pb-0">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-5">
-            <div className="flex gap-2">
-              <button 
-                onClick={() => { setSubTab('report'); setReportViewMode('summary'); }}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all shadow ${subTab === 'report' ? 'bg-[#0f417a] hover:bg-[#0c3361] text-white' : 'bg-blue-50 text-[#0f417a] hover:bg-blue-100 cursor-pointer'}`}
-              >
-                Report
-              </button>
-              <button 
-                onClick={() => setSubTab('data')}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all shadow ${subTab === 'data' ? 'bg-[#0f417a] hover:bg-[#0c3361] text-white' : 'bg-blue-50 text-[#0f417a] hover:bg-blue-100 cursor-pointer'}`}
-              >
-                Upload / View Data
-              </button>
-              <button 
-                onClick={() => setSubTab('files')}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all shadow ${subTab === 'files' ? 'bg-[#0f417a] hover:bg-[#0c3361] text-white' : 'bg-blue-50 text-[#0f417a] hover:bg-blue-100 cursor-pointer'}`}
-              >
-                Upload / View History
-              </button>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <button 
-                onClick={handleDownloadSample}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
-                title="Download User Manual excel template"
-              >
-                <span>User Manual</span>
-              </button>
-              <button 
-                onClick={() => setIsUploadModalOpen(true)}
-                className="px-4 py-2 bg-[#198754] hover:bg-[#157347] text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
-              >
-                <Upload className="h-3.5 w-3.5" />
-                <span>Upload File</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Dynamic content depending on active sub-tab */}
-        {subTab === 'report' ? (
-          /* Report View styled exactly like YP module Reports.jsx page (YP Brown Theme stays on for Report view) */
-          <div className="space-y-0">
-            
-            {/* Unified Header & Toolbar mimicking YP Reports */}
-            <div style={{
-              background: 'linear-gradient(to right, #fdfcfc, #f7f3f3)',
-              padding: '20px 26px',
-              borderBottom: '1px solid #eadede',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 16,
-              position: 'relative'
-            }} className="text-left">
-              {/* Left Side: Back Button & Title */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 300 }}>
-                {reportViewMode === 'detail' && (
-                  <button
-                    onClick={() => setReportViewMode('summary')}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      width: 36, height: 36, borderRadius: 9,
-                      background: '#fff', border: '1px solid #eadede',
-                      color: '#4b2424', cursor: 'pointer', transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#f7f3f3'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                )}
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <TrendingUp size={14} color="#8c4242" strokeWidth={2.5} />
-                    <span style={{ fontSize: 10.5, fontWeight: 800, color: '#8c4242', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-                      Employee Attendance Report
-                    </span>
-                  </div>
-                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#4b2424', letterSpacing: '0.01em' }}>
-                    {reportViewMode === 'summary' 
-                      ? 'Form No.: 1.3A - Abstract - Attendance Sheet'
-                      : detailTitle
-                    }
-                  </h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12, fontWeight: 600, color: '#8c4242' }}>
-                    <span>Report Period: <strong style={{ color: '#4b2424' }}>{reportMonth} {reportYear}</strong></span>
-                    <span style={{ color: '#eadede' }}>•</span>
-                    <span>Week: <strong style={{ color: '#4b2424' }}>{reportWeek}</strong></span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Side Tools: Search box, Page limit, Total pill, CopyButton, ExportDropdown, Refresh button */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      {subTab !== 'upload' && (
+        <div className="bg-white border-y sm:border border-slate-200 sm:rounded-2xl shadow-sm overflow-hidden w-full">
+          {/* Dynamic content depending on active sub-tab */}
+          {subTab === 'report' && (
+            /* Report View styled exactly like YP module Reports.jsx page (YP Brown Theme stays on for Report view) */
+            <div className="space-y-0">
+              
+              {/* Unified Header & Toolbar mimicking YP Reports */}
+              <div style={{
+                background: 'linear-gradient(to right, #fdfcfc, #f7f3f3)',
+                padding: '20px 26px',
+                borderBottom: '1px solid #eadede',
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+                flexWrap: 'wrap'
+              }}>
                 
-                {/* Quick search input */}
-                <div style={{ position: 'relative', width: 220 }}>
-                  <Search size={14} color="#8c4242" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                  <input
-                    type="text"
-                    placeholder={reportViewMode === 'summary' ? 'Search wing...' : 'Search name, designation...'}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{
-                      width: '100%', padding: '7.5px 34px 7.5px 34px',
-                      border: '1px solid #eadede', borderRadius: 9,
-                      fontSize: 13, fontWeight: 500, color: '#4b2424',
-                      outline: 'none', background: '#fff',
-                      transition: 'border-color 0.2s, box-shadow 0.2s'
-                    }}
-                    onFocus={e => { e.target.style.borderColor = '#4b2424'; e.target.style.boxShadow = '0 0 0 3px rgba(75,36,36,0.1)'; }}
-                    onBlur={e => { e.target.style.borderColor = '#eadede'; e.target.style.boxShadow = 'none'; }}
-                  />
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm('')}
+                {/* Back Button or Filters selection */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {reportViewMode === 'detail' ? (
+                    <button 
+                      onClick={() => setReportViewMode('summary')}
                       style={{
-                        position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                        background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        background: '#fff', border: '1px solid #eadede',
+                        padding: '8px 14px', borderRadius: '9px',
+                        fontSize: '11.5px', fontWeight: 'bold', color: '#4b2424',
+                        cursor: 'pointer', transition: 'all 0.15s'
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#fcf9f9'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
                     >
-                      <X size={14} />
+                      <ChevronLeft className="h-4 w-4" />
+                      <span>Back to Abstract</span>
                     </button>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <label style={{ fontSize: '9px', fontWeight: '800', color: '#8c4242', textTransform: 'uppercase', marginBottom: '3px' }}>Month</label>
+                        <select 
+                          value={reportMonth} 
+                          onChange={(e) => setReportMonth(e.target.value)}
+                          style={{
+                            background: '#fff', border: '1px solid #eadede',
+                            padding: '7px 14px', borderRadius: '8px',
+                            fontSize: '11px', fontWeight: 'bold', color: '#4b2424',
+                            cursor: 'pointer', minWidth: '100px'
+                          }}
+                        >
+                          <option value="January">January</option>
+                          <option value="February">February</option>
+                          <option value="March">March</option>
+                          <option value="April">April</option>
+                          <option value="May">May</option>
+                          <option value="June">June</option>
+                          <option value="July">July</option>
+                          <option value="August">August</option>
+                          <option value="September">September</option>
+                          <option value="October">October</option>
+                          <option value="November">November</option>
+                          <option value="December">December</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <label style={{ fontSize: '9px', fontWeight: '800', color: '#8c4242', textTransform: 'uppercase', marginBottom: '3px' }}>Year</label>
+                        <select 
+                          value={reportYear} 
+                          onChange={(e) => setReportYear(e.target.value)}
+                          style={{
+                            background: '#fff', border: '1px solid #eadede',
+                            padding: '7px 14px', borderRadius: '8px',
+                            fontSize: '11px', fontWeight: 'bold', color: '#4b2424',
+                            cursor: 'pointer', minWidth: '85px'
+                          }}
+                        >
+                          {yearOptions.map(y => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <label style={{ fontSize: '9px', fontWeight: '800', color: '#8c4242', textTransform: 'uppercase', marginBottom: '3px' }}>Week</label>
+                        <select 
+                          value={reportWeek} 
+                          onChange={(e) => setReportWeek(Number(e.target.value))}
+                          style={{
+                            background: '#fff', border: '1px solid #eadede',
+                            padding: '7px 14px', borderRadius: '8px',
+                            fontSize: '11px', fontWeight: 'bold', color: '#4b2424',
+                            cursor: 'pointer', minWidth: '90px'
+                          }}
+                        >
+                          <option value={1}>Week 1</option>
+                          <option value={2}>Week 2</option>
+                          <option value={3}>Week 3</option>
+                          <option value={4}>Week 4</option>
+                          <option value={5}>Week 5</option>
+                        </select>
+                      </div>
+
+                      <button 
+                        onClick={handleFetchReport}
+                        style={{
+                          alignSelf: 'flex-end', height: '31px',
+                          background: '#4b2424', color: '#fff', border: 'none',
+                          padding: '0 16px', borderRadius: '8px',
+                          fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
+                          transition: 'background 0.15s', display: 'flex', alignItems: 'center', gap: '6px'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#6b3535'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#4b2424'}
+                      >
+                        <RefreshCw size={12} className={reportLoading ? 'animate-spin' : ''} />
+                        <span>Fetch Report</span>
+                      </button>
+                    </div>
                   )}
                 </div>
 
-                {/* Rows Limit Select Dropdown */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '7px 12px', borderRadius: 9,
-                  background: '#fff', border: '1px solid #eadede',
-                  fontSize: 12.5, color: '#8c4242', fontWeight: 600
-                }}>
-                  <span style={{ fontSize: 9.5, uppercase: true, fontWeight: 800, color: '#94a3b8' }}>Rows:</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => setPageSize(Number(e.target.value))}
+                {/* Title display */}
+                <div style={{ flex: 1, textAlign: 'center', pointerEvents: 'none' }}>
+                  <h3 style={{
+                    fontSize: '12.5px', fontWeight: '900', color: '#4b2424',
+                    textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0
+                  }}>
+                    {reportViewMode === 'summary' 
+                      ? (reportType === 'yearly' 
+                          ? `FORM 1.3A: Total Yearly Abstract Attendance Report (${reportYear})`
+                          : `FORM 1.3A: Abstract Attendance - Week ${reportWeek} (${reportMonth} ${reportYear})`
+                        )
+                      : `Detail View: ${detailTitle}`
+                    }
+                  </h3>
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  
+                  {/* Total count badge */}
+                  <div style={{
+                    background: '#fcf8f8', border: '1px solid #ebdada',
+                    padding: '7px 14px', borderRadius: '9px',
+                    display: 'flex', alignItems: 'center', gap: '6px'
+                  }}>
+                    <span style={{ fontSize: 12.5, color: '#8c4242', fontWeight: 600 }}>
+                      Total <strong style={{ color: '#4b2424', fontFamily: "'JetBrains Mono', monospace" }}>{reportViewMode === 'summary' ? activeReportData.length : detailData.length}</strong>
+                    </span>
+                  </div>
+
+                  {/* Copy button component */}
+                  <CopyButton
+                    onCopy={handleCopy}
+                    color="#4b2424"
+                    hoverBg="#f7f3f3"
+                    className="!rounded-[9px] !py-[8px] !px-[14px]"
+                  />
+
+                  {/* Export dropdown component */}
+                  <ExportDropdown
+                    onExportExcel={() => handleExport('Excel')}
+                    onExportPdf={() => handleExport('PDF')}
+                    color="#4b2424"
+                    hoverColor="#6b3535"
+                  />
+
+                  {/* Refresh button */}
+                  <button
+                    onClick={reportViewMode === 'summary' ? handleFetchReport : () => handleCellClick({Wing: detailTitle.split(' - ')[1]}, '', detailTitle.split(' - ')[0])}
                     style={{
-                      background: 'transparent', border: 'none',
-                      fontSize: 12.5, fontWeight: 700, color: '#4b2424',
-                      outline: 'none', cursor: 'pointer'
+                      display: 'flex', alignItems: 'center', justifycontent: 'center',
+                      width: 36, height: 36, borderRadius: 9,
+                      background: '#fff', border: '1px solid #E4E6E2',
+                      cursor: 'pointer', color: '#657386',
+                      transition: 'all 0.15s'
                     }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#4b2424'; e.currentTarget.style.color = '#4b2424'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#E4E6E2'; e.currentTarget.style.color = '#657386'; }}
+                    title="Refresh Table Data"
                   >
-                    <option value="10">10</option>
-                    <option value="15">15</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                  </select>
+                    <RefreshCw className={`h-4 w-4 ${reportLoading || detailLoading ? 'animate-spin' : ''}`} />
+                  </button>
                 </div>
-
-                {/* Total Count Pill */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '7px 12px', borderRadius: 9,
-                  background: '#fff', border: '1px solid #eadede',
-                }}>
-                  <Users size={14} color="#4b2424" /> 
-                  <span style={{ fontSize: 12.5, color: '#8c4242', fontWeight: 600 }}>
-                    Total <strong style={{ color: '#4b2424', fontFamily: "'JetBrains Mono', monospace" }}>{reportViewMode === 'summary' ? reportData.length : detailData.length}</strong>
-                  </span>
-                </div>
-
-                {/* Copy button component */}
-                <CopyButton
-                  onCopy={handleCopy}
-                  color="#4b2424"
-                  hoverBg="#f7f3f3"
-                  className="!rounded-[9px] !py-[8px] !px-[14px]"
-                />
-
-                {/* Export dropdown component */}
-                <ExportDropdown
-                  onExportExcel={() => handleExport('Excel')}
-                  onExportPdf={() => handleExport('PDF')}
-                  color="#4b2424"
-                  hoverColor="#6b3535"
-                />
-
-                {/* Refresh button */}
-                <button
-                  onClick={reportViewMode === 'summary' ? handleFetchReport : () => handleCellClick({Wing: detailTitle.split(' - ')[1]}, '', detailTitle.split(' - ')[0])}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    width: 36, height: 36, borderRadius: 9,
-                    background: '#fff', border: '1px solid #E4E6E2',
-                    cursor: 'pointer', color: '#657386',
-                    transition: 'all 0.15s'
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.color = '#4b2424'; e.currentTarget.style.borderColor = '#4b2424'; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = '#657386'; e.currentTarget.style.borderColor = '#E4E6E2'; }}
-                >
-                  <RefreshCw size={15} className={reportLoading || detailLoading ? 'animate-spin' : ''} />
-                </button>
 
               </div>
-            </div>
 
-            {/* Selectors card matching YP dashboard filter elements: Padded */}
-            {reportViewMode === 'summary' && (
-              <div className="px-6 py-5 bg-slate-50/50 border-b border-slate-200">
-                <div className="grid grid-cols-1 sm:grid-cols-4 items-end gap-4 text-left">
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Month</label>
+              {/* Table Area */}
+              <div className="yp-pro-grid ag-theme-quartz w-full border-b border-slate-200">
+                {reportViewMode === 'summary' ? (
+                  <Table 
+                    ref={gridRef}
+                    rowData={activeReportData}
+                    columnDefs={reportColDefs}
+                    pagination={true}
+                    paginationPageSize={pageSize}
+                    domLayout="autoHeight"
+                    pinnedBottomRowData={pinnedBottomRowData}
+                    autoSizeStrategy={{
+                      type: 'fitGridWidth',
+                      defaultMinWidth: 50
+                    }}
+                    color="#4b2424"
+                  />
+                ) : (
+                  <Table 
+                    ref={gridRef}
+                    rowData={detailData}
+                    columnDefs={detailColDefs}
+                    pagination={true}
+                    paginationPageSize={pageSize}
+                    domLayout="autoHeight"
+                    loading={detailLoading}
+                    autoSizeStrategy={{
+                      type: 'fitGridWidth',
+                      defaultMinWidth: 50
+                    }}
+                    color="#4b2424"
+                  />
+                )}
+              </div>
+
+            </div>
+          )}
+
+          {subTab === 'data' && (
+            /* View Raw Employee Data rendered with top filter toolbar & FULL width Table Component */
+            <div className="space-y-0 pt-0">
+              {/* Top Filter Toolbar with Radio Buttons, Wing, Month, Year dropdowns & Search */}
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 sm:p-5 bg-slate-50/70 border-b border-slate-200">
+                
+                {/* Left Side: Radio buttons & Filter Dropdowns */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Radio buttons for View Data Mode (Monthly View vs Year-wise Report) */}
+                  <div className="flex items-center space-x-3 bg-white px-3.5 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                    <label className="flex items-center space-x-1.5 cursor-pointer text-xs font-bold text-[#0f417a] select-none">
+                      <input
+                        type="radio"
+                        name="viewDataReportTypeRadio"
+                        value="monthly"
+                        checked={viewDataReportType === 'monthly'}
+                        onChange={() => setViewDataReportType('monthly')}
+                        className="w-3.5 h-3.5 accent-[#0f417a] cursor-pointer"
+                      />
+                      <span>Monthly View</span>
+                    </label>
+
+                    <label className="flex items-center space-x-1.5 cursor-pointer text-xs font-bold text-[#0f417a] select-none">
+                      <input
+                        type="radio"
+                        name="viewDataReportTypeRadio"
+                        value="yearly"
+                        checked={viewDataReportType === 'yearly'}
+                        onChange={() => {
+                          setViewDataReportType('yearly');
+                          setDataFilterMonth('All');
+                        }}
+                        className="w-3.5 h-3.5 accent-[#0f417a] cursor-pointer"
+                      />
+                      <span>Year-wise Report</span>
+                    </label>
+                  </div>
+
+                  {/* Wing Filter */}
+                  <div className="flex flex-col items-start">
+                    <label className="text-[9px] font-extrabold text-slate-500 uppercase mb-1">Wing</label>
                     <select
-                      value={reportMonth}
-                      onChange={(e) => setReportMonth(e.target.value)}
-                      className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-[#f7f3f3] font-bold text-slate-700 cursor-pointer"
+                      value={dataFilterWing}
+                      onChange={(e) => setDataFilterWing(e.target.value)}
+                      className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 cursor-pointer min-w-[110px]"
                     >
-                      {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
-                        <option key={m} value={m}>{m}</option>
+                      <option value="All">All Wings</option>
+                      {wingOptions.map(w => (
+                        <option key={w} value={w}>{w}</option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Year</label>
+                  {/* Month Filter (Skipped / Hidden when Year-wise Report is selected) */}
+                  {viewDataReportType === 'monthly' && (
+                    <div className="flex flex-col items-start">
+                      <label className="text-[9px] font-extrabold text-slate-500 uppercase mb-1">Month</label>
+                      <select
+                        value={dataFilterMonth}
+                        onChange={(e) => setDataFilterMonth(e.target.value)}
+                        className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 cursor-pointer min-w-[100px]"
+                      >
+                        <option value="All">All Months</option>
+                        <option value="January">January</option>
+                        <option value="February">February</option>
+                        <option value="March">March</option>
+                        <option value="April">April</option>
+                        <option value="May">May</option>
+                        <option value="June">June</option>
+                        <option value="July">July</option>
+                        <option value="August">August</option>
+                        <option value="September">September</option>
+                        <option value="October">October</option>
+                        <option value="November">November</option>
+                        <option value="December">December</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Year Filter */}
+                  <div className="flex flex-col items-start">
+                    <label className="text-[9px] font-extrabold text-slate-500 uppercase mb-1">Year</label>
                     <select
-                      value={reportYear}
-                      onChange={(e) => setReportYear(e.target.value)}
-                      className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-[#f7f3f3] font-bold text-slate-700 cursor-pointer"
+                      value={dataFilterYear}
+                      onChange={(e) => setDataFilterYear(e.target.value)}
+                      className="px-3.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 cursor-pointer min-w-[85px]"
                     >
+                      <option value="All">All Years</option>
                       {yearOptions.map(y => (
                         <option key={y} value={y}>{y}</option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Week</label>
-                    <select
-                      value={reportWeek}
-                      onChange={(e) => setReportWeek(Number(e.target.value))}
-                      className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-[#f7f3f3] font-bold text-slate-700 cursor-pointer"
+                  {(dataFilterWing !== 'All' || dataFilterMonth !== 'All' || dataFilterYear !== 'All') && (
+                    <button
+                      onClick={() => {
+                        setDataFilterWing('All');
+                        setDataFilterMonth('All');
+                        setDataFilterYear('All');
+                      }}
+                      className="self-end px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-all cursor-pointer"
                     >
-                      {[1, 2, 3, 4, 5].map(w => (
-                        <option key={w} value={w}>Week {w}</option>
-                      ))}
-                    </select>
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+
+                {/* Right Side: Search employee input, Update Data & Export button */}
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-64">
+                    <input
+                      type="text"
+                      placeholder="Search employee attendance..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full text-xs pl-8 pr-3.5 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition font-medium"
+                    />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   </div>
 
-                  <button 
-                    onClick={handleFetchReport}
-                    className="px-5 py-2.5 bg-[#4b2424] hover:bg-[#381a1a] text-white font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center justify-center h-[38px]"
+                  {/* Top Toolbar Update & Sync Button */}
+                  <button
+                    onClick={() => {
+                      fetchFilesAndData();
+                      showToast("✅ Data list updated & synced from database", "#10B981");
+                    }}
+                    className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-[#0f417a] rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    title="Update & Sync Data List"
                   >
-                    Fetch Report
+                    <RefreshCw size={13} className={loading ? "animate-spin text-blue-600" : "text-[#0f417a]"} />
+                    <span>Update Data</span>
                   </button>
+
+                  <ExportDropdown 
+                    onExportExcel={() => handleExportRawData('Excel')}
+                    onExportPdf={() => handleExportRawData('PDF')}
+                    color="#0f417a"
+                    hoverColor="#0c3361"
+                  />
                 </div>
               </div>
-            )}
 
-            {/* Grid display section */}
-            {reportViewMode === 'summary' ? (
               <div className="attendance-pro-grid ag-theme-quartz w-full border-b border-slate-200">
                 <Table 
                   ref={gridRef}
-                  rowData={reportData}
-                  columnDefs={reportColDefs}
-                  pinnedBottomRowData={pinnedBottomRowData}
+                  rowData={filteredEmployeeRows}
+                  columnDefs={activeDataColDefs}
+                  pagination={true}
+                  paginationPageSize={pageSize}
+                  domLayout="autoHeight"
+                  quickFilterText={searchTerm}
+                  autoSizeStrategy={{
+                    type: 'fitGridWidth',
+                    defaultMinWidth: 110
+                  }}
+                  color="#0f417a"
+                />
+              </div>
+            </div>
+          )}
+
+          {subTab === 'files' && (
+            /* View History Files rendered in AG Grid layout matching user's screenshot */
+            <div className="space-y-0 pt-0">
+              {/* Top Toolbar with Search and Export button on the right */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-5 pb-4 bg-slate-50/40 border-b border-slate-100">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Uploaded Attendance Files Log
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                  <div className="relative max-w-xs w-full">
+                    <input
+                      type="text"
+                      placeholder="Search uploaded files..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full text-xs pl-8 pr-3.5 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition font-medium"
+                    />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  </div>
+
+                  <ExportDropdown 
+                    onExportExcel={() => handleExportHistory('Excel')}
+                    onExportPdf={() => handleExportHistory('PDF')}
+                    color="#0f417a"
+                    hoverColor="#0c3361"
+                  />
+                </div>
+              </div>
+
+              <div className="attendance-pro-grid ag-theme-quartz w-full border-b border-slate-200">
+                <Table 
+                  ref={gridRef}
+                  rowData={filteredFiles}
+                  columnDefs={historyColDefs}
                   pagination={true}
                   paginationPageSize={pageSize}
                   domLayout="autoHeight"
@@ -1187,214 +1656,336 @@ export default function AttendanceView() {
                     type: 'fitGridWidth',
                     defaultMinWidth: 50
                   }}
-                  color="#4b2424"
+                  color="#0f417a"
                 />
               </div>
-            ) : (
-              /* IN-PLACE DETAILED ROW VIEW (NO OVERLAYS & NO TOP KPI CARDS) */
-              <div className="space-y-0">
-                {detailLoading ? (
-                  <div className="text-center py-12 text-slate-500 font-bold text-xs">
-                    Loading employee details...
+            </div>
+          )}
+        </div>
+      )}
+
+      {subTab === 'upload' && (
+        /* Inline File Upload Form Panel with Financial Year, Month, Week & File Picker (Full Width matching table layout) */
+        <div className="p-4 sm:p-6 text-left font-sans animate-fade-in w-full">
+          <div className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 text-left">
+            <div className="flex items-center space-x-3 pb-4 mb-6 border-b border-slate-150">
+              <div className="h-10 w-10 rounded-full bg-blue-50 text-[#0f417a] flex items-center justify-center flex-shrink-0 border border-blue-100 shadow-inner">
+                <Upload size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide font-display">
+                  Upload Attendance Sheet
+                </h3>
+                <p className="text-[11px] text-slate-400 font-medium">
+                  Select period parameters and choose spreadsheet file to upload.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleUploadSubmit} className="space-y-6 w-full">
+              {/* Period selection inputs grid matching full container width */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+                {/* Financial Year Dropdown */}
+                <div className="w-full">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Financial Year<span className="text-rose-500 ml-0.5">*</span>
+                  </label>
+                  <select
+                    required
+                    value={uploadFinancialYear}
+                    onChange={(e) => setUploadFinancialYear(e.target.value)}
+                    className="w-full text-xs px-4 py-3 bg-slate-50/60 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 cursor-pointer shadow-sm"
+                  >
+                    <option value="">--Select Financial Year--</option>
+                    <option value="2026-2027">2026-2027</option>
+                    <option value="2025-2026">2025-2026</option>
+                    <option value="2024-2025">2024-2025</option>
+                    <option value="2023-2024">2023-2024</option>
+                    <option value="2022-2023">2022-2023</option>
+                  </select>
+                </div>
+
+                {/* Month Dropdown */}
+                <div className="w-full">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Month<span className="text-rose-500 ml-0.5">*</span>
+                  </label>
+                  <select
+                    required
+                    value={uploadMonth}
+                    onChange={(e) => setUploadMonth(e.target.value)}
+                    className="w-full text-xs px-4 py-3 bg-slate-50/60 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 cursor-pointer shadow-sm"
+                  >
+                    <option value="">--Select Month--</option>
+                    <option value="January">January</option>
+                    <option value="February">February</option>
+                    <option value="March">March</option>
+                    <option value="April">April</option>
+                    <option value="May">May</option>
+                    <option value="June">June</option>
+                    <option value="July">July</option>
+                    <option value="August">August</option>
+                    <option value="September">September</option>
+                    <option value="October">October</option>
+                    <option value="November">November</option>
+                    <option value="December">December</option>
+                  </select>
+                </div>
+
+                {/* Week Dropdown */}
+                <div className="w-full">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Week<span className="text-rose-500 ml-0.5">*</span>
+                  </label>
+                  <select
+                    required
+                    value={uploadWeek}
+                    onChange={(e) => setUploadWeek(e.target.value)}
+                    className="w-full text-xs px-4 py-3 bg-slate-50/60 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 cursor-pointer shadow-sm"
+                  >
+                    <option value="">--Select Week--</option>
+                    <option value="1">Week 1</option>
+                    <option value="2">Week 2</option>
+                    <option value="3">Week 3</option>
+                    <option value="4">Week 4</option>
+                    <option value="5">Week 5</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Select Excel File To Upload & Action Buttons on the exact same line */}
+              <div className="pt-2 w-full">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Select Excel File To Upload:<span className="text-rose-500 ml-0.5">*</span>
+                </label>
+
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
+                  {/* File Selector Input with reduced width */}
+                  <div className="w-full sm:w-96 max-w-md">
+                    <label className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50/60 hover:bg-slate-50 border border-slate-200 rounded-xl cursor-pointer transition-all shadow-sm">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 truncate">
+                        <FileSpreadsheet className="h-4 w-4 text-[#0f417a] flex-shrink-0" />
+                        <span className="truncate">
+                          {selectedFile ? `${selectedFile.name} (${(selectedFile.size / 1024).toFixed(1)} KB)` : 'Choose .xlsx or .csv file'}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-bold text-[#0f417a] bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 flex-shrink-0 ml-2">
+                        Browse
+                      </span>
+                      <input
+                        type="file"
+                        accept=".csv, .xlsx"
+                        required
+                        onChange={(e) => handleFileSelect(e.target.files[0] || null)}
+                        className="hidden"
+                      />
+                    </label>
                   </div>
-                ) : detailData.length === 0 ? (
-                  <div className="text-center py-12 text-slate-500 font-bold text-xs">
-                    No employee records found for this category.
-                  </div>
-                ) : (
-                  /* Detailed report list rendered in Reusable Table Component */
-                  <div className="attendance-pro-grid ag-theme-quartz w-full border-b border-slate-200">
-                    <Table 
-                      ref={gridRef}
-                      rowData={detailData}
-                      columnDefs={detailColDefs}
-                      pagination={true}
-                      paginationPageSize={pageSize}
-                      domLayout="autoHeight"
-                      quickFilterText={searchTerm}
-                      autoSizeStrategy={{
-                        type: 'fitGridWidth',
-                        defaultMinWidth: 50
+
+                  {/* Reset & Upload File Buttons pushed to far right */}
+                  <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto sm:ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setPreviewRows([]);
+                        setUploadFinancialYear('');
+                        setUploadMonth('');
+                        setUploadWeek('');
                       }}
-                      color="#4b2424"
-                    />
+                      className="px-5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-655 hover:bg-slate-50 transition-all cursor-pointer h-[42px] flex-1 sm:flex-none"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={uploading}
+                      className="px-6 py-2.5 bg-[#0f417a] hover:bg-[#0c3361] text-white rounded-xl text-xs font-bold shadow transition-all flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer h-[42px] flex-1 sm:flex-none"
+                    >
+                      {uploading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
+                          <span>Uploading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={14} />
+                          <span>Upload File</span>
+                        </>
+                      )}
+                    </button>
                   </div>
-                )}
+                </div>
+              </div>
+            </form>
+
+            {/* File Data Preview Table rendered down below upload inputs before confirming upload */}
+            {previewRows.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-slate-200 w-full animate-fade-in">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-200">
+                      <FileCheck className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
+                        File Data Preview ({previewRows.length} Rows)
+                      </h4>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Verify spreadsheet contents below before confirming upload.
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="self-start sm:self-auto px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200 shadow-2xs">
+                    Ready for Upload
+                  </span>
+                </div>
+
+                {/* AG Grid Preview Table */}
+                <div className="attendance-pro-grid ag-theme-quartz w-full border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                  <Table 
+                    rowData={previewRows}
+                    columnDefs={previewColDefs}
+                    pagination={true}
+                    paginationPageSize={10}
+                    domLayout="autoHeight"
+                    autoSizeStrategy={{
+                      type: 'fitGridWidth',
+                      defaultMinWidth: 100
+                    }}
+                    color="#0f417a"
+                  />
+                </div>
               </div>
             )}
-
           </div>
-        ) : subTab === 'data' ? (
-          /* View Raw Employee Data rendered in FULL width Table Component (matching original colors and layout) */
-          <div className="space-y-0 pt-0">
-            {/* Top Toolbar matching screenshot exactly with export buttons and search */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-6 pb-4 bg-slate-50/40 border-b border-slate-100">
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => handleExportRawData('Excel')}
-                  className="px-4 py-2 bg-[#198754] hover:bg-[#157347] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5" />
-                  <span>Report to Excel</span>
-                </button>
-                <button 
-                  onClick={() => handleExportRawData('PDF')}
-                  className="px-4 py-2 bg-[#4b2424] hover:bg-[#6b3535] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <FileCheck className="h-3.5 w-3.5" />
-                  <span>Report to PDF</span>
-                </button>
-              </div>
+        </div>
+      )}
 
-              <div className="relative max-w-xs w-full">
-                <input
-                  type="text"
-                  placeholder="Search employee attendance..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full text-xs pl-8 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition font-medium"
-                />
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-450" />
-              </div>
-            </div>
-
-            <div className="attendance-pro-grid ag-theme-quartz w-full border-b border-slate-200">
-              <Table 
-                ref={gridRef}
-                rowData={filteredEmployeeRows}
-                columnDefs={colDefs}
-                pagination={true}
-                paginationPageSize={pageSize}
-                domLayout="autoHeight"
-                quickFilterText={searchTerm}
-                autoSizeStrategy={{
-                  type: 'fitGridWidth',
-                  defaultMinWidth: 50
-                }}
-                color="#4b2424"
-              />
-            </div>
-          </div>
-        ) : (
-          /* View History Files rendered in AG Grid layout matching user's screenshot */
-          <div className="space-y-0 pt-0">
-            {/* Top Toolbar matching screenshot exactly with export buttons and search */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-6 pb-4 bg-slate-50/40 border-b border-slate-100">
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => handleExportHistory('Excel')}
-                  className="px-4 py-2 bg-[#198754] hover:bg-[#157347] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5" />
-                  <span>Report to Excel</span>
-                </button>
-                <button 
-                  onClick={() => handleExportHistory('PDF')}
-                  className="px-4 py-2 bg-[#4b2424] hover:bg-[#6b3535] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <FileCheck className="h-3.5 w-3.5" />
-                  <span>Report to PDF</span>
-                </button>
-              </div>
-
-              <div className="relative max-w-xs w-full">
-                <input
-                  type="text"
-                  placeholder="Search uploaded files..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full text-xs pl-8 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition font-medium"
-                />
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-450" />
-              </div>
-            </div>
-
-            <div className="attendance-pro-grid ag-theme-quartz w-full border-b border-slate-200">
-              <Table 
-                ref={gridRef}
-                rowData={filteredFiles}
-                columnDefs={historyColDefs}
-                pagination={true}
-                paginationPageSize={pageSize}
-                domLayout="autoHeight"
-                quickFilterText={searchTerm}
-                autoSizeStrategy={{
-                  type: 'fitGridWidth',
-                  defaultMinWidth: 50
-                }}
-                color="#4b2424"
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Upload File Modal Overlay */}
-      {isUploadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style={{ zIndex: 9999 }}>
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-scale-in">
-            {/* Modal Header */}
-            <div className="flex justify-between items-center px-6 py-4 bg-slate-50 border-b border-slate-150">
+      {/* Update Employee Record Modal */}
+      {editModalOpen && editRecord && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100">
+            <div className="px-6 py-4 bg-[#0f417a] text-white flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Upload className="h-5 w-5 text-[#0f417a]" />
-                <h3 className="text-sm font-black text-[#0f417a] uppercase tracking-wide">
-                  Upload Excel Attendance Sheet
-                </h3>
+                <Edit3 className="h-5 w-5 text-blue-200" />
+                <h3 className="font-bold text-sm">Update Employee Record</h3>
               </div>
               <button 
-                onClick={() => setIsUploadModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-650 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-                style={{ border: 'none', background: 'none', fontSize: '1.2rem', fontWeight: 'bold' }}
+                onClick={() => setEditModalOpen(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
               >
-                <X className="h-4.5 w-4.5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Modal Body Form */}
-            <form onSubmit={handleUploadSubmit} className="p-6 space-y-5 text-xs font-semibold text-slate-700">
-              <div className="space-y-2 text-left">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase">Select spreadsheet file (.xlsx, .csv)</label>
-                <input 
-                  type="file" 
-                  accept=".csv, .xlsx"
-                  required
-                  onChange={(e) => setSelectedFile(e.target.files[0] || null)}
-                  className="w-full text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-[#0f417a] hover:file:bg-blue-100 cursor-pointer border border-slate-250 p-2.5 rounded-xl bg-slate-50/50"
-                />
-              </div>
-
-              {selectedFile && (
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2 text-[10px] text-slate-500 font-bold">
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                  <span className="truncate">{selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Employee ID</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={editRecord.EmpId || ''}
+                    className="w-full text-xs px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg font-mono font-bold text-slate-700 cursor-not-allowed"
+                  />
                 </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-150">
-                <button 
-                  type="button" 
-                  onClick={() => setIsUploadModalOpen(false)}
-                  className="px-4 py-2 border border-slate-250 rounded-lg text-slate-655 hover:bg-slate-50 cursor-pointer font-bold"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  disabled={uploading}
-                  className="px-5 py-2.5 bg-[#0f417a] hover:bg-[#0c3361] text-white rounded-xl shadow cursor-pointer font-bold inline-flex items-center space-x-2 disabled:opacity-50"
-                >
-                  {uploading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
-                      <span>Uploading...</span>
-                    </>
-                  ) : (
-                    <span>Upload & Process</span>
-                  )}
-                </button>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Employee Name</label>
+                  <input
+                    type="text"
+                    value={editRecord.EmpName || ''}
+                    onChange={(e) => setEditRecord(prev => ({ ...prev, EmpName: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg font-bold text-slate-800 focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                  />
+                </div>
               </div>
-            </form>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Designation</label>
+                  <input
+                    type="text"
+                    value={editRecord.Designation || ''}
+                    onChange={(e) => setEditRecord(prev => ({ ...prev, Designation: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg font-medium text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Wing</label>
+                  <input
+                    type="text"
+                    value={editRecord.Wing || ''}
+                    onChange={(e) => setEditRecord(prev => ({ ...prev, Wing: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg font-medium text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Division</label>
+                  <input
+                    type="text"
+                    value={editRecord.Division || ''}
+                    onChange={(e) => setEditRecord(prev => ({ ...prev, Division: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg font-medium text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Days Marked</label>
+                  <input
+                    type="number"
+                    value={editRecord.AttendanceMarked || 0}
+                    onChange={(e) => setEditRecord(prev => ({ ...prev, AttendanceMarked: Number(e.target.value) }))}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">In Time Avg</label>
+                  <input
+                    type="text"
+                    placeholder="HH:MM:SS"
+                    value={editRecord.InTimeAvg || ''}
+                    onChange={(e) => setEditRecord(prev => ({ ...prev, InTimeAvg: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono font-bold text-emerald-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Out Time Avg</label>
+                  <input
+                    type="text"
+                    placeholder="HH:MM:SS"
+                    value={editRecord.OutTimeAvg || ''}
+                    onChange={(e) => setEditRecord(prev => ({ ...prev, OutTimeAvg: e.target.value }))}
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono font-bold text-amber-700"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setEditModalOpen(false)}
+                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmployeeRows(prev => prev.map(r => (r.id === editRecord.id || (r.EmpId && r.EmpId === editRecord.EmpId)) ? editRecord : r));
+                  setEditModalOpen(false);
+                  showToast(`✅ Saved updates for ${editRecord.EmpName || 'Employee'}`, "#10B981");
+                }}
+                className="px-5 py-2 bg-[#0f417a] hover:bg-[#0c3361] text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-md flex items-center gap-1.5"
+              >
+                <Check size={14} />
+                <span>Save Changes</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1404,78 +1995,6 @@ export default function AttendanceView() {
         <div className="tdot" style={{ background: toastColor }}></div>
         <span>{toastMsg}</span>
       </div>
-      
-      {/* Custom Styles Injection to match YP Brown grid headers */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        .toast-box { position: fixed; bottom: 20px; right: 20px; background: #1E293B; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: .82rem; font-weight: 500; display: flex; align-items: center; gap: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.2); transform: translateY(70px); opacity: 0; transition: all .3s; z-index: 9999; }
-        .toast-box.show { transform: translateY(0); opacity: 1; }
-        .tdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        @keyframes scaleIn {
-          from { transform: scale(0.95); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-
-        .attendance-pro-grid.ag-theme-quartz {
-          --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
-          --ag-font-size: 13px;
-          --ag-border-color: #B9BDC2;
-          --ag-row-border-color: #D3D6D9;
-          --ag-row-height: 48px;
-          --ag-active-color: #4b2424;
-          --ag-checkbox-checked-color: #4b2424;
-          --ag-input-focus-border-color: #4b2424;
-          --ag-selected-row-background-color: #fcf9f9;
-          font-size: 13px;
-        }
-        .attendance-pro-grid .ag-root-wrapper {
-          border: none !important;
-          border-radius: 0 !important;
-        }
-        .attendance-pro-grid .ag-header {
-          background: #4b2424 !important;
-          border-bottom: 2px solid #6b3535 !important;
-        }
-        .attendance-pro-grid .ag-header-row {
-          background: transparent !important;
-        }
-        .attendance-pro-grid .ag-header-cell {
-          color: #ffffff !important;
-          font-weight: 750 !important;
-          font-size: 11px !important;
-          text-transform: uppercase !important;
-          letter-spacing: 0.05em !important;
-          border-right: 1px solid #6b3535 !important;
-          transition: background 0.15s !important;
-        }
-        .attendance-pro-grid .ag-header-cell-label {
-          justify-content: center !important;
-          text-align: center !important;
-          width: 100% !important;
-        }
-        .attendance-pro-grid .ag-header-cell:hover {
-          background: #6b3535 !important;
-        }
-        .attendance-pro-grid .ag-header-cell-label .ag-header-cell-text {
-          color: #ffffff !important;
-        }
-        .attendance-pro-grid .ag-header-cell .ag-icon {
-          color: rgba(255, 255, 255, 0.7) !important;
-        }
-        .attendance-pro-grid .ag-row {
-          border-bottom: 1px solid #D3D6D9 !important;
-        }
-        /* Zebra styling: Even clean white, Odd soft cream sand tint */
-        .attendance-pro-grid .ag-row-even {
-          background: #ffffff !important;
-        }
-        .attendance-pro-grid .ag-row-odd {
-          background: #fdfcfb !important;
-        }
-        .attendance-pro-grid .ag-row:hover {
-          background: #faf7f5 !important;
-        }
-      `}} />
 
     </div>
   );

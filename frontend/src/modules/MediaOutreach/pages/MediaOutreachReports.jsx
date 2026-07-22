@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { AllEnterpriseModule, ModuleRegistry } from 'ag-grid-enterprise';
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { ChevronLeft, FileSpreadsheet, Download, Search, LayoutGrid, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
 import axios from 'axios';
 
-ModuleRegistry.registerModules([AllEnterpriseModule]);
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 

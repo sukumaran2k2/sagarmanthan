@@ -172,8 +172,26 @@ const Table = forwardRef(({
 
   const pageNumbers = getPageNumbers();
 
+  const colorClass = `custom-table-container-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
+
   return (
     <div className="space-y-4 w-full relative">
+      <style>{`
+        .${colorClass} .ag-header,
+        .${colorClass} .ag-header-row,
+        .${colorClass} .ag-header-cell {
+          background-color: ${color} !important;
+          background: ${color} !important;
+          color: #ffffff !important;
+        }
+        .${colorClass} .ag-header-cell-text {
+          white-space: normal !important;
+          word-break: break-word !important;
+          text-align: center !important;
+          line-height: 1.25 !important;
+        }
+      `}</style>
+
       {enableExport && (
         <div className="flex justify-end">
           <button
@@ -187,7 +205,7 @@ const Table = forwardRef(({
       )}
 
       {/* Main card box enclosing both the grid and custom pagination controls */}
-      <div className="ag-theme-quartz rounded-xl border border-slate-200 overflow-hidden relative shadow-sm bg-white">
+      <div className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 overflow-hidden relative shadow-sm bg-white`}>
         {loading && (
           <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center backdrop-blur-[1px]">
             <div className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-100 rounded-xl shadow-md">
@@ -207,6 +225,8 @@ const Table = forwardRef(({
               sortable: true,
               filter: true,
               resizable: true,
+              wrapHeaderText: true,
+              autoHeaderHeight: true,
               cellStyle: { textAlign: 'center' },
               ...defaultColDef
             }}

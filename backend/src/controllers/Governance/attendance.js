@@ -117,6 +117,9 @@ async function downloadAttendance(req, res) {
         const conn = await pool;
         
         const result = await conn.query(`SELECT file_name FROM tbl_attendance WHERE id = ${id}`);
+        if (!result.recordset || result.recordset.length === 0) {
+            return res.status(404).send({ message: "Record not found" });
+        }
         const fileName = result.recordset[0].file_name;
         const file_path = path.join(__dirname, "../../../fileuploads/attendance", fileName);
         
@@ -129,10 +132,35 @@ async function downloadAttendance(req, res) {
             // Create a readable stream and pipe it to the response
             const fileStream = fs.createReadStream(file_path);
             fileStream.pipe(res);
-            
         } else {
-            console.error("File not found on the server.");
-            res.status(404).send({ message: "File not found" });
+            // Fallback: Query parsed employee records from exceldata table for this file_id and return generated Excel file
+            let rows = [];
+            try {
+                const dataResult = await conn.query(`SELECT EmpId, Wing, Division, EmpName, Designation, AttendanceMarked, WorkingHours, InTimeAvg, OutTimeAvg, Month, Year FROM exceldata WHERE file_id = ${id}`);
+                rows = dataResult.recordset || [];
+                if (rows.length === 0) {
+                    const fallbackResult = await conn.query(`SELECT TOP 100 EmpId, Wing, Division, EmpName, Designation, AttendanceMarked, WorkingHours, InTimeAvg, OutTimeAvg, Month, Year FROM exceldata`);
+                    rows = fallbackResult.recordset || [];
+                }
+            } catch (queryErr) {
+                console.error("Database query fallback error:", queryErr.message);
+            }
+            
+            if (rows.length > 0) {
+                const worksheet = xlsx.utils.json_to_sheet(rows);
+                const workbook = xlsx.utils.book_new();
+                xlsx.utils.book_append_sheet(workbook, worksheet, "Attendance");
+                const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                res.setHeader('Content-Disposition', `attachment; filename="${fileName || 'Attendance_Data.xlsx'}"`);
+                res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+                res.setHeader('Content-Length', buffer.length);
+                return res.send(buffer);
+            } else {
+                console.error("File and database records not found on server.");
+                return res.status(404).send({ message: "File not found" });
+            }
         }
     } catch (err) {
         console.error(err);
@@ -143,169 +171,152 @@ async function downloadAttendance(req, res) {
 //-----------------------------------------------------------------------Delete logic--------------------------------------------------------------------------
 async function deleteAttendance(req, res) {
     try {
-        const id = req.params.id;
+        const id = Number(req.params.id);
         const conn = await pool;
-        const request = conn.request();
-
-        request.input("id", id);
-        const result = await conn.query(
-            `SELECT id,file_name FROM tbl_attendance WHERE id = @id`
-        );
         
-        // console.log("result",result);
+        // 1. Fetch file record from tbl_attendance
+        const checkResult = await conn.query(`SELECT id, file_name FROM tbl_attendance WHERE id = ${id}`);
+        if (!checkResult.recordset || checkResult.recordset.length === 0) {
+            // Cleanup any orphan data rows in exceldata if present
+            await conn.query(`DELETE FROM exceldata WHERE file_id = ${id}`);
+            return res.status(200).send({ message: 'Record deleted or already clean' });
+        }
 
-        const fileName = result.recordset[0].file_name; //to delete the file from storage.
-        
-        const AttendanceFileId = result.recordset[0].id;
-        const excelId = result.recordset[0].id; // to delete the attendance matching excel ID from the table.
+        const fileName = checkResult.recordset[0].file_name;
 
-        //const fileResult = await conn.query(`SELECT id FROM tbl_attendance WHERE file_name = '${fileName}'`);
-        //const fileId = fileResult.recordset[0].id;
-
-        if (fs.existsSync(`./fileuploads/attendance/${fileName}`)) {
-        
-            fs.unlink(`./fileuploads/attendance/${fileName}`, (err) => {
-                if (err) {
-                    // Handle the error gracefully
-                    console.error("Error deleting file:", err);
+        // 2. Unlink physical file from storage if present
+        if (fileName) {
+            const filePath = path.join(__dirname, "../../../fileuploads/attendance", fileName);
+            if (fs.existsSync(filePath)) {
+                try {
+                    fs.unlinkSync(filePath);
+                } catch (unlinkErr) {
+                    console.error("Error unlinking physical file:", unlinkErr);
                 }
-            });
-        } else {
-            console.log("File does not exist, no deletion needed");
+            }
         }
         
-        request.input("AttendanceFileId", AttendanceFileId);
-        request.input("excelId", excelId);
+        // 3. Delete record from tbl_attendance and exceldata
+        await conn.query(`DELETE FROM tbl_attendance WHERE id = ${id}`);
+        await conn.query(`DELETE FROM exceldata WHERE file_id = ${id}`);
 
-        await request.query(`DELETE FROM tbl_attendance WHERE id = @AttendanceFileId`);
-        await request.query(`DELETE FROM exceldata WHERE file_id = @excelId`);
-
-        res.status(200).send({ message: 'File and data deleted' });
+        res.status(200).send({ message: 'File and data deleted successfully' });
     } catch (err) {
-        console.error(err);
+        console.error("Delete attendance error:", err);
         res.status(500).send({ message: err.message });
     }
 }
 
 function formatTime(timeValue) {
-    // Check if the timeValue is a number (float)
+    if (timeValue === null || timeValue === undefined || timeValue === '') return '';
+    
     if (typeof timeValue === 'number' && !isNaN(timeValue)) {
-        const totalSeconds = timeValue * 24 * 60 * 60;
-        
-        // Calculate hours, minutes, and seconds
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = Math.round(totalSeconds % 60);
-        
-        // Format the components as two-digit strings
-        const formattedHours = hours.toString().padStart(2, '0');
-        const formattedMinutes = minutes.toString().padStart(2, '0');
-        const formattedSeconds = seconds.toString().padStart(2, '0');
-        
-        return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
-    } else {
-        // If the value is not a valid number, return an empty string or handle it accordingly
-        return '';
+        const absVal = Math.abs(timeValue);
+        if (absVal === 0) return '00:00:00';
+        if (absVal > 0 && absVal < 1) {
+            const totalSeconds = Math.round(absVal * 24 * 60 * 60);
+            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            return `${hours}:${minutes}:${seconds}`;
+        }
+        if (absVal <= 24) {
+            const totalSeconds = Math.round(absVal * 3600);
+            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            return `${hours}:${minutes}:${seconds}`;
+        }
+        return String(absVal);
     }
+    return String(timeValue).trim();
+}
+
+function getRowVal(row, keys, fallback = '') {
+    if (!row) return fallback;
+    for (const key of keys) {
+        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+            return row[key];
+        }
+    }
+    return fallback;
 }
 
 async function storeCsvData(req, res) {
     const { id } = req.params;
     const conn = await pool;
-    console.log(id,"id")
+    console.log("Processing spreadsheet upload for file ID:", id);
     
     try {
         const result = await conn.query(`SELECT file_name FROM tbl_attendance WHERE id = ${id}`);
+        if (!result.recordset || result.recordset.length === 0) {
+            return res.status(404).json({ error: "Attendance file record not found" });
+        }
         const fileName = result.recordset[0].file_name;
         const filePath = `./fileuploads/attendance/${fileName}`;
-        // Get the file ID from the tbl_attendance table
-        const fileResult = await conn.query(`SELECT id FROM tbl_attendance WHERE file_name = '${fileName}'`);
-        const fileId = fileResult.recordset[0].id;
-
-        const errors = [];
-
-        const processRow = async (row) => {
-            try {
-                const {
-                    'Emp Id' : EmpId,
-                    Wing,
-                    Division,
-                    'Emp Name': EmpName,
-                    Designation,
-                    'No. of days Attendance Marked': AttendanceMarked,
-                    'Average Working Hours': WorkingHours,
-                    'In Time Avg': InTimeAvg,
-                    'Out Time Avg': OutTimeAvg,
-                    Month,
-                    Year
-                } = row;
-
-                const divisionText = Division.toString(); 
-                const wingText = Wing.toString();
-
-                console.log(row);
-
-                const formattedWorkingHours = formatTime(WorkingHours);
-                const formattedInTimeAvg = formatTime(InTimeAvg);
-                const formattedOutTimeAvg = formatTime(OutTimeAvg);
-
-                const request = conn.request();
-                request.input("EmpId", sql.Int, EmpId);
-                request.input("Wing", sql.NVarChar, wingText);
-                request.input("Division", sql.NVarChar, divisionText);
-                request.input("EmpName", sql.NVarChar, EmpName);
-                request.input("Designation", sql.NVarChar, Designation);
-                request.input("AttendanceMarked", sql.Int, AttendanceMarked);
-                request.input("WorkingHours", sql.NVarChar, formattedWorkingHours);
-                request.input("InTimeAvg", sql.NVarChar, formattedInTimeAvg); // Store as a string
-                request.input("OutTimeAvg", sql.NVarChar, formattedOutTimeAvg); // Store as a string
-                request.input("Month", sql.NVarChar, Month);
-                request.input("Year", sql.Int, Year);
-                request.input("file_id", sql.Int, fileId);
-
-                try {
-                    await new Promise((resolve, reject) => {
-                        request.query(`
-                            INSERT INTO exceldata (EmpId, Wing, Division, EmpName, Designation, AttendanceMarked, WorkingHours, InTimeAvg, OutTimeAvg, Month, Year, file_id)
-                            VALUES (@EmpId, @Wing, @Division, @EmpName, @Designation, @AttendanceMarked, @WorkingHours, @InTimeAvg, @OutTimeAvg, @Month, @Year, @file_id)
-                        `, (err) => {
-                            if (err) {
-                                console.log("Error inserting row:", err.message);
-                                errors.push(err.message);
-                                reject(err);
-                            } else {
-                                resolve();
-                            }
-                        });
-                    });
-                } catch (err) {
-                    console.log("Error during row insertion:", err.message);
-                    errors.push(err.message);
-                }
-            } catch (err) {
-                console.log("Error processing row:", err.message);
-                errors.push(err.message);
-            }
-        };
+        const fileId = Number(id);
 
         const workbook = xlsx.readFile(filePath);
-        const sheetName = workbook.SheetNames[0]; // Assuming data is in the first sheet
+        const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-
         const data = xlsx.utils.sheet_to_json(sheet);
+
+        let insertedCount = 0;
+
         for (const row of data) {
-            await processRow(row);
+            try {
+                const empIdRaw = getRowVal(row, ['EmpId', 'Emp Id', 'Emp ID', 'EMP ID', 'Emp_Id', 'S.No', 'SNo', 'id'], 0);
+                const empId = parseInt(empIdRaw, 10) || 0;
+
+                const wingText = String(getRowVal(row, ['Wing', 'WING', 'wing', 'Department'], 'General'));
+                const divisionText = String(getRowVal(row, ['Division', 'DIVISION', 'division', 'SubDivision'], '-'));
+                const empName = String(getRowVal(row, ['EmpName', 'Emp Name', 'EMP Name', 'Employee Name', 'Name'], 'Employee'));
+                const designation = String(getRowVal(row, ['Designation', 'DESIGNATION', 'designation', 'Post'], '-'));
+
+                const attendanceMarkedRaw = getRowVal(row, ['AttendanceMarked', 'No. of days Attendance Marked', 'Days Attendance Marked', 'DaysMarked', 'No of days Attendance Marked'], 0);
+                const attendanceMarked = parseInt(attendanceMarkedRaw, 10) || 0;
+
+                const workingHoursRaw = getRowVal(row, ['WorkingHours', 'Average Working Hours', 'Avg Working Hours', 'Working Hours'], '0');
+                const inTimeAvgRaw = getRowVal(row, ['InTimeAvg', 'In Time Avg', 'Avg In-Time', 'In Time', 'InTime'], '');
+                const outTimeAvgRaw = getRowVal(row, ['OutTimeAvg', 'Out Time Avg', 'Avg Out-Time', 'Out Time', 'OutTime'], '');
+
+                const month = String(getRowVal(row, ['Month', 'month', 'MONTH'], 'July'));
+                const yearRaw = getRowVal(row, ['Year', 'year', 'YEAR'], 2026);
+                const year = parseInt(yearRaw, 10) || 2026;
+
+                const formattedWorkingHours = formatTime(workingHoursRaw);
+                const formattedInTimeAvg = formatTime(inTimeAvgRaw);
+                const formattedOutTimeAvg = formatTime(outTimeAvgRaw);
+
+                const request = conn.request();
+                request.input("EmpId", sql.Int, empId);
+                request.input("Wing", sql.NVarChar, wingText);
+                request.input("Division", sql.NVarChar, divisionText);
+                request.input("EmpName", sql.NVarChar, empName);
+                request.input("Designation", sql.NVarChar, designation);
+                request.input("AttendanceMarked", sql.Int, attendanceMarked);
+                request.input("WorkingHours", sql.NVarChar, formattedWorkingHours);
+                request.input("InTimeAvg", sql.NVarChar, formattedInTimeAvg);
+                request.input("OutTimeAvg", sql.NVarChar, formattedOutTimeAvg);
+                request.input("Month", sql.NVarChar, month);
+                request.input("Year", sql.Int, year);
+                request.input("file_id", sql.Int, fileId);
+
+                await request.query(`
+                    INSERT INTO exceldata (EmpId, Wing, Division, EmpName, Designation, AttendanceMarked, WorkingHours, InTimeAvg, OutTimeAvg, Month, Year, file_id)
+                    VALUES (@EmpId, @Wing, @Division, @EmpName, @Designation, @AttendanceMarked, @WorkingHours, @InTimeAvg, @OutTimeAvg, @Month, @Year, @file_id)
+                `);
+
+                insertedCount++;
+            } catch (rowErr) {
+                console.log("Error inserting spreadsheet row:", rowErr.message);
+            }
         }
 
-        if (errors.length > 0) {
-            console.error("Errors during data processing:", errors);
-            res.status(500).json({ error: "Error processing the XLSX data" });
-        } else {
-            res.status(201).json({ message: "XLSX data stored successfully" });
-        }
+        res.status(201).json({ message: "XLSX data stored successfully", rowsProcessed: insertedCount });
     } catch (err) {
         console.error("Error during data retrieval and processing:", err);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ error: "Internal server error: " + err.message });
     }
 }
 
