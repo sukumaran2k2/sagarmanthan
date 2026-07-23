@@ -11,6 +11,7 @@ import { normalizeRole, normalizeOrg, normalizeOrgCategory, colorFromString } fr
 // Import Components
 import UserPermissionsTab from './components/UserPermissionsTab';
 import ModulePermissionsTab from './components/ModulePermissionsTab';
+import ModulePermissionListTab from './components/ModulePermissionListTab';
 import UserListTab from './components/UserListTab';
 import EditUserModal from './components/EditUserModal';
 
@@ -45,12 +46,16 @@ export default function UserMatrix() {
   const [draft, setDraft] = useState({});
 
   // ---- STATE FOR MODULE PERMISSIONS TAB ----
-  const [selectedModuleOrg, setSelectedModuleOrg] = useState(ORG_LIST[0]);
+  const [selectedModuleOrgs, setSelectedModuleOrgs] = useState(() => new Set(['Major Ports', 'Maritime Boards', 'Other Organisations', ...ORG_LIST]));
   const [orgModuleState, setOrgModuleState] = useState(() => {
     const initial = {};
     ORG_LIST.forEach(org => {
       initial[org] = {};
       FULL_MODULE_LIST.forEach(m => initial[org][m] = true);
+    });
+    ['Major Ports', 'Maritime Boards', 'Other Organisations'].forEach(cat => {
+      initial[cat] = {};
+      FULL_MODULE_LIST.forEach(m => initial[cat][m] = true);
     });
     return initial;
   });
@@ -122,10 +127,6 @@ export default function UserMatrix() {
   // When masterOrgs loads, dynamically populate the state for all database organisations
   useEffect(() => {
     if (masterOrgs && masterOrgs.length > 0) {
-      // Pick the first organisation name as default
-      const defaultOrg = masterOrgs[0].organisation_name;
-      setSelectedModuleOrg(defaultOrg);
-
       setOrgModuleState(prev => {
         const next = { ...prev };
         masterOrgs.forEach(org => {
@@ -183,7 +184,7 @@ export default function UserMatrix() {
   }, [users, selectedCategory, selectedOrg, selectedRole, searchTerm]);
 
   const selectedUsers = useMemo(() => filteredUsers.filter(u => selectedIds.has(u.id)), [filteredUsers, selectedIds]);
-  const activeModules = selectedCategory !== 'all' ? MODULES_MASTER : [];
+  const activeModules = useMemo(() => (selectedCategory !== 'all' ? MODULES_MASTER : []), [selectedCategory]);
 
   useEffect(() => {
     const newDraft = {};
@@ -224,7 +225,7 @@ export default function UserMatrix() {
       );
       setSelectedIds(new Set(currentFiltered.map(u => u.id)));
     }
-  }, [selectedCategory, selectedOrg, selectedRole, users]);
+  }, [selectedCategory, selectedOrg, selectedRole]);
 
   const toggleUser = (id, additive, e) => {
     if (e) e.stopPropagation();
@@ -315,23 +316,44 @@ export default function UserMatrix() {
   }
 
   // ---- LOGIC FOR MODULE PERMISSIONS TAB ----
-  const toggleOrgModule = (org, mod, val) => {
-    setOrgModuleState(prev => ({
-      ...prev,
-      [org]: { ...prev[org], [mod]: val }
-    }));
-    showToast(`${val ? '✅' : '❌'} ${mod}`, val ? '#10B981' : '#EF4444');
+  const toggleOrgModule = (mod, val) => {
+    if (!selectedModuleOrgs || selectedModuleOrgs.size === 0) {
+      showToast("⚠ Please select at least one organization", "#F59E0B");
+      return;
+    }
+    setOrgModuleState(prev => {
+      const next = { ...prev };
+      selectedModuleOrgs.forEach(org => {
+        next[org] = { ...(next[org] || {}), [mod]: val };
+      });
+      return next;
+    });
+    showToast(`${val ? '✅ Enabled' : '❌ Disabled'} ${mod} for ${selectedModuleOrgs.size} selected items`, val ? '#10B981' : '#EF4444');
   };
 
   const setAllOrgModules = (val) => {
-    const next = { ...orgModuleState };
-    FULL_MODULE_LIST.forEach(m => next[selectedModuleOrg][m] = val);
-    setOrgModuleState(next);
-    showToast(val ? '✅ All modules enabled' : '❌ All modules disabled', val ? '#10B981' : '#EF4444');
+    if (!selectedModuleOrgs || selectedModuleOrgs.size === 0) {
+      showToast("⚠ Please select at least one organization", "#F59E0B");
+      return;
+    }
+    setOrgModuleState(prev => {
+      const next = { ...prev };
+      selectedModuleOrgs.forEach(org => {
+        const updated = {};
+        FULL_MODULE_LIST.forEach(m => updated[m] = val);
+        next[org] = updated;
+      });
+      return next;
+    });
+    showToast(val ? `✅ All modules enabled for ${selectedModuleOrgs.size} selected items` : `❌ All modules disabled for ${selectedModuleOrgs.size} selected items`, val ? '#10B981' : '#EF4444');
   };
 
   const saveModulePermissions = () => {
-    showToast(`💾 Saved permissions for ${selectedModuleOrg}`, '#10B981');
+    if (!selectedModuleOrgs || selectedModuleOrgs.size === 0) {
+      showToast("⚠ No organizations selected to save", "#F59E0B");
+      return;
+    }
+    showToast(`💾 Saved module permissions for ${selectedModuleOrgs.size} selected organizations`, '#10B981');
   };
 
   // ---- USER LIST ACTIONS LOGIC ----
@@ -429,19 +451,25 @@ export default function UserMatrix() {
         <div className="flex ml-6 bg-slate-100 p-1 rounded-lg">
           <button
             onClick={() => setActiveMainTab("users")}
-            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeMainTab === "users" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700 cursor-pointer"}`}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all ${activeMainTab === "users" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700 cursor-pointer"}`}
           >
             User Permissions
           </button>
           <button
             onClick={() => setActiveMainTab("modules")}
-            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeMainTab === "modules" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700 cursor-pointer"}`}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all ${activeMainTab === "modules" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700 cursor-pointer"}`}
           >
             Module Permissions
           </button>
           <button
+            onClick={() => setActiveMainTab("module_permission_list")}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all ${activeMainTab === "module_permission_list" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700 cursor-pointer"}`}
+          >
+            Module Permission List
+          </button>
+          <button
             onClick={() => setActiveMainTab("userlist")}
-            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeMainTab === "userlist" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700 cursor-pointer"}`}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all ${activeMainTab === "userlist" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700 cursor-pointer"}`}
           >
             User List
           </button>
@@ -530,12 +558,21 @@ export default function UserMatrix() {
         {activeMainTab === "modules" && (
           <ModulePermissionsTab
             masterOrgs={masterOrgs}
-            selectedModuleOrg={selectedModuleOrg}
-            setSelectedModuleOrg={setSelectedModuleOrg}
+            selectedModuleOrgs={selectedModuleOrgs}
+            setSelectedModuleOrgs={setSelectedModuleOrgs}
             orgModuleState={orgModuleState}
             toggleOrgModule={toggleOrgModule}
             setAllOrgModules={setAllOrgModules}
             saveModulePermissions={saveModulePermissions}
+          />
+        )}
+
+        {activeMainTab === "module_permission_list" && (
+          <ModulePermissionListTab
+            orgModuleState={orgModuleState}
+            toggleOrgModule={toggleOrgModule}
+            setAllOrgModules={setAllOrgModules}
+            showToast={showToast}
           />
         )}
 
