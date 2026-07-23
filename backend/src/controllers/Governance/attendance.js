@@ -147,7 +147,22 @@ async function downloadAttendance(req, res) {
             }
             
             if (rows.length > 0) {
-                const worksheet = xlsx.utils.json_to_sheet(rows);
+                const formattedRows = rows.map((r, i) => ({
+                    'S.No': i + 1,
+                    'EMP ID': r.EmpId || '',
+                    'Wing': r.Wing || '',
+                    'Division': r.Division || '',
+                    'EMP Name': r.EmpName || '',
+                    'Designation': r.Designation || '',
+                    'Days Attendance Marked': r.AttendanceMarked || 0,
+                    'Average Working Hours': formatTime(r.WorkingHours),
+                    'In Time Avg': formatTime(r.InTimeAvg),
+                    'Out Time Avg': formatTime(r.OutTimeAvg),
+                    'Month': r.Month || '',
+                    'Year': r.Year || ''
+                }));
+
+                const worksheet = xlsx.utils.json_to_sheet(formattedRows);
                 const workbook = xlsx.utils.book_new();
                 xlsx.utils.book_append_sheet(workbook, worksheet, "Attendance");
                 const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
@@ -227,8 +242,66 @@ function formatTime(timeValue) {
             const seconds = String(totalSeconds % 60).padStart(2, '0');
             return `${hours}:${minutes}:${seconds}`;
         }
+        const frac = absVal % 1;
+        if (frac > 0) {
+            const totalSeconds = Math.round(frac * 24 * 60 * 60);
+            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            return `${hours}:${minutes}:${seconds}`;
+        }
         return String(absVal);
     }
+
+    if (typeof timeValue === 'string') {
+        let cleanVal = timeValue.trim();
+        if (!cleanVal || cleanVal === '-' || cleanVal === '—') return '';
+
+        if (cleanVal.startsWith('-')) {
+            cleanVal = cleanVal.substring(1).trim();
+        }
+
+        const parsedNum = Number(cleanVal);
+        if (!isNaN(parsedNum) && cleanVal.indexOf(':') === -1) {
+            return formatTime(parsedNum);
+        }
+
+        if (cleanVal.includes('T')) {
+            const timePart = cleanVal.split('T')[1];
+            if (timePart) {
+                cleanVal = timePart.split('.')[0].slice(0, 8);
+            }
+        } else if (cleanVal.includes(' ') && !cleanVal.toUpperCase().includes('AM') && !cleanVal.toUpperCase().includes('PM')) {
+            const timePart = cleanVal.split(' ')[1];
+            if (timePart && timePart.includes(':')) {
+                cleanVal = timePart;
+            }
+        }
+
+        const ampmMatch = cleanVal.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+        if (ampmMatch) {
+            let hours = parseInt(ampmMatch[1], 10);
+            const minutes = ampmMatch[2];
+            const seconds = ampmMatch[3] || '00';
+            const period = ampmMatch[4].toUpperCase();
+
+            if (period === 'PM' && hours < 12) hours += 12;
+            if (period === 'AM' && hours === 12) hours = 0;
+
+            return `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
+        }
+
+        const timeMatch = cleanVal.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+        if (timeMatch) {
+            const hours = String(parseInt(timeMatch[1], 10)).padStart(2, '0');
+            const minutes = timeMatch[2];
+            const seconds = timeMatch[3] || '00';
+            return `${hours}:${minutes}:${seconds}`;
+        }
+
+        return cleanVal;
+    }
+
     return String(timeValue).trim();
 }
 
@@ -260,6 +333,23 @@ async function storeCsvData(req, res) {
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const data = xlsx.utils.sheet_to_json(sheet);
+
+        if (!data || data.length === 0) {
+            await conn.query(`DELETE FROM tbl_attendance WHERE id = ${fileId}`);
+            if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (e) {} }
+            return res.status(400).json({ error: "Uploaded spreadsheet is empty" });
+        }
+
+        // Validate template headers against Attendance_Sample.xlsx format
+        const firstRowKeys = Object.keys(data[0] || {}).map(k => k.trim().toLowerCase());
+        const hasEmpId = firstRowKeys.some(k => k.includes('empid') || k.includes('emp id') || k.includes('emp_id') || k.includes('s.no') || k.includes('id'));
+        const hasEmpName = firstRowKeys.some(k => k.includes('empname') || k.includes('emp name') || k.includes('employee name') || k.includes('name'));
+
+        if (!hasEmpId || !hasEmpName) {
+            await conn.query(`DELETE FROM tbl_attendance WHERE id = ${fileId}`);
+            if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (e) {} }
+            return res.status(400).json({ error: "Invalid template header structure. Please upload an Excel file matching Attendance_Sample.xlsx template format." });
+        }
 
         let insertedCount = 0;
 

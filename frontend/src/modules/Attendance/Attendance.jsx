@@ -17,7 +17,8 @@ import {
   RefreshCw,
   Users,
   Edit3,
-  Check
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import Table from '../../components/table';
 import ExportDropdown from '../../components/ExportDropdown';
@@ -37,16 +38,25 @@ function getInits(n) {
   return n.split(' ').map(x => x[0]).join('').toUpperCase().slice(0, 2);
 }
 
-// Formats full ISO datetime string, decimal numbers, or time strings to clean time string "09:30:00"
+// Formats full ISO datetime string, decimal numbers, AM/PM strings, or time strings to clean time string "09:30:00"
 function formatTimeStr(val) {
   if (val === null || val === undefined || val === '') return '—';
 
-  // Handle numeric float or integer values (e.g. 8.5, -8.5, or 0.354 day fraction)
+  // Handle Date objects
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '—';
+    const hours = String(val.getHours()).padStart(2, '0');
+    const minutes = String(val.getMinutes()).padStart(2, '0');
+    const seconds = String(val.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+  }
+
+  // Handle numeric float or integer values (e.g. 8.5, 0.39583 day fraction, or 25569.647708 Excel serial)
   if (typeof val === 'number') {
     if (isNaN(val)) return '—';
     const absVal = Math.abs(val);
     if (absVal === 0) return '00:00:00';
-    // If Excel fraction of day (e.g. 0.354)
+    // If Excel fraction of day (e.g. 0.39583 => 09:30:00, 0.72916 => 17:30:00)
     if (absVal > 0 && absVal < 1) {
       const totalSeconds = Math.round(absVal * 24 * 60 * 60);
       const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
@@ -54,9 +64,18 @@ function formatTimeStr(val) {
       const seconds = String(totalSeconds % 60).padStart(2, '0');
       return `${hours}:${minutes}:${seconds}`;
     }
-    // If decimal hours (e.g. 8.5)
+    // If decimal hours (e.g. 8.5 => 08:30:00, 17.5 => 17:30:00)
     if (absVal <= 24) {
       const totalSeconds = Math.round(absVal * 3600);
+      const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+      const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+      const seconds = String(totalSeconds % 60).padStart(2, '0');
+      return `${hours}:${minutes}:${seconds}`;
+    }
+    // If Excel Date-Time Serial Number (e.g. 25569.647708555334 => 15:32:42)
+    const frac = absVal % 1;
+    if (frac > 0) {
+      const totalSeconds = Math.round(frac * 24 * 60 * 60);
       const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
       const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
       const seconds = String(totalSeconds % 60).padStart(2, '0');
@@ -67,34 +86,85 @@ function formatTimeStr(val) {
 
   if (typeof val === 'string') {
     let cleanVal = val.trim();
+    if (!cleanVal || cleanVal === '-' || cleanVal === '—') return '—';
+
     // Strip leading minus sign if present
     if (cleanVal.startsWith('-')) {
       cleanVal = cleanVal.substring(1).trim();
     }
-    if (cleanVal.includes('T')) {
-      const parts = cleanVal.split('T');
-      if (parts[1]) {
-        return parts[1].slice(0, 8);
-      }
-    } else if (cleanVal.includes(' ')) {
-      const parts = cleanVal.split(' ');
-      if (parts[1]) {
-        return parts[1].slice(0, 8);
-      }
-    }
-    // Check if string is a numeric representation (e.g., "-8.5" or "8.5")
+
+    // Check if string is a numeric representation (e.g., "-8.5", "8.5", "0.39583")
     const parsedNum = Number(cleanVal);
     if (!isNaN(parsedNum) && cleanVal.indexOf(':') === -1) {
       return formatTimeStr(parsedNum);
     }
+
+    // Handle ISO date-time strings (e.g. "1899-12-31T09:30:00.000Z" or "2026-07-23T17:30:00")
+    if (cleanVal.includes('T')) {
+      const timePart = cleanVal.split('T')[1];
+      if (timePart) {
+        cleanVal = timePart.split('.')[0].slice(0, 8);
+      }
+    } else if (cleanVal.includes(' ') && !cleanVal.toUpperCase().includes('AM') && !cleanVal.toUpperCase().includes('PM')) {
+      const timePart = cleanVal.split(' ')[1];
+      if (timePart && timePart.includes(':')) {
+        cleanVal = timePart;
+      }
+    }
+
+    // Handle AM/PM strings (e.g. "9:30 AM", "09:30:00 PM", "5:30 PM")
+    const ampmMatch = cleanVal.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+    if (ampmMatch) {
+      let hours = parseInt(ampmMatch[1], 10);
+      const minutes = ampmMatch[2];
+      const seconds = ampmMatch[3] || '00';
+      const period = ampmMatch[4].toUpperCase();
+
+      if (period === 'PM' && hours < 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+
+      return `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
+    }
+
+    // Handle standard HH:MM or HH:MM:SS strings (e.g. "9:30", "09:30", "17:30")
+    const timeMatch = cleanVal.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (timeMatch) {
+      const hours = String(parseInt(timeMatch[1], 10)).padStart(2, '0');
+      const minutes = timeMatch[2];
+      const seconds = timeMatch[3] || '00';
+      return `${hours}:${minutes}:${seconds}`;
+    }
+
     return cleanVal || '—';
   }
 
-  // Handle Date objects
-  if (val instanceof Date) {
-    return val.toTimeString().split(' ')[0];
-  }
   return String(val);
+}
+
+// Validates that uploaded spreadsheet headers match official Attendance_Sample.xlsx format
+function validateAttendanceHeaders(firstRow) {
+  if (!firstRow || typeof firstRow !== 'object') {
+    return { valid: false, missing: ['Header row not found'] };
+  }
+
+  const keys = Object.keys(firstRow).map(k => k.trim().toLowerCase());
+
+  const hasEmpId = keys.some(k => k.includes('empid') || k.includes('emp id') || k.includes('emp_id') || k.includes('s.no') || k.includes('id'));
+  const hasEmpName = keys.some(k => k.includes('empname') || k.includes('emp name') || k.includes('employee name') || k.includes('name'));
+  const hasAttendanceMarked = keys.some(k => k.includes('attendance') || k.includes('days marked') || k.includes('marked'));
+  const hasWorkingHours = keys.some(k => k.includes('working') || k.includes('hour'));
+  const hasInTime = keys.some(k => k.includes('in time') || k.includes('intime') || k.includes('in-time'));
+  const hasOutTime = keys.some(k => k.includes('out time') || k.includes('outtime') || k.includes('out-time'));
+
+  const missing = [];
+  if (!hasEmpId) missing.push('Emp Id');
+  if (!hasEmpName) missing.push('Emp Name');
+  if (!hasAttendanceMarked) missing.push('No. of days Attendance Marked');
+  if (!hasWorkingHours) missing.push('Average Working Hours');
+  if (!hasInTime) missing.push('In Time Avg');
+  if (!hasOutTime) missing.push('Out Time Avg');
+
+  return { valid: missing.length === 0, missing };
 }
 
 export default function AttendanceView() {
@@ -109,6 +179,7 @@ export default function AttendanceView() {
   // Upload states & file data preview
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewRows, setPreviewRows] = useState([]);
+  const [fileValidationError, setFileValidationError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadFinancialYear, setUploadFinancialYear] = useState('');
   const [uploadMonth, setUploadMonth] = useState('');
@@ -234,18 +305,80 @@ export default function AttendanceView() {
     return years.reverse(); // Newest first
   }, []);
 
-  // ---- KPI CARD METRICS ----
-  const avgAttendancePct = useMemo(() => {
-    if (employeeRows.length === 0) return '—';
-    const totalDaysMarked = employeeRows.reduce((acc, row) => acc + (row.AttendanceMarked || 0), 0);
-    const avg = (totalDaysMarked / (employeeRows.length * 30)) * 100;
-    return avg.toFixed(2) + '%';
+  // ---- KPI CARD DATA INSIGHT METRICS ----
+  // 1. Average Working Hours across all employee records
+  const avgWorkingHoursFormatted = useMemo(() => {
+    if (!employeeRows || employeeRows.length === 0) return '—';
+    let sumSec = 0;
+    let count = 0;
+    employeeRows.forEach(r => {
+      const val = r.WorkingHours;
+      if (val !== null && val !== undefined && val !== '') {
+        if (typeof val === 'number') {
+          const absVal = Math.abs(val);
+          if (absVal > 0 && absVal < 1) sumSec += absVal * 86400;
+          else if (absVal <= 24) sumSec += absVal * 3600;
+          count++;
+        } else if (typeof val === 'string') {
+          const num = Number(val);
+          if (!isNaN(num)) {
+            const absVal = Math.abs(num);
+            if (absVal > 0 && absVal < 1) sumSec += absVal * 86400;
+            else if (absVal <= 24) sumSec += absVal * 3600;
+            count++;
+          } else if (val.includes(':')) {
+            const parts = val.split(':');
+            const h = parseInt(parts[0], 10) || 0;
+            const m = parseInt(parts[1], 10) || 0;
+            sumSec += (h * 3600) + (m * 60);
+            count++;
+          }
+        }
+      }
+    });
+
+    if (count === 0) return '—';
+    const avgSec = sumSec / count;
+    const hrs = (avgSec / 3600).toFixed(1);
+    return `${hrs} Hrs / Day`;
   }, [employeeRows]);
 
-  const avgDaysPresent = useMemo(() => {
-    if (employeeRows.length === 0) return '—';
-    const sum = employeeRows.reduce((acc, row) => acc + (row.AttendanceMarked || 0), 0);
-    return (sum / employeeRows.length).toFixed(1) + ' Days';
+  // 2. Punctual Arrival Rate (InTime before 09:30 AM)
+  const punctualArrivalRate = useMemo(() => {
+    if (!employeeRows || employeeRows.length === 0) return '—';
+    let punctualCount = 0;
+    let validCount = 0;
+
+    employeeRows.forEach(r => {
+      const val = r.InTimeAvg;
+      if (val !== null && val !== undefined && val !== '') {
+        validCount++;
+        const formatted = formatTimeStr(val);
+        if (formatted && formatted !== '—') {
+          const parts = formatted.split(':');
+          const h = parseInt(parts[0], 10) || 0;
+          const m = parseInt(parts[1], 10) || 0;
+          if (h < 9 || (h === 9 && m <= 30)) {
+            punctualCount++;
+          }
+        }
+      }
+    });
+
+    if (validCount === 0) return '—';
+    const pct = ((punctualCount / validCount) * 100).toFixed(1);
+    return `${pct}% On-Time`;
+  }, [employeeRows]);
+
+  // 3. Total Unique Employees & Wings Monitored
+  const totalEmployeesStat = useMemo(() => {
+    if (!employeeRows || employeeRows.length === 0) return '—';
+    const uniqueEmps = new Set(employeeRows.map(r => r.EmpId).filter(Boolean));
+    const uniqueWings = new Set(employeeRows.map(r => r.Wing).filter(Boolean));
+    return {
+      empCount: `${uniqueEmps.size || employeeRows.length} Staff`,
+      wingCount: `${uniqueWings.size} Wings & Divisions`
+    };
   }, [employeeRows]);
 
   // Aggregate yearly report rows from employee database records
@@ -349,9 +482,10 @@ export default function AttendanceView() {
     };
   }, [activeReportData]);
 
-  // ---- FILE DATA PREVIEW PARSER ----
+  // ---- FILE DATA PREVIEW PARSER WITH TEMPLATE VALIDATION ----
   const handleFileSelect = (file) => {
     setSelectedFile(file);
+    setFileValidationError('');
     if (!file) {
       setPreviewRows([]);
       return;
@@ -365,13 +499,32 @@ export default function AttendanceView() {
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(sheet);
-        setPreviewRows(rows || []);
-        if (rows && rows.length > 0) {
-          showToast(`📊 Loaded preview of ${rows.length} rows from spreadsheet`, "#3B82F6");
+        
+        if (!rows || rows.length === 0) {
+          setPreviewRows([]);
+          setFileValidationError('Selected Excel file is empty or has no data rows.');
+          showToast("⚠️ Selected file contains no data rows", "#F59E0B");
+          return;
         }
+
+        // Validate template headers against Attendance_Sample.xlsx format
+        const headerCheck = validateAttendanceHeaders(rows[0]);
+        if (!headerCheck.valid) {
+          setPreviewRows([]);
+          const errText = `Invalid Template Header! Missing required column(s): ${headerCheck.missing.join(', ')}. Please use official Attendance Sample Template format.`;
+          setFileValidationError(errText);
+          showToast(`❌ Template Validation Failed: Missing ${headerCheck.missing.join(', ')}`, "#EF4444");
+          return;
+        }
+
+        // Filter out blank or invalid rows
+        const validRows = rows.filter(r => r && Object.keys(r).length > 0 && (r['Emp Id'] || r['EmpId'] || r['EMP ID'] || r['Emp Name'] || r['EmpName']));
+        setPreviewRows(validRows);
+        showToast(`✅ Template Validated! Loaded ${validRows.length} rows preview`, "#10B981");
       } catch (err) {
         console.error("Preview parse error:", err);
         setPreviewRows([]);
+        setFileValidationError("Could not read or parse the selected spreadsheet file.");
         showToast("⚠ Could not parse file preview", "#F59E0B");
       }
     };
@@ -566,11 +719,31 @@ export default function AttendanceView() {
   const handleExportRawData = (type) => {
     const title = `Employee_Attendance_Raw_Records_${reportMonth}_${reportYear}`;
     if (type === 'Excel') {
-      if (gridRef.current?.api) {
-        gridRef.current.api.exportDataAsCsv({
-          fileName: `${title}_export.csv`
-        });
-        showToast('📈 Raw data exported to CSV successfully!', '#10B981');
+      try {
+        const exportRows = filteredEmployeeRows.map((row, i) => ({
+          'S.No': i + 1,
+          'EMP ID': row.EmpId || '',
+          'EMP Name': row.EmpName || '',
+          'Designation': row.Designation || '',
+          'Wing': row.Wing || '',
+          'Division': row.Division || '',
+          'Days Attendance Marked': row.AttendanceMarked || 0,
+          'Average Working Hours': formatTimeStr(row.WorkingHours),
+          'In Time Avg': formatTimeStr(row.InTimeAvg),
+          'Out Time Avg': formatTimeStr(row.OutTimeAvg),
+          'Month': row.Month || '',
+          'Year': row.Year || '',
+          'Week': row.Week ? `Week ${row.Week}` : ''
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(exportRows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Data");
+        XLSX.writeFile(workbook, `${title}_export.xlsx`);
+        showToast('📈 Raw data exported to Excel (.xlsx) successfully!', '#10B981');
+      } catch (err) {
+        console.error("Excel export error:", err);
+        showToast('❌ Failed to export Excel file', '#EF4444');
       }
     } else if (type === 'PDF') {
       showToast('📄 Preparing PDF document...', '#4b2424');
@@ -676,6 +849,7 @@ export default function AttendanceView() {
     if (!uploadMonth) { showToast("⚠ Please select Month", "#F59E0B"); return; }
     if (!uploadWeek) { showToast("⚠ Please select Week", "#F59E0B"); return; }
     if (!selectedFile) { showToast("⚠ Please select an Excel file", "#F59E0B"); return; }
+    if (fileValidationError) { showToast(`❌ Cannot upload: ${fileValidationError}`, "#EF4444"); return; }
     
     setUploading(true);
     const formData = new FormData();
@@ -862,15 +1036,29 @@ export default function AttendanceView() {
     if (!previewRows || previewRows.length === 0) return [];
     const firstRow = previewRows[0] || {};
     const keys = Object.keys(firstRow);
-    return keys.map((key) => ({
-      field: key,
-      headerName: key,
-      flex: key.toLowerCase().includes('name') ? 2.5 : 1.4,
-      minWidth: 140,
-      wrapHeaderText: true,
-      autoHeaderHeight: true,
-      cellClass: 'flex items-center text-xs font-semibold text-slate-800'
-    }));
+    return keys.map((key) => {
+      const kLower = key.toLowerCase();
+      const isTimeCol = kLower.includes('time') || 
+                        kLower.includes('hour') || 
+                        kLower.includes('intime') || 
+                        kLower.includes('outtime') || 
+                        kLower.includes('working') ||
+                        kLower.includes('avg');
+
+      return {
+        field: key,
+        headerName: key,
+        flex: kLower.includes('name') ? 2.5 : (isTimeCol ? 1.8 : 1.4),
+        minWidth: isTimeCol ? 160 : 140,
+        wrapHeaderText: true,
+        autoHeaderHeight: true,
+        type: isTimeCol ? 'numericColumn' : undefined,
+        cellClass: isTimeCol 
+          ? 'text-center font-mono font-bold text-blue-700 flex items-center justify-center'
+          : 'flex items-center text-xs font-semibold text-slate-800',
+        valueFormatter: isTimeCol ? (params) => formatTimeStr(params.value) : undefined
+      };
+    });
   }, [previewRows]);
 
   // ---- AG GRID COLUMNS FOR WEEKLY ABSTRACT SUMMARY REPORT (FLEX STRETCHED) ----
@@ -1186,36 +1374,39 @@ export default function AttendanceView() {
       {showKpiCards && (
         <div className="px-4 md:px-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* KPI 1: Average Working Hours */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
               <div>
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Average Attendance</span>
-                <span className="text-2xl font-black text-[#0f417a] block mt-1">{avgAttendancePct}</span>
-                <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Across all spreadsheet inputs</span>
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Average Working Hours</span>
+                <span className="text-2xl font-black text-[#0f417a] block mt-1">{avgWorkingHoursFormatted}</span>
+                <span className="text-[10px] text-blue-600 font-semibold block mt-0.5">Daily average work duration</span>
               </div>
               <div className="p-3.5 bg-blue-50 text-[#0f417a] rounded-xl border border-blue-100">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+            </div>
+
+            {/* KPI 2: Punctual Arrival Rate */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Punctual Arrival Rate</span>
+                <span className="text-2xl font-black text-emerald-700 block mt-1">{punctualArrivalRate}</span>
+                <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">Check-in before 09:30 AM</span>
+              </div>
+              <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
                 <UserCheck className="h-5 w-5" />
               </div>
             </div>
 
+            {/* KPI 3: Total Employees Monitored */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
               <div>
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Total Uploaded Files</span>
-                <span className="text-2xl font-black text-slate-900 block mt-1">{filesList.length}</span>
-                <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">Available for download</span>
-              </div>
-              <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
-                <FileSpreadsheet className="h-5 w-5" />
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
-              <div>
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Average Days Marked</span>
-                <span className="text-2xl font-black text-amber-700 block mt-1">{avgDaysPresent}</span>
-                <span className="text-[10px] text-amber-600 font-semibold block mt-0.5">Approved month-wise</span>
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Total Employees Monitored</span>
+                <span className="text-2xl font-black text-amber-700 block mt-1">{typeof totalEmployeesStat === 'object' ? totalEmployeesStat.empCount : totalEmployeesStat}</span>
+                <span className="text-[10px] text-amber-600 font-semibold block mt-0.5">{typeof totalEmployeesStat === 'object' ? totalEmployeesStat.wingCount : 'Across all wings'}</span>
               </div>
               <div className="p-3.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
-                <Calendar className="h-5 w-5" />
+                <Users className="h-5 w-5" />
               </div>
             </div>
           </div>
@@ -1775,7 +1966,6 @@ export default function AttendanceView() {
                       <input
                         type="file"
                         accept=".csv, .xlsx"
-                        required
                         onChange={(e) => handleFileSelect(e.target.files[0] || null)}
                         className="hidden"
                       />
@@ -1799,7 +1989,7 @@ export default function AttendanceView() {
                     </button>
                     <button
                       type="submit"
-                      disabled={uploading}
+                      disabled={uploading || !!fileValidationError || !selectedFile}
                       className="px-6 py-2.5 bg-[#0f417a] hover:bg-[#0c3361] text-white rounded-xl text-xs font-bold shadow transition-all flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer h-[42px] flex-1 sm:flex-none"
                     >
                       {uploading ? (
@@ -1816,6 +2006,17 @@ export default function AttendanceView() {
                     </button>
                   </div>
                 </div>
+
+                {/* Template Header Validation Error Alert Banner */}
+                {fileValidationError && (
+                  <div className="mt-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold flex items-start gap-2.5 animate-fade-in shadow-xs">
+                    <AlertCircle className="h-4 w-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-extrabold uppercase tracking-wide text-rose-800">Template Validation Failed</div>
+                      <div className="text-[11px] font-semibold text-rose-600 mt-0.5">{fileValidationError}</div>
+                    </div>
+                  </div>
+                )}
               </div>
             </form>
 
