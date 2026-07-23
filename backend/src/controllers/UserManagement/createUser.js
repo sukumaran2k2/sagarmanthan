@@ -215,8 +215,10 @@ async function getUserData(req, res) {
 
     try {
         const result = await conn.query(`SELECT tbl_user.user_id, tbl_user.title, tbl_user.name, tbl_user.designation,
-        tbl_user.role_id, tbl_role.role_name, tbl_user.organisation_id, tbl_user.wing_id, wing_name, tbl_user.division_id,
-        division_name, mmt_organisation.organisation_name, tbl_user.email, tbl_user.phone, tbl_user.status,
+        tbl_user.role_id, tbl_role.role_name, tbl_role.role_code, tbl_user.organisation_id, tbl_user.wing_id, wing_name, tbl_user.division_id,
+        division_name, mmt_organisation.organisation_name,
+        mmt_organisation.organisation_usermatrix_category_id,
+        tbl_user.email, tbl_user.phone, tbl_user.status,
         tbl_user.state_id, state_name, tbl_user.district_id, district_name, tbl_user.last_login
         FROM tbl_user
         INNER JOIN tbl_role on tbl_role.role_id = tbl_user.role_id

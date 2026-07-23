@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, X, ChevronDown } from 'lucide-react';
-import Table from './table';
+import Table from './Table';
 import CopyButton from './CopyButton';
 import ExportDropdown from './ExportDropdown';
 export default function TableWithToolbar({

@@ -50,7 +50,7 @@ async function validation(req, res) {
     });
 
     if (!recaptchaRes.data.success) {
-      if (RECAPTCHA_SECRET_KEY === '6LeIxAcTAAAAAGG-vFI1TnwpCD2HPmddZ4Qv2Tk0') {
+      if (RECAPTCHA_SECRET_KEY === '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe') {
         console.warn('[RECAPTCHA_WARNING] Bypassing recaptcha verification failure for Google test keys.');
       } else {
         return res.status(400).json({
@@ -106,62 +106,64 @@ async function validation(req, res) {
       const isPasswordMatch = await bcrypt.compare(decryptedPassword, userData.password);
       if (isPasswordMatch) {
 
-        // Get allowed modules for the user's organization category
         let organisationId = userData.organisation_id;
 
-        // LOG 4: Checking org category
         console.log('[LOGIN_ORG_CHECK]', { email, userId: userData.user_id, organisationId });
 
-        // Get organisation_usermatrix_category_id for the user's organisation
-        let categoryQuery = await request.query(`
-        SELECT mo.organisation_usermatrix_category_id
-        FROM mmt_organisation mo
-        WHERE mo.organisation_id = ${organisationId}      
-      `);
-        let orgUserMatrixCategoryId = categoryQuery.recordset[0]?.organisation_usermatrix_category_id;
+        const roleProfileQuery = await request.query(`
+          SELECT
+            r.role_id,
+            r.role_code,
+            r.role_name,
+            uv.ui_view_code,
+            ds.data_scope_code
+          FROM tbl_role r
+          LEFT JOIN tbl_rbac_role_ui_view ruv ON ruv.role_id = r.role_id
+          LEFT JOIN mmt_rbac_ui_view uv ON uv.ui_view_id = ruv.ui_view_id
+          LEFT JOIN tbl_rbac_role_data_scope rds ON rds.role_id = r.role_id
+          LEFT JOIN mmt_rbac_data_scope ds ON ds.data_scope_id = rds.data_scope_id
+          WHERE r.role_id = ${userData.role_id}
+        `);
+        const roleProfile = roleProfileQuery.recordset[0] || {};
+        const roleCode = roleProfile.role_code || null;
+        const uiViewCode = roleProfile.ui_view_code || null;
+        const dataScopeCode = roleProfile.data_scope_code || null;
 
-        if (!orgUserMatrixCategoryId) {
-          // LOG 5: Org category not found
-          console.error('[LOGIN_ERROR] ORG_CATEGORY_NOT_FOUND', {
-            email,
-            userId: userData.user_id,
-            organisationId
-          });
-          res.status(400).send("User's organisation category not found");
-          return;
-        }
-
-        // Get allowed modules for the organisation_usermatrix_category_id
         let moduleQuery = await request.query(`
-        SELECT p.module_id 
-        FROM tbl_usermatrix_category_module_permission p
-        WHERE p.organisation_usermatrix_category_id = ${orgUserMatrixCategoryId} 
-        AND p.permission = 1
-      `);
+          SELECT p.module_id
+          FROM tbl_rbac_org_module_permission p
+          INNER JOIN tbl_modules m ON m.module_id = p.module_id
+          WHERE p.organisation_id = ${organisationId}
+            AND p.is_allowed = 1
+            AND ISNULL(m.is_active, 1) = 1
+        `);
         let allowedModules = moduleQuery.recordset.map(row => row.module_id);
 
-        // LOG 6: Allowed modules
+        // superadmin only gets user matrix, not module nav
+        if (roleCode === 'SUPERADMIN') {
+          allowedModules = [];
+        }
+
         console.log('[LOGIN_MODULES]', {
           email,
           userId: userData.user_id,
           roleId: userData.role_id,
+          roleCode,
+          uiViewCode,
+          dataScopeCode,
           allowedModules,
           allowedModulesCount: allowedModules.length
         });
 
-        // Add restriction for SUPERADMIN
-        if (userData.user_id === 5) {
-          const specificModules = [1, 2, 3, 4, 5, 6, 7, 8, 62];
-          allowedModules = Array.from(new Set([...specificModules]));
-        }
-
         const chainlitAccessToken = generateChainlitToken(userData);
 
-        // Assign allowed modules to token payload
         const tokenPayload = {
           userId: userData.user_id,
-          // hashPassword: userData.password,
           roleId: userData.role_id,
+          roleCode,
+          roleName: roleProfile.role_name || userData.role_name,
+          uiViewCode,
+          dataScopeCode,
           email: userData.email,
           status: userData.status,
           passwordStatus: userData.password_status,
@@ -173,51 +175,31 @@ async function validation(req, res) {
           allowedModules,
         };
 
-        if (userData.role_id === 7) {
-          let modulePermissions = [];
+        let modulePermissions = [];
+        if (allowedModules.length > 0) {
+          const modulePermissionsQuery = await request.query(`
+            SELECT
+              p.module_id,
+              p.can_create,
+              p.can_read,
+              p.can_update,
+              p.can_delete
+            FROM tbl_rbac_user_module_crud p
+            WHERE p.user_id = ${userData.user_id}
+              AND p.module_id IN (${allowedModules.join(',')})
+          `);
 
-          // FIX: Guard against empty allowedModules
-          if (allowedModules.length > 0) {
-            // LOG 7: Role 7 permissions check
-            console.log('[LOGIN_ROLE7_PERMISSIONS]', {
-              email,
-              userId: userData.user_id,
-              allowedModules
-            });
-
-            let modulePermissionsQuery = await request.query(`
-              SELECT 
-                p.module_id,
-                p.create_permission,
-                p.read_permission,
-                p.update_permission,
-                p.delete_permission
-              FROM tbl_usermatrix_user_module_crud_permission p
-              WHERE p.module_id IN (${allowedModules.join(",")}) AND p.user_id = ${userData.user_id}
-            `);
-
-            // Map the permissions to their corresponding modules
-            modulePermissions = modulePermissionsQuery.recordset.map(row => ({
-              moduleId: row.module_id,
-              create: !!row.create_permission,
-              read: !!row.read_permission,
-              update: !!row.update_permission,
-              delete: !!row.delete_permission,
-            }));
-          } else {
-            // LOG 8: Role 7 but no allowed modules
-            console.warn('[LOGIN_WARNING] ROLE7_NO_MODULES', {
-              email,
-              userId: userData.user_id,
-              organisationId
-            });
-          }
-
-          // Add permissions to the token payload
-          tokenPayload.modulePermissions = modulePermissions;
+          modulePermissions = modulePermissionsQuery.recordset.map(row => ({
+            moduleId: row.module_id,
+            create: !!row.can_create,
+            read: !!row.can_read,
+            update: !!row.can_update,
+            delete: !!row.can_delete,
+          }));
         }
 
-        // Update last_login timestamp in the database
+        tokenPayload.modulePermissions = modulePermissions;
+
         try {
           const updateLoginRequest = conn.request();
           updateLoginRequest.input("userID", userData.user_id);
@@ -304,7 +286,7 @@ async function resetpassword(req, res) {
     });
 
     if (!recaptchaRes.data.success) {
-      if (RECAPTCHA_SECRET_KEY === '6LeIxAcTAAAAAGG-vFI1TnwpCD2HPmddZ4Qv2Tk0') {
+      if (RECAPTCHA_SECRET_KEY === '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe') {
         console.warn('[RECAPTCHA_WARNING] Bypassing recaptcha verification failure for Google test keys.');
       } else {
         return res.status(400).json({

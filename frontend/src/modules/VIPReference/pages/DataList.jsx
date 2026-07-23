@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, X, Edit, BarChart3, List, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';
-import Table from '../../../components/table';
+import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 
 const STAGE_STEPS = {

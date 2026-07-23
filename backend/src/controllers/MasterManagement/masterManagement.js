@@ -339,7 +339,7 @@ async function getDropDownData(req, res) {
             break;
 
         case "tbl_role":
-            query = "SELECT role_id, role_name FROM tbl_role";
+            query = "SELECT role_id, role_name, role_code, is_active FROM tbl_role WHERE ISNULL(is_active, 1) = 1 ORDER BY role_name";
             break;
 
         case "mmt_organisation_category":
@@ -1228,7 +1228,7 @@ async function getDropDownAllValues(req, res) {
             break;
 
         case "tbl_role":
-            query = "SELECT role_id, role_name FROM tbl_role";
+            query = "SELECT role_id, role_name, role_code, is_active FROM tbl_role WHERE ISNULL(is_active, 1) = 1 ORDER BY role_name";
             break;
 
         case "mmt_organisation":
@@ -1330,7 +1330,7 @@ async function getFilterDependecyDropDown(req, res) {
             break;
 
         case "tbl_role":
-            query = "SELECT role_id, role_name FROM tbl_role";
+            query = "SELECT role_id, role_name, role_code, is_active FROM tbl_role WHERE ISNULL(is_active, 1) = 1 ORDER BY role_name";
             break;
 
         case "mmt_organisation_category":

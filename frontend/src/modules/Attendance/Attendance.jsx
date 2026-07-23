@@ -19,7 +19,7 @@ import {
   Edit3,
   Check
 } from 'lucide-react';
-import Table from '../../components/table';
+import Table from '../../components/Table';
 import ExportDropdown from '../../components/ExportDropdown';
 import CopyButton from '../../components/CopyButton';
 

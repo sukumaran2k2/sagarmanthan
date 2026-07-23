@@ -15,6 +15,7 @@ import ProfileView from './modules/Profile/Profile';
 import CabinetNotes from './modules/CabinetNotesMOPSW/CabinetNotesMOPSW';
 import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotesOther';
 import UserMatrix from './modules/UserManagement/UserMatrix';
+import { isSuperAdmin } from './utils/authSession';
 import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
 import AuditParaView from './modules/AuditPara/AuditPara';
 import VIPReferenceView from './modules/VIPReference/VIPReference';
@@ -590,7 +591,9 @@ export default function App() {
             )}
 
             {activeTab === 'User Matrix' && (
-              <UserMatrix />
+              isSuperAdmin()
+                ? <UserMatrix />
+                : <div className="p-8 text-sm text-slate-600">Access restricted to SUPERADMIN.</div>
             )}
 
             {['Ministry Contacts', 'Helpdesk Support'].includes(activeTab) && (

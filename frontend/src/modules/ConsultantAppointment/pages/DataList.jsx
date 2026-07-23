@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import Table from '../../../components/table';
+import Table from '../../../components/Table';
 import { Search, X, Edit, BarChart3, List, ChevronDown, Plus } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import ExportDropdown from '../../../components/ExportDropdown';

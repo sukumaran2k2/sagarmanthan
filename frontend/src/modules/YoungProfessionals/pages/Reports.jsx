@@ -3,7 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { ChevronLeft, Search, Users, Loader2, RefreshCw, X, TrendingUp, Copy, FileSpreadsheet } from 'lucide-react';
 import axios from 'axios';
-import Table from '../../../components/table';
+import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 

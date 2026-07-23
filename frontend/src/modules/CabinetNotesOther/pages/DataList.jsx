@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import Table from '../../../components/table';
+import Table from '../../../components/Table';
 import { Search, Edit, Eye, ChevronDown, BarChart3, List } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';

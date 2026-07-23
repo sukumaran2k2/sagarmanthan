@@ -3,6 +3,7 @@ import { ChevronDown, Globe, Type, Sun, Moon } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import { useTheme } from '../context/ThemeContext.jsx';
 import axios from 'axios';
+import { isSuperAdmin } from '../utils/authSession';
 
 function decodeToken(token) {
   try {
@@ -279,7 +280,9 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
                   {showAvatarDropdown && (
                     <div className="absolute right-0 w-48 mt-2 py-1 bg-[#0a2540] border border-white/10 rounded-xl shadow-2xl z-50 transition-all duration-200">
                       <a href="#profile" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onProfileClick(); }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">Profile Settings</a>
-                      <a href="#usermanagement" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onUserManagementClick(); }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">Access Control Matrix</a>
+                      {isSuperAdmin() && (
+                        <a href="#usermanagement" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onUserManagementClick(); }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">Access Control Matrix</a>
+                      )}
                       <a href="#manual" onClick={() => setShowAvatarDropdown(false)} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">User Manual</a>
                       <hr className="border-white/10 my-1" />
                       <a href="#logout" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onLogout(); }} className="block px-4 py-2 text-xs text-red-400 hover:bg-white/10 font-medium">Sign Out</a>

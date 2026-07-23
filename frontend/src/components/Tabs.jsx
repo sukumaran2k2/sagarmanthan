@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
+import { isSuperAdmin } from '../utils/authSession';
 import {
   Home,
   Briefcase,
@@ -352,16 +353,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
         { label: 'Action Taken Report', icon: CheckCircle }
       ]
     },
-    {
-      id: 'admin',
-      label: 'Admin',
-      icon: Users,
-      align: 'right-0',
-      width: 'w-[200px]',
-      items: [
-        { label: 'User Matrix', icon: UserCheck }
-      ]
-    },
+    ...(isSuperAdmin()
+      ? [
+          {
+            id: 'admin',
+            label: 'Admin',
+            icon: Users,
+            align: 'right-0',
+            width: 'w-[200px]',
+            items: [{ label: 'User Matrix', icon: UserCheck }],
+          },
+        ]
+      : []),
     {
       id: 'contact',
       label: 'Contact Us',
@@ -370,9 +373,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
       width: 'w-[240px]',
       items: [
         { label: 'Ministry Contacts', icon: Users },
-        { label: 'Helpdesk Support', icon: HelpCircle }
-      ]
-    }
+        { label: 'Helpdesk Support', icon: HelpCircle },
+      ],
+    },
   ];
 
   const handleItemClick = (label) => {

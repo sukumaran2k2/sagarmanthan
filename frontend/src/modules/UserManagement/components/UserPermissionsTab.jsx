@@ -28,7 +28,9 @@ export default function UserPermissionsTab({
   allSel,
   someSel,
   grantedCount,
-  mixedCount
+  mixedCount,
+  usersLoading = false,
+  saving = false,
 }) {
   return (
     <>
@@ -184,10 +186,12 @@ export default function UserPermissionsTab({
             >
               ✕ Revoke All
             </button>
-            <button className="save-btn" onClick={handleSave}>
-              {selectedUsers.length > 1
-                ? `Save to ${selectedUsers.length} users`
-                : "Save"}
+            <button className="save-btn" onClick={handleSave} disabled={saving}>
+              {saving
+                ? "Saving…"
+                : selectedUsers.length > 1
+                  ? `Save to ${selectedUsers.length} users`
+                  : "Save"}
             </button>
           </div>
         </div>
@@ -248,13 +252,25 @@ export default function UserPermissionsTab({
                 {selectedCategory === "all" ? (
                   <tr>
                     <td colSpan="5" className="empty">
-                      Select Organisation Category to load modules.
+                      Select Organisation Category, then Organisation to load modules.
+                    </td>
+                  </tr>
+                ) : selectedOrg === "all" ? (
+                  <tr>
+                    <td colSpan="5" className="empty">
+                      Select Organisation to load modules allowed for that organisation.
+                    </td>
+                  </tr>
+                ) : usersLoading ? (
+                  <tr>
+                    <td colSpan="5" className="empty">
+                      Loading users…
                     </td>
                   </tr>
                 ) : activeModules.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="empty">
-                      Loading modules...
+                      No modules enabled for this organisation. Set them in Module Permissions first.
                     </td>
                   </tr>
                 ) : selectedUsers.length === 0 ? (

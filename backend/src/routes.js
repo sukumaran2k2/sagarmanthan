@@ -8,6 +8,9 @@ import logInTab from "./controllers/login.js";
 
 import masterTable from "./controllers/MasterManagement/masterManagement.js";
 import userTable from "./controllers/UserManagement/createUser.js";
+import orgModulePermission from "./controllers/RBAC/orgModulePermission.js";
+import userModuleCrud from "./controllers/RBAC/userModuleCrud.js";
+import { getOrgModulePermissionLog, getUserModuleCrudLog } from "./controllers/RBAC/rbacAudit.js";
 
 
 import terminalImageUploaderTab from "./controllers/MasterManagement/terminalImageUploader.js";
@@ -229,6 +232,7 @@ import conciliationCourtCaseTab from "./controllers/Legal/conciliationCourtCase.
 
 //Module Management
 import ModuleControllerTab from "./controllers/UserManagement/moduleManagement.js";
+// old module controller (prefer /rbac/*)
 
 //API - MIKR
 import { getAuthCode, getToken } from "./controllers/mikr-authcode-token-generation.js";
@@ -2421,10 +2425,23 @@ router.get('/get-yearly-entry-exit-report', entryExitTab.getYearlyEntryExitRepor
 // router.post('/store-form-builder-input-form', formBuilderTab.storeFormBuilderInputForm); //req
 // router.get('/get-created-form-data', formBuilderTab.getCreatedFormData); //req //get created forms
 
-//Module Management
+// old category-based module perms
 router.get('/module-permissions', ModuleControllerTab.getModulePermissions);
 router.post('/update-module-permission', ModuleControllerTab.updateModulePermission);
 router.get("/organisation-modules/:organisationId", ModuleControllerTab.getModulesByOrganisationCategory);
+
+// rbac
+router.get('/rbac/usermatrix-categories', orgModulePermission.getUsermatrixCategories);
+router.get('/rbac/organisations', orgModulePermission.getOrganisationsByCategory);
+router.get('/rbac/modules', orgModulePermission.getActiveModules);
+router.get('/rbac/org-module-permissions', orgModulePermission.getOrgModulePermissions);
+router.put('/rbac/org-module-permissions', auth, orgModulePermission.saveOrgModulePermissions);
+router.get('/rbac/org-allowed-modules/:organisationId', orgModulePermission.getAllowedModulesForOrganisation);
+router.get('/rbac/matrix-users', userModuleCrud.getMatrixUsers);
+router.get('/rbac/user-module-crud', userModuleCrud.getUserModuleCrud);
+router.put('/rbac/user-module-crud', auth, userModuleCrud.saveUserModuleCrud);
+router.get('/rbac/org-module-permission-log', getOrgModulePermissionLog);
+router.get('/rbac/user-module-crud-log', getUserModuleCrudLog);
 
 router.get("/project-proposal", getProjectProposal);
 router.get("/project-clearance", getProjectClearance);
