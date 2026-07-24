@@ -87,9 +87,9 @@ export default function ModulePermissionsTab({
       <div className="sidebar" style={{ width: '300px' }}>
         <div className="sidebar-head">
           <div className="sidebar-head-top flex items-center justify-between">
-            <span className="sidebar-title">Select Organizations</span>
+            <span className="sidebar-title">Organisations</span>
             <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-              {selectedModuleOrgIds.size} Selected
+              {selectedModuleOrgIds.size} selected
             </span>
           </div>
         </div>
@@ -233,10 +233,12 @@ export default function ModulePermissionsTab({
             </div>
             <div>
               <div className="banner-name">
-                {selectedModuleOrgIds.size} Selected Organisation(s)
+                {selectedModuleOrgIds.size > 0
+                  ? `${selectedModuleOrgIds.size} organisation${selectedModuleOrgIds.size === 1 ? '' : 's'} selected`
+                  : 'No organisation selected'}
               </div>
               <div className="banner-sub">
-                Toggle module availability for selected organisations
+                Select organisations on the left, then enable modules they may use. Save when finished.
               </div>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Home } from 'lucide-react';
 import api, { rbacApi } from './rbacApi';
 import './UserMatrix.css';
 import { colorFromString } from './utils';
@@ -10,6 +11,44 @@ import ModulePermissionsTab from './components/ModulePermissionsTab';
 import ModulePermissionListTab from './components/ModulePermissionListTab';
 import UserListTab from './components/UserListTab';
 import EditUserModal from './components/EditUserModal';
+
+const NAV_GROUPS = [
+  {
+    id: 'users',
+    label: 'Users',
+    items: [
+      { key: 'users', label: 'Update', hint: 'Edit CRUD access' },
+      { key: 'userlist', label: 'List', hint: 'Browse & manage users' },
+    ],
+  },
+  {
+    id: 'modules',
+    label: 'Modules',
+    items: [
+      { key: 'modules', label: 'Update', hint: 'Assign org modules' },
+      { key: 'module_permission_list', label: 'List', hint: 'View module access' },
+    ],
+  },
+];
+
+const TAB_META = {
+  users: {
+    title: 'Update User Access',
+    note: 'Select an Organisation Category, then an Organisation, to load users and assign Create / Read / Update / Delete permissions.',
+  },
+  modules: {
+    title: 'Update Module Access',
+    note: 'Select one or more organisations on the left, then enable the modules each organisation is allowed to use.',
+  },
+  module_permission_list: {
+    title: 'Module Access List',
+    note: 'Select an organisation on the left to view its allowed modules. To change access, switch to Modules → Update.',
+  },
+  userlist: {
+    title: 'User Directory',
+    note: 'Browse users by organisation or role. Open Access to view module permissions, or Edit to update profile details.',
+  },
+};
 
 function mapUser(row) {
   return {
@@ -29,7 +68,7 @@ function mapUser(row) {
   };
 }
 
-export default function UserMatrix() {
+export default function UserMatrix({ onGoHome }) {
   const [activeMainTab, setActiveMainTab] = useState('users');
   const [saving, setSaving] = useState(false);
 
@@ -566,192 +605,213 @@ export default function UserMatrix() {
   );
 
   return (
-    <div className="user-matrix-container w-full h-[85vh] bg-[#F8FAFC] text-[#1E293B] flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200">
-      <div className="topbar">
-        <div className="topbar-brand">
-          <div className="dot"></div>
-          <h1>Permission Manager</h1>
+    <div className="user-matrix-page animate-fade-in">
+      <div className="um-page-header">
+        <div className="um-breadcrumb">
+          <Home
+            className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors"
+            onClick={onGoHome}
+          />
+          <span className="text-slate-300">/</span>
+          <span className="text-blue-800 font-bold">User Matrix</span>
         </div>
 
-        <div className="flex ml-6 bg-slate-100 p-1 rounded-lg">
-          {[
-            ['users', 'User Permissions'],
-            ['modules', 'Module Permissions'],
-            ['module_permission_list', 'Module Permission List'],
-            ['userlist', 'User List'],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setActiveMainTab(key)}
-              className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all ${
-                activeMainTab === key
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 cursor-pointer'
-              }`}
-            >
-              {label}
-            </button>
+        <nav className="um-nav" aria-label="User Matrix sections">
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={group.id} className="um-nav-group">
+              {gi > 0 && <div className="um-nav-divider" aria-hidden="true" />}
+              <span className="um-nav-group-label">{group.label}</span>
+              <div className="um-nav-pills">
+                {group.items.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    title={item.hint}
+                    onClick={() => setActiveMainTab(item.key)}
+                    className={`um-nav-pill ${activeMainTab === item.key ? 'is-active' : ''}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
-        </div>
-
-        {activeMainTab === 'users' && (
-          <>
-            <div className="sep ml-auto" />
-            <div className="filter-item ml-auto">
-              <label>Organisation Category</label>
-              <select value={selectedCategory} onChange={handleOrgCatChange}>
-                <option value="all">Select Category</option>
-                {categories.map((c) => (
-                  <option key={c.category_id} value={c.category_id}>
-                    {c.category_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="filter-item">
-              <label>Organisation</label>
-              <select
-                value={selectedOrg}
-                onChange={(e) => setSelectedOrg(e.target.value)}
-                disabled={selectedCategory === 'all'}
-              >
-                <option value="all">All Organisations</option>
-                {orgsForCategory.map((o) => (
-                  <option key={o.organisation_id} value={o.organisation_id}>
-                    {o.organisation_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="filter-item">
-              <label>Role</label>
-              <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                disabled={selectedCategory === 'all'}
-              >
-                <option value="all">All Roles</option>
-                {activeRoles.map((r) => (
-                  <option key={r.role_id} value={r.role_id}>
-                    {r.role_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
-        )}
+        </nav>
       </div>
 
-      <div className="layout">
-        {activeMainTab === 'users' && (
-          <UserPermissionsTab
-            selectedCategory={selectedCategory}
-            selectedOrg={selectedOrg}
-            setSelectedOrg={setSelectedOrg}
-            selectedRole={selectedRole}
-            setSelectedRole={setSelectedRole}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            selectedIds={selectedIds}
-            setSelectedIds={setSelectedIds}
-            draft={draft}
-            categories={categories}
-            orgs={orgsForCategory}
-            filteredUsers={filteredUsers}
-            selectedUsers={selectedUsers}
-            activeModules={activeModules}
-            handleOrgCatChange={handleOrgCatChange}
-            toggleUser={toggleUser}
-            toggleSelectAll={toggleSelectAll}
-            handleCheck={handleCheck}
-            setAll={setAll}
-            colAll={colAll}
-            handleSave={handleSave}
-            allSel={allSel}
-            someSel={someSel}
-            grantedCount={grantedCount}
-            mixedCount={mixedCount}
-            usersLoading={usersLoading}
-            saving={saving}
-          />
-        )}
+      <div className="user-matrix-container w-full h-[85vh] bg-[#F8FAFC] text-[#1E293B] flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200">
+        <div className="topbar">
+          <div className="topbar-left">
+            <div className="topbar-brand">
+              <div className="dot"></div>
+              <h1>{TAB_META[activeMainTab]?.title}</h1>
+            </div>
+            <p className="topbar-note">{TAB_META[activeMainTab]?.note}</p>
+          </div>
 
-        {activeMainTab === 'modules' && (
-          <ModulePermissionsTab
-            organisations={organisations}
-            categories={categories}
-            masterModules={masterModules}
-            selectedModuleOrgIds={selectedModuleOrgIds}
-            setSelectedModuleOrgIds={setSelectedModuleOrgIds}
-            orgModuleState={orgModuleState}
-            toggleOrgModule={toggleOrgModule}
-            setAllOrgModules={setAllOrgModules}
-            saveModulePermissions={saveModulePermissions}
-            saving={saving}
-          />
-        )}
+          {activeMainTab === 'users' && (
+            <div className="topbar-filters">
+              <div className="filter-field">
+                <label htmlFor="um-filter-category">Category</label>
+                <select
+                  id="um-filter-category"
+                  value={selectedCategory}
+                  onChange={handleOrgCatChange}
+                >
+                  <option value="all">Select category</option>
+                  {categories.map((c) => (
+                    <option key={c.category_id} value={c.category_id}>
+                      {c.category_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="filter-field">
+                <label htmlFor="um-filter-org">Organisation</label>
+                <select
+                  id="um-filter-org"
+                  value={selectedOrg}
+                  onChange={(e) => setSelectedOrg(e.target.value)}
+                  disabled={selectedCategory === 'all'}
+                >
+                  <option value="all">All organisations</option>
+                  {orgsForCategory.map((o) => (
+                    <option key={o.organisation_id} value={o.organisation_id}>
+                      {o.organisation_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="filter-field">
+                <label htmlFor="um-filter-role">Role</label>
+                <select
+                  id="um-filter-role"
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  disabled={selectedCategory === 'all'}
+                >
+                  <option value="all">All roles</option>
+                  {activeRoles.map((r) => (
+                    <option key={r.role_id} value={r.role_id}>
+                      {r.role_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
 
-        {activeMainTab === 'module_permission_list' && (
-          <ModulePermissionListTab
-            organisations={organisations}
-            categories={categories}
-            masterModules={masterModules}
-            showToast={showToast}
-          />
-        )}
+        <div className="layout">
+          {activeMainTab === 'users' && (
+            <UserPermissionsTab
+              selectedCategory={selectedCategory}
+              selectedOrg={selectedOrg}
+              setSelectedOrg={setSelectedOrg}
+              selectedRole={selectedRole}
+              setSelectedRole={setSelectedRole}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              selectedIds={selectedIds}
+              setSelectedIds={setSelectedIds}
+              draft={draft}
+              categories={categories}
+              orgs={orgsForCategory}
+              filteredUsers={filteredUsers}
+              selectedUsers={selectedUsers}
+              activeModules={activeModules}
+              handleOrgCatChange={handleOrgCatChange}
+              toggleUser={toggleUser}
+              toggleSelectAll={toggleSelectAll}
+              handleCheck={handleCheck}
+              setAll={setAll}
+              colAll={colAll}
+              handleSave={handleSave}
+              allSel={allSel}
+              someSel={someSel}
+              grantedCount={grantedCount}
+              mixedCount={mixedCount}
+              usersLoading={usersLoading}
+              saving={saving}
+            />
+          )}
 
-        {activeMainTab === 'userlist' && (
-          <UserListTab
-            dbUserList={dbUserList}
-            userListSearch={userListSearch}
-            setUserListSearch={setUserListSearch}
-            selectedDbRole={selectedDbRole}
-            setSelectedDbRole={setSelectedDbRole}
-            selectedDbOrg={selectedDbOrg}
-            setSelectedDbOrg={setSelectedDbOrg}
-            organisations={organisations}
-            dbLoading={dbLoading}
-            filteredDbUsers={filteredDbUsers}
-            masterRoles={masterRoles}
-            handleOpenEdit={handleOpenEdit}
-            toggleUserStatus={toggleUserStatus}
-            handleResetPassword={handleResetPassword}
-            showToast={showToast}
-          />
+          {activeMainTab === 'modules' && (
+            <ModulePermissionsTab
+              organisations={organisations}
+              categories={categories}
+              masterModules={masterModules}
+              selectedModuleOrgIds={selectedModuleOrgIds}
+              setSelectedModuleOrgIds={setSelectedModuleOrgIds}
+              orgModuleState={orgModuleState}
+              toggleOrgModule={toggleOrgModule}
+              setAllOrgModules={setAllOrgModules}
+              saveModulePermissions={saveModulePermissions}
+              saving={saving}
+            />
+          )}
+
+          {activeMainTab === 'module_permission_list' && (
+            <ModulePermissionListTab
+              organisations={organisations}
+              categories={categories}
+              masterModules={masterModules}
+              showToast={showToast}
+            />
+          )}
+
+          {activeMainTab === 'userlist' && (
+            <UserListTab
+              dbUserList={dbUserList}
+              userListSearch={userListSearch}
+              setUserListSearch={setUserListSearch}
+              selectedDbRole={selectedDbRole}
+              setSelectedDbRole={setSelectedDbRole}
+              selectedDbOrg={selectedDbOrg}
+              setSelectedDbOrg={setSelectedDbOrg}
+              organisations={organisations}
+              dbLoading={dbLoading}
+              filteredDbUsers={filteredDbUsers}
+              masterRoles={masterRoles}
+              handleOpenEdit={handleOpenEdit}
+              toggleUserStatus={toggleUserStatus}
+              handleResetPassword={handleResetPassword}
+              showToast={showToast}
+            />
+          )}
+        </div>
+
+        <EditUserModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSubmit={handleUpdateUserSubmit}
+          formTitle={formTitle}
+          setFormTitle={setFormTitle}
+          formName={formName}
+          setFormName={setFormName}
+          formDesignation={formDesignation}
+          setFormDesignation={setFormDesignation}
+          formOrg={formOrg}
+          setFormOrg={setFormOrg}
+          formRole={formRole}
+          setFormRole={setFormRole}
+          formPhone={formPhone}
+          setFormPhone={setFormPhone}
+          formEmail={formEmail}
+          setFormEmail={setFormEmail}
+          masterOrgs={masterOrgs}
+          masterRoles={masterRoles}
+        />
+
+        {toastVisible && (
+          <div
+            className="toast"
+            style={{ background: toastColor, opacity: toastVisible ? 1 : 0 }}
+          >
+            {toastMsg}
+          </div>
         )}
       </div>
-
-      <EditUserModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSubmit={handleUpdateUserSubmit}
-        formTitle={formTitle}
-        setFormTitle={setFormTitle}
-        formName={formName}
-        setFormName={setFormName}
-        formDesignation={formDesignation}
-        setFormDesignation={setFormDesignation}
-        formOrg={formOrg}
-        setFormOrg={setFormOrg}
-        formRole={formRole}
-        setFormRole={setFormRole}
-        formPhone={formPhone}
-        setFormPhone={setFormPhone}
-        formEmail={formEmail}
-        setFormEmail={setFormEmail}
-        masterOrgs={masterOrgs}
-        masterRoles={masterRoles}
-      />
-
-      {toastVisible && (
-        <div
-          className="toast"
-          style={{ background: toastColor, opacity: toastVisible ? 1 : 0 }}
-        >
-          {toastMsg}
-        </div>
-      )}
     </div>
   );
 }

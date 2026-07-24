@@ -101,35 +101,21 @@ export default function UserListTab({
             👥
           </div>
           <div>
-            <div className="banner-name">User List Database</div>
+            <div className="banner-name">All users</div>
             <div className="banner-sub">
-              View users, details, and module access (CRUD)
+              Filter by organisation or role, then open Access or Edit as needed.
             </div>
           </div>
         </div>
-        <div
-          className="banner-actions"
-          style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}
-        >
-          <div className="filter-item" style={{ margin: 0 }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '10px',
-                fontWeight: 700,
-                color: '#64748B',
-                marginBottom: '4px',
-              }}
-            >
-              Organisation
-            </label>
+        <div className="banner-actions topbar-filters" style={{ flex: '0 1 auto' }}>
+          <div className="filter-field" style={{ maxWidth: '200px' }}>
+            <label htmlFor="um-list-org">Organisation</label>
             <select
+              id="um-list-org"
               value={selectedDbOrg}
               onChange={(e) => setSelectedDbOrg(e.target.value)}
-              className="search-input"
-              style={{ width: '200px', height: '34px' }}
             >
-              <option value="All">All Organisations</option>
+              <option value="All">All organisations</option>
               {orgOptions.map((o) => (
                 <option key={o.id} value={String(o.id)}>
                   {o.name}
@@ -137,25 +123,14 @@ export default function UserListTab({
               ))}
             </select>
           </div>
-          <div className="filter-item" style={{ margin: 0 }}>
-            <label
-              style={{
-                display: 'block',
-                fontSize: '10px',
-                fontWeight: 700,
-                color: '#64748B',
-                marginBottom: '4px',
-              }}
-            >
-              Role
-            </label>
+          <div className="filter-field" style={{ maxWidth: '180px' }}>
+            <label htmlFor="um-list-role">Role</label>
             <select
+              id="um-list-role"
               value={selectedDbRole}
               onChange={(e) => setSelectedDbRole(e.target.value)}
-              className="search-input"
-              style={{ width: '200px', height: '34px' }}
             >
-              <option value="All">All Roles</option>
+              <option value="All">All roles</option>
               {(masterRoles || []).map((role) => (
                 <option key={role.role_id} value={String(role.role_id)}>
                   {role.role_name}
@@ -163,14 +138,16 @@ export default function UserListTab({
               ))}
             </select>
           </div>
-          <div className="search-wrap" style={{ margin: 0, alignSelf: 'flex-end' }}>
+          <div className="filter-field" style={{ maxWidth: '220px' }}>
+            <label htmlFor="um-list-search">Search</label>
             <input
+              id="um-list-search"
               type="text"
               className="search-input"
-              placeholder="Search users..."
+              placeholder="Search by name or email…"
               value={userListSearch}
               onChange={(e) => setUserListSearch(e.target.value)}
-              style={{ width: '220px', height: '34px' }}
+              style={{ height: '34px' }}
             />
           </div>
         </div>

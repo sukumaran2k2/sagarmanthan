@@ -155,7 +155,7 @@ export default function UserPermissionsTab({
               </div>
               <div className="banner-sub">
                 {selectedUsers.length === 0
-                  ? "Select one or more users from the left"
+                  ? "Select users on the left to assign Create, Read, Update, and Delete permissions"
                   : selectedUsers.length === 1
                     ? `${selectedUsers[0].email} · ${selectedUsers[0].org}`
                     : selectedUsers
@@ -252,13 +252,13 @@ export default function UserPermissionsTab({
                 {selectedCategory === "all" ? (
                   <tr>
                     <td colSpan="5" className="empty">
-                      Select Organisation Category, then Organisation to load modules.
+                      Select a Category, then an Organisation, to load modules and assign permissions.
                     </td>
                   </tr>
                 ) : selectedOrg === "all" ? (
                   <tr>
                     <td colSpan="5" className="empty">
-                      Select Organisation to load modules allowed for that organisation.
+                      Select an Organisation to load the modules allowed for that organisation.
                     </td>
                   </tr>
                 ) : usersLoading ? (
@@ -270,13 +270,13 @@ export default function UserPermissionsTab({
                 ) : activeModules.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="empty">
-                      No modules enabled for this organisation. Set them in Module Permissions first.
+                      No modules enabled for this organisation. Assign them first under Modules → Update.
                     </td>
                   </tr>
                 ) : selectedUsers.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="empty">
-                      Select at least one user.
+                      Select at least one user from the left to assign permissions.
                     </td>
                   </tr>
                 ) : (

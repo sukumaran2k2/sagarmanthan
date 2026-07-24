@@ -160,10 +160,10 @@ export default function ModulePermissionListTab({
             </div>
             <div>
               <div className="banner-name">
-                {selectedOrgId ? selectedOrgName : 'Select an organisation'}
+                {selectedOrgId ? selectedOrgName : 'No organisation selected'}
               </div>
               <div className="banner-sub">
-                View-only module allowlist — edit in Module Permissions
+                Select an organisation on the left to view allowed modules. To change access, use Modules → Update.
               </div>
             </div>
           </div>
@@ -201,7 +201,7 @@ export default function ModulePermissionListTab({
                 {!selectedOrgId ? (
                   <tr>
                     <td colSpan="2" className="empty">
-                      Select an organisation from the left
+                      Select an organisation from the left to view its module access.
                     </td>
                   </tr>
                 ) : loading ? (
