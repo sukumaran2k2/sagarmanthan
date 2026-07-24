@@ -55,6 +55,7 @@ export default function UserMatrix() {
   const [dbUserList, setDbUserList] = useState([]);
   const [userListSearch, setUserListSearch] = useState('');
   const [selectedDbRole, setSelectedDbRole] = useState('All');
+  const [selectedDbOrg, setSelectedDbOrg] = useState('All');
   const [dbLoading, setDbLoading] = useState(false);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -460,6 +461,9 @@ export default function UserMatrix() {
 
   const filteredDbUsers = useMemo(() => {
     let result = dbUserList;
+    if (selectedDbOrg !== 'All') {
+      result = result.filter((u) => u.organisation_id === Number(selectedDbOrg));
+    }
     if (selectedDbRole !== 'All') {
       result = result.filter((u) => u.role_id === Number(selectedDbRole));
     }
@@ -473,7 +477,7 @@ export default function UserMatrix() {
       );
     }
     return result;
-  }, [dbUserList, userListSearch, selectedDbRole]);
+  }, [dbUserList, userListSearch, selectedDbRole, selectedDbOrg]);
 
   const handleOpenEdit = (u) => {
     setEditingUser(u);
@@ -693,14 +697,7 @@ export default function UserMatrix() {
             organisations={organisations}
             categories={categories}
             masterModules={masterModules}
-            orgModuleState={orgModuleState}
-            setSelectedModuleOrgIds={setSelectedModuleOrgIds}
-            selectedModuleOrgIds={selectedModuleOrgIds}
-            toggleOrgModule={toggleOrgModule}
-            setAllOrgModules={setAllOrgModules}
-            saveModulePermissions={saveModulePermissions}
             showToast={showToast}
-            saving={saving}
           />
         )}
 
@@ -711,12 +708,16 @@ export default function UserMatrix() {
             setUserListSearch={setUserListSearch}
             selectedDbRole={selectedDbRole}
             setSelectedDbRole={setSelectedDbRole}
+            selectedDbOrg={selectedDbOrg}
+            setSelectedDbOrg={setSelectedDbOrg}
+            organisations={organisations}
             dbLoading={dbLoading}
             filteredDbUsers={filteredDbUsers}
             masterRoles={masterRoles}
             handleOpenEdit={handleOpenEdit}
             toggleUserStatus={toggleUserStatus}
             handleResetPassword={handleResetPassword}
+            showToast={showToast}
           />
         )}
       </div>

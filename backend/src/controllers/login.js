@@ -129,19 +129,44 @@ async function validation(req, res) {
         const uiViewCode = roleProfile.ui_view_code || null;
         const dataScopeCode = roleProfile.data_scope_code || null;
 
-        let moduleQuery = await request.query(`
-          SELECT p.module_id
-          FROM tbl_rbac_org_module_permission p
-          INNER JOIN tbl_modules m ON m.module_id = p.module_id
-          WHERE p.organisation_id = ${organisationId}
-            AND p.is_allowed = 1
-            AND ISNULL(m.is_active, 1) = 1
-        `);
-        let allowedModules = moduleQuery.recordset.map(row => row.module_id);
+        // Single SUPERADMIN: hardcoded — no org, no module CRUD from tables
+        const isSuperAdminLogin = roleCode === 'SUPERADMIN';
 
-        // superadmin only gets user matrix, not module nav
-        if (roleCode === 'SUPERADMIN') {
-          allowedModules = [];
+        let allowedModules = [];
+        let modulePermissions = [];
+
+        if (!isSuperAdminLogin && organisationId != null) {
+          const moduleQuery = await request.query(`
+            SELECT p.module_id
+            FROM tbl_rbac_org_module_permission p
+            INNER JOIN tbl_modules m ON m.module_id = p.module_id
+            WHERE p.organisation_id = ${Number(organisationId)}
+              AND p.is_allowed = 1
+              AND ISNULL(m.is_active, 1) = 1
+          `);
+          allowedModules = moduleQuery.recordset.map(row => row.module_id);
+
+          if (allowedModules.length > 0) {
+            const modulePermissionsQuery = await request.query(`
+              SELECT
+                p.module_id,
+                p.can_create,
+                p.can_read,
+                p.can_update,
+                p.can_delete
+              FROM tbl_rbac_user_module_crud p
+              WHERE p.user_id = ${userData.user_id}
+                AND p.module_id IN (${allowedModules.join(',')})
+            `);
+
+            modulePermissions = modulePermissionsQuery.recordset.map(row => ({
+              moduleId: row.module_id,
+              create: !!row.can_create,
+              read: !!row.can_read,
+              update: !!row.can_update,
+              delete: !!row.can_delete,
+            }));
+          }
         }
 
         console.log('[LOGIN_MODULES]', {
@@ -151,6 +176,8 @@ async function validation(req, res) {
           roleCode,
           uiViewCode,
           dataScopeCode,
+          isSuperAdminLogin,
+          organisationId,
           allowedModules,
           allowedModulesCount: allowedModules.length
         });
@@ -168,37 +195,13 @@ async function validation(req, res) {
           status: userData.status,
           passwordStatus: userData.password_status,
           passwordUpdatedOn: userData.password_updated_on,
-          organisationId: userData.organisation_id,
+          organisationId: isSuperAdminLogin ? null : userData.organisation_id,
           wingId: userData.wing_id,
           vibhasId: userData.vibhas_id,
           chainlitAccessToken,
           allowedModules,
+          modulePermissions,
         };
-
-        let modulePermissions = [];
-        if (allowedModules.length > 0) {
-          const modulePermissionsQuery = await request.query(`
-            SELECT
-              p.module_id,
-              p.can_create,
-              p.can_read,
-              p.can_update,
-              p.can_delete
-            FROM tbl_rbac_user_module_crud p
-            WHERE p.user_id = ${userData.user_id}
-              AND p.module_id IN (${allowedModules.join(',')})
-          `);
-
-          modulePermissions = modulePermissionsQuery.recordset.map(row => ({
-            moduleId: row.module_id,
-            create: !!row.can_create,
-            read: !!row.can_read,
-            update: !!row.can_update,
-            delete: !!row.can_delete,
-          }));
-        }
-
-        tokenPayload.modulePermissions = modulePermissions;
 
         try {
           const updateLoginRequest = conn.request();

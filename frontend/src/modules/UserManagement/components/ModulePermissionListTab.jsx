@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Building2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Building2, ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import { getOrgIconAndColor, getModuleIconAndColor } from '../utils';
 import { rbacApi } from '../rbacApi';
 
@@ -7,27 +7,21 @@ export default function ModulePermissionListTab({
   organisations = [],
   categories = [],
   masterModules = [],
-  orgModuleState = {},
-  setSelectedModuleOrgIds,
-  selectedModuleOrgIds,
-  toggleOrgModule,
-  setAllOrgModules,
-  saveModulePermissions,
   showToast,
-  saving = false,
 }) {
   const [selectedOrgId, setSelectedOrgId] = useState(null);
   const [orgSearchTerm, setOrgSearchTerm] = useState('');
   const [moduleSearchTerm, setModuleSearchTerm] = useState('');
   const [expandedParents, setExpandedParents] = useState(() => new Set());
   const [localState, setLocalState] = useState({});
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!selectedOrgId) {
       setLocalState({});
       return;
     }
-    setSelectedModuleOrgIds(new Set([selectedOrgId]));
+    setLoading(true);
     rbacApi
       .getOrgModulePermissions([selectedOrgId])
       .then((res) => {
@@ -41,14 +35,9 @@ export default function ModulePermissionListTab({
         });
         setLocalState(map);
       })
-      .catch(() => showToast?.('Failed to load permissions', '#EF4444'));
-  }, [selectedOrgId, masterModules, setSelectedModuleOrgIds, showToast]);
-
-  useEffect(() => {
-    if (selectedOrgId && orgModuleState[selectedOrgId]) {
-      setLocalState({ ...orgModuleState[selectedOrgId] });
-    }
-  }, [orgModuleState, selectedOrgId]);
+      .catch(() => showToast?.('Failed to load permissions', '#EF4444'))
+      .finally(() => setLoading(false));
+  }, [selectedOrgId, masterModules, showToast]);
 
   const filteredOrgs = useMemo(() => {
     const q = orgSearchTerm.trim().toLowerCase();
@@ -76,31 +65,14 @@ export default function ModulePermissionListTab({
     return map;
   }, [categories, filteredOrgs]);
 
-  const handleToggle = (moduleId, val) => {
-    if (!selectedOrgId) {
-      showToast?.('Select an organisation', '#F59E0B');
-      return;
-    }
-    setLocalState((prev) => ({ ...prev, [moduleId]: val }));
-    toggleOrgModule(moduleId, val);
-  };
-
-  const handleEnableAll = (val) => {
-    if (!selectedOrgId) {
-      showToast?.('Select an organisation', '#F59E0B');
-      return;
-    }
-    const next = {};
-    masterModules.forEach((m) => {
-      next[m.module_id] = val;
-    });
-    setLocalState(next);
-    setAllOrgModules(val);
-  };
-
   const selectedOrgName =
     organisations.find((o) => o.organisation_id === selectedOrgId)
       ?.organisation_name || '';
+
+  const allowedCount = useMemo(
+    () => Object.values(localState).filter(Boolean).length,
+    [localState]
+  );
 
   return (
     <>
@@ -191,7 +163,7 @@ export default function ModulePermissionListTab({
                 {selectedOrgId ? selectedOrgName : 'Select an organisation'}
               </div>
               <div className="banner-sub">
-                View and edit module allowlist for this organisation
+                View-only module allowlist — edit in Module Permissions
               </div>
             </div>
           </div>
@@ -205,27 +177,12 @@ export default function ModulePermissionListTab({
                 onChange={(e) => setModuleSearchTerm(e.target.value)}
               />
             </div>
-            <button
-              className="grant-all-btn"
-              disabled={!selectedOrgId}
-              onClick={() => handleEnableAll(true)}
-            >
-              Enable All
-            </button>
-            <button
-              className="revoke-all-btn"
-              disabled={!selectedOrgId}
-              onClick={() => handleEnableAll(false)}
-            >
-              Disable All
-            </button>
-            <button
-              className="save-btn"
-              disabled={!selectedOrgId || saving}
-              onClick={saveModulePermissions}
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
+            {selectedOrgId && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600">
+                <Eye size={13} />
+                {loading ? 'Loading…' : `${allowedCount} allowed`}
+              </span>
+            )}
           </div>
         </div>
 
@@ -236,7 +193,7 @@ export default function ModulePermissionListTab({
                 <tr>
                   <th>Module</th>
                   <th className="c" style={{ width: '140px' }}>
-                    Allowed
+                    Status
                   </th>
                 </tr>
               </thead>
@@ -245,6 +202,12 @@ export default function ModulePermissionListTab({
                   <tr>
                     <td colSpan="2" className="empty">
                       Select an organisation from the left
+                    </td>
+                  </tr>
+                ) : loading ? (
+                  <tr>
+                    <td colSpan="2" className="empty">
+                      Loading permissions…
                     </td>
                   </tr>
                 ) : (
@@ -269,14 +232,15 @@ export default function ModulePermissionListTab({
                           </div>
                         </td>
                         <td className="c">
-                          <label className="toggle-switch">
-                            <input
-                              type="checkbox"
-                              checked={on}
-                              onChange={() => handleToggle(m.module_id, !on)}
-                            />
-                            <span className="toggle-slider" />
-                          </label>
+                          <span
+                            className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                              on
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {on ? 'Allowed' : 'Denied'}
+                          </span>
                         </td>
                       </tr>
                     );

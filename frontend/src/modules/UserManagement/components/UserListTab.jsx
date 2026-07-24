@@ -1,6 +1,20 @@
-import React from 'react';
-import { Edit, RotateCcw } from 'lucide-react';
-import { getRoleImage, colorFromString, getInits, roleClassName } from '../utils';
+import React, { useState, useMemo } from 'react';
+import { Edit, RotateCcw, Shield, X } from 'lucide-react';
+import { colorFromString, getInits, roleClassName } from '../utils';
+import { rbacApi } from '../rbacApi';
+
+function CrudDot({ on, label }) {
+  return (
+    <span
+      title={label}
+      className={`inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-bold ${
+        on ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-300'
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
 
 export default function UserListTab({
   dbUserList,
@@ -8,109 +22,157 @@ export default function UserListTab({
   setUserListSearch,
   selectedDbRole,
   setSelectedDbRole,
+  selectedDbOrg,
+  setSelectedDbOrg,
+  organisations = [],
   dbLoading,
   filteredDbUsers,
   masterRoles,
   handleOpenEdit,
   toggleUserStatus,
-  handleResetPassword
+  handleResetPassword,
+  showToast,
 }) {
+  const [accessUser, setAccessUser] = useState(null);
+  const [accessRows, setAccessRows] = useState([]);
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessIsSuperAdmin, setAccessIsSuperAdmin] = useState(false);
+
+  const isUserSuperAdmin = (u) =>
+    String(u?.role_code || '').toUpperCase() === 'SUPERADMIN' ||
+    String(u?.role_name || '').toUpperCase() === 'SUPERADMIN';
+
+  const orgOptions = useMemo(() => {
+    const map = new Map();
+    dbUserList.forEach((u) => {
+      if (u.organisation_id != null && !map.has(u.organisation_id)) {
+        map.set(u.organisation_id, u.organisation_name || `Org ${u.organisation_id}`);
+      }
+    });
+    organisations.forEach((o) => {
+      if (o.organisation_id != null && !map.has(o.organisation_id)) {
+        map.set(o.organisation_id, o.organisation_name);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }, [dbUserList, organisations]);
+
+  const openAccess = async (user) => {
+    setAccessUser(user);
+    setAccessRows([]);
+    // Hardcoded: single SUPERADMIN is not driven by permission tables
+    if (isUserSuperAdmin(user)) {
+      setAccessIsSuperAdmin(true);
+      setAccessLoading(false);
+      return;
+    }
+    setAccessIsSuperAdmin(false);
+    setAccessLoading(true);
+    try {
+      const res = await rbacApi.getUserModuleCrud(
+        [user.user_id],
+        user.organisation_id || undefined
+      );
+      const rows = (res.data || []).filter(
+        (r) => r.can_create || r.can_read || r.can_update || r.can_delete
+      );
+      setAccessRows(rows);
+    } catch {
+      showToast?.('Failed to load user access', '#EF4444');
+      setAccessUser(null);
+    } finally {
+      setAccessLoading(false);
+    }
+  };
+
+  const closeAccess = () => {
+    setAccessUser(null);
+    setAccessRows([]);
+    setAccessIsSuperAdmin(false);
+  };
+
   return (
-    <div className="main" style={{ flex: 1, height: "100%" }}>
+    <div className="main" style={{ flex: 1, height: '100%', position: 'relative' }}>
       <div className="user-banner">
         <div className="user-banner-left">
-          <div
-            className="banner-avatar"
-            style={{ background: "#3B82F6" }}
-          >
+          <div className="banner-avatar" style={{ background: '#3B82F6' }}>
             👥
           </div>
           <div>
             <div className="banner-name">User List Database</div>
             <div className="banner-sub">
-              View all registered users and their details fetched directly
-              from the database
+              View users, details, and module access (CRUD)
             </div>
           </div>
         </div>
-        <div className="banner-actions">
-          <div className="search-wrap" style={{ margin: 0 }}>
+        <div
+          className="banner-actions"
+          style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}
+        >
+          <div className="filter-item" style={{ margin: 0 }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '10px',
+                fontWeight: 700,
+                color: '#64748B',
+                marginBottom: '4px',
+              }}
+            >
+              Organisation
+            </label>
+            <select
+              value={selectedDbOrg}
+              onChange={(e) => setSelectedDbOrg(e.target.value)}
+              className="search-input"
+              style={{ width: '200px', height: '34px' }}
+            >
+              <option value="All">All Organisations</option>
+              {orgOptions.map((o) => (
+                <option key={o.id} value={String(o.id)}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-item" style={{ margin: 0 }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: '10px',
+                fontWeight: 700,
+                color: '#64748B',
+                marginBottom: '4px',
+              }}
+            >
+              Role
+            </label>
+            <select
+              value={selectedDbRole}
+              onChange={(e) => setSelectedDbRole(e.target.value)}
+              className="search-input"
+              style={{ width: '200px', height: '34px' }}
+            >
+              <option value="All">All Roles</option>
+              {(masterRoles || []).map((role) => (
+                <option key={role.role_id} value={String(role.role_id)}>
+                  {role.role_name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="search-wrap" style={{ margin: 0, alignSelf: 'flex-end' }}>
             <input
               type="text"
               className="search-input"
               placeholder="Search users..."
               value={userListSearch}
               onChange={(e) => setUserListSearch(e.target.value)}
-              style={{ width: "260px" }}
+              style={{ width: '220px', height: '34px' }}
             />
           </div>
-        </div>
-      </div>
-
-      {/* Roles cards filters row */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm mb-2 mx-6 mt-6">
-        <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 text-left">
-          Filter Users by Role
-        </span>
-        <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
-          {/* All Roles Card */}
-          <button
-            onClick={() => setSelectedDbRole("All")}
-            className={`relative w-44 h-20 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer shadow border transition-all duration-300 ${
-              selectedDbRole === "All"
-                ? "ring-4 ring-[#0f417a] scale-95 shadow-md font-bold"
-                : "border-slate-200 opacity-85 hover:opacity-100 hover:scale-[1.02]"
-            }`}
-          >
-            <img
-              src="https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=300&q=80"
-              alt="All Roles"
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-slate-950/45 transition-colors"></div>
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center">
-              <span className="text-[10px] font-black text-white uppercase tracking-wider leading-tight">
-                All Roles
-              </span>
-              <span className="text-[9px] font-bold text-slate-200 mt-1.5 bg-white/25 px-2 py-0.5 rounded-full backdrop-blur-xs">
-                {dbUserList.length} Users
-              </span>
-            </div>
-          </button>
-
-          {/* Master Roles Cards */}
-          {masterRoles.map((role) => {
-            const isActive = selectedDbRole === String(role.role_id);
-            const count = dbUserList.filter(
-              (u) => u.role_id === role.role_id,
-            ).length;
-            return (
-              <button
-                key={role.role_id}
-                onClick={() => setSelectedDbRole(String(role.role_id))}
-                className={`relative w-44 h-20 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer shadow border transition-all duration-300 ${
-                  isActive
-                    ? "ring-4 ring-[#0f417a] scale-95 shadow-md font-bold"
-                    : "border-slate-200 opacity-85 hover:opacity-100 hover:scale-[1.02]"
-                }`}
-              >
-                <img
-                  src={getRoleImage(role.role_name)}
-                  alt={role.role_name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-slate-950/45 transition-colors"></div>
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center">
-                  <span className="text-[10px] font-black text-white uppercase tracking-wider leading-tight whitespace-normal">
-                    {role.role_name}
-                  </span>
-                  <span className="text-[9px] font-bold text-slate-200 mt-1.5 bg-white/25 px-2 py-0.5 rounded-full backdrop-blur-xs">
-                    {count} {count === 1 ? "User" : "Users"}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -119,33 +181,28 @@ export default function UserListTab({
           <table>
             <thead>
               <tr>
-                <th style={{ width: "60px" }}>S.No</th>
+                <th style={{ width: '60px' }}>S.No</th>
                 <th>User Name</th>
                 <th>Designation</th>
                 <th>Organisation</th>
                 <th>Role</th>
-                <th style={{ width: "130px" }}>Phone Number</th>
-                <th style={{ width: "80px", textAlign: "center" }}>
-                  Edit
-                </th>
-                <th style={{ width: "90px", textAlign: "center" }}>
-                  Status
-                </th>
-                <th style={{ width: "120px", textAlign: "center" }}>
-                  Reset Password
-                </th>
+                <th style={{ width: '130px' }}>Phone Number</th>
+                <th style={{ width: '80px', textAlign: 'center' }}>Access</th>
+                <th style={{ width: '80px', textAlign: 'center' }}>Edit</th>
+                <th style={{ width: '90px', textAlign: 'center' }}>Status</th>
+                <th style={{ width: '120px', textAlign: 'center' }}>Reset Password</th>
               </tr>
             </thead>
             <tbody>
               {dbLoading ? (
                 <tr>
-                  <td colSpan="9" className="empty">
+                  <td colSpan="10" className="empty">
                     Loading users from database...
                   </td>
                 </tr>
               ) : filteredDbUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="empty">
+                  <td colSpan="10" className="empty">
                     No users found matching search criteria.
                   </td>
                 </tr>
@@ -154,92 +211,75 @@ export default function UserListTab({
                   <tr key={u.user_id}>
                     <td>{index + 1}</td>
                     <td>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                        }}
-                      >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div
                           className="avatar"
                           style={{
-                            background: colorFromString(
-                              `${u.name}|${u.email}`,
-                            ),
-                            width: "28px",
-                            height: "28px",
-                            fontSize: ".65rem",
+                            background: colorFromString(`${u.name}|${u.email}`),
+                            width: '28px',
+                            height: '28px',
+                            fontSize: '.65rem',
                           }}
                         >
-                          {getInits(u.name || "")}
+                          {getInits(u.name || '')}
                         </div>
-                        <span
-                          style={{
-                            font: "inherit",
-                            fontWeight: 600,
-                            color: "#334155",
-                          }}
-                        >
+                        <span style={{ font: 'inherit', fontWeight: 600, color: '#334155' }}>
                           {u.title && `${u.title} `}
                           {u.name}
                         </span>
                       </div>
                     </td>
-                    <td>{u.designation || "—"}</td>
-                    <td>{u.organisation_name || "—"}</td>
+                    <td>{u.designation || '—'}</td>
+                    <td>{u.organisation_name || '—'}</td>
                     <td>
                       <span
-                        className={`role-pill ${roleClassName(u.role_name || "")}`}
-                        style={{ fontSize: ".7rem", padding: "2px 8px" }}
+                        className={`role-pill ${roleClassName(u.role_name || '')}`}
+                        style={{ fontSize: '.7rem', padding: '2px 8px' }}
                       >
                         {u.role_name}
                       </span>
                     </td>
-                    <td
-                      style={{
-                        color: "#475569",
-                        fontFamily: "monospace",
-                      }}
-                    >
-                      {u.phone || "—"}
+                    <td style={{ color: '#475569', fontFamily: 'monospace' }}>
+                      {u.phone || '—'}
                     </td>
-
-                    {/* Edit Action */}
+                    <td className="c">
+                      <button
+                        onClick={() => openAccess(u)}
+                        className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg cursor-pointer transition-all active:scale-90"
+                        style={{ border: 'none', background: 'none' }}
+                        title="View module access"
+                      >
+                        <Shield size={16} />
+                      </button>
+                    </td>
                     <td className="c">
                       <button
                         onClick={() => handleOpenEdit(u)}
                         className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg cursor-pointer transition-all active:scale-90"
-                        style={{ border: "none", background: "none" }}
+                        style={{ border: 'none', background: 'none' }}
                         title="Edit User"
                       >
                         <Edit size={16} />
                       </button>
                     </td>
-
-                    {/* Status Action (toggle) */}
                     <td className="c">
                       <label className="toggle-switch">
                         <input
                           type="checkbox"
                           checked={u.status === 1}
-                          onChange={(e) =>
-                            toggleUserStatus(u, e.target.checked)
-                          }
+                          onChange={(e) => toggleUserStatus(u, e.target.checked)}
                         />
-                        <span className="toggle-slider"></span>
+                        <span className="toggle-slider" />
                       </label>
                     </td>
-
-                    {/* Reset Password Action */}
                     <td className="c">
                       <button
                         onClick={() => handleResetPassword(u)}
                         className="p-1.5 hover:bg-slate-100 text-slate-655 rounded-lg cursor-pointer transition-all active:scale-90"
                         style={{
-                          border: "1px solid #E2E8F0",
-                          background: "#F8FAFC",
-                          borderRadius: "6px",
+                          border: '1px solid #E2E8F0',
+                          background: '#F8FAFC',
+                          borderRadius: '6px',
                         }}
                         title="Reset Password"
                       >
@@ -253,12 +293,95 @@ export default function UserListTab({
           </table>
           <div className="table-footer">
             <span>
-              Showing {filteredDbUsers.length} of {dbUserList.length}{" "}
-              users
+              Showing {filteredDbUsers.length} of {dbUserList.length} users
             </span>
           </div>
         </div>
       </div>
+
+      {accessUser && (
+        <div
+          className="absolute inset-0 z-40 flex items-center justify-center"
+          style={{ background: 'rgba(15, 23, 42, 0.35)' }}
+          onClick={closeAccess}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl border border-slate-200 w-[520px] max-h-[75%] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <div>
+                <div className="text-sm font-bold text-slate-800">
+                  {accessUser.title ? `${accessUser.title} ` : ''}
+                  {accessUser.name}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  {accessUser.organisation_name || '—'} · {accessUser.role_name || '—'}
+                  <span className="ml-2 text-slate-400">(view only)</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeAccess}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"
+                style={{ border: 'none', background: 'none' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-50">
+              {accessIsSuperAdmin
+                ? 'SUPERADMIN access (hardcoded)'
+                : 'Assigned modules · C Create · R Read · U Update · D Delete'}
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-2 py-2">
+              {accessIsSuperAdmin ? (
+                <div className="px-3 py-6 text-center space-y-2">
+                  <div className="text-sm font-bold text-slate-800">Full Permission Manager access</div>
+                  <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+                    This account is the single SUPERADMIN. Access is hardcoded by role
+                    (<code className="mx-1 text-[11px]">SUPERADMIN</code>
+                    — not stored in organisation module or user CRUD tables.
+                    No organisation is required.
+                  </p>
+                  <div className="pt-2 flex flex-wrap justify-center gap-2 text-[11px] font-semibold">
+                    <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">User Matrix</span>
+                    <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">Module Permissions</span>
+                    <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">User List</span>
+                  </div>
+                </div>
+              ) : accessLoading ? (
+                <div className="text-center text-xs text-slate-400 py-10">Loading access…</div>
+              ) : accessRows.length === 0 ? (
+                <div className="text-center text-xs text-slate-400 py-10">
+                  No module permissions assigned
+                </div>
+              ) : (
+                <ul className="space-y-1">
+                  {accessRows.map((row) => (
+                    <li
+                      key={row.module_id}
+                      className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-slate-50"
+                    >
+                      <span className="text-xs font-semibold text-slate-700 truncate">
+                        {row.module_name}
+                      </span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <CrudDot on={!!row.can_create} label="C" />
+                        <CrudDot on={!!row.can_read} label="R" />
+                        <CrudDot on={!!row.can_update} label="U" />
+                        <CrudDot on={!!row.can_delete} label="D" />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
