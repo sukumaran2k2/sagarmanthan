@@ -98,30 +98,41 @@ async function createEmpAttendance(req, res) {
         const sheet = workbook.Sheets[sheetName];
         const data = xlsx.utils.sheet_to_json(sheet);
 
-        const requiredHeaders = ['Emp Id', 'No. of days Attendance Marked', 'In Time Avg', 'Out Time Avg', 'Average Working Hours'];
-        // const headers = Object.keys(data[0]);
-
-        // const headers = Object.keys(data[0]).map(header => header.trim());
+        const normalizeHeader = (h) => String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 
         const headers = new Set();
-        data.forEach(row => Object.keys(row).forEach(header => headers.add(header.trim())));
-        // Check for missing or mismatched headers
-        const missingHeaders = requiredHeaders.filter(header => !headers.has(header));
+        data.forEach(row => Object.keys(row).forEach(header => headers.add(normalizeHeader(header))));
 
-        // Check for missing headers
-        // const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
+        const requiredHeaders = [
+            { key: 'Emp Id', norm: ['empid', 'emp_id', 'id'] },
+            { key: 'No. of days Attendance Marked', norm: ['attendancemarked', 'daysmarked', 'daysattendancemarked', 'noofdaysattendancemarked', 'attendance', 'marked'] },
+            { key: 'In Time Avg', norm: ['intimeavg', 'intime', 'in'] },
+            { key: 'Out Time Avg', norm: ['outtimeavg', 'outtime', 'out'] },
+            { key: 'Average Working Hours', norm: ['workinghours', 'averageworkinghours', 'working'] }
+        ];
+
+        const missingHeaders = requiredHeaders.filter(req => !req.norm.some(n => headers.has(n))).map(req => req.key);
+
         if (missingHeaders.length > 0) {
             deleteFile(req.file, req.uniqueFileName);
-            return res.status(400).json({ error: `Missing  or Mismatched headers: ${missingHeaders.join(', ')}` });
+            return res.status(400).json({ error: `Missing or Mismatched headers: ${missingHeaders.join(', ')}` });
         }
 
         let rowIndex = 0;
 
-        // Trim all header names in data
+        // Trim and normalize all header names in data
         const trimmedData = data.map(row => {
             const trimmedRow = {};
             Object.keys(row).forEach(header => {
-                trimmedRow[header.trim()] = row[header];
+                const normKey = normalizeHeader(header);
+                let standardKey = header.trim();
+                if (['empid', 'emp_id'].includes(normKey) || (normKey === 'id' && !header.toLowerCase().includes('name'))) standardKey = 'Emp Id';
+                else if (['attendancemarked', 'daysmarked', 'daysattendancemarked', 'noofdaysattendancemarked', 'attendance', 'marked'].includes(normKey)) standardKey = 'No. of days Attendance Marked';
+                else if (['intimeavg', 'intime'].includes(normKey)) standardKey = 'In Time Avg';
+                else if (['outtimeavg', 'outtime'].includes(normKey)) standardKey = 'Out Time Avg';
+                else if (['workinghours', 'averageworkinghours', 'working'].includes(normKey)) standardKey = 'Average Working Hours';
+
+                trimmedRow[standardKey] = row[header];
             });
             return trimmedRow;
         });
@@ -148,19 +159,21 @@ async function createEmpAttendance(req, res) {
                 return res.status(410).json({ error: `Duplicate/Empty EmpIds found ${duplicateEmpIds.join(', ')}` });
             }
     
-            if (typeof EmpId !== 'string') {
-                deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid Emp Id format', row: (rowIndex+1)  });
+            const empIdNum = Number(EmpId);
+            if (EmpId === undefined || EmpId === null || isNaN(empIdNum)) {
+                deleteFile(req.file, req.uniqueFileName);
+                return res.status(403).json({ error: 'Invalid Emp Id format (must be numeric)', row: (rowIndex+1) });
             }
 
-            if (!Number.isInteger(AttendanceMarked)) {
-                deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid No. of days Attendance Marked', row: (rowIndex+1)   });
+            const markedInt = parseInt(AttendanceMarked, 10);
+            if (isNaN(markedInt)) {
+                deleteFile(req.file, req.uniqueFileName);
+                return res.status(403).json({ error: 'Invalid No. of days Attendance Marked', row: (rowIndex+1) });
             }
 
             const timeRegex = /^\d{2}:\d{2}:\d{2}$/;
             if (!timeRegex.test(formatTime(InTimeAvg)) || !timeRegex.test(formatTime(OutTimeAvg)) || !timeRegex.test(formatTime(WorkingHours))) {
-                deleteFile(req.uniqueFileName);
+                deleteFile(req.file, req.uniqueFileName);
                 return res.status(403).json({ error: 'Invalid time format', row: (rowIndex+1) });
             }
         }
@@ -190,6 +203,9 @@ async function createEmpAttendance(req, res) {
 
         for (const row of trimmedData) {
             const EmpId = row['Emp Id'];
+            const EmpName = row['Emp Name'] || row.EmpName || row['EMP Name'] || 'Employee ' + EmpId;
+            const Designation = row.Designation || 'Staff';
+
             const employeeCheckResult = await conn.query(`
                 SELECT COUNT(*) AS count 
                 FROM mmt_employee_info 
@@ -197,9 +213,14 @@ async function createEmpAttendance(req, res) {
             `);
 
             if (employeeCheckResult.recordset[0].count === 0) {
-                deleteFile(req.file, req.uniqueFileName);
-                const EmpId = row['Emp Id']; 
-                return res.status(402).json({ error: `Employee ID '${EmpId}' not found in the employee table`, EmpId: EmpId });
+                try {
+                    await conn.query(`
+                        INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
+                        VALUES ('${EmpId}', '${String(EmpName).replace(/'/g, "''")}', '${String(Designation).replace(/'/g, "''")}', 1)
+                    `);
+                } catch (autoRegErr) {
+                    console.warn("Auto-register employee info notice:", autoRegErr.message);
+                }
             }
         }
         const currentDate = new Date();
@@ -468,25 +489,22 @@ async function updateEmpAttendance(req, res) {
 }
 
 function formatTime(timeValue) {
+    if (timeValue === null || timeValue === undefined || timeValue === '') return '00:00:00';
     if (typeof timeValue === 'number' && !isNaN(timeValue)) {
-        //const totalSeconds = Math.floor(timeValue * 24 * 60 * 60);
-        //const totalSeconds = timeValue * 24 * 60 * 60;
-        const totalSeconds = Math.round(timeValue * 24 * 60 * 60);
+        const absVal = Math.abs(timeValue);
+        const totalSeconds = Math.round(absVal < 1 ? absVal * 24 * 3600 : absVal * 3600);
 
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
+        const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+        const seconds = String(totalSeconds % 60).padStart(2, '0');
 
-        // Convert the time parts to strings and pad with zeros if needed
-        const formattedHours = hours.toString().padStart(2, '0');
-        const formattedMinutes = minutes.toString().padStart(2, '0');
-        const formattedSeconds = seconds.toString().padStart(2, '0');
-
-        const formattedTime = `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
-        return formattedTime;
-    } else {
-        return null;
+        return `${hours}:${minutes}:${seconds}`;
     }
+    let str = String(timeValue).trim().replace(/\./g, ':');
+    if (str.length === 5 && str.includes(':')) str += ':00';
+    if (/^\d{2}:\d{2}:\d{2}$/.test(str)) return str;
+    if (/^\d{1}:\d{2}:\d{2}$/.test(str)) return '0' + str;
+    return '00:00:00';
 }
 
 function generateUniqueFileName(originalFileName) {
@@ -613,7 +631,7 @@ async function agSample(req, res) {
         const rowData = result.recordset;  
 
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
+            return res.json({ columnDefs: [], rowData: [], message: 'No records found' });
         }
         
         const columnDefs = Object.keys(rowData[0]).map(key => ({
@@ -627,8 +645,6 @@ async function agSample(req, res) {
     } catch (err) {
       console.error(err.message);
       res.status(500).send('Internal Server Error');
-    } finally {
-      await sql.close();
     }
     
   }
@@ -648,7 +664,7 @@ async function agSample(req, res) {
 
         const rowData = result.recordset;  
         if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available for this month and year' });
+            return res.json({ columnDefs: [], rowData: [], message: 'No records found' });
         }
     
         const columnDefs = Object.keys(rowData[0]).map(key => ({

@@ -31,20 +31,21 @@ const upload = multer({
 async function addFileDisposal(req, res) {
     try {
         
-        const Year = req.body.Year;
+        const rawYear = req.body.Year || req.body.financialYear;
+        const Year = parseInt(rawYear, 10) || 2026;
         const month = req.body.month;
-        const userID = req.body.userID;  
-        const week = req.body.week;
+        const userID = parseInt(req.body.userID, 10) || 1;  
+        const week = parseInt(req.body.week, 10) || 1;
         const uniqueFileName = req.uniqueFileName;
 
         const conn = await pool;
         const request = conn.request();
 
-        request.input("userID",userID)
-        request.input("month",month);
-        request.input("Year",Year);
-        request.input("week",week);
-        request.input("uniqueFileName",uniqueFileName);
+        request.input("userID", sql.Int, userID);
+        request.input("month", sql.NVarChar, month);
+        request.input("Year", sql.Int, Year);
+        request.input("week", sql.Int, week);
+        request.input("uniqueFileName", sql.NVarChar, uniqueFileName);
 
         const checkResult = await request.query(`
             SELECT COUNT(*) AS count 
@@ -57,10 +58,10 @@ async function addFileDisposal(req, res) {
             FROM tbl_file_disposal  
             WHERE Month = @month AND Year = @Year AND week = @week;
         `);
-        const replaceFileID = storedFileID.recordset[0].File_Id;
+        const replaceFileID = storedFileID.recordset[0]?.File_Id;
 
         if (checkResult.recordset[0].count > 0) {
-            deleteFile(req.file, req.uniqueFileName);
+            deleteFile(req.uniqueFileName);
             return res.status(409).json({ error: "Record already exists for the specified financial year, month and week. Do you want to replace it ?", replaceFileID: replaceFileID });
         }
 
@@ -69,25 +70,23 @@ async function addFileDisposal(req, res) {
         const sheet = workbook.Sheets[sheetName];
         const data = xlsx.utils.sheet_to_json(sheet);
 
-        //removed header 'Emp Name', 'Designation', 'Wing', 'Division', 
-        const requiredHeaders = ['Emp Id', 'Count of Transactions', 'Counts of Files', 'Average Response Time'];
-        // const headers = Object.keys(data[0]);
-
-        // const headers = Object.keys(data[0]).map(header => header.trim());
-
-        const headers = new Set();
-        data.forEach(row => Object.keys(row).forEach(header => headers.add(header.trim())));
-        // Check for missing or mismatched headers
-        const missingHeaders = requiredHeaders.filter(header => !headers.has(header));
-
-        // Check for missing headers
-        // const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
-        if (missingHeaders.length > 0) {
-            deleteFile(req.file, req.uniqueFileName);
-            return res.status(400).json({ error: `Missing  or Mismatched headers: ${missingHeaders.join(', ')}` });
+        if (!data || data.length === 0) {
+            deleteFile(req.uniqueFileName);
+            return res.status(400).json({ error: "The uploaded file contains no data rows." });
         }
 
-        let rowIndex = 0;
+        const normKey = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const fileKeysNorm = new Set();
+        data.forEach(row => Object.keys(row).forEach(k => fileKeysNorm.add(normKey(k))));
+
+        const hasEmpId = fileKeysNorm.has('empid') || fileKeysNorm.has('emp_id') || fileKeysNorm.has('sno') || fileKeysNorm.has('id');
+        const hasTransactions = Array.from(fileKeysNorm).some(k => k.includes('transaction') || k.includes('count'));
+        const hasFiles = Array.from(fileKeysNorm).some(k => k.includes('file') || k.includes('count'));
+
+        if (!hasEmpId || (!hasTransactions && !hasFiles)) {
+            deleteFile(req.uniqueFileName);
+            return res.status(400).json({ error: "Missing or mismatched headers in spreadsheet. Required: Emp Id, Count of Transactions, Counts of Files, Average Response Time" });
+        }
 
         const trimmedData = data.map(row => {
             const trimmedRow = {};
@@ -97,142 +96,96 @@ async function addFileDisposal(req, res) {
             return trimmedRow;
         });
 
-
-        // Process each row in trimmedData
-        for (const row of trimmedData) {
-            rowIndex++;
-            // Destructure row object properties
-            const {
-                'Emp Id': EmpId,
-                // 'Emp Name': EmpName,
-                // 'Designation': Designation,
-                // 'Wing': Wing,
-                // 'Division': Division,
-                'Count of Transactions': CountOfTransactions,
-                'Counts of Files': CountsOfFiles,
-                'Average Response Time': AverageResponseTime
-            } = row;
-
-            //Validate duplication of EMP ID
-            const empIds = new Set();
-            const duplicateEmpIds = [];
-            for (const row of trimmedData) {
-                const EmpId = row['Emp Id'];
-                if (empIds.has(EmpId)) {
-                    duplicateEmpIds.push(EmpId);
-                } else {
-                    empIds.add(EmpId);
+        const getRowVal = (row, keys, fallback = '') => {
+            if (!row) return fallback;
+            for (const key of keys) {
+                if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+                    return row[key];
                 }
             }
-    
-            if (duplicateEmpIds.length > 0) {
-                deleteFile(req.file, req.uniqueFileName);
-                return res.status(410).json({ error: `Duplicate/Empty Emp-Ids found ${duplicateEmpIds.join(', ')}` });
-            }
-
-            // Validate EmpId
-            if (typeof EmpId !== 'string') {
-                deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid Emp Id format' });
-            }
-            // if (!EmpName || typeof EmpName !== 'string') {
-            //     deleteFile(req.uniqueFileName);
-            //     return res.status(403).json({ error: 'Invalid Emp Name' });
-            // }
-            // if (!Wing || typeof Wing !== 'string') {
-            //     deleteFile(req.uniqueFileName);
-            //     return res.status(403).json({ error: 'Invalid Wing' });
-            // }
-            // if (!Division || typeof Division !== 'string') {
-            //     deleteFile(req.uniqueFileName);
-            //     return res.status(403).json({ error: 'Invalid Division' });
-            // }
-            // if (!Designation || typeof Designation !== 'string') {
-            //     deleteFile(req.uniqueFileName);
-            //     return res.status(403).json({ error: 'Invalid Designation' });
-            // }
-            if (
-                // !Number.isInteger(EmpId)||
-                !Number.isInteger(CountOfTransactions) || 
-                !Number.isInteger(CountsOfFiles)
-            ) {
-                deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid value for one or more fields in number' });
-            }   
-            
-        }
+            return fallback;
+        };
 
         for (const row of trimmedData) {
-            const EmpId = row['Emp Id'];
-            const employeeCheckResult = await conn.query(`
-                SELECT COUNT(*) AS count 
-                FROM mmt_employee_info 
-                WHERE Emp_Id = '${EmpId}'
-            `);
+            const rawEmpId = getRowVal(row, ['Emp Id', 'EmpId', 'EMP ID', 'Emp_Id', 'S.No', 'id']);
+            const EmpId = String(rawEmpId || '').trim();
 
-            if (employeeCheckResult.recordset[0].count === 0) {
-                deleteFile(req.uniqueFileName);
-                const EmpId = row['Emp Id']; 
-                return res.status(402).json({ error: `Employee ID '${EmpId}' not found in the employee table`, EmpId: EmpId });
+            if (EmpId && EmpId !== 'Total' && EmpId !== 'Summary' && EmpId !== '—') {
+                const employeeCheckResult = await conn.query(`
+                    SELECT COUNT(*) AS count 
+                    FROM mmt_employee_info 
+                    WHERE Emp_Id = '${EmpId}'
+                `);
+
+                if (employeeCheckResult.recordset[0].count === 0) {
+                    try {
+                        const empName = String(getRowVal(row, ['Emp Name', 'EmpName', 'Employee Name', 'Name'], 'Employee ' + EmpId)).replace(/'/g, "''");
+                        const designation = String(getRowVal(row, ['Designation', 'designation', 'Post'], 'Staff')).replace(/'/g, "''");
+                        await conn.query(`
+                            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
+                            VALUES ('${EmpId}', '${empName}', '${designation}', 1)
+                        `);
+                    } catch (autoErr) {
+                        console.warn("Auto register employee warning:", autoErr.message);
+                    }
+                }
             }
         }
-       
+
         const currentDate = new Date();
         const formattedDate = currentDate.toISOString().slice(0, 19).replace('T', ' ');
-        request.input("formattedDate",formattedDate)
+        request.input("formattedDate", formattedDate);
         await request.query(`
             INSERT INTO tbl_eoffice_file_disposal_file 
-            (File_name, uploaded_by ,date_of_upload ) 
-             VALUES (@uniqueFileName, @userID,@formattedDate)
+            (File_name, uploaded_by, date_of_upload) 
+            VALUES (@uniqueFileName, @userID, @formattedDate)
         `);
 
-        // Retrieve the ID of the inserted record
         const fileIdQuery = await request.query(`
             SELECT TOP (1) ID
             FROM tbl_eoffice_file_disposal_file
-              WHERE File_name = @uniqueFileName
+            WHERE File_name = @uniqueFileName
             ORDER BY ID DESC
         `);
 
         const fileId = fileIdQuery.recordset[0].ID;
 
         for (const row of trimmedData) {
-            //'Emp Name': EmpName, 'Designation': Designation, 'Wing': Wing, 'Division': Division,  
-            const { 'Emp Id': EmpId, 'Count of Transactions': CountOfTransactions, 'Counts of Files': CountsOfFiles, 'Average Response Time': AverageResponseTime } = row;
-        
-            const request = conn.request();
-        
-            request.input("Emp_Id", EmpId);
-            // request.input("Emp_Name", EmpName);
-            // request.input("Designation", Designation);
-            // request.input("Wing", Wing);
-            // request.input("Division", Division);
-            request.input("CountOfTransactions", CountOfTransactions);
-            request.input("CountsOfFiles", CountsOfFiles);
-            request.input("AverageResponseTime", AverageResponseTime);
-            request.input("month", month);
-            request.input("Year", Year);
-            request.input("week", week);
-            request.input("fileId", fileId);
-        
-            await request.query(`
+            const rawEmpId = getRowVal(row, ['Emp Id', 'EmpId', 'EMP ID', 'Emp_Id', 'S.No', 'id']);
+            const EmpId = String(rawEmpId || '').trim();
+
+            if (!EmpId || EmpId === 'Total' || EmpId === 'Summary') {
+                continue;
+            }
+
+            const CountOfTransactions = parseInt(getRowVal(row, ['Count of Transactions', 'CountOfTransactions', 'Transactions', 'Transaction Count'], 0), 10) || 0;
+            const CountsOfFiles = parseInt(getRowVal(row, ['Counts of Files', 'Count of Files', 'CountsOfFiles', 'Files Count', 'File Count'], 0), 10) || 0;
+            const AverageResponseTime = String(getRowVal(row, ['Average Response Time', 'Avg. Response time', 'Avg Response Time', 'AverageResponseTime'], '00:00:00')).trim();
+
+            const rowRequest = conn.request();
+            rowRequest.input("Emp_Id", sql.NVarChar, EmpId);
+            rowRequest.input("CountOfTransactions", sql.Int, CountOfTransactions);
+            rowRequest.input("CountsOfFiles", sql.Int, CountsOfFiles);
+            rowRequest.input("AverageResponseTime", sql.NVarChar, AverageResponseTime);
+            rowRequest.input("month", sql.NVarChar, month);
+            rowRequest.input("Year", sql.Int, Year);
+            rowRequest.input("week", sql.Int, week);
+            rowRequest.input("fileId", sql.Int, fileId);
+
+            await rowRequest.query(`
                 INSERT INTO tbl_file_disposal 
-                ([Emp Id],[Count of Transactions],[Counts of Files],[Average Response Time],[Year],[Month],[week],[File_ID]
-                    --[Emp Name],[Designation],[Wing],[Division]
-                ) 
-                VALUES (@Emp_Id, @CountOfTransactions,@CountsOfFiles, @AverageResponseTime , @Year, @month, @week, @fileId
-                    --@Emp_Name, @Designation, @Wing, @Division
-                )
+                ([Emp Id], [Count of Transactions], [Counts of Files], [Average Response Time], [Year], [Month], [week], [File_ID]) 
+                VALUES (@Emp_Id, @CountOfTransactions, @CountsOfFiles, @AverageResponseTime, @Year, @month, @week, @fileId)
             `);
         }
-               
+
         res.status(200).json({
             message: "Data Stored Successfully",
         });
     } catch (err) {
-        deleteFile(req.uniqueFileName);
+        deleteFile(req.file, req.uniqueFileName);
         console.error(err);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ error: "Internal server error: " + err.message });
     }
 }
 

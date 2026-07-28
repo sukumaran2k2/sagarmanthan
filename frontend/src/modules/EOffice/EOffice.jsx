@@ -1,448 +1,939 @@
-import { useState, useMemo } from 'react';
-import { 
-  FileText, 
-  Inbox, 
-  CheckSquare, 
-  ChevronDown, 
-  FileSpreadsheet, 
-  FileCheck, 
-  Search
-} from 'lucide-react';
-import { AgGridReact } from 'ag-grid-react';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { useState, useMemo, useEffect, useRef } from "react";
+import axios from "axios";
+import * as XLSX from "xlsx";
+import { Download, Trash2, FileSpreadsheet } from "lucide-react";
+import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
+// Extracted Sub-Components
+import EOfficeCategoryHeader from "./components/EOfficeCategoryHeader";
+import EOfficeToolbar from "./components/EOfficeToolbar";
+import EOfficeUploadView from "./components/EOfficeUploadView";
+import EOfficeDataListView from "./components/EOfficeDataListView";
+import EOfficeReportView from "./components/EOfficeReportView";
+import EOfficeFilesHistoryView from "./components/EOfficeFilesHistoryView";
+
+// Extracted Utilities
+import {
+formatTimeStr,
+  validateEOfficeHeaders,
+  getKpiPrefix,
+  getReportTitle,
+} from "./utils/eOfficeUtils";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 export default function EOfficeView({ initialKpi }) {
-  const [selectedKpi, setSelectedKpi] = useState(initialKpi || 'file-pendency'); // 'file-pendency', 'receipt-pendency', 'file-disposal'
-  const [month, setMonth] = useState('June');
-  const [year, setYear] = useState('2026');
-  const [week, setWeek] = useState('Week 3');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeSubTab, setActiveSubTab] = useState('Report'); // 'Report', 'Upload', 'History'
-
-  // File Pendency Data
-  const filePendencyData = [
-    { sno: 1, empId: 'DS11', empName: 'Devendra Kumar', designation: 'Deputy Secretary', wing: 'Administration', division: 'Admn.', gt30: 0, d16_30: 0 },
-    { sno: 2, empId: 'US20', empName: 'Sumit Nandan', designation: 'UNDER SECRETARY', wing: 'Administration', division: 'Admn.', gt30: 0, d16_30: 0 },
-    { sno: 3, empId: 'DD02', empName: 'RAMJI SINGH', designation: 'DIRECTOR', wing: 'Development', division: 'Devlopment', gt30: 0, d16_30: 0 },
-    { sno: 4, empId: 'US22', empName: 'UTTAM KUMAR MISHRA', designation: 'UNDER SECRETARY', wing: 'IWT', division: 'IWT-II', gt30: 0, d16_30: 0 },
-    { sno: 5, empId: 'DIR04', empName: 'Samarth Verma', designation: 'DIRECTOR', wing: 'Ports', division: 'PD-II', gt30: 0, d16_30: 0 },
-    { sno: 6, empId: 'DIR14', empName: 'Dinesh Kumar', designation: 'Director', wing: 'Ports', division: 'PD-IV', gt30: 0, d16_30: 0 },
-    { sno: 7, empId: 'US25', empName: 'PAUSIANMUNG HAUZEL', designation: 'Under Secretary', wing: 'Ports', division: 'PD-IV', gt30: 0, d16_30: 0 },
-    { sno: 8, empId: 'DS09', empName: 'Devendra Kumar', designation: 'Deputy Secretary', wing: 'Ports', division: 'PHRD', gt30: 0, d16_30: 0 },
-    { sno: 9, empId: 'US27', empName: 'Ashish Bhattacharya', designation: 'Under Secretary', wing: 'Ports', division: 'PHRD', gt30: 0, d16_30: 0 }
-  ];
-
-  // Receipt Pendency Data
-  const receiptPendencyData = [
-    { sno: 1, empId: 'US22', empName: 'UTTAM KUMAR MISHRA', designation: 'UNDER SECRETARY', wing: 'IWT', division: 'IWT-II', gt30: 0, d16_30: 0 },
-    { sno: 2, empId: 'DD03', empName: 'TARUN KUMAR', designation: 'DEPUTY DIRECTOR', wing: 'Ports', division: 'PD-I', gt30: 0, d16_30: 0 },
-    { sno: 3, empId: 'DIR04', empName: 'Samarth Verma', designation: 'DIRECTOR', wing: 'Ports', division: 'PD-II', gt30: 0, d16_30: 0 },
-    { sno: 4, empId: 'DIR14', empName: 'Dinesh Kumar', designation: 'Director', wing: 'Ports', division: 'PD-IV', gt30: 0, d16_30: 0 },
-    { sno: 5, empId: 'US25', empName: 'PAUSIANMUNG HAUZEL', designation: 'Under Secretary', wing: 'Ports', division: 'PD-IV', gt30: 0, d16_30: 0 },
-    { sno: 6, empId: 'DS09', empName: 'Devendra Kumar', designation: 'Deputy Secretary', wing: 'Ports', division: 'PHRD', gt30: 0, d16_30: 0 },
-    { sno: 7, empId: 'US17', empName: 'Sachin Kumar Katiyar', designation: 'UNDER SECRETARY', wing: 'Ports', division: 'PPP', gt30: 0, d16_30: 0 },
-    { sno: 8, empId: 'US18', empName: 'SANJAY KUMAR', designation: 'UNDER SECRETARY', wing: 'Sagarmala', division: 'Sagarmala -I', gt30: 0, d16_30: 0 },
-    { sno: 9, empId: 'AS01', empName: 'Mukesh Mangal', designation: 'Additional Secretary', wing: 'Sagarmala', division: 'Sagarmala -I', gt30: 0, d16_30: 0 }
-  ];
-
-  // File Disposal Data
-  const fileDisposalData = [
-    { sno: 1, empId: 'DS11', empName: 'Devendra Kumar', designation: 'Deputy Secretary', wing: 'Administration', division: 'Admn.', gt30: 12, d16_30: 24 },
-    { sno: 2, empId: 'US20', empName: 'Sumit Nandan', designation: 'UNDER SECRETARY', wing: 'Administration', division: 'Admn.', gt30: 8, d16_30: 18 },
-    { sno: 3, empId: 'DD02', empName: 'RAMJI SINGH', designation: 'DIRECTOR', wing: 'Development', division: 'Devlopment', gt30: 15, d16_30: 31 },
-    { sno: 4, empId: 'US22', empName: 'UTTAM KUMAR MISHRA', designation: 'UNDER SECRETARY', wing: 'IWT', division: 'IWT-II', gt30: 9, d16_30: 14 },
-    { sno: 5, empId: 'DIR04', empName: 'Samarth Verma', designation: 'DIRECTOR', wing: 'Ports', division: 'PD-II', gt30: 21, d16_30: 45 },
-    { sno: 6, empId: 'DIR14', empName: 'Dinesh Kumar', designation: 'Director', wing: 'Ports', division: 'PD-IV', gt30: 14, d16_30: 28 },
-    { sno: 7, empId: 'US25', empName: 'PAUSIANMUNG HAUZEL', designation: 'Under Secretary', wing: 'Ports', division: 'PD-IV', gt30: 7, d16_30: 19 },
-    { sno: 8, empId: 'DS09', empName: 'Devendra Kumar', designation: 'Deputy Secretary', wing: 'Ports', division: 'PHRD', gt30: 11, d16_30: 25 },
-    { sno: 9, empId: 'US27', empName: 'Ashish Bhattacharya', designation: 'Under Secretary', wing: 'Ports', division: 'PHRD', gt30: 5, d16_30: 11 }
-  ];
-
-  // Helper to retrieve data
-  const getSelectedData = () => {
-    switch (selectedKpi) {
-      case 'file-pendency':
-        return filePendencyData;
-      case 'receipt-pendency':
-        return receiptPendencyData;
-      case 'file-disposal':
-        return fileDisposalData;
-      default:
-        return filePendencyData;
-    }
+  const getUrlParams = () => {
+    const params = new URLSearchParams(window.location.search);
+    const kpiParam = params.get("kpi") || params.get("category");
+    const subTabParam = params.get("subtab") || params.get("tab");
+    return {
+      kpi:
+        kpiParam &&
+        ["file-pendency", "receipt-pendency", "file-disposal"].includes(kpiParam)
+          ? kpiParam
+          : null,
+      subTab:
+        subTabParam && ["upload", "data", "report", "files"].includes(subTabParam)
+          ? subTabParam
+          : null,
+    };
   };
 
-  const getReportTitle = () => {
-    switch (selectedKpi) {
-      case 'file-pendency':
-        return 'File Pendency Report';
-      case 'receipt-pendency':
-        return 'Receipt Pendency Report';
-      case 'file-disposal':
-        return 'File Disposal Report';
-      default:
-        return 'File Pendency Report';
-    }
+  const updateUrlParams = (newKpi, newSubTab) => {
+    const params = new URLSearchParams(window.location.search);
+    if (newKpi) params.set("kpi", newKpi);
+    if (newSubTab) params.set("subtab", newSubTab);
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.pushState({ kpi: newKpi, subTab: newSubTab }, "", newUrl);
   };
 
-  const filteredData = getSelectedData().filter(row => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      row.empId.toLowerCase().includes(term) ||
-      row.empName.toLowerCase().includes(term) ||
-      row.designation.toLowerCase().includes(term) ||
-      row.wing.toLowerCase().includes(term) ||
-      row.division.toLowerCase().includes(term)
-    );
+  const [selectedKpi, setSelectedKpi] = useState(() => {
+    const { kpi } = getUrlParams();
+    return kpi || initialKpi || "file-pendency";
   });
 
-  // AG Grid Column Definitions
-  const colDefs = useMemo(() => [
-    { 
-      field: 'sno', 
-      headerName: 'S.No', 
-      width: 70, 
-      pinned: 'left',
-      cellClass: 'text-slate-500 font-bold',
-      sortable: true
-    },
-    { 
-      field: 'empId', 
-      headerName: 'Emp ID', 
-      minWidth: 110, 
-      pinned: 'left',
-      cellClass: 'font-mono font-bold text-slate-800',
-      sortable: true,
-      filter: true
-    },
-    { 
-      field: 'empName', 
-      headerName: 'Employee Name', 
-      minWidth: 170, 
-      cellClass: 'font-extrabold text-slate-900',
-      sortable: true,
-      filter: true
-    },
-    { 
-      field: 'designation', 
-      headerName: 'Designation', 
-      minWidth: 160, 
-      cellClass: 'text-slate-600 font-semibold',
-      sortable: true,
-      filter: true
-    },
-    { 
-      field: 'wing', 
-      headerName: 'Wing', 
-      minWidth: 130, 
-      cellClass: 'text-slate-600 font-semibold',
-      sortable: true,
-      filter: true
-    },
-    { 
-      field: 'division', 
-      headerName: 'Division', 
-      minWidth: 130, 
-      cellClass: 'text-slate-600 font-semibold',
-      sortable: true,
-      filter: true
-    },
-    { 
-      field: 'gt30', 
-      headerName: 'Greater than 30 Days', 
-      minWidth: 180, 
-      cellClass: 'text-center font-bold text-slate-900',
-      sortable: true,
-      filter: true
-    },
-    { 
-      field: 'd16_30', 
-      headerName: '16-30 Days', 
-      minWidth: 130, 
-      cellClass: 'text-center font-bold text-slate-900',
-      sortable: true,
-      filter: true
-    }
-  ], []);
+  const [subTab, setSubTab] = useState(() => {
+    const { subTab: sTab } = getUrlParams();
+    return sTab || "upload";
+  });
 
-  const handleGridWheel = (e) => {
-    const container = e.currentTarget;
-    if (container) {
-      const gridBodyViewport = container.querySelector('.ag-body-viewport');
-      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
-        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-          gridBodyViewport.scrollLeft += e.deltaY;
-          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
-          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
-          if (!isAtStart && !isAtEnd) {
-            e.preventDefault();
-          }
-        }
-      }
+  // Global Filter States
+  const [month, setMonth] = useState("July");
+  const [year, setYear] = useState("2026");
+  const [week, setWeek] = useState("Week 3");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Drill Down Detailed Report States
+  const [reportViewMode, setReportViewMode] = useState("summary");
+  const [selectedWing, setSelectedWing] = useState("");
+  const [detailData, setDetailData] = useState([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const handleCategorySelect = (kpi) => {
+    setSelectedKpi(kpi);
+    updateUrlParams(kpi, subTab);
+  };
+
+  const handleSubTabSelect = (sTab) => {
+    setSubTab(sTab);
+    updateUrlParams(activeKpi, sTab);
+  };
+
+  // Sync browser Back/Forward popstate to state
+  useEffect(() => {
+    const handlePopState = () => {
+      const { kpi: pKpi, subTab: pSubTab } = getUrlParams();
+      if (pKpi) setSelectedKpi(pKpi);
+      if (pSubTab) setSubTab(pSubTab);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Sync prop changes to state
+  useEffect(() => {
+    if (initialKpi) {
+      setSelectedKpi(initialKpi);
     }
+  }, [initialKpi]);
+
+  // DB Data States
+  const [reportRows, setReportRows] = useState([]);
+  const [rawRows, setRawRows] = useState([]);
+  const [filesList, setFilesList] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
+
+  // In-memory data cache
+  const dataCache = useRef({});
+
+  // Toast notification state
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastColor, setToastColor] = useState("#3B82F6");
+  const [toastVisible, setToastVisible] = useState(false);
+
+  const showToast = (msg, color = "#3B82F6") => {
+    setToastMsg(msg);
+    setToastColor(color);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 3500);
+  };
+
+  // Per-category upload states map so each category (File Pendency, Receipt Pendency, File Disposal) preserves its own uploaded file preview & form selections when switching tabs
+  const [categoryUploadStates, setCategoryUploadStates] = useState({
+    "file-pendency": {
+      selectedFile: null,
+      previewRows: [],
+      fileValidationError: "",
+      uploadFinancialYear: "",
+      uploadMonth: "",
+      uploadWeek: "",
+    },
+    "receipt-pendency": {
+      selectedFile: null,
+      previewRows: [],
+      fileValidationError: "",
+      uploadFinancialYear: "",
+      uploadMonth: "",
+      uploadWeek: "",
+    },
+    "file-disposal": {
+      selectedFile: null,
+      previewRows: [],
+      fileValidationError: "",
+      uploadFinancialYear: "",
+      uploadMonth: "",
+      uploadWeek: "",
+    },
+  });
+
+  const [uploading, setUploading] = useState(false);
+
+  const activeKpi = selectedKpi || initialKpi || "file-pendency";
+
+  const activeUploadState = categoryUploadStates[activeKpi] || {
+    selectedFile: null,
+    previewRows: [],
+    fileValidationError: "",
+    uploadFinancialYear: "",
+    uploadMonth: "",
+    uploadWeek: "",
+  };
+
+  const updateActiveUploadState = (fields) => {
+    setCategoryUploadStates((prev) => ({
+      ...prev,
+      [activeKpi]: {
+        ...(prev[activeKpi] || {}),
+        ...fields,
+      },
+    }));
+  };
+
+  // ---- FETCH FROM DATABASE WITH IN-MEMORY CACHING ----
+  const fetchEOfficeData = (
+    kpi = activeKpi,
+    targetMonth = month,
+    targetYear = year,
+    targetWeek = week,
+    forceRefresh = false,
+  ) => {
+    const prefix = getKpiPrefix(kpi);
+    const weekNum =
+      typeof targetWeek === "string"
+        ? parseInt(targetWeek.replace(/\D/g, ""), 10) || 3
+        : targetWeek;
+
+    const cacheKey = `${prefix}_${subTab}_${targetYear}_${targetMonth}_${weekNum}`;
+
+    if (!forceRefresh && dataCache.current[cacheKey]) {
+      const cached = dataCache.current[cacheKey];
+      if (subTab === "report" || subTab === "upload") setReportRows(cached);
+      else if (subTab === "data") setRawRows(cached);
+      else if (subTab === "files") setFilesList(cached);
+      setFetchError(null);
+      setLoading(false);
+      return;
+    }
+
+    setReportRows([]);
+    setRawRows([]);
+    setFilesList([]);
+    setFetchError(null);
+    setLoading(true);
+
+    const promises = [];
+
+    if (subTab === "report" || subTab === "upload") {
+      promises.push(
+        axios
+          .get(
+            `${API_BASE_URL}/${prefix}-report/${targetYear}/${targetMonth}/${weekNum}`,
+          )
+          .then((res) => {
+            const data = res.data.rowData || res.data || [];
+            setReportRows(data);
+            dataCache.current[cacheKey] = data;
+          })
+          .catch((err) => {
+            console.warn(`Abstract report fetch note (${prefix}):`, err.message);
+            setReportRows([]);
+            if (err.response?.status !== 404) {
+              setFetchError(err.response?.data?.message || err.message || "Failed to fetch report data");
+            }
+          }),
+      );
+    }
+
+    if (subTab === "data") {
+      promises.push(
+        axios
+          .get(`${API_BASE_URL}/${prefix}-all`)
+          .then((res) => {
+            const data = res.data.rowData || res.data || [];
+            setRawRows(data);
+            dataCache.current[cacheKey] = data;
+          })
+          .catch((err) => {
+            console.warn(`Raw data list fetch note (${prefix}):`, err.message);
+            setRawRows([]);
+            if (err.response?.status !== 404) {
+              setFetchError(err.response?.data?.message || err.message || "Failed to fetch data list");
+            }
+          }),
+      );
+    }
+
+    if (subTab === "files") {
+      promises.push(
+        axios
+          .get(`${API_BASE_URL}/${prefix}-History`)
+          .then((res) => {
+            const data = res.data.rowData || res.data || [];
+            setFilesList(data);
+            dataCache.current[cacheKey] = data;
+          })
+          .catch((err) => {
+            console.warn(`Files history fetch note (${prefix}):`, err.message);
+            setFilesList([]);
+            if (err.response?.status !== 404) {
+              setFetchError(err.response?.data?.message || err.message || "Failed to fetch upload history");
+            }
+          }),
+      );
+    }
+
+    Promise.all(promises).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    const prefix = getKpiPrefix(activeKpi);
+    axios
+      .get(`${API_BASE_URL}/${prefix}-check`)
+      .then((res) => {
+        if (res.data && res.data.length > 0) {
+          const latest = res.data[0];
+          const latestMonth = latest.Month || month;
+          const latestYear = String(latest.Year || year);
+          const latestWeekVal = latest.Week !== undefined ? latest.Week : latest.week;
+          const latestWeek = latestWeekVal ? `Week ${latestWeekVal}` : week;
+
+          setMonth(latestMonth);
+          setYear(latestYear);
+          setWeek(latestWeek);
+
+          fetchEOfficeData(activeKpi, latestMonth, latestYear, latestWeek);
+        } else {
+          fetchEOfficeData(activeKpi, month, year, week);
+        }
+      })
+      .catch((err) => {
+        console.warn(`Check latest fetch note (${prefix}):`, err.message);
+        fetchEOfficeData(activeKpi, month, year, week);
+      });
+  }, [activeKpi, subTab]);
+
+  const handleFetchReportClick = () => {
+    fetchEOfficeData(activeKpi, month, year, week, true);
+    showToast(
+      `📊 Fetched ${getReportTitle(activeKpi)} for ${week}, ${month} ${year}`,
+      "#10B981",
+    );
+  };
+
+  const activeDataset = useMemo(() => {
+    if (subTab === "data") return rawRows;
+    return reportRows;
+  }, [subTab, rawRows, reportRows]);
+
+  const colDefs = useMemo(() => {
+    if (!activeDataset || activeDataset.length === 0) return [];
+    const sample = activeDataset[0];
+    const keys = Object.keys(sample);
+
+    return keys.map((key) => {
+      const isWingCol =
+        key.toLowerCase().includes("wing") ||
+        key.toLowerCase().includes("section");
+      const isNumeric = typeof sample[key] === "number";
+
+      return {
+        headerName: key,
+        field: key,
+        flex: isWingCol ? 2 : 1,
+        minWidth: isWingCol ? 180 : 110,
+        filter: true,
+        sortable: true,
+        pinned: isWingCol ? "left" : null,
+        cellClass: (params) => {
+          if (params.data && params.data.Wing === "Total") {
+            return "font-black text-slate-900 bg-slate-100 text-center flex items-center justify-center";
+          }
+          if (isWingCol) return "font-semibold text-slate-800 text-left flex items-center";
+          if (isNumeric) return "font-bold text-slate-700 text-center flex items-center justify-center";
+          return "text-slate-600 text-center flex items-center justify-center";
+        },
+        valueFormatter: (params) => {
+          if (params.value === null || params.value === undefined) return "—";
+          const colKey = key.toLowerCase();
+          if (colKey === "year" || colKey.includes("emp") || colKey === "s.no" || colKey === "id") {
+            return String(params.value).replace(/,/g, "");
+          }
+          if (typeof params.value === "number") return params.value.toLocaleString();
+          return formatTimeStr(params.value);
+        },
+      };
+    });
+  }, [activeDataset]);
+
+  const pinnedBottomRowData = useMemo(() => {
+    if (!activeDataset || activeDataset.length === 0) return [];
+    const sample = activeDataset[0];
+    const keys = Object.keys(sample);
+    const totalsRow = {};
+
+    keys.forEach((key, index) => {
+      if (index === 0 || key.toLowerCase().includes("wing")) {
+        totalsRow[key] = "Total";
+      } else {
+        const sum = activeDataset.reduce((acc, row) => {
+          const val = Number(row[key]);
+          return acc + (isNaN(val) ? 0 : val);
+        }, 0);
+        totalsRow[key] = sum;
+      }
+    });
+
+    return [totalsRow];
+  }, [activeDataset]);
+
+  const handleCellClick = (params) => {
+    if (!params || !params.data) return;
+    const row = params.data;
+    const wingName = row["Wing Name"] || row.Wing || row.wing_name || row["Wing"];
+    if (!wingName || wingName === "Total" || wingName === "Summary") return;
+
+    setSelectedWing(wingName);
+    setReportViewMode("detail");
+    setDetailLoading(true);
+
+    const cacheKey = `eoffice_detail_${activeKpi}_${wingName}_${month}_${year}_${week}`;
+    if (dataCache.current[cacheKey]) {
+      setDetailData(dataCache.current[cacheKey]);
+      setDetailLoading(false);
+      return;
+    }
+
+    const weekNum = week.replace(/[^0-9]/g, "") || "3";
+    let endpoint = "";
+    if (activeKpi === "file-pendency") endpoint = `/get-file-pendence-report/${year}/${month}/${weekNum}`;
+    else if (activeKpi === "receipt-pendency") endpoint = `/get-receipt-pendence-report/${year}/${month}/${weekNum}`;
+    else endpoint = `/get-file-disposal-report/${year}/${month}/${weekNum}`;
+
+    axios.get(`${API_BASE_URL}${endpoint}`)
+      .then(res => {
+        const rows = res.data?.rowData || res.data || [];
+        const wingRows = rows.filter(r => 
+          (r.Wing && r.Wing.toLowerCase() === String(wingName).toLowerCase()) ||
+          (r.wing_name && r.wing_name.toLowerCase() === String(wingName).toLowerCase()) ||
+          (r.division_name && r.division_name.toLowerCase() === String(wingName).toLowerCase())
+        );
+        const finalRows = wingRows.length > 0 ? wingRows : rows;
+        setDetailData(finalRows);
+        dataCache.current[cacheKey] = finalRows;
+      })
+      .catch(() => {
+        const fallback = rawRows.filter(r => 
+          (r.Wing && r.Wing.toLowerCase() === String(wingName).toLowerCase()) ||
+          (r.wing_name && r.wing_name.toLowerCase() === String(wingName).toLowerCase())
+        );
+        setDetailData(fallback);
+      })
+      .finally(() => setDetailLoading(false));
+  };
+
+  const detailColDefs = useMemo(() => {
+    if (!detailData || detailData.length === 0) return [];
+    return Object.keys(detailData[0]).map((key) => {
+      const colKey = key.toLowerCase();
+      const isYearOrId = colKey === "year" || colKey.includes("emp") || colKey === "s.no" || colKey === "id";
+      return {
+        headerName: key,
+        field: key,
+        flex: 1,
+        minWidth: 120,
+        sortable: true,
+        filter: true,
+        cellClass: "font-semibold text-slate-700 text-center flex items-center justify-center",
+        valueFormatter: (params) => {
+          if (params.value === null || params.value === undefined) return "—";
+          if (isYearOrId) return String(params.value).replace(/,/g, "");
+          if (typeof params.value === "number") return params.value.toLocaleString();
+          return formatTimeStr(params.value);
+        },
+      };
+    });
+  }, [detailData]);
+
+  const filteredData = useMemo(() => {
+    if (!searchTerm.trim()) return activeDataset;
+    const term = searchTerm.toLowerCase();
+    return activeDataset.filter((row) =>
+      Object.values(row).some((val) =>
+        String(val || "").toLowerCase().includes(term),
+      ),
+    );
+  }, [activeDataset, searchTerm]);
+
+  const previewColDefs = useMemo(() => {
+    const pRows = activeUploadState.previewRows;
+    if (!pRows || pRows.length === 0) return [];
+    return Object.keys(pRows[0]).map((key) => {
+      const colKey = key.toLowerCase();
+      const isYearOrId = colKey === "year" || colKey.includes("emp") || colKey === "s.no" || colKey === "id";
+      return {
+        headerName: key,
+        field: key,
+        flex: 1,
+        minWidth: 120,
+        cellClass: "text-slate-700 font-semibold text-center flex items-center justify-center",
+        valueFormatter: (params) => {
+          if (params.value === null || params.value === undefined) return "—";
+          if (isYearOrId) return String(params.value).replace(/,/g, "");
+          return formatTimeStr(params.value);
+        },
+      };
+    });
+  }, [activeUploadState.previewRows]);
+
+  const historyColDefs = useMemo(
+    () => [
+      {
+        headerName: "S.No",
+        valueGetter: (params) => params.node.rowIndex + 1,
+        width: 70,
+        pinned: "left",
+        cellClass: "font-bold text-slate-500 text-center flex items-center justify-center",
+      },
+      {
+        field: "File Name",
+        headerName: "File Name",
+        flex: 3,
+        minWidth: 260,
+        cellClass: "font-semibold flex items-center text-left",
+        valueGetter: (params) =>
+          params.data["File Name"] ||
+          params.data.file_name ||
+          params.data.File_name ||
+          "EOffice_Spreadsheet.xlsx",
+        cellRenderer: (params) => (
+          <div
+            onClick={() => handleDownloadFile(params.data.id, params.value)}
+            className="text-[#0f417a] hover:underline cursor-pointer flex items-center gap-2 truncate"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+            <span className="truncate">{params.value}</span>
+          </div>
+        ),
+      },
+      {
+        field: "Uploaded By",
+        headerName: "Uploaded By",
+        flex: 2,
+        minWidth: 160,
+        cellClass: "text-slate-700 font-medium text-left flex items-center",
+        valueGetter: (params) =>
+          params.data["Uploaded By"] ||
+          params.data.Uploaded_By ||
+          params.data.uploaded_by ||
+          "Admin",
+      },
+      {
+        field: "Date of Upload",
+        headerName: "Date of Upload",
+        flex: 2,
+        minWidth: 160,
+        cellClass: "text-slate-600 font-medium text-center flex items-center justify-center",
+        valueGetter: (params) =>
+          params.data["Date of Upload"] ||
+          params.data.date_of_upload ||
+          params.data.Date_of_Upload ||
+          "—",
+      },
+      {
+        headerName: "Actions",
+        width: 120,
+        cellClass: "text-center flex items-center justify-center gap-2",
+        cellRenderer: (params) => {
+          const fName =
+            params.data["File Name"] ||
+            params.data.file_name ||
+            params.data.File_name;
+          return (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleDownloadFile(params.data.id, fName)}
+                className="p-1.5 hover:bg-blue-50 text-[#0f417a] rounded-lg transition cursor-pointer"
+                title="Download File"
+              >
+                <Download size={15} />
+              </button>
+              <button
+                onClick={() => handleDeleteFile(params.data.id)}
+                className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition cursor-pointer"
+                title="Delete Record"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
+  const handleFileSelect = (file) => {
+    if (!file) {
+      updateActiveUploadState({
+        selectedFile: null,
+        previewRows: [],
+        fileValidationError: "",
+      });
+      return;
+    }
+
+    updateActiveUploadState({
+      selectedFile: file,
+      fileValidationError: "",
+    });
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(worksheet);
+
+        if (!rows || rows.length === 0) {
+          updateActiveUploadState({
+            previewRows: [],
+            fileValidationError: "The selected file contains no data rows.",
+          });
+          showToast("⚠ Selected file is empty", "#F59E0B");
+          return;
+        }
+
+        const headerCheck = validateEOfficeHeaders(rows[0], activeKpi);
+        if (!headerCheck.valid) {
+          const errText = `Invalid Template Header! Missing required column(s): ${headerCheck.missing.join(", ")}. Please use official E-Office Sample Template format.`;
+          updateActiveUploadState({
+            previewRows: [],
+            fileValidationError: errText,
+          });
+          showToast(`❌ Template Validation Failed: Missing ${headerCheck.missing.join(", ")}`, "#EF4444");
+          return;
+        }
+
+        const validRows = rows.filter(
+          (r) =>
+            r &&
+            Object.keys(r).length > 0 &&
+            Object.values(r).some(
+              (val) => val !== null && val !== undefined && String(val).trim() !== "",
+            ),
+        );
+        updateActiveUploadState({
+          previewRows: validRows,
+          fileValidationError: "",
+        });
+        showToast(`✅ Template Validated! Loaded ${validRows.length} rows preview`, "#10B981");
+      } catch (err) {
+        console.error("Preview parse error:", err);
+        updateActiveUploadState({
+          previewRows: [],
+          fileValidationError: "Could not read or parse the selected spreadsheet file.",
+        });
+        showToast("⚠ Could not parse file preview", "#F59E0B");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleUploadSubmit = (e) => {
+    e.preventDefault();
+    const { uploadFinancialYear, uploadMonth, uploadWeek, selectedFile, fileValidationError } = activeUploadState;
+    if (!uploadFinancialYear) { showToast("⚠ Please select Financial Year", "#F59E0B"); return; }
+    if (!uploadMonth) { showToast("⚠ Please select Month", "#F59E0B"); return; }
+    if (!uploadWeek) { showToast("⚠ Please select Week", "#F59E0B"); return; }
+    if (!selectedFile) { showToast("⚠ Please select an Excel file", "#F59E0B"); return; }
+    if (fileValidationError) { showToast(`❌ Cannot upload: ${fileValidationError}`, "#EF4444"); return; }
+
+    setUploading(true);
+    const prefix = getKpiPrefix(activeKpi);
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    formData.append("Year", uploadFinancialYear);
+    formData.append("financialYear", uploadFinancialYear);
+    formData.append("month", uploadMonth);
+    formData.append("week", uploadWeek);
+    formData.append("userID", 1);
+
+    axios
+      .post(`${API_BASE_URL}/${prefix}-create`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then(() => {
+        showToast("✅ E-Office sheet uploaded and stored successfully", "#10B981");
+        updateActiveUploadState({
+          selectedFile: null,
+          previewRows: [],
+          fileValidationError: "",
+          uploadFinancialYear: "",
+          uploadMonth: "",
+          uploadWeek: "",
+        });
+        dataCache.current = {};
+        fetchEOfficeData(activeKpi, uploadMonth, year, uploadWeek, true);
+        setSubTab("files");
+      })
+      .catch((err) => {
+        console.error("Upload error:", err);
+        showToast(err.response?.data?.error || "❌ File upload failed. Check spreadsheet format.", "#EF4444");
+      })
+      .finally(() => setUploading(false));
+  };
+
+  const handleDownloadFile = (id, fileName) => {
+    const prefix = getKpiPrefix(activeKpi);
+    axios
+      .get(`${API_BASE_URL}/${prefix}/download/${id}`, { responseType: "blob" })
+      .then((res) => {
+        const url = window.URL.createObjectURL(new Blob([res.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", fileName || "eoffice_file.xlsx");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      })
+      .catch((err) => {
+        console.error("Download error:", err);
+        showToast("❌ Failed to download file", "#EF4444");
+      });
+  };
+
+  const handleDeleteFile = (id) => {
+    if (!window.confirm("Deleting the file will also delete all records parsed from it. Continue?")) return;
+    const prefix = getKpiPrefix(activeKpi);
+    axios
+      .delete(`${API_BASE_URL}/${prefix}/delete/${id}`)
+      .then(() => {
+        showToast("🗑️ File record deleted successfully", "#10B981");
+        dataCache.current = {};
+        fetchEOfficeData(activeKpi, month, year, week, true);
+      })
+      .catch((err) => {
+        console.error("Delete error:", err);
+        showToast("❌ Failed to delete record", "#EF4444");
+      });
+  };
+
+  const handleExportExcel = () => {
+    if (!activeDataset || activeDataset.length === 0) return;
+    const worksheet = XLSX.utils.json_to_sheet(activeDataset);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "EOffice Report");
+    XLSX.writeFile(workbook, `EOffice_${activeKpi}_${month}_${year}.xlsx`);
+    showToast("📈 Exported report to Excel successfully!", "#10B981");
+  };
+
+  const handleExportPdf = () => {
+    if (!activeDataset || activeDataset.length === 0) return;
+    showToast("📄 Preparing PDF print preview...", "#3B82F6");
+    const printWindow = window.open("", "_blank");
+    const headers = Object.keys(activeDataset[0]);
+
+    let headersHtml = "";
+    headers.forEach((h) => {
+      headersHtml += `<th style="border:1px solid #cbd5e1; padding:8px 12px; background:#0f417a; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase;">${h}</th>`;
+    });
+
+    let rowsHtml = "";
+    activeDataset.forEach((row, i) => {
+      const bg = i % 2 === 0 ? "#fff" : "#f8fafc";
+      rowsHtml += `<tr style="background:${bg}">`;
+      headers.forEach((h) => {
+        let val = row[h] !== undefined ? row[h] : "";
+        rowsHtml += `<td style="border:1px solid #cbd5e1; padding:8px 12px; font-size:11px; color:#334155;">${val}</td>`;
+      });
+      rowsHtml += "</tr>";
+    });
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>${getReportTitle(activeKpi)}</title>
+          <style>
+            body { font-family: 'Inter', system-ui, sans-serif; color: #1e293b; padding: 20px; }
+            h1 { font-size: 16px; font-weight: 800; color: #0f417a; margin-bottom: 4px; }
+            p { font-size: 11px; color: #64748b; margin: 0 0 16px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <h1>${getReportTitle(activeKpi)}</h1>
+          <p>Generated on: ${new Date().toLocaleDateString()} | ${week}, ${month} ${year}</p>
+          <table>
+            <thead><tr>${headersHtml}</tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <script>
+            window.onload = function() { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  const handleCopyData = () => {
+    if (!activeDataset || activeDataset.length === 0) return;
+    const headers = Object.keys(activeDataset[0]);
+    const rowsText = activeDataset.map((r) =>
+      headers.map((h) => (r[h] !== undefined ? r[h] : "")).join("\t"),
+    );
+    const tsv = [headers.join("\t"), ...rowsText].join("\n");
+    navigator.clipboard.writeText(tsv).then(() => {
+      showToast("📋 Report copied to clipboard!", "#10B981");
+    });
   };
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-      
-      {/* 3 KPI Card Style Buttons */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        
-        {/* Card 1: File Pendency (Red Theme) */}
-        <button
-          onClick={() => setSelectedKpi('file-pendency')}
-          className={`flex items-center justify-between p-5 rounded-2xl border text-left transition-all duration-250 cursor-pointer ${
-            selectedKpi === 'file-pendency'
-              ? 'bg-red-50/50 border-red-300 shadow-md ring-2 ring-red-200/40'
-              : 'bg-white border-slate-200 hover:border-red-200 hover:shadow-sm'
-          }`}
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 relative">
+      <style>{`
+        .eoffice-blue-grid .ag-header,
+        .eoffice-blue-grid .ag-header-cell,
+        .eoffice-blue-grid .ag-header-group-cell {
+          background-color: #0f417a !important;
+          color: #ffffff !important;
+        }
+        .eoffice-blue-grid .ag-header-cell-text {
+          color: #ffffff !important;
+          font-weight: 800 !important;
+        }
+
+        .eoffice-brown-grid .ag-header,
+        .eoffice-brown-grid .ag-header-cell,
+        .eoffice-brown-grid .ag-header-group-cell {
+          background-color: #5c2424 !important;
+          color: #ffffff !important;
+        }
+        .eoffice-brown-grid .ag-header-cell-text {
+          color: #ffffff !important;
+          font-weight: 800 !important;
+        }
+
+        .eoffice-blue-grid .ag-floating-bottom-row,
+        .eoffice-brown-grid .ag-floating-bottom-row {
+          background-color: #f8fafc !important;
+          font-weight: 900 !important;
+          border-top: 2px solid #cbd5e1 !important;
+        }
+
+        @keyframes indeterminateProgress {
+          0% { transform: translateX(-100%) scaleX(0.2); }
+          50% { transform: translateX(0%) scaleX(0.5); }
+          100% { transform: translateX(100%) scaleX(1); }
+        }
+        .animate-indeterminate-progress {
+          animation: indeterminateProgress 1.4s infinite ease-in-out;
+          transform-origin: left;
+        }
+      `}</style>
+
+      {/* Toast Notification Popup */}
+      {toastVisible && (
+        <div
+          className="fixed top-5 right-5 z-50 px-4 py-3 rounded-xl text-white font-bold text-xs shadow-xl transition-all duration-300 flex items-center space-x-2 animate-bounce select-none"
+          style={{ backgroundColor: toastColor }}
         >
-          <div className="space-y-1">
-            <span className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-widest">
-              File Pendency
-            </span>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-2xl font-black text-red-700">9</span>
-              <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full border border-red-100">
-                Active
-              </span>
-            </div>
-            <span className="text-[10px] text-slate-400 font-medium block">
-              Pending departmental files
-            </span>
-          </div>
-          <div className={`p-3.5 rounded-xl border transition-colors ${
-            selectedKpi === 'file-pendency' ? 'bg-red-600 text-white border-red-700' : 'bg-slate-50 text-slate-400 border-slate-100'
-          }`}>
-            <FileText className="h-5 w-5" />
-          </div>
-        </button>
+          <span>{toastMsg}</span>
+        </div>
+      )}
 
-        {/* Card 2: Receipt Pendency */}
-        <button
-          onClick={() => setSelectedKpi('receipt-pendency')}
-          className={`flex items-center justify-between p-5 rounded-2xl border text-left transition-all duration-250 cursor-pointer ${
-            selectedKpi === 'receipt-pendency'
-              ? 'bg-amber-50/50 border-amber-350 shadow-md ring-2 ring-amber-200/50'
-              : 'bg-white border-slate-200 hover:border-slate-350 hover:shadow-sm'
-          }`}
-        >
-          <div className="space-y-1">
-            <span className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-widest">
-              Receipt Pendency
-            </span>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-2xl font-black text-amber-700">9</span>
-              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-100">
-                Awaiting
-              </span>
-            </div>
-            <span className="text-[10px] text-slate-400 font-medium block">
-              Receipts pending processing
-            </span>
-          </div>
-          <div className={`p-3.5 rounded-xl border ${
-            selectedKpi === 'receipt-pendency' ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 text-slate-400 border-slate-100'
-          }`}>
-            <Inbox className="h-5 w-5" />
-          </div>
-        </button>
-
-        {/* Card 3: File Disposal */}
-        <button
-          onClick={() => setSelectedKpi('file-disposal')}
-          className={`flex items-center justify-between p-5 rounded-2xl border text-left transition-all duration-250 cursor-pointer ${
-            selectedKpi === 'file-disposal'
-              ? 'bg-emerald-50/50 border-emerald-350 shadow-md ring-2 ring-emerald-200/50'
-              : 'bg-white border-slate-200 hover:border-slate-350 hover:shadow-sm'
-          }`}
-        >
-          <div className="space-y-1">
-            <span className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-widest">
-              File Disposal
-            </span>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-2xl font-black text-emerald-700">142</span>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100">
-                Completed
-              </span>
-            </div>
-            <span className="text-[10px] text-slate-400 font-medium block">
-              Files disposed & finalized
-            </span>
-          </div>
-          <div className={`p-3.5 rounded-xl border ${
-            selectedKpi === 'file-disposal' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-slate-50 text-slate-400 border-slate-100'
-          }`}>
-            <CheckSquare className="h-5 w-5" />
-          </div>
-        </button>
-
-      </div>
-
-      {/* Main E-Office Content Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-        
-        {/* Dynamic Title Header */}
-        <div className="text-center space-y-1">
-          <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-            {getReportTitle()}
+      {/* Row 1: Page Title & Subtitle + Category Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 select-none">
+        <div>
+          <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
+            E-Office Management
           </h1>
-          <p className="text-xs text-slate-500 font-bold tracking-wide">
-            (Report For the Week({week === 'Week 3' ? '3' : week.replace('Week ', '')})-{month}-{year})
+          <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
+            Track departmental file pendency, receipt processing, and disposal performance across all wings.
           </p>
         </div>
 
-        {/* Tab Selection Buttons */}
-        <div className="flex items-center space-x-2.5 pb-2">
-          {['Report', 'Upload / View Data', 'Upload / View History'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveSubTab(tab)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeSubTab === tab || (tab === 'Report' && activeSubTab === 'Report')
-                  ? 'bg-blue-755 text-white shadow-sm dark:bg-[#0f417a]'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
+        <EOfficeCategoryHeader
+          activeKpi={activeKpi}
+          setSelectedKpi={handleCategorySelect}
+        />
+      </div>
 
-        {/* Dropdown Filters Panel */}
-        <div className="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-5 flex flex-col md:flex-row md:items-end justify-between gap-5">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 flex-grow">
-            
-            {/* Month Selector */}
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Month</label>
-              <div className="relative">
-                <select
-                  value={month}
-                  onChange={(e) => setMonth(e.target.value)}
-                  className="w-full text-xs pl-3.5 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition cursor-pointer font-bold text-slate-700"
-                >
-                  <option value="January">January</option>
-                  <option value="February">February</option>
-                  <option value="March">March</option>
-                  <option value="April">April</option>
-                  <option value="May">May</option>
-                  <option value="June">June</option>
-                  <option value="July">July</option>
-                  <option value="August">August</option>
-                  <option value="September">September</option>
-                  <option value="October">October</option>
-                  <option value="November">November</option>
-                  <option value="December">December</option>
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  <ChevronDown className="h-4 w-4" />
-                </div>
-              </div>
-            </div>
+      {/* Row 2: Navigation Toolbar & User Manual */}
+      <EOfficeToolbar
+        getReportTitle={getReportTitle}
+        activeKpi={activeKpi}
+        week={week}
+        month={month}
+        year={year}
+        subTab={subTab}
+        setSubTab={handleSubTabSelect}
+        showToast={showToast}
+      />
 
-            {/* Year Selector */}
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Year</label>
-              <div className="relative">
-                <select
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                  className="w-full text-xs pl-3.5 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition cursor-pointer font-bold text-slate-700"
-                >
-                  <option value="2026">2026</option>
-                  <option value="2025">2025</option>
-                  <option value="2024">2024</option>
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  <ChevronDown className="h-4 w-4" />
-                </div>
-              </div>
-            </div>
-
-            {/* Week Selector */}
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Week</label>
-              <div className="relative">
-                <select
-                  value={week}
-                  onChange={(e) => setWeek(e.target.value)}
-                  className="w-full text-xs pl-3.5 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition cursor-pointer font-bold text-slate-700"
-                >
-                  <option value="Week 1">Week 1</option>
-                  <option value="Week 2">Week 2</option>
-                  <option value="Week 3">Week 3</option>
-                  <option value="Week 4">Week 4</option>
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  <ChevronDown className="h-4 w-4" />
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Fetch Action Button */}
-          <button className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer flex items-center space-x-1.5 flex-shrink-0 self-stretch sm:self-auto justify-center">
-            <span>Fetch Report</span>
-          </button>
-        </div>
-
-        {/* Export and Search controls */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center space-x-2">
-            <button className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer">
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span>Export to Excel</span>
-            </button>
-            <button className="px-3.5 py-2 bg-[#0d417a] hover:bg-[#0b3666] text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 cursor-pointer">
-              <FileCheck className="h-3.5 w-3.5" />
-              <span>Export to PDF</span>
-            </button>
-          </div>
-
-          {/* Search Field */}
-          <div className="relative max-w-xs w-full">
-            <input
-              type="text"
-              placeholder="Search employee details..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full text-xs pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition font-medium"
-            />
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-450" />
-          </div>
-        </div>
-
-        {/* AG Grid Table Container */}
-        <div className="ag-theme-quartz rounded-xl border border-slate-200 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
-          <AgGridReact 
-            theme="legacy"
-            rowData={filteredData}
-            columnDefs={colDefs}
-            domLayout="autoHeight"
-            rowHeight={48}
-            headerHeight={48}
-            suppressColumnVirtualisation={true}
-            autoSizeStrategy={{
-              type: 'fitCellContents'
-            }}
-            onFirstDataRendered={(params) => {
-              const allCols = params.api.getAllGridColumns();
-              const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-              const gridRoot = document.querySelector(`.ag-root-wrapper[grid-id="${params.api.getGridId()}"]`);
-              const containerWidth = gridRoot?.clientWidth || 0;
-              if (containerWidth > 0 && totalColWidth < containerWidth) {
-                params.api.sizeColumnsToFit();
-              }
-            }}
+      {/* Dynamic Sub-Tab Views */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+        {subTab === "upload" && (
+          <EOfficeUploadView
+            handleUploadSubmit={handleUploadSubmit}
+            uploadFinancialYear={activeUploadState.uploadFinancialYear}
+            setUploadFinancialYear={(val) => updateActiveUploadState({ uploadFinancialYear: val })}
+            uploadMonth={activeUploadState.uploadMonth}
+            setUploadMonth={(val) => updateActiveUploadState({ uploadMonth: val })}
+            uploadWeek={activeUploadState.uploadWeek}
+            setUploadWeek={(val) => updateActiveUploadState({ uploadWeek: val })}
+            selectedFile={activeUploadState.selectedFile}
+            setSelectedFile={(file) => updateActiveUploadState({ selectedFile: file })}
+            handleFileSelect={handleFileSelect}
+            uploading={uploading}
+            fileValidationError={activeUploadState.fileValidationError}
+            setFileValidationError={(err) => updateActiveUploadState({ fileValidationError: err })}
+            previewRows={activeUploadState.previewRows}
+            setPreviewRows={(rows) => updateActiveUploadState({ previewRows: rows })}
+            previewColDefs={previewColDefs}
           />
-        </div>
+        )}
 
+        {subTab === "data" && (
+          <EOfficeDataListView
+            handleCopyData={handleCopyData}
+            handleExportExcel={handleExportExcel}
+            handleExportPdf={handleExportPdf}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            fetchError={fetchError}
+            fetchEOfficeData={fetchEOfficeData}
+            loading={loading}
+            filteredData={filteredData}
+            colDefs={colDefs}
+            pinnedBottomRowData={pinnedBottomRowData}
+          />
+        )}
+
+        {subTab === "report" && (
+          <EOfficeReportView
+            isFilterCollapsed={isFilterCollapsed}
+            setIsFilterCollapsed={setIsFilterCollapsed}
+            month={month}
+            setMonth={setMonth}
+            year={year}
+            setYear={setYear}
+            week={week}
+            setWeek={setWeek}
+            handleFetchReportClick={handleFetchReportClick}
+            handleCopyData={handleCopyData}
+            handleExportExcel={handleExportExcel}
+            handleExportPdf={handleExportPdf}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            loading={loading}
+            filteredData={filteredData}
+            colDefs={colDefs}
+            pinnedBottomRowData={pinnedBottomRowData}
+          />
+        )}
+
+        {subTab === "files" && (
+          <EOfficeFilesHistoryView
+            filesList={filesList}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
+            historyColDefs={historyColDefs}
+            loading={loading}
+          />
+        )}
       </div>
     </div>
   );

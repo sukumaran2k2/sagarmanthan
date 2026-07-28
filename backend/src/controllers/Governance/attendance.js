@@ -149,12 +149,12 @@ async function downloadAttendance(req, res) {
             if (rows.length > 0) {
                 const formattedRows = rows.map((r, i) => ({
                     'S.No': i + 1,
-                    'EMP ID': r.EmpId || '',
+                    'Emp Id': r.EmpId || '',
                     'Wing': r.Wing || '',
                     'Division': r.Division || '',
-                    'EMP Name': r.EmpName || '',
+                    'Emp Name': r.EmpName || '',
                     'Designation': r.Designation || '',
-                    'Days Attendance Marked': r.AttendanceMarked || 0,
+                    'No. of days Attendance Marked': r.AttendanceMarked || 0,
                     'Average Working Hours': formatTime(r.WorkingHours),
                     'In Time Avg': formatTime(r.InTimeAvg),
                     'Out Time Avg': formatTime(r.OutTimeAvg),
@@ -223,73 +223,20 @@ async function deleteAttendance(req, res) {
 }
 
 function formatTime(timeValue) {
-    if (timeValue === null || timeValue === undefined || timeValue === '') return '';
+    if (timeValue === null || timeValue === undefined || timeValue === '') return null;
     
     if (typeof timeValue === 'number' && !isNaN(timeValue)) {
         const absVal = Math.abs(timeValue);
-        if (absVal === 0) return '00:00:00';
-        if (absVal > 0 && absVal < 1) {
-            const totalSeconds = Math.round(absVal * 24 * 60 * 60);
-            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-            const seconds = String(totalSeconds % 60).padStart(2, '0');
-            return `${hours}:${minutes}:${seconds}`;
-        }
-        if (absVal <= 24) {
-            const totalSeconds = Math.round(absVal * 3600);
-            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-            const seconds = String(totalSeconds % 60).padStart(2, '0');
-            return `${hours}:${minutes}:${seconds}`;
-        }
-        const frac = absVal % 1;
-        if (frac > 0) {
-            const totalSeconds = Math.round(frac * 24 * 60 * 60);
-            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-            const seconds = String(totalSeconds % 60).padStart(2, '0');
-            return `${hours}:${minutes}:${seconds}`;
-        }
-        return String(absVal);
+        const totalSeconds = Math.round(absVal < 1 ? absVal * 24 * 3600 : absVal * 3600);
+        const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+        const seconds = String(totalSeconds % 60).padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
     }
 
     if (typeof timeValue === 'string') {
-        let cleanVal = timeValue.trim();
-        if (!cleanVal || cleanVal === '-' || cleanVal === '—') return '';
-
-        if (cleanVal.startsWith('-')) {
-            cleanVal = cleanVal.substring(1).trim();
-        }
-
-        const parsedNum = Number(cleanVal);
-        if (!isNaN(parsedNum) && cleanVal.indexOf(':') === -1) {
-            return formatTime(parsedNum);
-        }
-
-        if (cleanVal.includes('T')) {
-            const timePart = cleanVal.split('T')[1];
-            if (timePart) {
-                cleanVal = timePart.split('.')[0].slice(0, 8);
-            }
-        } else if (cleanVal.includes(' ') && !cleanVal.toUpperCase().includes('AM') && !cleanVal.toUpperCase().includes('PM')) {
-            const timePart = cleanVal.split(' ')[1];
-            if (timePart && timePart.includes(':')) {
-                cleanVal = timePart;
-            }
-        }
-
-        const ampmMatch = cleanVal.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
-        if (ampmMatch) {
-            let hours = parseInt(ampmMatch[1], 10);
-            const minutes = ampmMatch[2];
-            const seconds = ampmMatch[3] || '00';
-            const period = ampmMatch[4].toUpperCase();
-
-            if (period === 'PM' && hours < 12) hours += 12;
-            if (period === 'AM' && hours === 12) hours = 0;
-
-            return `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
-        }
+        let cleanVal = timeValue.trim().replace(/\./g, ':');
+        if (!cleanVal || cleanVal === '-' || cleanVal === '—') return null;
 
         const timeMatch = cleanVal.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
         if (timeMatch) {
@@ -298,11 +245,9 @@ function formatTime(timeValue) {
             const seconds = timeMatch[3] || '00';
             return `${hours}:${minutes}:${seconds}`;
         }
-
-        return cleanVal;
     }
 
-    return String(timeValue).trim();
+    return null;
 }
 
 function getRowVal(row, keys, fallback = '') {

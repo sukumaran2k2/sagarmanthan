@@ -603,6 +603,8 @@ router.get('/file-pendancy-report/:Year/:Month/:Week', eOfficeTab.getFilePendenc
 router.get("/file-pendancy-all", eOfficeTab.getFilePendenceAll);
 router.get("/file-pendancy-check", eOfficeTab.getFilePendenceCheck);
 router.get("/file-pendancy-History", eOfficeTab.getFilePendencyHistory);
+router.get("/file-pendancy/download/:id", eOfficeTab.downloadFilePendancy);
+router.delete("/file-pendancy/delete/:id", eOfficeTab.deleteFilePendency);
 router.post("/file-pendancy-create", EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
 router.put("/file-pendancy-update", EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
 
@@ -614,6 +616,8 @@ router.get('/receipt-pendancy-report/:Year/:Month/:Week', eOfficeTab.getReceiptP
 router.get("/receipt-pendancy-all", eOfficeTab.getReceiptPendenceAll);
 router.get("/receipt-pendancy-check", eOfficeTab.getReceiptPendenceCheck);
 router.get("/receipt-pendancy-History", eOfficeTab.getReceiptPendencyHistory);
+router.get("/receipt-pendancy/download/:id", eOfficeTab.downloadReceiptPendency);
+router.delete("/receipt-pendancy/delete/:id", eOfficeTab.deleteReceiptPendency);
 router.post("/receipt-pendancy-create", EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.addReceiptPendancy);
 router.put("/receipt-pendancy-update", EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.updateReceiptPendancy);
 
@@ -625,6 +629,8 @@ router.get('/file-disposal-report/:Year/:Month/:Week', eOfficeTab.getFileDisposa
 router.get("/file-disposal-all", eOfficeTab.getFileDisposalAll);
 router.get("/file-disposal-check", eOfficeTab.getFileDisposalCheck);
 router.get("/file-disposal-History", eOfficeTab.getFileDisposalHistory);
+router.get("/file-disposal/download/:id", eOfficeTab.downloadFileDisposal);
+router.delete("/file-disposal/delete/:id", eOfficeTab.deleteFileDisposal);
 router.delete("/delete-employee/:empID", EofficeFileDisposalTab.deleteEmployee);
 router.post("/file-disposal-create", EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.addFileDisposal);
 router.put("/file-disposal-update", EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.updateFileDisposal);

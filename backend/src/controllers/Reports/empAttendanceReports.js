@@ -56,8 +56,6 @@ async function empAttendanceWeekOneReport(req, res) {
     } catch (err) {
       console.error(err.message);
       res.status(500).send('Internal Server Error');
-    } finally {
-      await sql.close();
     }
     
 }

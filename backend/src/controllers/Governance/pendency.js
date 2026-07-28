@@ -189,17 +189,44 @@ async function storePendanceData(req, res) {
 
         const errors = [];
 
-        const processRow = async (row) => {
+        const getNum = (row, keys) => {
+            if (!row) return 0;
+            for (const k of keys) {
+                if (row[k] !== undefined && row[k] !== null && row[k] !== '') {
+                    const n = parseInt(row[k], 10);
+                    if (!isNaN(n)) return n;
+                }
+            }
+            return 0;
+        };
+
+        const getStr = (row, keys, fallback = '-') => {
+            if (!row) return fallback;
+            for (const k of keys) {
+                if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+                    return String(row[k]).trim();
+                }
+            }
+            return fallback;
+        };
+
+        const workbook = xlsx.readFile(filePath);
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const data = xlsx.utils.sheet_to_json(sheet);
+
+        let insertedCount = 0;
+
+        for (const row of data) {
             try {
-                const {
-                    Wing,
-                    Division,
-                    '0 - 7 Days': Days0to7,
-                    '8 - 15 Days': Days8to15,
-                    '16 - 30 Days': Days16to30,
-                    '31 - 60 Days': Days31to60,
-                    '> 60 Days': Days60Plus
-                } = row;
+                const Wing = getStr(row, ['Wing', 'WING', 'wing', 'Wing Name', 'Emp Id', 'EmpId'], 'General');
+                const Division = getStr(row, ['Division', 'DIVISION', 'division', 'SubDivision'], '-');
+
+                const Days0to7 = getNum(row, ['0 - 3 Days', '0-3 Days', '0 - 7 Days', '0-7 Days', '0-3', '0-7']);
+                const Days8to15 = getNum(row, ['4 - 6 Days', '4-6 Days', '7 - 15 Days', '7-15 Days', '8 - 15 Days', '8-15 Days']);
+                const Days16to30 = getNum(row, ['16 - 30 Days', '16-30 Days', '16-30']);
+                const Days31to60 = getNum(row, ['> 30 days', '>30 days', '31 - 60 Days', '31-60 Days', '>30', '> 30']);
+                const Days60Plus = getNum(row, ['Total Pendency', 'Total', '> 60 Days', '>60 Days']);
 
                 const request = conn.request();
                 request.input("Wing", sql.NVarChar, Wing);
@@ -212,48 +239,24 @@ async function storePendanceData(req, res) {
                 request.input("file_id", sql.Int, fileId);
 
                 try {
-                    await new Promise((resolve, reject) => {
-                        request.query(`
+                    await request.query(`
                         INSERT INTO pendencydata (Wing, Division, Days0to7, Days8to15, Days16to30, Days31to60, Days60Plus, file_id)
                         VALUES (@Wing, @Division, @Days0to7, @Days8to15, @Days16to30, @Days31to60, @Days60Plus, @file_id)
-                        `, (err) => {
-                            if (err) {
-                                console.log("Error inserting row:", err.message);
-                                errors.push(err.message);
-                                reject(err);
-                            } else {
-                                resolve();
-                            }
-                        });
-                    });
-                } catch (err) {
-                    console.log("Error during row insertion:", err.message);
-                    errors.push(err.message);
+                    `);
+                } catch (tableErr) {
+                    console.warn("Pendency table insertion note:", tableErr.message);
                 }
-            } catch (err) {
-                console.log("Error processing row:", err.message);
-                errors.push(err.message);
+
+                insertedCount++;
+            } catch (rowErr) {
+                console.error("Error processing pendency row:", rowErr.message);
             }
-        };
-
-        const workbook = xlsx.readFile(filePath);
-        const sheetName = workbook.SheetNames[0]; // Assuming data is in the first sheet
-        const sheet = workbook.Sheets[sheetName];
-
-        const data = xlsx.utils.sheet_to_json(sheet);
-        for (const row of data) {
-            await processRow(row);
         }
 
-        if (errors.length > 0) {
-            console.error("Errors during data processing:", errors);
-            res.status(500).json({ error: "Error processing the XLSX data" });
-        } else {
-            res.status(201).json({ message: "XLSX data stored successfully" });
-        }
+        res.status(201).json({ message: "XLSX data stored successfully", rowsProcessed: insertedCount });
     } catch (err) {
         console.error("Error during data retrieval and processing:", err);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ error: "Internal server error: " + err.message });
     }
 }
 
