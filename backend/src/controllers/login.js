@@ -103,6 +103,13 @@ async function validation(req, res) {
 
       const isPasswordMatch = await bcrypt.compare(decryptedPassword, userData.password);
       if (isPasswordMatch) {
+        if (Number(userData.status) !== 1) {
+          console.error('[LOGIN_ERROR] INACTIVE_USER', { email, userId: userData.user_id, status: userData.status });
+          return res.status(250).json({
+            message: 'Account is inactive. Contact your administrator.',
+            passwordUpdatedOn: userData?.password_updated_on || null,
+          });
+        }
 
         let organisationId = userData.organisation_id;
 

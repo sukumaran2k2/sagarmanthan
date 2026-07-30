@@ -1,10 +1,23 @@
 import { getSessionClaims, isSuperAdmin } from './authSession';
 
+export const TAB_USER_MODULE_PERMISSION = 'User/Module Permission';
+export const TAB_USER_LIST = 'User List';
+
 const PUBLIC_TABS = new Set([
   'landing',
   'profile',
   'Ministry Contacts',
   'Helpdesk Support',
+]);
+
+const SUPERADMIN_TABS = new Set([
+  TAB_USER_MODULE_PERMISSION,
+  TAB_USER_LIST,
+]);
+
+const SUPERADMIN_MENU_IDS = new Set([
+  'userModulePermission',
+  'userList',
 ]);
 
 // Menu / tab label → module_code
@@ -115,6 +128,19 @@ const TAB_TO_MODULE = {
   'Action Taken Report': 'SENIOR_OFFICE_MEETINGS',
 };
 
+/** Map old bookmark names to current tab keys */
+export function normalizeTab(tab) {
+  if (!tab) return tab;
+  if (
+    tab === 'Module/User Permission' ||
+    tab === 'User Matrix' ||
+    tab === 'User Management'
+  ) {
+    return TAB_USER_MODULE_PERMISSION;
+  }
+  return tab;
+}
+
 export function resolveTabKey(label) {
   if (!label) return label;
   const norm = String(label).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -124,11 +150,11 @@ export function resolveTabKey(label) {
   if (norm === 'lumpsumiwai') return 'lumpsum';
   if (norm === 'viewdroprequest') return 'dropRequests';
   if (norm === 'reports') return 'reports';
-  return label;
+  return normalizeTab(label);
 }
 
 export function getAllowedModuleCodes() {
-  if (isSuperAdmin()) return null; // null = all modules
+  if (isSuperAdmin()) return [];
   const claims = getSessionClaims();
   const codes = claims?.allowedModuleCodes;
   if (!Array.isArray(codes)) return [];
@@ -136,21 +162,31 @@ export function getAllowedModuleCodes() {
 }
 
 export function hasModuleAccess(moduleCode) {
-  if (isSuperAdmin()) return true;
-  if (!moduleCode) return false;
-  const allowed = getAllowedModuleCodes();
-  if (allowed === null) return true;
-  return allowed.includes(String(moduleCode).toUpperCase());
+  if (!moduleCode || isSuperAdmin()) return false;
+  return getAllowedModuleCodes().includes(String(moduleCode).toUpperCase());
+}
+
+export function isSuperAdminTab(tab) {
+  return SUPERADMIN_TABS.has(normalizeTab(tab));
+}
+
+export function usesOwnPageHeader(tab) {
+  const t = normalizeTab(tab);
+  return t === 'landing' || SUPERADMIN_TABS.has(t);
 }
 
 export function canAccessTab(tab) {
   if (!tab) return false;
-  if (isSuperAdmin()) return true;
-  if (tab === 'User Matrix' || tab === 'User Management') return false;
-  if (PUBLIC_TABS.has(tab)) return true;
 
   const key = resolveTabKey(tab);
-  if (PUBLIC_TABS.has(key)) return true;
+
+  if (PUBLIC_TABS.has(tab) || PUBLIC_TABS.has(key)) return true;
+
+  if (SUPERADMIN_TABS.has(key) || SUPERADMIN_TABS.has(normalizeTab(tab))) {
+    return isSuperAdmin();
+  }
+
+  if (isSuperAdmin()) return false;
 
   const code = TAB_TO_MODULE[key] || TAB_TO_MODULE[tab];
   if (!code) return false;
@@ -158,11 +194,15 @@ export function canAccessTab(tab) {
 }
 
 export function filterMenuByAccess(menuData) {
-  if (isSuperAdmin()) return menuData;
+  if (isSuperAdmin()) {
+    return menuData.filter(
+      (menu) => SUPERADMIN_MENU_IDS.has(menu.id) || menu.id === 'contact'
+    );
+  }
 
   return menuData
     .map((menu) => {
-      if (menu.id === 'admin') return null;
+      if (SUPERADMIN_MENU_IDS.has(menu.id) || menu.id === 'admin') return null;
       if (menu.id === 'contact') return menu;
 
       if (menu.subcategories) {

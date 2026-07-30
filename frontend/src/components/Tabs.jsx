@@ -1,7 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import { isSuperAdmin } from '../utils/authSession';
-import { canAccessTab, filterMenuByAccess, resolveTabKey } from '../utils/moduleAccess';
+import {
+  canAccessTab,
+  filterMenuByAccess,
+  resolveTabKey,
+  TAB_USER_MODULE_PERMISSION,
+  TAB_USER_LIST,
+} from '../utils/moduleAccess';
 import {
   Home,
   Briefcase,
@@ -371,12 +377,16 @@ export default function Tabs({ activeTab, setActiveTab }) {
     ...(isSuperAdmin()
       ? [
           {
-            id: 'admin',
-            label: 'Admin',
-            icon: Users,
-            align: 'right-0',
-            width: 'w-[200px]',
-            items: [{ label: 'User Matrix', icon: UserCheck }],
+            id: 'userModulePermission',
+            label: TAB_USER_MODULE_PERMISSION,
+            icon: ShieldCheck,
+            directTab: TAB_USER_MODULE_PERMISSION,
+          },
+          {
+            id: 'userList',
+            label: TAB_USER_LIST,
+            icon: UserCheck,
+            directTab: TAB_USER_LIST,
           },
         ]
       : []),
@@ -431,12 +441,34 @@ export default function Tabs({ activeTab, setActiveTab }) {
 
           {MENU_DATA.map((menu) => {
             const Icon = menu.icon;
-            const hasDropdown = menu.subcategories || menu.items;
+            const hasDropdown = !menu.directTab && (menu.subcategories || menu.items);
             const isHrActiveTab = [
               'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts',
               'Contractual Employment', 'Training Details', 'HR Reports'
             ].includes(activeTab);
-            const isMainMenuActive = activeTab.startsWith(menu.id) || activeTab === menu.id || (menu.id === 'hr' && isHrActiveTab);
+            const isMainMenuActive =
+              activeTab === menu.directTab ||
+              activeTab.startsWith(menu.id) ||
+              activeTab === menu.id ||
+              (menu.id === 'hr' && isHrActiveTab);
+
+            if (menu.directTab) {
+              return (
+                <button
+                  key={menu.id}
+                  type="button"
+                  onClick={() => handleItemClick(menu.directTab)}
+                  className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 ${
+                    isMainMenuActive ? 'text-blue-700 font-bold' : 'text-slate-655 font-semibold hover:text-slate-900'
+                  }`}
+                >
+                  <Icon className={`h-4.5 w-4.5 transition-colors ${isMainMenuActive ? 'text-blue-700' : 'text-slate-500'}`} />
+                  <span className="text-[9px] tracking-tight uppercase select-none whitespace-nowrap text-center leading-tight max-w-[72px]">
+                    {menu.label}
+                  </span>
+                </button>
+              );
+            }
 
             return (
               <div key={menu.id} className="relative group flex-shrink-0">
@@ -676,7 +708,25 @@ export default function Tabs({ activeTab, setActiveTab }) {
                 const CatIcon = menu.icon;
                 const menuKey = menu.id;
                 const isCatExpanded = !!expandedMenus[menuKey];
-                const hasSub = menu.subcategories || menu.items;
+                const hasSub = !menu.directTab && (menu.subcategories || menu.items);
+
+                if (menu.directTab) {
+                  return (
+                    <button
+                      key={menu.id}
+                      type="button"
+                      onClick={() => { handleItemClick(menu.directTab); setIsOpen(false); }}
+                      className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all border ${
+                        activeTab === menu.directTab
+                          ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm'
+                          : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <CatIcon className="h-4.5 w-4.5 text-slate-400" />
+                      <span>{menu.label}</span>
+                    </button>
+                  );
+                }
 
                 return (
                   <div key={menu.id} className="space-y-1.5">
@@ -693,9 +743,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
                         <CatIcon className="h-4.5 w-4.5 text-slate-400" />
                         <span>{menu.label}</span>
                       </div>
-                      <ChevronDown className={`h-3.5 w-3.5 opacity-60 transition-transform duration-200 ${
-                        isCatExpanded ? 'rotate-180' : ''
-                      }`} />
+                      {hasSub && (
+                        <ChevronDown className={`h-3.5 w-3.5 opacity-60 transition-transform duration-200 ${
+                          isCatExpanded ? 'rotate-180' : ''
+                        }`} />
+                      )}
                     </button>
 
                     {/* Expandable Category Contents Accordion */}

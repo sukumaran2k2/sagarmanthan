@@ -317,7 +317,7 @@ export default function UserListTab({
                 <div className="px-3 py-6 text-center space-y-2">
                   <div className="text-sm font-bold text-slate-800">Permission Manager</div>
                   <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-                    This user is SUPERADMIN and can manage User Matrix, module access, and the user list.
+                    This user is SUPERADMIN and can manage User/Module Permission and User List.
                     Permissions are not taken from org or CRUD tables.
                   </p>
                 </div>

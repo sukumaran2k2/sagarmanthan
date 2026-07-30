@@ -5,6 +5,7 @@ import './UserMatrix.css';
 import { colorFromString } from './utils';
 import { PERMS } from './constants';
 import { getCurrentUserId } from '../../utils/authSession';
+import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST } from '../../utils/moduleAccess';
 
 import UserPermissionsTab from './components/UserPermissionsTab';
 import ModulePermissionsTab from './components/ModulePermissionsTab';
@@ -12,13 +13,12 @@ import ModulePermissionListTab from './components/ModulePermissionListTab';
 import UserListTab from './components/UserListTab';
 import EditUserModal from './components/EditUserModal';
 
-const NAV_GROUPS = [
+const PERMISSION_NAV = [
   {
     id: 'users',
     label: 'Users',
     items: [
       { key: 'users', label: 'Update', hint: 'Edit CRUD access' },
-      { key: 'userlist', label: 'List', hint: 'Browse & manage users' },
     ],
   },
   {
@@ -68,8 +68,9 @@ function mapUser(row) {
   };
 }
 
-export default function UserMatrix({ onGoHome }) {
-  const [activeMainTab, setActiveMainTab] = useState('users');
+export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
+  const isUserList = mode === 'userlist';
+  const [activeMainTab, setActiveMainTab] = useState(isUserList ? 'userlist' : 'users');
   const [saving, setSaving] = useState(false);
 
   const [categories, setCategories] = useState([]);
@@ -623,30 +624,34 @@ export default function UserMatrix({ onGoHome }) {
             onClick={onGoHome}
           />
           <span className="text-slate-300">/</span>
-          <span className="text-blue-800 font-bold">User Matrix</span>
+          <span className="text-blue-800 font-bold">
+            {isUserList ? TAB_USER_LIST : TAB_USER_MODULE_PERMISSION}
+          </span>
         </div>
 
-        <nav className="um-nav" aria-label="User Matrix sections">
-          {NAV_GROUPS.map((group, gi) => (
-            <div key={group.id} className="um-nav-group">
-              {gi > 0 && <div className="um-nav-divider" aria-hidden="true" />}
-              <span className="um-nav-group-label">{group.label}</span>
-              <div className="um-nav-pills">
-                {group.items.map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    title={item.hint}
-                    onClick={() => setActiveMainTab(item.key)}
-                    className={`um-nav-pill ${activeMainTab === item.key ? 'is-active' : ''}`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+        {!isUserList && (
+          <nav className="um-nav" aria-label="Permission sections">
+            {PERMISSION_NAV.map((group, gi) => (
+              <div key={group.id} className="um-nav-group">
+                {gi > 0 && <div className="um-nav-divider" aria-hidden="true" />}
+                <span className="um-nav-group-label">{group.label}</span>
+                <div className="um-nav-pills">
+                  {group.items.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      title={item.hint}
+                      onClick={() => setActiveMainTab(item.key)}
+                      className={`um-nav-pill ${activeMainTab === item.key ? 'is-active' : ''}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </nav>
+            ))}
+          </nav>
+        )}
       </div>
 
       <div className="user-matrix-container w-full h-[85vh] bg-[#F8FAFC] text-[#1E293B] flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200">

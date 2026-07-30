@@ -15,7 +15,14 @@ import ProfileView from './modules/Profile/Profile';
 import CabinetNotes from './modules/CabinetNotesMOPSW/CabinetNotesMOPSW';
 import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotesOther';
 import UserMatrix from './modules/UserManagement/UserMatrix';
-import { canAccessTab } from './utils/moduleAccess';
+import {
+  canAccessTab,
+  normalizeTab,
+  usesOwnPageHeader,
+  isSuperAdminTab,
+  TAB_USER_MODULE_PERMISSION,
+  TAB_USER_LIST,
+} from './utils/moduleAccess';
 import RestrictedAccess from './components/RestrictedAccess';
 import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
 import AuditParaView from './modules/AuditPara/AuditPara';
@@ -293,8 +300,9 @@ const ROUTE_MAP = {
   'Ministry Contacts': 'contact/ministry-contacts',
   'Helpdesk Support': 'contact/helpdesk-support',
 
-  // User Management
-  'User Management': 'userManagement/user-management',
+  // SUPERADMIN
+  [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission',
+  [TAB_USER_LIST]: 'admin/user-list',
 
   // HR nested routes
   'HR Dashboard': 'hr/hr-management/hr-dashboard',
@@ -319,7 +327,7 @@ const ROUTE_MAP = {
 const getTabFromSlug = (slug) => {
   const cleanSlug = decodeURIComponent(slug).replace(/^\//, '').replace(/\/$/, '');
   const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);
-  return entry ? entry[0] : cleanSlug;
+  return normalizeTab(entry ? entry[0] : cleanSlug);
 };
 
 export default function App() {
@@ -422,6 +430,8 @@ export default function App() {
     triggerNotification(`Sub-project ${newSubProject.subProjectId} successfully created.`);
   };
 
+  const goToTab = (tab) => setActiveTab(normalizeTab(tab));
+
   const handleLoginSuccess = () => {
     setIsLoggedIn(true);
     setIsManualNetworkCheck(false);
@@ -460,23 +470,22 @@ export default function App() {
           localStorage.removeItem('refreshToken');
           setIsLoggedIn(false);
         }}
-        onProfileClick={() => setActiveTab('profile')}
-        onUserManagementClick={() => setActiveTab('User Matrix')}
+        onProfileClick={() => goToTab('profile')}
+        onUserManagementClick={() => goToTab(TAB_USER_MODULE_PERMISSION)}
       />
 
       {/* Tab Navigation Menu */}
       <Tabs
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={goToTab}
         projectCount={projects.length}
       />
 
       {/* Main Content Viewport */}
       <main className="flex-grow w-full max-w-full px-4 sm:px-6 lg:px-8 pb-12">
-        {/* Dynamic Breadcrumbs Row — User Matrix owns its own header (breadcrumb + tabs) */}
-        {activeTab !== 'landing' && activeTab !== 'User Matrix' && tabAllowed && (
+        {!usesOwnPageHeader(activeTab) && tabAllowed && (
           <div className="flex items-center space-x-2 text-slate-400 text-xs font-semibold px-2 mb-6 mt-3 animate-fade-in select-none bg-white py-2.5 px-4 rounded-xl border border-slate-200 shadow-sm w-fit">
-            <Home className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => setActiveTab('landing')} />
+            <Home className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => goToTab('landing')} />
             {getBreadcrumbs(activeTab).slice(1).map((crumb, idx, arr) => (
               <div key={idx} className="flex items-center space-x-2">
                 <span className="text-slate-350">/</span>
@@ -495,7 +504,7 @@ export default function App() {
         ) : !tabAllowed ? (
           <RestrictedAccess
             moduleName={activeTab}
-            onGoHome={() => setActiveTab('landing')}
+            onGoHome={() => goToTab('landing')}
           />
         ) : (
           <>
@@ -503,7 +512,7 @@ export default function App() {
               <LandingView
                 onNavigate={(tab, subKpi) => {
                   if (subKpi) setEOfficeKpi(subKpi);
-                  setActiveTab(tab);
+                  goToTab(tab);
                 }}
               />
             )}
@@ -596,16 +605,33 @@ export default function App() {
               <ConsultantAppointmentView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
             )}
 
-            {activeTab === 'User Matrix' && (
-              <UserMatrix onGoHome={() => setActiveTab('landing')} />
+            {activeTab === TAB_USER_MODULE_PERMISSION && (
+              <UserMatrix mode="permissions" onGoHome={() => goToTab('landing')} />
+            )}
+
+            {activeTab === TAB_USER_LIST && (
+              <UserMatrix mode="userlist" onGoHome={() => goToTab('landing')} />
             )}
 
             {['Ministry Contacts', 'Helpdesk Support'].includes(activeTab) && (
               <ContactUs />
             )}
 
-            {/* Placeholder / Empty State for other inactive government menu views */}
-            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Audit Paras', 'VIP Reference', 'Bills/PreConstitutions Act', 'Acts & Rules', 'Data List', 'Input Form', 'Report', 'Consultant Input Form', 'Consultant Reports', 'Media Outreach', 'User Matrix', 'Ministry Contacts', 'Helpdesk Support', 'Young Professionals', 'YP Data List', 'YP Input Form', 'YP Report'].includes(activeTab) && (
+            {!isSuperAdminTab(activeTab) &&
+              ![
+                'dashboard', 'projects', 'landing',
+                'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports',
+                'E Office', 'Attendance', 'CPGRAMS',
+                'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts',
+                'Contractual Employment', 'Training Details', 'HR Reports',
+                'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries',
+                'Parliamentary Issue', 'Audit Paras', 'VIP Reference',
+                'Bills/PreConstitutions Act', 'Acts & Rules',
+                'Data List', 'Input Form', 'Report',
+                'Consultant Input Form', 'Consultant Data List', 'Consultant Reports',
+                'Media Outreach', 'Ministry Contacts', 'Helpdesk Support',
+                'Young Professionals', 'YP Data List', 'YP Input Form', 'YP Report',
+              ].includes(activeTab) && (
               <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
                 <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                   <Sparkles className="h-7 w-7 text-blue-600" />
@@ -615,7 +641,7 @@ export default function App() {
                   This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
                 </p>
                 <button
-                  onClick={() => setActiveTab('dashboard')}
+                  onClick={() => goToTab('dashboard')}
                   className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
                 >
                   Back to Dashboard
