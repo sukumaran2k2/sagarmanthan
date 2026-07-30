@@ -11,7 +11,7 @@ import UserPermissionsTab from './components/UserPermissionsTab';
 import ModulePermissionsTab from './components/ModulePermissionsTab';
 import ModulePermissionListTab from './components/ModulePermissionListTab';
 import UserListTab from './components/UserListTab';
-import EditUserModal from './components/EditUserModal';
+import UserFormModal from './components/UserFormModal';
 
 const PERMISSION_NAV = [
   {
@@ -98,15 +98,21 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
   const [selectedDbOrg, setSelectedDbOrg] = useState('All');
   const [dbLoading, setDbLoading] = useState(false);
 
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [userFormMode, setUserFormMode] = useState('edit');
+  const [userFormSaving, setUserFormSaving] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formTitle, setFormTitle] = useState('Mr');
   const [formName, setFormName] = useState('');
   const [formDesignation, setFormDesignation] = useState('');
   const [formOrg, setFormOrg] = useState('');
   const [formRole, setFormRole] = useState('');
+  const [formWing, setFormWing] = useState('');
+  const [formDivision, setFormDivision] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formEmail, setFormEmail] = useState('');
+  const [masterWings, setMasterWings] = useState([]);
+  const [masterDivisions, setMasterDivisions] = useState([]);
 
   const [toastMsg, setToastMsg] = useState('');
   const [toastColor, setToastColor] = useState('#3B82F6');
@@ -137,6 +143,14 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
 
     api.get('/mmt-dropdown/tbl_role')
       .then((res) => setMasterRoles(res.data || []))
+      .catch(() => {});
+
+    api.get('/mmt-dropdown/mmt_wings')
+      .then((res) => setMasterWings(res.data || []))
+      .catch(() => {});
+
+    api.get('/mmt-dropdown/mmt_division')
+      .then((res) => setMasterDivisions(res.data || []))
       .catch(() => {});
   }, [showToast]);
 
@@ -529,45 +543,89 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
     return result;
   }, [dbUserList, userListSearch, selectedDbRole, selectedDbOrg]);
 
+  const resetUserForm = () => {
+    setFormTitle('Mr');
+    setFormName('');
+    setFormDesignation('');
+    setFormOrg('');
+    setFormRole('');
+    setFormWing('');
+    setFormDivision('');
+    setFormPhone('');
+    setFormEmail('');
+    setEditingUser(null);
+  };
+
+  const handleOpenAdd = () => {
+    resetUserForm();
+    setUserFormMode('add');
+    setIsUserFormOpen(true);
+  };
+
   const handleOpenEdit = (u) => {
     setEditingUser(u);
+    setUserFormMode('edit');
     setFormTitle(u.title || 'Mr');
     setFormName(u.name || '');
     setFormDesignation(u.designation || '');
     setFormOrg(u.organisation_id || '');
     setFormRole(u.role_id || '');
+    setFormWing(u.wing_id || '');
+    setFormDivision(u.division_id || '');
     setFormPhone(u.phone || '');
     setFormEmail(u.email || '');
-    setIsEditModalOpen(true);
+    setIsUserFormOpen(true);
   };
 
-  const handleUpdateUserSubmit = (e) => {
+  const refreshUserList = () =>
+    api.get('/userlist').then((res) => setDbUserList(res.data || []));
+
+  const handleUserFormSubmit = (e) => {
     e.preventDefault();
-    if (!formName.trim() || !formEmail.trim() || !formOrg || !formRole) {
+    if (!formName.trim() || !formEmail.trim() || !formOrg || !formRole || !formDesignation.trim() || !formPhone) {
       showToast('Please fill required fields', '#F59E0B');
       return;
     }
-    api
-      .put('/edituser', {
-        userID: editingUser.user_id,
-        title: formTitle,
-        name: formName,
-        designation: formDesignation,
-        role: formRole,
-        organisation: formOrg,
-        wingId: editingUser.wing_id || null,
-        divisionId: editingUser.division_id || null,
-        email: formEmail,
-        phone: formPhone,
-        loginUser: 'Admin',
+
+    const actorId = getCurrentUserId() || null;
+    const payload = {
+      title: formTitle,
+      name: formName.trim(),
+      designation: formDesignation.trim(),
+      role: Number(formRole),
+      organisation: Number(formOrg),
+      wingId: formWing ? Number(formWing) : null,
+      divisionId: formDivision ? Number(formDivision) : null,
+      email: formEmail.trim(),
+      phone: formPhone,
+      loginUser: actorId,
+    };
+
+    setUserFormSaving(true);
+
+    const request =
+      userFormMode === 'add'
+        ? api.post('/createuser', payload)
+        : api.put('/edituser', { ...payload, userID: editingUser.user_id });
+
+    request
+      .then((res) => {
+        if (res?.status === 205) {
+          showToast(res?.data?.message || 'User already exists', '#F59E0B');
+          return;
+        }
+        showToast(userFormMode === 'add' ? 'User created' : 'User updated', '#10B981');
+        setIsUserFormOpen(false);
+        resetUserForm();
+        return refreshUserList();
       })
-      .then(() => {
-        showToast('User updated', '#10B981');
-        setIsEditModalOpen(false);
-        return api.get('/userlist');
+      .catch((err) => {
+        const msg =
+          err?.response?.data?.message ||
+          (userFormMode === 'add' ? 'Failed to create user' : 'Failed to update user');
+        showToast(msg, '#EF4444');
       })
-      .then((res) => setDbUserList(res.data || []))
-      .catch(() => showToast('Failed to update user', '#EF4444'));
+      .finally(() => setUserFormSaving(false));
   };
 
   const toggleUserStatus = (u, checked) => {
@@ -575,7 +633,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
       .put('/user-status', {
         userID: u.user_id,
         userStatus: checked ? 1 : 0,
-        loginUser: 'Admin',
+        loginUser: getCurrentUserId() || 'Admin',
       })
       .then(() => {
         setDbUserList((prev) =>
@@ -604,7 +662,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
       .post('/changepassword', {
         userID: u.user_id,
         confirmPassword: newPass,
-        loginUser: 'Admin',
+        loginUser: getCurrentUserId() || 'Admin',
       })
       .then(() => showToast('Password reset', '#10B981'))
       .catch(() => showToast('Failed to reset password', '#EF4444'));
@@ -788,6 +846,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
               dbLoading={dbLoading}
               filteredDbUsers={filteredDbUsers}
               masterRoles={masterRoles}
+              handleOpenAdd={handleOpenAdd}
               handleOpenEdit={handleOpenEdit}
               toggleUserStatus={toggleUserStatus}
               handleResetPassword={handleResetPassword}
@@ -796,10 +855,15 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
           )}
         </div>
 
-        <EditUserModal
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          onSubmit={handleUpdateUserSubmit}
+        <UserFormModal
+          isOpen={isUserFormOpen}
+          mode={userFormMode}
+          onClose={() => {
+            setIsUserFormOpen(false);
+            resetUserForm();
+          }}
+          onSubmit={handleUserFormSubmit}
+          saving={userFormSaving}
           formTitle={formTitle}
           setFormTitle={setFormTitle}
           formName={formName}
@@ -810,12 +874,18 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
           setFormOrg={setFormOrg}
           formRole={formRole}
           setFormRole={setFormRole}
+          formWing={formWing}
+          setFormWing={setFormWing}
+          formDivision={formDivision}
+          setFormDivision={setFormDivision}
           formPhone={formPhone}
           setFormPhone={setFormPhone}
           formEmail={formEmail}
           setFormEmail={setFormEmail}
           masterOrgs={masterOrgs}
-          masterRoles={masterRoles}
+          masterRoles={activeRoles}
+          masterWings={masterWings}
+          masterDivisions={masterDivisions}
         />
 
         {toastVisible && (

@@ -40,33 +40,36 @@ async function createuser(req, res) {
         }
         else {
             try {
-                const result = await request.query(`INSERT INTO tbl_user (title, name, designation, role_id, organisation_id, 
-                    wing_id, division_id, email, password, phone) 
-                VALUES (@title, @name, @designation, @role, @organisation, @wingId, @divisionId, @email, @password, @phone)`);
+                await request.query(`INSERT INTO tbl_user (
+                    title, name, designation, role_id, organisation_id,
+                    wing_id, division_id, email, password, phone, status, password_status
+                ) VALUES (
+                    @title, @name, @designation, @role, @organisation,
+                    @wingId, @divisionId, @email, @password, @phone, 1, 1
+                )`);
 
-                //console.log("User registered successfully");
+                try {
+                    const transporter = nodemailer.createTransport({
+                        host: "smtp.office365.com",
+                        port: 587,
+                        auth: {
+                            user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
+                            pass: "Sagarmanthan@123",
+                        },
+                    });
 
-                const transporter = nodemailer.createTransport({
-                    host: "smtp.office365.com",
-                    port: 587,
-                    auth: {
-                        user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                        pass: "Sagarmanthan@123",
-                    },
-                });
-
-                const mailOptions = {
-                    from: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                    to: email,
-                    subject: "Sagarmanthan Portal – User Account Credentials",
-                    html: `<strong>Dear User</strong>,
+                    const mailOptions = {
+                        from: "sagarmanthansupport@ntcpwc.iitm.ac.in",
+                        to: email,
+                        subject: "Sagarmanthan Portal – User Account Credentials",
+                        html: `<strong>Dear User</strong>,
                           <br><br>
                           Welcome to the Sagarmanthan Portal.
                           <br><br>
                           Your user account has been successfully created. Please find your login credentials below:
                           <br><br>
                           <ul>
-                            <li><strong>User ID: </strong>${email}</li>
+                            <li><strong>Email: </strong>${email}</li>
                             <li><strong>Temporary Password: </strong>${defaultPassword}</li>
                           </ul>
                           For security purposes, you are required to reset your password immediately upon your first login.
@@ -81,14 +84,18 @@ async function createuser(req, res) {
                            <br>
                            <strong>Government of India</strong>
                           <br><br>`,
-                };
+                    };
 
-                await transporter.sendMail(mailOptions);
-                console.log("Email Sent Successfully");
-                return res.sendStatus(200);
-            } catch (emailError) {
-                console.error("Error sending email:", emailError);
-                return res.sendStatus(500);
+                    await transporter.sendMail(mailOptions);
+                    console.log("Email Sent Successfully");
+                } catch (emailError) {
+                    console.error("Error sending email:", emailError);
+                }
+
+                return res.status(200).json({ message: "User created successfully" });
+            } catch (insertError) {
+                console.error("Error creating user:", insertError);
+                return res.status(500).json({ message: "Failed to create user" });
             }
         }
     }
@@ -178,7 +185,7 @@ async function createNodalUser(req, res) {
                           Your user account has been successfully created. Please find your login credentials below:
                           <br><br>
                           <ul>
-                            <li><strong>User ID: </strong>${email}</li>
+                            <li><strong>Email: </strong>${email}</li>
                             <li><strong>Temporary Password: </strong>${defaultPassword}</li>
                           </ul>
                           For security purposes, you are required to reset your password immediately upon your first login.

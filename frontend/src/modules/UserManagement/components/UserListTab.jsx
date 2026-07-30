@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Edit, RotateCcw, Shield, X } from 'lucide-react';
+import { Edit, RotateCcw, Shield, X, UserPlus } from 'lucide-react';
 import { colorFromString, getInits, roleClassName } from '../utils';
 import { rbacApi } from '../rbacApi';
 
@@ -28,6 +28,7 @@ export default function UserListTab({
   dbLoading,
   filteredDbUsers,
   masterRoles,
+  handleOpenAdd,
   handleOpenEdit,
   toggleUserStatus,
   handleResetPassword,
@@ -106,7 +107,7 @@ export default function UserListTab({
             </div>
           </div>
         </div>
-        <div className="banner-actions topbar-filters" style={{ flex: '0 1 auto' }}>
+        <div className="banner-actions topbar-filters" style={{ flex: '0 1 auto', alignItems: 'flex-end' }}>
           <div className="filter-field" style={{ maxWidth: '200px' }}>
             <label htmlFor="um-list-org">Organisation</label>
             <select
@@ -149,6 +150,17 @@ export default function UserListTab({
               style={{ height: '34px' }}
             />
           </div>
+          {handleOpenAdd && (
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="px-4 py-2 text-xs text-white bg-[#0f417a] hover:bg-blue-800 rounded-lg cursor-pointer font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+              style={{ height: '34px', marginBottom: '1px' }}
+            >
+              <UserPlus size={14} />
+              Add
+            </button>
+          )}
         </div>
       </div>
 
