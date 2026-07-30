@@ -19,24 +19,24 @@ async function getMatrixUsers(req, res) {
         r.role_name,
         r.role_code,
         u.organisation_id,
-        o.organisation_name,
-        o.organisation_usermatrix_category_id AS category_id,
-        c.organisation_usermatrix_category_name AS category_name,
+        o.oranisation_name AS organisation_name,
+        o.organisation_category_id AS category_id,
+        c.organisation_category_name AS category_name,
         u.wing_id,
         u.division_id,
         u.status
       FROM tbl_user u
       INNER JOIN tbl_role r ON r.role_id = u.role_id
       INNER JOIN mmt_organisation o ON o.organisation_id = u.organisation_id
-      LEFT JOIN mmt_organisation_usermatrix_category c
-        ON c.organisation_usermatrix_category_id = o.organisation_usermatrix_category_id
+      LEFT JOIN mmt_organisation_category c
+        ON c.organisation_category_id = o.organisation_category_id
       WHERE ISNULL(u.status, 1) = 1
         AND ISNULL(r.is_active, 1) = 1
     `;
 
     if (categoryId && categoryId !== 'all') {
       request.input('categoryId', Number(categoryId));
-      sqlText += ` AND o.organisation_usermatrix_category_id = @categoryId`;
+      sqlText += ` AND o.organisation_category_id = @categoryId`;
     }
     if (organisationId && organisationId !== 'all') {
       request.input('organisationId', Number(organisationId));

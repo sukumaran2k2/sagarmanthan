@@ -394,8 +394,13 @@ export default function UserMatrix({ onGoHome }) {
           : `Saved for ${selectedUsers.length} users`,
         '#10B981'
       );
-    } catch {
-      showToast('Failed to save user permissions', '#EF4444');
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 401) {
+        showToast('Session expired. Please log out and log in again.', '#EF4444');
+      } else {
+        showToast('Failed to save user permissions', '#EF4444');
+      }
     } finally {
       setSaving(false);
     }
@@ -481,8 +486,13 @@ export default function UserMatrix({ onGoHome }) {
         `Saved module permissions for ${selectedModuleOrgIds.size} organisation(s)`,
         '#10B981'
       );
-    } catch {
-      showToast('Failed to save module permissions', '#EF4444');
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 401) {
+        showToast('Session expired. Please log out and log in again.', '#EF4444');
+      } else {
+        showToast('Failed to save module permissions', '#EF4444');
+      }
     } finally {
       setSaving(false);
     }

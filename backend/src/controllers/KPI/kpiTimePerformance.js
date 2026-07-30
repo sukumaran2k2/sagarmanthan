@@ -713,7 +713,7 @@ async function getMajorPorts(req, res) {
         const result = await conn.request().query(`
             SELECT organisation_id, organisation_name
             FROM mmt_organisation
-            WHERE organisation_usermatrix_category_id = 2 AND status = 1
+            WHERE organisation_category_id = 2 AND status = 1
         `);
         res.status(200).json(result.recordset);
     } catch (err) {

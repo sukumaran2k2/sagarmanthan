@@ -5,10 +5,10 @@ async function getUsermatrixCategories(req, res) {
   try {
     const conn = await pool;
     const result = await conn.request().query(`
-      SELECT organisation_usermatrix_category_id AS category_id,
-             organisation_usermatrix_category_name AS category_name
-      FROM mmt_organisation_usermatrix_category
-      ORDER BY organisation_usermatrix_category_id
+      SELECT organisation_category_id AS category_id,
+             organisation_category_name AS category_name
+      FROM mmt_organisation_category
+      ORDER BY organisation_category_id
     `);
     res.json(result.recordset);
   } catch (error) {
@@ -24,21 +24,21 @@ async function getOrganisationsByCategory(req, res) {
     const request = conn.request();
     let sqlText = `
       SELECT o.organisation_id,
-             o.organisation_name,
+             o.oranisation_name AS organisation_name,
              o.organisation_code,
-             o.organisation_usermatrix_category_id AS category_id,
-             c.organisation_usermatrix_category_name AS category_name,
+             o.organisation_category_id AS category_id,
+             c.organisation_category_name AS category_name,
              o.status
       FROM mmt_organisation o
-      LEFT JOIN mmt_organisation_usermatrix_category c
-        ON c.organisation_usermatrix_category_id = o.organisation_usermatrix_category_id
+      LEFT JOIN mmt_organisation_category c
+        ON c.organisation_category_id = o.organisation_category_id
       WHERE ISNULL(o.status, 1) = 1
     `;
     if (categoryId && categoryId !== 'all') {
       request.input('categoryId', Number(categoryId));
-      sqlText += ` AND o.organisation_usermatrix_category_id = @categoryId`;
+      sqlText += ` AND o.organisation_category_id = @categoryId`;
     }
-    sqlText += ` ORDER BY c.organisation_usermatrix_category_name, o.organisation_name`;
+    sqlText += ` ORDER BY c.organisation_category_name, o.oranisation_name`;
     const result = await request.query(sqlText);
     res.json(result.recordset);
   } catch (error) {
@@ -81,7 +81,7 @@ async function getOrgModulePermissions(req, res) {
     const result = await conn.request().query(`
       SELECT
         o.organisation_id,
-        o.organisation_name,
+        o.oranisation_name AS organisation_name,
         m.module_id,
         m.module_name,
         m.module_code,
@@ -93,7 +93,7 @@ async function getOrgModulePermissions(req, res) {
        AND p.module_id = m.module_id
       WHERE o.organisation_id IN (${idList})
         AND ISNULL(m.is_active, 1) = 1
-      ORDER BY o.organisation_name, m.module_name
+      ORDER BY o.oranisation_name, m.module_name
     `);
 
     const byOrg = {};

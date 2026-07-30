@@ -220,9 +220,9 @@ async function getUserData(req, res) {
         division_name,
         CASE
           WHEN tbl_role.role_code = 'SUPERADMIN' THEN 'System (SUPERADMIN)'
-          ELSE mmt_organisation.organisation_name
+          ELSE mmt_organisation.oranisation_name
         END AS organisation_name,
-        mmt_organisation.organisation_usermatrix_category_id,
+        mmt_organisation.organisation_category_id,
         tbl_user.email, tbl_user.phone, tbl_user.status,
         tbl_user.state_id, state_name, tbl_user.district_id, district_name, tbl_user.last_login
         FROM tbl_user
@@ -674,7 +674,7 @@ async function getPermissionModulesData(req, res) {
                 ON m.module_id = mp.module_id
             INNER JOIN 
                 mmt_organisation o 
-                ON o.organisation_usermatrix_category_id = mp.organisation_usermatrix_category_id
+                ON o.organisation_category_id = mp.organisation_usermatrix_category_id
             LEFT JOIN 
                 tbl_usermatrix_user_module_crud_permission p 
                 ON p.module_id = mp.module_id AND p.user_id = @userId
