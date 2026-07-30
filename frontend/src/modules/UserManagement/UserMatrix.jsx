@@ -34,19 +34,19 @@ const NAV_GROUPS = [
 const TAB_META = {
   users: {
     title: 'Update User Access',
-    note: 'Select an Organisation Category, then an Organisation, to load users and assign Create / Read / Update / Delete permissions.',
+    note: 'Pick a category and organisation, then set Create / Read / Update / Delete for each user.',
   },
   modules: {
     title: 'Update Module Access',
-    note: 'Select one or more organisations on the left, then enable the modules each organisation is allowed to use.',
+    note: 'Select organisations on the left, then turn modules on or off for them.',
   },
   module_permission_list: {
     title: 'Module Access List',
-    note: 'Select an organisation on the left to view its allowed modules. To change access, switch to Modules → Update.',
+    note: 'Select an organisation to see its allowed modules. Use Modules → Update to change them.',
   },
   userlist: {
     title: 'User Directory',
-    note: 'Browse users by organisation or role. Open Access to view module permissions, or Edit to update profile details.',
+    note: 'Filter by organisation or role. Use Access to view permissions, or Edit for profile details.',
   },
 };
 
@@ -280,7 +280,7 @@ export default function UserMatrix({ onGoHome }) {
     if (ids.length > 0 && masterModules.length > 0) {
       loadOrgModuleState(ids);
     }
-    // skip loadOrgModuleState in deps — causes loop
+    // avoid loop if loadOrgModuleState is in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModuleOrgIds, masterModules]);
 
@@ -466,7 +466,7 @@ export default function UserMatrix({ onGoHome }) {
       );
       const allTrue = vals.every(Boolean);
       const allFalse = vals.every((v) => !v);
-      if (!allTrue && !allFalse) return null; // mixed — don't overwrite
+      if (!allTrue && !allFalse) return null; // mixed values
       return { moduleId: m.module_id, isAllowed: allTrue };
     }).filter(Boolean);
 

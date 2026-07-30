@@ -15,7 +15,8 @@ import ProfileView from './modules/Profile/Profile';
 import CabinetNotes from './modules/CabinetNotesMOPSW/CabinetNotesMOPSW';
 import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotesOther';
 import UserMatrix from './modules/UserManagement/UserMatrix';
-import { isSuperAdmin } from './utils/authSession';
+import { canAccessTab } from './utils/moduleAccess';
+import RestrictedAccess from './components/RestrictedAccess';
 import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
 import AuditParaView from './modules/AuditPara/AuditPara';
 import VIPReferenceView from './modules/VIPReference/VIPReference';
@@ -431,6 +432,8 @@ export default function App() {
     return <LoginView onLogin={handleLoginSuccess} />;
   }
 
+  const tabAllowed = canAccessTab(activeTab);
+
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
@@ -471,7 +474,7 @@ export default function App() {
       {/* Main Content Viewport */}
       <main className="flex-grow w-full max-w-full px-4 sm:px-6 lg:px-8 pb-12">
         {/* Dynamic Breadcrumbs Row — User Matrix owns its own header (breadcrumb + tabs) */}
-        {activeTab !== 'landing' && activeTab !== 'User Matrix' && (
+        {activeTab !== 'landing' && activeTab !== 'User Matrix' && tabAllowed && (
           <div className="flex items-center space-x-2 text-slate-400 text-xs font-semibold px-2 mb-6 mt-3 animate-fade-in select-none bg-white py-2.5 px-4 rounded-xl border border-slate-200 shadow-sm w-fit">
             <Home className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => setActiveTab('landing')} />
             {getBreadcrumbs(activeTab).slice(1).map((crumb, idx, arr) => (
@@ -489,14 +492,17 @@ export default function App() {
           <div className="py-12 animate-fade-in">
             <Loader message={`Fetching telemetry and compiling active panels for ${activeTab}...`} fullPage={false} />
           </div>
+        ) : !tabAllowed ? (
+          <RestrictedAccess
+            moduleName={activeTab}
+            onGoHome={() => setActiveTab('landing')}
+          />
         ) : (
           <>
             {activeTab === 'landing' && (
               <LandingView
                 onNavigate={(tab, subKpi) => {
-                  if (subKpi) {
-                    setEOfficeKpi(subKpi);
-                  }
+                  if (subKpi) setEOfficeKpi(subKpi);
                   setActiveTab(tab);
                 }}
               />
@@ -591,9 +597,7 @@ export default function App() {
             )}
 
             {activeTab === 'User Matrix' && (
-              isSuperAdmin()
-                ? <UserMatrix onGoHome={() => setActiveTab('landing')} />
-                : <div className="p-8 text-sm text-slate-600">Access restricted to SUPERADMIN.</div>
+              <UserMatrix onGoHome={() => setActiveTab('landing')} />
             )}
 
             {['Ministry Contacts', 'Helpdesk Support'].includes(activeTab) && (

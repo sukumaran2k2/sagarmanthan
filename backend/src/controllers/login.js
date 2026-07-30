@@ -15,7 +15,6 @@ async function validation(req, res) {
 
   const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
 
-  // LOG 1: Request received
   console.log('[LOGIN_START]', {
     email,
     timestamp: new Date().toISOString(),
@@ -61,10 +60,13 @@ async function validation(req, res) {
     }
 
     const result =
-      await request.query(`SELECT user_id, password, email, tbl_user.role_id, tbl_role.role_name, status,vibhas_id,
-            password_status, tbl_user.wing_id, tbl_user.organisation_id,password_updated_on FROM tbl_user
-            INNER JOIN tbl_role on tbl_role.role_id = tbl_user.role_id 
-            WHERE email = @email`);
+      await request.query(`SELECT tbl_user.user_id, tbl_user.password, tbl_user.email, tbl_user.role_id, tbl_role.role_name,
+            tbl_user.status, tbl_user.vibhas_id, tbl_user.password_status, tbl_user.wing_id, tbl_user.organisation_id,
+            tbl_user.password_updated_on, mmt_organisation.oranisation_name AS organisation_name
+            FROM tbl_user
+            INNER JOIN tbl_role ON tbl_role.role_id = tbl_user.role_id
+            LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_user.organisation_id
+            WHERE tbl_user.email = @email`);
 
     const userData = result.recordset[0];
     if (userData) {
@@ -72,14 +74,12 @@ async function validation(req, res) {
 
       const privateKey = forge.pki.privateKeyFromPem(privateKeyPem);
 
-      // LOG 2: About to decrypt
       console.log('[LOGIN_DECRYPT_START]', {
         email,
         userId: userData.user_id,
         encryptedPasswordLength: encryptedPassword?.length
       });
 
-      // Decrypt the password
       let decryptedPassword;
       try {
         decryptedPassword = privateKey.decrypt(
@@ -92,7 +92,6 @@ async function validation(req, res) {
         );
         console.log('[LOGIN_DECRYPT_SUCCESS]', { email, userId: userData.user_id });
       } catch (decryptionError) {
-        // LOG 3: RSA decryption failed
         console.error('[LOGIN_ERROR] RSA_DECRYPT_FAILED', {
           email,
           userId: userData.user_id,
@@ -102,7 +101,6 @@ async function validation(req, res) {
         return res.status(400).json({ message: 'Decryption failed' });
       }
 
-      // Validate password
       const isPasswordMatch = await bcrypt.compare(decryptedPassword, userData.password);
       if (isPasswordMatch) {
 
@@ -129,22 +127,25 @@ async function validation(req, res) {
         const uiViewCode = roleProfile.ui_view_code || null;
         const dataScopeCode = roleProfile.data_scope_code || null;
 
-        // Single SUPERADMIN: hardcoded — no org, no module CRUD from tables
         const isSuperAdminLogin = roleCode === 'SUPERADMIN';
 
         let allowedModules = [];
+        let allowedModuleCodes = [];
         let modulePermissions = [];
 
         if (!isSuperAdminLogin && organisationId != null) {
           const moduleQuery = await request.query(`
-            SELECT p.module_id
+            SELECT p.module_id, m.module_code
             FROM tbl_rbac_org_module_permission p
             INNER JOIN tbl_modules m ON m.module_id = p.module_id
             WHERE p.organisation_id = ${Number(organisationId)}
               AND p.is_allowed = 1
               AND ISNULL(m.is_active, 1) = 1
           `);
-          allowedModules = moduleQuery.recordset.map(row => row.module_id);
+          allowedModules = moduleQuery.recordset.map((row) => row.module_id);
+          allowedModuleCodes = moduleQuery.recordset
+            .map((row) => row.module_code)
+            .filter(Boolean);
 
           if (allowedModules.length > 0) {
             const modulePermissionsQuery = await request.query(`
@@ -179,6 +180,7 @@ async function validation(req, res) {
           isSuperAdminLogin,
           organisationId,
           allowedModules,
+          allowedModuleCodes,
           allowedModulesCount: allowedModules.length
         });
 
@@ -196,10 +198,14 @@ async function validation(req, res) {
           passwordStatus: userData.password_status,
           passwordUpdatedOn: userData.password_updated_on,
           organisationId: isSuperAdminLogin ? null : userData.organisation_id,
+          organisationName: isSuperAdminLogin
+            ? 'System'
+            : (userData.organisation_name || null),
           wingId: userData.wing_id,
           vibhasId: userData.vibhas_id,
           chainlitAccessToken,
           allowedModules,
+          allowedModuleCodes,
           modulePermissions,
         };
 
@@ -230,7 +236,6 @@ async function validation(req, res) {
         });
       }
     } else {
-      // LOG 11: User not found
       console.error('[LOGIN_ERROR] USER_NOT_FOUND', { email });
       res.status(250).json({
         message: "Invalid Credentials",
@@ -238,7 +243,6 @@ async function validation(req, res) {
       });
     }
   } catch (err) {
-    // LOG 12: Unexpected error
     console.error('[LOGIN_ERROR] UNHANDLED_EXCEPTION', {
       email,
       error: err.message,

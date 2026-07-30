@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import { isSuperAdmin } from '../utils/authSession';
+import { canAccessTab, filterMenuByAccess, resolveTabKey } from '../utils/moduleAccess';
 import {
   Home,
   Briefcase,
@@ -51,7 +52,21 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
 
-  const MENU_DATA = [
+  const accessKey = (() => {
+    try {
+      const t = localStorage.getItem('accessToken');
+      if (!t) return '';
+      const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      const codes = payload?.allowedModuleCodes;
+      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}`;
+    } catch {
+      return '';
+    }
+  })();
+
+  const MENU_DATA = useMemo(
+    () =>
+      filterMenuByAccess([
     {
       id: 'projects',
       label: 'Projects',
@@ -78,7 +93,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'CSR Dashboard', icon: LayoutDashboard },
             { label: 'CSR Fund Details', icon: Coins },
             { label: 'CSR Project List', icon: ListTodo },
-            { label: 'Reports', icon: FilePieChart }
+            { label: 'Reports', tab: 'CSR Dashboard', icon: FilePieChart }
           ]
         },
         {
@@ -376,26 +391,15 @@ export default function Tabs({ activeTab, setActiveTab }) {
         { label: 'Helpdesk Support', icon: HelpCircle },
       ],
     },
-  ];
+  ]),
+    [accessKey]
+  );
 
   const handleItemClick = (label) => {
-    const norm = label.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (norm === 'projectdashboard') {
-      setActiveTab('dashboard');
-    } else if (norm === 'projectlist') {
-      setActiveTab('projects');
-    } else if (norm === 'projectslessthan5cr') {
-      setActiveTab('less5cr');
-    } else if (norm === 'lumpsumiwai') {
-      setActiveTab('lumpsum');
-    } else if (norm === 'viewdroprequest') {
-      setActiveTab('dropRequests');
-    } else if (norm === 'reports') {
-      setActiveTab('reports');
-    } else {
-      setActiveTab(label);
-    }
-    setIsOpen(false); // Close mobile drawer
+    const tab = resolveTabKey(label);
+    if (!canAccessTab(tab)) return;
+    setActiveTab(tab);
+    setIsOpen(false);
   };
 
   const toggleExpand = (menuId) => {

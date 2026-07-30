@@ -62,7 +62,6 @@ export default function UserListTab({
   const openAccess = async (user) => {
     setAccessUser(user);
     setAccessRows([]);
-    // Hardcoded: single SUPERADMIN is not driven by permission tables
     if (isUserSuperAdmin(user)) {
       setAccessIsSuperAdmin(true);
       setAccessLoading(false);
@@ -309,25 +308,18 @@ export default function UserListTab({
 
             <div className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-50">
               {accessIsSuperAdmin
-                ? 'SUPERADMIN access (hardcoded)'
+                ? 'SUPERADMIN'
                 : 'Assigned modules · C Create · R Read · U Update · D Delete'}
             </div>
 
             <div className="overflow-y-auto flex-1 px-2 py-2">
               {accessIsSuperAdmin ? (
                 <div className="px-3 py-6 text-center space-y-2">
-                  <div className="text-sm font-bold text-slate-800">Full Permission Manager access</div>
+                  <div className="text-sm font-bold text-slate-800">Permission Manager</div>
                   <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-                    This account is the single SUPERADMIN. Access is hardcoded by role
-                    (<code className="mx-1 text-[11px]">SUPERADMIN</code>
-                    — not stored in organisation module or user CRUD tables.
-                    No organisation is required.
+                    This user is SUPERADMIN and can manage User Matrix, module access, and the user list.
+                    Permissions are not taken from org or CRUD tables.
                   </p>
-                  <div className="pt-2 flex flex-wrap justify-center gap-2 text-[11px] font-semibold">
-                    <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">User Matrix</span>
-                    <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">Module Permissions</span>
-                    <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">User List</span>
-                  </div>
                 </div>
               ) : accessLoading ? (
                 <div className="text-center text-xs text-slate-400 py-10">Loading access…</div>

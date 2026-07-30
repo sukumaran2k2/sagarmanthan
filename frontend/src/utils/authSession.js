@@ -1,4 +1,3 @@
-// decode only — not used for auth decisions on the server
 export function decodeAccessToken(token) {
   if (!token) return null;
   try {

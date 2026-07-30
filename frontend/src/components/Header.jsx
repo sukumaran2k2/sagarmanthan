@@ -26,7 +26,7 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
   const [showAvatarDropdown, setShowAvatarDropdown] = useState(false);
   
   const [userName, setUserName] = useState('');
-  const [userWing, setUserWing] = useState('');
+  const [userOrg, setUserOrg] = useState('');
 
   // Refs to control closing the elements programmatically
   const sliderRef = useRef(null);
@@ -44,13 +44,21 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
     const decoded = decodeToken(token);
     if (!decoded || !decoded.email) return;
 
+    if (decoded.roleCode === 'SUPERADMIN') {
+      setUserOrg('System');
+    } else if (decoded.organisationName) {
+      setUserOrg(decoded.organisationName);
+    }
+
     axios.get('http://localhost:3000/userlist')
       .then(res => {
         const users = res.data || [];
         const matched = users.find(u => u.email.toLowerCase() === decoded.email.toLowerCase());
         if (matched) {
           setUserName(matched.name || '');
-          setUserWing(matched.wing_name || 'MoPSW');
+          if (matched.organisation_name) {
+            setUserOrg(matched.organisation_name);
+          }
         }
       })
       .catch(err => {
@@ -135,7 +143,7 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
                 <span className="text-[11px] text-slate-300">Welcome Back</span>
                 <span className="text-xs font-medium text-white flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block border-black"></span>
-                  Good Evening, <strong className="text-white">{userName || 'User'}</strong> | <span className="text-slate-300 font-normal">{userWing || 'MoPSW'}</span>
+                  Good Evening, <strong className="text-white">{userName || 'User'}</strong> | <span className="text-slate-300 font-normal">{userOrg || '—'}</span>
                 </span>
               </div>
 

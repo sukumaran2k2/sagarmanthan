@@ -214,7 +214,6 @@ async function getUserData(req, res) {
     const conn = await pool;
 
     try {
-        // LEFT JOIN org so SUPERADMIN (organisation_id NULL) still appears in user list
         const result = await conn.query(`SELECT tbl_user.user_id, tbl_user.title, tbl_user.name, tbl_user.designation,
         tbl_user.role_id, tbl_role.role_name, tbl_role.role_code, tbl_user.organisation_id, tbl_user.wing_id, wing_name, tbl_user.division_id,
         division_name,
