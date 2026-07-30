@@ -305,7 +305,6 @@ export default function UserListTab({
                 </div>
                 <div className="text-[11px] text-slate-500 mt-0.5">
                   {accessUser.organisation_name || '—'} · {accessUser.role_name || '—'}
-                  <span className="ml-2 text-slate-400">(view only)</span>
                 </div>
               </div>
               <button

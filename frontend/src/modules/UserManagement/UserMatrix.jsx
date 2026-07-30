@@ -12,6 +12,11 @@ import ModulePermissionsTab from './components/ModulePermissionsTab';
 import ModulePermissionListTab from './components/ModulePermissionListTab';
 import UserListTab from './components/UserListTab';
 import UserFormModal from './components/UserFormModal';
+import {
+  draftFromCrudRows,
+  emptyCrudDraft,
+  permissionsFromDraft,
+} from './userModuleCrud';
 
 const PERMISSION_NAV = [
   {
@@ -111,6 +116,10 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
   const [formDivision, setFormDivision] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formEmail, setFormEmail] = useState('');
+  const [formModules, setFormModules] = useState([]);
+  const [formCrudDraft, setFormCrudDraft] = useState({});
+  const [formCrudLoading, setFormCrudLoading] = useState(false);
+  const [formError, setFormError] = useState('');
   const [masterWings, setMasterWings] = useState([]);
   const [masterDivisions, setMasterDivisions] = useState([]);
 
@@ -553,8 +562,70 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
     setFormDivision('');
     setFormPhone('');
     setFormEmail('');
+    setFormModules([]);
+    setFormCrudDraft({});
+    setFormCrudLoading(false);
+    setFormError('');
     setEditingUser(null);
   };
+
+  // Load org-allowed modules (+ existing CRUD when editing) for the user form
+  useEffect(() => {
+    if (!isUserFormOpen || !formOrg) {
+      setFormModules([]);
+      setFormCrudDraft({});
+      setFormCrudLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setFormCrudLoading(true);
+
+    rbacApi
+      .getAllowedModules(formOrg)
+      .then(async (res) => {
+        const mods = (res.data || []).map((m) => ({
+          id: m.module_id,
+          name: m.module_name,
+          code: m.module_code,
+        }));
+        if (cancelled) return;
+
+        let draft = emptyCrudDraft(mods);
+        if (userFormMode === 'edit' && editingUser?.user_id) {
+          try {
+            const crudRes = await rbacApi.getUserModuleCrud(
+              [editingUser.user_id],
+              formOrg
+            );
+            if (!cancelled) {
+              draft = draftFromCrudRows(mods, crudRes.data || []);
+            }
+          } catch {
+            if (!cancelled) {
+              showToast('Failed to load user module permissions', '#EF4444');
+            }
+          }
+        }
+
+        if (cancelled) return;
+        setFormModules(mods);
+        setFormCrudDraft(draft);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFormModules([]);
+        setFormCrudDraft({});
+        showToast('Failed to load organisation modules', '#EF4444');
+      })
+      .finally(() => {
+        if (!cancelled) setFormCrudLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isUserFormOpen, formOrg, userFormMode, editingUser?.user_id, showToast]);
 
   const handleOpenAdd = () => {
     resetUserForm();
@@ -580,10 +651,22 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
   const refreshUserList = () =>
     api.get('/userlist').then((res) => setDbUserList(res.data || []));
 
+  const saveFormModuleCrud = async (userId) => {
+    if (!userId || formModules.length === 0) return;
+    await rbacApi.saveUserModuleCrud({
+      userIds: [userId],
+      permissions: permissionsFromDraft(formModules, formCrudDraft),
+      updatedBy: getCurrentUserId(),
+    });
+  };
+
   const handleUserFormSubmit = (e) => {
     e.preventDefault();
+    setFormError('');
     if (!formName.trim() || !formEmail.trim() || !formOrg || !formRole || !formDesignation.trim() || !formPhone) {
-      showToast('Please fill required fields', '#F59E0B');
+      const msg = 'Please fill required fields';
+      setFormError(msg);
+      showToast(msg, '#F59E0B');
       return;
     }
 
@@ -609,21 +692,59 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
         : api.put('/edituser', { ...payload, userID: editingUser.user_id });
 
     request
-      .then((res) => {
-        if (res?.status === 205) {
-          showToast(res?.data?.message || 'User already exists', '#F59E0B');
+      .then(async (res) => {
+        // Legacy 205 support if an older backend is still running
+        if (res?.status === 205 || res?.status === 409) {
+          const msg =
+            res?.data?.message ||
+            (userFormMode === 'add'
+              ? 'Email already exists. User cannot be created.'
+              : 'Email already exists for another user');
+          setFormError(msg);
+          showToast(msg, '#F59E0B');
           return;
         }
-        showToast(userFormMode === 'add' ? 'User created' : 'User updated', '#10B981');
+
+        const userId =
+          userFormMode === 'add'
+            ? res?.data?.userId
+            : editingUser?.user_id;
+
+        try {
+          await saveFormModuleCrud(userId);
+        } catch {
+          showToast(
+            userFormMode === 'add'
+              ? 'User created, but module permissions failed to save'
+              : 'User updated, but module permissions failed to save',
+            '#F59E0B'
+          );
+          setIsUserFormOpen(false);
+          resetUserForm();
+          return refreshUserList();
+        }
+
+        showToast(
+          userFormMode === 'add' ? 'User created' : 'User updated',
+          '#10B981'
+        );
         setIsUserFormOpen(false);
         resetUserForm();
         return refreshUserList();
       })
       .catch((err) => {
+        const status = err?.response?.status;
         const msg =
           err?.response?.data?.message ||
-          (userFormMode === 'add' ? 'Failed to create user' : 'Failed to update user');
-        showToast(msg, '#EF4444');
+          (status === 409 || status === 205
+            ? userFormMode === 'add'
+              ? 'Email already exists. User cannot be created.'
+              : 'Email already exists for another user'
+            : userFormMode === 'add'
+              ? 'Failed to create user'
+              : 'Failed to update user');
+        setFormError(msg);
+        showToast(msg, status === 409 || status === 205 ? '#F59E0B' : '#EF4444');
       })
       .finally(() => setUserFormSaving(false));
   };
@@ -886,12 +1007,30 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
           masterRoles={activeRoles}
           masterWings={masterWings}
           masterDivisions={masterDivisions}
+          formModules={formModules}
+          formCrudDraft={formCrudDraft}
+          setFormCrudDraft={setFormCrudDraft}
+          formCrudLoading={formCrudLoading}
+          formError={formError}
         />
 
         {toastVisible && (
           <div
             className="toast"
-            style={{ background: toastColor, opacity: toastVisible ? 1 : 0 }}
+            style={{
+              position: 'fixed',
+              bottom: 24,
+              right: 24,
+              zIndex: 10050,
+              background: toastColor,
+              color: '#fff',
+              padding: '12px 18px',
+              borderRadius: 8,
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+              maxWidth: 420,
+            }}
           >
             {toastMsg}
           </div>

@@ -36,17 +36,21 @@ async function createuser(req, res) {
         let checkIfExists = await request.query(`SELECT count(*) as count FROM tbl_user WHERE email = @email;`);
         console.log(checkIfExists.recordset)
         if (checkIfExists.recordset[0].count > 0) {
-            return res.status(205).json({ message: "User Already Exists!" });
+            return res.status(409).json({ message: "Email already exists. User cannot be created." });
         }
         else {
             try {
-                await request.query(`INSERT INTO tbl_user (
+                const insertResult = await request.query(`INSERT INTO tbl_user (
                     title, name, designation, role_id, organisation_id,
                     wing_id, division_id, email, password, phone, status, password_status
-                ) VALUES (
+                )
+                OUTPUT INSERTED.user_id
+                VALUES (
                     @title, @name, @designation, @role, @organisation,
                     @wingId, @divisionId, @email, @password, @phone, 1, 1
                 )`);
+
+                const newUserId = insertResult.recordset?.[0]?.user_id || null;
 
                 try {
                     const transporter = nodemailer.createTransport({
@@ -92,7 +96,10 @@ async function createuser(req, res) {
                     console.error("Error sending email:", emailError);
                 }
 
-                return res.status(200).json({ message: "User created successfully" });
+                return res.status(200).json({
+                    message: "User created successfully",
+                    userId: newUserId,
+                });
             } catch (insertError) {
                 console.error("Error creating user:", insertError);
                 return res.status(500).json({ message: "Failed to create user" });
@@ -313,16 +320,25 @@ async function updateUser(req, res) {
     request.input("email", email);
     request.input("phone", phone);
     request.input("loginUser", loginUser);
-     
-
-    
 
     try {
-        const result = await request.query(`UPDATE tbl_user SET title = @title, name = @name, designation = @designation,
+        const duplicate = await request.query(`
+            SELECT COUNT(*) AS count
+            FROM tbl_user
+            WHERE email = @email AND user_id <> @userID
+        `);
+
+        if (duplicate.recordset[0].count > 0) {
+            return res.status(409).json({
+                message: "Email already exists for another user",
+            });
+        }
+
+        await request.query(`UPDATE tbl_user SET title = @title, name = @name, designation = @designation,
         role_id = @role, organisation_id = @organisation, wing_id = @wingId, division_id = @divisionId, email = @email, 
         phone = @phone, updated_on = GETDATE(), updated_by = @loginUser WHERE user_id = @userID`);
 
-        res.sendStatus(200);
+        return res.status(200).json({ message: "User updated successfully" });
     }
     catch (err) {
         console.log(err);
