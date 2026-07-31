@@ -59,19 +59,19 @@ const InternalNavigation = ({
                     setOpenMenu(isOpen ? null : tab.id);
                   }
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg whitespace-nowrap ${
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg whitespace-nowrap ${
                   isActive
                     ? 'bg-[#0f417a] text-white shadow-md'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
                 {TabIcon && (
-                  <TabIcon className={`h-3.5 w-3.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <TabIcon className={`h-4 w-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                 )}
                 {tab.label}
                 {hasSubMenu && (
                   <ChevronDown
-                    className={`h-3 w-3 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${isActive ? 'text-blue-200' : 'text-slate-400'}`}
+                    className={`h-3.5 w-3.5 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${isActive ? 'text-blue-200' : 'text-slate-400'}`}
                   />
                 )}
               </button>

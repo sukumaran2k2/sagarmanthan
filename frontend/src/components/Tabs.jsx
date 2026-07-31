@@ -46,11 +46,36 @@ import {
   X
 } from 'lucide-react';
 
+function getLoggedInUserRole() {
+  try {
+    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
+    if (!token) return 1;
+    const base64Url = token.split(".")[1];
+    if (!base64Url) return 1;
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    const decoded = JSON.parse(jsonPayload);
+    return Number(decoded.roleId || decoded.role_id || decoded.role || 1);
+  } catch (e) {
+    return 1;
+  }
+}
+
 export default function Tabs({ activeTab, setActiveTab }) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
 
-  const MENU_DATA = [
+  const isOrgUser = useMemo(() => {
+    const roleId = getLoggedInUserRole();
+    return roleId === 6 || roleId === 7;
+  }, []);
+
+  const MENU_DATA = useMemo(() => [
     {
       id: 'projects',
       label: 'Projects',
@@ -81,12 +106,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
           ]
         },
         {
-          title: 'Capex Input Form',
+          title: 'Capex',
           icon: Coins,
-          items: [
-            { label: 'Estimate Values', icon: DollarSign },
-            { label: 'Capex Reports', icon: FilePieChart }
-          ]
+          items: isOrgUser
+            ? [
+                { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex' },
+                { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex' }
+              ]
+            : [
+                { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex' },
+                { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex' },
+                { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex' }
+              ]
         },
         {
           title: 'Expenditure',
@@ -373,7 +404,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
         { label: 'Helpdesk Support', icon: HelpCircle }
       ]
     }
-  ];
+  ], [isOrgUser]);
 
   const handleItemClick = (label) => {
     const norm = label.toLowerCase().replace(/[^a-z0-9]/g, '');
