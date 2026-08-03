@@ -1,7 +1,8 @@
-import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
+﻿import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
-import { FileSpreadsheet, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileSpreadsheet } from 'lucide-react';
+import TablePagination from './TablePagination';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -130,45 +131,6 @@ const Table = forwardRef(({
     defaultMinWidth: 100
   };
 
-  const getPageNumbers = () => {
-    const pages = [];
-    const maxVisiblePages = 5;
-
-    if (totalPages <= maxVisiblePages + 2) {
-      for (let i = 0; i < totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      pages.push(0);
-
-      let start = Math.max(1, currentPage - 1);
-      let end = Math.min(totalPages - 2, currentPage + 1);
-
-      if (currentPage <= 2) {
-        end = maxVisiblePages - 1;
-      } else if (currentPage >= totalPages - 3) {
-        start = totalPages - maxVisiblePages;
-      }
-
-      if (start > 1) {
-        pages.push('...');
-      }
-
-      for (let i = start; i <= end; i++) {
-        pages.push(i);
-      }
-
-      if (end < totalPages - 2) {
-        pages.push('...');
-      }
-
-      pages.push(totalPages - 1);
-    }
-    return pages;
-  };
-
-  const pageNumbers = getPageNumbers();
-
   const colorClass = `custom-table-container-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
 
   return (
@@ -187,6 +149,15 @@ const Table = forwardRef(({
           text-align: center !important;
           line-height: 1.25 !important;
         }
+        @keyframes indeterminateProgress {
+          0% { transform: translateX(-100%) scaleX(0.2); }
+          50% { transform: translateX(0%) scaleX(0.5); }
+          100% { transform: translateX(100%) scaleX(1); }
+        }
+        .animate-indeterminate-progress {
+          animation: indeterminateProgress 1.4s infinite ease-in-out;
+          transform-origin: left;
+        }
       `}</style>
 
       {enableExport && (
@@ -203,10 +174,23 @@ const Table = forwardRef(({
 
       <div className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative shadow-sm bg-white dark:bg-slate-900`}>
         {loading && (
-          <div className="absolute inset-0 bg-white/60 dark:bg-slate-950/60 z-10 flex items-center justify-center backdrop-blur-[1px]">
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md">
-              <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin" />
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Loading records...</span>
+          <div className="absolute inset-0 bg-white/90 dark:bg-slate-950/90 z-30 flex flex-col items-center justify-center space-y-4 backdrop-blur-[2px] animate-fade-in">
+            <div className="w-full absolute top-0 left-0 right-0 h-1.5 bg-slate-100 dark:bg-slate-800 overflow-hidden">
+              <div
+                className="h-full animate-indeterminate-progress"
+                style={{
+                  background: `linear-gradient(to right, ${color}, #3b82f6, ${color})`
+                }}
+              ></div>
+            </div>
+            <div className="p-4 bg-white/95 dark:bg-slate-900/95 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 flex items-center space-x-3 shadow-lg">
+              <div
+                className="animate-spin rounded-full h-6 w-6 border-3 border-t-transparent"
+                style={{ borderColor: `${color} transparent ${color} ${color}` }}
+              ></div>
+              <span className="text-xs font-extrabold tracking-wide">
+                Fetching records from database...
+              </span>
             </div>
           </div>
         )}
@@ -241,68 +225,16 @@ const Table = forwardRef(({
         </div>
 
         {pagination && totalPages > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-150 dark:border-slate-700 select-none bg-slate-50/50 dark:bg-slate-950/50">
-            <div className="text-[12.5px] font-semibold text-slate-550 dark:text-slate-400">
-              Showing {totalRows === 0 ? 0 : currentPage * pageSize + 1} to {Math.min((currentPage + 1) * pageSize, totalRows)} of {totalRows} entries
-            </div>
-
-            <div className="flex items-center space-x-1 font-sans">
-              <button
-                type="button"
-                onClick={handlePrevPage}
-                disabled={currentPage === 0}
-                className={`flex items-center justify-center px-3 py-1.5 rounded border text-xs font-bold transition cursor-pointer select-none ${currentPage === 0
-                    ? 'bg-white dark:bg-slate-900 text-slate-350 dark:text-slate-600 border-slate-150 dark:border-slate-700 cursor-not-allowed'
-                    : 'bg-white dark:bg-slate-900 border-slate-250 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}
-                style={currentPage !== 0 ? { color: color } : {}}
-              >
-                <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
-                <span>Previous</span>
-              </button>
-
-              {pageNumbers.map((p, idx) => {
-                if (p === '...') {
-                  return (
-                    <span key={`dots-${idx}`} className="px-2 text-slate-400 dark:text-slate-500 text-xs font-bold select-none">
-                      ...
-                    </span>
-                  );
-                }
-
-                const isActive = currentPage === p;
-                return (
-                  <button
-                    type="button"
-                    key={`page-${p}`}
-                    onClick={() => handlePageClick(p)}
-                    className={`px-3 py-1.5 rounded text-xs font-extrabold transition cursor-pointer select-none ${
-                      isActive
-                        ? 'text-white border shadow-sm'
-                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-250 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
-                    }`}
-                    style={isActive ? { backgroundColor: color, borderColor: color } : {}}
-                  >
-                    {p + 1}
-                  </button>
-                );
-              })}
-
-              <button
-                type="button"
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages - 1}
-                className={`flex items-center justify-center px-3 py-1.5 rounded border text-xs font-bold transition cursor-pointer select-none ${currentPage === totalPages - 1
-                    ? 'bg-white dark:bg-slate-900 text-slate-355 dark:text-slate-600 border-slate-150 dark:border-slate-700 cursor-not-allowed'
-                    : 'bg-white dark:bg-slate-900 border-slate-250 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}
-                style={currentPage !== totalPages - 1 ? { color: color } : {}}
-              >
-                <span>Next</span>
-                <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
-              </button>
-            </div>
-          </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRows={totalRows}
+            pageSize={pageSize}
+            onPageChange={handlePageClick}
+            onPrevPage={handlePrevPage}
+            onNextPage={handleNextPage}
+            color={color}
+          />
         )}
       </div>
     </div>
