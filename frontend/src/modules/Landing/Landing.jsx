@@ -416,23 +416,17 @@ export default function LandingView({ onNavigate }) {
   ], []);
 
   const handleCardClick = (id) => {
-    if (id === 'cpgrams') {
-      onNavigate('CPGRAMS');
-    } else if (id === 'file-pendency') {
-      onNavigate('E Office', 'file-pendency');
-    } else if (id === 'receipt-pendency') {
-      onNavigate('E Office', 'receipt-pendency');
-    } else if (id === 'file-disposal') {
-      onNavigate('E Office', 'file-disposal');
-    } else if (id === 'attendance') {
-      onNavigate('Attendance');
-    }
+    if (id === 'cpgrams') onNavigate('CPGRAMS');
+    else if (id === 'file-pendency') onNavigate('E Office', 'file-pendency');
+    else if (id === 'receipt-pendency') onNavigate('E Office', 'receipt-pendency');
+    else if (id === 'file-disposal') onNavigate('E Office', 'file-disposal');
+    else if (id === 'attendance') onNavigate('Attendance');
   };
 
   const handleRowClicked = (event) => {
     const moduleName = event.data.moduleName;
     const routeMap = {
-      'Young Professional': 'YP Reports',
+      'Young Professional': 'YP Report',
       'Consultant Appointment': 'Consultant Reports',
       'VIP Reference': 'VIP Reference',
       'Cabinet Notes-Other Ministry': 'Cabinet Notes - Other Ministries',
@@ -443,14 +437,14 @@ export default function LandingView({ onNavigate }) {
       'Parliamentary Issues': 'Parliamentary Issue',
       'Review Items': 'Review Items',
       'MoPSW Tracker': 'Project Milestones',
+      'Expenditure': 'Expenditure Reports',
       'Foreign Visit': 'Foreign Visit',
       'Inter State and Inter Ministerial Issues': 'Inter State & Inter Ministerial',
-      'Acts & Rules': 'Acts & Rules'
+      'Acts & Rules': 'Acts & Rules',
+      'Bills/PreConstitutions Act': 'Bills/PreConstitutions Act',
     };
     const targetTab = routeMap[moduleName];
-    if (targetTab) {
-      onNavigate(targetTab);
-    }
+    if (targetTab) onNavigate(targetTab);
   };
 
   const chartData = useMemo(() => {

@@ -36,37 +36,44 @@ async function createuser(req, res) {
         let checkIfExists = await request.query(`SELECT count(*) as count FROM tbl_user WHERE email = @email;`);
         console.log(checkIfExists.recordset)
         if (checkIfExists.recordset[0].count > 0) {
-            return res.status(205).json({ message: "User Already Exists!" });
+            return res.status(409).json({ message: "Email already exists. User cannot be created." });
         }
         else {
             try {
-                const result = await request.query(`INSERT INTO tbl_user (title, name, designation, role_id, organisation_id, 
-                    wing_id, division_id, email, password, phone) 
-                VALUES (@title, @name, @designation, @role, @organisation, @wingId, @divisionId, @email, @password, @phone)`);
+                const insertResult = await request.query(`INSERT INTO tbl_user (
+                    title, name, designation, role_id, organisation_id,
+                    wing_id, division_id, email, password, phone, status, password_status
+                )
+                OUTPUT INSERTED.user_id
+                VALUES (
+                    @title, @name, @designation, @role, @organisation,
+                    @wingId, @divisionId, @email, @password, @phone, 1, 1
+                )`);
 
-                //console.log("User registered successfully");
+                const newUserId = insertResult.recordset?.[0]?.user_id || null;
 
-                const transporter = nodemailer.createTransport({
-                    host: "smtp.office365.com",
-                    port: 587,
-                    auth: {
-                        user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                        pass: "Sagarmanthan@123",
-                    },
-                });
+                try {
+                    const transporter = nodemailer.createTransport({
+                        host: "smtp.office365.com",
+                        port: 587,
+                        auth: {
+                            user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
+                            pass: "Sagarmanthan@123",
+                        },
+                    });
 
-                const mailOptions = {
-                    from: "sagarmanthansupport@ntcpwc.iitm.ac.in",
-                    to: email,
-                    subject: "Sagarmanthan Portal – User Account Credentials",
-                    html: `<strong>Dear User</strong>,
+                    const mailOptions = {
+                        from: "sagarmanthansupport@ntcpwc.iitm.ac.in",
+                        to: email,
+                        subject: "Sagarmanthan Portal – User Account Credentials",
+                        html: `<strong>Dear User</strong>,
                           <br><br>
                           Welcome to the Sagarmanthan Portal.
                           <br><br>
                           Your user account has been successfully created. Please find your login credentials below:
                           <br><br>
                           <ul>
-                            <li><strong>User ID: </strong>${email}</li>
+                            <li><strong>Email: </strong>${email}</li>
                             <li><strong>Temporary Password: </strong>${defaultPassword}</li>
                           </ul>
                           For security purposes, you are required to reset your password immediately upon your first login.
@@ -81,14 +88,21 @@ async function createuser(req, res) {
                            <br>
                            <strong>Government of India</strong>
                           <br><br>`,
-                };
+                    };
 
-                await transporter.sendMail(mailOptions);
-                console.log("Email Sent Successfully");
-                return res.sendStatus(200);
-            } catch (emailError) {
-                console.error("Error sending email:", emailError);
-                return res.sendStatus(500);
+                    await transporter.sendMail(mailOptions);
+                    console.log("Email Sent Successfully");
+                } catch (emailError) {
+                    console.error("Error sending email:", emailError);
+                }
+
+                return res.status(200).json({
+                    message: "User created successfully",
+                    userId: newUserId,
+                });
+            } catch (insertError) {
+                console.error("Error creating user:", insertError);
+                return res.status(500).json({ message: "Failed to create user" });
             }
         }
     }
@@ -178,7 +192,7 @@ async function createNodalUser(req, res) {
                           Your user account has been successfully created. Please find your login credentials below:
                           <br><br>
                           <ul>
-                            <li><strong>User ID: </strong>${email}</li>
+                            <li><strong>Email: </strong>${email}</li>
                             <li><strong>Temporary Password: </strong>${defaultPassword}</li>
                           </ul>
                           For security purposes, you are required to reset your password immediately upon your first login.
@@ -215,12 +229,18 @@ async function getUserData(req, res) {
 
     try {
         const result = await conn.query(`SELECT tbl_user.user_id, tbl_user.title, tbl_user.name, tbl_user.designation,
-        tbl_user.role_id, tbl_role.role_name, tbl_user.organisation_id, tbl_user.wing_id, wing_name, tbl_user.division_id,
-        division_name, mmt_organisation.organisation_name, tbl_user.email, tbl_user.phone, tbl_user.status,
+        tbl_user.role_id, tbl_role.role_name, tbl_role.role_code, tbl_user.organisation_id, tbl_user.wing_id, wing_name, tbl_user.division_id,
+        division_name,
+        CASE
+          WHEN tbl_role.role_code = 'SUPERADMIN' THEN 'System (SUPERADMIN)'
+          ELSE mmt_organisation.oranisation_name
+        END AS organisation_name,
+        mmt_organisation.organisation_category_id,
+        tbl_user.email, tbl_user.phone, tbl_user.status,
         tbl_user.state_id, state_name, tbl_user.district_id, district_name, tbl_user.last_login
         FROM tbl_user
         INNER JOIN tbl_role on tbl_role.role_id = tbl_user.role_id
-        INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_user.organisation_id
+        LEFT JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_user.organisation_id
         LEFT JOIN mmt_state on mmt_state.state_id = tbl_user.state_id
         LEFT JOIN mmt_district on mmt_district.district_id = tbl_user.district_id
         LEFT JOIN mmt_wings on mmt_wings.wing_id = tbl_user.wing_id
@@ -251,8 +271,9 @@ async function getOrgUserData(req, res) {
                 tbl_user.designation, 
                 tbl_user.role_id, 
                 tbl_role.role_name,
+                tbl_role.role_code,
                 tbl_user.organisation_id, 
-                mmt_organisation.organisation_name, 
+                mmt_organisation.oranisation_name AS organisation_name, 
                 tbl_user.email, 
                 tbl_user.phone, 
                 tbl_user.status, 
@@ -300,16 +321,25 @@ async function updateUser(req, res) {
     request.input("email", email);
     request.input("phone", phone);
     request.input("loginUser", loginUser);
-     
-
-    
 
     try {
-        const result = await request.query(`UPDATE tbl_user SET title = @title, name = @name, designation = @designation,
+        const duplicate = await request.query(`
+            SELECT COUNT(*) AS count
+            FROM tbl_user
+            WHERE email = @email AND user_id <> @userID
+        `);
+
+        if (duplicate.recordset[0].count > 0) {
+            return res.status(409).json({
+                message: "Email already exists for another user",
+            });
+        }
+
+        await request.query(`UPDATE tbl_user SET title = @title, name = @name, designation = @designation,
         role_id = @role, organisation_id = @organisation, wing_id = @wingId, division_id = @divisionId, email = @email, 
         phone = @phone, updated_on = GETDATE(), updated_by = @loginUser WHERE user_id = @userID`);
 
-        res.sendStatus(200);
+        return res.status(200).json({ message: "User updated successfully" });
     }
     catch (err) {
         console.log(err);
@@ -667,7 +697,7 @@ async function getPermissionModulesData(req, res) {
                 ON m.module_id = mp.module_id
             INNER JOIN 
                 mmt_organisation o 
-                ON o.organisation_usermatrix_category_id = mp.organisation_usermatrix_category_id
+                ON o.organisation_category_id = mp.organisation_usermatrix_category_id
             LEFT JOIN 
                 tbl_usermatrix_user_module_crud_permission p 
                 ON p.module_id = mp.module_id AND p.user_id = @userId

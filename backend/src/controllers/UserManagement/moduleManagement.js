@@ -6,8 +6,8 @@ async function getModulePermissions(req, res) {
 
     try {
         const categoriesQuery = `
-            SELECT organisation_usermatrix_category_id, organisation_usermatrix_category_name 
-            FROM mmt_organisation_usermatrix_category
+            SELECT organisation_category_id, organisation_category_name 
+            FROM mmt_organisation_category
         `;
         const categories = await conn.request().query(categoriesQuery);
 
@@ -19,12 +19,15 @@ async function getModulePermissions(req, res) {
                     FROM tbl_modules m 
                     LEFT JOIN tbl_usermatrix_category_module_permission p 
                     ON m.module_id = p.module_id 
-                    AND p.organisation_usermatrix_category_id = ${category.organisation_usermatrix_category_id}
+                    AND p.organisation_usermatrix_category_id = ${category.organisation_category_id}
                 `;
                 const modules = await conn.request().query(modulesQuery);
                 return {
-                    organisation_usermatrix_category_id: category.organisation_usermatrix_category_id,
-                    organisation_usermatrix_category_name: category.organisation_usermatrix_category_name,
+                    organisation_category_id: category.organisation_category_id,
+                    organisation_category_name: category.organisation_category_name,
+                    // aliases for older UI that still reads usermatrix field names
+                    organisation_usermatrix_category_id: category.organisation_category_id,
+                    organisation_usermatrix_category_name: category.organisation_category_name,
                     modules: modules.recordset,
                 };
             })
@@ -107,7 +110,7 @@ async function getModulesByOrganisationCategory(req, res) {
             ON m.module_id = mp.module_id
         INNER JOIN 
             mmt_organisation o 
-            ON o.organisation_usermatrix_category_id = mp.organisation_usermatrix_category_id
+            ON o.organisation_category_id = mp.organisation_usermatrix_category_id
         WHERE 
             o.organisation_id = @organisationId 
             AND mp.permission = 1;
