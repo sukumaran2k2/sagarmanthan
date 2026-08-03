@@ -27,13 +27,11 @@ const Table = forwardRef(({
   const activeRef = ref || localGridRef;
   const [gridApi, setGridApi] = useState(null);
 
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
   const [pageSize, setPageSize] = useState(paginationPageSize);
 
-  // Sync pageSize state with paginationPageSize prop when changed dynamically from parent toolbar
   useEffect(() => {
     setPageSize(paginationPageSize);
   }, [paginationPageSize]);
@@ -132,7 +130,6 @@ const Table = forwardRef(({
     defaultMinWidth: 100
   };
 
-  // Pagination Ellipses Generator
   const getPageNumbers = () => {
     const pages = [];
     const maxVisiblePages = 5;
@@ -204,7 +201,6 @@ const Table = forwardRef(({
         </div>
       )}
 
-      {/* Main card box enclosing both the grid and custom pagination controls */}
       <div className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative shadow-sm bg-white dark:bg-slate-900`}>
         {loading && (
           <div className="absolute inset-0 bg-white/60 dark:bg-slate-950/60 z-10 flex items-center justify-center backdrop-blur-[1px]">
@@ -244,7 +240,6 @@ const Table = forwardRef(({
           />
         </div>
 
-        {/* Custom Pagination inside the same card border-wrapper */}
         {pagination && totalPages > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-150 dark:border-slate-700 select-none bg-slate-50/50 dark:bg-slate-950/50">
             <div className="text-[12.5px] font-semibold text-slate-550 dark:text-slate-400">
@@ -252,7 +247,6 @@ const Table = forwardRef(({
             </div>
 
             <div className="flex items-center space-x-1 font-sans">
-              {/* Previous page */}
               <button
                 type="button"
                 onClick={handlePrevPage}
@@ -267,7 +261,6 @@ const Table = forwardRef(({
                 <span>Previous</span>
               </button>
 
-              {/* Page numbers */}
               {pageNumbers.map((p, idx) => {
                 if (p === '...') {
                   return (
@@ -295,7 +288,6 @@ const Table = forwardRef(({
                 );
               })}
 
-              {/* Next page */}
               <button
                 type="button"
                 onClick={handleNextPage}

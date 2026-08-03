@@ -22,7 +22,6 @@ const SUPERADMIN_MENU_IDS = new Set([
   'userList',
 ]);
 
-// Menu / tab label → module_code
 const TAB_TO_MODULE = {
   // Projects
   dashboard: 'PROJECTS',

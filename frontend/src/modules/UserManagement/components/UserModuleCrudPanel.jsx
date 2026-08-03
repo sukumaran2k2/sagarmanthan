@@ -14,10 +14,6 @@ const PERM_LABELS = {
   delete: 'Delete',
 };
 
-/**
- * Module CRUD checklist for the user form.
- * Parent owns modules + draft. Create/Update/Delete auto-enable Read via toggleCrudPerm.
- */
 export default function UserModuleCrudPanel({
   modules = [],
   draft = {},

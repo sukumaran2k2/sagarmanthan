@@ -1,6 +1,5 @@
 import { PERMS } from './constants';
 
-/** Empty CRUD draft for a list of modules: { [moduleId]: { create, read, update, delete } } */
 export function emptyCrudDraft(modules = []) {
   const draft = {};
   modules.forEach((m) => {
@@ -9,7 +8,6 @@ export function emptyCrudDraft(modules = []) {
   return draft;
 }
 
-/** Map API CRUD rows onto modules → draft */
 export function draftFromCrudRows(modules = [], rows = []) {
   const byModule = {};
   rows.forEach((row) => {
@@ -28,7 +26,6 @@ export function draftFromCrudRows(modules = [], rows = []) {
   return draft;
 }
 
-/** Payload rows for saveUserModuleCrud */
 export function permissionsFromDraft(modules = [], draft = {}) {
   return modules.map((m) => ({
     moduleId: m.id,
@@ -39,10 +36,7 @@ export function permissionsFromDraft(modules = [], draft = {}) {
   }));
 }
 
-/**
- * Toggle one permission. Create / Update / Delete auto-enable Read.
- * Unchecking Read also clears Create / Update / Delete.
- */
+/** Create/Update/Delete imply Read; clearing Read clears the other three. */
 export function toggleCrudPerm(draft, moduleId, perm, value) {
   const current = draft[moduleId] || {
     create: false,
@@ -64,7 +58,6 @@ export function toggleCrudPerm(draft, moduleId, perm, value) {
   return { ...draft, [moduleId]: next };
 }
 
-/** Grant or revoke all CRUD flags for one module row */
 export function setRowCrudPerms(draft, moduleId, value) {
   return {
     ...draft,

@@ -301,9 +301,7 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
   animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* ---------------------------------------------------------------------------
- * Dark theme — mirrors app palette from index.css / ThemeContext (.dark on html)
- * --------------------------------------------------------------------------- */
+/* Dark theme */
 .dark .um-breadcrumb {
   color: #9ca3af;
   background: #111827;
