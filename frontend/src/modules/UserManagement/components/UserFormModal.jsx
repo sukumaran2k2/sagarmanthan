@@ -41,6 +41,7 @@ export default function UserFormModal({
   setFormCrudDraft,
   formCrudLoading = false,
   formError = '',
+  lockOrganisation = false,
 }) {
   if (!isOpen) return null;
 
@@ -101,7 +102,6 @@ export default function UserFormModal({
 
         <div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-4">
           <div className="h-full min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] gap-3 sm:gap-4">
-            {/* Profile column */}
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-y-auto p-4 sm:p-5 space-y-4 text-xs font-semibold text-slate-700 text-left min-h-0 max-h-[42vh] lg:max-h-none">
               <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide border-b border-slate-100 pb-2">
                 User profile
@@ -151,6 +151,7 @@ export default function UserFormModal({
                   value={formOrg}
                   onChange={(e) => setFormOrg(e.target.value)}
                   required
+                  disabled={lockOrganisation}
                   className={fieldClass}
                 >
                   <option value="">Select Organisation</option>
@@ -244,7 +245,6 @@ export default function UserFormModal({
               <p className="text-[10px] text-slate-400 italic">Fields marked with * are mandatory</p>
             </div>
 
-            {/* Permissions column — takes remaining width/height */}
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-5 min-h-0 flex flex-col overflow-hidden">
               <UserModuleCrudPanel
                 modules={formModules}

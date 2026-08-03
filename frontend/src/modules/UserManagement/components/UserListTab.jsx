@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Edit, RotateCcw, Shield, X, UserPlus } from 'lucide-react';
+import Table from '../../../components/Table';
 import { colorFromString, getInits, roleClassName } from '../utils';
 import { rbacApi } from '../rbacApi';
 
@@ -12,6 +13,38 @@ function CrudDot({ on, label }) {
       }`}
     >
       {label}
+    </span>
+  );
+}
+
+function NameCell({ data }) {
+  if (!data) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '100%' }}>
+      <div
+        className="avatar"
+        style={{
+          background: colorFromString(`${data.name}|${data.email}`),
+          width: '28px',
+          height: '28px',
+          fontSize: '.65rem',
+          flexShrink: 0,
+        }}
+      >
+        {getInits(data.name || '')}
+      </div>
+      <span style={{ fontWeight: 600, color: '#334155', textAlign: 'left' }}>
+        {data.title && `${data.title} `}
+        {data.name}
+      </span>
+    </div>
+  );
+}
+
+function RoleCell({ value }) {
+  return (
+    <span className={`role-text ${roleClassName(value || '')}`}>
+      {value || '—'}
     </span>
   );
 }
@@ -33,6 +66,9 @@ export default function UserListTab({
   toggleUserStatus,
   handleResetPassword,
   showToast,
+  hideOrgFilter = false,
+  bannerTitle,
+  bannerSub,
 }) {
   const [accessUser, setAccessUser] = useState(null);
   const [accessRows, setAccessRows] = useState([]);
@@ -60,38 +96,172 @@ export default function UserListTab({
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }, [dbUserList, organisations]);
 
-  const openAccess = async (user) => {
-    setAccessUser(user);
-    setAccessRows([]);
-    if (isUserSuperAdmin(user)) {
-      setAccessIsSuperAdmin(true);
-      setAccessLoading(false);
-      return;
-    }
-    setAccessIsSuperAdmin(false);
-    setAccessLoading(true);
-    try {
-      const res = await rbacApi.getUserModuleCrud(
-        [user.user_id],
-        user.organisation_id || undefined
-      );
-      const rows = (res.data || []).filter(
-        (r) => r.can_create || r.can_read || r.can_update || r.can_delete
-      );
-      setAccessRows(rows);
-    } catch {
-      showToast?.('Failed to load user access', '#EF4444');
-      setAccessUser(null);
-    } finally {
-      setAccessLoading(false);
-    }
-  };
+  const openAccess = useCallback(
+    async (user) => {
+      setAccessUser(user);
+      setAccessRows([]);
+      if (isUserSuperAdmin(user)) {
+        setAccessIsSuperAdmin(true);
+        setAccessLoading(false);
+        return;
+      }
+      setAccessIsSuperAdmin(false);
+      setAccessLoading(true);
+      try {
+        const res = await rbacApi.getUserModuleCrud(
+          [user.user_id],
+          user.organisation_id || undefined
+        );
+        const rows = (res.data || []).filter(
+          (r) => r.can_create || r.can_read || r.can_update || r.can_delete
+        );
+        setAccessRows(rows);
+      } catch {
+        showToast?.('Failed to load user access', '#EF4444');
+        setAccessUser(null);
+      } finally {
+        setAccessLoading(false);
+      }
+    },
+    [showToast]
+  );
 
   const closeAccess = () => {
     setAccessUser(null);
     setAccessRows([]);
     setAccessIsSuperAdmin(false);
   };
+
+  const columnDefs = useMemo(
+    () => [
+      {
+        headerName: 'S.No',
+        valueGetter: (params) => (params.node?.rowIndex ?? 0) + 1,
+        width: 80,
+        maxWidth: 90,
+        sortable: false,
+        filter: false,
+        cellClass: 'text-center font-semibold text-slate-500',
+      },
+      {
+        headerName: 'User Name',
+        field: 'name',
+        minWidth: 200,
+        flex: 1.4,
+        cellStyle: { textAlign: 'left', display: 'flex', alignItems: 'center' },
+        cellRenderer: NameCell,
+        valueGetter: (params) =>
+          `${params.data?.title ? `${params.data.title} ` : ''}${params.data?.name || ''}`,
+      },
+      {
+        headerName: 'Designation',
+        field: 'designation',
+        minWidth: 140,
+        flex: 1,
+        valueFormatter: (params) => params.value || '—',
+      },
+      {
+        headerName: 'Organisation',
+        field: 'organisation_name',
+        minWidth: 180,
+        flex: 1.2,
+        valueFormatter: (params) => params.value || '—',
+      },
+      {
+        headerName: 'Role',
+        field: 'role_name',
+        minWidth: 140,
+        flex: 1,
+        cellRenderer: RoleCell,
+      },
+      {
+        headerName: 'Phone Number',
+        field: 'phone',
+        minWidth: 130,
+        width: 140,
+        cellClass: 'font-mono text-slate-600',
+        valueFormatter: (params) => params.value || '—',
+      },
+      {
+        headerName: 'Access',
+        field: 'user_id',
+        width: 90,
+        sortable: false,
+        filter: false,
+        cellRenderer: (params) => (
+          <button
+            type="button"
+            onClick={() => openAccess(params.data)}
+            className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg cursor-pointer transition-all active:scale-90"
+            style={{ border: 'none', background: 'none' }}
+            title="View module access"
+          >
+            <Shield size={16} />
+          </button>
+        ),
+      },
+      {
+        headerName: 'Edit',
+        colId: 'edit',
+        width: 80,
+        sortable: false,
+        filter: false,
+        cellRenderer: (params) => (
+          <button
+            type="button"
+            onClick={() => handleOpenEdit(params.data)}
+            className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg cursor-pointer transition-all active:scale-90"
+            style={{ border: 'none', background: 'none' }}
+            title="Edit User"
+          >
+            <Edit size={16} />
+          </button>
+        ),
+      },
+      {
+        headerName: 'Status',
+        field: 'status',
+        width: 90,
+        sortable: false,
+        filter: false,
+        cellRenderer: (params) => (
+          <label className="toggle-switch" style={{ margin: '0 auto' }}>
+            <input
+              type="checkbox"
+              checked={params.data?.status === 1}
+              onChange={(e) => toggleUserStatus(params.data, e.target.checked)}
+            />
+            <span className="toggle-slider" />
+          </label>
+        ),
+      },
+      {
+        headerName: 'Reset Password',
+        colId: 'reset',
+        width: 130,
+        sortable: false,
+        filter: false,
+        cellRenderer: (params) => (
+          <button
+            type="button"
+            onClick={() => handleResetPassword(params.data)}
+            className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg cursor-pointer transition-all active:scale-90"
+            style={{
+              border: '1px solid #E2E8F0',
+              background: '#F8FAFC',
+              borderRadius: '6px',
+            }}
+            title="Reset Password"
+          >
+            <RotateCcw size={15} />
+          </button>
+        ),
+      },
+    ],
+    [openAccess, handleOpenEdit, toggleUserStatus, handleResetPassword]
+  );
+
+  const getRowId = useCallback((params) => String(params.data.user_id), []);
 
   return (
     <div className="main" style={{ flex: 1, height: '100%', position: 'relative' }}>
@@ -101,28 +271,31 @@ export default function UserListTab({
             👥
           </div>
           <div>
-            <div className="banner-name">All users</div>
+            <div className="banner-name">{bannerTitle || 'All users'}</div>
             <div className="banner-sub">
-              Filter by organisation or role, then open Access or Edit as needed.
+              {bannerSub ||
+                'Filter by organisation or role, then open Access or Edit as needed.'}
             </div>
           </div>
         </div>
         <div className="banner-actions topbar-filters" style={{ flex: '0 1 auto', alignItems: 'flex-end' }}>
-          <div className="filter-field" style={{ maxWidth: '200px' }}>
-            <label htmlFor="um-list-org">Organisation</label>
-            <select
-              id="um-list-org"
-              value={selectedDbOrg}
-              onChange={(e) => setSelectedDbOrg(e.target.value)}
-            >
-              <option value="All">All organisations</option>
-              {orgOptions.map((o) => (
-                <option key={o.id} value={String(o.id)}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!hideOrgFilter && (
+            <div className="filter-field" style={{ maxWidth: '200px' }}>
+              <label htmlFor="um-list-org">Organisation</label>
+              <select
+                id="um-list-org"
+                value={selectedDbOrg}
+                onChange={(e) => setSelectedDbOrg(e.target.value)}
+              >
+                <option value="All">All organisations</option>
+                {orgOptions.map((o) => (
+                  <option key={o.id} value={String(o.id)}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="filter-field" style={{ maxWidth: '180px' }}>
             <label htmlFor="um-list-role">Role</label>
             <select
@@ -165,126 +338,22 @@ export default function UserListTab({
       </div>
 
       <div className="table-area">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width: '60px' }}>S.No</th>
-                <th>User Name</th>
-                <th>Designation</th>
-                <th>Organisation</th>
-                <th>Role</th>
-                <th style={{ width: '130px' }}>Phone Number</th>
-                <th style={{ width: '80px', textAlign: 'center' }}>Access</th>
-                <th style={{ width: '80px', textAlign: 'center' }}>Edit</th>
-                <th style={{ width: '90px', textAlign: 'center' }}>Status</th>
-                <th style={{ width: '120px', textAlign: 'center' }}>Reset Password</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dbLoading ? (
-                <tr>
-                  <td colSpan="10" className="empty">
-                    Loading users from database...
-                  </td>
-                </tr>
-              ) : filteredDbUsers.length === 0 ? (
-                <tr>
-                  <td colSpan="10" className="empty">
-                    No users found matching search criteria.
-                  </td>
-                </tr>
-              ) : (
-                filteredDbUsers.map((u, index) => (
-                  <tr key={u.user_id}>
-                    <td>{index + 1}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div
-                          className="avatar"
-                          style={{
-                            background: colorFromString(`${u.name}|${u.email}`),
-                            width: '28px',
-                            height: '28px',
-                            fontSize: '.65rem',
-                          }}
-                        >
-                          {getInits(u.name || '')}
-                        </div>
-                        <span style={{ font: 'inherit', fontWeight: 600, color: '#334155' }}>
-                          {u.title && `${u.title} `}
-                          {u.name}
-                        </span>
-                      </div>
-                    </td>
-                    <td>{u.designation || '—'}</td>
-                    <td>{u.organisation_name || '—'}</td>
-                    <td>
-                      <span
-                        className={`role-pill ${roleClassName(u.role_name || '')}`}
-                        style={{ fontSize: '.7rem', padding: '2px 8px' }}
-                      >
-                        {u.role_name}
-                      </span>
-                    </td>
-                    <td style={{ color: '#475569', fontFamily: 'monospace' }}>
-                      {u.phone || '—'}
-                    </td>
-                    <td className="c">
-                      <button
-                        onClick={() => openAccess(u)}
-                        className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg cursor-pointer transition-all active:scale-90"
-                        style={{ border: 'none', background: 'none' }}
-                        title="View module access"
-                      >
-                        <Shield size={16} />
-                      </button>
-                    </td>
-                    <td className="c">
-                      <button
-                        onClick={() => handleOpenEdit(u)}
-                        className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg cursor-pointer transition-all active:scale-90"
-                        style={{ border: 'none', background: 'none' }}
-                        title="Edit User"
-                      >
-                        <Edit size={16} />
-                      </button>
-                    </td>
-                    <td className="c">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={u.status === 1}
-                          onChange={(e) => toggleUserStatus(u, e.target.checked)}
-                        />
-                        <span className="toggle-slider" />
-                      </label>
-                    </td>
-                    <td className="c">
-                      <button
-                        onClick={() => handleResetPassword(u)}
-                        className="p-1.5 hover:bg-slate-100 text-slate-655 rounded-lg cursor-pointer transition-all active:scale-90"
-                        style={{
-                          border: '1px solid #E2E8F0',
-                          background: '#F8FAFC',
-                          borderRadius: '6px',
-                        }}
-                        title="Reset Password"
-                      >
-                        <RotateCcw size={15} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-          <div className="table-footer">
-            <span>
-              Showing {filteredDbUsers.length} of {dbUserList.length} users
-            </span>
-          </div>
-        </div>
+        <Table
+          rowData={filteredDbUsers}
+          columnDefs={columnDefs}
+          loading={dbLoading}
+          pagination
+          paginationPageSize={20}
+          getRowId={getRowId}
+          color="#0f417a"
+          defaultColDef={{
+            sortable: true,
+            filter: false,
+            resizable: true,
+            cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
+          }}
+          overlayNoRowsTemplate="No users found matching search criteria."
+        />
       </div>
 
       {accessUser && (

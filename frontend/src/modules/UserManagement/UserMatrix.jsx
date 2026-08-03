@@ -4,7 +4,7 @@ import api, { rbacApi } from './rbacApi';
 import './UserMatrix.css';
 import { colorFromString } from './utils';
 import { PERMS } from './constants';
-import { getCurrentUserId } from '../../utils/authSession';
+import { getCurrentUserId, getSessionOrganisationId, getSessionOrganisationName, isNodalOfficerRole, isOrgSeniorOfficer } from '../../utils/authSession';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST } from '../../utils/moduleAccess';
 
 import UserPermissionsTab from './components/UserPermissionsTab';
@@ -24,6 +24,7 @@ const PERMISSION_NAV = [
     label: 'Users',
     items: [
       { key: 'users', label: 'Update', hint: 'Edit CRUD access' },
+      { key: 'userlist', label: 'List', hint: 'Browse & manage users' },
     ],
   },
   {
@@ -74,7 +75,9 @@ function mapUser(row) {
 }
 
 export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
-  const isUserList = mode === 'userlist';
+  const isSeniorOfficer = isOrgSeniorOfficer();
+  const seniorOrgId = getSessionOrganisationId();
+  const isUserList = mode === 'userlist' || isSeniorOfficer;
   const [activeMainTab, setActiveMainTab] = useState(isUserList ? 'userlist' : 'users');
   const [saving, setSaving] = useState(false);
 
@@ -304,7 +307,6 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
     if (ids.length > 0 && masterModules.length > 0) {
       loadOrgModuleState(ids);
     }
-    // avoid loop if loadOrgModuleState is in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModuleOrgIds, masterModules]);
 
@@ -525,16 +527,26 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
   useEffect(() => {
     if (activeMainTab !== 'userlist') return;
     setDbLoading(true);
-    api
-      .get('/userlist')
-      .then((res) => setDbUserList(res.data || []))
+
+    const request = isSeniorOfficer && seniorOrgId
+      ? api.get(`/org-userlist/${seniorOrgId}`)
+      : api.get('/userlist');
+
+    request
+      .then((res) => {
+        let rows = res.data || [];
+        if (isSeniorOfficer) {
+          rows = rows.filter((u) => isNodalOfficerRole(u));
+        }
+        setDbUserList(rows);
+      })
       .catch(() => showToast('Failed to load users', '#EF4444'))
       .finally(() => setDbLoading(false));
-  }, [activeMainTab, showToast]);
+  }, [activeMainTab, showToast, isSeniorOfficer, seniorOrgId]);
 
   const filteredDbUsers = useMemo(() => {
     let result = dbUserList;
-    if (selectedDbOrg !== 'All') {
+    if (!isSeniorOfficer && selectedDbOrg !== 'All') {
       result = result.filter((u) => u.organisation_id === Number(selectedDbOrg));
     }
     if (selectedDbRole !== 'All') {
@@ -550,7 +562,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
       );
     }
     return result;
-  }, [dbUserList, userListSearch, selectedDbRole, selectedDbOrg]);
+  }, [dbUserList, userListSearch, selectedDbRole, selectedDbOrg, isSeniorOfficer]);
 
   const resetUserForm = () => {
     setFormTitle('Mr');
@@ -569,7 +581,6 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
     setEditingUser(null);
   };
 
-  // Load org-allowed modules (+ existing CRUD when editing) for the user form
   useEffect(() => {
     if (!isUserFormOpen || !formOrg) {
       setFormModules([]);
@@ -630,16 +641,29 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
   const handleOpenAdd = () => {
     resetUserForm();
     setUserFormMode('add');
+    if (isSeniorOfficer && seniorOrgId) {
+      setFormOrg(String(seniorOrgId));
+      const nodalRoles = (masterRoles || []).filter(
+        (r) => r.is_active !== 0 && r.is_active !== false && isNodalOfficerRole(r)
+      );
+      if (nodalRoles.length === 1) {
+        setFormRole(String(nodalRoles[0].role_id));
+      }
+    }
     setIsUserFormOpen(true);
   };
 
   const handleOpenEdit = (u) => {
+    if (isSeniorOfficer && !isNodalOfficerRole(u)) {
+      showToast('You can only manage Nodal Officers in your organisation', '#F59E0B');
+      return;
+    }
     setEditingUser(u);
     setUserFormMode('edit');
     setFormTitle(u.title || 'Mr');
     setFormName(u.name || '');
     setFormDesignation(u.designation || '');
-    setFormOrg(u.organisation_id || '');
+    setFormOrg(u.organisation_id || (isSeniorOfficer ? seniorOrgId : '') || '');
     setFormRole(u.role_id || '');
     setFormWing(u.wing_id || '');
     setFormDivision(u.division_id || '');
@@ -648,8 +672,18 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
     setIsUserFormOpen(true);
   };
 
-  const refreshUserList = () =>
-    api.get('/userlist').then((res) => setDbUserList(res.data || []));
+  const refreshUserList = () => {
+    const request = isSeniorOfficer && seniorOrgId
+      ? api.get(`/org-userlist/${seniorOrgId}`)
+      : api.get('/userlist');
+    return request.then((res) => {
+      let rows = res.data || [];
+      if (isSeniorOfficer) {
+        rows = rows.filter((u) => isNodalOfficerRole(u));
+      }
+      setDbUserList(rows);
+    });
+  };
 
   const saveFormModuleCrud = async (userId) => {
     if (!userId || formModules.length === 0) return;
@@ -668,6 +702,22 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
       setFormError(msg);
       showToast(msg, '#F59E0B');
       return;
+    }
+
+    if (isSeniorOfficer) {
+      if (Number(formOrg) !== Number(seniorOrgId)) {
+        const msg = 'You can only add users to your organisation';
+        setFormError(msg);
+        showToast(msg, '#F59E0B');
+        return;
+      }
+      const roleMeta = (masterRoles || []).find((r) => Number(r.role_id) === Number(formRole));
+      if (!isNodalOfficerRole(roleMeta || {})) {
+        const msg = 'You can only add Nodal Officers';
+        setFormError(msg);
+        showToast(msg, '#F59E0B');
+        return;
+      }
     }
 
     const actorId = getCurrentUserId() || null;
@@ -693,7 +743,6 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
 
     request
       .then(async (res) => {
-        // Legacy 205 support if an older backend is still running
         if (res?.status === 205 || res?.status === 409) {
           const msg =
             res?.data?.message ||
@@ -794,6 +843,31 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
     [masterRoles]
   );
 
+  const formOrgs = useMemo(() => {
+    if (!isSeniorOfficer || !seniorOrgId) return masterOrgs;
+    const matched = (masterOrgs || []).filter(
+      (o) => Number(o.organisation_id) === Number(seniorOrgId)
+    );
+    if (matched.length) return matched;
+    return [
+      {
+        organisation_id: seniorOrgId,
+        organisation_name:
+          getSessionOrganisationName() || `Organisation ${seniorOrgId}`,
+      },
+    ];
+  }, [isSeniorOfficer, seniorOrgId, masterOrgs]);
+
+  const formRoles = useMemo(() => {
+    if (!isSeniorOfficer) return activeRoles;
+    return activeRoles.filter((r) => isNodalOfficerRole(r));
+  }, [isSeniorOfficer, activeRoles]);
+
+  const listRoles = useMemo(() => {
+    if (!isSeniorOfficer) return masterRoles;
+    return (masterRoles || []).filter((r) => isNodalOfficerRole(r));
+  }, [isSeniorOfficer, masterRoles]);
+
   return (
     <div className="user-matrix-page animate-fade-in">
       <div className="um-page-header">
@@ -804,7 +878,11 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
           />
           <span className="text-slate-300">/</span>
           <span className="text-blue-800 font-bold">
-            {isUserList ? TAB_USER_LIST : TAB_USER_MODULE_PERMISSION}
+            {isSeniorOfficer
+              ? TAB_USER_MODULE_PERMISSION
+              : isUserList
+                ? TAB_USER_LIST
+                : TAB_USER_MODULE_PERMISSION}
           </span>
         </div>
 
@@ -963,15 +1041,22 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
               setSelectedDbRole={setSelectedDbRole}
               selectedDbOrg={selectedDbOrg}
               setSelectedDbOrg={setSelectedDbOrg}
-              organisations={organisations}
+              organisations={isSeniorOfficer ? formOrgs : organisations}
               dbLoading={dbLoading}
               filteredDbUsers={filteredDbUsers}
-              masterRoles={masterRoles}
+              masterRoles={listRoles}
               handleOpenAdd={handleOpenAdd}
               handleOpenEdit={handleOpenEdit}
               toggleUserStatus={toggleUserStatus}
               handleResetPassword={handleResetPassword}
               showToast={showToast}
+              hideOrgFilter={isSeniorOfficer}
+              bannerTitle={isSeniorOfficer ? 'Organisation Nodal Officers' : undefined}
+              bannerSub={
+                isSeniorOfficer
+                  ? 'Add and manage Nodal Officers for your organisation. Set module Create / Read / Update / Delete when adding or editing.'
+                  : undefined
+              }
             />
           )}
         </div>
@@ -1003,8 +1088,8 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
           setFormPhone={setFormPhone}
           formEmail={formEmail}
           setFormEmail={setFormEmail}
-          masterOrgs={masterOrgs}
-          masterRoles={activeRoles}
+          masterOrgs={formOrgs}
+          masterRoles={formRoles}
           masterWings={masterWings}
           masterDivisions={masterDivisions}
           formModules={formModules}
@@ -1012,6 +1097,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
           setFormCrudDraft={setFormCrudDraft}
           formCrudLoading={formCrudLoading}
           formError={formError}
+          lockOrganisation={isSeniorOfficer}
         />
 
         {toastVisible && (

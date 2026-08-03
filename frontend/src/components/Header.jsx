@@ -3,7 +3,7 @@ import { ChevronDown, Globe, Type, Sun, Moon } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import { useTheme } from '../context/ThemeContext.jsx';
 import axios from 'axios';
-import { isSuperAdmin } from '../utils/authSession';
+import { isOrgSeniorOfficer } from '../utils/authSession';
 import { TAB_USER_MODULE_PERMISSION } from '../utils/moduleAccess';
 
 function decodeToken(token) {
@@ -289,7 +289,7 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
                   {showAvatarDropdown && (
                     <div className="absolute right-0 w-48 mt-2 py-1 bg-[#0a2540] border border-white/10 rounded-xl shadow-2xl z-50 transition-all duration-200">
                       <a href="#profile" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onProfileClick(); }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">Profile Settings</a>
-                      {isSuperAdmin() && (
+                      {isOrgSeniorOfficer() && (
                         <a href="#usermanagement" onClick={(e) => { e.preventDefault(); setShowAvatarDropdown(false); onUserManagementClick(); }} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">{TAB_USER_MODULE_PERMISSION}</a>
                       )}
                       <a href="#manual" onClick={() => setShowAvatarDropdown(false)} className="block px-4 py-2 text-xs text-slate-200 hover:bg-white/10 hover:text-white">User Manual</a>

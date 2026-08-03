@@ -1,4 +1,4 @@
-import { getSessionClaims, isSuperAdmin } from './authSession';
+import { getSessionClaims, isOrgSeniorOfficer, isSuperAdmin } from './authSession';
 
 export const TAB_USER_MODULE_PERMISSION = 'User/Module Permission';
 export const TAB_USER_LIST = 'User List';
@@ -14,6 +14,8 @@ const SUPERADMIN_TABS = new Set([
   TAB_USER_MODULE_PERMISSION,
   TAB_USER_LIST,
 ]);
+
+const SENIOR_OFFICER_TABS = new Set([TAB_USER_MODULE_PERMISSION]);
 
 const SUPERADMIN_MENU_IDS = new Set([
   'userModulePermission',
@@ -172,7 +174,7 @@ export function isSuperAdminTab(tab) {
 
 export function usesOwnPageHeader(tab) {
   const t = normalizeTab(tab);
-  return t === 'landing' || SUPERADMIN_TABS.has(t);
+  return t === 'landing' || SUPERADMIN_TABS.has(t) || SENIOR_OFFICER_TABS.has(t);
 }
 
 export function canAccessTab(tab) {
@@ -181,6 +183,10 @@ export function canAccessTab(tab) {
   const key = resolveTabKey(tab);
 
   if (PUBLIC_TABS.has(tab) || PUBLIC_TABS.has(key)) return true;
+
+  if (SENIOR_OFFICER_TABS.has(key) || SENIOR_OFFICER_TABS.has(normalizeTab(tab))) {
+    if (isOrgSeniorOfficer()) return true;
+  }
 
   if (SUPERADMIN_TABS.has(key) || SUPERADMIN_TABS.has(normalizeTab(tab))) {
     return isSuperAdmin();

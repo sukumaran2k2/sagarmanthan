@@ -209,6 +209,23 @@
 .user-matrix-container .role-mopsw-admin { background: #EEF2FF; color: #4F46E5; }
 .user-matrix-container .role-superadmin { background: #FEF2F2; color: #EF4444; }
 .user-matrix-container .role-mopsw-wing-head { background: #FFF7ED; color: #C2410C; }
+
+.user-matrix-container .role-text {
+  font-size: .78rem;
+  font-weight: 700;
+  color: #475569;
+  background: transparent !important;
+  padding: 0;
+  border-radius: 0;
+  margin: 0;
+}
+.user-matrix-container .role-text.role-wing-division-user { color: #1D4ED8; }
+.user-matrix-container .role-text.role-senior-officer { color: #15803D; }
+.user-matrix-container .role-text.role-nodal-officer { color: #C2410C; }
+.user-matrix-container .role-text.role-mixed { color: #6D28D9; }
+.user-matrix-container .role-text.role-mopsw-admin { color: #4F46E5; }
+.user-matrix-container .role-text.role-superadmin { color: #EF4444; }
+.user-matrix-container .role-text.role-mopsw-wing-head { color: #C2410C; }
 .user-matrix-container .banner-actions { display: flex; align-items: center; gap: 8px; flex-wrap:wrap; }
 .user-matrix-container .grant-all-btn { background: #F0FDF4; color: #15803D; border: 1.5px solid #BBF7D0; border-radius: 7px; padding: 7px 14px; font-size: .8rem; font-weight: 600; cursor: pointer; transition: all .15s; }
 .user-matrix-container .grant-all-btn:hover { background: #DCFCE7; }

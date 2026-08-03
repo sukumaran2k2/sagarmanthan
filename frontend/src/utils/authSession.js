@@ -34,3 +34,31 @@ export function isSuperAdmin() {
   const name = (claims.roleName || '').toLowerCase();
   return name.includes('superadmin') || name === 'super admin';
 }
+
+export function getSessionOrganisationId() {
+  const claims = getSessionClaims();
+  if (!claims) return null;
+  const raw = claims.organisationId ?? claims.organisation_id;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function getSessionOrganisationName() {
+  const claims = getSessionClaims();
+  return claims?.organisationName || claims?.organisation_name || null;
+}
+
+export function isOrgSeniorOfficer() {
+  const claims = getSessionClaims();
+  if (!claims || isSuperAdmin()) return false;
+  const code = String(claims.roleCode || '').toUpperCase();
+  const name = String(claims.roleName || '').toLowerCase();
+  if (code.includes('SENIOR')) return true;
+  return name.includes('senior officer');
+}
+
+export function isNodalOfficerRole(role) {
+  const code = String(role?.role_code || role?.roleCode || '').toUpperCase();
+  const name = String(role?.role_name || role?.roleName || role || '').toLowerCase();
+  return code.includes('NODAL') || name.includes('nodal officer');
+}
