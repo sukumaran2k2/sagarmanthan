@@ -1,10 +1,6 @@
-import React from 'react';
+﻿import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-/**
- * Shared YP-Report Styled Custom Table Pagination Component
- * Displays "Showing X to Y of Z entries" and numbered page buttons with active highlighting.
- */
 export default function TablePagination({
   currentPage = 0,
   totalPages = 0,
@@ -17,7 +13,6 @@ export default function TablePagination({
 }) {
   if (!totalPages || totalPages <= 0) return null;
 
-  // Compute page numbers with ellipses
   const getPageNumbers = () => {
     const pages = [];
     const maxVisiblePages = 5;
@@ -60,25 +55,22 @@ export default function TablePagination({
   const endRow = Math.min((currentPage + 1) * pageSize, totalRows);
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-200 select-none bg-slate-50/70 font-sans shadow-2xs">
-      {/* Counter label */}
-      <div className="text-xs font-semibold text-slate-600">
-        Showing <span className="font-bold text-slate-800">{startRow}</span> to{' '}
-        <span className="font-bold text-slate-800">{endRow}</span> of{' '}
-        <span className="font-bold text-slate-900">{totalRows}</span> entries
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-200 dark:border-slate-700 select-none bg-slate-50/70 dark:bg-slate-950/50 font-sans shadow-2xs">
+      <div className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+        Showing <span className="font-bold text-slate-800 dark:text-slate-100">{startRow}</span> to{' '}
+        <span className="font-bold text-slate-800 dark:text-slate-100">{endRow}</span> of{' '}
+        <span className="font-bold text-slate-900 dark:text-slate-100">{totalRows}</span> entries
       </div>
 
-      {/* Button controls */}
       <div className="flex items-center space-x-1">
-        {/* Previous page */}
         <button
           type="button"
           onClick={onPrevPage || (() => onPageChange && onPageChange(currentPage - 1))}
           disabled={currentPage === 0}
           className={`flex items-center justify-center px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer select-none ${
             currentPage === 0
-              ? 'bg-white text-slate-300 border-slate-200 cursor-not-allowed'
-              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 shadow-2xs'
+              ? 'bg-white dark:bg-slate-900 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-2xs'
           }`}
           style={currentPage !== 0 ? { color: color } : {}}
         >
@@ -86,11 +78,10 @@ export default function TablePagination({
           <span>Previous</span>
         </button>
 
-        {/* Page number pills */}
         {pageNumbers.map((p, idx) => {
           if (p === '...') {
             return (
-              <span key={`dots-${idx}`} className="px-2 text-slate-400 text-xs font-bold select-none">
+              <span key={`dots-${idx}`} className="px-2 text-slate-400 dark:text-slate-500 text-xs font-bold select-none">
                 ...
               </span>
             );
@@ -105,7 +96,7 @@ export default function TablePagination({
               className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition cursor-pointer select-none ${
                 isActive
                   ? 'text-white border shadow-xs'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 shadow-2xs'
+                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-2xs'
               }`}
               style={isActive ? { backgroundColor: color, borderColor: color } : {}}
             >
@@ -114,15 +105,14 @@ export default function TablePagination({
           );
         })}
 
-        {/* Next page */}
         <button
           type="button"
           onClick={onNextPage || (() => onPageChange && onPageChange(currentPage + 1))}
           disabled={currentPage === totalPages - 1}
           className={`flex items-center justify-center px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer select-none ${
             currentPage === totalPages - 1
-              ? 'bg-white text-slate-300 border-slate-200 cursor-not-allowed'
-              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 shadow-2xs'
+              ? 'bg-white dark:bg-slate-900 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-2xs'
           }`}
           style={currentPage !== totalPages - 1 ? { color: color } : {}}
         >
