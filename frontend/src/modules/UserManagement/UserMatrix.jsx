@@ -876,11 +876,11 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
       <div className="um-page-header">
         <div className="um-breadcrumb">
           <Home
-            className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors"
+            className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 cursor-pointer hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
             onClick={onGoHome}
           />
-          <span className="text-slate-300">/</span>
-          <span className="text-blue-800 font-bold">
+          <span className="text-slate-300 dark:text-slate-600">/</span>
+          <span className="text-blue-800 dark:text-blue-300 font-bold">
             {isSeniorOfficer
               ? TAB_USER_MODULE_PERMISSION
               : isUserList
@@ -914,7 +914,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
         )}
       </div>
 
-      <div className="user-matrix-container w-full h-[85vh] bg-[#F8FAFC] text-[#1E293B] flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200">
+      <div className="user-matrix-container w-full h-[85vh] bg-[#F8FAFC] dark:bg-[#0b0f19] text-[#1E293B] dark:text-slate-100 flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
         <div className="topbar">
           <div className="topbar-left">
             <div className="topbar-brand">

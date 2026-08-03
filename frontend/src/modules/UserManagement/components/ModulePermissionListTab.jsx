@@ -107,7 +107,7 @@ export default function ModulePermissionListTab({
             return (
               <div key={cat.category_id}>
                 <div
-                  className="user-item flex items-center justify-between py-2 px-3 border-b cursor-pointer hover:bg-slate-50 font-bold"
+                  className="user-item flex items-center justify-between py-2 px-3 border-b dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 font-bold"
                   onClick={() =>
                     setExpandedParents((prev) => {
                       const next = new Set(prev);
@@ -136,10 +136,10 @@ export default function ModulePermissionListTab({
                   children.map((org) => (
                     <div
                       key={org.organisation_id}
-                      className={`user-item pl-7 pr-3 py-2 cursor-pointer border-b ${
+                      className={`user-item pl-7 pr-3 py-2 cursor-pointer border-b dark:border-slate-800 ${
                         selectedOrgId === org.organisation_id
-                          ? 'selected bg-blue-50 font-bold'
-                          : 'hover:bg-slate-50'
+                          ? 'selected bg-blue-50 dark:bg-blue-950/50 font-bold'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                       onClick={() => setSelectedOrgId(org.organisation_id)}
                     >
@@ -178,7 +178,7 @@ export default function ModulePermissionListTab({
               />
             </div>
             {selectedOrgId && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                 <Eye size={13} />
                 {loading ? 'Loading…' : `${allowedCount} allowed`}
               </span>
@@ -235,8 +235,8 @@ export default function ModulePermissionListTab({
                           <span
                             className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${
                               on
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : 'bg-slate-100 text-slate-500'
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                             }`}
                           >
                             {on ? 'Allowed' : 'Denied'}

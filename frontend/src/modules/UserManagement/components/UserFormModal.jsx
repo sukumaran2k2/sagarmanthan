@@ -3,10 +3,10 @@ import { Edit, UserPlus } from 'lucide-react';
 import UserModuleCrudPanel from './UserModuleCrudPanel';
 
 const fieldClass =
-  'w-full text-xs pl-3 pr-8 py-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-500';
+  'w-full text-xs pl-3 pr-8 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500';
 const inputClass =
-  'w-full pl-3 pr-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs';
-const labelClass = 'block text-[11px] font-bold text-slate-500 uppercase mb-1.5';
+  'w-full pl-3 pr-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs';
+const labelClass = 'block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5';
 
 export default function UserFormModal({
   isOpen,
@@ -50,18 +50,18 @@ export default function UserFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-slate-100/95 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex flex-col bg-slate-100/95 dark:bg-slate-950/95 backdrop-blur-sm animate-fade-in"
       style={{ zIndex: 9999 }}
     >
       <form onSubmit={onSubmit} className="flex flex-col h-full min-h-0">
-        <div className="shrink-0 flex items-center justify-between gap-4 px-4 sm:px-6 py-3.5 bg-white border-b border-slate-200 shadow-sm">
+        <div className="shrink-0 flex items-center justify-between gap-4 px-4 sm:px-6 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center gap-2 min-w-0">
-            <TitleIcon className="h-5 w-5 text-blue-700 shrink-0" />
+            <TitleIcon className="h-5 w-5 text-blue-700 dark:text-blue-400 shrink-0" />
             <div className="min-w-0">
-              <h2 className="text-base font-black text-[#0f417a] uppercase tracking-wide truncate">
+              <h2 className="text-base font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide truncate">
                 {isAdd ? 'Add User' : 'Update User'}
               </h2>
-              <p className="text-[11px] text-slate-500 font-medium truncate">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
                 Profile details and module Create / Read / Update / Delete access
               </p>
             </div>
@@ -71,7 +71,7 @@ export default function UserFormModal({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 cursor-pointer font-bold text-xs"
+              className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer font-bold text-xs"
             >
               Cancel
             </button>
@@ -85,7 +85,7 @@ export default function UserFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer ml-1"
+              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ml-1"
               style={{ border: 'none', background: 'none', fontSize: '1.15rem', fontWeight: 'bold' }}
               aria-label="Close"
             >
@@ -95,15 +95,15 @@ export default function UserFormModal({
         </div>
 
         {formError ? (
-          <div className="shrink-0 mx-3 sm:mx-4 mt-3 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm font-semibold">
+          <div className="shrink-0 mx-3 sm:mx-4 mt-3 px-4 py-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 text-sm font-semibold">
             {formError}
           </div>
         ) : null}
 
         <div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-4">
           <div className="h-full min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] gap-3 sm:gap-4">
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-y-auto p-4 sm:p-5 space-y-4 text-xs font-semibold text-slate-700 text-left min-h-0 max-h-[42vh] lg:max-h-none">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide border-b border-slate-100 pb-2">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm overflow-y-auto p-4 sm:p-5 space-y-4 text-xs font-semibold text-slate-700 dark:text-slate-200 text-left min-h-0 max-h-[42vh] lg:max-h-none">
+              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-2">
                 User profile
               </div>
 
@@ -237,15 +237,15 @@ export default function UserFormModal({
               </div>
 
               {isAdd && (
-                <p className="text-[10px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-medium">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 font-medium">
                   Default password will be set to <strong>Sagarmanthan@123</strong> and shared by email when possible.
                 </p>
               )}
 
-              <p className="text-[10px] text-slate-400 italic">Fields marked with * are mandatory</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">Fields marked with * are mandatory</p>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-5 min-h-0 flex flex-col overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-4 sm:p-5 min-h-0 flex flex-col overflow-hidden">
               <UserModuleCrudPanel
                 modules={formModules}
                 draft={formCrudDraft}

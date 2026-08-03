@@ -88,7 +88,7 @@ export default function ModulePermissionsTab({
         <div className="sidebar-head">
           <div className="sidebar-head-top flex items-center justify-between">
             <span className="sidebar-title">Organisations</span>
-            <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+            <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 rounded-full">
               {selectedModuleOrgIds.size} selected
             </span>
           </div>
@@ -96,8 +96,8 @@ export default function ModulePermissionsTab({
 
         <div className="user-list" style={{ height: 'calc(100% - 60px)', overflowY: 'auto' }}>
           <div
-            className={`user-item flex items-center py-2.5 px-3 border-b border-slate-100 cursor-pointer ${
-              isAllSelected ? 'selected bg-blue-50/80 font-bold' : 'hover:bg-slate-50'
+            className={`user-item flex items-center py-2.5 px-3 border-b border-slate-100 dark:border-slate-800 cursor-pointer ${
+              isAllSelected ? 'selected bg-blue-50/80 dark:bg-blue-950/40 font-bold' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
             onClick={toggleSelectAll}
           >
@@ -135,11 +135,11 @@ export default function ModulePermissionsTab({
             return (
               <div key={cat.category_id} className="flex flex-col w-full">
                 <div
-                  className={`user-item parent-item flex items-center justify-between cursor-pointer hover:bg-slate-50 py-2.5 px-3 border-b border-slate-100 ${
+                  className={`user-item parent-item flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 py-2.5 px-3 border-b border-slate-100 dark:border-slate-800 ${
                     catStatus === true
-                      ? 'selected bg-purple-50/75 font-bold'
+                      ? 'selected bg-purple-50/75 dark:bg-purple-950/40 font-bold'
                       : catStatus === 'indeterminate'
-                        ? 'bg-purple-50/30'
+                        ? 'bg-purple-50/30 dark:bg-purple-950/20'
                         : ''
                   }`}
                   onClick={() => toggleSelectOrg(null, childIds)}
@@ -171,25 +171,27 @@ export default function ModulePermissionsTab({
                       e.stopPropagation();
                       toggleParent(cat.category_id);
                     }}
-                    className="p-1 hover:bg-slate-200/60 rounded"
+                    className="p-1 hover:bg-slate-200/60 dark:hover:bg-slate-700 rounded"
                   >
                     {isExpanded ? (
-                      <ChevronDown size={14} className="text-slate-500" />
+                      <ChevronDown size={14} className="text-slate-500 dark:text-slate-400" />
                     ) : (
-                      <ChevronRight size={14} className="text-slate-500" />
+                      <ChevronRight size={14} className="text-slate-500 dark:text-slate-400" />
                     )}
                   </button>
                 </div>
 
                 {isExpanded && (
-                  <div className="bg-slate-50/50 border-b border-slate-100 flex flex-col">
+                  <div className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 flex flex-col">
                     {children.map((child) => {
                       const selected = selectedModuleOrgIds.has(child.organisation_id);
                       return (
                         <div
                           key={child.organisation_id}
                           className={`user-item child-item flex items-center pl-7 pr-3 py-2 cursor-pointer ${
-                            selected ? 'selected bg-blue-50/70 font-bold' : 'hover:bg-slate-100/70'
+                            selected
+                              ? 'selected bg-blue-50/70 dark:bg-blue-950/40 font-bold'
+                              : 'hover:bg-slate-100/70 dark:hover:bg-slate-800'
                           }`}
                           onClick={() => toggleSelectOrg(child.organisation_id)}
                         >
@@ -201,11 +203,11 @@ export default function ModulePermissionsTab({
                             className="w-3.5 h-3.5 text-blue-600 rounded border-slate-300 mr-2"
                           />
                           <span
-                            className="truncate text-left flex-1"
-                            style={{
-                              fontSize: '11px',
-                              color: selected ? '#1d4ed8' : '#475569',
-                            }}
+                            className={`truncate text-left flex-1 text-[11px] ${
+                              selected
+                                ? 'text-blue-700 dark:text-blue-300'
+                                : 'text-slate-600 dark:text-slate-300'
+                            }`}
                           >
                             {child.organisation_name}
                           </span>
@@ -213,7 +215,7 @@ export default function ModulePermissionsTab({
                       );
                     })}
                     {children.length === 0 && (
-                      <div className="pl-8 py-2 text-[10px] text-slate-400 italic">
+                      <div className="pl-8 py-2 text-[10px] text-slate-400 dark:text-slate-500 italic">
                         No organisations in this category
                       </div>
                     )}

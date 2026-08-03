@@ -9,7 +9,9 @@ function CrudDot({ on, label }) {
     <span
       title={label}
       className={`inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-bold ${
-        on ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-300'
+        on
+          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+          : 'bg-slate-50 text-slate-300 dark:bg-slate-800 dark:text-slate-600'
       }`}
     >
       {label}
@@ -33,7 +35,7 @@ function NameCell({ data }) {
       >
         {getInits(data.name || '')}
       </div>
-      <span style={{ fontWeight: 600, color: '#334155', textAlign: 'left' }}>
+      <span className="um-name-cell" style={{ fontWeight: 600, textAlign: 'left' }}>
         {data.title && `${data.title} `}
         {data.name}
       </span>
@@ -192,7 +194,7 @@ export default function UserListTab({
           <button
             type="button"
             onClick={() => openAccess(params.data)}
-            className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg cursor-pointer transition-all active:scale-90"
+            className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-lg cursor-pointer transition-all active:scale-90"
             style={{ border: 'none', background: 'none' }}
             title="View module access"
           >
@@ -210,7 +212,7 @@ export default function UserListTab({
           <button
             type="button"
             onClick={() => handleOpenEdit(params.data)}
-            className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg cursor-pointer transition-all active:scale-90"
+            className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer transition-all active:scale-90"
             style={{ border: 'none', background: 'none' }}
             title="Edit User"
           >
@@ -245,7 +247,7 @@ export default function UserListTab({
           <button
             type="button"
             onClick={() => handleResetPassword(params.data)}
-            className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg cursor-pointer transition-all active:scale-90"
+            className="um-reset-btn p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg cursor-pointer transition-all active:scale-90"
             style={{
               border: '1px solid #E2E8F0',
               background: '#F8FAFC',
@@ -363,30 +365,30 @@ export default function UserListTab({
           onClick={closeAccess}
         >
           <div
-            className="bg-white rounded-xl shadow-xl border border-slate-200 w-[520px] max-h-[75%] flex flex-col overflow-hidden"
+            className="bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 w-[520px] max-h-[75%] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
               <div>
-                <div className="text-sm font-bold text-slate-800">
+                <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
                   {accessUser.title ? `${accessUser.title} ` : ''}
                   {accessUser.name}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                   {accessUser.organisation_name || '—'} · {accessUser.role_name || '—'}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={closeAccess}
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-pointer"
                 style={{ border: 'none', background: 'none' }}
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-50">
+            <div className="px-4 py-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide border-b border-slate-50 dark:border-slate-800">
               {accessIsSuperAdmin
                 ? 'SUPERADMIN'
                 : 'Assigned modules · C Create · R Read · U Update · D Delete'}
@@ -395,16 +397,16 @@ export default function UserListTab({
             <div className="overflow-y-auto flex-1 px-2 py-2">
               {accessIsSuperAdmin ? (
                 <div className="px-3 py-6 text-center space-y-2">
-                  <div className="text-sm font-bold text-slate-800">Permission Manager</div>
-                  <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+                  <div className="text-sm font-bold text-slate-800 dark:text-slate-100">Permission Manager</div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm mx-auto">
                     This user is SUPERADMIN and can manage User/Module Permission and User List.
                     Permissions are not taken from org or CRUD tables.
                   </p>
                 </div>
               ) : accessLoading ? (
-                <div className="text-center text-xs text-slate-400 py-10">Loading access…</div>
+                <div className="text-center text-xs text-slate-400 dark:text-slate-500 py-10">Loading access…</div>
               ) : accessRows.length === 0 ? (
-                <div className="text-center text-xs text-slate-400 py-10">
+                <div className="text-center text-xs text-slate-400 dark:text-slate-500 py-10">
                   No module permissions assigned
                 </div>
               ) : (
@@ -412,9 +414,9 @@ export default function UserListTab({
                   {accessRows.map((row) => (
                     <li
                       key={row.module_id}
-                      className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-slate-50"
+                      className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
-                      <span className="text-xs font-semibold text-slate-700 truncate">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
                         {row.module_name}
                       </span>
                       <div className="flex items-center gap-1 flex-shrink-0">

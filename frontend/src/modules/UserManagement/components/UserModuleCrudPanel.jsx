@@ -41,10 +41,10 @@ export default function UserModuleCrudPanel({
     <div className="flex flex-col h-full min-h-0">
       <div className="flex flex-wrap items-start justify-between gap-3 shrink-0 mb-3">
         <div>
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+          <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
             Module permissions
           </div>
-          <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">
             Create / Update / Delete also enable Read. Use All on a row to tick every flag.
           </p>
         </div>
@@ -53,14 +53,14 @@ export default function UserModuleCrudPanel({
             <button
               type="button"
               onClick={grantAll}
-              className="px-3 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 cursor-pointer"
+              className="px-3 py-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900 cursor-pointer"
             >
               Grant all
             </button>
             <button
               type="button"
               onClick={revokeAll}
-              className="px-3 py-1.5 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 cursor-pointer"
+              className="px-3 py-1.5 text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-800 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900 cursor-pointer"
             >
               Revoke all
             </button>
@@ -69,35 +69,35 @@ export default function UserModuleCrudPanel({
       </div>
 
       {!hasOrganisation ? (
-        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+        <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3">
           Select an organisation to load its modules.
         </p>
       ) : loading ? (
-        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+        <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3">
           Loading modules…
         </p>
       ) : modules.length === 0 ? (
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+        <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3">
           No modules enabled for this organisation. Assign them under Modules → Update first.
         </p>
       ) : (
-        <div className="border border-slate-200 rounded-xl overflow-hidden flex-1 min-h-0 flex flex-col bg-white">
+        <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden flex-1 min-h-0 flex flex-col bg-white dark:bg-slate-900">
           <div className="overflow-auto flex-1 min-h-0">
             <table className="w-full text-sm border-collapse">
-              <thead className="bg-slate-50 sticky top-0 z-10">
-                <tr className="text-slate-500 uppercase tracking-wide text-[11px]">
-                  <th className="text-left font-bold px-4 py-3 border-b border-slate-200">
+              <thead className="bg-slate-50 dark:bg-slate-950 sticky top-0 z-10">
+                <tr className="text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[11px]">
+                  <th className="text-left font-bold px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                     Module
                   </th>
                   {PERMS.map((p) => (
                     <th
                       key={p}
-                      className="font-bold px-2 py-3 text-center border-b border-slate-200 w-[88px]"
+                      className="font-bold px-2 py-3 text-center border-b border-slate-200 dark:border-slate-700 w-[88px]"
                     >
                       {PERM_LABELS[p]}
                     </th>
                   ))}
-                  <th className="font-bold px-2 py-3 text-center border-b border-slate-200 w-[72px]">
+                  <th className="font-bold px-2 py-3 text-center border-b border-slate-200 dark:border-slate-700 w-[72px]">
                     All
                   </th>
                 </tr>
@@ -108,9 +108,9 @@ export default function UserModuleCrudPanel({
                   return (
                     <tr
                       key={m.id}
-                      className="border-t border-slate-100 hover:bg-slate-50/80"
+                      className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/60"
                     >
-                      <td className="px-4 py-2.5 font-semibold text-slate-700 text-left text-[13px]">
+                      <td className="px-4 py-2.5 font-semibold text-slate-700 dark:text-slate-200 text-left text-[13px]">
                         {m.name}
                       </td>
                       {PERMS.map((p) => (
@@ -130,8 +130,8 @@ export default function UserModuleCrudPanel({
                           onClick={() => toggleRowAll(m.id)}
                           className={`px-2 py-1 text-[10px] font-bold rounded border cursor-pointer ${
                             rowOn
-                              ? 'text-rose-700 bg-rose-50 border-rose-200 hover:bg-rose-100'
-                              : 'text-[#0f417a] bg-blue-50 border-blue-200 hover:bg-blue-100'
+                              ? 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950 border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900'
+                              : 'text-[#0f417a] dark:text-blue-300 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900'
                           }`}
                           title={rowOn ? 'Clear all for this module' : 'Tick all for this module'}
                         >
@@ -144,7 +144,7 @@ export default function UserModuleCrudPanel({
               </tbody>
             </table>
           </div>
-          <div className="shrink-0 px-4 py-2 border-t border-slate-200 bg-slate-50 text-[11px] text-slate-500 font-medium">
+          <div className="shrink-0 px-4 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
             {modules.length} module{modules.length === 1 ? '' : 's'} for this organisation
           </div>
         </div>

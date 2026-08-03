@@ -458,11 +458,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
                   key={menu.id}
                   type="button"
                   onClick={() => handleItemClick(menu.directTab)}
-                  className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 ${
-                    isMainMenuActive ? 'text-blue-700 font-bold' : 'text-slate-655 font-semibold hover:text-slate-900'
+                  className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 min-w-16 ${
+                    isMainMenuActive ? 'text-blue-700 dark:text-blue-300 font-bold' : 'text-slate-655 font-semibold hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  <Icon className={`h-4.5 w-4.5 transition-colors ${isMainMenuActive ? 'text-blue-700' : 'text-slate-500'}`} />
+                  <Icon className={`h-4.5 w-4.5 transition-colors ${isMainMenuActive ? 'text-blue-700 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="text-[9px] tracking-tight uppercase select-none whitespace-nowrap text-center leading-tight max-w-[72px]">
                     {menu.label}
                   </span>
@@ -718,8 +718,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
                       onClick={() => { handleItemClick(menu.directTab); setIsOpen(false); }}
                       className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all border ${
                         activeTab === menu.directTab
-                          ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm'
-                          : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50'
+                          ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       <CatIcon className="h-4.5 w-4.5 text-slate-400" />
