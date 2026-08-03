@@ -205,12 +205,12 @@ const Table = forwardRef(({
       )}
 
       {/* Main card box enclosing both the grid and custom pagination controls */}
-      <div className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 overflow-hidden relative shadow-sm bg-white`}>
+      <div className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative shadow-sm bg-white dark:bg-slate-900`}>
         {loading && (
-          <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center backdrop-blur-[1px]">
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-100 rounded-xl shadow-md">
-              <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-              <span className="text-xs font-bold text-slate-700">Loading records...</span>
+          <div className="absolute inset-0 bg-white/60 dark:bg-slate-950/60 z-10 flex items-center justify-center backdrop-blur-[1px]">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl shadow-md">
+              <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin" />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Loading records...</span>
             </div>
           </div>
         )}
@@ -246,8 +246,8 @@ const Table = forwardRef(({
 
         {/* Custom Pagination inside the same card border-wrapper */}
         {pagination && totalPages > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-150 select-none bg-slate-50/50">
-            <div className="text-[12.5px] font-semibold text-slate-550">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-slate-150 dark:border-slate-700 select-none bg-slate-50/50 dark:bg-slate-950/50">
+            <div className="text-[12.5px] font-semibold text-slate-550 dark:text-slate-400">
               Showing {totalRows === 0 ? 0 : currentPage * pageSize + 1} to {Math.min((currentPage + 1) * pageSize, totalRows)} of {totalRows} entries
             </div>
 
@@ -258,8 +258,8 @@ const Table = forwardRef(({
                 onClick={handlePrevPage}
                 disabled={currentPage === 0}
                 className={`flex items-center justify-center px-3 py-1.5 rounded border text-xs font-bold transition cursor-pointer select-none ${currentPage === 0
-                    ? 'bg-white text-slate-350 border-slate-150 cursor-not-allowed'
-                    : 'bg-white border-slate-250 hover:bg-slate-50'
+                    ? 'bg-white dark:bg-slate-900 text-slate-350 dark:text-slate-600 border-slate-150 dark:border-slate-700 cursor-not-allowed'
+                    : 'bg-white dark:bg-slate-900 border-slate-250 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
                 style={currentPage !== 0 ? { color: color } : {}}
               >
@@ -271,7 +271,7 @@ const Table = forwardRef(({
               {pageNumbers.map((p, idx) => {
                 if (p === '...') {
                   return (
-                    <span key={`dots-${idx}`} className="px-2 text-slate-400 text-xs font-bold select-none">
+                    <span key={`dots-${idx}`} className="px-2 text-slate-400 dark:text-slate-500 text-xs font-bold select-none">
                       ...
                     </span>
                   );
@@ -286,7 +286,7 @@ const Table = forwardRef(({
                     className={`px-3 py-1.5 rounded text-xs font-extrabold transition cursor-pointer select-none ${
                       isActive
                         ? 'text-white border shadow-sm'
-                        : 'bg-white text-slate-700 border border-slate-250 hover:bg-slate-50'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-250 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                     style={isActive ? { backgroundColor: color, borderColor: color } : {}}
                   >
@@ -301,8 +301,8 @@ const Table = forwardRef(({
                 onClick={handleNextPage}
                 disabled={currentPage === totalPages - 1}
                 className={`flex items-center justify-center px-3 py-1.5 rounded border text-xs font-bold transition cursor-pointer select-none ${currentPage === totalPages - 1
-                    ? 'bg-white text-slate-355 border-slate-150 cursor-not-allowed'
-                    : 'bg-white border-slate-250 hover:bg-slate-50'
+                    ? 'bg-white dark:bg-slate-900 text-slate-355 dark:text-slate-600 border-slate-150 dark:border-slate-700 cursor-not-allowed'
+                    : 'bg-white dark:bg-slate-900 border-slate-250 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
                 style={currentPage !== totalPages - 1 ? { color: color } : {}}
               >
