@@ -1,6 +1,6 @@
 import React from 'react';
 import { Search, AlertCircle, RefreshCw } from 'lucide-react';
-import Table from '../../../components/table';
+import Table from '../../../components/Table';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
 

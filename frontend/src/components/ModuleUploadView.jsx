@@ -1,6 +1,6 @@
 import React from "react";
 import { Upload, FileSpreadsheet, AlertCircle, FileCheck, ChevronDown } from "lucide-react";
-import Table from "./table";
+import Table from "./Table";
 
 /**
  * Reusable Global Spreadsheet Upload & Preview Component
