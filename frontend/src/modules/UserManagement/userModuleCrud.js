@@ -91,5 +91,5 @@ export function setAllCrudPerms(modules, draft, value) {
 }
 
 export function isRowFullyGranted(row) {
-  return PERMS.every((p) => !!row?.[p]);
+  return PERMS.every((p) => row?.[p] === true);
 }

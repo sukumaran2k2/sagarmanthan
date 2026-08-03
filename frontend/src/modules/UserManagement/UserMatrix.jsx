@@ -15,7 +15,11 @@ import UserFormModal from './components/UserFormModal';
 import {
   draftFromCrudRows,
   emptyCrudDraft,
+  isRowFullyGranted,
   permissionsFromDraft,
+  setAllCrudPerms,
+  setRowCrudPerms,
+  toggleCrudPerm,
 } from './userModuleCrud';
 
 const PERMISSION_NAV = [
@@ -345,21 +349,18 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
   };
 
   const handleCheck = (modId, perm, val) => {
-    setDraft((prev) => ({
-      ...prev,
-      [modId]: { ...prev[modId], [perm]: val },
-    }));
+    setDraft((prev) => toggleCrudPerm(prev, modId, perm, val));
+  };
+
+  const toggleRowAll = (modId) => {
+    setDraft((prev) => {
+      const fullyOn = isRowFullyGranted(prev[modId]);
+      return setRowCrudPerms(prev, modId, !fullyOn);
+    });
   };
 
   const setAll = (val) => {
-    const newDraft = { ...draft };
-    activeModules.forEach((m) => {
-      newDraft[m.id] = { ...newDraft[m.id] };
-      PERMS.forEach((p) => {
-        newDraft[m.id][p] = val;
-      });
-    });
-    setDraft(newDraft);
+    setDraft((prev) => setAllCrudPerms(activeModules, prev, val));
     showToast(
       val ? 'All permissions granted' : 'All permissions revoked',
       val ? '#10B981' : '#EF4444'
@@ -369,11 +370,13 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
   const colAll = (perm) => {
     const allOn = activeModules.every((m) => draft[m.id]?.[perm] === true);
     const newVal = !allOn;
-    const newDraft = { ...draft };
-    activeModules.forEach((m) => {
-      newDraft[m.id] = { ...newDraft[m.id], [perm]: newVal };
+    setDraft((prev) => {
+      let next = prev;
+      activeModules.forEach((m) => {
+        next = toggleCrudPerm(next, m.id, perm, newVal);
+      });
+      return next;
     });
-    setDraft(newDraft);
   };
 
   const handleSave = async () => {
@@ -996,6 +999,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
               toggleUser={toggleUser}
               toggleSelectAll={toggleSelectAll}
               handleCheck={handleCheck}
+              toggleRowAll={toggleRowAll}
               setAll={setAll}
               colAll={colAll}
               handleSave={handleSave}
@@ -1105,7 +1109,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
             className="toast"
             style={{
               position: 'fixed',
-              bottom: 24,
+              top: 24,
               right: 24,
               zIndex: 10050,
               background: toastColor,

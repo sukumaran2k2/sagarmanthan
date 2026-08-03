@@ -242,6 +242,24 @@
 .user-matrix-container .col-label { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .user-matrix-container .all-link { font-size: .62rem; color: #3B82F6; cursor: pointer; font-weight: 700; text-transform: none; letter-spacing: 0; }
 .user-matrix-container .all-link:hover { text-decoration: underline; }
+.user-matrix-container .row-all-btn {
+  padding: 4px 10px;
+  font-size: .68rem;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1.5px solid #BFDBFE;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  cursor: pointer;
+  transition: all .15s;
+}
+.user-matrix-container .row-all-btn:hover { background: #DBEAFE; }
+.user-matrix-container .row-all-btn.is-clear {
+  border-color: #FECACA;
+  background: #FEF2F2;
+  color: #DC2626;
+}
+.user-matrix-container .row-all-btn.is-clear:hover { background: #FEE2E2; }
 .user-matrix-container tbody tr { border-bottom: 1px solid #F1F5F9; }
 .user-matrix-container tbody tr:last-child { border-bottom: none; }
 .user-matrix-container tbody tr:hover { background: #FAFBFC; }

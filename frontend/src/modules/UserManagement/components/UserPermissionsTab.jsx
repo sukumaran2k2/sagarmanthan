@@ -1,6 +1,7 @@
 import React from 'react';
 import { getInits, getModuleIconAndColor, roleClassName } from '../utils';
 import { PERMS } from '../constants';
+import { isRowFullyGranted } from '../userModuleCrud';
 
 export default function UserPermissionsTab({
   selectedCategory,
@@ -22,6 +23,7 @@ export default function UserPermissionsTab({
   toggleUser,
   toggleSelectAll,
   handleCheck,
+  toggleRowAll,
   setAll,
   colAll,
   handleSave,
@@ -246,36 +248,39 @@ export default function UserPermissionsTab({
                       </span>
                     </div>
                   </th>
+                  <th className="c" style={{ width: "90px" }}>
+                    All
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {selectedCategory === "all" ? (
                   <tr>
-                    <td colSpan="5" className="empty">
+                    <td colSpan="6" className="empty">
                       Select a Category, then an Organisation, to load modules and assign permissions.
                     </td>
                   </tr>
                 ) : selectedOrg === "all" ? (
                   <tr>
-                    <td colSpan="5" className="empty">
+                    <td colSpan="6" className="empty">
                       Select an Organisation to load the modules allowed for that organisation.
                     </td>
                   </tr>
                 ) : usersLoading ? (
                   <tr>
-                    <td colSpan="5" className="empty">
+                    <td colSpan="6" className="empty">
                       Loading users…
                     </td>
                   </tr>
                 ) : activeModules.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="empty">
+                    <td colSpan="6" className="empty">
                       No modules enabled for this organisation. Assign them first under Modules → Update.
                     </td>
                   </tr>
                 ) : selectedUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="empty">
+                    <td colSpan="6" className="empty">
                       Select at least one user from the left to assign permissions.
                     </td>
                   </tr>
@@ -286,6 +291,7 @@ export default function UserPermissionsTab({
                       color: modColor,
                       bg: modBg,
                     } = getModuleIconAndColor(m.name);
+                    const rowOn = isRowFullyGranted(draft[m.id]);
                     return (
                       <tr key={m.id}>
                         <td>
@@ -318,6 +324,16 @@ export default function UserPermissionsTab({
                             </td>
                           );
                         })}
+                        <td className="c">
+                          <button
+                            type="button"
+                            className={`row-all-btn ${rowOn ? "is-clear" : ""}`}
+                            onClick={() => toggleRowAll(m.id)}
+                            title={rowOn ? "Clear all for this module" : "Select all for this module"}
+                          >
+                            {rowOn ? "Clear" : "All"}
+                          </button>
+                        </td>
                       </tr>
                     );
                   })
