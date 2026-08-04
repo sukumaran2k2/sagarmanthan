@@ -1232,7 +1232,7 @@ LEFT JOIN
 	m.organisation_category_id = mo.organisation_category_id
 LEFT JOIN
     tbl_hr_organisation_abolish pa ON m.organisation_id = pa.organisation_id
-    WHERE m.organisation_usermatrix_category_id = 2
+    WHERE m.organisation_category_id = 2
 `;
 
   let condition = "";
@@ -1703,7 +1703,7 @@ async function hrFirstReport(req, res) {
                 [mmt_organisation_category] oc ON o.[organisation_category_id] = oc.[organisation_category_id]
             WHERE
                 1=1 AND 1=1
-                AND o.organisation_usermatrix_category_id = 2`;
+                AND o.organisation_category_id = 2`;
 
   if (orgCatDrop === "0" && orgDrop === "0") {
     condition = `
@@ -2176,17 +2176,17 @@ LEFT JOIN
 
   if (orgCatDrop === "0" && orgDrop === "0") {
     condition = `
-           WHERE  mmt.organisation_category_id IN (1, 3) AND mmt.organisation_id!=4 AND mmt.organisation_usermatrix_category_id = 2
+           WHERE  mmt.organisation_category_id IN (1, 3) AND mmt.organisation_id!=4
         GROUP BY
             pa.abolish_required, mmt.organisation_name,  a.anticipated_vacancies_next_fy, oc.organisation_category_name, mmt.organisation_id; `;
   } else {
     if (orgCatDrop !== "0") {
-      condition = `WHERE mmt.organisation_category_id = ${orgCatDrop}  AND mmt.organisation_id!=4 AND mmt.organisation_usermatrix_category_id = 2
+      condition = `WHERE mmt.organisation_category_id = ${orgCatDrop}  AND mmt.organisation_id!=4
             GROUP BY
             pa.abolish_required, mmt.organisation_name,  a.anticipated_vacancies_next_fy, oc.organisation_category_name,mmt.organisation_id;  `;
     }
     if (orgDrop !== "0") {
-      condition = `WHERE mmt.organisation_id = ${orgDrop} AND mmt.organisation_usermatrix_category_id = 2
+      condition = `WHERE mmt.organisation_id = ${orgDrop} AND mmt.organisation_category_id = 2
             GROUP BY
             pa.abolish_required,mmt.organisation_name,  a.anticipated_vacancies_next_fy, oc.organisation_category_name,mmt.organisation_id;  `;
     }
@@ -2858,7 +2858,7 @@ async function hrFourthReport(req, res) {
     INNER JOIN tbl_hr_organisation_abolish pa ON mmt.organisation_id = pa.organisation_id
     LEFT JOIN AnticipatedVacancies av ON mmt.organisation_id = av.organisation_id AND post.class_id = av.class_id
     WHERE mmt.organisation_id != 4
-    AND mmt.organisation_usermatrix_category_id = 2
+    AND mmt.organisation_category_id = 2
   `;
 
   let conditions = [];
@@ -4086,7 +4086,7 @@ async function hrFifthReport(req, res) {
     LEFT JOIN [tbl_hr_organisation_abolish] oa ON oa.organisation_id = mmt.organisation_id
     LEFT JOIN AnticipatedVacancies av ON mmt.organisation_id = av.organisation_id AND post.class_id = av.class_id
     WHERE mmt.organisation_id != 4
-    AND mmt.organisation_usermatrix_category_id = 2 `;
+    AND mmt.organisation_category_id = 2 `;
 
   let condition = "";
   if (orgCatDrop !== "0") {
@@ -5118,7 +5118,7 @@ LEFT JOIN mmt_organisation_category mo ON mmt.organisation_category_id = mo.orga
 LEFT JOIN [tbl_hr_organisation_abolish] oa ON
 	        oa.organisation_id = mmt.organisation_id
 WHERE mmt.organisation_id != 4 AND ps.method_of_appointment = 'Deputation In'
-AND mmt.organisation_usermatrix_category_id = 2
+AND mmt.organisation_category_id = 2
     `;
 
   let condition = "";
@@ -6151,7 +6151,7 @@ LEFT JOIN [tbl_hr_organisation_abolish] oa ON
 	        oa.organisation_id = mmt.organisation_id
 
 WHERE mmt.organisation_id != 4 AND ps.method_of_appointment = 'Composite Method'
-AND mmt.organisation_usermatrix_category_id = 2`;
+AND mmt.organisation_category_id = 2`;
 
   let condition = "";
   if (orgCatDrop !== "0") {
@@ -7839,7 +7839,7 @@ FROM  mmt_organisation mmt
   }
 
   condition += `
-        AND mmt.organisation_usermatrix_category_id = 2
+        AND mmt.organisation_category_id = 2
         GROUP BY
             mmt.organisation_id, mmt.organisation_name, mo.organisation_category_name, mmtc.class, p.class_id
         ORDER BY

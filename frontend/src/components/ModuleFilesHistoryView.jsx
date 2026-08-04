@@ -1,5 +1,5 @@
 import React from "react";
-import Table from "./table";
+import Table from "./Table";
 
 /**
  * Reusable Global History Files Table Component

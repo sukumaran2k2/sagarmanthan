@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import Table from '../../../components/table';
+import Table from '../../../components/Table';
 import { Search, X, Edit, Eye, Download, FileText, ChevronDown, BarChart3, List } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';

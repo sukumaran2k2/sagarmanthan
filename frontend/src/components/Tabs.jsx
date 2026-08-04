@@ -1,5 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
+import { isSuperAdmin } from '../utils/authSession';
+import {
+  canAccessTab,
+  filterMenuByAccess,
+  resolveTabKey,
+  TAB_USER_MODULE_PERMISSION,
+  TAB_USER_LIST,
+} from '../utils/moduleAccess';
 import {
   Home,
   Briefcase,
@@ -75,7 +83,21 @@ export default function Tabs({ activeTab, setActiveTab }) {
     return roleId === 6 || roleId === 7;
   }, []);
 
-  const MENU_DATA = useMemo(() => [
+  const accessKey = (() => {
+    try {
+      const t = localStorage.getItem('accessToken');
+      if (!t) return '';
+      const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      const codes = payload?.allowedModuleCodes;
+      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}`;
+    } catch {
+      return '';
+    }
+  })();
+
+  const MENU_DATA = useMemo(
+    () =>
+      filterMenuByAccess([
     {
       id: 'projects',
       label: 'Projects',
@@ -102,7 +124,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'CSR Dashboard', icon: LayoutDashboard },
             { label: 'CSR Fund Details', icon: Coins },
             { label: 'CSR Project List', icon: ListTodo },
-            { label: 'Reports', icon: FilePieChart }
+            { label: 'Reports', tab: 'CSR Dashboard', icon: FilePieChart }
           ]
         },
         {
@@ -383,16 +405,22 @@ export default function Tabs({ activeTab, setActiveTab }) {
         { label: 'Action Taken Report', icon: CheckCircle }
       ]
     },
-    {
-      id: 'admin',
-      label: 'Admin',
-      icon: Users,
-      align: 'right-0',
-      width: 'w-[200px]',
-      items: [
-        { label: 'User Matrix', icon: UserCheck }
-      ]
-    },
+    ...(isSuperAdmin()
+      ? [
+          {
+            id: 'userModulePermission',
+            label: TAB_USER_MODULE_PERMISSION,
+            icon: ShieldCheck,
+            directTab: TAB_USER_MODULE_PERMISSION,
+          },
+          {
+            id: 'userList',
+            label: TAB_USER_LIST,
+            icon: UserCheck,
+            directTab: TAB_USER_LIST,
+          },
+        ]
+      : []),
     {
       id: 'contact',
       label: 'Contact Us',
@@ -401,29 +429,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
       width: 'w-[240px]',
       items: [
         { label: 'Ministry Contacts', icon: Users },
-        { label: 'Helpdesk Support', icon: HelpCircle }
-      ]
-    }
-  ], [isOrgUser]);
+        { label: 'Helpdesk Support', icon: HelpCircle },
+      ],
+    },
+  ]),
+    [accessKey, isOrgUser]
+  );
 
   const handleItemClick = (label) => {
-    const norm = label.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (norm === 'projectdashboard') {
-      setActiveTab('dashboard');
-    } else if (norm === 'projectlist') {
-      setActiveTab('projects');
-    } else if (norm === 'projectslessthan5cr') {
-      setActiveTab('less5cr');
-    } else if (norm === 'lumpsumiwai') {
-      setActiveTab('lumpsum');
-    } else if (norm === 'viewdroprequest') {
-      setActiveTab('dropRequests');
-    } else if (norm === 'reports') {
-      setActiveTab('reports');
-    } else {
-      setActiveTab(label);
-    }
-    setIsOpen(false); // Close mobile drawer
+    const tab = resolveTabKey(label);
+    if (!canAccessTab(tab)) return;
+    setActiveTab(tab);
+    setIsOpen(false);
   };
 
   const toggleExpand = (menuId) => {
@@ -455,12 +472,34 @@ export default function Tabs({ activeTab, setActiveTab }) {
 
           {MENU_DATA.map((menu) => {
             const Icon = menu.icon;
-            const hasDropdown = menu.subcategories || menu.items;
+            const hasDropdown = !menu.directTab && (menu.subcategories || menu.items);
             const isHrActiveTab = [
               'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts',
               'Contractual Employment', 'Training Details', 'HR Reports'
             ].includes(activeTab);
-            const isMainMenuActive = activeTab.startsWith(menu.id) || activeTab === menu.id || (menu.id === 'hr' && isHrActiveTab);
+            const isMainMenuActive =
+              activeTab === menu.directTab ||
+              activeTab.startsWith(menu.id) ||
+              activeTab === menu.id ||
+              (menu.id === 'hr' && isHrActiveTab);
+
+            if (menu.directTab) {
+              return (
+                <button
+                  key={menu.id}
+                  type="button"
+                  onClick={() => handleItemClick(menu.directTab)}
+                  className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 min-w-16 ${
+                    isMainMenuActive ? 'text-blue-700 dark:text-blue-300 font-bold' : 'text-slate-655 font-semibold hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Icon className={`h-4.5 w-4.5 transition-colors ${isMainMenuActive ? 'text-blue-700 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <span className="text-[9px] tracking-tight uppercase select-none whitespace-nowrap text-center leading-tight max-w-[72px]">
+                    {menu.label}
+                  </span>
+                </button>
+              );
+            }
 
             return (
               <div key={menu.id} className="relative group flex-shrink-0">
@@ -700,7 +739,25 @@ export default function Tabs({ activeTab, setActiveTab }) {
                 const CatIcon = menu.icon;
                 const menuKey = menu.id;
                 const isCatExpanded = !!expandedMenus[menuKey];
-                const hasSub = menu.subcategories || menu.items;
+                const hasSub = !menu.directTab && (menu.subcategories || menu.items);
+
+                if (menu.directTab) {
+                  return (
+                    <button
+                      key={menu.id}
+                      type="button"
+                      onClick={() => { handleItemClick(menu.directTab); setIsOpen(false); }}
+                      className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all border ${
+                        activeTab === menu.directTab
+                          ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <CatIcon className="h-4.5 w-4.5 text-slate-400" />
+                      <span>{menu.label}</span>
+                    </button>
+                  );
+                }
 
                 return (
                   <div key={menu.id} className="space-y-1.5">
@@ -717,9 +774,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
                         <CatIcon className="h-4.5 w-4.5 text-slate-400" />
                         <span>{menu.label}</span>
                       </div>
-                      <ChevronDown className={`h-3.5 w-3.5 opacity-60 transition-transform duration-200 ${
-                        isCatExpanded ? 'rotate-180' : ''
-                      }`} />
+                      {hasSub && (
+                        <ChevronDown className={`h-3.5 w-3.5 opacity-60 transition-transform duration-200 ${
+                          isCatExpanded ? 'rotate-180' : ''
+                        }`} />
+                      )}
                     </button>
 
                     {/* Expandable Category Contents Accordion */}

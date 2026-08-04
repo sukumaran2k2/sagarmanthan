@@ -1,7 +1,7 @@
-import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
+﻿import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
-import { FileSpreadsheet, Loader2 } from 'lucide-react';
+import { FileSpreadsheet } from 'lucide-react';
 import TablePagination from './TablePagination';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -28,13 +28,11 @@ const Table = forwardRef(({
   const activeRef = ref || localGridRef;
   const [gridApi, setGridApi] = useState(null);
 
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
   const [pageSize, setPageSize] = useState(paginationPageSize);
 
-  // Sync pageSize state with paginationPageSize prop when changed dynamically from parent toolbar
   useEffect(() => {
     setPageSize(paginationPageSize);
   }, [paginationPageSize]);
@@ -133,46 +131,6 @@ const Table = forwardRef(({
     defaultMinWidth: 100
   };
 
-  // Pagination Ellipses Generator
-  const getPageNumbers = () => {
-    const pages = [];
-    const maxVisiblePages = 5;
-
-    if (totalPages <= maxVisiblePages + 2) {
-      for (let i = 0; i < totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      pages.push(0);
-
-      let start = Math.max(1, currentPage - 1);
-      let end = Math.min(totalPages - 2, currentPage + 1);
-
-      if (currentPage <= 2) {
-        end = maxVisiblePages - 1;
-      } else if (currentPage >= totalPages - 3) {
-        start = totalPages - maxVisiblePages;
-      }
-
-      if (start > 1) {
-        pages.push('...');
-      }
-
-      for (let i = start; i <= end; i++) {
-        pages.push(i);
-      }
-
-      if (end < totalPages - 2) {
-        pages.push('...');
-      }
-
-      pages.push(totalPages - 1);
-    }
-    return pages;
-  };
-
-  const pageNumbers = getPageNumbers();
-
   const colorClass = `custom-table-container-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
 
   return (
@@ -214,11 +172,10 @@ const Table = forwardRef(({
         </div>
       )}
 
-      {/* Main card box enclosing both the grid and custom pagination controls */}
-      <div className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 overflow-hidden relative shadow-sm bg-white`}>
+      <div className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative shadow-sm bg-white dark:bg-slate-900`}>
         {loading && (
-          <div className="absolute inset-0 bg-white/90 z-30 flex flex-col items-center justify-center space-y-4 backdrop-blur-[2px] animate-fade-in">
-            <div className="w-full absolute top-0 left-0 right-0 h-1.5 bg-slate-100 overflow-hidden">
+          <div className="absolute inset-0 bg-white/90 dark:bg-slate-950/90 z-30 flex flex-col items-center justify-center space-y-4 backdrop-blur-[2px] animate-fade-in">
+            <div className="w-full absolute top-0 left-0 right-0 h-1.5 bg-slate-100 dark:bg-slate-800 overflow-hidden">
               <div
                 className="h-full animate-indeterminate-progress"
                 style={{
@@ -226,7 +183,7 @@ const Table = forwardRef(({
                 }}
               ></div>
             </div>
-            <div className="p-4 bg-white/95 rounded-2xl border border-slate-200 text-slate-800 flex items-center space-x-3 shadow-lg">
+            <div className="p-4 bg-white/95 dark:bg-slate-900/95 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 flex items-center space-x-3 shadow-lg">
               <div
                 className="animate-spin rounded-full h-6 w-6 border-3 border-t-transparent"
                 style={{ borderColor: `${color} transparent ${color} ${color}` }}
@@ -267,7 +224,6 @@ const Table = forwardRef(({
           />
         </div>
 
-        {/* Shared YP-Styled Custom TablePagination */}
         {pagination && totalPages > 0 && (
           <TablePagination
             currentPage={currentPage}

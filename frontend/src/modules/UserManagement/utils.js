@@ -115,7 +115,6 @@ export const getModuleIconAndColor = (name = '') => {
   if (n.includes('form builder')) return { Icon: PenTool, color: '#EC4899', bg: '#FDF2F8' };
   if (n.includes('review')) return { Icon: CheckSquare, color: '#16A34A', bg: '#F0FDF4' };
 
-  // Fallback
   return { Icon: FileText, color: '#64748B', bg: '#F1F5F9' };
 };
 
