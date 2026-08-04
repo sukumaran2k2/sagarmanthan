@@ -23,6 +23,7 @@ import YoungProfessionalsView from './modules/YoungProfessionals/YoungProfession
 import ConsultantAppointmentView from './modules/ConsultantAppointment/ConsultantAppointment';
 import MediaOutreachView from './modules/MediaOutreach/MediaOutreach';
 import CapexView from './modules/Capex/Capex';
+import GEMProcurementView from './modules/GEMProcurement/GEMProcurement';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
 import Loader from './components/Loader';
@@ -602,8 +603,12 @@ export default function App() {
               <ContactUs />
             )}
 
+            {['GEM Procurements', 'GEM Procurement', 'GEM', 'gem'].includes(activeTab) && (
+              <GEMProcurementView />
+            )}
+
             {/* Placeholder / Empty State for other inactive government menu views */}
-            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'Capex', 'capex', 'Estimate Values', 'Capex Reports', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Audit Paras', 'VIP Reference', 'Bills/PreConstitutions Act', 'Acts & Rules', 'Data List', 'Input Form', 'Report', 'Consultant Input Form', 'Consultant Reports', 'Media Outreach', 'User Matrix', 'Ministry Contacts', 'Helpdesk Support', 'Young Professionals', 'YP Data List', 'YP Input Form', 'YP Report'].includes(activeTab) && (
+            {!['dashboard', 'projects', 'landing', 'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports', 'Capex', 'capex', 'Estimate Values', 'Capex Reports', 'GEM Procurements', 'GEM Procurement', 'GEM', 'E Office', 'Attendance', 'CPGRAMS', 'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports', 'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'Parliamentary Issue', 'Audit Paras', 'VIP Reference', 'Bills/PreConstitutions Act', 'Acts & Rules', 'Data List', 'Input Form', 'Report', 'Consultant Input Form', 'Consultant Reports', 'Media Outreach', 'User Matrix', 'Ministry Contacts', 'Helpdesk Support', 'Young Professionals', 'YP Data List', 'YP Input Form', 'YP Report'].includes(activeTab) && (
               <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
                 <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                   <Sparkles className="h-7 w-7 text-blue-600" />

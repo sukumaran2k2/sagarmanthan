@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { X, CheckCircle2, Edit } from "lucide-react";
+import { createPortal } from "react-dom";
+import { X, CheckCircle2, Edit, Info } from "lucide-react";
 import { calculateCapexTotal } from "../utils/capexUtils";
 
 export default function CapexEditTargetModal({ isOpen, onClose, onUpdate, initialRecord }) {
@@ -26,15 +27,15 @@ export default function CapexEditTargetModal({ isOpen, onClose, onUpdate, initia
     setErrorMsg("");
 
     if (gbsValue === "" || parseFloat(gbsValue) < 0) {
-      setErrorMsg("Please enter valid non-negative GBS value.");
+      setErrorMsg("Please enter a valid non-negative GBS value.");
       return;
     }
     if (iebrValue === "" || parseFloat(iebrValue) < 0) {
-      setErrorMsg("Please enter valid non-negative IR / IEBR value.");
+      setErrorMsg("Please enter a valid non-negative IR / IEBR value.");
       return;
     }
     if (pppValue === "" || parseFloat(pppValue) < 0) {
-      setErrorMsg("Please enter valid non-negative PPP value.");
+      setErrorMsg("Please enter a valid non-negative PPP value.");
       return;
     }
 
@@ -42,9 +43,11 @@ export default function CapexEditTargetModal({ isOpen, onClose, onUpdate, initia
     try {
       await onUpdate({
         capexID: initialRecord.capex_id,
+        financialYear: initialRecord.capex_financial_year,
+        organisationId: initialRecord.capex_organisation_id,
         gbsValue: parseFloat(gbsValue) || 0,
         iebrValue: parseFloat(iebrValue) || 0,
-        pppValue: parseFloat(pppValue) || 0,
+        PPPValue: parseFloat(pppValue) || 0,
         totalValue,
       });
       onClose();
@@ -55,121 +58,155 @@ export default function CapexEditTargetModal({ isOpen, onClose, onUpdate, initia
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-scale-up">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-fade-in select-none">
+      <div className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl mx-auto my-auto overflow-hidden flex flex-col max-h-[90vh] animate-scale-up">
         {/* Header */}
-        <div className="px-6 py-4 bg-[#0f417a] text-white flex items-center justify-between">
+        <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5fa7] p-5 text-white flex items-center justify-between flex-shrink-0">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-white/10 rounded-xl">
-              <Edit size={18} />
-            </div>
+            <Edit size={20} className="text-blue-300" />
             <div>
-              <h3 className="font-extrabold text-sm tracking-wide uppercase font-display">
-                Update Planned Expense Target
+              <h3 className="text-base font-black tracking-wide uppercase font-display">
+                Update Planned Expense
               </h3>
-              <p className="text-[11px] text-blue-100 font-medium">
-                {initialRecord.organisation_name || "Organisation"} ({initialRecord.capex_financial_year})
+              <p className="text-xs text-blue-200 font-semibold mt-0.5">
+                {initialRecord.organisation_name || "Organisation"} • Financial Year: {initialRecord.capex_financial_year || "2026-2027"}
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 hover:bg-white/10 rounded-lg transition cursor-pointer"
+            className="p-1.5 hover:bg-white/20 rounded-xl transition cursor-pointer text-white"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto flex-1 text-left">
           {errorMsg && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold">
+            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl animate-shake">
               {errorMsg}
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                GBS <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={gbsValue}
-                onChange={(e) => setGbsValue(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                IR <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={iebrValue}
-                onChange={(e) => setIebrValue(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                PPP <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={pppValue}
-                onChange={(e) => setPppValue(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
-              />
+          {/* Form Fields Card */}
+          <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4">
+            <h4 className="text-xs font-black text-[#0f417a] uppercase tracking-wider">
+              Budget Allocation Components (In Crore)
+            </h4>
+
+            {/* 2x2 Grid Layout */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* GBS */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
+                  GBS <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={gbsValue}
+                  onChange={(e) => setGbsValue(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* IR */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
+                  IR <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={iebrValue}
+                  onChange={(e) => setIebrValue(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* PPP */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
+                  PPP <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={pppValue}
+                  onChange={(e) => setPppValue(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+
+              {/* Total(GBS+IR+PPP) - ReadOnly */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Total (GBS + IR + PPP) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value={totalValue}
+                  className="w-full px-4 py-2.5 bg-slate-200/70 border border-slate-300 rounded-xl text-xs font-black text-[#0f417a] outline-none select-none cursor-not-allowed"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center justify-between">
+          {/* Auto Calculated Total Preview */}
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between">
             <div>
-              <span className="text-[11px] font-extrabold uppercase text-blue-900 tracking-wide">
-                Updated Total Allocation
+              <span className="block text-[11px] font-bold text-blue-700 uppercase tracking-wider">
+                Calculated Total Planned Expense:
               </span>
-              <p className="text-[10px] text-blue-600 font-medium mt-0.5">
-                (GBS + IR + PPP)
-              </p>
+              <span className="text-xs text-blue-600 font-medium">
+                Auto-calculated formula: GBS + IR + PPP
+              </span>
             </div>
-            <div className="text-base font-black text-[#0f417a]">
-              ₹ {totalValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })} Cr
-            </div>
+            <span className="text-lg font-black text-[#0f417a]">
+              ₹{Number(totalValue).toFixed(2)} Cr
+            </span>
           </div>
 
-          <div className="pt-4 border-t border-slate-200 flex items-center justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-6 py-2.5 bg-[#0f417a] hover:bg-[#0b3260] text-white rounded-xl text-xs font-bold shadow transition flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
-            >
-              {submitting ? (
-                <span>Updating...</span>
-              ) : (
-                <>
-                  <CheckCircle2 size={14} />
-                  <span>Update Target</span>
-                </>
-              )}
-            </button>
+          {/* Modal Footer */}
+          <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+            <span className="text-xs text-slate-500 font-semibold italic flex items-center space-x-1">
+              <Info size={14} className="text-blue-600 flex-shrink-0" />
+              <span>Fields marked with * are mandatory</span>
+            </span>
+
+            <div className="flex items-center space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1.5"
+              >
+                <X size={15} />
+                <span>Exit</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+              >
+                <CheckCircle2 size={15} />
+                <span>{submitting ? "Updating..." : "Update"}</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

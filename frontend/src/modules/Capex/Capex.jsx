@@ -12,6 +12,7 @@ import CapexMonthlyDataModal from "./components/CapexMonthlyDataModal";
 import CapexForm32Report from "./components/CapexForm32Report";
 import CapexDashboardView from "./components/CapexDashboardView";
 import CapexOrgDashboardView from "./components/CapexOrgDashboardView";
+import CapexActualExpenditurePage from "./components/CapexActualExpenditurePage";
 import InternalNavigation from "../../components/InternalNavigation";
 
 import { formatCurrencyINR, calculateCapexExpenditurePercentage } from "./utils/capexUtils";
@@ -50,10 +51,11 @@ export default function CapexView() {
   const [pageSize, setPageSize] = useState(10);
   const [selectedYear, setSelectedYear] = useState("2026-2027");
 
-  // Modals
+  // Modals & Page Views
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
+  const [isActualExpenditurePageActive, setIsActualExpenditurePageActive] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
   // Toast State
@@ -129,13 +131,21 @@ export default function CapexView() {
     }
   };
 
+  
+
   const handleAddSubmit = async (payload) => {
     const userID = 1;
     const body = { userID, ...payload };
-    const res = await axios.post(`${API_BASE_URL}/capex`, body);
-    if (res.status === 201 || res.status === 200) {
-      showToast("✅ Capex target submitted successfully!", "#10B981");
-      fetchCapexData();
+    try {
+      const res = await axios.post(`${API_BASE_URL}/capex`, body);
+      if (res.status === 201 || res.status === 200) {
+        showToast("✅ Capex target submitted successfully!", "#10B981");
+        fetchCapexData();
+      }
+    } catch (err) {
+      const serverMsg = err.response?.data?.error || err.message || "Failed to submit Capex target.";
+      showToast(`❌ ${serverMsg}`, "#EF4444");
+      throw new Error(serverMsg);
     }
   };
 
@@ -193,7 +203,7 @@ export default function CapexView() {
   const colDefs = useMemo(() => {
     const allDefs = [
       {
-        headerName: "S.No",
+        headerName: "Sl.No",
         valueGetter: (params) => (params.node ? params.node.rowIndex + 1 : 1),
         flex: 0.6,
         minWidth: 70,
@@ -206,8 +216,28 @@ export default function CapexView() {
         flex: 2,
         minWidth: 220,
         cellClass: "font-bold text-slate-800 text-left flex items-center",
-        valueGetter: (params) =>
-          params.data.organisation_name || params.data.Organisation_Name || "Organisation",
+        valueGetter: (params) => {
+          if (!params.data) return "—";
+          if (params.data.organisation_name) return params.data.organisation_name;
+          if (params.data.Organisation_Name) return params.data.Organisation_Name;
+          if (params.data.org_name) return params.data.org_name;
+          if (params.data.name) return params.data.name;
+
+          const orgId =
+            params.data.capex_organisation_id ||
+            params.data.organisation_id ||
+            params.data.common_organisation_id ||
+            params.data.goods_organisation_id ||
+            params.data.service_organisation_id ||
+            params.data.works_organisation_id ||
+            params.data.org_id ||
+            params.data.id;
+
+          const foundOrg = organisations.find(
+            (o) => String(o.organisation_id || o.id) === String(orgId)
+          );
+          return foundOrg ? foundOrg.organisation_name || foundOrg.name : "—";
+        },
       },
       {
         field: "capex_financial_year",
@@ -235,10 +265,10 @@ export default function CapexView() {
           <div
             onClick={() => {
               setSelectedRecord(params.data);
-              setIsMonthlyModalOpen(true);
+              setIsActualExpenditurePageActive(true);
             }}
             className="text-blue-700 font-black underline cursor-pointer flex items-center justify-center gap-1.5"
-            title="Click to view/edit monthly expenditure breakdown"
+            title="Click to view/edit monthly expenditure page"
           >
             <span>{params.value !== undefined && params.value !== null ? Number(params.value).toFixed(2) : "0.00"}</span>
           </div>
@@ -278,10 +308,14 @@ export default function CapexView() {
           <button
             onClick={() => {
               setSelectedRecord(params.data);
-              setIsMonthlyModalOpen(true);
+              if (viewMode === "ministry") {
+                setIsEditModalOpen(true);
+              } else {
+                setIsActualExpenditurePageActive(true);
+              }
             }}
             className="p-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition cursor-pointer shadow-xs flex items-center justify-center"
-            title="Edit Expenditure"
+            title={viewMode === "ministry" ? "Update Planned Expense" : "Edit Expenditure"}
           >
             <Edit size={14} />
           </button>
@@ -403,31 +437,40 @@ export default function CapexView() {
       )}
 
       {activeTab === "data" && (
-        <>
-          <CapexKpiCards data={filteredData} />
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-            <CapexDataListView
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              pageSize={pageSize}
-              setPageSize={setPageSize}
-              filteredData={filteredData}
-              colDefs={colDefs}
-              pinnedBottomRowData={pinnedBottomRowData}
-              loading={loading}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
-              handleCopyData={handleCopyData}
-              handleExportExcel={handleExportExcel}
-              handleExportPdf={handleExportPdf}
-              organisations={organisations}
-              filterYear={filterYear}
-              setFilterYear={setFilterYear}
-              filterOrg={filterOrg}
-              setFilterOrg={setFilterOrg}
-              viewMode={viewMode}
-            />
-          </div>
-        </>
+        isActualExpenditurePageActive && selectedRecord ? (
+          <CapexActualExpenditurePage
+            capexRecord={selectedRecord}
+            onBack={() => setIsActualExpenditurePageActive(false)}
+            showToast={showToast}
+            onRefresh={fetchCapexData}
+          />
+        ) : (
+          <>
+            <CapexKpiCards data={filteredData} />
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+              <CapexDataListView
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                pageSize={pageSize}
+                setPageSize={setPageSize}
+                filteredData={filteredData}
+                colDefs={colDefs}
+                pinnedBottomRowData={pinnedBottomRowData}
+                loading={loading}
+                onOpenAddModal={() => setIsAddModalOpen(true)}
+                handleCopyData={handleCopyData}
+                handleExportExcel={handleExportExcel}
+                handleExportPdf={handleExportPdf}
+                organisations={organisations}
+                filterYear={filterYear}
+                setFilterYear={setFilterYear}
+                filterOrg={filterOrg}
+                setFilterOrg={setFilterOrg}
+                viewMode={viewMode}
+              />
+            </div>
+          </>
+        )
       )}
 
       {activeTab === "report" && <CapexForm32Report showToast={showToast} />}
@@ -438,6 +481,7 @@ export default function CapexView() {
         onClose={() => setIsAddModalOpen(false)}
         onSubmit={handleAddSubmit}
         organisations={organisations}
+        existingData={capexData}
       />
 
       <CapexEditTargetModal

@@ -10,6 +10,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000
 export default function CapexForm32Report({ showToast }) {
   const [selectedYear, setSelectedYear] = useState("2026-2027");
   const [categoryFilter, setCategoryFilter] = useState("ALL"); // ALL, MAJOR, SHIPPING, OTHER
+  const [selectedOrgFilter, setSelectedOrgFilter] = useState("ALL");
   const [searchOrgTerm, setSearchOrgTerm] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -104,6 +105,12 @@ export default function CapexForm32Report({ showToast }) {
         exp_ppp: 0,
         total_Capex: 0,
       }));
+    }
+
+    if (selectedOrgFilter && selectedOrgFilter !== "ALL") {
+      list = list.filter((item) =>
+        String(item.organisation_name || "").toLowerCase() === selectedOrgFilter.toLowerCase()
+      );
     }
 
     if (filterSearchTerm.trim()) {
@@ -242,9 +249,19 @@ export default function CapexForm32Report({ showToast }) {
     window.print();
   };
 
+  const allCapexOrgNames = useMemo(() => {
+    const names = [
+      ...defaultMajorPorts.map((o) => o.name),
+      ...defaultShippingOrgs.map((o) => o.name),
+      ...defaultOtherOrgs.map((o) => o.name),
+    ].filter(Boolean);
+    return Array.from(new Set(names)).sort();
+  }, []);
+
   const handleResetFilters = () => {
     setSelectedYear("2026-2027");
     setCategoryFilter("ALL");
+    setSelectedOrgFilter("ALL");
     setSearchOrgTerm("");
   };
 
@@ -302,7 +319,7 @@ export default function CapexForm32Report({ showToast }) {
             <div className="flex items-center space-x-2">
               <Filter size={15} className="text-[#4b2424]" />
               <span>Report Filters & Controls</span>
-              {(categoryFilter !== "ALL" || searchOrgTerm || selectedYear !== "2026-2027") && (
+              {(categoryFilter !== "ALL" || selectedOrgFilter !== "ALL" || searchOrgTerm || selectedYear !== "2026-2027") && (
                 <span className="px-2 py-0.5 bg-[#4b2424] text-white text-[10px] rounded-full font-bold">
                   Active Filters
                 </span>
@@ -318,8 +335,8 @@ export default function CapexForm32Report({ showToast }) {
 
           {/* Collapsible Filter Body */}
           {isFilterOpen && (
-            <div className="p-4 space-y-4 border-t border-[#e8d5c8] bg-white animate-fade-in">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 space-y-4 border-t border-[#e8d5c8] bg-white animate-fade-in text-left">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 {/* Financial Year Select */}
                 <div>
                   <label className="block text-xs font-extrabold text-[#4b2424] mb-1">
@@ -342,7 +359,7 @@ export default function CapexForm32Report({ showToast }) {
                 {/* Section Filter */}
                 <div>
                   <label className="block text-xs font-extrabold text-[#4b2424] mb-1">
-                    Organization Category Section
+                    Organization Section
                   </label>
                   <select
                     value={categoryFilter}
@@ -356,10 +373,29 @@ export default function CapexForm32Report({ showToast }) {
                   </select>
                 </div>
 
+                {/* Specific Organisation */}
+                <div>
+                  <label className="block text-xs font-extrabold text-[#4b2424] mb-1">
+                    Organisation
+                  </label>
+                  <select
+                    value={selectedOrgFilter}
+                    onChange={(e) => setSelectedOrgFilter(e.target.value)}
+                    className="w-full text-xs px-3 py-2 bg-[#fcf9f7] border border-[#d7c4b7] rounded-xl font-bold text-[#4b2424] focus:outline-none focus:ring-2 focus:ring-[#8c5757]/30 cursor-pointer"
+                  >
+                    <option value="ALL">Show All Organisations</option>
+                    {allCapexOrgNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Search Organization */}
                 <div>
                   <label className="block text-xs font-extrabold text-[#4b2424] mb-1">
-                    Search Organization
+                    Keyword Search
                   </label>
                   <div className="relative">
                     <input
@@ -397,9 +433,9 @@ export default function CapexForm32Report({ showToast }) {
 
       {/* Form 3.2 Brown Theme Table */}
       <div className="bg-white rounded-2xl border border-[#d7c4b7] shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-260px)] min-h-[400px] relative">
           <table id="capexForm32Table" className="w-full text-xs text-slate-800 border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-30 shadow-sm bg-[#4b2424]">
               {/* Header Row 1 - YP Brown (#4b2424) */}
               <tr className="bg-[#4b2424] text-white text-center font-extrabold border-b border-[#381b1b]">
                 <th className="p-2.5 border border-[#5c2d2d] w-12" rowSpan={3}>S.No</th>

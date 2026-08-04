@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, CheckCircle2, Calendar, TrendingUp } from "lucide-react";
 import axios from "axios";
 
@@ -33,6 +34,17 @@ export default function CapexMonthlyDataModal({ isOpen, onClose, capexRecord, sh
       fetchMonthlyData();
     }
   }, [isOpen, capexRecord]);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isOpen]);
 
   const fetchMonthlyData = async () => {
     if (!capexRecord) return;
@@ -147,11 +159,11 @@ export default function CapexMonthlyDataModal({ isOpen, onClose, capexRecord, sh
     (parseFloat(currentMonthData.gbsWeek3) || 0) + (parseFloat(currentMonthData.iebrWeek3) || 0) + (parseFloat(currentMonthData.pppWeek3) || 0) +
     (parseFloat(currentMonthData.gbsWeek4) || 0) + (parseFloat(currentMonthData.iebrWeek4) || 0) + (parseFloat(currentMonthData.pppWeek4) || 0);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden animate-scale-up">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-fade-in select-none">
+      <div className="relative bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-3xl mx-auto my-auto overflow-hidden flex flex-col max-h-[90vh] animate-scale-up">
         {/* Header */}
-        <div className="px-6 py-4 bg-[#0f417a] text-white flex items-center justify-between">
+        <div className="px-6 py-4 bg-[#0f417a] text-white flex items-center justify-between flex-shrink-0">
           <div className="flex items-center space-x-2.5">
             <div className="p-2 bg-white/10 rounded-xl">
               <TrendingUp size={18} />
@@ -165,38 +177,37 @@ export default function CapexMonthlyDataModal({ isOpen, onClose, capexRecord, sh
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg transition cursor-pointer">
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 hover:bg-white/20 rounded-xl transition cursor-pointer text-white"
+          >
             <X size={18} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-          {/* Month Selector Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-200 no-scrollbar">
-            {MONTHS.map((m) => {
-              const mData = allMonthsData[m] || {};
-              const monthHasData = Object.values(mData).some((val) => parseFloat(val) > 0);
-              return (
+        {/* Content Body */}
+        <div className="p-6 space-y-6 overflow-y-auto flex-1 text-left">
+          {/* Month Selector Pills */}
+          <div>
+            <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-2">
+              Select Reporting Month
+            </label>
+            <div className="flex flex-wrap gap-1.5 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+              {MONTHS.map((m) => (
                 <button
                   key={m}
-                  type="button"
                   onClick={() => setSelectedMonth(m)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition flex-shrink-0 cursor-pointer flex items-center space-x-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
                     selectedMonth === m
-                      ? "bg-[#0f417a] text-white shadow-md"
-                      : monthHasData
-                      ? "bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      ? "bg-[#0f417a] text-white shadow-xs"
+                      : "text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  <span>{m}</span>
-                  {monthHasData && selectedMonth !== m && (
-                    <span className="w-2 h-2 rounded-full bg-blue-600 inline-block"></span>
-                  )}
+                  {m.slice(0, 3)}
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
 
           {/* Weekly Entry Table */}
@@ -290,6 +301,7 @@ export default function CapexMonthlyDataModal({ isOpen, onClose, capexRecord, sh
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
