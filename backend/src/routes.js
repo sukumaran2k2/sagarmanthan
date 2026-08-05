@@ -1,6 +1,7 @@
 import express from "express";
 
 import auth from "./authenticate.js";
+import { requireModulePermission } from "./middleware/modulePermission.js";
 import mikrAuth from "./mikrAuthenticate.js";
 
 
@@ -506,11 +507,36 @@ router.post("/cabinet-ministry-stage", cabinetBillTab.createCabinetNotesMinistry
 router.delete("/cabinet-ministry/:cabinet_notes_ministry_id/:userID", cabinetBillTab.deleteCabinetNotesMinistry);
 
 // Parliamentary Issue
-router.get("/parliamentary-issue", parliamentaryIssueTab.getParliamentaryIssue);
-router.post("/parliamentary-issue", parliamentaryIssueTab.createParliamentaryIssue);
-router.get("/parliamentary-issue/:parliamentaryIssueID", parliamentaryIssueTab.getUpdateParliamentaryIssueData);
-router.put("/parliamentary-issue", parliamentaryIssueTab.editParliamentaryIssue);
-router.delete("/parliamentary-issue/:parliamentaryIssueID/:userID", parliamentaryIssueTab.deleteParliamentaryIssue);
+router.get(
+  "/parliamentary-issue",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parliamentaryIssueTab.getParliamentaryIssue
+);
+router.post(
+  "/parliamentary-issue",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "create"),
+  parliamentaryIssueTab.createParliamentaryIssue
+);
+router.get(
+  "/parliamentary-issue/:parliamentaryIssueID",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parliamentaryIssueTab.getUpdateParliamentaryIssueData
+);
+router.put(
+  "/parliamentary-issue",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "update"),
+  parliamentaryIssueTab.editParliamentaryIssue
+);
+router.delete(
+  "/parliamentary-issue/:parliamentaryIssueID/:userID",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "delete"),
+  parliamentaryIssueTab.deleteParliamentaryIssue
+);
 // router.post("/parliamentary-issue-stage", parliamentaryIssueTab.createParliamentaryIssueStage);
 
 // Gem Procurement

@@ -158,17 +158,20 @@ async function validation(req, res) {
             const modulePermissionsQuery = await request.query(`
               SELECT
                 p.module_id,
+                m.module_code,
                 p.can_create,
                 p.can_read,
                 p.can_update,
                 p.can_delete
               FROM tbl_rbac_user_module_crud p
+              INNER JOIN tbl_modules m ON m.module_id = p.module_id
               WHERE p.user_id = ${userData.user_id}
                 AND p.module_id IN (${allowedModules.join(',')})
             `);
 
             modulePermissions = modulePermissionsQuery.recordset.map(row => ({
               moduleId: row.module_id,
+              moduleCode: row.module_code,
               create: !!row.can_create,
               read: !!row.can_read,
               update: !!row.can_update,
