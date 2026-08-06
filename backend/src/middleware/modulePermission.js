@@ -1,7 +1,3 @@
-const MODULE_ID_BY_CODE = {
-  PARLIAMENTARY_ISSUES: 24,
-};
-
 function normalizeAction(action) {
   const key = String(action || '').toLowerCase();
   if (key === 'create' || key === 'read' || key === 'update' || key === 'delete') {
@@ -12,16 +8,12 @@ function normalizeAction(action) {
 
 function findModulePermission(user, moduleCode) {
   const code = String(moduleCode || '').toUpperCase();
-  const expectedId = MODULE_ID_BY_CODE[code];
   const list = Array.isArray(user?.modulePermissions) ? user.modulePermissions : [];
 
   return (
     list.find((p) => {
       const pCode = String(p.moduleCode || p.module_code || '').toUpperCase();
       if (pCode && pCode === code) return true;
-      if (expectedId != null && Number(p.moduleId ?? p.module_id) === expectedId) {
-        return true;
-      }
       return false;
     }) || null
   );
