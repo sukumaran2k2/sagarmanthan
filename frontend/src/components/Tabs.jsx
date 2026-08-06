@@ -4,7 +4,7 @@ import { isSuperAdmin } from '../utils/authSession';
 import {
   canAccessTab,
   filterMenuByAccess,
-  resolveTabKey,
+  normalizeTab,
   TAB_USER_MODULE_PERMISSION,
   TAB_USER_LIST,
 } from '../utils/moduleAccess';
@@ -95,6 +95,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
     }
   })();
 
+  const m = (moduleCode, item) => ({ ...item, moduleCode });
+
   const MENU_DATA = useMemo(
     () =>
       filterMenuByAccess([
@@ -109,22 +111,22 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Project',
           icon: FolderOpen,
           items: [
-            { label: 'Project Dashboard', icon: LayoutDashboard },
-            { label: 'Project List', icon: ListTodo },
-            { label: 'Projects Less Than 5 Cr', icon: Coins },
-            { label: 'Lumpsum - IWAI', icon: TrendingUp },
-            { label: 'View Drop Request', icon: FolderSync },
-            { label: 'Reports', icon: FilePieChart }
+            m('PROJECTS', { label: 'Project Dashboard', tab: 'projects-dashboard', icon: LayoutDashboard }),
+            m('PROJECTS', { label: 'Project List', tab: 'projects-list', icon: ListTodo }),
+            m('PROJECTS', { label: 'Projects Less Than 5 Cr', tab: 'projects-less5cr', icon: Coins }),
+            m('PROJECTS', { label: 'Lumpsum - IWAI', tab: 'projects-lumpsum', icon: TrendingUp }),
+            m('PROJECTS', { label: 'View Drop Request', tab: 'projects-dropRequests', icon: FolderSync }),
+            m('PROJECTS', { label: 'Reports', tab: 'projects-reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'CSR Project',
           icon: Heart,
           items: [
-            { label: 'CSR Dashboard', icon: LayoutDashboard },
-            { label: 'CSR Fund Details', icon: Coins },
-            { label: 'CSR Project List', icon: ListTodo },
-            { label: 'Reports', tab: 'CSR Dashboard', icon: FilePieChart }
+            m('CSR_PROJECTS', { label: 'CSR Dashboard', icon: LayoutDashboard }),
+            m('CSR_PROJECTS', { label: 'CSR Fund Details', icon: Coins }),
+            m('CSR_PROJECTS', { label: 'CSR Project List', icon: ListTodo }),
+            m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Dashboard', icon: FilePieChart }),
           ]
         },
         {
@@ -132,21 +134,21 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Coins,
           items: isOrgUser
             ? [
-                { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex' },
-                { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex' }
+                m('CAPEX', { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex' }),
+                m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex' }),
               ]
             : [
-                { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex' },
-                { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex' },
-                { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex' }
+                m('CAPEX', { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex' }),
+                m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex' }),
+                m('CAPEX', { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex' }),
               ]
         },
         {
           title: 'Expenditure',
           icon: DollarSign,
           items: [
-            { label: 'Input Form - Estimate Values', icon: FileText },
-            { label: 'Expenditure Reports', icon: FilePieChart }
+            m('EXPENDITURE', { label: 'Input Form - Estimate Values', icon: FileText }),
+            m('EXPENDITURE', { label: 'Expenditure Reports', icon: FilePieChart }),
           ]
         }
       ]
@@ -162,68 +164,68 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Major Ports',
           icon: Anchor,
           items: [
-            { label: 'Major Ports Dashboard', icon: LayoutDashboard },
-            { label: 'Major Ports Input Form', icon: FileEdit },
-            { label: 'Major Ports Reports', icon: FilePieChart }
+            m('KPI_MAJOR_PORTS', { label: 'Major Ports Dashboard', icon: LayoutDashboard }),
+            m('KPI_MAJOR_PORTS', { label: 'Major Ports Input Form', icon: FileEdit }),
+            m('KPI_MAJOR_PORTS', { label: 'Major Ports Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'DSG',
           icon: ShieldCheck,
           items: [
-            { label: 'MMD Master', icon: ClipboardList },
-            { label: 'DSG Input Form', icon: FileEdit },
-            { label: 'DSG Reports', icon: FilePieChart }
+            m('KPI_DGS', { label: 'MMD Master', icon: ClipboardList }),
+            m('KPI_DGS', { label: 'DSG Input Form', icon: FileEdit }),
+            m('KPI_DGS', { label: 'DSG Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'IWAI',
           icon: Ship,
           items: [
-            { label: 'IWAI Master', icon: ClipboardList },
-            { label: 'National Waterways', icon: Milestone },
-            { label: 'Terminal/Jetties', icon: Anchor },
-            { label: 'Digital Portals', icon: Globe }
+            m('KPI_IWAI', { label: 'IWAI Master', icon: ClipboardList }),
+            m('KPI_IWAI', { label: 'National Waterways', icon: Milestone }),
+            m('KPI_IWAI', { label: 'Terminal/Jetties', icon: Anchor }),
+            m('KPI_IWAI', { label: 'Digital Portals', icon: Globe }),
           ]
         },
         {
           title: 'DGLL',
           icon: Compass,
           items: [
-            { label: 'DGLL Input Form', icon: FileEdit },
-            { label: 'DGLL Reports', icon: FilePieChart }
+            m('KPI_DGLL', { label: 'DGLL Input Form', icon: FileEdit }),
+            m('KPI_DGLL', { label: 'DGLL Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'CSL',
           icon: Layers,
           items: [
-            { label: 'CSL Input Form', icon: FileEdit },
-            { label: 'CSL Reports', icon: FilePieChart }
+            m('KPI_CSL', { label: 'CSL Input Form', icon: FileEdit }),
+            m('KPI_CSL', { label: 'CSL Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'IMU',
           icon: GraduationCap,
           items: [
-            { label: 'IMU Input Form', icon: FileEdit },
-            { label: 'IMU Reports', icon: FilePieChart }
+            m('KPI_IMU', { label: 'IMU Input Form', icon: FileEdit }),
+            m('KPI_IMU', { label: 'IMU Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'SCI',
           icon: Ship,
           items: [
-            { label: 'SCI Input Form', icon: FileEdit },
-            { label: 'SCI Reports', icon: FilePieChart }
+            m('KPI_SCI', { label: 'SCI Input Form', icon: FileEdit }),
+            m('KPI_SCI', { label: 'SCI Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'CMEC',
           icon: Layers,
           items: [
-            { label: 'CMEC Input Form', icon: FileEdit },
-            { label: 'CMEC Reports', icon: FilePieChart }
+            m('KPI_CMEC', { label: 'CMEC Input Form', icon: FileEdit }),
+            m('KPI_CMEC', { label: 'CMEC Reports', icon: FilePieChart }),
           ]
         }
       ]
@@ -236,9 +238,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
       width: 'w-[480px]',
       gridCols: 'grid-cols-2',
       items: [
-        { label: 'Attendance', icon: UserCheck },
-        { label: 'CPGRAMS', icon: PhoneCall },
-        {
+        m('ATTENDANCE', { label: 'Attendance', icon: UserCheck }),
+        m('CPGRAMS', { label: 'CPGRAMS', icon: PhoneCall }),
+        m('CABINET_NOTES_OTHER_MINISTRIES', {
           label: 'Cabinet Notes - Other Ministries', icon: FileText,
           targetTab: 'Cabinet Notes - Other Ministries',
           subItems: [
@@ -246,11 +248,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Input Form', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'Cabinet Notes - Other Ministries', targetSubTab: 'Reports', icon: FilePieChart },
           ]
-        },
-        { label: 'E Office', icon: Briefcase },
-        { label: 'Parliamentary Issue', icon: Scale },
-        { label: 'GEM Procurements', icon: Coins },
-        {
+        }),
+        m('E_OFFICE', { label: 'E Office', icon: Briefcase }),
+        m('PARLIAMENTARY_ISSUES', { label: 'Parliamentary Issue', icon: Scale }),
+        m('GEM_PROCUREMENT', { label: 'GEM Procurements', icon: Coins }),
+        m('CABINET_NOTES_MOPSW', {
           label: 'Cabinet Notes - MoPSW', icon: FileText,
           targetTab: 'Cabinet Notes - MoPSW',
           subItems: [
@@ -258,8 +260,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Input Form', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Reports', icon: FilePieChart },
           ]
-        },
-        {
+        }),
+        m('VIP_REFERENCE', {
           label: 'VIP Reference', icon: Users,
           targetTab: 'VIP Reference',
           subItems: [
@@ -267,8 +269,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Input Form', tab: 'VIP Reference', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'VIP Reference', targetSubTab: 'Reports', icon: FilePieChart },
           ]
-        },
-        {
+        }),
+        m('MEDIA_OUTREACH', {
           label: 'Media Outreach', icon: Globe,
           targetTab: 'Media Outreach',
           subItems: [
@@ -278,14 +280,14 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Social Media', tab: 'Media Outreach', mediaType: 'social_media', icon: Network },
             { label: 'Input Form', tab: 'Media Outreach', mediaType: 'add_details', icon: FileEdit },
           ]
-        },
-        { label: 'Audit Paras', icon: CheckCircle },
-        { label: 'Inter State & Inter Ministerial', icon: Network },
-        { label: 'Foreign Visit', icon: Globe },
-        { label: 'Cruise Shipping', icon: Ship },
-        { label: 'Flagged Ships / FOB Basis', icon: Shield },
-        { label: 'MOM Of PSW Meetings', icon: FileText },
-        { label: 'Review Items', icon: ClipboardList }
+        }),
+        m('AUDIT_PARAS', { label: 'Audit Paras', icon: CheckCircle }),
+        m('INTERSTATE_INTERMINISTERIAL', { label: 'Inter State & Inter Ministerial', icon: Network }),
+        m('FOREIGN_VISIT', { label: 'Foreign Visit', icon: Globe }),
+        m('CRUISE_SHIPPING', { label: 'Cruise Shipping', icon: Ship }),
+        m('FLAGSHIP_FOB_BASIS', { label: 'Flagged Ships / FOB Basis', icon: Shield }),
+        m('MOM_MINISTRY_MEETINGS', { label: 'MOM Of PSW Meetings', icon: FileText }),
+        m('REVIEW_ITEMS', { label: 'Review Items', icon: ClipboardList }),
       ]
     },
     {
@@ -299,31 +301,31 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'HR Management',
           icon: Users,
           items: [
-            { label: 'HR Dashboard', icon: LayoutDashboard },
-            { label: 'Employee Database', icon: ClipboardList },
-            { label: 'List of Abolished Ports', icon: UserX },
-            { label: 'List of Abolished Posts', icon: UserX },
-            { label: 'Contractual Employment', icon: UserPlus },
-            { label: 'Training Details', icon: BookOpen },
-            { label: 'HR Reports', icon: FilePieChart }
+            m('HR_MANAGEMENT', { label: 'HR Dashboard', icon: LayoutDashboard }),
+            m('HR_MANAGEMENT', { label: 'Employee Database', icon: ClipboardList }),
+            m('HR_MANAGEMENT', { label: 'List of Abolished Ports', icon: UserX }),
+            m('HR_MANAGEMENT', { label: 'List of Abolished Posts', icon: UserX }),
+            m('HR_MANAGEMENT', { label: 'Contractual Employment', icon: UserPlus }),
+            m('HR_MANAGEMENT', { label: 'Training Details', icon: BookOpen }),
+            m('HR_MANAGEMENT', { label: 'HR Reports', icon: FilePieChart }),
           ]
         },
         {
           title: 'Young Professionals',
           icon: UserCheck,
           items: [
-            { label: 'Input Form', tab: 'YP Input Form', icon: FileEdit },
-            { label: 'Data List', tab: 'YP Data List', icon: ClipboardList },
-            { label: 'Report', tab: 'YP Report', icon: FilePieChart },
+            m('YOUNG_PROFESSIONAL', { label: 'Input Form', tab: 'YP Input Form', icon: FileEdit }),
+            m('YOUNG_PROFESSIONAL', { label: 'Data List', tab: 'YP Data List', icon: ClipboardList }),
+            m('YOUNG_PROFESSIONAL', { label: 'Report', tab: 'YP Report', icon: FilePieChart }),
           ]
         },
         {
           title: 'Consultant Appointment',
           icon: UserPlus,
           items: [
-            { label: 'Consultant Input Form', icon: FileEdit },
-            { label: 'Consultant Data List', icon: ClipboardList },
-            { label: 'Consultant Reports', icon: FilePieChart }
+            m('CONSULTANT_APPOINTMENT', { label: 'Consultant Input Form', icon: FileEdit }),
+            m('CONSULTANT_APPOINTMENT', { label: 'Consultant Data List', icon: ClipboardList }),
+            m('CONSULTANT_APPOINTMENT', { label: 'Consultant Reports', icon: FilePieChart }),
           ]
         }
       ]
@@ -335,8 +337,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'left-0',
       width: 'w-[260px]',
       items: [
-        { label: 'Courtcases', icon: Gavel },
-        {
+        m('COURT_CASES', { label: 'Courtcases', icon: Gavel }),
+        m('BILLS_PRE_CONSTITUTION', {
           label: 'Bills/PreConstitutions Act', icon: BookMarked,
           targetTab: 'Bills/PreConstitutions Act',
           subItems: [
@@ -344,7 +346,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Input Form', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Reports', icon: FilePieChart },
           ]
-        }
+        }),
       ]
     },
     {
@@ -354,9 +356,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'left-0',
       width: 'w-[240px]',
       items: [
-        { label: 'Vision 2047', icon: Milestone },
-        { label: 'Maritime India Summit', icon: Anchor },
-        { label: 'Blue Economy Policy', icon: Globe }
+        m('AKV_2047', { label: 'Vision 2047', icon: Milestone }),
+        m('MIV_2030', { label: 'Maritime India Summit', icon: Anchor }),
+        m('AKV_2047', { label: 'Blue Economy Policy', icon: Globe }),
       ]
     },
     {
@@ -366,9 +368,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'left-0',
       width: 'w-[220px]',
       items: [
-        { label: 'Research Papers', icon: FileText },
-        { label: 'Policy Documents', icon: BookOpen },
-        { label: 'Guidelines', icon: FileCheck }
+        m('KNOWLEDGE_REPOSITORY', { label: 'Research Papers', icon: FileText }),
+        m('KNOWLEDGE_REPOSITORY', { label: 'Policy Documents', icon: BookOpen }),
+        m('KNOWLEDGE_REPOSITORY', { label: 'Guidelines', icon: FileCheck }),
       ]
     },
     {
@@ -378,8 +380,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'left-0',
       width: 'w-[220px]',
       items: [
-        { label: 'Create Dynamic Form', icon: FileText },
-        { label: 'View Submissions', icon: ClipboardList }
+        m('FORM_BUILDER', { label: 'Create Dynamic Form', icon: FileText }),
+        m('FORM_BUILDER', { label: 'View Submissions', icon: ClipboardList }),
       ]
     },
     {
@@ -389,8 +391,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'right-0',
       width: 'w-[220px]',
       items: [
-        { label: 'Project Milestones', icon: Milestone },
-        { label: 'Delay Analysis', icon: LineChart }
+        m('MOPSW_TRACKER', { label: 'Project Milestones', icon: Milestone }),
+        m('MOPSW_TRACKER', { label: 'Delay Analysis', icon: LineChart }),
       ]
     },
     {
@@ -400,9 +402,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'right-0',
       width: 'w-[240px]',
       items: [
-        { label: 'Meeting Schedule', icon: ClipboardList },
-        { label: 'Minutes of Meeting', icon: FileText },
-        { label: 'Action Taken Report', icon: CheckCircle }
+        m('SENIOR_OFFICE_MEETINGS', { label: 'Meeting Schedule', icon: ClipboardList }),
+        m('SENIOR_OFFICE_MEETINGS', { label: 'Minutes of Meeting', icon: FileText }),
+        m('SENIOR_OFFICE_MEETINGS', { label: 'Action Taken Report', icon: CheckCircle }),
       ]
     },
     ...(isSuperAdmin()
@@ -436,8 +438,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
     [accessKey, isOrgUser]
   );
 
-  const handleItemClick = (label) => {
-    const tab = resolveTabKey(label);
+  const handleItemClick = (tabOrLabel) => {
+    const tab = normalizeTab(tabOrLabel);
     if (!canAccessTab(tab)) return;
     setActiveTab(tab);
     setIsOpen(false);
@@ -612,7 +614,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                             return (
                               <div key={iIdx} className="relative group/flyout">
                                 <button
-                                  onClick={() => handleItemClick(item.label)}
+                                  onClick={() => handleItemClick(item.tab ?? item.label)}
                                   className="flex items-center justify-between space-x-2 w-full text-left text-xs font-semibold text-slate-655 hover:text-blue-605 hover:bg-slate-55 transition-all px-2.5 py-1.5 rounded-lg border border-transparent hover:border-slate-100 cursor-pointer group/flyoutbtn"
                                 >
                                   <div className="flex items-center space-x-2">
@@ -654,7 +656,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                           return (
                             <button
                               key={iIdx}
-                              onClick={() => handleItemClick(item.label)}
+                              onClick={() => handleItemClick(item.tab ?? item.label)}
                               className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-655 hover:text-blue-605 hover:bg-slate-55 transition-all px-2.5 py-1.5 rounded-lg border border-transparent hover:border-slate-100 cursor-pointer"
                             >
                               {ItemIcon && <ItemIcon className="h-4 w-4 text-slate-400" />}
@@ -920,7 +922,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                               return (
                                 <button
                                   key={iIdx}
-                                  onClick={() => handleItemClick(item.label)}
+                                  onClick={() => handleItemClick(item.tab ?? item.label)}
                                   className={`flex items-center space-x-2.5 text-left text-[11px] font-semibold transition-all py-2 px-3 rounded-lg border border-transparent ${
                                     activeTab === item.label 
                                       ? 'bg-blue-600 text-white font-bold shadow-sm border-blue-500' 

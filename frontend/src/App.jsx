@@ -23,6 +23,7 @@ import {
   TAB_USER_MODULE_PERMISSION,
   TAB_USER_LIST,
 } from './utils/moduleAccess';
+import { hasImplementedUi } from './config/moduleRegistry';
 import RestrictedAccess from './components/RestrictedAccess';
 import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
 import AuditParaView from './modules/AuditPara/AuditPara';
@@ -40,12 +41,12 @@ import Notification from './components/Notification';
 import ContactUs from './modules/Contact/Contact';
 
 const PROJECT_TABS = [
-  { id: 'dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
-  { id: 'projects', label: 'Project List', icon: ClipboardList },
-  { id: 'less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
-  { id: 'lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
-  { id: 'dropRequests', label: 'View Drop Request', icon: FolderSync },
-  { id: 'reports', label: 'Reports', icon: FilePieChart },
+  { id: 'projects-dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
+  { id: 'projects-list', label: 'Project List', icon: ClipboardList },
+  { id: 'projects-less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
+  { id: 'projects-lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
+  { id: 'projects-dropRequests', label: 'View Drop Request', icon: FolderSync },
+  { id: 'projects-reports', label: 'Reports', icon: FilePieChart },
 ];
 
 const INITIAL_PROJECTS = [
@@ -159,13 +160,12 @@ const getBreadcrumbs = (tab) => {
   if (tab === 'landing') return ['Home'];
   if (tab === 'Ports Reports') return ['KPI - Major Ports - (Output Reports)'];
 
-  // Projects tab routes
-  if (tab === 'dashboard') return ['Home', 'Projects', 'Project', 'Project Dashboard'];
-  if (tab === 'projects') return ['Home', 'Projects', 'Project', 'Project List'];
-  if (tab === 'less5cr') return ['Home', 'Projects', 'Project', 'Projects Less Than 5 Cr'];
-  if (tab === 'lumpsum') return ['Home', 'Projects', 'Project', 'Lumpsum - IWAI'];
-  if (tab === 'dropRequests') return ['Home', 'Projects', 'Project', 'View Drop Request'];
-  if (tab === 'reports') return ['Home', 'Projects', 'Project', 'Reports'];
+  if (tab === 'projects-dashboard') return ['Home', 'Projects', 'Project', 'Project Dashboard'];
+  if (tab === 'projects-list') return ['Home', 'Projects', 'Project', 'Project List'];
+  if (tab === 'projects-less5cr') return ['Home', 'Projects', 'Project', 'Projects Less Than 5 Cr'];
+  if (tab === 'projects-lumpsum') return ['Home', 'Projects', 'Project', 'Lumpsum - IWAI'];
+  if (tab === 'projects-dropRequests') return ['Home', 'Projects', 'Project', 'View Drop Request'];
+  if (tab === 'projects-reports') return ['Home', 'Projects', 'Project', 'Reports'];
 
   // Dynamic lookup for other tabs
   const kpiItems = {
@@ -246,13 +246,12 @@ const ROUTE_MAP = {
   'landing': 'landing',
   'profile': 'profile',
 
-  // Projects nested routes
-  'dashboard': 'projects/project/project-dashboard',
-  'projects': 'projects/project/project-list',
-  'less5cr': 'projects/project/projects-less-than-5-cr',
-  'lumpsum': 'projects/project/lumpsum-iwai',
-  'dropRequests': 'projects/project/view-drop-request',
-  'reports': 'projects/project/reports',
+  'projects-dashboard': 'projects/project/project-dashboard',
+  'projects-list': 'projects/project/project-list',
+  'projects-less5cr': 'projects/project/projects-less-than-5-cr',
+  'projects-lumpsum': 'projects/project/lumpsum-iwai',
+  'projects-dropRequests': 'projects/project/view-drop-request',
+  'projects-reports': 'projects/project/reports',
 
   // KPI nested routes
   'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
@@ -518,7 +517,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'dashboard' && (
+            {activeTab === 'projects-dashboard' && (
               <DashboardView
                 projects={projects}
                 activeTab={activeTab}
@@ -526,7 +525,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'projects' && (
+            {activeTab === 'projects-list' && (
               <Projects
                 projects={projects}
                 onAddProject={handleAddProject}
@@ -622,22 +621,7 @@ export default function App() {
               <ContactUs />
             )}
 
-            {!isSuperAdminTab(activeTab) &&
-              ![
-                'dashboard', 'projects', 'landing',
-                'Major Ports Dashboard', 'Major Ports Input Form', 'Major Ports Reports',
-                'Capex', 'capex', 'Capex Dashboard', 'Capex Datalist', 'Capex Input Form', 'Estimate Values', 'Capex Reports',
-                'E Office', 'Attendance', 'CPGRAMS',
-                'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts',
-                'Contractual Employment', 'Training Details', 'HR Reports',
-                'profile', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries',
-                'Parliamentary Issue', 'Audit Paras', 'VIP Reference',
-                'Bills/PreConstitutions Act', 'Acts & Rules',
-                'Data List', 'Input Form', 'Report',
-                'Consultant Input Form', 'Consultant Data List', 'Consultant Reports',
-                'Media Outreach', 'Ministry Contacts', 'Helpdesk Support',
-                'Young Professionals', 'YP Data List', 'YP Input Form', 'YP Report',
-              ].includes(activeTab) && (
+            {!isSuperAdminTab(activeTab) && !hasImplementedUi(activeTab) && (
               <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
                 <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                   <Sparkles className="h-7 w-7 text-blue-600" />
@@ -647,7 +631,7 @@ export default function App() {
                   This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
                 </p>
                 <button
-                  onClick={() => goToTab('dashboard')}
+                  onClick={() => goToTab('projects-dashboard')}
                   className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
                 >
                   Back to Dashboard
