@@ -12,7 +12,20 @@ import {
 } from './api';
 import { issueTypesFromStages } from './utils/stageHelpers';
 
-export default function ParliamentaryIssues({ onGoHome, triggerNotification }) {
+const INIT_TAB_KEY = 'parliamentaryIssueInitTab';
+
+function resolveSubTabId(label, canAdd) {
+  if (label === 'Input Form') return canAdd ? 'add' : 'list';
+  if (label === 'Reports' || label === 'Report') return 'report';
+  if (label === 'Data List') return 'list';
+  return null;
+}
+
+export default function ParliamentaryIssues({
+  activeSubTab: activeSubTabProp,
+  onGoHome,
+  triggerNotification,
+}) {
   const permissions = useParliamentaryPermissions();
   const [activeSubTab, setActiveSubTab] = useState('list');
   const [wings, setWings] = useState([]);
@@ -45,6 +58,37 @@ export default function ParliamentaryIssues({ onGoHome, triggerNotification }) {
       })
       .catch((err) => console.error(err));
   }, []);
+
+  // Menu flyout → Data List / Input Form / Reports
+  useEffect(() => {
+    const apply = (label) => {
+      const next = resolveSubTabId(label, permissions.canAdd);
+      if (next) setActiveSubTab(next);
+    };
+
+    const init = sessionStorage.getItem(INIT_TAB_KEY);
+    if (init) {
+      sessionStorage.removeItem(INIT_TAB_KEY);
+      apply(init);
+    }
+
+    const onMenu = (e) => apply(e.detail);
+    window.addEventListener('parliamentary-issue-subtab', onMenu);
+    return () => window.removeEventListener('parliamentary-issue-subtab', onMenu);
+  }, [permissions.canAdd]);
+
+  // Keep in sync if parent passes a sub-tab label
+  useEffect(() => {
+    const next = resolveSubTabId(activeSubTabProp, permissions.canAdd);
+    if (next) setActiveSubTab(next);
+  }, [activeSubTabProp, permissions.canAdd]);
+
+  // View-only / no-create users cannot stay on Input Form
+  useEffect(() => {
+    if (activeSubTab === 'add' && !permissions.canAdd) {
+      setActiveSubTab('list');
+    }
+  }, [activeSubTab, permissions.canAdd]);
 
   const tabs = useMemo(() => {
     const items = [];

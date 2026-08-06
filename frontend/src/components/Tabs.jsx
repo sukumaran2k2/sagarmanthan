@@ -8,6 +8,7 @@ import {
   TAB_USER_MODULE_PERMISSION,
   TAB_USER_LIST,
 } from '../utils/moduleAccess';
+import { canCreateModule } from '../utils/modulePermissions';
 import {
   Home,
   Briefcase,
@@ -83,15 +84,17 @@ export default function Tabs({ activeTab, setActiveTab }) {
     return roleId === 6 || roleId === 7;
   }, []);
 
+  const canCreateParliamentary = canCreateModule('PARLIAMENTARY_ISSUES');
+
   const accessKey = (() => {
     try {
       const t = localStorage.getItem('accessToken');
       if (!t) return '';
       const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       const codes = payload?.allowedModuleCodes;
-      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}`;
+      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}`;
     } catch {
-      return '';
+      return `piCreate:${canCreateParliamentary ? 1 : 0}`;
     }
   })();
 
@@ -248,7 +251,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
           ]
         },
         { label: 'E Office', icon: Briefcase },
-        { label: 'Parliamentary Issue', icon: Scale },
+        {
+          label: 'Parliamentary Issue',
+          icon: Scale,
+          targetTab: 'Parliamentary Issue',
+          subItems: [
+            { label: 'Data List', tab: 'Parliamentary Issue', targetSubTab: 'Data List', icon: ClipboardList },
+            ...(canCreateParliamentary
+              ? [{ label: 'Input Form', tab: 'Parliamentary Issue', targetSubTab: 'Input Form', icon: FileEdit }]
+              : []),
+            { label: 'Reports', tab: 'Parliamentary Issue', targetSubTab: 'Reports', icon: FilePieChart },
+          ],
+        },
         { label: 'GEM Procurements', icon: Coins },
         {
           label: 'Cabinet Notes - MoPSW', icon: FileText,
@@ -433,7 +447,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       ],
     },
   ]),
-    [accessKey, isOrgUser]
+    [accessKey, isOrgUser, canCreateParliamentary]
   );
 
   const handleItemClick = (label) => {
@@ -638,6 +652,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                           setIsOpen(false);
                                           if (sub.mediaType) {
                                             sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
+                                          }
+                                          if (
+                                            sub.targetSubTab &&
+                                            mainTab === 'Parliamentary Issue'
+                                          ) {
+                                            sessionStorage.setItem(
+                                              'parliamentaryIssueInitTab',
+                                              sub.targetSubTab
+                                            );
+                                            window.dispatchEvent(
+                                              new CustomEvent('parliamentary-issue-subtab', {
+                                                detail: sub.targetSubTab,
+                                              })
+                                            );
                                           }
                                         }}
                                         className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all py-1.5 px-2.5 rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-slate-700 cursor-pointer"
@@ -903,6 +931,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                               setActiveTab(mainTab);
                                               if (sub.mediaType) {
                                                 sessionStorage.setItem('mediaOutreachInitTab', sub.mediaType);
+                                              }
+                                              if (
+                                                sub.targetSubTab &&
+                                                mainTab === 'Parliamentary Issue'
+                                              ) {
+                                                sessionStorage.setItem(
+                                                  'parliamentaryIssueInitTab',
+                                                  sub.targetSubTab
+                                                );
+                                                window.dispatchEvent(
+                                                  new CustomEvent('parliamentary-issue-subtab', {
+                                                    detail: sub.targetSubTab,
+                                                  })
+                                                );
                                               }
                                               setIsOpen(false);
                                             }}

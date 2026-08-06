@@ -575,6 +575,7 @@ export default function App() {
 
             {activeTab === 'Parliamentary Issue' && (
               <ParliamentaryIssues
+                activeSubTab={activeTab}
                 onGoHome={() => goToTab('landing')}
                 triggerNotification={triggerNotification}
               />
