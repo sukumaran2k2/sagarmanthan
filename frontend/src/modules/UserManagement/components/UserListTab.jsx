@@ -22,7 +22,16 @@ function CrudDot({ on, label }) {
 function NameCell({ data }) {
   if (!data) return null;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '100%' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        gap: '10px',
+        height: '100%',
+        width: '100%',
+      }}
+    >
       <div
         className="avatar"
         style={{
@@ -150,7 +159,13 @@ export default function UserListTab({
         field: 'name',
         minWidth: 200,
         flex: 1.4,
-        cellStyle: { textAlign: 'left', display: 'flex', alignItems: 'center' },
+        cellClass: 'um-name-col',
+        cellStyle: {
+          textAlign: 'left',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+        },
         cellRenderer: NameCell,
         valueGetter: (params) =>
           `${params.data?.title ? `${params.data.title} ` : ''}${params.data?.name || ''}`,

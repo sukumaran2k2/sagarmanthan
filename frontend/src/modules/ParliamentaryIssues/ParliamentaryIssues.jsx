@@ -156,21 +156,19 @@ export default function ParliamentaryIssues({
         )}
 
         {activeSubTab === 'add' && permissions.canAdd && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-            <IssueForm
-              wings={wings}
-              divisions={divisions}
-              stages={stages}
-              issueTypeOptions={issueTypeOptions}
-              initialForm={null}
-              onBack={() => setActiveSubTab('list')}
-              onSuccess={() => {
-                setListKey((k) => k + 1);
-                setActiveSubTab('list');
-              }}
-              notify={notify}
-            />
-          </div>
+          <IssueForm
+            wings={wings}
+            divisions={divisions}
+            stages={stages}
+            issueTypeOptions={issueTypeOptions}
+            initialForm={null}
+            onBack={() => setActiveSubTab('list')}
+            onSuccess={() => {
+              setListKey((k) => k + 1);
+              setActiveSubTab('list');
+            }}
+            notify={notify}
+          />
         )}
 
         {activeSubTab === 'report' && (
