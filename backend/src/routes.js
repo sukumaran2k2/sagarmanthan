@@ -1,6 +1,7 @@
 import express from "express";
 
 import auth from "./authenticate.js";
+import { requireModulePermission } from "./middleware/modulePermission.js";
 import mikrAuth from "./mikrAuthenticate.js";
 
 
@@ -284,7 +285,7 @@ router.post("/mikr-logout", auth, mikrLogout);
 
 // MMT
 router.get("/mmt/:tid", masterTable.getMmt);
-router.get("/mmt-dropdown/:tid", masterTable.getDropDownData);
+router.get("/mmt-dropdown/:tid", auth, masterTable.getDropDownData);
 router.get("/mmt-dependecy-dropdown/:tid", masterTable.getFilterDependecyDropDown);
 
 router.post("/mmt", masterTable.createMmt);
@@ -292,7 +293,7 @@ router.put("/mmt", masterTable.updateMmt);
 router.put("/mmt-status", masterTable.toggleStatusMmt);
 // router.delete("/mmt", masterTable.deleteMmt);
 
-router.get("/allvalue-dropdown/:tid", masterTable.getDropDownAllValues);
+router.get("/allvalue-dropdown/:tid", auth, masterTable.getDropDownAllValues);
 
 //Terminal/Jetty image uploader
 router.post("/terminal-image-uploader", terminalImageUploaderTab.upload.single('imageFile'), terminalImageUploaderTab.terminalImageUploader);
@@ -506,11 +507,36 @@ router.post("/cabinet-ministry-stage", cabinetBillTab.createCabinetNotesMinistry
 router.delete("/cabinet-ministry/:cabinet_notes_ministry_id/:userID", cabinetBillTab.deleteCabinetNotesMinistry);
 
 // Parliamentary Issue
-router.get("/parliamentary-issue", parliamentaryIssueTab.getParliamentaryIssue);
-router.post("/parliamentary-issue", parliamentaryIssueTab.createParliamentaryIssue);
-router.get("/parliamentary-issue/:parliamentaryIssueID", parliamentaryIssueTab.getUpdateParliamentaryIssueData);
-router.put("/parliamentary-issue", parliamentaryIssueTab.editParliamentaryIssue);
-router.delete("/parliamentary-issue/:parliamentaryIssueID/:userID", parliamentaryIssueTab.deleteParliamentaryIssue);
+router.get(
+  "/parliamentary-issue",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parliamentaryIssueTab.getParliamentaryIssue
+);
+router.post(
+  "/parliamentary-issue",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "create"),
+  parliamentaryIssueTab.createParliamentaryIssue
+);
+router.get(
+  "/parliamentary-issue/:parliamentaryIssueID",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parliamentaryIssueTab.getUpdateParliamentaryIssueData
+);
+router.put(
+  "/parliamentary-issue",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "update"),
+  parliamentaryIssueTab.editParliamentaryIssue
+);
+router.delete(
+  "/parliamentary-issue/:parliamentaryIssueID/:userID",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "delete"),
+  parliamentaryIssueTab.deleteParliamentaryIssue
+);
 // router.post("/parliamentary-issue-stage", parliamentaryIssueTab.createParliamentaryIssueStage);
 
 // Gem Procurement
@@ -1202,22 +1228,82 @@ router.get('/get-class-org-wise/:clusterID/:organisationID', otherOrgVacancyDeta
 // REPORTS
 // Parliamentar Issues
 // Assurance
-router.get("/assurancewingwise-report", parlimentaryReportTab.assuranceWingWiseReports);
-router.get("/assurancedivisionwise-report/:wingID/", parlimentaryReportTab.assuranceDivisionWiseReports);
-router.get("/getwingwise-assurance/:wingID/:parliamentaryStage", parlimentaryReportTab.getAssuranceWingWise);
-router.get("/getdivisionwise-assurance/:divisionID/:parliamentaryStage", parlimentaryReportTab.getAssuranceDivisionWise);
+router.get(
+  "/assurancewingwise-report",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.assuranceWingWiseReports
+);
+router.get(
+  "/assurancedivisionwise-report/:wingID/",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.assuranceDivisionWiseReports
+);
+router.get(
+  "/getwingwise-assurance/:wingID/:parliamentaryStage",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.getAssuranceWingWise
+);
+router.get(
+  "/getdivisionwise-assurance/:divisionID/:parliamentaryStage",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.getAssuranceDivisionWise
+);
 
 // Matter Raised
-router.get("/matterraised-wingwisereport/:issueType/", parlimentaryReportTab.parliaMatterRaisedWingWise);
-router.get("/matterraised-divisionwise/:wingID/:issueType/", parlimentaryReportTab.parliaMatterDivisionWise);
-router.get("/getwingwise-matter/:wingID/:parliamentaryStage/:IssueType/", parlimentaryReportTab.getMatterWingWise);
-router.get("/getdivisionwise-matter/:divisionID/:parliamentaryStage/:IssueType/", parlimentaryReportTab.getMatterDivisionWise);
+router.get(
+  "/matterraised-wingwisereport/:issueType/",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.parliaMatterRaisedWingWise
+);
+router.get(
+  "/matterraised-divisionwise/:wingID/:issueType/",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.parliaMatterDivisionWise
+);
+router.get(
+  "/getwingwise-matter/:wingID/:parliamentaryStage/:IssueType/",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.getMatterWingWise
+);
+router.get(
+  "/getdivisionwise-matter/:divisionID/:parliamentaryStage/:IssueType/",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.getMatterDivisionWise
+);
 
 // PSC Report
-router.get("/psnwingwise-report", parlimentaryReportTab.getPsnReportsData);
-router.get("/psndivisionwise-report/:wingID/", parlimentaryReportTab.parliaPscDivisionWise);
-router.get("/getwingwise-psc/:wingID/:parliamentaryStage", parlimentaryReportTab.getPscWingWise);
-router.get("/getdivisionwise-psc/:divisionID/:parliamentaryStage", parlimentaryReportTab.getPscDivisionWise);
+router.get(
+  "/psnwingwise-report",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.getPsnReportsData
+);
+router.get(
+  "/psndivisionwise-report/:wingID/",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.parliaPscDivisionWise
+);
+router.get(
+  "/getwingwise-psc/:wingID/:parliamentaryStage",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.getPscWingWise
+);
+router.get(
+  "/getdivisionwise-psc/:divisionID/:parliamentaryStage",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.getPscDivisionWise
+);
 
 // Bill Report
 router.get("/billwingwise-report", billReportTab.billWingWiseData);

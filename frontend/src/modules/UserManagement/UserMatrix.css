@@ -638,6 +638,11 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
   background-color: #10B981;
 }
 
+.user-matrix-container .ag-cell.um-name-col {
+  text-align: left !important;
+  justify-content: flex-start !important;
+}
+
 .um-name-cell {
   color: #334155;
 }

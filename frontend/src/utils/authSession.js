@@ -62,3 +62,36 @@ export function isNodalOfficerRole(role) {
   const name = String(role?.role_name || role?.roleName || role || '').toLowerCase();
   return code.includes('NODAL') || name.includes('nodal officer');
 }
+
+export function getRoleCode() {
+  const claims = getSessionClaims();
+  return String(claims?.roleCode || '').toUpperCase() || null;
+}
+
+// View Only Admin: read takes priority over JWT CRUD write flags.
+export function isViewOnlyAdmin() {
+  const claims = getSessionClaims();
+  if (!claims) return false;
+  const code = String(claims.roleCode || '').toUpperCase();
+  if (code === 'VIEW_ONLY_ADMIN') return true;
+  const name = String(claims.roleName || '').toLowerCase();
+  return name.includes('view only admin') || name === 'view only';
+}
+
+export function getUiViewCode() {
+  const claims = getSessionClaims();
+  return String(claims?.uiViewCode || '').toUpperCase() || null;
+}
+
+export function getDataScopeCode() {
+  const claims = getSessionClaims();
+  return String(claims?.dataScopeCode || '').toUpperCase() || null;
+}
+
+export function getSessionWingId() {
+  const claims = getSessionClaims();
+  if (!claims) return null;
+  const raw = claims.wingId ?? claims.wing_id;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}

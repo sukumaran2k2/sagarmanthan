@@ -306,6 +306,12 @@ async function getDropDownData(req, res) {
             query = "SELECT division_id, division_name, wing_id FROM mmt_division WHERE status = 1 ORDER BY division_name";
             break;
 
+        case "mmt_parliamentary_stage":
+            query = `SELECT parlia_stage_id, parlia_stage_name, parlia_issue_type
+                     FROM mmt_parliamentary_stage
+                     ORDER BY parlia_stage_id`;
+            break;
+
         case "mmt_section":
             query = "SELECT section_id, section_name, division_id FROM mmt_section WHERE status = 1 ORDER BY section_name";
             break;

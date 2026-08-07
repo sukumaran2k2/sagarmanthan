@@ -574,7 +574,11 @@ export default function App() {
             )}
 
             {activeTab === 'Parliamentary Issue' && (
-              <ParliamentaryIssues />
+              <ParliamentaryIssues
+                activeSubTab={activeTab}
+                onGoHome={() => goToTab('landing')}
+                triggerNotification={triggerNotification}
+              />
             )}
 
             {['HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
