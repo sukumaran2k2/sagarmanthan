@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Calendar, Upload, File } from 'lucide-react';
-import axios from 'axios';
+import { createConsultantAppointment, updateConsultantAppointment } from '../api';
 
 function decodeToken(token) {
   try {
@@ -230,12 +230,12 @@ export default function InputForm({
 
     try {
       if (isEdit) {
-        await axios.put("http://localhost:3000/consultant-appointment", {
+        await updateConsultantAppointment({
           consultantAppointmentID: editData.id,
           ...payload
         });
       } else {
-        await axios.post("http://localhost:3000/consultant-appointment", {
+        await createConsultantAppointment({
           candidateIDs: [],
           ...payload
         });
@@ -334,7 +334,6 @@ export default function InputForm({
             >
               <option value="Full Time">Full Time</option>
               <option value="Part Time">Part Time</option>
-              <option value="Retainer">Retainer</option>
             </select>
           </div>
         </div>

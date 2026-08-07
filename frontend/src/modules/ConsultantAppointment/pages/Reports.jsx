@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import axios from 'axios';
+import api from '../api';
 import ReportTable from '../../../components/ReportTable';
 
 export default function Reports({ wings = [], triggerNotification }) {
@@ -9,7 +9,7 @@ export default function Reports({ wings = [], triggerNotification }) {
     if (wings && wings.length > 0) {
       setLocalWings(wings);
     } else {
-      axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
+      api.get("/mmt-dropdown/mmt_wings")
         .then(res => setLocalWings(res.data || []))
         .catch(err => console.error("Error loading wings in report:", err));
     }
@@ -61,6 +61,9 @@ export default function Reports({ wings = [], triggerNotification }) {
 
             // 1. Click Wing Name -> go to Division Report
             if (isWingName && currentView.type === 'abstract') {
+              if (params.node && params.node.rowPinned) {
+                return <strong style={{ fontWeight: 800, color: '#4b2424' }}>{params.value}</strong>;
+              }
               return (
                 <button
                   onClick={() => {
@@ -88,6 +91,10 @@ export default function Reports({ wings = [], triggerNotification }) {
               );
             }
 
+            if (params.node && params.node.rowPinned) {
+              return <strong style={{ fontWeight: 800, color: '#4b2424' }}>{params.value}</strong>;
+            }
+
             return params.value;
           }
         };
@@ -111,7 +118,7 @@ export default function Reports({ wings = [], triggerNotification }) {
 
     if (!endpoint) return;
 
-    axios.get(`http://localhost:3000${endpoint}`)
+    api.get(endpoint)
       .then(res => {
         const fetchedData = res.data?.rowData || res.data?.value || res.data?.data || (Array.isArray(res.data) ? res.data : []);
         setDrillDownData(fetchedData);
@@ -171,6 +178,41 @@ export default function Reports({ wings = [], triggerNotification }) {
     return drillDownData;
   }, [currentView.type, drillDownData, wingFilter]);
 
+  const pinnedBottomRowData = useMemo(() => {
+    if (!viewData || viewData.length === 0) return undefined;
+
+    const totalRow = {};
+    const keys = Object.keys(viewData[0]);
+    let firstTextKeySet = false;
+
+    keys.forEach(key => {
+      const keyLower = key.toLowerCase();
+      const isIdCol = keyLower.includes('id') || keyLower === 's no' || keyLower === 's.no' || keyLower === 'sno';
+      const isNumeric = viewData.some(row => typeof row[key] === 'number');
+
+      if (isNumeric && !isIdCol) {
+        const sum = viewData.reduce((acc, row) => acc + (Number(row[key]) || 0), 0);
+        totalRow[key] = sum;
+      } else if (!firstTextKeySet && (keyLower.includes('wing') || keyLower.includes('division') || keyLower.includes('name') || keyLower.includes('subject') || keyLower.includes('officer'))) {
+        totalRow[key] = 'Total';
+        firstTextKeySet = true;
+      } else if (keyLower === 's no' || keyLower === 's.no' || keyLower === 'sno') {
+        totalRow[key] = '';
+      } else {
+        totalRow[key] = '';
+      }
+    });
+
+    if (!firstTextKeySet) {
+      if (totalRow['Wing Name'] !== undefined) totalRow['Wing Name'] = 'Total';
+      else if (totalRow['Division Name'] !== undefined) totalRow['Division Name'] = 'Total';
+      else if (totalRow['Wing'] !== undefined) totalRow['Wing'] = 'Total';
+      else if (totalRow['Name'] !== undefined) totalRow['Name'] = 'Total';
+    }
+
+    return [totalRow];
+  }, [viewData]);
+
   const defaultColDef = useMemo(() => ({
     sortable: true,
     filter: true,
@@ -205,6 +247,7 @@ export default function Reports({ wings = [], triggerNotification }) {
         viewData={viewData}
         columns={drillDownColDefs}
         defaultColDef={defaultColDef}
+        pinnedBottomRowData={pinnedBottomRowData}
         loading={drillDownLoading}
         onRefresh={fetchDrillDownData}
         triggerNotification={triggerNotification}

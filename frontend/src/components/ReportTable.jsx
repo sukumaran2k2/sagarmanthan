@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ChevronLeft, FileSpreadsheet, Download, Search, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
+import TablePagination from './TablePagination';
 
 export default function ReportTable({
   title,
@@ -21,7 +22,8 @@ export default function ReportTable({
   brandColorHover = '#1e3a8a',
   accentColor = '#f1f5f9',
   oddRowColor = '#f8fafc',
-  totalLabel = 'Total'
+  totalLabel = 'Total',
+  pinnedBottomRowData = undefined
 }) {
   // Detail titles with "|" keep the full string in the eyebrow (legacy Form 8.2).
   // Summary titles use the segment before " - ".
@@ -35,6 +37,12 @@ export default function ReportTable({
   const [quickFilter, setQuickFilter] = useState('');
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
+  const [pageSize, setPageSize] = useState(15);
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -44,6 +52,33 @@ export default function ReportTable({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handlePaginationChanged = (params) => {
+    if (params.api) {
+      setCurrentPage(params.api.paginationGetCurrentPage());
+      setTotalPages(params.api.paginationGetTotalPages());
+      setTotalRows(params.api.paginationGetRowCount());
+      setPageSize(params.api.paginationGetPageSize());
+    }
+  };
+
+  const handlePageClick = (pageIndex) => {
+    if (gridRef.current?.api) {
+      gridRef.current.api.paginationGoToPage(pageIndex);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (gridRef.current?.api) {
+      gridRef.current.api.paginationGoToPreviousPage();
+    }
+  };
+
+  const handleNextPage = () => {
+    if (gridRef.current?.api) {
+      gridRef.current.api.paginationGoToNextPage();
+    }
+  };
 
   const handleExport = (type) => {
     if (type === 'Excel') {
@@ -243,11 +278,13 @@ export default function ReportTable({
             ref={gridRef}
             theme="legacy"
             rowData={viewData}
+            pinnedBottomRowData={pinnedBottomRowData}
             columnDefs={columns}
             defaultColDef={defaultColDef}
             pagination={pagination}
-            paginationPageSize={15}
-            paginationPageSizeSelector={[10, 15, 25, 50]}
+            paginationPageSize={pageSize}
+            suppressPaginationPanel={true}
+            onPaginationChanged={handlePaginationChanged}
             domLayout="autoHeight"
             suppressColumnVirtualisation={true}
             quickFilterText={quickFilter}
@@ -266,7 +303,18 @@ export default function ReportTable({
         </div>
       </div>
 
-      <div className="flex items-center justify-end px-5 py-3 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-700" />
+      {pagination && (
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalRows={totalRows}
+          pageSize={pageSize}
+          onPageChange={handlePageClick}
+          onPrevPage={handlePrevPage}
+          onNextPage={handleNextPage}
+          color={brandColor}
+        />
+      )}
 
       <style dangerouslySetInnerHTML={{
         __html: `
@@ -419,21 +467,49 @@ export default function ReportTable({
         .${themeClass} .ag-pinned-left-cols-container {
           box-shadow: 4px 0 12px rgba(0,0,0,0.04) !important;
         }
+<<<<<<< Updated upstream
+=======
+
+        /* ── PAGINATION (YP Report Style) ── */
+>>>>>>> Stashed changes
         .${themeClass} .ag-paging-panel {
-          border-top: 1px solid #e2e8f0 !important;
-          background: #f8fafc !important;
+          border-top: 1px solid #D3D6D9 !important;
+          background: var(--theme-row-odd-bg, #f8faf6) !important;
           padding: 10px 20px !important;
           font-size: 12.5px !important;
-          font-weight: 600 !important;
-          color: #64748b !important;
+          font-weight: 700 !important;
+          color: var(--theme-primary-color, #4b2424) !important;
         }
         .${themeClass} .ag-paging-button {
           cursor: pointer !important;
           border-radius: 6px !important;
           transition: background 0.15s !important;
+          color: var(--theme-primary-color, #4b2424) !important;
+          opacity: 1 !important;
         }
         .${themeClass} .ag-paging-button:hover {
-          background: var(--theme-accent-color) !important;
+          background: var(--theme-accent-color, #f6f8f5) !important;
+        }
+
+        .${themeClass} .ag-paging-panel .ag-icon {
+          color: var(--theme-primary-color, #4b2424) !important;
+          opacity: 1 !important;
+        }
+
+        .${themeClass} .ag-paging-page-size-select select,
+        .${themeClass} .ag-paging-row-summary-panel select {
+          color: var(--theme-primary-color, #4b2424) !important;
+          background-color: #ffffff !important;
+          font-weight: 700 !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 6px !important;
+          padding: 2px 6px !important;
+        }
+
+        .${themeClass} .ag-paging-number,
+        .${themeClass} .ag-paging-row-summary-panel {
+          color: var(--theme-primary-color, #4b2424) !important;
+          font-weight: 700 !important;
         }
         .${themeClass} ::-webkit-scrollbar {
           height: 6px;
@@ -446,6 +522,23 @@ export default function ReportTable({
           background: var(--theme-primary-color);
           border-radius: 3px;
         }
+        /* ── PINNED BOTTOM TOTAL ROW ── */
+        .${themeClass} .ag-floating-bottom {
+          background-color: #f1f5f9 !important;
+          font-weight: 800 !important;
+          border-top: 2px solid var(--theme-primary-color) !important;
+        }
+        .${themeClass} .ag-floating-bottom .ag-row {
+          background-color: #f1f5f9 !important;
+          font-weight: 800 !important;
+          color: var(--theme-primary-color) !important;
+        }
+        .${themeClass} .ag-floating-bottom .ag-cell {
+          font-weight: 800 !important;
+          color: var(--theme-primary-color) !important;
+        }
+
+        /* ── NO-DATA OVERLAY ── */
         .${themeClass} .ag-overlay-no-rows-center {
           font-size: 14px !important;
           font-weight: 600 !important;
