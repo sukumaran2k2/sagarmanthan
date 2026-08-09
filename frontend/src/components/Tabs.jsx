@@ -362,6 +362,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Reports', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
+        m('ACTS_AND_RULES', { label: 'Acts & Rules', icon: Scale }),
       ]
     },
     {

@@ -29,6 +29,7 @@ import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssu
 import AuditParaView from './modules/AuditPara/AuditPara';
 import VIPReferenceView from './modules/VIPReference/VIPReference';
 import BillsPreConstitutionsView from './modules/BillsPreConstitutions/BillsPreConstitutions';
+import ActsAndRulesView from './modules/ActsAndRules/ActsAndRules';
 import YoungProfessionalsView from './modules/YoungProfessionals/YoungProfessionals';
 import ConsultantAppointmentView from './modules/ConsultantAppointment/ConsultantAppointment';
 import MediaOutreachView from './modules/MediaOutreach/MediaOutreach';
@@ -219,7 +220,7 @@ const getBreadcrumbs = (tab) => {
   if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
 
-  const legalItems = ['Courtcases', 'Bills/PreConstitutions Act'];
+  const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
 
   const visionItems = ['Vision 2047', 'Maritime India Summit', 'Blue Economy Policy'];
@@ -602,8 +603,12 @@ export default function App() {
               <MediaOutreachView triggerNotification={triggerNotification} />
             )}
 
-            {['Bills/PreConstitutions Act', 'Acts & Rules'].includes(activeTab) && (
+            {activeTab === 'Bills/PreConstitutions Act' && (
               <BillsPreConstitutionsView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
+            )}
+
+            {activeTab === 'Acts & Rules' && (
+              <ActsAndRulesView />
             )}
 
             {['Young Professionals', 'YP Data List', 'YP Input Form', 'YP Report'].includes(activeTab) && (
