@@ -42,7 +42,6 @@ export default function InputForm({
   const [division, setDivision] = useState('');
   const [numResources, setNumResources] = useState(1);
   const [appointmentType, setAppointmentType] = useState('Full Time');
-  const [consultingFirmName, setConsultingFirmName] = useState('');
 
   // Milestone Stages State
   const [formStages, setFormStages] = useState({
@@ -121,7 +120,6 @@ export default function InputForm({
       setDivision(editData.division_id || '');
       setAppointmentType(editData.appointmentType || 'Full Time');
       setNumResources(editData.numResources || 1);
-      setConsultingFirmName(editData.consultingFirmName || '');
       setFormStages({ ...editData.stages });
       setDates({
         adminApprovalDate: editData.stages.adminApprovalDate || '',
@@ -174,10 +172,6 @@ export default function InputForm({
       alert("Please select a Division.");
       return;
     }
-    if (!consultingFirmName.trim()) {
-      alert("Consulting Firm Name is required.");
-      return;
-    }
     if (Object.keys(errors).length > 0) {
       alert("Please correct validation errors.");
       return;
@@ -223,7 +217,7 @@ export default function InputForm({
       workOrderIssuedDate: dates.workOrderIssuedDate || "",
       contractSigned: formStages.contractSigned ? "Yes" : "No",
       contractSignedDate: dates.contractSignedDate || "",
-      consultingFirmName: consultingFirmName.trim(),
+      consultingFirmName: "",
       stageID: selectedStage,
       userID: activeUserId
     };
@@ -247,8 +241,9 @@ export default function InputForm({
 
       onSuccess();
     } catch (err) {
-      console.error(err);
-      alert("Failed to save Consultant Appointment details.");
+      console.error("Submit error details:", err.response?.data || err);
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+      alert(`Failed to save Consultant Appointment details: ${serverMsg}`);
     } finally {
       setSubmitting(false);
     }
@@ -258,7 +253,6 @@ export default function InputForm({
   const isFormDisabled =
     !wing ||
     !division ||
-    !consultingFirmName.trim() ||
     numResources === '' ||
     Number(numResources) <= 0 ||
     STAGES.some(stage => formStages[stage.key] && !dates[stage.dateKey]) ||
@@ -447,17 +441,7 @@ export default function InputForm({
           </div>
         </div>
 
-        <div className="space-y-1.5 mt-6">
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Name of the Consulting Firm*</label>
-          <input
-            type="text"
-            value={consultingFirmName}
-            onChange={(e) => setConsultingFirmName(e.target.value)}
-            required
-            placeholder="Enter Consulting Firm Name"
-            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200"
-          />
-        </div>
+
 
         <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100 dark:border-slate-800">
           <button

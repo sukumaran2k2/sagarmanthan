@@ -1,98 +1,106 @@
 import { pool } from "../../db.js";
 import fs from 'fs';
+import sql from 'mssql';
+
+function toBit(value) {
+    if (value === null || value === undefined || value === "") return null;
+    if (typeof value === "boolean") return value ? 1 : 0;
+    if (typeof value === "number") return value ? 1 : 0;
+    const n = String(value).trim().toLowerCase();
+    if (n === "yes" || n === "1" || n === "true") return 1;
+    if (n === "no" || n === "0" || n === "false") return 0;
+    return null;
+}
 
 async function createConsultantAppointment(req, res) {
-    const wing = req.body.wing;
-    const division = req.body.division;
-    const numberOfResources = req.body.resourceNumber;
-    const appointmentType = req.body.appointmentType;
-    const adminApprovalForNKGConsultant = req.body.adminApproval;
-    let adminApprovalForNKGConsultantDate = req.body.adminApprovalDate;
-    const tenderPublished = req.body.tenderPublished;
-    let tenderPublishedDate = req.body.tenderPublishedDate;
-    const preBidQueriesResponded = req.body.preBidQueriesResponded;
-    let preBidQueriesRespondedDate = req.body.preBidQueriesRespondedDate;
-    const bidReceived = req.body.bidReceived;
-    let bidReceivedDate = req.body.bidReceivedDate;
-    const technicalBidFinalized = req.body.technicalBidFinalized;
-    let technicalBidFinalizedDate = req.body.technicalBidFinalizedDate;
-    const financialBidFinalized = req.body.financialBidFinalized;
-    let financialBidFinalizedDate = req.body.financialBidFinalizedDate;
-    const workOrderIssued = req.body.workOrderIssued;
-    let workOrderIssuedDate = req.body.workOrderIssuedDate;
-    const contractSigned = req.body.contractSigned;
-    let contractSignedDate = req.body.contractSignedDate;
-    const nameOfConsultingFirm = req.body.consultingFirmName;
-    let candidateIDs = req.body.candidateIDs;
-    candidateIDs = candidateIDs.join(',');
-    const stageID = req.body.stageID;
-    const userID = req.body.userID;
-
-
-    if (adminApprovalForNKGConsultantDate === "") {
-        adminApprovalForNKGConsultantDate = null;
-    }
-
-    if (tenderPublishedDate === "") {
-        tenderPublishedDate = null;
-    }
-
-    if (preBidQueriesRespondedDate === "") {
-        preBidQueriesRespondedDate = null;
-    }
-
-    if (bidReceivedDate === "") {
-        bidReceivedDate = null;
-    }
-
-    if (technicalBidFinalizedDate === "") {
-        technicalBidFinalizedDate = null;
-    }
-
-    if (financialBidFinalizedDate === "") {
-        financialBidFinalizedDate = null;
-    }
-
-    if (workOrderIssuedDate === "") {
-        workOrderIssuedDate = null;
-    }
-
-    if (contractSignedDate === "") {
-        contractSignedDate = null;
-    }
-
-    if (!wing || !division || !numberOfResources || !appointmentType) {
-        return res.status(400).json({ message: "Required fields are missing." });
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("wing", wing);
-    request.input("division", division);
-    request.input("numberOfResources", numberOfResources);
-    request.input("appointmentType", appointmentType);
-    request.input("adminApprovalForNKGConsultant", adminApprovalForNKGConsultant);
-    request.input("adminApprovalForNKGConsultantDate", adminApprovalForNKGConsultantDate);
-    request.input("tenderPublished", tenderPublished);
-    request.input("tenderPublishedDate", tenderPublishedDate);
-    request.input("preBidQueriesResponded", preBidQueriesResponded);
-    request.input("preBidQueriesRespondedDate", preBidQueriesRespondedDate);
-    request.input("bidReceived", bidReceived);
-    request.input("bidReceivedDate", bidReceivedDate);
-    request.input("technicalBidFinalized", technicalBidFinalized);
-    request.input("technicalBidFinalizedDate", technicalBidFinalizedDate);
-    request.input("financialBidFinalized", financialBidFinalized);
-    request.input("financialBidFinalizedDate", financialBidFinalizedDate);
-    request.input("workOrderIssued", workOrderIssued);
-    request.input("workOrderIssuedDate", workOrderIssuedDate);
-    request.input("contractSigned", contractSigned);
-    request.input("contractSignedDate", contractSignedDate);
-    request.input("nameOfConsultingFirm", nameOfConsultingFirm);
-    request.input("candidateIDs", candidateIDs);
-    request.input("stageID", stageID);
-    request.input("userID", userID);
-
     try {
+        console.log("createConsultantAppointment payload:", req.body);
+        const wing = req.body.wing;
+        const division = req.body.division;
+        const numberOfResources = req.body.resourceNumber;
+        const appointmentType = req.body.appointmentType;
+        const adminApprovalForNKGConsultant = req.body.adminApproval;
+        let adminApprovalForNKGConsultantDate = req.body.adminApprovalDate;
+        const tenderPublished = req.body.tenderPublished;
+        let tenderPublishedDate = req.body.tenderPublishedDate;
+        const preBidQueriesResponded = req.body.preBidQueriesResponded;
+        let preBidQueriesRespondedDate = req.body.preBidQueriesRespondedDate;
+        const bidReceived = req.body.bidReceived;
+        let bidReceivedDate = req.body.bidReceivedDate;
+        const technicalBidFinalized = req.body.technicalBidFinalized;
+        let technicalBidFinalizedDate = req.body.technicalBidFinalizedDate;
+        const financialBidFinalized = req.body.financialBidFinalized;
+        let financialBidFinalizedDate = req.body.financialBidFinalizedDate;
+        const workOrderIssued = req.body.workOrderIssued;
+        let workOrderIssuedDate = req.body.workOrderIssuedDate;
+        const contractSigned = req.body.contractSigned;
+        let contractSignedDate = req.body.contractSignedDate;
+        const nameOfConsultingFirm = req.body.consultingFirmName || '';
+        let candidateIDs = req.body.candidateIDs;
+        if (Array.isArray(candidateIDs)) {
+            candidateIDs = candidateIDs.join(',');
+        } else {
+            candidateIDs = candidateIDs ? String(candidateIDs) : '';
+        }
+        const stageID = req.body.stageID;
+        const userID = req.body.userID;
+
+        if (adminApprovalForNKGConsultantDate === "") {
+            adminApprovalForNKGConsultantDate = null;
+        }
+        if (tenderPublishedDate === "") {
+            tenderPublishedDate = null;
+        }
+        if (preBidQueriesRespondedDate === "") {
+            preBidQueriesRespondedDate = null;
+        }
+        if (bidReceivedDate === "") {
+            bidReceivedDate = null;
+        }
+        if (technicalBidFinalizedDate === "") {
+            technicalBidFinalizedDate = null;
+        }
+        if (financialBidFinalizedDate === "") {
+            financialBidFinalizedDate = null;
+        }
+        if (workOrderIssuedDate === "") {
+            workOrderIssuedDate = null;
+        }
+        if (contractSignedDate === "") {
+            contractSignedDate = null;
+        }
+
+        if (!wing || !division || !numberOfResources || !appointmentType) {
+            return res.status(400).json({ message: "Required fields are missing." });
+        }
+
+        const conn = await pool;
+        const request = conn.request();
+        request.input("wing", wing);
+        request.input("division", division);
+        request.input("numberOfResources", numberOfResources);
+        request.input("appointmentType", appointmentType);
+        request.input("adminApprovalForNKGConsultant", sql.Bit, toBit(adminApprovalForNKGConsultant));
+        request.input("adminApprovalForNKGConsultantDate", adminApprovalForNKGConsultantDate);
+        request.input("tenderPublished", sql.Bit, toBit(tenderPublished));
+        request.input("tenderPublishedDate", tenderPublishedDate);
+        request.input("preBidQueriesResponded", sql.Bit, toBit(preBidQueriesResponded));
+        request.input("preBidQueriesRespondedDate", preBidQueriesRespondedDate);
+        request.input("bidReceived", sql.Bit, toBit(bidReceived));
+        request.input("bidReceivedDate", bidReceivedDate);
+        request.input("technicalBidFinalized", sql.Bit, toBit(technicalBidFinalized));
+        request.input("technicalBidFinalizedDate", technicalBidFinalizedDate);
+        request.input("financialBidFinalized", sql.Bit, toBit(financialBidFinalized));
+        request.input("financialBidFinalizedDate", financialBidFinalizedDate);
+        request.input("workOrderIssued", sql.Bit, toBit(workOrderIssued));
+        request.input("workOrderIssuedDate", workOrderIssuedDate);
+        request.input("contractSigned", sql.Bit, toBit(contractSigned));
+        request.input("contractSignedDate", contractSignedDate);
+        request.input("nameOfConsultingFirm", nameOfConsultingFirm);
+        request.input("candidateIDs", candidateIDs);
+        request.input("stageID", stageID);
+        request.input("userID", userID);
+
         const result = await request.query(`
             INSERT INTO tbl_consultant_appointment (
                 wing, division, number_of_resources, appointment_type,
@@ -116,11 +124,10 @@ async function createConsultantAppointment(req, res) {
         `);
 
         const consultant_appointment_id = result.recordset[0].consultant_appointment_id;
-
-        res.status(201).json({ consultant_appointment_id });
+        return res.status(201).json({ consultant_appointment_id });
     } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
+        console.error("Error creating consultant appointment:", err);
+        return res.status(500).json({ message: err.message || "Failed to create consultant appointment." });
     }
 }
 
@@ -255,25 +262,24 @@ async function updateConsultantAppointment(req, res) {
     request.input("wing", wing);
     request.input("division", division);
     request.input("appointmentType", appointmentType);
-    request.input("adminApprovalForNKGConsultant", adminApprovalForNKGConsultant);
+    request.input("adminApprovalForNKGConsultant", sql.Bit, toBit(adminApprovalForNKGConsultant));
     request.input("adminApprovalForNKGConsultantDate", adminApprovalForNKGConsultantDate);
-    request.input("tenderPublished", tenderPublished);
+    request.input("tenderPublished", sql.Bit, toBit(tenderPublished));
     request.input("tenderPublishedDate", tenderPublishedDate);
-    request.input("preBidQueriesResponded", preBidQueriesResponded);
+    request.input("preBidQueriesResponded", sql.Bit, toBit(preBidQueriesResponded));
     request.input("preBidQueriesRespondedDate", preBidQueriesRespondedDate);
-    request.input("bidReceived", bidReceived);
+    request.input("bidReceived", sql.Bit, toBit(bidReceived));
     request.input("bidReceivedDate", bidReceivedDate);
-    request.input("technicalBidFinalized", technicalBidFinalized);
+    request.input("technicalBidFinalized", sql.Bit, toBit(technicalBidFinalized));
     request.input("technicalBidFinalizedDate", technicalBidFinalizedDate);
-    request.input("financialBidFinalized", financialBidFinalized);
+    request.input("financialBidFinalized", sql.Bit, toBit(financialBidFinalized));
     request.input("financialBidFinalizedDate", financialBidFinalizedDate);
-    request.input("workOrderIssued", workOrderIssued);
+    request.input("workOrderIssued", sql.Bit, toBit(workOrderIssued));
     request.input("workOrderIssuedDate", workOrderIssuedDate);
     request.input("stageID", stageID);
-    request.input("contractSigned", contractSigned);
-    
+    request.input("contractSigned", sql.Bit, toBit(contractSigned));
     request.input("contractSignedDate", contractSignedDate);
-    request.input("consultingFirmName", consultingFirmName);
+    request.input("consultingFirmName", consultingFirmName || '');
     request.input("userID", userID);
 
     try {
@@ -311,8 +317,8 @@ async function updateConsultantAppointment(req, res) {
 
         res.status(201).json({ candidate_id, consultant_appointment_id });
     } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
+        console.error("Error updating consultant appointment:", err);
+        return res.status(500).json({ message: err.message || "Failed to update consultant appointment." });
     }
 }
 
