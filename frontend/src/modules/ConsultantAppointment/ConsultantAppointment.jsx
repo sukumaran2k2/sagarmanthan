@@ -18,6 +18,42 @@ const STAGES = [
   { key: 'contractSigned', label: 'Contract Signed' },
 ];
 
+const toBool = (val) => val === 'Yes' || val === 1 || val === true;
+const formatDate = (d) => (d ? new Date(d).toISOString().split('T')[0] : '');
+
+function parseAppointmentRow(b) {
+  const stages = {
+    adminApproval: toBool(b.admin_approval_for_nkg_consultant),
+    adminApprovalDate: formatDate(b.admin_approval_for_nkg_consultant_date),
+    tenderPublished: toBool(b.tender_published),
+    tenderPublishedDate: formatDate(b.tender_published_date),
+    preBidQueries: toBool(b.pre_bid_queries_responded),
+    preBidQueriesDate: formatDate(b.pre_bid_queries_responded_date),
+    bidReceived: toBool(b.bid_received),
+    bidReceivedDate: formatDate(b.bid_received_date),
+    techBidFinalized: toBool(b.technical_bid_finalized),
+    techBidFinalizedDate: formatDate(b.technical_bid_finalized_date),
+    finBidFinalized: toBool(b.financial_bid_finalized),
+    finBidFinalizedDate: formatDate(b.financial_bid_finalized_date),
+    workOrderIssued: toBool(b.work_order_issued),
+    workOrderIssuedDate: formatDate(b.work_order_issued_date),
+    contractSigned: toBool(b.contract_signed),
+    contractSignedDate: formatDate(b.contract_signed_date),
+  };
+
+  return {
+    id: b.consultant_appointment_id,
+    wing_id: b.wing,
+    division_id: b.division,
+    wing: b.wing_name || 'Unknown',
+    division: b.division_name || 'Unknown',
+    appointmentType: b.appointment_type || 'Full Time',
+    numResources: b.number_of_resources || 1,
+    status: getStatusFromStages(stages),
+    stages,
+  }; 
+}
+
 const getStatusFromStages = (stages) => {
   for (let i = STAGES.length - 1; i >= 0; i--) {
     if (stages[STAGES[i].key]) {
@@ -73,45 +109,7 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
     setLoading(true);
     fetchConsultantAppointments()
       .then(res => {
-        const mapped = res.data.map((b) => ({
-          id: b.consultant_appointment_id,
-          wing_id: b.wing,
-          division_id: b.division,
-          wing: b.wing_name || 'Unknown',
-          division: b.division_name || 'Unknown',
-          appointmentType: b.appointment_type || 'Full Time',
-          numResources: b.number_of_resources || 1,
-          consultingFirmName: b.name_of_consulting_firm || '',
-          status: getStatusFromStages({
-            adminApproval: b.admin_approval_for_nkg_consultant === 'Yes' || b.admin_approval_for_nkg_consultant === 1 || b.admin_approval_for_nkg_consultant === true,
-            tenderPublished: b.tender_published === 'Yes' || b.tender_published === 1 || b.tender_published === true,
-            preBidQueries: b.pre_bid_queries_responded === 'Yes' || b.pre_bid_queries_responded === 1 || b.pre_bid_queries_responded === true,
-            bidReceived: b.bid_received === 'Yes' || b.bid_received === 1 || b.bid_received === true,
-            techBidFinalized: b.technical_bid_finalized === 'Yes' || b.technical_bid_finalized === 1 || b.technical_bid_finalized === true,
-            finBidFinalized: b.financial_bid_finalized === 'Yes' || b.financial_bid_finalized === 1 || b.financial_bid_finalized === true,
-            workOrderIssued: b.work_order_issued === 'Yes' || b.work_order_issued === 1 || b.work_order_issued === true,
-            contractSigned: b.contract_signed === 'Yes' || b.contract_signed === 1 || b.contract_signed === true
-          }),
-          stages: {
-            adminApproval: b.admin_approval_for_nkg_consultant === 'Yes' || b.admin_approval_for_nkg_consultant === 1 || b.admin_approval_for_nkg_consultant === true,
-            adminApprovalDate: b.admin_approval_for_nkg_consultant_date ? new Date(b.admin_approval_for_nkg_consultant_date).toISOString().split('T')[0] : '',
-            tenderPublished: b.tender_published === 'Yes' || b.tender_published === 1 || b.tender_published === true,
-            tenderPublishedDate: b.tender_published_date ? new Date(b.tender_published_date).toISOString().split('T')[0] : '',
-            preBidQueries: b.pre_bid_queries_responded === 'Yes' || b.pre_bid_queries_responded === 1 || b.pre_bid_queries_responded === true,
-            preBidQueriesDate: b.pre_bid_queries_responded_date ? new Date(b.pre_bid_queries_responded_date).toISOString().split('T')[0] : '',
-            bidReceived: b.bid_received === 'Yes' || b.bid_received === 1 || b.bid_received === true,
-            bidReceivedDate: b.bid_received_date ? new Date(b.bid_received_date).toISOString().split('T')[0] : '',
-            techBidFinalized: b.technical_bid_finalized === 'Yes' || b.technical_bid_finalized === 1 || b.technical_bid_finalized === true,
-            techBidFinalizedDate: b.technical_bid_finalized_date ? new Date(b.technical_bid_finalized_date).toISOString().split('T')[0] : '',
-            finBidFinalized: b.financial_bid_finalized === 'Yes' || b.financial_bid_finalized === 1 || b.financial_bid_finalized === true,
-            finBidFinalizedDate: b.financial_bid_finalized_date ? new Date(b.financial_bid_finalized_date).toISOString().split('T')[0] : '',
-            workOrderIssued: b.work_order_issued === 'Yes' || b.work_order_issued === 1 || b.work_order_issued === true,
-            workOrderIssuedDate: b.work_order_issued_date ? new Date(b.work_order_issued_date).toISOString().split('T')[0] : '',
-            contractSigned: b.contract_signed === 'Yes' || b.contract_signed === 1 || b.contract_signed === true,
-            contractSignedDate: b.contract_signed_date ? new Date(b.contract_signed_date).toISOString().split('T')[0] : ''
-          }
-        }));
-        setRowData(mapped);
+        setRowData(res.data.map(parseAppointmentRow));
       })
       .catch(err => console.error("Error loading CA data list:", err))
       .finally(() => setLoading(false));

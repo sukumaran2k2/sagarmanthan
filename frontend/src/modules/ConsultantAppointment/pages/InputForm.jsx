@@ -1,20 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Calendar, Upload, File } from 'lucide-react';
 import { createConsultantAppointment, updateConsultantAppointment } from '../api';
+import { getCurrentUserId } from '../../../utils/authSession';
 
-function decodeToken(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-}
-
+/**
+ * Milestone Workflow Configuration
+ * Maps stage keys to labels, date state keys, and date field labels
+ */
 const STAGES = [
   { key: 'adminApproval', label: 'Admin Approval for engaging Consultant', dateKey: 'adminApprovalDate', dateLabel: 'Date of Approval*' },
   { key: 'tenderPublished', label: 'Tender Published', dateKey: 'tenderPublishedDate', dateLabel: 'Date Published*' },
@@ -179,14 +171,7 @@ export default function InputForm({
 
     setSubmitting(true);
 
-    const token = localStorage.getItem('accessToken');
-    let activeUserId = 1;
-    if (token) {
-      const decoded = decodeToken(token);
-      if (decoded && decoded.userId) {
-        activeUserId = decoded.userId;
-      }
-    }
+    const activeUserId = getCurrentUserId() || 1;
 
     // Determine current stage ID
     let selectedStage = 1;
