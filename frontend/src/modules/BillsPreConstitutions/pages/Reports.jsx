@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { fetchBillWingWiseReport, fetchBillDivisionWiseReport, fetchBillWingWiseDetail, fetchBillDivisionWiseDetail } from '../api';
 import ReportTable from '../../../components/ReportTable';
 
 const COLUMN_STAGE_MAP = {
@@ -40,7 +40,7 @@ export default function Reports({ triggerNotification }) {
     setLoading(true);
     try {
       if (currentView.type === 'summary') {
-        const response = await axios.get("http://localhost:3000/billwingwise-report");
+        const response = await fetchBillWingWiseReport();
         const rawRows = response.data?.rowData || [];
         const rawCols = response.data?.columnDefs || [];
 
@@ -137,7 +137,7 @@ export default function Reports({ triggerNotification }) {
         setData(rawRows.map((r, idx) => ({ ...r, 'S No': idx + 1 })));
 
       } else if (currentView.type === 'division-summary') {
-        const response = await axios.get(`http://localhost:3000/billdivisionwise-report/${currentView.wingId}`);
+        const response = await fetchBillDivisionWiseReport(currentView.wingId);
         const rawRows = response.data?.rowData || [];
         const rawCols = response.data?.columnDefs || [];
 
@@ -201,7 +201,7 @@ export default function Reports({ triggerNotification }) {
         setData(rawRows.map((r, idx) => ({ ...r, 'S No': idx + 1 })));
 
       } else if (currentView.type === 'detail-wing') {
-        const response = await axios.get(`http://localhost:3000/getbill-wingwise/${currentView.wingId}/${currentView.stageId}`);
+        const response = await fetchBillWingWiseDetail(currentView.wingId, currentView.stageId);
         const rawRows = response.data?.rowData || [];
         const rawCols = response.data?.columnDefs || [];
 
@@ -209,7 +209,7 @@ export default function Reports({ triggerNotification }) {
         setData(rawRows.map((r, idx) => ({ ...r, 'S No': idx + 1 })));
 
       } else if (currentView.type === 'detail-division') {
-        const response = await axios.get(`http://localhost:3000/getbill-divisionwise/${currentView.divisionId}/${currentView.stageId}`);
+        const response = await fetchBillDivisionWiseDetail(currentView.divisionId, currentView.stageId);
         const rawRows = response.data?.rowData || [];
         const rawCols = response.data?.columnDefs || [];
 

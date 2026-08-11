@@ -356,6 +356,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
         m('BILLS_PRE_CONSTITUTION', {
           label: 'Bills/PreConstitutions Act', icon: BookMarked,
           targetTab: 'Bills/PreConstitutions Act',
+          clickableHeader: true,
           subItems: [
             { label: 'Data List', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Data List', icon: ClipboardList },
             { label: 'Input Form', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Input Form', icon: FileEdit },
@@ -641,9 +642,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                 </button>
                                 {/* Flyout sub-panel on hover */}
                                 <div className="absolute left-full top-0 ml-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[60] transition-all duration-200 origin-left scale-95 opacity-0 invisible group-hover/flyout:scale-100 group-hover/flyout:opacity-100 group-hover/flyout:visible space-y-1">
-                                  <h5 className="text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2">
-                                    {item.label}
-                                  </h5>
+                                  {item.clickableHeader ? (
+                                    <button
+                                      onClick={() => { handleItemClick(item.tab ?? item.label); setIsOpen(false); }}
+                                      className="w-full text-left text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2 hover:text-blue-600 dark:hover:text-blue-300 transition-colors cursor-pointer"
+                                    >
+                                      {item.label}
+                                    </button>
+                                  ) : (
+                                    <h5 className="text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2">
+                                      {item.label}
+                                    </h5>
+                                  )}
                                   {item.subItems.map((sub, sIdx) => {
                                     const SubIcon = sub.icon;
                                     return (
