@@ -592,7 +592,7 @@ export default function App() {
 
 
             {activeTab === 'Audit Paras' && (
-              <AuditParaView />
+              <AuditParaView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
             )}
 
             {['VIP Reference', 'VIP Reference - Data List', 'VIP Reference - Input Form', 'VIP Reference - Reports'].includes(activeTab) && (
