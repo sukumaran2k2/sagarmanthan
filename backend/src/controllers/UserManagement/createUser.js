@@ -233,7 +233,7 @@ async function getUserData(req, res) {
         division_name,
         CASE
           WHEN tbl_role.role_code = 'SUPERADMIN' THEN 'System (SUPERADMIN)'
-          ELSE mmt_organisation.oranisation_name
+          ELSE mmt_organisation.organisation_name
         END AS organisation_name,
         mmt_organisation.organisation_category_id,
         tbl_user.email, tbl_user.phone, tbl_user.status,
@@ -273,7 +273,7 @@ async function getOrgUserData(req, res) {
                 tbl_role.role_name,
                 tbl_role.role_code,
                 tbl_user.organisation_id, 
-                mmt_organisation.oranisation_name AS organisation_name, 
+                mmt_organisation.organisation_name AS organisation_name, 
                 tbl_user.email, 
                 tbl_user.phone, 
                 tbl_user.status, 

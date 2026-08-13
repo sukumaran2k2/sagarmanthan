@@ -1,138 +1,165 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
-import DataList from './pages/DataList';
-import InputForm from './pages/InputForm';
-import Reports from './pages/Reports';
+import RestrictedAccess from '../../components/RestrictedAccess';
+import { useCabinetNotesPermissions } from './hooks/useCabinetNotesPermissions';
+import { resolveCabinetNotesListView } from './views';
+import CabinetNotesReports from './pages/Reports';
+import NoteForm from './pages/NoteForm';
+import { fetchCabinetStages, fetchDivisions, fetchWings } from './api';
 
-export default function CabinetNotesMOPSW({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
-  const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
-  const [loading, setLoading] = useState(false);
-  const [rowData, setRowData] = useState([]);
-  const [editData, setEditData] = useState(null);
+const INIT_TAB_KEY = 'cabinetNotesMopswInitTab';
+
+function resolveSubTabId(label, canAdd) {
+  if (label === 'Input Form') return canAdd ? 'add' : 'list';
+  if (label === 'Reports' || label === 'Report') return 'report';
+  if (label === 'Data List') return 'list';
+  return null;
+}
+
+export default function CabinetNotesMOPSW({
+  activeSubTab: activeSubTabProp,
+  onGoHome,
+  triggerNotification,
+}) {
+  const permissions = useCabinetNotesPermissions();
+  const [activeSubTab, setActiveSubTab] = useState('list');
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
+  const [stages, setStages] = useState([]);
+  const [listKey, setListKey] = useState(0);
+  const [toast, setToast] = useState(null);
 
-  const tabs = [
-    { id: 'add', label: 'Input Form' },
-    { id: 'list', label: 'Data List' },
-    { id: 'report', label: 'Reports' }
-  ];
+  const notify = useCallback(
+    (message, type = 'success') => {
+      if (typeof triggerNotification === 'function') {
+        triggerNotification(message);
+        return;
+      }
+      setToast({ message, type });
+      setTimeout(() => setToast(null), 3000);
+    },
+    [triggerNotification]
+  );
 
   useEffect(() => {
-    if (activeSubTabProp === 'Input Form') {
-      setActiveSubTab('add');
-    } else if (activeSubTabProp === 'Reports' || activeSubTabProp === 'Report') {
-      setActiveSubTab('report');
-    } else if (activeSubTabProp === 'Cabinet Notes-MoPSW' || activeSubTabProp === 'Data List') {
+    Promise.all([fetchWings(), fetchDivisions(), fetchCabinetStages()])
+      .then(([wingsRes, divisionsRes, stagesRes]) => {
+        setWings(Array.isArray(wingsRes.data) ? wingsRes.data : []);
+        setDivisions(Array.isArray(divisionsRes.data) ? divisionsRes.data : []);
+        setStages(Array.isArray(stagesRes.data) ? stagesRes.data : []);
+      })
+      .catch((err) => console.error(err));
+  }, []);
+
+  useEffect(() => {
+    const apply = (label) => {
+      const next = resolveSubTabId(label, permissions.canAdd);
+      if (next) setActiveSubTab(next);
+    };
+
+    const init = sessionStorage.getItem(INIT_TAB_KEY);
+    if (init) {
+      sessionStorage.removeItem(INIT_TAB_KEY);
+      apply(init);
+    }
+
+    const onMenu = (e) => apply(e.detail);
+    window.addEventListener('cabinet-notes-mopsw-subtab', onMenu);
+    return () => window.removeEventListener('cabinet-notes-mopsw-subtab', onMenu);
+  }, [permissions.canAdd]);
+
+  useEffect(() => {
+    const next = resolveSubTabId(activeSubTabProp, permissions.canAdd);
+    if (next) setActiveSubTab(next);
+  }, [activeSubTabProp, permissions.canAdd]);
+
+  useEffect(() => {
+    if (activeSubTab === 'add' && !permissions.canAdd) {
       setActiveSubTab('list');
     }
-  }, [activeSubTabProp]);
+  }, [activeSubTab, permissions.canAdd]);
 
-  useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
-      .then(res => setWings(res.data || []))
-      .catch(err => console.error("Error loading wings:", err));
+  const tabs = useMemo(() => {
+    const items = [];
+    if (permissions.canAdd) {
+      items.push({ id: 'add', label: 'Input Form' });
+    }
+    items.push(
+      { id: 'list', label: 'Data List' },
+      { id: 'report', label: 'Report' }
+    );
+    return items;
+  }, [permissions.canAdd]);
 
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_division")
-      .then(res => setDivisions(res.data || []))
-      .catch(err => console.error("Error loading divisions:", err));
-  }, []);
+  const ListView = useMemo(
+    () => resolveCabinetNotesListView(permissions.uiViewCode),
+    [permissions.uiViewCode]
+  );
 
-  const fetchData = () => {
-    setLoading(true);
-    axios.get("http://localhost:3000/cabinet-mopsw-all")
-      .then(res => {
-        setRowData(res.data || []);
-      })
-      .catch(err => console.error("Error loading Cabinet Notes MoPSW data list:", err))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const handleEdit = (note) => {
-    setEditData(note);
-  };
-
-  const handleSuccess = () => {
-    setEditData(null);
-    fetchData();
-    setActiveSubTab('list');
-  };
-
-  const handleBack = () => {
-    setEditData(null);
-    setActiveSubTab('list');
-  };
+  if (!permissions.canView) {
+    return (
+      <RestrictedAccess
+        moduleName="Cabinet Notes - MoPSW"
+        onGoHome={onGoHome}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none">
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
+      {toast && (
+        <div
+          className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm text-white shadow ${
+            toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
-            Cabinet Notes-MoPSW
+          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-300 tracking-wide uppercase font-display">
+            Cabinet Notes - MoPSW
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
             Manage, record, and track Cabinet Notes stages for the Ministry of Ports, Shipping and Waterways.
+            <span className="text-slate-400 dark:text-slate-500">
+              {' '}
+              · Scope: {permissions.dataScopeCode || '-'} · View: {permissions.uiViewCode}
+              {permissions.isViewOnlyAdmin ? ' · View Only Admin' : ''}
+            </span>
           </p>
         </div>
 
         <InternalNavigation
           tabs={tabs}
           currentTab={activeSubTab}
-          onTabChange={(tabId) => {
-            setEditData(null);
-            setActiveSubTab(tabId);
-          }}
+          onTabChange={setActiveSubTab}
         />
       </div>
 
-      {/* Dynamic Tab Render Area */}
       <div className="space-y-8">
         {activeSubTab === 'list' && (
-          editData ? (
-            <InputForm
-              wings={wings}
-              divisions={divisions}
-              onBack={handleBack}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-              editData={editData}
-              readOnly={false}
-            />
-          ) : (
-            <DataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onRefresh={fetchData}
-              triggerNotification={triggerNotification}
-              wings={wings}
-              divisions={divisions}
-            />
-          )
+          <ListView key={listKey} notify={notify} onGoHome={onGoHome} />
         )}
 
-        {activeSubTab === 'add' && (
-          <InputForm
+        {activeSubTab === 'add' && permissions.canAdd && (
+          <NoteForm
             wings={wings}
             divisions={divisions}
-            onBack={handleBack}
-            onSuccess={handleSuccess}
-            triggerNotification={triggerNotification}
-            editData={null}
-            readOnly={false}
+            stages={stages}
+            initialForm={null}
+            onBack={() => setActiveSubTab('list')}
+            onSuccess={() => {
+              setListKey((k) => k + 1);
+              setActiveSubTab('list');
+            }}
+            notify={notify}
           />
         )}
 
-        {activeSubTab === 'report' && (
-          <Reports
-            triggerNotification={triggerNotification}
-          />
-        )}
+        {activeSubTab === 'report' && <CabinetNotesReports notify={notify} />}
       </div>
     </div>
   );

@@ -85,6 +85,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
   }, []);
 
   const canCreateParliamentary = canCreateModule('PARLIAMENTARY_ISSUES');
+  const canCreateCabinetMopsw = canCreateModule('CABINET_NOTES_MOPSW');
   const canCreateConsultant = canCreateModule('CONSULTANT_APPOINTMENT');
 
   const accessKey = (() => {
@@ -93,9 +94,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
       if (!t) return '';
       const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       const codes = payload?.allowedModuleCodes;
-      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}`;
+      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}`;
     } catch {
-      return `piCreate:${canCreateParliamentary ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}`;
+      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}`;
     }
   })();
 
@@ -272,7 +273,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
           targetTab: 'Cabinet Notes - MoPSW',
           subItems: [
             { label: 'Data List', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Input Form', icon: FileEdit },
+            ...(canCreateCabinetMopsw
+              ? [{ label: 'Input Form', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Input Form', icon: FileEdit }]
+              : []),
             { label: 'Reports', tab: 'Cabinet Notes - MoPSW', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
@@ -451,7 +454,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       ],
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateConsultant]
+    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant]
   );
 
   const handleItemClick = (tabOrLabel) => {
@@ -667,6 +670,21 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                             );
                                             window.dispatchEvent(
                                               new CustomEvent('parliamentary-issue-subtab', {
+                                                detail: sub.targetSubTab,
+                                              })
+                                            );
+                                          }
+                                          if (
+                                            sub.targetSubTab &&
+                                            (mainTab === 'Cabinet Notes - MoPSW' ||
+                                              mainTab === 'Cabinet Notes-MoPSW')
+                                          ) {
+                                            sessionStorage.setItem(
+                                              'cabinetNotesMopswInitTab',
+                                              sub.targetSubTab
+                                            );
+                                            window.dispatchEvent(
+                                              new CustomEvent('cabinet-notes-mopsw-subtab', {
                                                 detail: sub.targetSubTab,
                                               })
                                             );
@@ -946,6 +964,21 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                                 );
                                                 window.dispatchEvent(
                                                   new CustomEvent('parliamentary-issue-subtab', {
+                                                    detail: sub.targetSubTab,
+                                                  })
+                                                );
+                                              }
+                                              if (
+                                                sub.targetSubTab &&
+                                                (mainTab === 'Cabinet Notes - MoPSW' ||
+                                                  mainTab === 'Cabinet Notes-MoPSW')
+                                              ) {
+                                                sessionStorage.setItem(
+                                                  'cabinetNotesMopswInitTab',
+                                                  sub.targetSubTab
+                                                );
+                                                window.dispatchEvent(
+                                                  new CustomEvent('cabinet-notes-mopsw-subtab', {
                                                     detail: sub.targetSubTab,
                                                   })
                                                 );

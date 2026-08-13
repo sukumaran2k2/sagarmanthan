@@ -1,7 +1,7 @@
 /**
  * mapIssueToForm: turns an API row into edit form fields.
  */
-import { mapIssueToForm } from '../mapIssue';
+import { mapIssueToForm } from '../../utils/mapIssue';
 
 describe('mapIssueToForm', () => {
   it('maps API fields used by the edit form', () => {

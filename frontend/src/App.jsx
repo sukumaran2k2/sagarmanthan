@@ -567,7 +567,11 @@ export default function App() {
             )}
 
             {['Cabinet Notes - MoPSW', 'Cabinet Notes-MoPSW'].includes(activeTab) && (
-              <CabinetNotes activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
+              <CabinetNotes
+                activeSubTab={activeTab}
+                onGoHome={() => goToTab('landing')}
+                triggerNotification={triggerNotification}
+              />
             )}
 
             {['Cabinet Notes - Other Ministries', 'Cabinet Notes-Other Ministry'].includes(activeTab) && (

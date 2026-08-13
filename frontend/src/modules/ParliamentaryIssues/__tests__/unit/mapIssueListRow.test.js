@@ -1,7 +1,7 @@
 /**
  * mapIssueListRow: turns an API row into list/table fields.
  */
-import { mapIssueListRow } from '../mapIssue';
+import { mapIssueListRow } from '../../utils/mapIssue';
 
 describe('mapIssueListRow', () => {
   it('maps API fields used by the list view', () => {

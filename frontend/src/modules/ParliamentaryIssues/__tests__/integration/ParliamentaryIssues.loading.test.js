@@ -2,9 +2,9 @@
  * Smoke test: Parliamentary Issues page loads and shows its title.
  */
 import { render, screen } from '@testing-library/react';
-import ParliamentaryIssues from '../ParliamentaryIssues';
+import ParliamentaryIssues from '../../ParliamentaryIssues';
 
-jest.mock('../hooks/useParliamentaryPermissions', () => ({
+jest.mock('../../hooks/useParliamentaryPermissions', () => ({
   useParliamentaryPermissions: () => ({
     canView: true,
     canAdd: true,
@@ -16,14 +16,14 @@ jest.mock('../hooks/useParliamentaryPermissions', () => ({
   }),
 }));
 
-jest.mock('../api', () => ({
+jest.mock('../../api', () => ({
   fetchWings: jest.fn(() => Promise.resolve({ data: [] })),
   fetchDivisions: jest.fn(() => Promise.resolve({ data: [] })),
   fetchParliamentaryStages: jest.fn(() => Promise.resolve({ data: [] })),
   fetchParliamentaryIssues: jest.fn(() => Promise.resolve({ data: [] })),
 }));
 
-jest.mock('../views', () => ({
+jest.mock('../../views', () => ({
   resolveParliamentaryListView: () => () => <div>List loaded</div>,
 }));
 

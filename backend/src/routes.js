@@ -1,7 +1,7 @@
 import express from "express";
 
 import auth from "./authenticate.js";
-import { requireModulePermission } from "./middleware/modulePermission.js";
+import { requireModulePermission, requireAnyModulePermission } from "./middleware/modulePermission.js";
 import mikrAuth from "./mikrAuthenticate.js";
 
 
@@ -485,18 +485,80 @@ router.delete("/pendency/:id", pendencyTab.deletePendency);
 router.post("/pendency/storecsv/:id", pendencyTab.storePendanceData);
 // viewData-pendency
 router.get("/pendencyData", pendencyDataTab.getPendencyData);
-// Mopsw
-router.get("/cabinet-mopsw", cabinetMopswTab.getCabinetMopsw);
-router.get("/cabinet-mopsw-all", cabinetMopswTab.getAllCabinetMopsw);
-router.post("/cabinet-mopsw", cabinetMopswTab.createMopswCabinet);
-// router.post("/cabinetmopsw-document", cabinetMopswTab.upload.single('file'), cabinetMopswTab.addCabinetMopswDocument);
-router.get("/edit-cabinet-mopsw/:mopswCabinetID", cabinetMopswTab.getUpdateMopswData);
-router.put("/cabinet-mopsw", cabinetMopswTab.editMopswCabinet);
-router.post("/cabinet-mopsw-stage", cabinetMopswTab.createCabinetNotesMopswStage);
-router.post("/mopsw-document-uploader", mopswDocumentTab.upload.array('files[]', 10), mopswDocumentTab.mopswDocumentUploader);
-router.get("/mopsw-document/:mopswCabinetID", cabinetMopswTab.getMopswDocument);
-router.get("/cabinet_notes_mopsw/download/:id", mopswDocumentTab.downloadMopswDocument);
-router.delete("/cabinet-mopsw-all/:cabinet_notes_mopsw_id/:userID", cabinetMopswTab.deleteCabinetNotesMopsw);
+// Cabinet Notes - MoPSW
+router.get(
+  "/cabinet-mopsw",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswTab.getCabinetMopsw
+);
+router.get(
+  "/cabinet-mopsw-all",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswTab.getAllCabinetMopsw
+);
+router.post(
+  "/cabinet-mopsw",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "create"),
+  cabinetMopswTab.createMopswCabinet
+);
+router.get(
+  "/edit-cabinet-mopsw/:mopswCabinetID",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswTab.getUpdateMopswData
+);
+router.get(
+  "/cabinet-mopsw/:mopswCabinetID",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswTab.getUpdateMopswData
+);
+router.put(
+  "/cabinet-mopsw",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "update"),
+  cabinetMopswTab.editMopswCabinet
+);
+router.post(
+  "/cabinet-mopsw-stage",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "update"),
+  cabinetMopswTab.createCabinetNotesMopswStage
+);
+router.post(
+  "/mopsw-document-uploader",
+  auth,
+  requireAnyModulePermission("CABINET_NOTES_MOPSW", ["create", "update"]),
+  mopswDocumentTab.upload.array("files[]", 10),
+  mopswDocumentTab.mopswDocumentUploader
+);
+router.get(
+  "/mopsw-document/:mopswCabinetID",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswTab.getMopswDocument
+);
+router.get(
+  "/cabinet_notes_mopsw/download/:id",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  mopswDocumentTab.downloadMopswDocument
+);
+router.delete(
+  "/cabinet-mopsw-all/:cabinet_notes_mopsw_id/:userID",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "delete"),
+  cabinetMopswTab.deleteCabinetNotesMopsw
+);
+router.delete(
+  "/cabinet-mopsw/:cabinet_notes_mopsw_id/:userID",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "delete"),
+  cabinetMopswTab.deleteCabinetNotesMopsw
+);
 
 // Ministry
 router.get("/cabinet-ministry/:userID", cabinetBillTab.getCabinetMinistry);
@@ -1321,11 +1383,31 @@ router.get("/employee-attendance-check", empAttendanceReportTab.getEmpAttendance
 // router.get("/all-court-case-report", arbitCourtCaseTab.getCourtCaseReport),
 //     router.get("/get-detailed-case-report/:organisationid/:type/:typeofcourt", arbitCourtCaseTab.getDetailCourtCaseReport),
 
-// Cabinet Mopsw
-router.get("/cabinetmopsw-report", cabinetMopswReportTab.getMopswReport);
-router.get("/cabinetmopsw-divisionwise/:wingID/", cabinetMopswReportTab.getCabinetMopswDivisionReport);
-router.get("/getmopsw-wingwise/:wingID/:mopswStage", cabinetMopswReportTab.getDetailMopswWingWise);
-router.get("/getmopsw-divisionwise/:divisionID/:mopswStage", cabinetMopswReportTab.getDetailMopswDivisionWise);
+// Cabinet Notes - MoPSW Reports
+router.get(
+  "/cabinetmopsw-report",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswReportTab.getMopswReport
+);
+router.get(
+  "/cabinetmopsw-divisionwise/:wingID/",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswReportTab.getCabinetMopswDivisionReport
+);
+router.get(
+  "/getmopsw-wingwise/:wingID/:mopswStage",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswReportTab.getDetailMopswWingWise
+);
+router.get(
+  "/getmopsw-divisionwise/:divisionID/:mopswStage",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswReportTab.getDetailMopswDivisionWise
+);
 
 // Cabinet Ministry
 router.get("/cabinetministry-report", cabinetMinistryReportTab.cabinetMinistryReport);

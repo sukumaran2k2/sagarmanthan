@@ -1,7 +1,7 @@
 /**
  * computeStageId: picks the stage id to save with an Assurance issue.
  */
-import { computeStageId } from '../stageHelpers';
+import { computeStageId } from '../../utils/stageHelpers';
 
 describe('computeStageId', () => {
   const stages = [
