@@ -2,6 +2,7 @@ import { pool } from "../../db.js";
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
+import { applyDataScope } from "../../middleware/dataScope.js";
 
 // 1. Create Young Professional
 async function createYoungProfessional(req, res) {
@@ -61,8 +62,10 @@ async function createYoungProfessional(req, res) {
 // 2. Get All Young Professionals
 async function getYoungProfessional(req, res) {
     const conn = await pool;
+    const request = conn.request();
+    const { joinSql, whereSql } = applyDataScope(request, req.user, { strategy: "viaCreatedBy", alias: "yp" });
     try {
-        const result = await conn.query(`
+        const result = await request.query(`
             SELECT 
                 yp.yp_id,
                 yp.wing_id,
@@ -84,6 +87,8 @@ async function getYoungProfessional(req, res) {
             FROM dbo.tbl_young_professionals yp
             LEFT JOIN mmt_wings w ON w.wing_id = yp.wing_id
             LEFT JOIN mmt_division d ON d.division_id = yp.division_id
+            ${joinSql}
+            ${whereSql}
             ORDER BY yp.yp_id DESC
         `);
         res.json(result.recordset);

@@ -152,7 +152,7 @@ export default function DataList({
         field: 'sNo',
         headerName: 'S.No',
         minWidth: 95,
-        cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center',
+        cellClass: 'font-mono text-slate-800 dark:text-white font-bold text-center',
         headerClass: 'text-center',
         pinned: 'left'
       },
@@ -161,7 +161,7 @@ export default function DataList({
         headerName: 'Wing',
         flex: 1.5,
         minWidth: 150,
-        cellClass: 'font-bold text-slate-800 dark:text-slate-200',
+        cellClass: 'font-bold text-slate-800 dark:text-white',
         hide: !visibleCols.wing,
         pinned: 'left'
       },
@@ -170,7 +170,7 @@ export default function DataList({
         headerName: 'Division',
         flex: 1.2,
         minWidth: 120,
-        cellClass: 'text-slate-700 dark:text-slate-350',
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
         hide: !visibleCols.division
       },
       {
@@ -178,7 +178,7 @@ export default function DataList({
         headerName: 'Appointment Type',
         flex: 1.2,
         minWidth: 130,
-        cellClass: 'text-slate-600 dark:text-slate-400',
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
         hide: !visibleCols.appointmentType
       },
       {

@@ -233,7 +233,7 @@ export default function ReportTable({
                     handleExport('Excel');
                     setExportDropdownOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] text-[color:var(--theme-primary-color)] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 border-0 bg-transparent cursor-pointer"
+                  className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 border-0 bg-transparent cursor-pointer font-medium"
                 >
                   <FileSpreadsheet size={14} className="text-emerald-500" />
                   <span>CSV (Excel)</span>
@@ -244,7 +244,7 @@ export default function ReportTable({
                     handleExport('PDF');
                     setExportDropdownOpen(false);
                   }}
-                  className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] text-[color:var(--theme-primary-color)] dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 border-0 bg-transparent cursor-pointer"
+                  className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 border-0 bg-transparent cursor-pointer font-medium"
                 >
                   <Download size={14} className="text-rose-500" />
                   <span>Print / PDF</span>

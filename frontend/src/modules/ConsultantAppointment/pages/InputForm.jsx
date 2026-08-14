@@ -35,16 +35,16 @@ export default function InputForm({
   const [numResources, setNumResources] = useState(1);
   const [appointmentType, setAppointmentType] = useState('Full Time');
 
-  // Milestone Stages State
+  // Milestone Stages State (null = unselected, true = Yes, false = No)
   const [formStages, setFormStages] = useState({
-    adminApproval: false,
-    tenderPublished: false,
-    preBidQueries: false,
-    bidReceived: false,
-    techBidFinalized: false,
-    finBidFinalized: false,
-    workOrderIssued: false,
-    contractSigned: false
+    adminApproval: null,
+    tenderPublished: null,
+    preBidQueries: null,
+    bidReceived: null,
+    techBidFinalized: null,
+    finBidFinalized: null,
+    workOrderIssued: null,
+    contractSigned: null
   });
 
   // Milestone Dates State
@@ -127,14 +127,58 @@ export default function InputForm({
     }
   }, [editData]);
 
-  const handleStageChange = (key, val, dateKey) => {
-    setFormStages(prev => ({
-      ...prev,
-      [key]: val
-    }));
+  /**
+   * Checks if a milestone stage is accessible based on completion of previous stages.
+   * Stage 0 is always accessible.
+   * Stage N (N > 0) is accessible only if Stage N-1 is selected:
+   *   - If Stage N-1 is 'Yes' (true), it requires Stage N-1 date to be filled.
+   *   - If Stage N-1 is 'No' (false), it unlocks Stage N immediately.
+   */
+  const isStageAccessible = (index) => {
+    if (index === 0) return true;
+    const prevStage = STAGES[index - 1];
+    const prevVal = formStages[prevStage.key];
 
-    if (!val) {
-      // Clear date and validation error if No is selected
+    if (prevVal === null || prevVal === undefined) {
+      return false; // Prev stage not selected yet
+    }
+    if (prevVal === true) {
+      return !!dates[prevStage.dateKey]; // Requires date if Yes
+    }
+    return true; // Unlocks immediately if No
+  };
+
+  const handleStageChange = (key, val, dateKey, stageIndex = 0) => {
+    if (!isStageAccessible(stageIndex)) return;
+
+    setFormStages(prev => {
+      // Toggle value: if already selected value, deselect to null; otherwise set to val
+      const newVal = prev[key] === val ? null : val;
+      const updated = { ...prev, [key]: newVal };
+
+      // If user unselects (null) or sets to 'No' (false), reset all subsequent stages to null
+      if (newVal !== true) {
+        for (let i = stageIndex + 1; i < STAGES.length; i++) {
+          const subKey = STAGES[i].key;
+          const subDateKey = STAGES[i].dateKey;
+          updated[subKey] = null;
+
+          setDates(d => ({ ...d, [subDateKey]: '' }));
+          if (subKey === 'workOrderIssued') {
+            setWorkOrderFileName('');
+            setWorkOrderFile(null);
+          }
+          setErrors(e => {
+            const copy = { ...e };
+            delete copy[subDateKey];
+            return copy;
+          });
+        }
+      }
+      return updated;
+    });
+
+    if (val !== true) {
       setDates(prev => ({ ...prev, [dateKey]: '' }));
       if (key === 'workOrderIssued') {
         setWorkOrderFileName('');
@@ -324,30 +368,57 @@ export default function InputForm({
 
           <div className="space-y-4">
             {STAGES.map((stage, idx) => {
-              const isYes = formStages[stage.key] === true;
+              const stageVal = formStages[stage.key];
+              const isYes = stageVal === true;
+              const isNo = stageVal === false;
+              const isAccessible = isStageAccessible(idx);
+
               return (
-                <div key={stage.key} className="flex flex-col py-3 px-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+                <div
+                  key={stage.key}
+                  className={`flex flex-col py-3 px-4 rounded-xl border transition-all ${!isAccessible
+                    ? 'bg-slate-100/60 dark:bg-slate-900/30 border-slate-200/60 dark:border-slate-800/40 opacity-50'
+                    : isYes
+                      ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60'
+                      : isNo
+                        ? 'bg-rose-50/30 dark:bg-rose-950/10 border-rose-200/60 dark:border-rose-900/40'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
+                    }`}
+                >
                   <div className="flex items-center justify-between w-full">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      {idx + 1}. {stage.label}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold ${!isAccessible ? 'text-slate-400 dark:text-slate-600' : 'text-slate-700 dark:text-slate-300'}`}>
+                        {idx + 1}. {stage.label}
+                      </span>
+                      {!isAccessible && (
+                        <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 italic">
+                          (Select option on stage {idx} first)
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center space-x-1.5 shrink-0 ml-2">
                       <button
                         type="button"
-                        onClick={() => handleStageChange(stage.key, true, stage.dateKey)}
-                        className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${isYes
-                          ? 'bg-emerald-600 text-white shadow-sm font-black'
-                          : 'bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 text-slate-655 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        disabled={!isAccessible}
+                        onClick={() => handleStageChange(stage.key, true, stage.dateKey, idx)}
+                        className={`px-3.5 py-1 rounded font-black transition-all text-[10px] ${!isAccessible
+                          ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
+                          : isYes
+                            ? 'bg-emerald-600 text-white shadow-sm font-black cursor-pointer ring-2 ring-emerald-600/30'
+                            : 'bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-slate-700 hover:text-emerald-700 cursor-pointer'
                           }`}
                       >
                         Yes
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleStageChange(stage.key, false, stage.dateKey)}
-                        className={`px-3 py-1 rounded font-black transition-all text-[10px] cursor-pointer ${!isYes
-                          ? 'bg-rose-600 text-white shadow-sm font-black'
-                          : 'bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 text-slate-655 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        disabled={!isAccessible}
+                        onClick={() => handleStageChange(stage.key, false, stage.dateKey, idx)}
+                        className={`px-3.5 py-1 rounded font-black transition-all text-[10px] ${!isAccessible
+                          ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
+                          : isNo
+                            ? 'bg-rose-600 text-white shadow-sm font-black cursor-pointer ring-2 ring-rose-600/30'
+                            : 'bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-slate-700 hover:text-rose-700 cursor-pointer'
                           }`}
                       >
                         No

@@ -1,19 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, X, Upload } from 'lucide-react';
-import axios from 'axios';
-
-function decodeToken(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-}
+import api, { API_BASE } from '../api';
+import { getCurrentUserId } from '../../../utils/authSession';
 
 const COMMON_SKILLS = [
   'SQL', 'Python', 'Java', 'React', 'Javascript', 'HTML', 'CSS',
@@ -294,14 +282,7 @@ export default function InputForm({
 
     setSubmitting(true);
 
-    const token = localStorage.getItem('accessToken');
-    let activeUserId = 1;
-    if (token) {
-      const decoded = decodeToken(token);
-      if (decoded && decoded.userId) {
-        activeUserId = decoded.userId;
-      }
-    }
+    const activeUserId = getCurrentUserId() || 1;
 
     const payload = {
       wing_id: parseInt(wing),
@@ -320,17 +301,17 @@ export default function InputForm({
     try {
       let ypId = null;
       if (isEdit) {
-        await axios.put(`http://localhost:3000/young-professional/${editData.yp_id}`, payload);
+        await api.put(`/young-professional/${editData.yp_id}`, payload);
         ypId = editData.yp_id;
       } else {
-        const response = await axios.post("http://localhost:3000/young-professional", payload);
+        const response = await api.post("/young-professional", payload);
         ypId = response.data.insertedYPId;
       }
 
       if (fileInputRef.current && fileInputRef.current.files[0]) {
         const formData = new FormData();
         formData.append("file", fileInputRef.current.files[0]);
-        await axios.post(`http://localhost:3000/upload-yp-document/${ypId}`, formData, {
+        await api.post(`/upload-yp-document/${ypId}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       }
@@ -595,7 +576,7 @@ export default function InputForm({
           {isEdit && editData.appointment_document && (
             <div className="mt-2 text-xs">
               <a
-                href={`http://localhost:3000/download-yp-document?fileName=${editData.appointment_document}`}
+                href={`${API_BASE}/download-yp-document?fileName=${editData.appointment_document}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center space-x-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline"

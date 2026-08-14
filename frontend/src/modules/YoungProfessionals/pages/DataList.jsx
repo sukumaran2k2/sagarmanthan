@@ -2,22 +2,10 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Table from '../../../components/Table';
 import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import axios from 'axios';
+import api from '../api';
+import { getCurrentUserId } from '../../../utils/authSession';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-
-function decodeToken(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-}
 
 export default function DataList({
   rowData,
@@ -26,7 +14,10 @@ export default function DataList({
   onRefresh,
   triggerNotification,
   wings = [],
-  divisions = []
+  divisions = [],
+  canEdit = true,
+  canAdd = true,
+  canRemove = true
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedWing, setSelectedWing] = useState('');
@@ -177,17 +168,10 @@ export default function DataList({
     }
     setSubmittingRelieve(true);
 
-    const token = localStorage.getItem('accessToken');
-    let activeUserId = 1;
-    if (token) {
-      const decoded = decodeToken(token);
-      if (decoded && decoded.userId) {
-        activeUserId = decoded.userId;
-      }
-    }
+    const activeUserId = getCurrentUserId() || 1;
 
     try {
-      await axios.put("http://localhost:3000/relieve-young-professional", {
+      await api.put("/relieve-young-professional", {
         candidateId: selectedYp.yp_id,
         lastWorkingDate,
         remarks,
@@ -323,95 +307,102 @@ export default function DataList({
     }
   };
 
-  const columnDefs = useMemo(() => [
-    {
-      field: 'sNo',
-      headerName: 'S.No',
-      minWidth: 95,
-      cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center',
-      headerClass: 'text-center'
-    },
-    {
-      field: 'name',
-      headerName: 'Name',
-      flex: 1.5,
-      minWidth: 160,
-      cellClass: 'font-bold text-slate-800 dark:text-slate-200',
-      hide: !visibleCols.name
-    },
-    {
-      field: 'role',
-      headerName: 'Role',
-      flex: 1.2,
-      minWidth: 130,
-      cellClass: 'text-slate-700 dark:text-slate-350 font-semibold',
-      hide: !visibleCols.role
-    },
-    {
-      field: 'wing',
-      headerName: 'Wing',
-      flex: 1.2,
-      minWidth: 130,
-      cellClass: 'text-slate-600 dark:text-slate-400 font-medium',
-      hide: !visibleCols.wing
-    },
-    {
-      field: 'division',
-      headerName: 'Division',
-      flex: 1.2,
-      minWidth: 130,
-      cellClass: 'text-slate-655 dark:text-slate-400 font-medium',
-      hide: !visibleCols.division
-    },
-    {
-      field: 'is_active',
-      headerName: 'Status',
-      minWidth: 120,
-      hide: !visibleCols.status,
-      cellRenderer: (params) => {
-        const isActive = params.value;
-        return (
-          <span className={`text-xs font-black uppercase ${isActive ? 'text-emerald-600' : 'text-rose-600'
-            }`}>
-            {isActive ? 'Active' : 'Relieved'}
-          </span>
-        );
+  const columnDefs = useMemo(() => {
+    const cols = [
+      {
+        field: 'sNo',
+        headerName: 'S.No',
+        minWidth: 95,
+        cellClass: 'font-mono text-slate-800 dark:text-white font-bold text-center',
+        headerClass: 'text-center'
+      },
+      {
+        field: 'name',
+        headerName: 'Name',
+        flex: 1.5,
+        minWidth: 160,
+        cellClass: 'font-bold text-slate-800 dark:text-white',
+        hide: !visibleCols.name
+      },
+      {
+        field: 'role',
+        headerName: 'Role',
+        flex: 1.2,
+        minWidth: 130,
+        cellClass: 'text-slate-800 dark:text-white font-semibold',
+        hide: !visibleCols.role
+      },
+      {
+        field: 'wing',
+        headerName: 'Wing',
+        flex: 1.2,
+        minWidth: 130,
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
+        hide: !visibleCols.wing
+      },
+      {
+        field: 'division',
+        headerName: 'Division',
+        flex: 1.2,
+        minWidth: 130,
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
+        hide: !visibleCols.division
+      },
+      {
+        field: 'is_active',
+        headerName: 'Status',
+        minWidth: 120,
+        hide: !visibleCols.status,
+        cellRenderer: (params) => {
+          const isActive = params.value;
+          return (
+            <span className={`text-xs font-black uppercase ${isActive ? 'text-emerald-600' : 'text-rose-600'
+              }`}>
+              {isActive ? 'Active' : 'Relieved'}
+            </span>
+          );
+        }
       }
-    },
-    {
-      headerName: 'Action',
-      minWidth: 120,
-      cellRenderer: (params) => {
-        const yp = params.data;
-        return (
-          <div className="flex items-center w-full h-full py-1">
-            <div className="w-1/2 flex justify-end pr-2">
-              <button
-                onClick={() => onEdit(yp)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
-                title="Update"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="w-1/2 flex justify-start pl-2">
-              {yp.is_active ? (
+    ];
+
+    if (canEdit) {
+      cols.push({
+        headerName: 'Action',
+        minWidth: 120,
+        cellRenderer: (params) => {
+          const yp = params.data;
+          return (
+            <div className="flex items-center w-full h-full py-1">
+              <div className="w-1/2 flex justify-end pr-2">
                 <button
-                  onClick={() => handleOpenRelieve(yp)}
-                  className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
-                  title="Relieve"
+                  onClick={() => onEdit(yp)}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                  title="Update"
                 >
-                  <UserMinus className="h-4 w-4" />
+                  <Edit className="h-4 w-4" />
                 </button>
-              ) : (
-                <div className="w-7 h-7" /> /* Spacer to match button size and maintain layout alignment */
-              )}
+              </div>
+              <div className="w-1/2 flex justify-start pl-2">
+                {yp.is_active ? (
+                  <button
+                    onClick={() => handleOpenRelieve(yp)}
+                    className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
+                    title="Relieve"
+                  >
+                    <UserMinus className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <div className="w-7 h-7" /> /* Spacer to match button size and maintain layout alignment */
+                )}
+              </div>
             </div>
-          </div>
-        );
-      }
+          );
+        }
+      });
     }
-  ], [onEdit, visibleCols]);
+
+    return cols;
+  }, [onEdit, visibleCols, canEdit]);
 
   return (
     <div className="space-y-6 animate-fade-in relative">
