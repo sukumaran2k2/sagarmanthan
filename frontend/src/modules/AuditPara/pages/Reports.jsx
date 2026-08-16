@@ -10,12 +10,21 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
   const [selectedDivision, setSelectedDivision] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Divisions available depend on whether a specific wing is selected.
-  const scopedDivisions = useMemo(() => {
-    if (selectedWing === 'All') return [];
-    const wingObj = wings.find((w) => w.wing_name === selectedWing);
-    if (!wingObj) return [];
-    return divisions.filter((d) => String(d.wing_id) === String(wingObj.wing_id));
+  const sortedWings = useMemo(
+    () => [...wings].sort((a, b) => a.wing_name.localeCompare(b.wing_name)),
+    [wings]
+  );
+
+  // Division options depend on the current wing selection: when a wing is
+  // chosen, only show its divisions; when "All Wings", show every division.
+  const divisionOptions = useMemo(() => {
+    const pool = selectedWing === 'All'
+      ? divisions
+      : divisions.filter((d) => {
+          const wingObj = wings.find((w) => w.wing_name === selectedWing);
+          return wingObj && String(d.wing_id) === String(wingObj.wing_id);
+        });
+    return [...pool].sort((a, b) => a.division_name.localeCompare(b.division_name));
   }, [selectedWing, wings, divisions]);
 
   const handleWingChange = (val) => {
@@ -34,36 +43,33 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
     dropped: paras.filter((p) => p.statusSteps[7] === 'Yes').length,
   });
 
-  // Abstract (Wing-wise) rows -- default view, one row per wing.
-  const wingRows = useMemo(() => {
-    const wingNames = wings.length ? wings.map((w) => w.wing_name) : [];
-    return wingNames
-      .filter((w) => w.toLowerCase().includes(searchQuery.toLowerCase()))
-      .map((wing) => {
-        const wingParas = rowData.filter((p) => (p.wing || '').toLowerCase() === wing.toLowerCase());
-        return { wing, division: '', ...computeCounts(wingParas) };
-      });
-  }, [rowData, wings, searchQuery]);
-
-  // Division-wise rows -- shown once a specific wing is selected via WING VIEW.
-  const divisionRows = useMemo(() => {
-    if (selectedWing === 'All') return [];
-    let divsToShow = scopedDivisions;
-    if (selectedDivision !== 'All') {
-      divsToShow = scopedDivisions.filter((d) => d.division_name === selectedDivision);
+  // Combined Wing+Division rows -- one row per division, always shown together
+  // (default "All Wings (Abstract View)" state included), matching the
+  // real Young Professionals report pattern.
+  const rows = useMemo(() => {
+    let divsToShow = divisions;
+    if (selectedWing !== 'All') {
+      const wingObj = wings.find((w) => w.wing_name === selectedWing);
+      divsToShow = divisions.filter((d) => wingObj && String(d.wing_id) === String(wingObj.wing_id));
     }
-    return divsToShow
-      .filter((d) => d.division_name.toLowerCase().includes(searchQuery.toLowerCase()) || selectedWing.toLowerCase().includes(searchQuery.toLowerCase()))
-      .map((d) => {
-        const divisionParas = rowData.filter(
-          (p) => (p.wing || '').toLowerCase() === selectedWing.toLowerCase() && (p.division || '').toLowerCase() === d.division_name.toLowerCase()
-        );
-        return { wing: selectedWing, division: d.division_name, ...computeCounts(divisionParas) };
-      });
-  }, [rowData, selectedWing, selectedDivision, scopedDivisions, searchQuery]);
+    if (selectedDivision !== 'All') {
+      divsToShow = divsToShow.filter((d) => d.division_name === selectedDivision);
+    }
 
-  const isAbstractView = selectedWing === 'All';
-  const rows = isAbstractView ? wingRows : divisionRows;
+    return divsToShow
+      .map((d) => {
+        const wingObj = wings.find((w) => String(w.wing_id) === String(d.wing_id));
+        const wingName = wingObj?.wing_name || '';
+        const paras = rowData.filter(
+          (p) => (p.wing || '').toLowerCase() === wingName.toLowerCase() && (p.division || '').toLowerCase() === d.division_name.toLowerCase()
+        );
+        return { wing: wingName, division: d.division_name, ...computeCounts(paras) };
+      })
+      .filter((r) =>
+        r.wing.toLowerCase().includes(searchQuery.toLowerCase()) || r.division.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      .sort((a, b) => a.wing.localeCompare(b.wing) || a.division.localeCompare(b.division));
+  }, [rowData, wings, divisions, selectedWing, selectedDivision, searchQuery]);
 
   const pinnedBottomRowData = useMemo(() => {
     const totals = {
@@ -80,38 +86,31 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
     return [totals];
   }, [rows]);
 
-  const colDefs = useMemo(() => {
-    const base = [
-      {
-        headerName: 'S.No',
-        valueGetter: (params) => params.node.rowPinned ? '' : params.node.rowIndex + 1,
-        width: 70, pinned: 'left',
-        cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-700 bg-slate-50/20 dark:bg-slate-800/40 flex items-center justify-center'
-      },
-      {
-        headerName: 'Wing', field: 'wing', minWidth: 180, pinned: 'left',
-        cellClass: (params) =>
-          `font-extrabold flex items-center border-r border-slate-100 dark:border-slate-700 ${params.node.rowPinned ? 'text-blue-900 dark:text-blue-300 bg-blue-50/30 dark:bg-blue-950/30' : 'text-slate-800 dark:text-slate-100'}`
-      },
-    ];
-    if (!isAbstractView) {
-      base.push({
-        headerName: 'Division', field: 'division', minWidth: 180,
-        cellClass: 'font-bold text-slate-700 dark:text-slate-200 flex items-center border-r border-slate-100 dark:border-slate-700'
-      });
-    }
-    return [
-      ...base,
-      { headerName: 'No. of Audit Paras', field: 'total', minWidth: 160, cellClass: 'text-center font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-      { headerName: 'Received at Ministry', field: 'received', minWidth: 180, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-      { headerName: 'Comments Sought from Organisation', field: 'sought', minWidth: 280, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-      { headerName: 'Comments Received from organisation', field: 'receivedOrg', minWidth: 290, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-      { headerName: 'Under Clarification', field: 'clarification', minWidth: 175, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-      { headerName: 'Comments Furnished to CAG', field: 'cag', minWidth: 220, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-      { headerName: 'Accepted by CAG', field: 'accepted', minWidth: 165, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-      { headerName: 'Dropped', field: 'dropped', minWidth: 120, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' }
-    ];
-  }, [isAbstractView]);
+  const colDefs = useMemo(() => [
+    {
+      headerName: 'S.No',
+      valueGetter: (params) => params.node.rowPinned ? '' : params.node.rowIndex + 1,
+      width: 70, pinned: 'left',
+      cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-700 bg-slate-50/20 dark:bg-slate-800/40 flex items-center justify-center'
+    },
+    {
+      headerName: 'Wing', field: 'wing', minWidth: 180, pinned: 'left',
+      cellClass: (params) =>
+        `font-extrabold flex items-center border-r border-slate-100 dark:border-slate-700 ${params.node.rowPinned ? 'text-blue-900 dark:text-blue-300 bg-blue-50/30 dark:bg-blue-950/30' : 'text-[#0f417a] dark:text-blue-400 underline'}`
+    },
+    {
+      headerName: 'Division', field: 'division', minWidth: 180,
+      cellClass: 'font-bold text-[#0f417a] dark:text-blue-400 underline flex items-center border-r border-slate-100 dark:border-slate-700'
+    },
+    { headerName: 'No. of Audit Paras', field: 'total', minWidth: 160, cellClass: 'text-center font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
+    { headerName: 'Received at Ministry', field: 'received', minWidth: 180, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
+    { headerName: 'Comments Sought from Organisation', field: 'sought', minWidth: 280, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
+    { headerName: 'Comments Received from organisation', field: 'receivedOrg', minWidth: 290, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
+    { headerName: 'Under Clarification', field: 'clarification', minWidth: 175, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
+    { headerName: 'Comments Furnished to CAG', field: 'cag', minWidth: 220, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
+    { headerName: 'Accepted by CAG', field: 'accepted', minWidth: 165, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
+    { headerName: 'Dropped', field: 'dropped', minWidth: 120, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' }
+  ], []);
 
   const handleGridWheel = (e) => {
     const container = e.currentTarget;
@@ -164,7 +163,6 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
         </div>
       </div>
 
-      {/* Search + Wing/Division view selectors */}
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 flex flex-col md:flex-row md:items-center gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -184,7 +182,7 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
             className="appearance-none text-xs pl-3 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-[#0f417a] font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
           >
             <option value="All">WING VIEW: All Wings (Abstract View)</option>
-            {wings.map((w) => <option key={w.wing_id} value={w.wing_name}>WING VIEW: {w.wing_name}</option>)}
+            {sortedWings.map((w) => <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>)}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
         </div>
@@ -193,11 +191,10 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
           <select
             value={selectedDivision}
             onChange={(e) => setSelectedDivision(e.target.value)}
-            disabled={isAbstractView}
-            className="appearance-none text-xs pl-3 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-[#0f417a] font-bold text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="appearance-none text-xs pl-3 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-[#0f417a] font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
           >
             <option value="All">DIVISION VIEW: All Divisions</option>
-            {scopedDivisions.map((d) => <option key={d.division_id} value={d.division_name}>DIVISION VIEW: {d.division_name}</option>)}
+            {divisionOptions.map((d) => <option key={d.division_id} value={d.division_name}>{d.division_name}</option>)}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
         </div>
