@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { FileSpreadsheet, Copy, FileText, Search, ChevronDown } from 'lucide-react';
+import { FileSpreadsheet, Copy, FileText, Search, ChevronDown, TrendingUp, Layers, GitBranch, RefreshCw } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 
@@ -132,92 +132,112 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-sm font-black text-slate-800 dark:text-slate-100 font-display flex items-center gap-1.5 uppercase">
-            Report No.: 4.2A - Abstract ( Wing & Division Wise ) - Audit Paras
-          </h2>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1 tracking-wider">
-            As On date: {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}
-          </p>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5 tracking-wider">
-            (Report for the Month - {new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })})
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => handleExport('Excel')}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-100/50 transition cursor-pointer"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-            <span>Export to Excel</span>
-          </button>
-          <button
-            onClick={() => handleExport('PDF')}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg text-[10px] font-bold uppercase hover:bg-red-100/50 transition cursor-pointer"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            <span>Export to PDF</span>
-          </button>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-[#8b3a4a] dark:text-rose-400">
+        <TrendingUp className="h-3.5 w-3.5" />
+        <span>Audit Paras Report</span>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 flex flex-col md:flex-row md:items-center gap-3">
+      <div>
+        <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 font-display">
+          Report No. 4.2A - Abstract ( Wing & Division Wise ) - Audit Paras
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+          As on date: <span className="font-bold text-slate-700 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+          <span className="mx-1.5">•</span>
+          Report for the month — <span className="font-bold text-slate-700 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
+        </p>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center gap-3">
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search wing, division..."
-            className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-[#0f417a] font-medium text-slate-700 dark:text-slate-200"
+            className="w-full text-xs pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full focus:outline-none focus:border-[#0f417a] font-medium text-slate-700 dark:text-slate-200"
           />
         </div>
 
         <div className="relative">
-          <select
-            value={selectedWing}
-            onChange={(e) => handleWingChange(e.target.value)}
-            className="appearance-none text-xs pl-3 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-[#0f417a] font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
-          >
-            <option value="All">WING VIEW: All Wings (Abstract View)</option>
-            {sortedWings.map((w) => <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>)}
-          </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+          <div className="flex items-center gap-1.5 pl-3 pr-8 py-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-full">
+            <Layers className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+            <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wide whitespace-nowrap">Wing View:</span>
+            <select
+              value={selectedWing}
+              onChange={(e) => handleWingChange(e.target.value)}
+              className="appearance-none bg-transparent text-xs font-bold text-indigo-800 dark:text-indigo-200 focus:outline-none cursor-pointer max-w-[140px] truncate"
+            >
+              <option value="All">All Wings (Abstract View)</option>
+              {sortedWings.map((w) => <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>)}
+            </select>
+          </div>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-indigo-500 pointer-events-none" />
         </div>
 
         <div className="relative">
-          <select
-            value={selectedDivision}
-            onChange={(e) => setSelectedDivision(e.target.value)}
-            className="appearance-none text-xs pl-3 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-[#0f417a] font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
-          >
-            <option value="All">DIVISION VIEW: All Divisions</option>
-            {divisionOptions.map((d) => <option key={d.division_id} value={d.division_name}>{d.division_name}</option>)}
-          </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+          <div className="flex items-center gap-1.5 pl-3 pr-8 py-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-full">
+            <GitBranch className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+            <span className="text-[11px] font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wide whitespace-nowrap">Division View:</span>
+            <select
+              value={selectedDivision}
+              onChange={(e) => setSelectedDivision(e.target.value)}
+              className="appearance-none bg-transparent text-xs font-bold text-emerald-800 dark:text-emerald-200 focus:outline-none cursor-pointer max-w-[140px] truncate"
+            >
+              <option value="All">All Divisions</option>
+              {divisionOptions.map((d) => <option key={d.division_id} value={d.division_name}>{d.division_name}</option>)}
+            </select>
+          </div>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-emerald-500 pointer-events-none" />
         </div>
+
+        <div className="flex-1" />
+
+        <button
+          onClick={() => handleExport('Clipboard')}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
+        >
+          <Copy className="h-3.5 w-3.5" /><span>Copy</span>
+        </button>
+
+        <div className="relative group">
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#5c2a3a] hover:bg-[#6d3346] text-white rounded-full text-xs font-bold transition cursor-pointer">
+            <span>Export</span>
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 z-10 hidden group-hover:block">
+            <button onClick={() => handleExport('Excel')} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
+              <FileSpreadsheet className="h-3.5 w-3.5" /><span>Export to Excel</span>
+            </button>
+            <button onClick={() => handleExport('PDF')} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
+              <FileText className="h-3.5 w-3.5" /><span>Export to PDF</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          onClick={() => window.location.reload()}
+          className="p-2.5 bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
+          title="Refresh"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+        </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center space-x-1.5">
-          <button onClick={() => handleExport('Clipboard')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer">
-            <Copy className="h-3.5 w-3.5" /><span>Copy</span>
-          </button>
-          <button onClick={() => handleExport('Excel')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer">
-            <FileSpreadsheet className="h-3.5 w-3.5" /><span>Excel</span>
-          </button>
-          <button onClick={() => handleExport('PDF')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer">
-            <FileText className="h-3.5 w-3.5" /><span>PDF</span>
-          </button>
-        </div>
-        <div className="flex items-center gap-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
-          <span>Total Rows: <strong className="text-slate-800 dark:text-slate-100">{rows.length}</strong></span>
-        </div>
-      </div>
-
-      <div className="ag-theme-quartz rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto" onWheel={handleGridWheel}>
+      <div
+        className="ag-theme-quartz rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto"
+        style={{
+          '--ag-header-background-color': '#5c2a3a',
+          '--ag-header-foreground-color': '#ffffff',
+          '--ag-header-column-separator-color': 'rgba(255,255,255,0.25)',
+          '--ag-header-column-separator-display': 'block',
+          '--ag-odd-row-background-color': '#f0fdf4',
+          '--ag-row-hover-color': '#e6f9ee',
+        }}
+        onWheel={handleGridWheel}
+      >
         <AgGridReact
           theme="legacy"
           rowData={rows}
@@ -225,7 +245,7 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
           pinnedBottomRowData={pinnedBottomRowData}
           domLayout="autoHeight"
           rowHeight={46}
-          headerHeight={38}
+          headerHeight={40}
           suppressColumnVirtualisation={true}
           pagination={true}
           paginationPageSize={10}
