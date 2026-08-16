@@ -140,6 +140,7 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
         {activeSubTab === 'report' && (
           <Reports
             triggerNotification={triggerNotification}
+            wings={wings}
           />
         )}
       </div>
