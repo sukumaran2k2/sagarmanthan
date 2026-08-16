@@ -164,7 +164,7 @@ export default function AuditParaView({ activeSubTab: activeSubTabProp, setActiv
         )}
 
         {activeSubTab === 'report' && (
-          <Reports rowData={rowData} />
+          <Reports rowData={rowData} wings={wings} divisions={divisions} />
         )}
       </div>
     </div>
