@@ -35,16 +35,16 @@ export default function InputForm({
   const [numResources, setNumResources] = useState(1);
   const [appointmentType, setAppointmentType] = useState('Full Time');
 
-  // Milestone Stages State (null = unselected, true = Yes, false = No)
-  const [formStages, setFormStages] = useState({
-    adminApproval: null,
-    tenderPublished: null,
-    preBidQueries: null,
-    bidReceived: null,
-    techBidFinalized: null,
-    finBidFinalized: null,
-    workOrderIssued: null,
-    contractSigned: null
+  // Remarks State
+  const [remarks, setRemarks] = useState({
+    adminApproval: '',
+    tenderPublished: '',
+    preBidQueries: '',
+    bidReceived: '',
+    techBidFinalized: '',
+    finBidFinalized: '',
+    workOrderIssued: '',
+    contractSigned: ''
   });
 
   // Milestone Dates State
@@ -112,7 +112,16 @@ export default function InputForm({
       setDivision(editData.division_id || '');
       setAppointmentType(editData.appointmentType || 'Full Time');
       setNumResources(editData.numResources || 1);
-      setFormStages({ ...editData.stages });
+      setRemarks({
+        adminApproval: editData.remarks?.adminApproval || '',
+        tenderPublished: editData.remarks?.tenderPublished || '',
+        preBidQueries: editData.remarks?.preBidQueries || '',
+        bidReceived: editData.remarks?.bidReceived || '',
+        techBidFinalized: editData.remarks?.techBidFinalized || '',
+        finBidFinalized: editData.remarks?.finBidFinalized || '',
+        workOrderIssued: editData.remarks?.workOrderIssued || '',
+        contractSigned: editData.remarks?.contractSigned || ''
+      });
       setDates({
         adminApprovalDate: editData.stages.adminApprovalDate || '',
         tenderPublishedDate: editData.stages.tenderPublishedDate || '',
@@ -130,71 +139,52 @@ export default function InputForm({
   /**
    * Checks if a milestone stage is accessible based on completion of previous stages.
    * Stage 0 is always accessible.
-   * Stage N (N > 0) is accessible only if Stage N-1 is selected:
-   *   - If Stage N-1 is 'Yes' (true), it requires Stage N-1 date to be filled.
-   *   - If Stage N-1 is 'No' (false), it unlocks Stage N immediately.
+   * Stage N (N > 0) is accessible only if Stage N-1 has a date filled.
    */
   const isStageAccessible = (index) => {
     if (index === 0) return true;
     const prevStage = STAGES[index - 1];
-    const prevVal = formStages[prevStage.key];
-
-    if (prevVal === null || prevVal === undefined) {
-      return false; // Prev stage not selected yet
-    }
-    if (prevVal === true) {
-      return !!dates[prevStage.dateKey]; // Requires date if Yes
-    }
-    return true; // Unlocks immediately if No
-  };
-
-  const handleStageChange = (key, val, dateKey, stageIndex = 0) => {
-    if (!isStageAccessible(stageIndex)) return;
-
-    setFormStages(prev => {
-      // Toggle value: if already selected value, deselect to null; otherwise set to val
-      const newVal = prev[key] === val ? null : val;
-      const updated = { ...prev, [key]: newVal };
-
-      // If user unselects (null) or sets to 'No' (false), reset all subsequent stages to null
-      if (newVal !== true) {
-        for (let i = stageIndex + 1; i < STAGES.length; i++) {
-          const subKey = STAGES[i].key;
-          const subDateKey = STAGES[i].dateKey;
-          updated[subKey] = null;
-
-          setDates(d => ({ ...d, [subDateKey]: '' }));
-          if (subKey === 'workOrderIssued') {
-            setWorkOrderFileName('');
-            setWorkOrderFile(null);
-          }
-          setErrors(e => {
-            const copy = { ...e };
-            delete copy[subDateKey];
-            return copy;
-          });
-        }
-      }
-      return updated;
-    });
-
-    if (val !== true) {
-      setDates(prev => ({ ...prev, [dateKey]: '' }));
-      if (key === 'workOrderIssued') {
-        setWorkOrderFileName('');
-        setWorkOrderFile(null);
-      }
-      setErrors(prev => {
-        const updated = { ...prev };
-        delete updated[dateKey];
-        return updated;
-      });
-    }
+    return !!dates[prevStage.dateKey];
   };
 
   const handleDateChange = (dateKey, val) => {
-    setDates(prev => ({ ...prev, [dateKey]: val }));
+    setDates(prev => {
+      const newDates = { ...prev, [dateKey]: val };
+      if (!val) {
+        // If a date is cleared, clear subsequent dates
+        let clear = false;
+        for (const stage of STAGES) {
+          if (clear) {
+            newDates[stage.dateKey] = '';
+            if (stage.key === 'workOrderIssued') {
+              setWorkOrderFileName('');
+              setWorkOrderFile(null);
+            }
+          }
+          if (stage.dateKey === dateKey) clear = true;
+        }
+      }
+      return newDates;
+    });
+    
+    // Clear errors for subsequent dates if cleared
+    if (!val) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        let clear = false;
+        for (const stage of STAGES) {
+          if (clear) delete newErrors[stage.dateKey];
+          if (stage.dateKey === dateKey) clear = true;
+        }
+        return newErrors;
+      });
+    }
+    
     validateField(dateKey, val);
+  };
+
+  const handleRemarkChange = (key, val) => {
+    setRemarks(prev => ({ ...prev, [key]: val }));
   };
 
   const handleSubmit = async (e) => {
@@ -220,7 +210,7 @@ export default function InputForm({
     // Determine current stage ID
     let selectedStage = 1;
     for (let i = 0; i < STAGES.length; i++) {
-      if (formStages[STAGES[i].key]) {
+      if (dates[STAGES[i].dateKey]) {
         selectedStage = i + 1;
       }
     }
@@ -230,22 +220,23 @@ export default function InputForm({
       division: parseInt(division),
       resourceNumber: Number(numResources) || 1,
       appointmentType: appointmentType,
-      adminApproval: formStages.adminApproval ? "Yes" : "No",
+      adminApproval: dates.adminApprovalDate ? "Yes" : "No",
       adminApprovalDate: dates.adminApprovalDate || "",
-      tenderPublished: formStages.tenderPublished ? "Yes" : "No",
+      tenderPublished: dates.tenderPublishedDate ? "Yes" : "No",
       tenderPublishedDate: dates.tenderPublishedDate || "",
-      preBidQueriesResponded: formStages.preBidQueries ? "Yes" : "No",
+      preBidQueriesResponded: dates.preBidQueriesDate ? "Yes" : "No",
       preBidQueriesRespondedDate: dates.preBidQueriesDate || "",
-      bidReceived: formStages.bidReceived ? "Yes" : "No",
+      bidReceived: dates.bidReceivedDate ? "Yes" : "No",
       bidReceivedDate: dates.bidReceivedDate || "",
-      technicalBidFinalized: formStages.techBidFinalized ? "Yes" : "No",
+      technicalBidFinalized: dates.techBidFinalizedDate ? "Yes" : "No",
       technicalBidFinalizedDate: dates.techBidFinalizedDate || "",
-      financialBidFinalized: formStages.finBidFinalized ? "Yes" : "No",
+      financialBidFinalized: dates.finBidFinalizedDate ? "Yes" : "No",
       financialBidFinalizedDate: dates.finBidFinalizedDate || "",
-      workOrderIssued: formStages.workOrderIssued ? "Yes" : "No",
+      workOrderIssued: dates.workOrderIssuedDate ? "Yes" : "No",
       workOrderIssuedDate: dates.workOrderIssuedDate || "",
-      contractSigned: formStages.contractSigned ? "Yes" : "No",
+      contractSigned: dates.contractSignedDate ? "Yes" : "No",
       contractSignedDate: dates.contractSignedDate || "",
+      remarks: remarks, // Added remarks for the backend if supported
       consultingFirmName: "",
       stageID: selectedStage,
       userID: activeUserId
@@ -284,8 +275,7 @@ export default function InputForm({
     !division ||
     numResources === '' ||
     Number(numResources) <= 0 ||
-    STAGES.some(stage => formStages[stage.key] && !dates[stage.dateKey]) ||
-    (formStages.workOrderIssued && !workOrderFileName) ||
+    (dates.workOrderIssuedDate && !workOrderFileName) ||
     Object.keys(errors).length > 0 ||
     submitting;
 
@@ -300,23 +290,27 @@ export default function InputForm({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Wing*</label>
-            <select
-              value={wing}
-              onChange={(e) => { setWing(e.target.value); if (touched.wing) handleBlur('wing'); }}
-              onBlur={() => handleBlur('wing')}
-              required
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
-            >
-              <option value="" className="dark:bg-slate-955 dark:text-slate-300">--Select Wing--</option>
-              {wings.map(w => <option key={w.wing_id} value={w.wing_id} className="dark:bg-slate-955 dark:text-slate-300">{w.wing_name}</option>)}
-            </select>
-          </div>
+      <form onSubmit={handleSubmit} className="p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* Left Panel: Stationary fields */}
+          <div className="lg:col-span-5 space-y-4 pr-0 lg:pr-2">
+            
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Wing*</label>
+              <select
+                value={wing}
+                onChange={(e) => { setWing(e.target.value); if (touched.wing) handleBlur('wing'); }}
+                onBlur={() => handleBlur('wing')}
+                required
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
+              >
+                <option value="" className="dark:bg-slate-955 dark:text-slate-300">--Select Wing--</option>
+                {wings.map(w => <option key={w.wing_id} value={w.wing_id} className="dark:bg-slate-955 dark:text-slate-300">{w.wing_name}</option>)}
+              </select>
+            </div>
 
-          <div className="space-y-1.5">
+            <div className="space-y-1.5">
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Division*</label>
             <select
               value={division}
@@ -329,9 +323,7 @@ export default function InputForm({
               {divisions.map(d => <option key={d.division_id} value={d.division_id} className="dark:bg-slate-955 dark:text-slate-300">{d.division_name}</option>)}
             </select>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div className="space-y-1.5">
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Number of Resources*</label>
             <input
@@ -359,77 +351,42 @@ export default function InputForm({
               <option value="Part Time">Part Time</option>
             </select>
           </div>
-        </div>
+          </div>
 
-        <div className="space-y-4">
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-1.5">
-            Workflow Milestone Checklist
-          </label>
-
-          <div className="space-y-4">
+          {/* Right Panel: Stages list card style */}
+          <div className="lg:col-span-7 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-950" style={{ maxHeight: '580px' }}>
+            <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800">
+              Stages Checklist & Dates
+            </h4>
+            <div className="space-y-3.5">
             {STAGES.map((stage, idx) => {
-              const stageVal = formStages[stage.key];
-              const isYes = stageVal === true;
-              const isNo = stageVal === false;
               const isAccessible = isStageAccessible(idx);
+              const isFilled = !!dates[stage.dateKey];
 
               return (
                 <div
                   key={stage.key}
                   className={`flex flex-col py-3 px-4 rounded-xl border transition-all ${!isAccessible
                     ? 'bg-slate-100/60 dark:bg-slate-900/30 border-slate-200/60 dark:border-slate-800/40 opacity-50'
-                    : isYes
+                    : isFilled
                       ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60'
-                      : isNo
-                        ? 'bg-rose-50/30 dark:bg-rose-950/10 border-rose-200/60 dark:border-rose-900/40'
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
                     }`}
                 >
-                  <div className="flex items-center justify-between w-full">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-3">
                     <div className="flex items-center gap-2">
                       <span className={`text-xs font-bold ${!isAccessible ? 'text-slate-400 dark:text-slate-600' : 'text-slate-700 dark:text-slate-300'}`}>
                         {idx + 1}. {stage.label}
                       </span>
                       {!isAccessible && (
                         <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 italic">
-                          (Select option on stage {idx} first)
+                          (Complete stage {idx} first)
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center space-x-1.5 shrink-0 ml-2">
-                      <button
-                        type="button"
-                        disabled={!isAccessible}
-                        onClick={() => handleStageChange(stage.key, true, stage.dateKey, idx)}
-                        className={`px-3.5 py-1 rounded font-black transition-all text-[10px] ${!isAccessible
-                          ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
-                          : isYes
-                            ? 'bg-emerald-600 text-white shadow-sm font-black cursor-pointer ring-2 ring-emerald-600/30'
-                            : 'bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-slate-700 hover:text-emerald-700 cursor-pointer'
-                          }`}
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!isAccessible}
-                        onClick={() => handleStageChange(stage.key, false, stage.dateKey, idx)}
-                        className={`px-3.5 py-1 rounded font-black transition-all text-[10px] ${!isAccessible
-                          ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
-                          : isNo
-                            ? 'bg-rose-600 text-white shadow-sm font-black cursor-pointer ring-2 ring-rose-600/30'
-                            : 'bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-slate-700 hover:text-rose-700 cursor-pointer'
-                          }`}
-                      >
-                        No
-                      </button>
-                    </div>
-                  </div>
-
-                  {isYes && (
-                    <div className="space-y-3 border-t border-slate-200/60 dark:border-slate-800 pt-3 animate-fade-in">
-                      <div className="flex items-center justify-between w-full">
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">{stage.dateLabel}</span>
+                    {isAccessible && (
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase hidden sm:block">{stage.dateLabel}</span>
                         <div className="relative w-44">
                           <input
                             type="date"
@@ -442,7 +399,27 @@ export default function InputForm({
                           <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                         </div>
                       </div>
-                      {errors[stage.dateKey] && <p className="text-[10px] font-bold text-red-500 text-right">{errors[stage.dateKey]}</p>}
+                    )}
+                  </div>
+                  
+                  {isAccessible && errors[stage.dateKey] && (
+                    <div className="flex justify-end mt-1">
+                      <p className="text-[10px] font-bold text-red-500">{errors[stage.dateKey]}</p>
+                    </div>
+                  )}
+
+                  {isFilled && (
+                    <div className="animate-fade-in pt-3 mt-3 border-t border-slate-200/60 dark:border-slate-800 space-y-3">
+                       <div>
+                         <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Remarks</label>
+                         <textarea
+                           value={remarks[stage.key] || ''}
+                           onChange={(e) => handleRemarkChange(stage.key, e.target.value)}
+                           placeholder="Add remarks here..."
+                           className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-700 dark:text-slate-200 resize-none"
+                           rows="2"
+                         />
+                       </div>
 
                       {stage.key === 'workOrderIssued' && (
                         <div className="space-y-1.5 max-w-sm pt-2">
@@ -497,9 +474,10 @@ export default function InputForm({
           </div>
         </div>
 
+        </div>
 
-
-        <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100 dark:border-slate-800">
+        {/* Footer Actions */}
+        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-3">
           <button
             type="button"
             onClick={onBack}
