@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+﻿import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FileSpreadsheet,
   Plus,
@@ -430,7 +430,7 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
           <form onSubmit={handleSavePara} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Para Number *</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Para Number <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formNumber}
@@ -442,7 +442,7 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject *</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formSubject}
@@ -456,7 +456,7 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing *</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
                 <select
                   value={formWing}
                   onChange={(e) => setFormWing(e.target.value)}
@@ -468,7 +468,7 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division *</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
                 <select
                   value={formDivision}
                   onChange={(e) => setFormDivision(e.target.value)}
@@ -480,7 +480,7 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Category *</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Category <span className="text-red-500">*</span></label>
                 <select
                   value={formCategory}
                   onChange={(e) => setFormCategory(e.target.value)}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, X, Upload } from 'lucide-react';
 import api, { API_BASE } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
@@ -358,7 +358,7 @@ export default function InputForm({
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Wing*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
             <select
               value={wing}
               onChange={(e) => { setWing(e.target.value); if (touched.wing) handleBlur('wing'); }}
@@ -372,7 +372,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Division*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
             <select
               value={division}
               onChange={(e) => { setDivision(e.target.value); if (touched.division) handleBlur('division'); }}
@@ -390,7 +390,7 @@ export default function InputForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Name*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Name <span className="text-red-500">*</span></label>
             <input 
               type="text" 
               value={name} 
@@ -404,7 +404,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Educational Qualification*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Educational Qualification <span className="text-red-500">*</span></label>
             <input 
               type="text" 
               value={qualification} 
@@ -417,7 +417,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Role / Designation*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Role / Designation <span className="text-red-500">*</span></label>
             <input 
               type="text" 
               value={role} 
@@ -430,7 +430,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Date of Appointment*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Date of Appointment <span className="text-red-500">*</span></label>
             <input 
               type="date" 
               value={appointmentDate} 
@@ -444,7 +444,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Salary (per month)*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Salary (per month) <span className="text-red-500">*</span></label>
             <input 
               type="number" 
               step="0.01"
@@ -459,7 +459,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Total Experience (Years of Exp - YOE)*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Total Experience (Years of Exp - YOE) <span className="text-red-500">*</span></label>
             <input 
               type="number" 
               value={experience} 
@@ -474,7 +474,7 @@ export default function InputForm({
         </div>
 
         <div className="space-y-2">
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Skills Keyword Pool (Type & press Enter or comma)*</label>
+          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Skills Keyword Pool (Type & press Enter or comma) <span className="text-red-500">*</span></label>
           {skillsList.length > 0 && (
             <div className="flex flex-wrap gap-1.5 p-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl mb-2">
               {skillsList.map(skill => (
@@ -532,7 +532,7 @@ export default function InputForm({
 
         {/* Appointment document - Minimized towards the left */}
         <div className="space-y-1.5 max-w-sm">
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Appointment Order Document*</label>
+          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Appointment Order Document <span className="text-red-500">*</span></label>
           <div className={`flex items-center justify-center border-2 border-dashed ${isFieldInvalid('documentName', documentName) ? 'border-red-500 bg-red-50/10' : 'border-slate-250 dark:border-slate-800'} rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative`}>
             <input 
               type="file" 

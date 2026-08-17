@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { ChevronLeft, ChevronRight, Save, X } from 'lucide-react';
 
@@ -264,7 +264,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
         {/* Financial Year & Month selectors */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Financial Year*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Financial Year <span className="text-red-500">*</span></label>
             <select
               value={financialYear}
               onChange={(e) => setFinancialYear(e.target.value)}
@@ -276,7 +276,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Month*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Month <span className="text-red-500">*</span></label>
             <select
               value={month}
               onChange={(e) => setMonth(e.target.value)}

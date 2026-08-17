@@ -297,7 +297,7 @@ export default function InputForm({
           <div className="lg:col-span-5 space-y-4 pr-0 lg:pr-2">
             
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Wing*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
               <select
                 value={wing}
                 onChange={(e) => { setWing(e.target.value); if (touched.wing) handleBlur('wing'); }}
@@ -311,7 +311,7 @@ export default function InputForm({
             </div>
 
             <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Division*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
             <select
               value={division}
               onChange={(e) => { setDivision(e.target.value); if (touched.division) handleBlur('division'); }}
@@ -325,7 +325,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Number of Resources*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Number of Resources <span className="text-red-500">*</span></label>
             <input
               type="number"
               min="1"
@@ -339,7 +339,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Appointment Type*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Appointment Type <span className="text-red-500">*</span></label>
             <select
               value={appointmentType}
               onChange={e => { setAppointmentType(e.target.value); if (touched.appointmentType) handleBlur('appointmentType'); }}
@@ -379,7 +379,7 @@ export default function InputForm({
                         {idx + 1}. {stage.label}
                       </span>
                       {!isAccessible && (
-                        <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 italic">
+                        <span className="text-[10px] font-semibold text-red-500 dark:text-red-400 italic">
                           (Complete stage {idx} first)
                         </span>
                       )}
@@ -423,7 +423,7 @@ export default function InputForm({
 
                       {stage.key === 'workOrderIssued' && (
                         <div className="space-y-1.5 max-w-sm pt-2">
-                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Upload Work Order PDF*</label>
+                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Upload Work Order PDF <span className="text-red-500">*</span></label>
                           <div className={`flex items-center justify-center border-2 border-dashed ${!workOrderFileName ? 'border-amber-500 bg-amber-50/10' : 'border-slate-250 dark:border-slate-800'} rounded-xl p-4 hover:bg-slate-100 dark:hover:bg-slate-900/50 transition cursor-pointer relative`}>
                             <input
                               type="file"

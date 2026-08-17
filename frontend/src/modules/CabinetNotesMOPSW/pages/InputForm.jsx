@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Save, Upload, FileText } from 'lucide-react';
 
@@ -418,7 +418,7 @@ export default function InputForm({
 
             {/* Subject Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Subject*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Subject <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={subject}
@@ -435,7 +435,7 @@ export default function InputForm({
 
             {/* Wing Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
               <select
                 value={wing}
                 onChange={e => setWing(e.target.value)}
@@ -455,7 +455,7 @@ export default function InputForm({
 
             {/* Division Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
               <select
                 value={division}
                 onChange={e => setDivision(e.target.value)}
@@ -476,7 +476,7 @@ export default function InputForm({
             {/* Remarks Field */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks* (Max 250 words)</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks <span className="text-red-500">*</span>(Max 250 words)</label>
                 <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-red-500' : 'text-slate-400'}`}>
                   {getWordCount(remarks)} / 250 words
                 </span>

@@ -2,6 +2,19 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Table from '../../../components/Table';
 import { Search, X, Edit, ChevronDown } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
+import CopyButton from '../../../components/CopyButton';
+
+// All stages a pending appointment can be at (Contract Signed belongs to Completed tab)
+const PENDING_STAGES = [
+  'Initiated',
+  'Admin Approval for engaging Consultant',
+  'Tender Published',
+  'Pre-bid Queries Responded',
+  'Bid Received',
+  'Technical Bid Finalized',
+  'Financial Bid Finalized',
+  'Work Order Issued',
+];
 
 export default function DataList({
   rowData = [],
@@ -19,6 +32,14 @@ export default function DataList({
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
   const [gridApi, setGridApi] = useState(null); // Ag Grid API
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'completed'
+  const [selectedStage, setSelectedStage] = useState(''); // stage filter for pending tab
+
+  // Reset stage filter when switching tabs
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab !== 'pending') setSelectedStage('');
+  };
 
   // Column visibility states
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -55,7 +76,7 @@ export default function DataList({
     }));
   }, [divisions]);
 
-  const filteredData = useMemo(() => {
+  const baseFilteredData = useMemo(() => {
     return rowData.filter(item => {
       const search = searchTerm.toLowerCase();
       const matchesSearch =
@@ -67,14 +88,57 @@ export default function DataList({
       const matchesDivision = selectedDivision ? (item.division || '') === selectedDivision : true;
 
       return matchesSearch && matchesWing && matchesDivision;
-    }).map((item, index) => ({
-      ...item,
-      sNo: index + 1
-    }));
+    });
   }, [rowData, searchTerm, selectedWing, selectedDivision]);
 
+  const pendingCount = useMemo(() => {
+    return baseFilteredData.filter(item => item.status !== 'Contract Signed').length;
+  }, [baseFilteredData]);
+
+  const completedCount = useMemo(() => {
+    return baseFilteredData.filter(item => item.status === 'Contract Signed').length;
+  }, [baseFilteredData]);
+
+  const filteredData = useMemo(() => {
+    return baseFilteredData
+      .filter(item => {
+        const isCompleted = item.status === 'Contract Signed';
+        if (activeTab === 'completed') return isCompleted;
+        if (!isCompleted && selectedStage) return item.status === selectedStage;
+        return !isCompleted;
+      })
+      .map((item, index) => ({
+        ...item,
+        sNo: index + 1
+      }));
+  }, [baseFilteredData, activeTab, selectedStage]);
+
   const handleExport = (type) => {
-    if (type === 'Excel') {
+    if (type === 'Copy') {
+      if (gridApi) {
+        let tsv = '';
+        const headers = [];
+        columnDefs.forEach(col => {
+          if (col.headerName && col.headerName !== 'Action') headers.push(col.headerName);
+        });
+        tsv += headers.join('\t') + '\n';
+        filteredData.forEach((row, rowIndex) => {
+          const line = [];
+          columnDefs.forEach(col => {
+            if (col.headerName && col.headerName !== 'Action') {
+              const val = col.field === 'sNo' ? rowIndex + 1 : (row[col.field] !== undefined ? row[col.field] : '');
+              line.push(val);
+            }
+          });
+          tsv += line.join('\t') + '\n';
+        });
+        navigator.clipboard.writeText(tsv)
+          .then(() => { if (triggerNotification) triggerNotification('Table data copied to clipboard!'); })
+          .catch(() => alert('Failed to copy table data.'));
+      } else {
+        alert('Grid is not ready for copy yet.');
+      }
+    } else if (type === 'Excel') {
       if (gridApi) {
         gridApi.exportDataAsCsv({
           fileName: `Consultant_Appointment_Register_export.csv`
@@ -225,7 +289,32 @@ export default function DataList({
   }, [onEdit, visibleCols, canEdit]);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative">
+    <div className="space-y-6 animate-fade-in relative">
+      {/* Pending / Completed tabs matching YP DataList */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+        <button
+          onClick={() => handleTabChange('pending')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === 'pending'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
+        >
+          PENDING ({pendingCount})
+        </button>
+        <button
+          onClick={() => handleTabChange('completed')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === 'completed'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
+        >
+          COMPLETED ({completedCount})
+        </button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 dark:bg-slate-950 dark:border-slate-800">
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 pb-4">
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
           <div className="relative">
@@ -256,6 +345,23 @@ export default function DataList({
             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           </div>
 
+          {/* Stage filter — only on Pending tab */}
+          {activeTab === 'pending' && (
+            <div className="relative">
+              <select
+                value={selectedStage}
+                onChange={(e) => setSelectedStage(e.target.value)}
+                className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[160px]"
+              >
+                <option value="">All Stages</option>
+                {PENDING_STAGES.map(stage => (
+                  <option key={stage} value={stage}>{stage}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            </div>
+          )}
+
           <div className="relative min-w-[160px] max-w-xs flex-1">
             <input
               type="text"
@@ -275,9 +381,9 @@ export default function DataList({
             )}
           </div>
 
-          {(selectedWing || selectedDivision) && (
+          {(selectedWing || selectedDivision || selectedStage) && (
             <button
-              onClick={() => { setSelectedWing(''); setSelectedDivision(''); }}
+              onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSelectedStage(''); }}
               className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition"
             >
               <X className="h-3 w-3" />
@@ -316,6 +422,11 @@ export default function DataList({
             )}
           </div>
 
+          <CopyButton
+            onCopy={() => handleExport('Copy')}
+            color="#0f417a"
+            hoverBg="#f1f5f9"
+          />
           <ExportDropdown
             onExportExcel={() => handleExport('Excel')}
             onExportPdf={() => handleExport('PDF')}
@@ -394,6 +505,7 @@ export default function DataList({
             background-color: #1f2937 !important;
           }
         `}} />
+      </div>
       </div>
     </div>
   );

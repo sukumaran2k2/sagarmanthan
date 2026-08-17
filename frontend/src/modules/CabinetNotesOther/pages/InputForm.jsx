@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Save, X, FileText } from 'lucide-react';
 
@@ -475,7 +475,7 @@ export default function InputForm({
 
             {/* Subject Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Subject*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Subject <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={subject}
@@ -492,7 +492,7 @@ export default function InputForm({
 
             {/* Ministry Name Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Ministry*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Ministry <span className="text-red-500">*</span></label>
               <select
                 value={ministryId}
                 onChange={e => {
@@ -517,7 +517,7 @@ export default function InputForm({
 
             {/* E-Office File Number Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">E-Office File Number*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">E-Office File Number <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={eofficeFileNumber}
@@ -624,8 +624,7 @@ export default function InputForm({
                       >
                         <div className="border-t border-slate-100 dark:border-slate-800 pt-2.5 space-y-2">
                           <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
-                            SELECT CONCERNED WINGS*
-                          </label>
+                            SELECT CONCERNED WINGS <span className="text-red-500">*</span></label>
 
                           {/* Multi-select Dropdown */}
                           {!readOnly && (

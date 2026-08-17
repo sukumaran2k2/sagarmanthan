@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Save } from 'lucide-react';
 
@@ -335,7 +335,7 @@ export default function InputForm({
             
             {/* Subject */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject*</label>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={subject}
@@ -352,7 +352,7 @@ export default function InputForm({
 
             {/* Wing */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing*</label>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
               <select
                 value={wing}
                 onChange={e => setWing(e.target.value)}
@@ -372,7 +372,7 @@ export default function InputForm({
 
             {/* Division */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division*</label>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
               <select
                 value={division}
                 onChange={e => setDivision(e.target.value)}
@@ -393,7 +393,7 @@ export default function InputForm({
             {/* Remarks */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">General Remarks* (Max 250 words)</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">General Remarks <span className="text-red-500">*</span>(Max 250 words)</label>
                 <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-red-500' : 'text-slate-400'}`}>
                   {getWordCount(remarks)} / 250 words
                 </span>

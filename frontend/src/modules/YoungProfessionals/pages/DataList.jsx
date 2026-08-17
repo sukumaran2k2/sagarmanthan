@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Table from '../../../components/Table';
 import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
@@ -700,7 +700,7 @@ export default function DataList({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Last Working Date*</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Last Working Date <span className="text-red-500">*</span></label>
                 <input
                   type="date"
                   value={lastWorkingDate}
