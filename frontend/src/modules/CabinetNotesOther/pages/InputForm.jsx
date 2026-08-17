@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import axios from 'axios';
 import { ArrowLeft, Save, X, FileText } from 'lucide-react';
+import { fetchMinistryList, createCabinetMinistry, updateCabinetMinistry, fetchDropdownAllValues } from '../api';
 
 const stageLabels = {
   1: '1. Received at Ministry',
@@ -35,6 +35,7 @@ export default function InputForm({
   const isEdit = !!editData;
   const [submitting, setSubmitting] = useState(false);
   const [ministries, setMinistries] = useState([]);
+  const [dbStageMaster, setDbStageMaster] = useState({});
 
   // Basic Left Panel States
   const [subject, setSubject] = useState('');
@@ -56,6 +57,24 @@ export default function InputForm({
     4: { date: '', remark: '' },
     5: { date: '', remark: '' }
   });
+
+  // Fetch stage master using /allvalue-dropdown/mmt_cabinet_ministry_stage API
+  useEffect(() => {
+    fetchDropdownAllValues('mmt_cabinet_ministry_stage')
+      .then(res => {
+        const rows = res.data || [];
+        const map = {};
+        rows.forEach(r => {
+          const id = r.cab_ministry_stage_id || r.stage_id || r.id;
+          const name = r.cab_ministry_stage_name || r.stage_name || r.name;
+          if (id && name) map[id] = name;
+        });
+        if (Object.keys(map).length > 0) {
+          setDbStageMaster(map);
+        }
+      })
+      .catch(err => console.error("Error loading stage dropdown master:", err));
+  }, []);
 
   // Stage 2: Concerned wings tag pool states (YoungProfessionals skills style)
   const [wingInput, setWingInput] = useState('');
@@ -108,7 +127,7 @@ export default function InputForm({
   }, []);
 
   useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_ministry")
+    fetchMinistryList()
       .then(res => setMinistries(res.data || []))
       .catch(err => console.error("Error fetching ministries:", err));
   }, []);
@@ -170,24 +189,23 @@ export default function InputForm({
           remark: editData.reply_furnished_remarks || '' 
         }
       };
-
-      setWingDetails({
-        Shipping: { date: editData.shipping_date ? editData.shipping_date.split('T')[0] : '', remark: editData.shipping_remarks || '' },
-        Vigilance: { date: editData.vigilance_date ? editData.vigilance_date.split('T')[0] : '', remark: editData.vigilance_remarks || '' },
-        Ports: { date: editData.ports_date ? editData.ports_date.split('T')[0] : '', remark: editData.ports_remarks || '' },
-        IWT: { date: editData.iwt_date ? editData.iwt_date.split('T')[0] : '', remark: editData.iwt_remarks || '' },
-        Administration: { date: editData.administration_date ? editData.administration_date.split('T')[0] : '', remark: editData.administration_remarks || '' },
-        'Coord-I': { date: editData.coord_I_date ? editData.coord_I_date.split('T')[0] : '', remark: editData.coord_I_remarks || '' },
-        'Coord-II': { date: editData.coord_II_date ? editData.coord_II_date.split('T')[0] : '', remark: editData.coord_II_remarks || '' },
-        'DGLL, Parliament & TRW': { date: editData.dgll_parliament_and_trw_date ? editData.dgll_parliament_and_trw_date.split('T')[0] : '', remark: editData.dgll_parliament_and_trw_remarks || '' },
-        Development: { date: editData.development_date ? editData.development_date.split('T')[0] : '', remark: editData.development_remarks || '' },
-        Finance: { date: editData.finance_date ? editData.finance_date.split('T')[0] : '', remark: editData.finance_remarks || '' },
-        Sagarmala: { date: editData.sagarmala_date ? editData.sagarmala_date.split('T')[0] : '', remark: editData.sagarmala_remarks || '' }
-      });
-    } else if (ministries.length > 0) {
-      initMinId = String(ministries[0].ministry_id);
-      initMinName = ministries[0].ministry_name;
     }
+
+    const initWingDetails = {
+      Shipping: { date: editData?.shipping_date ? editData.shipping_date.split('T')[0] : '', remark: editData?.shipping_remarks || '' },
+      Vigilance: { date: editData?.vigilance_date ? editData.vigilance_date.split('T')[0] : '', remark: editData?.vigilance_remarks || '' },
+      Ports: { date: editData?.ports_date ? editData.ports_date.split('T')[0] : '', remark: editData?.ports_remarks || '' },
+      IWT: { date: editData?.iwt_date ? editData.iwt_date.split('T')[0] : '', remark: editData?.iwt_remarks || '' },
+      Administration: { date: editData?.administration_date ? editData.administration_date.split('T')[0] : '', remark: editData?.administration_remarks || '' },
+      'Coord-I': { date: editData?.coord_I_date ? editData.coord_I_date.split('T')[0] : '', remark: editData?.coord_I_remarks || '' },
+      'Coord-II': { date: editData?.coord_II_date ? editData.coord_II_date.split('T')[0] : '', remark: editData?.coord_II_remarks || '' },
+      'DGLL, Parliament & TRW': { date: editData?.dgll_parliament_and_trw_date ? editData.dgll_parliament_and_trw_date.split('T')[0] : '', remark: editData?.dgll_parliament_and_trw_remarks || '' },
+      Development: { date: editData?.development_date ? editData.development_date.split('T')[0] : '', remark: editData?.development_remarks || '' },
+      Finance: { date: editData?.finance_date ? editData.finance_date.split('T')[0] : '', remark: editData?.finance_remarks || '' },
+      Sagarmala: { date: editData?.sagarmala_date ? editData.sagarmala_date.split('T')[0] : '', remark: editData?.sagarmala_remarks || '' }
+    };
+
+    setWingDetails(initWingDetails);
 
     setSubject(initSubject);
     setMinistryId(initMinId);
@@ -204,7 +222,8 @@ export default function InputForm({
       eofficeFileNumber: initFileNo,
       remarks: initRemarks,
       selectedWings: initWings,
-      stages: initStages
+      stages: initStages,
+      wingDetails: initWingDetails
     });
 
     setTouched({});
@@ -252,12 +271,17 @@ export default function InputForm({
     if (JSON.stringify(selectedWings) !== JSON.stringify(initialValues.selectedWings)) return true;
 
     for (let i = 1; i <= 5; i++) {
-      if (stages[i].date !== initialValues.stages[i].date) return true;
-      if (i !== 3 && stages[i].remark !== initialValues.stages[i].remark) return true;
+      if (stages[i]?.date !== initialValues.stages[i]?.date) return true;
+      if (stages[i]?.remark !== initialValues.stages[i]?.remark) return true;
+    }
+
+    for (const w of Object.keys(wingDetails)) {
+      if (wingDetails[w]?.date !== initialValues.wingDetails?.[w]?.date) return true;
+      if (wingDetails[w]?.remark !== initialValues.wingDetails?.[w]?.remark) return true;
     }
 
     return false;
-  }, [subject, ministryId, eofficeFileNumber, remarks, selectedWings, stages, initialValues]);
+  }, [subject, ministryId, eofficeFileNumber, remarks, selectedWings, stages, wingDetails, initialValues]);
 
   // Helper to get today's date YYYY-MM-DD
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -359,7 +383,7 @@ export default function InputForm({
 
     setSubmitting(true);
 
-    const resolvedMinName = ministryName || (ministries.find(m => String(m.ministry_id) === String(ministryId))?.ministry_name || editData?.ministry_name || 'Department of Atomic Energy');
+    const resolvedMinName = ministryName || (ministries.find(m => String(m.ministry_id) === String(ministryId))?.ministry_name || editData?.ministry_name || '');
 
       let selectedMinistryNotesStage = 1;
       for (let i = 1; i <= 5; i++) {
@@ -380,47 +404,73 @@ export default function InputForm({
         deadline: deadline,
         remarks: remarks,
 
-        receivedMinistryDate: stages[1].date || '',
-        receivedMinistryRemarks: stages[1].remark || '',
+        receivedMinistry: stages[1]?.date ? '1' : '0',
+        receivedMinistryDate: stages[1]?.date || '',
+        receivedMinistryRemarks: stages[1]?.remark || '',
 
-        sentForCommentDate: stages[2].date || '',
-        sentForCommentsRemarks: stages[2].remark || '',
+        sentForComment: stages[2]?.date ? '1' : '0',
+        sentForCommentDate: stages[2]?.date || '',
+        sentForCommentsRemarks: stages[2]?.remark || '',
         wings: selectedWings.map(wName => {
           const found = wingsList.find(w => w.wing_name === wName);
           return found ? found.wing_id : wName;
         }).filter(Boolean),
 
-        commentsReceivedDate: stages[3].date || '',
-        commentsRecRemarks: stages[3].remark || '',
+        commentsReceived: stages[3]?.date ? '1' : '0',
+        commentsReceivedDate: stages[3]?.date || '',
+        commentsRecRemarks: stages[3]?.remark || '',
 
-        fileSubmittedDate: stages[4].date || '',
-        fileSubmittedRemarks: stages[4].remark || '',
-
-        replyFurnishedDate: stages[5].date || '',
-        replyFurnishedRemarks: stages[5].remark || '',
-
+        shipping: wingDetails.Shipping?.date ? '1' : '0',
         shippingDate: wingDetails.Shipping?.date || '',
         shippingRemarks: wingDetails.Shipping?.remark || '',
+
+        vigilance: wingDetails.Vigilance?.date ? '1' : '0',
         vigilanceDate: wingDetails.Vigilance?.date || '',
         vigilanceRemarks: wingDetails.Vigilance?.remark || '',
+
+        ports: wingDetails.Ports?.date ? '1' : '0',
         portsDate: wingDetails.Ports?.date || '',
         portsRemarks: wingDetails.Ports?.remark || '',
+
+        iwt: wingDetails.IWT?.date ? '1' : '0',
         iwtDate: wingDetails.IWT?.date || '',
         iwtRemarks: wingDetails.IWT?.remark || '',
+
+        administration: wingDetails.Administration?.date ? '1' : '0',
         administrationDate: wingDetails.Administration?.date || '',
         administrationRemarks: wingDetails.Administration?.remark || '',
+
+        coordI: wingDetails['Coord-I']?.date ? '1' : '0',
         coordIDate: wingDetails['Coord-I']?.date || '',
         coordIRemarks: wingDetails['Coord-I']?.remark || '',
+
+        coordII: wingDetails['Coord-II']?.date ? '1' : '0',
         coordIIDate: wingDetails['Coord-II']?.date || '',
         coordIIRemarks: wingDetails['Coord-II']?.remark || '',
+
+        dgll: wingDetails['DGLL, Parliament & TRW']?.date ? '1' : '0',
         dgllDate: wingDetails['DGLL, Parliament & TRW']?.date || '',
         dgllRemarks: wingDetails['DGLL, Parliament & TRW']?.remark || '',
+
+        development: wingDetails.Development?.date ? '1' : '0',
         developmentDate: wingDetails.Development?.date || '',
         developmentRemarks: wingDetails.Development?.remark || '',
+
+        finance: wingDetails.Finance?.date ? '1' : '0',
         financeDate: wingDetails.Finance?.date || '',
         financeRemarks: wingDetails.Finance?.remark || '',
+
+        sagarmala: wingDetails.Sagarmala?.date ? '1' : '0',
         sagarmalaDate: wingDetails.Sagarmala?.date || '',
         sagarmalaRemarks: wingDetails.Sagarmala?.remark || '',
+
+        fileSubmitted: stages[4]?.date ? '1' : '0',
+        fileSubmittedDate: stages[4]?.date || '',
+        fileSubmittedRemarks: stages[4]?.remark || '',
+
+        replyFurnished: stages[5]?.date ? '1' : '0',
+        replyFurnishedDate: stages[5]?.date || '',
+        replyFurnishedRemarks: stages[5]?.remark || '',
 
         selectedMinistryNotesStage,
         userID: getUserId()
@@ -428,9 +478,9 @@ export default function InputForm({
 
     try {
       if (isEdit) {
-        await axios.put("http://localhost:3000/cabinet-ministry", payload);
+        await updateCabinetMinistry(payload);
       } else {
-        await axios.post("http://localhost:3000/cabinet-ministry", payload);
+        await createCabinetMinistry(payload);
       }
       if (triggerNotification) {
         triggerNotification(isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.");
@@ -506,9 +556,12 @@ export default function InputForm({
                 className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('ministryId', ministryId) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer`}
               >
                 <option value="">--Select Ministry--</option>
-                {ministries.map(m => (
-                  <option key={m.ministry_id} value={m.ministry_id}>{m.ministry_name}</option>
-                ))}
+                {ministries.map(m => {
+                  const cleanedName = String(m.ministry_name || '').split(',').map(s => s.trim()).filter(Boolean).filter((item, pos, self) => self.indexOf(item) === pos).join(' / ') || m.ministry_name;
+                  return (
+                    <option key={m.ministry_id} value={m.ministry_id}>{cleanedName}</option>
+                  );
+                })}
               </select>
               {isFieldInvalid('ministryId', ministryId) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
@@ -578,8 +631,7 @@ export default function InputForm({
             <div className="space-y-3.5">
               {[1, 2, 3, 4, 5].map((stageNum) => {
                 const currentStage = stages[stageNum];
-                const isStageDisabled = !isEdit && stageNum > 1 && !stages[stageNum - 1].date;
-                const isRemarkFieldVisible = stageNum === focusedStage || !!currentStage.date;
+                const isStageDisabled = stageNum > 1 && !stages[stageNum - 1]?.date;
 
                 return (
                   <div
@@ -589,22 +641,21 @@ export default function InputForm({
                       : 'bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800 hover:border-slate-250'
                       }`}
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <span className={`text-xs font-bold block truncate ${isStageDisabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
                           {stageLabels[stageNum]}
                         </span>
                       </div>
 
-                      <div className="flex-shrink-0">
+                      <div className="flex items-center space-x-3 flex-shrink-0">
+                        {/* Date Input */}
                         <input
                           type="date"
                           value={currentStage.date}
                           min={getDateLimits(stageNum).min}
                           max={getDateLimits(stageNum).max}
                           onChange={e => handleStageChange(stageNum, 'date', e.target.value)}
-                          onFocus={() => !isStageDisabled && !readOnly && setFocusedStage(stageNum)}
-                          onBlur={() => setFocusedStage(null)}
                           disabled={isStageDisabled || readOnly}
                           className={`text-xs px-2.5 py-1.5 border rounded-lg focus:outline-none font-semibold dark:[color-scheme:dark] ${(isStageDisabled || readOnly)
                             ? 'bg-slate-100 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-600 cursor-not-allowed'
@@ -614,147 +665,127 @@ export default function InputForm({
                       </div>
                     </div>
 
-                    {/* Stage 2: Concerned wings multi-select dropdown & tag pool */}
-                    {stageNum === 2 && !isStageDisabled && (
-                      <div
-                        className={`transition-all duration-300 ease-in-out origin-top ${isRemarkFieldVisible
-                          ? 'opacity-100 mt-1 scale-y-100'
-                          : 'max-h-0 opacity-0 scale-y-95 pointer-events-none'
-                          }`}
-                      >
-                        <div className="border-t border-slate-100 dark:border-slate-800 pt-2.5 space-y-2">
-                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
-                            SELECT CONCERNED WINGS*
-                          </label>
-
-                          {/* Multi-select Dropdown */}
-                          {!readOnly && (
-                            <select
-                              value=""
-                              onChange={e => {
-                                if (e.target.value) {
-                                  handleAddWing(e.target.value);
-                                }
-                              }}
-                              onFocus={() => setFocusedStage(2)}
-                              className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 focus:border-[#0f417a] rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
-                            >
-                              <option value="">--Select Wing--</option>
-                              {(wingsList.length > 0 ? wingsList.map(w => w.wing_name) : COMMON_WINGS)
-                                .filter(w => !selectedWings.includes(w))
-                                .map(w => (
-                                  <option key={w} value={w}>{w}</option>
-                                ))}
-                            </select>
-                          )}
-
-                          {/* Selected Wing Tag Pills matching YoungProfessionals style */}
-                          {selectedWings.length > 0 && (
-                            <div className="space-y-2.5 mt-2">
-                              <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl">
-                                {selectedWings.map(w => (
-                                  <span
-                                    key={w}
-                                    className="inline-flex items-center space-x-1 px-2.5 py-1 bg-[#fdfcfc] dark:bg-blue-950/40 text-[#0f417a] dark:text-blue-300 border border-[#eadede] dark:border-blue-900/30 rounded-lg text-[11px] font-black uppercase shadow-2xs"
-                                  >
-                                    <span>{w}</span>
-                                    {!readOnly && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleRemoveWing(w)}
-                                        className="hover:text-red-500 font-black cursor-pointer ml-1"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </button>
-                                    )}
-                                  </span>
-                                ))}
-                              </div>
-
-                              {/* Animated Wing-specific Date & Remark Input Fields with Scrollability */}
-                              <div className="space-y-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400 block mb-1">
-                                  CONCERNED WINGS DATES & REMARKS
-                                </span>
-                                <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                                  {selectedWings.map(wName => (
-                                    <div
-                                      key={wName}
-                                      className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2 shadow-2xs animate-fade-in transition-all duration-300"
-                                    >
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-[#0f417a] dark:text-blue-400">{wName} Wing</span>
-                                        {!readOnly && (
-                                          <button
-                                            type="button"
-                                            onClick={() => handleRemoveWing(wName)}
-                                            className="text-slate-400 hover:text-red-500 text-[10px] font-bold"
-                                          >
-                                            Remove
-                                          </button>
-                                        )}
-                                      </div>
-
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <div>
-                                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">Comments Date</label>
-                                          <input
-                                            type="date"
-                                            disabled={readOnly}
-                                            value={wingDetails[wName]?.date || ''}
-                                            min={getDateLimits(2).min}
-                                            max={getDateLimits(2).max}
-                                            onChange={e => setWingDetails(prev => ({
-                                              ...prev,
-                                              [wName]: { ...(prev[wName] || { remark: '' }), date: e.target.value }
-                                            }))}
-                                            className="w-full text-xs px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-semibold dark:text-slate-200 dark:[color-scheme:dark] cursor-pointer"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1">Remarks</label>
-                                          <input
-                                            type="text"
-                                            disabled={readOnly}
-                                            value={wingDetails[wName]?.remark || ''}
-                                            onChange={e => setWingDetails(prev => ({
-                                              ...prev,
-                                              [wName]: { ...(prev[wName] || { date: '' }), remark: e.target.value }
-                                            }))}
-                                            placeholder={`Add remarks for ${wName}...`}
-                                            className="w-full text-xs px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-700 dark:text-slate-200 placeholder-slate-400"
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                    {/* Stage-specific optional remark field matching CabinetNotesMOPSW */}
+                    {!isStageDisabled && (
+                      <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
+                        <input
+                          type="text"
+                          placeholder="Add stage-specific remark (optional)"
+                          value={currentStage.remark || ''}
+                          onChange={e => handleStageChange(stageNum, 'remark', e.target.value)}
+                          disabled={readOnly}
+                          className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:bg-white font-medium text-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                        />
                       </div>
                     )}
 
-                    {/* Stages 1, 3, 4, 5: Stage-specific remarks */}
-                    {stageNum !== 2 && !isStageDisabled && (
-                      <div
-                        className={`transition-all duration-300 ease-in-out overflow-hidden origin-top ${isRemarkFieldVisible
-                          ? 'max-h-[50px] opacity-100 mt-1 scale-y-100'
-                          : 'max-h-0 opacity-0 scale-y-95 pointer-events-none'
-                          }`}
-                      >
-                        <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
-                          <input
-                            type="text"
-                            placeholder="Add stage-specific remark (optional)"
-                            value={currentStage.remark || ''}
-                            onChange={e => handleStageChange(stageNum, 'remark', e.target.value)}
-                            onFocus={() => !readOnly && setFocusedStage(stageNum)}
-                            onBlur={() => setFocusedStage(null)}
-                            disabled={readOnly}
-                            className="w-full text-[11px] px-3 py-1.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-850 rounded-lg focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-medium text-slate-700 dark:text-slate-300 placeholder-slate-400"
-                          />
+                    {/* Stage 2: Concerned wings multi-select dropdown & tag pool */}
+                    {stageNum === 2 && !isStageDisabled && (
+                      <div className="border-t border-slate-100 dark:border-slate-800 pt-2.5 space-y-2">
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+                          SELECT CONCERNED WINGS*
+                        </label>
+
+                        {/* Multi-select Dropdown */}
+                        {!readOnly && (
+                          <select
+                            value=""
+                            onChange={e => {
+                              if (e.target.value) {
+                                handleAddWing(e.target.value);
+                              }
+                            }}
+                            className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 focus:border-[#0f417a] rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
+                          >
+                            <option value="">--Select Wing--</option>
+                            {(wingsList.length > 0 ? wingsList.map(w => w.wing_name) : COMMON_WINGS)
+                              .filter(w => !selectedWings.includes(w))
+                              .map(w => (
+                                <option key={w} value={w}>{w}</option>
+                              ))}
+                          </select>
+                        )}
+
+                        {/* Selected Wing Tag Pills */}
+                        {selectedWings.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 p-2.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl mt-1">
+                            {selectedWings.map(w => (
+                              <span
+                                key={w}
+                                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-[#fdfcfc] dark:bg-blue-950/40 text-[#0f417a] dark:text-blue-300 border border-[#eadede] dark:border-blue-900/30 rounded-lg text-[11px] font-black uppercase shadow-2xs"
+                              >
+                                <span>{w}</span>
+                                {!readOnly && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveWing(w)}
+                                    className="hover:text-red-500 font-black cursor-pointer ml-1"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Stage 3: Wing-wise Received Dates & Remarks */}
+                    {stageNum === 3 && !isStageDisabled && selectedWings.length > 0 && (
+                      <div className="border-t border-slate-100 dark:border-slate-800 pt-2.5 space-y-2">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider block">
+                          CONCERNED WINGS RECEIVED DATES & REMARKS
+                        </span>
+                        <div className="space-y-2">
+                          {selectedWings.map(wName => {
+                            const wingDate = wingDetails[wName]?.date || '';
+                            const wingRemark = wingDetails[wName]?.remark || '';
+
+                            return (
+                              <div
+                                key={wName}
+                                className="flex flex-col gap-2 p-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl"
+                              >
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <span className="text-xs font-bold text-[#0f417a] dark:text-blue-400 min-w-[110px]">
+                                    {wName}
+                                  </span>
+
+                                  <div className="flex items-center space-x-3">
+                                    {/* Date Input */}
+                                    <input
+                                      type="date"
+                                      disabled={readOnly}
+                                      value={wingDate}
+                                      min={getDateLimits(3).min}
+                                      max={getDateLimits(3).max}
+                                      onChange={e => setWingDetails(prev => ({
+                                        ...prev,
+                                        [wName]: { ...(prev[wName] || {}), date: e.target.value }
+                                      }))}
+                                      className="text-xs px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-semibold text-slate-700 dark:text-slate-200 dark:[color-scheme:dark] cursor-pointer"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Wing-specific optional remark field */}
+                                <div className="border-t border-slate-200 dark:border-slate-700/60 pt-1.5">
+                                  <input
+                                    type="text"
+                                    placeholder={`Add remark for ${wName} (optional)`}
+                                    disabled={readOnly}
+                                    value={wingRemark}
+                                    onChange={e => setWingDetails(prev => ({
+                                      ...prev,
+                                      [wName]: { ...(prev[wName] || {}), remark: e.target.value }
+                                    }))}
+                                    className="w-full text-xs px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-700 dark:text-slate-200"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

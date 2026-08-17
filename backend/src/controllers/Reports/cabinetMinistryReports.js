@@ -11,19 +11,19 @@ async function cabinetMinistryReport (req, res)
             ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
             mmt_ministry.ministry_name AS [Name of the Ministry/Department Received from],
             mmt_ministry.ministry_id AS [Ministry Id],
-            COUNT(tbl_cabinet_notes_ministry.cabinet_notes_ministry_id) AS [No of Cabinet Notes],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 0 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Status Not Recorded],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 1 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Received but yet to be sent for Comments],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 2 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Sent for Comments],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 3 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Comments Received],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 4 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [File submitted for Approval],
-            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 5 THEN tbl_cabinet_notes_ministry.cabinet_notes_ministry_id END) AS [Reply furnished to other ministry]
+            COUNT(tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id) AS [No of Cabinet Notes],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 0 THEN tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id END) AS [Status Not Recorded],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 1 THEN tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id END) AS [Received but yet to be sent for Comments],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 2 THEN tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id END) AS [Sent for Comments],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 3 THEN tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id END) AS [Comments Received],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 4 THEN tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id END) AS [File submitted for Approval],
+            COUNT(CASE WHEN mmt_cabinet_ministry_stage.cab_ministry_stage_id = 5 THEN tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id END) AS [Reply furnished to other ministry]
         FROM 
             mmt_ministry
         LEFT JOIN 
-            tbl_cabinet_notes_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
+            tbl_cabinet_notes_ministry_change ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
         LEFT JOIN 
-            mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
+            mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry_change.stage_id
         GROUP BY  
             mmt_ministry.ministry_id, 
             mmt_ministry.ministry_name
@@ -116,12 +116,12 @@ async function getMinistryDetailsReport (req, res)
     let whereCondition = "";
     if (cabinetMinistryStage === 'all') {
         whereCondition += `WHERE 
-        tbl_cabinet_notes_ministry.ministry_id = @ministryId `;
+        tbl_cabinet_notes_ministry_change.ministry_id = @ministryId `;
     } 
     else {
         whereCondition += ` WHERE 
-        tbl_cabinet_notes_ministry.ministry_id = @ministryId 
-        AND tbl_cabinet_notes_ministry.stage_id = @cabinetMinistryStage`;
+        tbl_cabinet_notes_ministry_change.ministry_id = @ministryId 
+        AND tbl_cabinet_notes_ministry_change.stage_id = @cabinetMinistryStage`;
     }
 
     try 
@@ -130,71 +130,71 @@ async function getMinistryDetailsReport (req, res)
         SELECT 
             ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
             mmt_ministry.ministry_name AS [Ministry Name],
-            tbl_cabinet_notes_ministry.ministry_id AS [Ministry Id],
-            tbl_cabinet_notes_ministry.subject AS [Subject],
-            tbl_cabinet_notes_ministry.eoffice_file_number AS [Eoffice File Number],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.received_ministry_date, 103) AS [Received but yet to be sent for Comments],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.sent_for_comments_date, 103) AS [Sent for Comments],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.comments_rec_date, 103) AS [Comments Received],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.file_submitted_date, 103) AS [File submitted for Approval],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.reply_furnished_date, 103) AS [Reply furnished to other ministry],
-            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry.updated_date, 103) AS [Last Updated Date],
+            tbl_cabinet_notes_ministry_change.ministry_id AS [Ministry Id],
+            tbl_cabinet_notes_ministry_change.subject AS [Subject],
+            tbl_cabinet_notes_ministry_change.eoffice_file_number AS [Eoffice File Number],
+            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry_change.received_ministry_date, 103) AS [Received but yet to be sent for Comments],
+            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry_change.sent_for_comments_date, 103) AS [Sent for Comments],
+            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry_change.comments_rec_date, 103) AS [Comments Received],
+            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry_change.file_submitted_date, 103) AS [File submitted for Approval],
+            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry_change.reply_furnished_date, 103) AS [Reply furnished to other ministry],
+            CONVERT(VARCHAR(10), tbl_cabinet_notes_ministry_change.updated_date, 103) AS [Last Updated Date],
             CONCAT(
-                CASE WHEN tbl_cabinet_notes_ministry.shipping_date IS NOT NULL THEN 'Shipping, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.vigilance_date IS NOT NULL THEN 'Vigilance, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.ports_date IS NOT NULL THEN 'Ports, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.iwt_date IS NOT NULL THEN 'IWT, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.administration_date IS NOT NULL THEN 'Administration, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.coord_I_date IS NOT NULL THEN 'Coord_I, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.coord_II_date IS NOT NULL THEN 'Coord_II, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.dgll_parliament_and_trw_date IS NOT NULL THEN 'DGLL Parliament & TRW, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.development_date IS NOT NULL THEN 'Development, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.finance IS NOT NULL THEN 'Finance, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.sagarmala_date IS NOT NULL THEN 'Sagarmala, ' ELSE '' END
+                CASE WHEN tbl_cabinet_notes_ministry_change.shipping_date IS NOT NULL THEN 'Shipping, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.vigilance_date IS NOT NULL THEN 'Vigilance, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.ports_date IS NOT NULL THEN 'Ports, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.iwt_date IS NOT NULL THEN 'IWT, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.administration_date IS NOT NULL THEN 'Administration, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.coord_I_date IS NOT NULL THEN 'Coord_I, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.coord_II_date IS NOT NULL THEN 'Coord_II, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.dgll_parliament_and_trw_date IS NOT NULL THEN 'DGLL Parliament & TRW, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.development_date IS NOT NULL THEN 'Development, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.finance IS NOT NULL THEN 'Finance, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.sagarmala_date IS NOT NULL THEN 'Sagarmala, ' ELSE '' END
             ) AS [Comments yet to be received From],
             CONCAT(
-                CASE WHEN tbl_cabinet_notes_ministry.shipping_date IS NULL THEN 'Shipping ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.vigilance_date IS NULL THEN ',Vigilance ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.ports_date IS NULL THEN ',Ports ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.iwt_date IS NULL THEN ',IWT ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.administration_date IS NULL THEN ',Administration ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.coord_I_date IS NULL THEN ',Coord_I ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.coord_II_date IS NULL THEN ',Coord_II ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.dgll_parliament_and_trw_date IS NULL THEN ',DGLL Parliament & TRW ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.development_date IS NULL THEN ',Development ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.finance IS NULL THEN ',Finance ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry.sagarmala_date IS NULL THEN ',Sagarmala ' ELSE '' END
+                CASE WHEN tbl_cabinet_notes_ministry_change.shipping_date IS NULL THEN 'Shipping ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.vigilance_date IS NULL THEN ',Vigilance ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.ports_date IS NULL THEN ',Ports ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.iwt_date IS NULL THEN ',IWT ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.administration_date IS NULL THEN ',Administration ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.coord_I_date IS NULL THEN ',Coord_I ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.coord_II_date IS NULL THEN ',Coord_II ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.dgll_parliament_and_trw_date IS NULL THEN ',DGLL Parliament & TRW ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.development_date IS NULL THEN ',Development ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.finance IS NULL THEN ',Finance ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.sagarmala_date IS NULL THEN ',Sagarmala ' ELSE '' END
             ) AS [Comments not yet to be received From]
         FROM 
-            tbl_cabinet_notes_ministry 
+            tbl_cabinet_notes_ministry_change 
         INNER JOIN 
-            mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
+            mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
         INNER JOIN 
-            mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
+            mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry_change.stage_id
         ${whereCondition}
         GROUP BY 
             mmt_ministry.ministry_id, 
             mmt_ministry.ministry_name,
-            tbl_cabinet_notes_ministry.ministry_id,
-            tbl_cabinet_notes_ministry.subject,
-            tbl_cabinet_notes_ministry.eoffice_file_number,
-            tbl_cabinet_notes_ministry.received_ministry_date,
-            tbl_cabinet_notes_ministry.sent_for_comments_date,
-            tbl_cabinet_notes_ministry.comments_rec_date,
-            tbl_cabinet_notes_ministry.file_submitted_date,
-            tbl_cabinet_notes_ministry.reply_furnished_date,
-            tbl_cabinet_notes_ministry.updated_date,
-            tbl_cabinet_notes_ministry.shipping_date,
-            tbl_cabinet_notes_ministry.vigilance_date,
-            tbl_cabinet_notes_ministry.ports_date,
-            tbl_cabinet_notes_ministry.iwt_date,
-            tbl_cabinet_notes_ministry.administration_date,
-            tbl_cabinet_notes_ministry.coord_I_date,
-            tbl_cabinet_notes_ministry.coord_II_date,
-            tbl_cabinet_notes_ministry.dgll_parliament_and_trw_date,
-            tbl_cabinet_notes_ministry.development_date,
-            tbl_cabinet_notes_ministry.finance,
-            tbl_cabinet_notes_ministry.sagarmala_date
+            tbl_cabinet_notes_ministry_change.ministry_id,
+            tbl_cabinet_notes_ministry_change.subject,
+            tbl_cabinet_notes_ministry_change.eoffice_file_number,
+            tbl_cabinet_notes_ministry_change.received_ministry_date,
+            tbl_cabinet_notes_ministry_change.sent_for_comments_date,
+            tbl_cabinet_notes_ministry_change.comments_rec_date,
+            tbl_cabinet_notes_ministry_change.file_submitted_date,
+            tbl_cabinet_notes_ministry_change.reply_furnished_date,
+            tbl_cabinet_notes_ministry_change.updated_date,
+            tbl_cabinet_notes_ministry_change.shipping_date,
+            tbl_cabinet_notes_ministry_change.vigilance_date,
+            tbl_cabinet_notes_ministry_change.ports_date,
+            tbl_cabinet_notes_ministry_change.iwt_date,
+            tbl_cabinet_notes_ministry_change.administration_date,
+            tbl_cabinet_notes_ministry_change.coord_I_date,
+            tbl_cabinet_notes_ministry_change.coord_II_date,
+            tbl_cabinet_notes_ministry_change.dgll_parliament_and_trw_date,
+            tbl_cabinet_notes_ministry_change.development_date,
+            tbl_cabinet_notes_ministry_change.finance,
+            tbl_cabinet_notes_ministry_change.sagarmala_date
         ORDER BY 
             mmt_ministry.ministry_id;
         ;`);
@@ -285,11 +285,11 @@ async function cabinetMinistryPendencyReport (req, res)
         FROM 
             mmt_ministry 
         LEFT JOIN 
-            tbl_cabinet_notes_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
+            tbl_cabinet_notes_ministry_change ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
         LEFT JOIN 
-            mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
+            mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry_change.stage_id
         WHERE  
-            DATEDIFF(day, received_ministry_date, GETDATE()) > 0 AND (stage_id != 5 ) OR tbl_cabinet_notes_ministry.received_ministry_date IS NULL
+            DATEDIFF(day, received_ministry_date, GETDATE()) > 0 AND (stage_id != 5 ) OR tbl_cabinet_notes_ministry_change.received_ministry_date IS NULL
         GROUP BY  
             mmt_ministry.ministry_id, 
             mmt_ministry.ministry_name
@@ -339,7 +339,7 @@ async function getDetailMinistryPendencyReport (req, res)
                 SELECT 
                     ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
                     mmt_ministry.ministry_name AS [Ministry Name],
-                    tbl_cabinet_notes_ministry.ministry_id AS [Ministry ID], 
+                    tbl_cabinet_notes_ministry_change.ministry_id AS [Ministry ID], 
                     subject AS [Subject], 
                     eoffice_file_number AS [Eoffice File Number], 
                     CONVERT(varchar(10), received_ministry_date, 101) AS [Received but yet to be sent for Comments], 
@@ -348,12 +348,12 @@ async function getDetailMinistryPendencyReport (req, res)
                     CONVERT(varchar(10), file_submitted_date, 101) AS [File submitted for Approval],  
                     CONVERT(varchar(10), reply_furnished_date, 101) AS [Reply furnished to other ministry],  
                     CONVERT(varchar(10), updated_date, 101) AS [Last Updated Date]
-                FROM tbl_cabinet_notes_ministry
+                FROM tbl_cabinet_notes_ministry_change
 
-                INNER JOIN mmt_ministry on mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
-                INNER JOIN mmt_cabinet_ministry_stage on mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
+                INNER JOIN mmt_ministry on mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
+                INNER JOIN mmt_cabinet_ministry_stage on mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry_change.stage_id
 
-                WHERE (tbl_cabinet_notes_ministry.ministry_id = @ministryId) 
+                WHERE (tbl_cabinet_notes_ministry_change.ministry_id = @ministryId) 
                 AND (stage_id != 5 ) AND (DATEDIFF(D, GETDATE(), received_ministry_date) <= 0 AND
                 DATEDIFF(D, GETDATE(), received_ministry_date) >= -30  )
                 ORDER BY subject, eoffice_file_number                
@@ -366,7 +366,7 @@ async function getDetailMinistryPendencyReport (req, res)
             SELECT 
                 ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
                 mmt_ministry.ministry_name AS [Ministry Name],
-                tbl_cabinet_notes_ministry.ministry_id AS [Ministry ID], 
+                tbl_cabinet_notes_ministry_change.ministry_id AS [Ministry ID], 
                 subject AS [Subject], 
                 eoffice_file_number AS [Eoffice File Number], 
                 CONVERT(varchar(10), received_ministry_date, 101) AS [Received but yet to be sent for Comments], 
@@ -375,12 +375,12 @@ async function getDetailMinistryPendencyReport (req, res)
                 CONVERT(varchar(10), file_submitted_date, 101) AS [File submitted for Approval],  
                 CONVERT(varchar(10), reply_furnished_date, 101) AS [Reply furnished to other ministry],  
                 CONVERT(varchar(10), updated_date, 101) AS [Last Updated Date]
-            FROM tbl_cabinet_notes_ministry
+            FROM tbl_cabinet_notes_ministry_change
 
-                INNER JOIN mmt_ministry on mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
-                INNER JOIN mmt_cabinet_ministry_stage on mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
+                INNER JOIN mmt_ministry on mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
+                INNER JOIN mmt_cabinet_ministry_stage on mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry_change.stage_id
 
-                WHERE (tbl_cabinet_notes_ministry.ministry_id = @ministryId) 
+                WHERE (tbl_cabinet_notes_ministry_change.ministry_id = @ministryId) 
                 AND (stage_id != 5 ) AND (DATEDIFF(D, GETDATE(), received_ministry_date) <= -31 AND
                 DATEDIFF(D, GETDATE(), received_ministry_date) >= -60  )    
                 ORDER BY subject, eoffice_file_number        
@@ -392,7 +392,7 @@ async function getDetailMinistryPendencyReport (req, res)
                 SELECT 
                     ROW_NUMBER() OVER (ORDER BY mmt_ministry.ministry_id) AS [S No],
                     mmt_ministry.ministry_name AS [Ministry Name],
-                    tbl_cabinet_notes_ministry.ministry_id AS [Ministry ID], 
+                    tbl_cabinet_notes_ministry_change.ministry_id AS [Ministry ID], 
                     subject AS [Subject], 
                     eoffice_file_number AS [Eoffice File Number], 
                     CONVERT(varchar(10), received_ministry_date, 101) AS [Received but yet to be sent for Comments], 
@@ -401,13 +401,13 @@ async function getDetailMinistryPendencyReport (req, res)
                     CONVERT(varchar(10), file_submitted_date, 101) AS [File submitted for Approval],  
                     CONVERT(varchar(10), reply_furnished_date, 101) AS [Reply furnished to other ministry],  
                     CONVERT(varchar(10), updated_date, 101) AS [Last Updated Date]
-                FROM tbl_cabinet_notes_ministry
+                FROM tbl_cabinet_notes_ministry_change
 
-                INNER JOIN  mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry.ministry_id
-                INNER JOIN mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry.stage_id
+                INNER JOIN  mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
+                INNER JOIN mmt_cabinet_ministry_stage ON mmt_cabinet_ministry_stage.cab_ministry_stage_id = tbl_cabinet_notes_ministry_change.stage_id
                
                 WHERE 
-                    tbl_cabinet_notes_ministry.ministry_id = @ministryId
+                    tbl_cabinet_notes_ministry_change.ministry_id = @ministryId
                     AND stage_id != 5 
                     AND DATEDIFF(DAY, GETDATE(), received_ministry_date) <= -61     
                 ORDER BY 
