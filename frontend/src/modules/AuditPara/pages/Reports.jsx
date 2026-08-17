@@ -1,36 +1,16 @@
-import { useState, useMemo } from 'react';
-import { FileSpreadsheet, Copy, FileText, Search, ChevronDown, TrendingUp, Layers, GitBranch, RefreshCw } from 'lucide-react';
-import { AgGridReact } from 'ag-grid-react';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
-
-ModuleRegistry.registerModules([AllCommunityModule]);
+import { useState, useMemo, useRef } from 'react';
+import { ChevronLeft, Search, RefreshCw, X, TrendingUp, Building2 } from 'lucide-react';
+import Table from '../../../components/Table';
+import ExportDropdown from '../../../components/ExportDropdown';
+import CopyButton from '../../../components/CopyButton';
 
 export default function Reports({ rowData = [], wings = [], divisions = [] }) {
-  const [selectedWing, setSelectedWing] = useState('All');
-  const [selectedDivision, setSelectedDivision] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
+  const gridRef = useRef(null);
+  const [reportView, setReportView] = useState('all');
+  const [quickFilter, setQuickFilter] = useState('');
+  const [loading] = useState(false);
 
-  const sortedWings = useMemo(
-    () => [...wings].sort((a, b) => a.wing_name.localeCompare(b.wing_name)),
-    [wings]
-  );
-
-  // Division options depend on the current wing selection: when a wing is
-  // chosen, only show its divisions; when "All Wings", show every division.
-  const divisionOptions = useMemo(() => {
-    const pool = selectedWing === 'All'
-      ? divisions
-      : divisions.filter((d) => {
-          const wingObj = wings.find((w) => w.wing_name === selectedWing);
-          return wingObj && String(d.wing_id) === String(wingObj.wing_id);
-        });
-    return [...pool].sort((a, b) => a.division_name.localeCompare(b.division_name));
-  }, [selectedWing, wings, divisions]);
-
-  const handleWingChange = (val) => {
-    setSelectedWing(val);
-    setSelectedDivision('All');
-  };
+  const title = 'Report No. 4.2A - Abstract ( Wing & Division Wise ) - Audit Paras';
 
   const computeCounts = (paras) => ({
     total: paras.length,
@@ -43,232 +23,242 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
     dropped: paras.filter((p) => p.statusSteps[7] === 'Yes').length,
   });
 
-  // Combined Wing+Division rows -- one row per division, always shown together
-  // (default "All Wings (Abstract View)" state included), matching the
-  // real Young Professionals report pattern.
-  const rows = useMemo(() => {
-    let divsToShow = divisions;
-    if (selectedWing !== 'All') {
-      const wingObj = wings.find((w) => w.wing_name === selectedWing);
-      divsToShow = divisions.filter((d) => wingObj && String(d.wing_id) === String(wingObj.wing_id));
+  /* ── Aggregation by current report view ─────────────────────── */
+  const aggregatedData = useMemo(() => {
+    if (reportView === 'wing') {
+      return wings
+        .map((w) => {
+          const paras = rowData.filter((p) => (p.wing || '').toLowerCase() === w.wing_name.toLowerCase());
+          return { Wing: w.wing_name, ...computeCounts(paras) };
+        })
+        .sort((a, b) => a.Wing.localeCompare(b.Wing));
     }
-    if (selectedDivision !== 'All') {
-      divsToShow = divsToShow.filter((d) => d.division_name === selectedDivision);
+    if (reportView === 'division') {
+      return divisions
+        .map((d) => {
+          const paras = rowData.filter((p) => (p.division || '').toLowerCase() === d.division_name.toLowerCase());
+          return { Division: d.division_name, ...computeCounts(paras) };
+        })
+        .sort((a, b) => a.Division.localeCompare(b.Division));
     }
-
-    return divsToShow
+    // 'all' -- combined Wing + Division rows
+    return divisions
       .map((d) => {
         const wingObj = wings.find((w) => String(w.wing_id) === String(d.wing_id));
         const wingName = wingObj?.wing_name || '';
         const paras = rowData.filter(
           (p) => (p.wing || '').toLowerCase() === wingName.toLowerCase() && (p.division || '').toLowerCase() === d.division_name.toLowerCase()
         );
-        return { wing: wingName, division: d.division_name, ...computeCounts(paras) };
+        return { Wing: wingName, Division: d.division_name, ...computeCounts(paras) };
       })
-      .filter((r) =>
-        r.wing.toLowerCase().includes(searchQuery.toLowerCase()) || r.division.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-      .sort((a, b) => a.wing.localeCompare(b.wing) || a.division.localeCompare(b.division));
-  }, [rowData, wings, divisions, selectedWing, selectedDivision, searchQuery]);
+      .sort((a, b) => a.Wing.localeCompare(b.Wing) || a.Division.localeCompare(b.Division))
+      .map((r, idx) => ({ ...r, 'S No': idx + 1 }));
+  }, [rowData, wings, divisions, reportView]);
 
   const pinnedBottomRowData = useMemo(() => {
-    const totals = {
-      wing: 'Total', division: '',
-      total: rows.reduce((sum, r) => sum + r.total, 0),
-      received: rows.reduce((sum, r) => sum + r.received, 0),
-      sought: rows.reduce((sum, r) => sum + r.sought, 0),
-      receivedOrg: rows.reduce((sum, r) => sum + r.receivedOrg, 0),
-      clarification: rows.reduce((sum, r) => sum + r.clarification, 0),
-      cag: rows.reduce((sum, r) => sum + r.cag, 0),
-      accepted: rows.reduce((sum, r) => sum + r.accepted, 0),
-      dropped: rows.reduce((sum, r) => sum + r.dropped, 0),
-    };
-    return [totals];
-  }, [rows]);
+    const sum = (key) => aggregatedData.reduce((acc, r) => acc + (r[key] || 0), 0);
+    return [{
+      Wing: 'Total', Division: 'Total', isTotalRow: true,
+      total: sum('total'), received: sum('received'), sought: sum('sought'),
+      receivedOrg: sum('receivedOrg'), clarification: sum('clarification'),
+      cag: sum('cag'), accepted: sum('accepted'), dropped: sum('dropped'),
+    }];
+  }, [aggregatedData]);
 
-  const colDefs = useMemo(() => [
-    {
-      headerName: 'S.No',
-      valueGetter: (params) => params.node.rowPinned ? '' : params.node.rowIndex + 1,
-      width: 70, pinned: 'left',
-      cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-700 bg-slate-50/20 dark:bg-slate-800/40 flex items-center justify-center'
-    },
-    {
-      headerName: 'Wing', field: 'wing', minWidth: 180, pinned: 'left',
-      cellClass: (params) =>
-        `font-extrabold flex items-center border-r border-slate-100 dark:border-slate-700 ${params.node.rowPinned ? 'text-blue-900 dark:text-blue-300 bg-blue-50/30 dark:bg-blue-950/30' : 'text-[#0f417a] dark:text-blue-400 underline'}`
-    },
-    {
-      headerName: 'Division', field: 'division', minWidth: 180,
-      cellClass: 'font-bold text-[#0f417a] dark:text-blue-400 underline flex items-center border-r border-slate-100 dark:border-slate-700'
-    },
-    { headerName: 'No. of Audit Paras', field: 'total', minWidth: 160, cellClass: 'text-center font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-    { headerName: 'Received at Ministry', field: 'received', minWidth: 180, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-    { headerName: 'Comments Sought from Organisation', field: 'sought', minWidth: 280, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-    { headerName: 'Comments Received from organisation', field: 'receivedOrg', minWidth: 290, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-    { headerName: 'Under Clarification', field: 'clarification', minWidth: 175, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-    { headerName: 'Comments Furnished to CAG', field: 'cag', minWidth: 220, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-    { headerName: 'Accepted by CAG', field: 'accepted', minWidth: 165, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' },
-    { headerName: 'Dropped', field: 'dropped', minWidth: 120, cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center border-r border-slate-100 dark:border-slate-700', valueFormatter: (params) => params.value || '' }
-  ], []);
-
-  const handleGridWheel = (e) => {
-    const container = e.currentTarget;
-    if (container) {
-      const gridBodyViewport = container.querySelector('.ag-body-viewport');
-      if (gridBodyViewport && gridBodyViewport.scrollWidth > gridBodyViewport.clientWidth) {
-        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-          gridBodyViewport.scrollLeft += e.deltaY;
-          const isAtStart = gridBodyViewport.scrollLeft <= 0 && e.deltaY < 0;
-          const isAtEnd = gridBodyViewport.scrollLeft + gridBodyViewport.clientWidth >= gridBodyViewport.scrollWidth && e.deltaY > 0;
-          if (!isAtStart && !isAtEnd) e.preventDefault();
-        }
-      }
+  const columns = useMemo(() => {
+    const cols = [];
+    if (reportView === 'wing' || reportView === 'all') {
+      cols.push({
+        field: 'Wing', headerName: 'Wing', flex: 1.5, minWidth: 180, pinned: 'left',
+        cellRenderer: (p) => p.data?.isTotalRow
+          ? <span style={{ fontWeight: 850 }} className="text-slate-900 dark:text-white">Total</span>
+          : <span style={{ fontWeight: 600 }} className="text-slate-800 dark:text-slate-200">{p.value || '—'}</span>
+      });
     }
+    if (reportView === 'division' || reportView === 'all') {
+      cols.push({
+        field: 'Division', headerName: 'Division', flex: 1.5, minWidth: 180, pinned: 'left',
+        cellRenderer: (p) => p.data?.isTotalRow
+          ? <span style={{ fontWeight: 850 }} className="text-slate-900 dark:text-white">Total</span>
+          : <span style={{ fontWeight: 600 }} className="text-slate-800 dark:text-slate-200">{p.value || '—'}</span>
+      });
+    }
+
+    const numCol = (field, headerName, minWidth) => ({
+      field, headerName, minWidth,
+      cellRenderer: (p) => (p.value || 0) > 0
+        ? <span style={{ fontWeight: p.data?.isTotalRow ? 850 : 700 }} className="text-[#4b2424] dark:text-blue-400">{p.value}</span>
+        : <span style={{ color: '#94a3b8', fontWeight: 600 }}>—</span>
+    });
+
+    cols.push(
+      numCol('total', 'No. of Audit Paras', 155),
+      numCol('received', 'Received at Ministry', 175),
+      numCol('sought', 'Comments Sought', 165),
+      numCol('receivedOrg', 'Comments Received', 170),
+      numCol('clarification', 'Under Clarification', 165),
+      numCol('cag', 'Furnished to CAG', 155),
+      numCol('accepted', 'Accepted by CAG', 150),
+      numCol('dropped', 'Dropped', 110),
+    );
+    return cols;
+  }, [reportView]);
+
+  const defaultColDef = useMemo(() => ({
+    sortable: true, filter: true, resizable: true,
+    cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
+  }), []);
+
+  const handleCopy = () => {
+    let tsv = columns.map((c) => c.headerName).join('\t') + '\n';
+    aggregatedData.forEach((row) => {
+      tsv += columns.map((c) => row[c.field] ?? '').join('\t') + '\n';
+    });
+    navigator.clipboard.writeText(tsv);
   };
 
   const handleExport = (type) => {
-    console.log(`${type} exported.`);
+    if (type === 'Excel' && gridRef.current?.api) {
+      gridRef.current.api.exportDataAsCsv({ fileName: `${title.replace(/\s+/g, '_')}_export.csv` });
+    } else if (type === 'PDF') {
+      window.print();
+    }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-[#8b3a4a] dark:text-rose-400">
-        <TrendingUp className="h-3.5 w-3.5" />
-        <span>Audit Paras Report</span>
-      </div>
-
-      <div>
-        <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 font-display">
-          Report No. 4.2A - Abstract ( Wing & Division Wise ) - Audit Paras
-        </h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-          As on date: <span className="font-bold text-slate-700 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
-          <span className="mx-1.5">•</span>
-          Report for the month — <span className="font-bold text-slate-700 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
-        </p>
-      </div>
-
-      <div className="flex flex-col md:flex-row md:items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search wing, division..."
-            className="w-full text-xs pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full focus:outline-none focus:border-[#0f417a] font-medium text-slate-700 dark:text-slate-200"
-          />
-        </div>
-
-        <div className="relative">
-          <div className="flex items-center gap-1.5 pl-3 pr-8 py-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-full">
-            <Layers className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-            <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wide whitespace-nowrap">Wing View:</span>
-            <select
-              value={selectedWing}
-              onChange={(e) => handleWingChange(e.target.value)}
-              className="appearance-none bg-transparent text-xs font-bold text-indigo-800 dark:text-indigo-200 focus:outline-none cursor-pointer max-w-[140px] truncate"
-            >
-              <option value="All">All Wings (Abstract View)</option>
-              {sortedWings.map((w) => <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>)}
-            </select>
+    <div>
+      <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 p-5 md:p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-4 relative rounded-t-2xl">
+        <div className="flex items-center gap-3 min-w-[260px]">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp size={14} className="text-[#8c4242] dark:text-blue-400" strokeWidth={2.5} />
+              <span className="text-[10.5px] font-black text-[#8c4242] dark:text-blue-400 uppercase tracking-widest">
+                Audit Paras Report
+              </span>
+            </div>
+            <h3 className="m-0 text-xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight">{title}</h3>
+            <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <span>As on date: <strong className="text-slate-800 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></span>
+              <span className="text-slate-300 dark:text-slate-700">•</span>
+              <span>Report for the month — <strong className="text-slate-800 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</strong></span>
+            </div>
           </div>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-indigo-500 pointer-events-none" />
         </div>
 
-        <div className="relative">
-          <div className="flex items-center gap-1.5 pl-3 pr-8 py-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-full">
-            <GitBranch className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-            <span className="text-[11px] font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wide whitespace-nowrap">Division View:</span>
-            <select
-              value={selectedDivision}
-              onChange={(e) => setSelectedDivision(e.target.value)}
-              className="appearance-none bg-transparent text-xs font-bold text-emerald-800 dark:text-emerald-200 focus:outline-none cursor-pointer max-w-[140px] truncate"
-            >
-              <option value="All">All Divisions</option>
-              {divisionOptions.map((d) => <option key={d.division_id} value={d.division_name}>{d.division_name}</option>)}
-            </select>
+        <div className="flex items-center justify-between gap-2.5 flex-wrap w-full">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="relative w-56">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search wing, division..."
+                value={quickFilter}
+                onChange={(e) => setQuickFilter(e.target.value)}
+                className="w-full py-2 pl-9 pr-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+              />
+              {quickFilter && (
+                <button onClick={() => setQuickFilter('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border-2 border-indigo-400/60 dark:border-indigo-500/60 text-xs shadow-sm">
+              <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold shrink-0">
+                <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-800 dark:text-indigo-300 whitespace-nowrap">Report View:</span>
+              </div>
+              <select
+                value={reportView}
+                onChange={(e) => setReportView(e.target.value)}
+                className="bg-transparent border-none text-xs font-extrabold text-indigo-950 dark:text-indigo-100 outline-none cursor-pointer pr-1 max-w-[200px]"
+              >
+                <option value="wing">Wing</option>
+                <option value="division">Division</option>
+                <option value="all">Wing and Division</option>
+              </select>
+            </div>
           </div>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-emerald-500 pointer-events-none" />
-        </div>
 
-        <div className="flex-1" />
-
-        <button
-          onClick={() => handleExport('Clipboard')}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 rounded-full text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
-        >
-          <Copy className="h-3.5 w-3.5" /><span>Copy</span>
-        </button>
-
-        <div className="relative group">
-          <button className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#5c2a3a] hover:bg-[#6d3346] text-white rounded-full text-xs font-bold transition cursor-pointer">
-            <span>Export</span>
-            <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-          <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 z-10 hidden group-hover:block">
-            <button onClick={() => handleExport('Excel')} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
-              <FileSpreadsheet className="h-3.5 w-3.5" /><span>Export to Excel</span>
-            </button>
-            <button onClick={() => handleExport('PDF')} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
-              <FileText className="h-3.5 w-3.5" /><span>Export to PDF</span>
+          <div className="flex items-center gap-2.5">
+            <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
+            <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} />
+            <button
+              onClick={() => {}}
+              className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+            >
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
-
-        <button
-          onClick={() => window.location.reload()}
-          className="p-2.5 bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
-          title="Refresh"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-        </button>
       </div>
 
-      <div
-        className="ag-theme-quartz rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto"
-        style={{
-          '--ag-header-background-color': '#5c2a3a',
-          '--ag-header-foreground-color': '#ffffff',
-          '--ag-header-column-separator-color': 'rgba(255,255,255,0.25)',
-          '--ag-header-column-separator-display': 'block',
-          '--ag-odd-row-background-color': '#f0fdf4',
-          '--ag-row-hover-color': '#e6f9ee',
-        }}
-        onWheel={handleGridWheel}
-      >
-        <AgGridReact
+      <div className="ag-theme-quartz audit-pro-grid" style={{ width: '100%' }}>
+        <Table
+          ref={gridRef}
           theme="legacy"
-          rowData={rows}
-          columnDefs={colDefs}
-          pinnedBottomRowData={pinnedBottomRowData}
-          domLayout="autoHeight"
-          rowHeight={46}
-          headerHeight={40}
-          suppressColumnVirtualisation={true}
+          rowData={aggregatedData}
+          columnDefs={columns}
+          defaultColDef={defaultColDef}
           pagination={true}
-          paginationPageSize={10}
-          paginationPageSizeSelector={[10, 20, 50]}
-          autoSizeStrategy={{ type: 'fitCellContents' }}
-          onFirstDataRendered={(params) => {
-            const allCols = params.api.getAllGridColumns();
-            params.api.autoSizeColumns(allCols);
-            const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-            const gridRoot = document.querySelector(`.ag-root-wrapper[grid-id="${params.api.getGridId()}"]`);
-            const containerWidth = gridRoot?.clientWidth || 0;
-            if (containerWidth > 0 && totalColWidth < containerWidth) params.api.sizeColumnsToFit();
-          }}
-          onGridSizeChanged={(params) => {
-            const allCols = params.api.getAllGridColumns();
-            params.api.autoSizeColumns(allCols);
-            const totalColWidth = allCols.reduce((sum, col) => sum + col.getActualWidth(), 0);
-            const gridRoot = document.querySelector(`.ag-root-wrapper[grid-id="${params.api.getGridId()}"]`);
-            const containerWidth = gridRoot?.clientWidth || 0;
-            if (containerWidth > 0 && totalColWidth < containerWidth) params.api.sizeColumnsToFit();
-          }}
+          paginationPageSize={15}
+          domLayout="autoHeight"
+          suppressColumnVirtualisation={true}
+          quickFilterText={quickFilter}
+          animateRows={true}
+          headerHeight={46}
+          autoSizeStrategy={{ type: 'fitCellContents', skipHeader: false, scaleUpToFitGridWidth: true }}
+          pinnedBottomRowData={pinnedBottomRowData}
+          enableExport={false}
+          color="#4b2424"
         />
       </div>
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        .audit-pro-grid.ag-theme-quartz {
+          --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          --ag-font-size: 13.5px;
+          --ag-border-color: #B9BDC2;
+          --ag-row-border-color: #D3D6D9;
+          --ag-row-height: 52px;
+          --ag-active-color: #4b2424;
+          --ag-checkbox-checked-color: #4b2424;
+          --ag-input-focus-border-color: #4b2424;
+          --ag-selected-row-background-color: #f7f3f3;
+        }
+        .audit-pro-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
+        .audit-pro-grid .ag-header { background: #4b2424ff !important; border-bottom: 2px solid !important; }
+        .audit-pro-grid .ag-header-row { background: transparent !important; }
+        .audit-pro-grid .ag-header-cell {
+          color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;
+          text-transform: uppercase !important; letter-spacing: 0.05em !important;
+          border-right: 1px solid #4b2424ff !important; padding-left: 14px !important; padding-right: 14px !important;
+        }
+        .audit-pro-grid .ag-header-cell-label { justify-content: center !important; text-align: center !important; }
+        .audit-pro-grid .ag-header-cell:hover { background: #6b3535ff !important; }
+        .audit-pro-grid .ag-header-cell-label .ag-header-cell-text { color: #ffffff !important; }
+        .audit-pro-grid .ag-row { border-bottom: 1px solid #D3D6D9 !important; }
+        .audit-pro-grid .ag-row-even { background: #ffffff !important; }
+        .audit-pro-grid .ag-row-odd { background: #f8faf6 !important; }
+        .audit-pro-grid .ag-row:hover { background: #f6f8f5 !important; }
+        .audit-pro-grid .ag-cell { display: flex; align-items: center; padding-left: 14px !important; padding-right: 14px !important; border-right: 1px solid #D3D6D9 !important; }
+        .audit-pro-grid .ag-paging-panel { border-top: 1px solid #D3D6D9 !important; background: #f8faf6 !important; padding: 10px 20px !important; font-size: 12.5px !important; font-weight: 600 !important; color: #657386 !important; }
+
+        .dark .audit-pro-grid.ag-theme-quartz { --ag-background-color: #090d16; --ag-foreground-color: #f1f5f9; --ag-border-color: #1e293b; --ag-row-border-color: #1e293b; }
+        .dark .audit-pro-grid .ag-root-wrapper { background-color: #090d16 !important; }
+        .dark .audit-pro-grid .ag-header { background: #0f172a !important; border-bottom: 2px solid #1e293b !important; }
+        .dark .audit-pro-grid .ag-header-cell { color: #f1f5f9 !important; border-right: 1px solid #1e293b !important; }
+        .dark .audit-pro-grid .ag-header-cell:hover { background: #1e293b !important; }
+        .dark .audit-pro-grid .ag-row { border-bottom: 1px solid #1e293b !important; color: #e2e8f0 !important; }
+        .dark .audit-pro-grid .ag-row-even { background: #090d16 !important; }
+        .dark .audit-pro-grid .ag-row-odd { background: #0f172a !important; }
+        .dark .audit-pro-grid .ag-row:hover { background: #1e293b !important; }
+        .dark .audit-pro-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
+        .dark .audit-pro-grid .ag-paging-panel { border-top: 1px solid #1e293b !important; background: #0f172a !important; color: #94a3b8 !important; }
+        .dark .audit-pro-grid .ag-floating-bottom { background: #0f172a !important; color: #f8fafc !important; border-top: 2px solid #334155 !important; }
+        .dark .audit-pro-grid .ag-floating-bottom .ag-row { background: #0f172a !important; }
+      `}} />
     </div>
   );
 }
