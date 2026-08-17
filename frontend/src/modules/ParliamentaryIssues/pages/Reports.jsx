@@ -179,7 +179,6 @@ export default function ParliamentaryIssuesReports({ notify }) {
         const header = col.headerName || '';
         const family = currentView?.family;
 
-        // Keep S.No as leftmost column (matches YP reports)
         if (
           field === 'S No' ||
           field === 'S.No' ||

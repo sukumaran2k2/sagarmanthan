@@ -16,22 +16,21 @@
 
 ## Input Form
 11. Required fields empty → cannot save.
-12. Yes + date fields: Yes requires date where applicable.
-13. Remarks word limit enforced.
-14. Create saves and returns to list.
-15. Update persists changes after refresh.
-16. Stage id saved matches highest selected stage for that issue type.
+12. Stage date fields: date marks stage as Yes; optional stage remarks appear when date is set.
+13. Create saves and returns to list.
+14. Update persists changes after refresh.
+15. Stage id saved matches highest selected stage for that issue type.
 
 ## Stages by issue type
-17. Assurance: No Status → Received → Comments → later stages; Matter Disposed wins if set.
-18. Matter (Zero Hours / Rule 377 / Special Mention): correct fields and stage progression.
-19. PSC Report: correct fields and stage progression.
+16. Assurance: No Status → Received → Comments → later stages; Matter Disposed wins if set.
+17. Matter (Zero Hours / Rule 377 / Special Mention): correct fields and stage progression.
+18. PSC Report: correct fields and stage progression.
 
 ## Reports
-20. Report tab loads for each type (Assurance, Zero Hours, Rule 377, PSC, Special Mention).
-21. Empty data does not crash.
-22. Drilldown / navigation works where available.
+19. Report tab loads for each type (Assurance, Zero Hours, Rule 377, PSC, Special Mention).
+20. Empty data does not crash.
+21. Drilldown / navigation works where available.
 
 ## Scope
-23. User only sees data in their data scope (wing/division/org as configured).
-24. Filters still work within that scope.
+22. User only sees data in their data scope (wing/division/org as configured).
+23. Filters still work within that scope.

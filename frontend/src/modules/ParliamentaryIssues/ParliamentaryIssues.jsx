@@ -59,7 +59,6 @@ export default function ParliamentaryIssues({
       .catch((err) => console.error(err));
   }, []);
 
-  // Menu flyout → Data List / Input Form / Reports
   useEffect(() => {
     const apply = (label) => {
       const next = resolveSubTabId(label, permissions.canAdd);
@@ -77,13 +76,11 @@ export default function ParliamentaryIssues({
     return () => window.removeEventListener('parliamentary-issue-subtab', onMenu);
   }, [permissions.canAdd]);
 
-  // Keep in sync if parent passes a sub-tab label
   useEffect(() => {
     const next = resolveSubTabId(activeSubTabProp, permissions.canAdd);
     if (next) setActiveSubTab(next);
   }, [activeSubTabProp, permissions.canAdd]);
 
-  // View-only / no-create users cannot stay on Input Form
   useEffect(() => {
     if (activeSubTab === 'add' && !permissions.canAdd) {
       setActiveSubTab('list');
@@ -135,11 +132,6 @@ export default function ParliamentaryIssues({
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
             Manage and track Parliamentary Assurances, Matters Raised, and PSC Reports.
-            <span className="text-slate-400 dark:text-slate-500">
-              {' '}
-              · Scope: {permissions.dataScopeCode || '-'} · View: {permissions.uiViewCode}
-              {permissions.isViewOnlyAdmin ? ' · View Only Admin' : ''}
-            </span>
           </p>
         </div>
 

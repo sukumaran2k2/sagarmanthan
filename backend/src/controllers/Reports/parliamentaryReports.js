@@ -246,7 +246,7 @@ async function getAssuranceDivisionWise (req, res)
                     CASE WHEN tbl_parliamentary_issue.coord_II_date IS NOT NULL THEN 'Coord_II, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.dgll_parliament_and_trw_date IS NOT NULL THEN 'DGLL Parliament & TRW, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.development_date IS NOT NULL THEN 'Development, ' ELSE '' END,
-                    CASE WHEN tbl_parliamentary_issue.finance IS NOT NULL THEN 'Finance, ' ELSE '' END,
+                    CASE WHEN tbl_parliamentary_issue.finance_date IS NOT NULL THEN 'Finance, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.sagarmala_date IS NOT NULL THEN 'Sagarmala, ' ELSE '' END
                 ) AS [Comments yet to be received From],
                 CONCAT(
@@ -259,7 +259,7 @@ async function getAssuranceDivisionWise (req, res)
                     CASE WHEN tbl_parliamentary_issue.coord_II_date IS NULL THEN ',Coord_II ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.dgll_parliament_and_trw_date IS NULL THEN ',DGLL Parliament & TRW ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.development_date IS NULL THEN ',Development ' ELSE '' END,
-                    CASE WHEN tbl_parliamentary_issue.finance IS NULL THEN ',Finance ' ELSE '' END,
+                    CASE WHEN tbl_parliamentary_issue.finance_date IS NULL THEN ',Finance ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.sagarmala_date IS NULL THEN ',Sagarmala ' ELSE '' END
                 ) AS [Comments not yet to be received From]
             FROM tbl_parliamentary_issue 
@@ -556,7 +556,7 @@ async function getMatterWingWise (req, res)
                     CASE WHEN tbl_parliamentary_issue.coord_II_date IS NOT NULL THEN 'Coord_II, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.dgll_parliament_and_trw_date IS NOT NULL THEN 'DGLL Parliament & TRW, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.development_date IS NOT NULL THEN 'Development, ' ELSE '' END,
-                    CASE WHEN tbl_parliamentary_issue.finance IS NOT NULL THEN 'Finance, ' ELSE '' END,
+                    CASE WHEN tbl_parliamentary_issue.finance_date IS NOT NULL THEN 'Finance, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.sagarmala_date IS NOT NULL THEN 'Sagarmala, ' ELSE '' END
                 ) AS [Comments yet to be received From],
                 CONCAT(
@@ -569,7 +569,7 @@ async function getMatterWingWise (req, res)
                     CASE WHEN tbl_parliamentary_issue.coord_II_date IS NULL THEN ',Coord_II ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.dgll_parliament_and_trw_date IS NULL THEN ',DGLL Parliament & TRW ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.development_date IS NULL THEN ',Development ' ELSE '' END,
-                    CASE WHEN tbl_parliamentary_issue.finance IS NULL THEN ',Finance ' ELSE '' END,
+                    CASE WHEN tbl_parliamentary_issue.finance_date IS NULL THEN ',Finance ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.sagarmala_date IS NULL THEN ',Sagarmala ' ELSE '' END
                 ) AS [Comments not yet to be received From],
                 CONVERT(varchar(10), reply_send_date, 101) AS [Reply Send], 
@@ -704,7 +704,7 @@ async function getMatterDivisionWise (req, res)
                     CASE WHEN tbl_parliamentary_issue.coord_II_date IS NOT NULL THEN 'Coord_II, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.dgll_parliament_and_trw_date IS NOT NULL THEN 'DGLL Parliament & TRW, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.development_date IS NOT NULL THEN 'Development, ' ELSE '' END,
-                    CASE WHEN tbl_parliamentary_issue.finance IS NOT NULL THEN 'Finance, ' ELSE '' END,
+                    CASE WHEN tbl_parliamentary_issue.finance_date IS NOT NULL THEN 'Finance, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.sagarmala_date IS NOT NULL THEN 'Sagarmala, ' ELSE '' END
                 ) AS [Comments yet to be received From],
                 CONCAT(
@@ -717,7 +717,7 @@ async function getMatterDivisionWise (req, res)
                     CASE WHEN tbl_parliamentary_issue.coord_II_date IS NULL THEN ',Coord_II ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.dgll_parliament_and_trw_date IS NULL THEN ',DGLL Parliament & TRW ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.development_date IS NULL THEN ',Development ' ELSE '' END,
-                    CASE WHEN tbl_parliamentary_issue.finance IS NULL THEN ',Finance ' ELSE '' END,
+                    CASE WHEN tbl_parliamentary_issue.finance_date IS NULL THEN ',Finance ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.sagarmala_date IS NULL THEN ',Sagarmala ' ELSE '' END
                 ) AS [Comments not yet to be received From],
                 CONVERT(varchar(10), reply_send_date, 101) AS [Reply Send], 
@@ -915,7 +915,7 @@ async function getPscWingWise (req, res)
                 CASE WHEN tbl_parliamentary_issue.coord_II_date IS NOT NULL THEN 'Coord_II, ' ELSE '' END,
                 CASE WHEN tbl_parliamentary_issue.dgll_parliament_and_trw_date IS NOT NULL THEN 'DGLL Parliament & TRW, ' ELSE '' END,
                 CASE WHEN tbl_parliamentary_issue.development_date IS NOT NULL THEN 'Development, ' ELSE '' END,
-                CASE WHEN tbl_parliamentary_issue.finance IS NOT NULL THEN 'Finance, ' ELSE '' END,
+                CASE WHEN tbl_parliamentary_issue.finance_date IS NOT NULL THEN 'Finance, ' ELSE '' END,
                 CASE WHEN tbl_parliamentary_issue.sagarmala_date IS NOT NULL THEN 'Sagarmala, ' ELSE '' END
             ) AS [Comments yet to be received From],
             CONCAT(
@@ -928,7 +928,7 @@ async function getPscWingWise (req, res)
                 CASE WHEN tbl_parliamentary_issue.coord_II_date IS NULL THEN ',Coord_II ' ELSE '' END,
                 CASE WHEN tbl_parliamentary_issue.dgll_parliament_and_trw_date IS NULL THEN ',DGLL Parliament & TRW ' ELSE '' END,
                 CASE WHEN tbl_parliamentary_issue.development_date IS NULL THEN ',Development ' ELSE '' END,
-                CASE WHEN tbl_parliamentary_issue.finance IS NULL THEN ',Finance ' ELSE '' END,
+                CASE WHEN tbl_parliamentary_issue.finance_date IS NULL THEN ',Finance ' ELSE '' END,
                 CASE WHEN tbl_parliamentary_issue.sagarmala_date IS NULL THEN ',Sagarmala ' ELSE '' END
             ) AS [Comments not yet to be received From],
             CONVERT(varchar(10), extension_time_soughted_date, 101) AS [Extension Of Time Sought], 
@@ -1033,7 +1033,7 @@ async function getPscDivisionWise (req, res)
                     CASE WHEN tbl_parliamentary_issue.coord_II_date IS NOT NULL THEN 'Coord_II, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.dgll_parliament_and_trw_date IS NOT NULL THEN 'DGLL Parliament & TRW, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.development_date IS NOT NULL THEN 'Development, ' ELSE '' END,
-                    CASE WHEN tbl_parliamentary_issue.finance IS NOT NULL THEN 'Finance, ' ELSE '' END,
+                    CASE WHEN tbl_parliamentary_issue.finance_date IS NOT NULL THEN 'Finance, ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.sagarmala_date IS NOT NULL THEN 'Sagarmala, ' ELSE '' END
                 ) AS [Comments yet to be received From],
                 CONCAT(
@@ -1046,7 +1046,7 @@ async function getPscDivisionWise (req, res)
                     CASE WHEN tbl_parliamentary_issue.coord_II_date IS NULL THEN ',Coord_II ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.dgll_parliament_and_trw_date IS NULL THEN ',DGLL Parliament & TRW ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.development_date IS NULL THEN ',Development ' ELSE '' END,
-                    CASE WHEN tbl_parliamentary_issue.finance IS NULL THEN ',Finance ' ELSE '' END,
+                    CASE WHEN tbl_parliamentary_issue.finance_date IS NULL THEN ',Finance ' ELSE '' END,
                     CASE WHEN tbl_parliamentary_issue.sagarmala_date IS NULL THEN ',Sagarmala ' ELSE '' END
                 ) AS [Comments not yet to be received From],
                 CONVERT(varchar(10), extension_time_soughted_date, 101) AS [Extension Of Time Sought], 

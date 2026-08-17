@@ -1,15 +1,47 @@
 const COMMENT_WING_FIELD_KEYS = [
-  { key: 'shipping', match: 'shipping' },
-  { key: 'vigilance', match: 'vigilance' },
-  { key: 'ports', match: 'ports' },
-  { key: 'iwt', match: 'iwt' },
-  { key: 'administration', match: 'administration' },
-  { key: 'coordI', match: 'coord-i' },
-  { key: 'coordII', match: 'coord-ii' },
-  { key: 'dgll', match: 'dgll' },
-  { key: 'development', match: 'development' },
-  { key: 'finance', match: 'finance' },
-  { key: 'sagarmala', match: 'sagarmala' },
+  { key: 'shipping', match: 'shipping', remarkColumn: 'shipping_remarks' },
+  { key: 'vigilance', match: 'vigilance', remarkColumn: 'vigilance_remarks' },
+  { key: 'ports', match: 'ports', remarkColumn: 'ports_remarks' },
+  { key: 'iwt', match: 'iwt', remarkColumn: 'iwt_remarks' },
+  { key: 'administration', match: 'administration', remarkColumn: 'administration_remarks' },
+  { key: 'coordI', match: 'coord-i', remarkColumn: 'coord_I_remarks' },
+  { key: 'coordII', match: 'coord-ii', remarkColumn: 'coord_II_remarks' },
+  { key: 'dgll', match: 'dgll', remarkColumn: 'dgll_parliament_and_trw_remarks' },
+  { key: 'development', match: 'development', remarkColumn: 'development_remarks' },
+  { key: 'finance', match: 'finance', remarkColumn: 'finance_remarks' },
+  { key: 'sagarmala', match: 'sagarmala', remarkColumn: 'sagarmala_remarks' },
+];
+
+export const STAGE_REMARK_FIELDS = [
+  { dateKey: 'receivedDate', remarkKey: 'receivedRemark', dbRemark: 'received_at_ministry_remarks' },
+  {
+    dateKey: 'debatedInParliamentDate',
+    remarkKey: 'debatedInParliamentRemark',
+    dbRemark: 'debated_in_parliament_remarks',
+  },
+  { dateKey: 'commentSoughtDate', remarkKey: 'commentSoughtRemark', dbRemark: 'comment_soughted_remarks' },
+  {
+    dateKey: 'commentsReceivedDate',
+    remarkKey: 'commentsReceivedRemark',
+    dbRemark: 'comment_received_remarks',
+  },
+  {
+    dateKey: 'extensionTimeSoughtDate',
+    remarkKey: 'extensionTimeSoughtRemark',
+    dbRemark: 'extension_time_soughted_remarks',
+  },
+  {
+    dateKey: 'impReportFurnishedDate',
+    remarkKey: 'impReportFurnishedRemark',
+    dbRemark: 'implementation_report_furnished_remarks',
+  },
+  { dateKey: 'matterDisposedDate', remarkKey: 'matterDisposedRemark', dbRemark: 'matter_disposed_remarks' },
+  { dateKey: 'replySendDate', remarkKey: 'replySendRemark', dbRemark: 'reply_send_remarks' },
+  ...COMMENT_WING_FIELD_KEYS.map((f) => ({
+    dateKey: `${f.key}Date`,
+    remarkKey: `${f.key}Remark`,
+    dbRemark: f.remarkColumn,
+  })),
 ];
 
 export function normalizeText(value) {
@@ -19,7 +51,6 @@ export function normalizeText(value) {
     .trim();
 }
 
-// Canonical labels stored in tbl_parliamentary_issue / report APIs.
 export function canonicalizeIssueType(raw) {
   const n = normalizeText(raw);
   if (!n) return '';
@@ -72,6 +103,24 @@ export function statusNamesFromStages(stages = []) {
   return names;
 }
 
+export function isCompletedStageName(name) {
+  const n = normalizeText(name);
+  if (!n) return false;
+  if (n.includes('matter disposed')) return true;
+  if ((n.includes('reply') || n.includes('replay')) && (n.includes('sent') || n.includes('send'))) {
+    return true;
+  }
+  return n === 'completed';
+}
+
+export function isCompletedParliamentaryIssue(row = {}) {
+  if (isCompletedStageName(row.status || row.parlia_stage_name)) return true;
+  const raw = row.raw || row;
+  if (raw.matter_disposed_date) return true;
+  if (raw.reply_send_date) return true;
+  return false;
+}
+
 export function stagesForIssueType(stages = [], issueType) {
   const canonical = canonicalizeIssueType(issueType);
   return stages
@@ -79,7 +128,19 @@ export function stagesForIssueType(stages = [], issueType) {
     .sort((a, b) => Number(a.parlia_stage_id) - Number(b.parlia_stage_id));
 }
 
-// Assurance uses stage_id; Matter/PSC use 1-based ordinal (legacy report APIs).
+export function stageNamesForIssueType(stages = [], issueType, { excludeCompleted = false } = {}) {
+  const seen = new Set();
+  const names = [];
+  stagesForIssueType(stages, issueType).forEach((s) => {
+    const name = String(s.parlia_stage_name || '').trim();
+    if (!name || seen.has(name)) return;
+    if (excludeCompleted && isCompletedStageName(name)) return;
+    seen.add(name);
+    names.push(name);
+  });
+  return names;
+}
+
 export function buildDrilldownStageMap(stages = [], issueType) {
   const typeStages = stagesForIssueType(stages, issueType).filter(
     (s) => normalizeText(s.parlia_stage_name) !== 'no status'
@@ -123,31 +184,34 @@ export function commentFieldsForWings(wings = []) {
         label: w.wing_name,
         wingId: w.wing_id,
         match: field.match,
+        dateKey: `${field.key}Date`,
+        remarkKey: `${field.key}Remark`,
       };
     })
     .filter(Boolean);
 }
 
-function isYes(value) {
-  if (value === true || value === 1) return true;
-  const n = String(value || '').trim().toLowerCase();
-  return n === 'yes' || n === '1' || n === 'true';
+export function hasDate(value) {
+  return Boolean(String(value || '').trim());
 }
 
-function anyWingCommentYes(form) {
+function anyWingCommentDate(form, commentFields = []) {
+  if (commentFields.length) {
+    return commentFields.some((f) => hasDate(form[`${f.key}Date`]));
+  }
   return [
-    form.shipping,
-    form.vigilance,
-    form.ports,
-    form.iwt,
-    form.administration,
-    form.coordI,
-    form.coordII,
-    form.dgll,
-    form.development,
-    form.finance,
-    form.sagarmala,
-  ].some(isYes);
+    form.shippingDate,
+    form.vigilanceDate,
+    form.portsDate,
+    form.iwtDate,
+    form.administrationDate,
+    form.coordIDate,
+    form.coordIIDate,
+    form.dgllDate,
+    form.developmentDate,
+    form.financeDate,
+    form.sagarmalaDate,
+  ].some(hasDate);
 }
 
 function findStageIdByName(typeStages, ...nameParts) {
@@ -166,7 +230,6 @@ function emptyStageId(typeStages) {
   return typeStages.length ? String(typeStages[0].parlia_stage_id) : '0';
 }
 
-// Same stage progression as legacy addParliamentaryIssue.html.
 export function computeStageId(form, stages = []) {
   const typeStages = stagesForIssueType(stages, form.issueType);
   if (!typeStages.length) return '0';
@@ -174,57 +237,57 @@ export function computeStageId(form, stages = []) {
   const canonical = canonicalizeIssueType(form.issueType);
 
   if (isAssuranceType(canonical)) {
-    if (isYes(form.matterDisposed)) {
+    if (hasDate(form.matterDisposedDate)) {
       return findStageIdByName(typeStages, 'matter disposed') || '6';
     }
-    if (isYes(form.impReportFurnished)) {
+    if (hasDate(form.impReportFurnishedDate)) {
       return findStageIdByName(typeStages, 'implementation') || '5';
     }
-    if (isYes(form.extensionTimeSought)) {
+    if (hasDate(form.extensionTimeSoughtDate)) {
       return findStageIdByName(typeStages, 'extension') || '4';
     }
-    if (anyWingCommentYes(form) || isYes(form.commentsReceived)) {
+    if (anyWingCommentDate(form) || hasDate(form.commentsReceivedDate)) {
       return findStageIdByName(typeStages, 'comments received') || '3';
     }
-    if (isYes(form.commentSought)) {
+    if (hasDate(form.commentSoughtDate)) {
       return findStageIdByName(typeStages, 'comments sought') || '2';
     }
-    if (isYes(form.received)) {
+    if (hasDate(form.receivedDate)) {
       return findStageIdByName(typeStages, 'received at ministry') || '1';
     }
     return emptyStageId(typeStages);
   }
 
   if (isMatterType(canonical)) {
-    if (isYes(form.replySend)) {
+    if (hasDate(form.replySendDate)) {
       return findStageIdByName(typeStages, 'reply', 'replay') || emptyStageId(typeStages);
     }
-    if (anyWingCommentYes(form) || isYes(form.commentsReceived)) {
+    if (anyWingCommentDate(form) || hasDate(form.commentsReceivedDate)) {
       return findStageIdByName(typeStages, 'comments received') || emptyStageId(typeStages);
     }
-    if (isYes(form.commentSought)) {
+    if (hasDate(form.commentSoughtDate)) {
       return findStageIdByName(typeStages, 'comments sought') || emptyStageId(typeStages);
     }
-    if (isYes(form.debatedInParliament)) {
+    if (hasDate(form.debatedInParliamentDate)) {
       return findStageIdByName(typeStages, 'debated') || emptyStageId(typeStages);
     }
-    if (isYes(form.received)) {
+    if (hasDate(form.receivedDate)) {
       return findStageIdByName(typeStages, 'received at ministry') || emptyStageId(typeStages);
     }
     return emptyStageId(typeStages);
   }
 
   if (isPscType(canonical)) {
-    if (isYes(form.replySend)) {
+    if (hasDate(form.replySendDate)) {
       return findStageIdByName(typeStages, 'reply', 'replay') || emptyStageId(typeStages);
     }
-    if (anyWingCommentYes(form) || isYes(form.commentsReceived)) {
+    if (anyWingCommentDate(form) || hasDate(form.commentsReceivedDate)) {
       return findStageIdByName(typeStages, 'comments received') || emptyStageId(typeStages);
     }
-    if (isYes(form.commentSought)) {
+    if (hasDate(form.commentSoughtDate)) {
       return findStageIdByName(typeStages, 'comments sought') || emptyStageId(typeStages);
     }
-    if (isYes(form.received)) {
+    if (hasDate(form.receivedDate)) {
       return findStageIdByName(typeStages, 'received at ministry') || emptyStageId(typeStages);
     }
     return emptyStageId(typeStages);
@@ -233,8 +296,130 @@ export function computeStageId(form, stages = []) {
   return emptyStageId(typeStages);
 }
 
-export function buildIssuePayload(form, userId, stages = []) {
+export function computeUnlockedStages(form, { isEdit = false, commentFields = [] } = {}) {
+  const isAssurance = isAssuranceType(form.issueType);
+  const isPsc = isPscType(form.issueType);
+  const isMatter = isMatterType(form.issueType);
+
+  const receivedDone = hasDate(form.receivedDate);
+  const debatedDone = hasDate(form.debatedInParliamentDate);
+  const commentSoughtDone = hasDate(form.commentSoughtDate);
+  const wingCommentDone =
+    hasDate(form.commentsReceivedDate) || anyWingCommentDate(form, commentFields);
+  const extensionDone = hasDate(form.extensionTimeSoughtDate);
+  const impDone = hasDate(form.impReportFurnishedDate);
+
+  if (isAssurance) {
+    const base = {
+      received: true,
+      debated: false,
+      commentSought: receivedDone,
+      commentsReceived: commentSoughtDone,
+      extension: wingCommentDone,
+      implementation: extensionDone,
+      disposed: impDone,
+      reply: false,
+    };
+    if (isEdit) {
+      if (hasDate(form.commentSoughtDate)) base.commentSought = true;
+      if (hasDate(form.commentsReceivedDate) || anyWingCommentDate(form, commentFields)) {
+        base.commentSought = true;
+        base.commentsReceived = true;
+      }
+      if (hasDate(form.extensionTimeSoughtDate)) {
+        base.commentSought = true;
+        base.commentsReceived = true;
+        base.extension = true;
+      }
+      if (hasDate(form.impReportFurnishedDate)) {
+        base.commentSought = true;
+        base.commentsReceived = true;
+        base.extension = true;
+        base.implementation = true;
+      }
+      if (hasDate(form.matterDisposedDate)) {
+        base.commentSought = true;
+        base.commentsReceived = true;
+        base.extension = true;
+        base.implementation = true;
+        base.disposed = true;
+      }
+    }
+    return base;
+  }
+
+  if (isMatter) {
+    const base = {
+      received: true,
+      debated: receivedDone,
+      commentSought: debatedDone,
+      commentsReceived: commentSoughtDone,
+      extension: false,
+      implementation: false,
+      disposed: false,
+      reply: wingCommentDone,
+    };
+    if (isEdit) {
+      if (hasDate(form.debatedInParliamentDate)) base.debated = true;
+      if (hasDate(form.commentSoughtDate)) {
+        base.debated = true;
+        base.commentSought = true;
+      }
+      if (hasDate(form.commentsReceivedDate) || anyWingCommentDate(form, commentFields)) {
+        base.debated = true;
+        base.commentSought = true;
+        base.commentsReceived = true;
+      }
+      if (hasDate(form.replySendDate)) {
+        base.debated = true;
+        base.commentSought = true;
+        base.commentsReceived = true;
+        base.reply = true;
+      }
+    }
+    return base;
+  }
+
+  if (isPsc) {
+    const base = {
+      received: true,
+      debated: false,
+      commentSought: receivedDone,
+      commentsReceived: commentSoughtDone,
+      extension: false,
+      implementation: false,
+      disposed: false,
+      reply: wingCommentDone,
+    };
+    if (isEdit) {
+      if (hasDate(form.commentSoughtDate)) base.commentSought = true;
+      if (hasDate(form.commentsReceivedDate) || anyWingCommentDate(form, commentFields)) {
+        base.commentSought = true;
+        base.commentsReceived = true;
+      }
+      if (hasDate(form.replySendDate)) {
+        base.commentSought = true;
+        base.commentsReceived = true;
+        base.reply = true;
+      }
+    }
+    return base;
+  }
+
   return {
+    received: true,
+    debated: false,
+    commentSought: false,
+    commentsReceived: false,
+    extension: false,
+    implementation: false,
+    disposed: false,
+    reply: false,
+  };
+}
+
+export function buildIssuePayload(form, userId, stages = []) {
+  const payload = {
     wing: form.wing,
     division: form.division,
     parliamentarySubject: form.parliamentarySubject,
@@ -244,49 +429,72 @@ export function buildIssuePayload(form, userId, stages = []) {
     parliamentHouse: form.parliamentHouse,
     nameOfMP: form.nameOfMP,
     extensionSought: form.extensionSought || '',
-    received: form.received || '',
     receivedDate: form.receivedDate || '',
-    commentSought: form.commentSought || '',
+    receivedRemark: form.receivedRemark || '',
     commentSoughtDate: form.commentSoughtDate || '',
+    commentSoughtRemark: form.commentSoughtRemark || '',
     wings: Array.isArray(form.wings) ? form.wings : [],
-    commentsReceived: form.commentsReceived || '',
     commentsReceivedDate: form.commentsReceivedDate || '',
-    shipping: form.shipping || '',
+    commentsReceivedRemark: form.commentsReceivedRemark || '',
     shippingDate: form.shippingDate || '',
-    vigilance: form.vigilance || '',
+    shippingRemark: form.shippingRemark || '',
     vigilanceDate: form.vigilanceDate || '',
-    ports: form.ports || '',
+    vigilanceRemark: form.vigilanceRemark || '',
     portsDate: form.portsDate || '',
-    iwt: form.iwt || '',
+    portsRemark: form.portsRemark || '',
     iwtDate: form.iwtDate || '',
-    administration: form.administration || '',
+    iwtRemark: form.iwtRemark || '',
     administrationDate: form.administrationDate || '',
-    coordI: form.coordI || '',
+    administrationRemark: form.administrationRemark || '',
     coordIDate: form.coordIDate || '',
-    coordII: form.coordII || '',
+    coordIRemark: form.coordIRemark || '',
     coordIIDate: form.coordIIDate || '',
-    dgll: form.dgll || '',
+    coordIIRemark: form.coordIIRemark || '',
     dgllDate: form.dgllDate || '',
-    development: form.development || '',
+    dgllRemark: form.dgllRemark || '',
     developmentDate: form.developmentDate || '',
-    finance: form.finance || '',
+    developmentRemark: form.developmentRemark || '',
     financeDate: form.financeDate || '',
-    sagarmala: form.sagarmala || '',
+    financeRemark: form.financeRemark || '',
     sagarmalaDate: form.sagarmalaDate || '',
-    extensionTimeSought: form.extensionTimeSought || '',
+    sagarmalaRemark: form.sagarmalaRemark || '',
     extensionTimeSoughtDate: form.extensionTimeSoughtDate || '',
-    replySend: form.replySend || '',
+    extensionTimeSoughtRemark: form.extensionTimeSoughtRemark || '',
     replySendDate: form.replySendDate || '',
-    debatedInParliament: form.debatedInParliament || '',
+    replySendRemark: form.replySendRemark || '',
     debatedInParliamentDate: form.debatedInParliamentDate || '',
-    impReportFurnished: form.impReportFurnished || '',
+    debatedInParliamentRemark: form.debatedInParliamentRemark || '',
     impReportFurnishedDate: form.impReportFurnishedDate || '',
-    matterDisposed: form.matterDisposed || '',
+    impReportFurnishedRemark: form.impReportFurnishedRemark || '',
     matterDisposedDate: form.matterDisposedDate || '',
-    remarks: form.remarks || '',
+    matterDisposedRemark: form.matterDisposedRemark || '',
     parlia_stage_id: computeStageId(form, stages),
     userID: userId,
   };
+
+  return payload;
+}
+
+export function emptyIssueForm() {
+  const form = {
+    wing: '',
+    division: '',
+    parliamentarySubject: '',
+    fileNumber: '',
+    issueType: '',
+    assuranceNumber: '',
+    parliamentHouse: '',
+    nameOfMP: '',
+    extensionSought: '',
+    wings: [],
+  };
+
+  STAGE_REMARK_FIELDS.forEach(({ dateKey, remarkKey }) => {
+    form[dateKey] = '';
+    form[remarkKey] = '';
+  });
+
+  return form;
 }
 
 export function countWords(text) {

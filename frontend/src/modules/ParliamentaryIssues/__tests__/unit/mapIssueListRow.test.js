@@ -1,6 +1,3 @@
-/**
- * mapIssueListRow: turns an API row into list/table fields.
- */
 import { mapIssueListRow } from '../../utils/mapIssue';
 
 describe('mapIssueListRow', () => {
@@ -25,7 +22,24 @@ describe('mapIssueListRow', () => {
       wing: 'Shipping',
       issueType: 'Assurance',
       status: 'Comments Sought',
+      isCompleted: false,
       lastUpdated: '2026-03-15',
     });
+  });
+
+  it('marks Matter Disposed and Reply Sent rows as completed', () => {
+    expect(
+      mapIssueListRow({
+        parliamentary_issue_id: 1,
+        parlia_stage_name: 'Matter Disposed',
+      }).isCompleted
+    ).toBe(true);
+
+    expect(
+      mapIssueListRow({
+        parliamentary_issue_id: 2,
+        parlia_stage_name: 'Reply sent',
+      }).isCompleted
+    ).toBe(true);
   });
 });

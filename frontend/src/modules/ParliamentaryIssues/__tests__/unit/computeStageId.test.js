@@ -1,6 +1,3 @@
-/**
- * computeStageId: picks the stage id to save with an Assurance issue.
- */
 import { computeStageId } from '../../utils/stageHelpers';
 
 describe('computeStageId', () => {
@@ -18,9 +15,22 @@ describe('computeStageId', () => {
     expect(computeStageId({ issueType: 'Assurance' }, stages)).toBe('10');
   });
 
-  it('returns Received At Ministry when received is Yes', () => {
+  it('returns Received At Ministry when received date is present', () => {
     expect(
-      computeStageId({ issueType: 'Assurance', received: 'Yes' }, stages)
+      computeStageId({ issueType: 'Assurance', receivedDate: '2026-01-15' }, stages)
     ).toBe('11');
+  });
+
+  it('returns Matter Disposed when disposed date is present', () => {
+    expect(
+      computeStageId(
+        {
+          issueType: 'Assurance',
+          receivedDate: '2026-01-15',
+          matterDisposedDate: '2026-03-01',
+        },
+        stages
+      )
+    ).toBe('16');
   });
 });

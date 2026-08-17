@@ -1,6 +1,3 @@
-/**
- * mapIssueToForm: turns an API row into edit form fields.
- */
 import { mapIssueToForm } from '../../utils/mapIssue';
 
 describe('mapIssueToForm', () => {
@@ -10,7 +7,8 @@ describe('mapIssueToForm', () => {
       subject: 'Port safety query',
       wing: 3,
       parliamentary_issue_type: 'Assurance',
-      received_at_ministry: 1,
+      received_at_ministry_date: '2026-01-15',
+      received_at_ministry_remarks: 'Ministry note',
       comment_soughted_wings: '1, 2',
     };
 
@@ -18,7 +16,8 @@ describe('mapIssueToForm', () => {
       parliamentaryIssueID: 42,
       wing: '3',
       issueType: 'Assurance',
-      received: 'Yes',
+      receivedDate: '2026-01-15',
+      receivedRemark: 'Ministry note',
       wings: ['1', '2'],
     });
   });

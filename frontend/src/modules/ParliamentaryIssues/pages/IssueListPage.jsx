@@ -13,10 +13,7 @@ import {
 } from '../api';
 import { mapIssueListRow, mapIssueToForm } from '../utils/mapIssue';
 import { useParliamentaryPermissions } from '../hooks/useParliamentaryPermissions';
-import {
-  issueTypesFromStages,
-  statusNamesFromStages,
-} from '../utils/stageHelpers';
+import { issueTypesFromStages } from '../utils/stageHelpers';
 import { getCurrentUserId } from '../../../utils/authSession';
 
 const DEFAULT_FILTERS = {
@@ -37,29 +34,83 @@ export default function IssueListPage({
   const [divisions, setDivisions] = useState([]);
   const [stages, setStages] = useState([]);
   const [issueTypeOptions, setIssueTypeOptions] = useState([]);
-  const [statusOptions, setStatusOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [category, setCategory] = useState('active');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [counts, setCounts] = useState({ active: 0, completed: 0 });
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 0,
+  });
   const [mode, setMode] = useState('list');
   const [formData, setFormData] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const loadList = useCallback(async () => {
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const loadList = useCallback(async (signal) => {
     if (!permissions.canView) return;
     setLoading(true);
     try {
-      const res = await fetchParliamentaryIssues();
-      const data = Array.isArray(res.data) ? res.data : [];
+      const res = await fetchParliamentaryIssues(
+        {
+          page,
+          limit: pageSize,
+          category,
+          wingId: filters.wingId,
+          divisionId: filters.divisionId,
+          issueType: filters.issueType,
+          status: filters.status,
+          search: debouncedSearch,
+        },
+        { signal }
+      );
+      const payload = res.data || {};
+      const data = Array.isArray(payload.data) ? payload.data : [];
       setRows(data.map(mapIssueListRow));
+      setCounts({
+        active: Number(payload.counts?.active) || 0,
+        completed: Number(payload.counts?.completed) || 0,
+      });
+      setPagination({
+        total: Number(payload.pagination?.total) || 0,
+        page: Number(payload.pagination?.page) || page,
+        limit: Number(payload.pagination?.limit) || pageSize,
+        totalPages: Number(payload.pagination?.totalPages) || 0,
+      });
     } catch (err) {
+      if (err?.code === 'ERR_CANCELED') return;
       console.error(err);
       notify?.(err?.response?.data?.message || 'Failed to load parliamentary issues.', 'error');
       setRows([]);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [permissions.canView, notify]);
+  }, [
+    permissions.canView,
+    notify,
+    page,
+    pageSize,
+    category,
+    filters.wingId,
+    filters.divisionId,
+    filters.issueType,
+    filters.status,
+    debouncedSearch,
+  ]);
 
   useEffect(() => {
     Promise.all([fetchWings(), fetchDivisions(), fetchParliamentaryStages()])
@@ -69,13 +120,14 @@ export default function IssueListPage({
         const stageRows = Array.isArray(stagesRes.data) ? stagesRes.data : [];
         setStages(stageRows);
         setIssueTypeOptions(issueTypesFromStages(stageRows));
-        setStatusOptions(statusNamesFromStages(stageRows));
       })
       .catch((err) => console.error(err));
   }, []);
 
   useEffect(() => {
-    loadList();
+    const controller = new AbortController();
+    loadList(controller.signal);
+    return () => controller.abort();
   }, [loadList]);
 
   const handleAdd = () => {
@@ -123,6 +175,22 @@ export default function IssueListPage({
     }
   };
 
+  const handleFiltersChange = (next) => {
+    setFilters(next);
+    if (next.search === filters.search) setPage(1);
+  };
+
+  const handleCategoryChange = (next) => {
+    setCategory(next);
+    setFilters((prev) => ({ ...prev, status: 'All' }));
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (next) => {
+    setPageSize(next);
+    setPage(1);
+  };
+
   if (!permissions.canView) {
     return (
       <RestrictedAccess
@@ -163,12 +231,20 @@ export default function IssueListPage({
         wings={wings}
         divisions={divisions}
         issueTypeOptions={issueTypeOptions}
-        statusOptions={statusOptions}
+        stages={stages}
         canEdit={permissions.canEdit}
         canDelete={permissions.canRemove}
         canCreate={permissions.canAdd}
         filters={filters}
-        onFiltersChange={setFilters}
+        onFiltersChange={handleFiltersChange}
+        category={category}
+        onCategoryChange={handleCategoryChange}
+        counts={counts}
+        page={page}
+        pageSize={pageSize}
+        pagination={pagination}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
         onEdit={handleEdit}
         onDelete={handleDelete}
         onAdd={handleAdd}

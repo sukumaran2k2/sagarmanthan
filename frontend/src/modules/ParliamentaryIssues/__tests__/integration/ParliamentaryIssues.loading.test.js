@@ -1,6 +1,3 @@
-/**
- * Smoke test: Parliamentary Issues page loads and shows its title.
- */
 import { render, screen } from '@testing-library/react';
 import ParliamentaryIssues from '../../ParliamentaryIssues';
 

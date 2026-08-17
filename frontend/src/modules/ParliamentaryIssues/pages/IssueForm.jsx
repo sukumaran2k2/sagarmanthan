@@ -1,69 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import YesNoDateField from '../components/YesNoDateField';
+import StageDateField from '../components/StageDateField';
 import {
+  buildIssuePayload,
   commentFieldsForWings,
+  computeUnlockedStages,
+  emptyIssueForm,
+  hasDate,
   isAssuranceType,
   isMatterType,
   isPscType,
 } from '../utils/stageHelpers';
-import { buildIssuePayload, countWords } from '../utils/stageHelpers';
 import {
   createParliamentaryIssue,
   updateParliamentaryIssue,
 } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 
-const EMPTY_FORM = {
-  wing: '',
-  division: '',
-  parliamentarySubject: '',
-  fileNumber: '',
-  issueType: '',
-  assuranceNumber: '',
-  parliamentHouse: '',
-  nameOfMP: '',
-  extensionSought: '',
-  received: '',
-  receivedDate: '',
-  commentSought: '',
-  commentSoughtDate: '',
-  wings: [],
-  commentsReceived: '',
-  commentsReceivedDate: '',
-  shipping: '',
-  shippingDate: '',
-  vigilance: '',
-  vigilanceDate: '',
-  ports: '',
-  portsDate: '',
-  iwt: '',
-  iwtDate: '',
-  administration: '',
-  administrationDate: '',
-  coordI: '',
-  coordIDate: '',
-  coordII: '',
-  coordIIDate: '',
-  dgll: '',
-  dgllDate: '',
-  development: '',
-  developmentDate: '',
-  finance: '',
-  financeDate: '',
-  sagarmala: '',
-  sagarmalaDate: '',
-  extensionTimeSought: '',
-  extensionTimeSoughtDate: '',
-  replySend: '',
-  replySendDate: '',
-  debatedInParliament: '',
-  debatedInParliamentDate: '',
-  impReportFurnished: '',
-  impReportFurnishedDate: '',
-  matterDisposed: '',
-  matterDisposedDate: '',
-  remarks: '',
-};
+const EMPTY_FORM = emptyIssueForm();
 
 const labelClass =
   'block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider';
@@ -113,138 +66,17 @@ export default function IssueForm({
   const isPsc = isPscType(form.issueType);
   const isMatter = isMatterType(form.issueType);
 
-  const unlocked = useMemo(() => {
-    // Unlock next step once Yes/No is chosen (date optional) - legacy form behavior.
-    const answered = (yesNo, date) =>
-      yesNo === 'Yes' || yesNo === 'No' || !!date;
+  const unlocked = useMemo(
+    () => computeUnlockedStages(form, { isEdit, commentFields }),
+    [form, isEdit, commentFields]
+  );
 
-    const receivedDone = answered(form.received, form.receivedDate);
-    const debatedDone = answered(form.debatedInParliament, form.debatedInParliamentDate);
-    const commentSoughtDone = answered(form.commentSought, form.commentSoughtDate);
-    const wingCommentDone =
-      answered(form.commentsReceived, form.commentsReceivedDate) ||
-      commentFields.some((f) => answered(form[f.key], form[`${f.key}Date`]));
-    const extensionDone = answered(
-      form.extensionTimeSought,
-      form.extensionTimeSoughtDate
-    );
-    const impDone = answered(form.impReportFurnished, form.impReportFurnishedDate);
-
-    // On edit, unlock steps that already have saved data.
-    const has = (yesNo, date) => answered(yesNo, date);
-
-    if (isAssurance) {
-      const base = {
-        received: true,
-        debated: false,
-        commentSought: receivedDone,
-        commentsReceived: commentSoughtDone,
-        extension: wingCommentDone,
-        implementation: extensionDone,
-        disposed: impDone,
-        reply: false,
-      };
-      if (isEdit) {
-        if (has(form.commentSought, form.commentSoughtDate)) base.commentSought = true;
-        if (has(form.commentsReceived, form.commentsReceivedDate) || commentFields.some((f) => has(form[f.key], form[`${f.key}Date`]))) {
-          base.commentSought = true;
-          base.commentsReceived = true;
-        }
-        if (has(form.extensionTimeSought, form.extensionTimeSoughtDate)) {
-          base.commentSought = true;
-          base.commentsReceived = true;
-          base.extension = true;
-        }
-        if (has(form.impReportFurnished, form.impReportFurnishedDate)) {
-          base.commentSought = true;
-          base.commentsReceived = true;
-          base.extension = true;
-          base.implementation = true;
-        }
-        if (has(form.matterDisposed, form.matterDisposedDate)) {
-          base.commentSought = true;
-          base.commentsReceived = true;
-          base.extension = true;
-          base.implementation = true;
-          base.disposed = true;
-        }
-      }
-      return base;
-    }
-    if (isMatter) {
-      const base = {
-        received: true,
-        debated: receivedDone,
-        commentSought: debatedDone,
-        commentsReceived: commentSoughtDone,
-        extension: false,
-        implementation: false,
-        disposed: false,
-        reply: wingCommentDone,
-      };
-      if (isEdit) {
-        if (has(form.debatedInParliament, form.debatedInParliamentDate)) base.debated = true;
-        if (has(form.commentSought, form.commentSoughtDate)) {
-          base.debated = true;
-          base.commentSought = true;
-        }
-        if (has(form.commentsReceived, form.commentsReceivedDate) || commentFields.some((f) => has(form[f.key], form[`${f.key}Date`]))) {
-          base.debated = true;
-          base.commentSought = true;
-          base.commentsReceived = true;
-        }
-        if (has(form.replySend, form.replySendDate)) {
-          base.debated = true;
-          base.commentSought = true;
-          base.commentsReceived = true;
-          base.reply = true;
-        }
-      }
-      return base;
-    }
-    if (isPsc) {
-      const base = {
-        received: true,
-        debated: false,
-        commentSought: receivedDone,
-        commentsReceived: commentSoughtDone,
-        extension: false,
-        implementation: false,
-        disposed: false,
-        reply: wingCommentDone,
-      };
-      if (isEdit) {
-        if (has(form.commentSought, form.commentSoughtDate)) base.commentSought = true;
-        if (has(form.commentsReceived, form.commentsReceivedDate) || commentFields.some((f) => has(form[f.key], form[`${f.key}Date`]))) {
-          base.commentSought = true;
-          base.commentsReceived = true;
-        }
-        if (has(form.replySend, form.replySendDate)) {
-          base.commentSought = true;
-          base.commentsReceived = true;
-          base.reply = true;
-        }
-      }
-      return base;
-    }
-    return {
-      received: true,
-      debated: false,
-      commentSought: false,
-      commentsReceived: false,
-      extension: false,
-      implementation: false,
-      disposed: false,
-      reply: false,
-    };
-  }, [form, isAssurance, isMatter, isPsc, commentFields, isEdit]);
-
-  const handleRemarks = (value) => {
-    if (countWords(value) > 250) {
-      notify?.('Remarks are limited to 250 words.', 'error');
-      return;
-    }
-    setField('remarks', value);
+  const setStageDate = (dateKey, remarkKey, value) => {
+    setForm((prev) => ({
+      ...prev,
+      [dateKey]: value,
+      [remarkKey]: value ? prev[remarkKey] : '',
+    }));
   };
 
   const toggleCommentWing = (wingId) => {
@@ -486,42 +318,41 @@ export default function IssueForm({
             </h3>
 
             <div className="space-y-3">
-              <YesNoDateField
+              <StageDateField
                 label="Received At Ministry"
-                name="received"
-                value={form.received}
                 date={form.receivedDate}
+                remark={form.receivedRemark}
                 readOnly={readOnly}
                 disabled={!unlocked.received}
-                onChange={(v) => setField('received', v)}
-                onDateChange={(v) => setField('receivedDate', v)}
+                onDateChange={(v) => setStageDate('receivedDate', 'receivedRemark', v)}
+                onRemarkChange={(v) => setField('receivedRemark', v)}
               />
 
               {isMatter && (
-                <YesNoDateField
+                <StageDateField
                   label="Debated in Parliament"
-                  name="debatedInParliament"
-                  value={form.debatedInParliament}
                   date={form.debatedInParliamentDate}
+                  remark={form.debatedInParliamentRemark}
                   readOnly={readOnly}
                   disabled={!unlocked.debated}
-                  onChange={(v) => setField('debatedInParliament', v)}
-                  onDateChange={(v) => setField('debatedInParliamentDate', v)}
+                  onDateChange={(v) =>
+                    setStageDate('debatedInParliamentDate', 'debatedInParliamentRemark', v)
+                  }
+                  onRemarkChange={(v) => setField('debatedInParliamentRemark', v)}
                 />
               )}
 
-              <YesNoDateField
+              <StageDateField
                 label="Comments Sought"
-                name="commentSought"
-                value={form.commentSought}
                 date={form.commentSoughtDate}
+                remark={form.commentSoughtRemark}
                 readOnly={readOnly}
                 disabled={!unlocked.commentSought}
-                onChange={(v) => setField('commentSought', v)}
-                onDateChange={(v) => setField('commentSoughtDate', v)}
+                onDateChange={(v) => setStageDate('commentSoughtDate', 'commentSoughtRemark', v)}
+                onRemarkChange={(v) => setField('commentSoughtRemark', v)}
               />
 
-              {form.commentSought === 'Yes' && (
+              {hasDate(form.commentSoughtDate) && (
                 <div className="space-y-2">
                   <label className={labelClass}>Wings for Comments</label>
                   <div className="flex flex-wrap gap-1.5 p-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl">
@@ -553,15 +384,16 @@ export default function IssueForm({
                 </div>
               )}
 
-              <YesNoDateField
+              <StageDateField
                 label="Comments Received"
-                name="commentsReceived"
-                value={form.commentsReceived}
                 date={form.commentsReceivedDate}
+                remark={form.commentsReceivedRemark}
                 readOnly={readOnly}
                 disabled={!unlocked.commentsReceived}
-                onChange={(v) => setField('commentsReceived', v)}
-                onDateChange={(v) => setField('commentsReceivedDate', v)}
+                onDateChange={(v) =>
+                  setStageDate('commentsReceivedDate', 'commentsReceivedRemark', v)
+                }
+                onRemarkChange={(v) => setField('commentsReceivedRemark', v)}
               />
 
               {selectedCommentWings.length > 0 && (
@@ -570,16 +402,15 @@ export default function IssueForm({
                     Wing-wise Comments Received
                   </p>
                   {commentFields.map((field) => (
-                    <YesNoDateField
+                    <StageDateField
                       key={field.key}
                       label={field.label}
-                      name={field.key}
-                      value={form[field.key]}
-                      date={form[`${field.key}Date`]}
+                      date={form[field.dateKey]}
+                      remark={form[field.remarkKey]}
                       readOnly={readOnly}
                       disabled={!unlocked.commentsReceived}
-                      onChange={(v) => setField(field.key, v)}
-                      onDateChange={(v) => setField(`${field.key}Date`, v)}
+                      onDateChange={(v) => setStageDate(field.dateKey, field.remarkKey, v)}
+                      onRemarkChange={(v) => setField(field.remarkKey, v)}
                     />
                   ))}
                 </div>
@@ -587,66 +418,53 @@ export default function IssueForm({
 
               {isAssurance && (
                 <>
-                  <YesNoDateField
+                  <StageDateField
                     label="Extension of Time Soughted"
-                    name="extensionTimeSought"
-                    value={form.extensionTimeSought}
                     date={form.extensionTimeSoughtDate}
+                    remark={form.extensionTimeSoughtRemark}
                     readOnly={readOnly}
                     disabled={!unlocked.extension}
-                    onChange={(v) => setField('extensionTimeSought', v)}
-                    onDateChange={(v) => setField('extensionTimeSoughtDate', v)}
+                    onDateChange={(v) =>
+                      setStageDate('extensionTimeSoughtDate', 'extensionTimeSoughtRemark', v)
+                    }
+                    onRemarkChange={(v) => setField('extensionTimeSoughtRemark', v)}
                   />
-                  <YesNoDateField
+                  <StageDateField
                     label="Implementation Report Furnished / Request For Dropping"
-                    name="impReportFurnished"
-                    value={form.impReportFurnished}
                     date={form.impReportFurnishedDate}
+                    remark={form.impReportFurnishedRemark}
                     readOnly={readOnly}
                     disabled={!unlocked.implementation}
-                    onChange={(v) => setField('impReportFurnished', v)}
-                    onDateChange={(v) => setField('impReportFurnishedDate', v)}
+                    onDateChange={(v) =>
+                      setStageDate('impReportFurnishedDate', 'impReportFurnishedRemark', v)
+                    }
+                    onRemarkChange={(v) => setField('impReportFurnishedRemark', v)}
                   />
-                  <YesNoDateField
+                  <StageDateField
                     label="Matter Disposed"
-                    name="matterDisposed"
-                    value={form.matterDisposed}
                     date={form.matterDisposedDate}
+                    remark={form.matterDisposedRemark}
                     readOnly={readOnly}
                     disabled={!unlocked.disposed}
-                    onChange={(v) => setField('matterDisposed', v)}
-                    onDateChange={(v) => setField('matterDisposedDate', v)}
+                    onDateChange={(v) =>
+                      setStageDate('matterDisposedDate', 'matterDisposedRemark', v)
+                    }
+                    onRemarkChange={(v) => setField('matterDisposedRemark', v)}
                   />
                 </>
               )}
 
               {(isMatter || isPsc) && (
-                <YesNoDateField
+                <StageDateField
                   label="Reply Send"
-                  name="replySend"
-                  value={form.replySend}
                   date={form.replySendDate}
+                  remark={form.replySendRemark}
                   readOnly={readOnly}
                   disabled={!unlocked.reply}
-                  onChange={(v) => setField('replySend', v)}
-                  onDateChange={(v) => setField('replySendDate', v)}
+                  onDateChange={(v) => setStageDate('replySendDate', 'replySendRemark', v)}
+                  onRemarkChange={(v) => setField('replySendRemark', v)}
                 />
               )}
-
-              <div className="space-y-1.5 pt-2">
-                <label className={labelClass}>Remarks (Max 250 Words)</label>
-                <textarea
-                  rows={4}
-                  className={`${inputClass} resize-y`}
-                  value={form.remarks}
-                  disabled={readOnly}
-                  placeholder="Enter remarks"
-                  onChange={(e) => handleRemarks(e.target.value)}
-                />
-                <p className="text-[10px] text-slate-400 font-semibold">
-                  {countWords(form.remarks)} / 250 words
-                </p>
-              </div>
             </div>
           </>
         )}

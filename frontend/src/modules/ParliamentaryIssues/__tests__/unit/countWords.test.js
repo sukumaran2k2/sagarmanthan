@@ -1,6 +1,3 @@
-/**
- * countWords: counts words in remarks (used by the issue form).
- */
 import { countWords } from '../../utils/stageHelpers';
 
 describe('countWords', () => {

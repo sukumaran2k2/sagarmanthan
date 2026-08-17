@@ -5,6 +5,13 @@ import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+
+function authHeaders() {
+  const token = localStorage.getItem('accessToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
   const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
   const [loading, setLoading] = useState(false);
@@ -30,18 +37,19 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
   }, [activeSubTabProp]);
 
   useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
+    const headers = authHeaders();
+    axios.get(`${API}/mmt-dropdown/mmt_wings`, { headers })
       .then(res => setWings(res.data || []))
       .catch(err => console.error("Error loading wings:", err));
 
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_division")
+    axios.get(`${API}/mmt-dropdown/mmt_division`, { headers })
       .then(res => setDivisions(res.data || []))
       .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
   const fetchData = () => {
     setLoading(true);
-    axios.get("http://localhost:3000/young-professional")
+    axios.get(`${API}/young-professional`, { headers: authHeaders() })
       .then(res => {
         setRowData(res.data || []);
       })

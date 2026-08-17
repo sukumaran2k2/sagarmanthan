@@ -55,8 +55,32 @@ api.interceptors.response.use(
   }
 );
 
-export function fetchParliamentaryIssues() {
-  return api.get('/parliamentary-issue');
+function toIssueListParams(params = {}) {
+  const query = {
+    page: params.page || 1,
+    limit: params.limit || 10,
+    category: params.category || 'active',
+  };
+  if (params.wingId && params.wingId !== 'All') query.wingId = params.wingId;
+  if (params.divisionId && params.divisionId !== 'All') query.divisionId = params.divisionId;
+  if (params.issueType && params.issueType !== 'All') query.issueType = params.issueType;
+  if (
+    query.category === 'active' &&
+    params.status &&
+    params.status !== 'All'
+  ) {
+    query.status = params.status;
+  }
+  const search = String(params.search || '').trim();
+  if (search) query.search = search;
+  return query;
+}
+
+export function fetchParliamentaryIssues(params = {}, config = {}) {
+  return api.get('/parliamentary-issue', {
+    params: toIssueListParams(params),
+    ...config,
+  });
 }
 
 export function fetchParliamentaryIssueById(id) {
