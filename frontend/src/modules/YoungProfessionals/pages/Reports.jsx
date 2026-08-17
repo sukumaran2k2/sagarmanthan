@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
-import { ChevronLeft, Search, Users, Loader2, RefreshCw, X, TrendingUp, Copy, FileSpreadsheet, Building2, Filter, Layers } from 'lucide-react';
+import { ChevronLeft, Search, Loader2, RefreshCw, X, TrendingUp, Copy, FileSpreadsheet, Building2 } from 'lucide-react';
 import api, { API_BASE } from '../api';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
@@ -11,35 +11,9 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 const initials = n => n ? n.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() : '';
 
-export default function Reports({ wings = [], divisions = [], triggerNotification }) {
+export default function Reports({ triggerNotification }) {
   const gridRef = useRef(null);
-  const [localWings, setLocalWings] = useState(wings);
-  const [localDivisions, setLocalDivisions] = useState(divisions);
-  const [selectedWingId, setSelectedWingId] = useState('');
-  const [selectedDivisionId, setSelectedDivisionId] = useState('');
-
-  useEffect(() => {
-    if (wings && wings.length > 0) {
-      setLocalWings(wings);
-    } else {
-      api.get("/mmt-dropdown/mmt_wings")
-        .then(res => setLocalWings(res.data || []))
-        .catch(err => console.error("Error loading wings in report:", err));
-    }
-
-    if (divisions && divisions.length > 0) {
-      setLocalDivisions(divisions);
-    } else {
-      api.get("/mmt-dropdown/mmt_division")
-        .then(res => setLocalDivisions(res.data || []))
-        .catch(err => console.error("Error loading divisions in report:", err));
-    }
-  }, [wings, divisions]);
-
-  const filteredDivisions = useMemo(() => {
-    if (!selectedWingId) return localDivisions;
-    return localDivisions.filter(d => String(d.wing_id) === String(selectedWingId));
-  }, [localDivisions, selectedWingId]);
+  const [reportView, setReportView] = useState('all');
 
   const [drillDownPath, setDrillDownPath] = useState([
     { type: 'summary', title: 'Report No. 2.2A - Abstract ( Wing & Division Wise ) - Young Professionals' }
@@ -53,88 +27,17 @@ export default function Reports({ wings = [], divisions = [], triggerNotificatio
 
   const handleBack = () => {
     if (drillDownPath.length > 1) {
-      const nextPath = drillDownPath.slice(0, -1);
-      setDrillDownPath(nextPath);
-      const prevView = nextPath[nextPath.length - 1];
-      if (prevView.type === 'summary') {
-        setSelectedWingId('');
-        setSelectedDivisionId('');
-      } else if (prevView.type === 'wing_drilldown') {
-        setSelectedWingId(String(prevView.wingId));
-        setSelectedDivisionId('');
-      } else if (prevView.type === 'drilldown') {
-        setSelectedDivisionId(String(prevView.divisionId));
-      }
-    }
-  };
-
-  const handleWingFilterChange = (wingId) => {
-    setSelectedWingId(wingId);
-    setSelectedDivisionId('');
-    if (!wingId) {
-      setDrillDownPath([
-        { type: 'summary', title: 'Report No. 2.2A - Abstract ( Wing & Division Wise ) - Young Professionals' }
-      ]);
-    } else {
-      const wingObj = localWings.find(w => String(w.wing_id || w.id) === String(wingId));
-      const wingName = wingObj?.wing_name || wingObj?.name || 'Selected Wing';
-      setDrillDownPath([
-        { type: 'summary', title: 'Report No. 2.2A - Abstract ( Wing & Division Wise ) - Young Professionals' },
-        { type: 'wing_drilldown', wingId, wingName, title: `Candidates List - Wing: ${wingName}` }
-      ]);
-    }
-  };
-
-  const handleDivisionFilterChange = (divisionId) => {
-    setSelectedDivisionId(divisionId);
-    if (!divisionId) {
-      if (selectedWingId) {
-        const wingObj = localWings.find(w => String(w.wing_id || w.id) === String(selectedWingId));
-        const wingName = wingObj?.wing_name || wingObj?.name || 'Selected Wing';
-        setDrillDownPath([
-          { type: 'summary', title: 'Report No. 2.2A - Abstract ( Wing & Division Wise ) - Young Professionals' },
-          { type: 'wing_drilldown', wingId: selectedWingId, wingName, title: `Candidates List - Wing: ${wingName}` }
-        ]);
-      } else {
-        setDrillDownPath([
-          { type: 'summary', title: 'Report No. 2.2A - Abstract ( Wing & Division Wise ) - Young Professionals' }
-        ]);
-      }
-    } else {
-      const divObj = localDivisions.find(d => String(d.division_id || d.id) === String(divisionId));
-      const divisionName = divObj?.division_name || divObj?.name || 'Selected Division';
-      
-      const newPath = [
-        { type: 'summary', title: 'Report No. 2.2A - Abstract ( Wing & Division Wise ) - Young Professionals' }
-      ];
-      if (selectedWingId) {
-        const wingObj = localWings.find(w => String(w.wing_id || w.id) === String(selectedWingId));
-        newPath.push({
-          type: 'wing_drilldown',
-          wingId: selectedWingId,
-          wingName: wingObj?.wing_name || wingObj?.name || 'Selected Wing',
-          title: `Candidates List - Wing: ${wingObj?.wing_name || wingObj?.name || 'Selected Wing'}`
-        });
-      }
-      newPath.push({
-        type: 'drilldown',
-        divisionId,
-        title: `Candidates List - Division: ${divisionName}`
-      });
-      setDrillDownPath(newPath);
+      setDrillDownPath(drillDownPath.slice(0, -1));
     }
   };
 
   /* ── Data Fetching ─────────────────────────────────────────── */
   const fetchReportData = useCallback(async () => {
-    setLoading(true);
+    Promise.resolve().then(() => setLoading(true));
     try {
       if (currentView.type === 'summary') {
         const response = await api.get("/yp-report");
-        let list = response.data.rowData || [];
-        if (selectedWingId) {
-          list = list.filter(item => String(item["Wing ID"] || item.wing_id) === String(selectedWingId));
-        }
+        const list = response.data.rowData || [];
         setData(list.map((item, idx) => ({ ...item, 'S No': idx + 1 })));
       } else if (currentView.type === 'wing_drilldown') {
         const response = await api.get(`/wingwise-ypcandidate/0/${currentView.wingId}`);
@@ -144,6 +47,25 @@ export default function Reports({ wings = [], divisions = [], triggerNotificatio
         const response = await api.get(`/divisionwise-ypcandidate/0/${currentView.divisionId}`);
         const list = response.data.rowData || [];
         setData(list.map((item, idx) => ({ ...item, 'S No': idx + 1 })));
+      } else if (currentView.type === 'all_drilldown') {
+        const response = await api.get('/young-professional');
+        const list = (response.data || []).filter(item => Number(item.is_active) === 1);
+        setData(list.map((item, idx) => ({
+          'S No': idx + 1,
+          'Wing Name': item.wing,
+          'Division Name': item.division,
+          'Name': item.name,
+          'Qualification': item.qualification,
+          'Role': item.role,
+          'Salary (per month)': item.salary,
+          'Experience (Years)': item.total_experience,
+          'Skills': item.skills,
+          'Appointment Date': item.appointment_date,
+          'Document': item.appointment_document,
+          'Created At': item.created_date,
+          'Created By': item.created_by,
+          'Last Updated At': item.last_updated_date
+        })));
       }
     } catch (err) {
       console.error(err);
@@ -151,7 +73,7 @@ export default function Reports({ wings = [], divisions = [], triggerNotificatio
     } finally {
       setLoading(false);
     }
-  }, [currentView, selectedWingId]);
+  }, [currentView]);
 
   useEffect(() => {
     fetchReportData();
@@ -233,97 +155,113 @@ export default function Reports({ wings = [], divisions = [], triggerNotificatio
     }
   };
 
-  const summaryColumns = useMemo(() => [
-    {
-      field: 'S No',
-      headerName: 'S.No',
-      pinned: 'left',
-      width: 60,
-      suppressMovable: true,
-      cellRenderer: (p) => (
-        <span style={{ fontWeight: 800, fontSize: 11, fontFamily: 'monospace' }} className="text-slate-800 dark:text-white">
-          {p.value}
-        </span>
-      )
-    },
-    {
-      field: 'Wing',
-      headerName: 'Wing',
-      flex: 1.5,
-      minWidth: 200,
-      cellRenderer: (p) => {
-        if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
-        const wingId = p.data ? (p.data["Wing ID"] || p.data["wing_id"]) : null;
-        return (
-          <button
-            onClick={() => {
-              if (wingId) {
-                handleWingFilterChange(String(wingId));
-              }
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              textAlign: 'left'
-            }}
-            className="font-bold text-xs text-[#0f417a] dark:text-blue-400 hover:opacity-75 transition"
-          >
+  const summaryColumns = useMemo(() => {
+    const cols = [
+      {
+        field: 'S No',
+        headerName: 'S.No',
+        pinned: 'left',
+        width: 60,
+        suppressMovable: true,
+        cellRenderer: (p) => (
+          <span style={{ fontWeight: 800, fontSize: 11, fontFamily: 'monospace' }} className="text-slate-800 dark:text-white">
             {p.value}
-          </button>
-        );
+          </span>
+        )
       }
-    },
-    {
-      field: 'Division',
-      headerName: 'Division',
-      flex: 1.5,
-      minWidth: 200,
-      cellRenderer: (p) => {
-        if (!p.value) return <span style={{ color: '#657386' }}>—</span>;
-        const divisionId = p.data ? (p.data["Division ID"] || p.data["division_id"]) : null;
-        return (
-          <button
-            onClick={() => {
-              if (divisionId) {
-                handleDivisionFilterChange(String(divisionId));
-              }
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              textAlign: 'left'
-            }}
-            className="font-bold text-xs text-[#0f417a] dark:text-blue-400 hover:opacity-75 transition"
-          >
-            {p.value}
-          </button>
-        );
-      }
-    },
-    {
+    ];
+
+    if (reportView === 'wing' || reportView === 'all') {
+      cols.push({
+        field: 'Wing',
+        headerName: 'Wing',
+        flex: 1.5,
+        minWidth: 200,
+        cellRenderer: (p) => {
+          if (p.data && p.data.isTotalRow) {
+            return <span style={{ fontWeight: 850 }} className="text-slate-900 dark:text-white">Total</span>;
+          }
+          return <span style={{ fontWeight: 600 }} className="text-slate-800 dark:text-slate-200">{p.value || '—'}</span>;
+        }
+      });
+    }
+
+    if (reportView === 'division' || reportView === 'all') {
+      cols.push({
+        field: 'Division',
+        headerName: 'Division',
+        flex: 1.5,
+        minWidth: 200,
+        cellRenderer: (p) => {
+          if (p.data && p.data.isTotalRow) {
+            return <span style={{ fontWeight: 850 }} className="text-slate-900 dark:text-white">Total</span>;
+          }
+          return <span style={{ fontWeight: 600 }} className="text-slate-800 dark:text-slate-200">{p.value || '—'}</span>;
+        }
+      });
+    }
+
+    cols.push({
       field: 'In Position',
       headerName: 'In Post',
       width: 150,
       cellRenderer: (p) => {
         const val = p.value;
-        const divisionId = p.data["Division ID"];
-        const divisionName = p.data["Division"];
-        const wingName = p.data["Wing"];
-        if (val > 0) {
+        if (p.data && p.data.isTotalRow) {
           return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
               <button
                 onClick={() => {
                   setDrillDownPath(prev => [
                     ...prev,
-                    { type: 'drilldown', divisionId, title: `Candidates List - Wing: ${wingName} | Division: ${divisionName}` }
+                    { type: 'all_drilldown', title: 'Young Professional List - All Active Young Professionals' }
                   ]);
+                }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center',
+                  padding: 0,
+                  background: 'none',
+                  fontWeight: 850, fontSize: 13,
+                  textDecoration: 'underline',
+                  border: 'none', cursor: 'pointer',
+                  transition: 'opacity 0.15s ease'
+                }}
+                className="text-[#8c4242] dark:text-blue-400 font-extrabold"
+              >
+                {val} Total Active
+              </button>
+            </div>
+          );
+        }
+
+        if (val > 0) {
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+              <button
+                onClick={() => {
+                  if (reportView === 'wing') {
+                    const wingId = p.data["Wing ID"] || p.data["wing_id"];
+                    const wingName = p.data["Wing"];
+                    setDrillDownPath(prev => [
+                      ...prev,
+                      { type: 'wing_drilldown', wingId, wingName, title: `Young Professional List - Wing: ${wingName}` }
+                    ]);
+                  } else if (reportView === 'division') {
+                    const divisionId = p.data["Division ID"] || p.data["division_id"];
+                    const divisionName = p.data["Division"];
+                    setDrillDownPath(prev => [
+                      ...prev,
+                      { type: 'drilldown', divisionId, title: `Young Professional List - Division: ${divisionName}` }
+                    ]);
+                  } else {
+                    const divisionId = p.data["Division ID"] || p.data["division_id"];
+                    const divisionName = p.data["Division"];
+                    const wingName = p.data["Wing"];
+                    setDrillDownPath(prev => [
+                      ...prev,
+                      { type: 'drilldown', divisionId, title: `Young Professional List - Wing: ${wingName} | Division: ${divisionName}` }
+                    ]);
+                  }
                 }}
                 style={{
                   display: 'inline-flex', alignItems: 'center',
@@ -335,8 +273,6 @@ export default function Reports({ wings = [], divisions = [], triggerNotificatio
                   transition: 'opacity 0.15s ease'
                 }}
                 className="text-[#4b2424] dark:text-blue-400"
-                onMouseEnter={e => { e.currentTarget.style.opacity = '0.7'; }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
               >
                 {val} Active
               </button>
@@ -345,8 +281,10 @@ export default function Reports({ wings = [], divisions = [], triggerNotificatio
         }
         return <span style={{ color: '#657386', fontWeight: 600, display: 'block', textAlign: 'center' }}>—</span>;
       }
-    }
-  ], []);
+    });
+
+    return cols;
+  }, [reportView]);
 
   /* ── Drilldown Columns ────────────────────────────────────── */
   const drilldownColumns = useMemo(() => [
@@ -510,6 +448,66 @@ export default function Reports({ wings = [], divisions = [], triggerNotificatio
 
   const columns = currentView.type === 'summary' ? summaryColumns : drilldownColumns;
 
+  const aggregatedData = useMemo(() => {
+    if (currentView.type !== 'summary') return data;
+
+    if (reportView === 'wing') {
+      const wingMap = {};
+      data.forEach(item => {
+        const wingId = item['Wing ID'] || item.wing_id;
+        const wingName = item['Wing'] || item.wing;
+        const inPost = Number(item['In Position'] || item.in_position || 0);
+        if (wingId) {
+          if (!wingMap[wingId]) {
+            wingMap[wingId] = {
+              'Wing ID': wingId,
+              'Wing': wingName,
+              'In Position': 0
+            };
+          }
+          wingMap[wingId]['In Position'] += inPost;
+        }
+      });
+      return Object.values(wingMap).map((item, idx) => ({ ...item, 'S No': idx + 1 }));
+    }
+
+    if (reportView === 'division') {
+      const divisionMap = {};
+      data.forEach(item => {
+        const divId = item['Division ID'] || item.division_id;
+        const divName = item['Division'] || item.division;
+        const inPost = Number(item['In Position'] || item.in_position || 0);
+        if (divId) {
+          if (!divisionMap[divId]) {
+            divisionMap[divId] = {
+              'Division ID': divId,
+              'Division': divName,
+              'In Position': 0
+            };
+          }
+          divisionMap[divId]['In Position'] += inPost;
+        }
+      });
+      return Object.values(divisionMap).map((item, idx) => ({ ...item, 'S No': idx + 1 }));
+    }
+
+    return data;
+  }, [data, reportView, currentView.type]);
+
+  const pinnedBottomRowData = useMemo(() => {
+    if (currentView.type !== 'summary') return undefined;
+    const total = aggregatedData.reduce((sum, item) => sum + Number(item['In Position'] || 0), 0);
+    return [
+      {
+        'S No': '',
+        'Wing': 'Total',
+        'Division': 'Total',
+        'In Position': total,
+        isTotalRow: true
+      }
+    ];
+  }, [aggregatedData, currentView.type]);
+
   const defaultColDef = useMemo(() => ({
     sortable: true,
     filter: true,
@@ -575,69 +573,26 @@ export default function Reports({ wings = [], divisions = [], triggerNotificatio
               )}
             </div>
 
-            {/* Distinctive Wing Report View Selector */}
-            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border-2 border-indigo-400/60 dark:border-indigo-500/60 text-xs shadow-sm">
-              <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold shrink-0">
-                <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-800 dark:text-indigo-300 whitespace-nowrap">
-                  Wing View:
-                </span>
-              </div>
-              <select
-                value={selectedWingId}
-                onChange={(e) => handleWingFilterChange(e.target.value)}
-                className="bg-transparent border-none text-xs font-extrabold text-indigo-950 dark:text-indigo-100 outline-none cursor-pointer pr-1 max-w-[170px] truncate"
-              >
-                <option value="" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">All Wings (Abstract View)</option>
-                {localWings.map(w => (
-                  <option key={w.wing_id || w.id} value={w.wing_id || w.id} className="dark:bg-slate-900 dark:text-slate-200 font-semibold">
-                    {w.wing_name || w.name} 
-                  </option>
-                ))}
-              </select>
-              {selectedWingId && (
-                <button
-                  type="button"
-                  onClick={() => handleWingFilterChange('')}
-                  title="Reset to All Wings"
-                  className="p-1 hover:bg-indigo-200/60 dark:hover:bg-indigo-900/60 rounded-md text-indigo-700 dark:text-indigo-300 transition shrink-0"
+            {/* Report View Selector */}
+            {currentView.type === 'summary' && (
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border-2 border-indigo-400/60 dark:border-indigo-500/60 text-xs shadow-sm">
+                <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold shrink-0">
+                  <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-800 dark:text-indigo-300 whitespace-nowrap">
+                    Report View:
+                  </span>
+                </div>
+                <select
+                  value={reportView}
+                  onChange={(e) => setReportView(e.target.value)}
+                  className="bg-transparent border-none text-xs font-extrabold text-indigo-950 dark:text-indigo-100 outline-none cursor-pointer pr-1 max-w-[200px]"
                 >
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-
-            {/* Distinctive Division Report View Selector */}
-            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-50/90 via-teal-50/80 to-emerald-50/90 dark:from-slate-900 dark:via-teal-950/40 dark:to-slate-900 border-2 border-teal-400/60 dark:border-teal-500/60 text-xs shadow-md shadow-teal-500/5 transition-all">
-              <div className="flex items-center gap-1.5 text-teal-700 dark:text-teal-300 font-bold shrink-0">
-                <Layers className="h-4 w-4 text-teal-600 dark:text-teal-400 shrink-0" />
-                <span className="text-[10px] uppercase tracking-wider font-extrabold text-teal-800 dark:text-teal-300 whitespace-nowrap">
-                  Division View:
-                </span>
+                  <option value="wing" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">Wing</option>
+                  <option value="division" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">Division</option>
+                  <option value="all" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">Wing and Division</option>
+                </select>
               </div>
-              <select
-                value={selectedDivisionId}
-                onChange={(e) => handleDivisionFilterChange(e.target.value)}
-                className="bg-transparent border-none text-xs font-extrabold text-teal-950 dark:text-teal-100 outline-none cursor-pointer pr-1 max-w-[170px] truncate"
-              >
-                <option value="" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">All Divisions</option>
-                {filteredDivisions.map(d => (
-                  <option key={d.division_id || d.id} value={d.division_id || d.id} className="dark:bg-slate-900 dark:text-slate-200 font-semibold">
-                    {d.division_name || d.name}
-                  </option>
-                ))}
-              </select>
-              {selectedDivisionId && (
-                <button
-                  type="button"
-                  onClick={() => handleDivisionFilterChange('')}
-                  title="Reset to All Divisions"
-                  className="p-1 hover:bg-teal-200/60 dark:hover:bg-teal-900/60 rounded-md text-teal-700 dark:text-teal-300 transition shrink-0"
-                >
-                  <X size={13} />
-                </button>
-              )}
-            </div>
+            )}
           </div>
 
           {/* Action buttons group (Right-aligned within toolbar) */}
@@ -689,7 +644,7 @@ export default function Reports({ wings = [], divisions = [], triggerNotificatio
           <Table
              ref={gridRef}
              theme="legacy"
-             rowData={data}
+             rowData={aggregatedData}
              columnDefs={columns}
              defaultColDef={defaultColDef}
              pagination={true}
@@ -705,6 +660,7 @@ export default function Reports({ wings = [], divisions = [], triggerNotificatio
                skipHeader: false,
                scaleUpToFitGridWidth: true
              }}
+             pinnedBottomRowData={pinnedBottomRowData}
              enableExport={false}
              color="#4b2424"
           />
