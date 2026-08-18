@@ -681,6 +681,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                               })
                                             );
                                           }
+                                          if (
+                                            sub.targetSubTab &&
+                                            mainTab === 'Bills/PreConstitutions Act'
+                                          ) {
+                                            sessionStorage.setItem(
+                                              'billsPreConstitutionsInitTab',
+                                              sub.targetSubTab
+                                            );
+                                            window.dispatchEvent(
+                                              new CustomEvent('bills-preconstitutions-subtab', {
+                                                detail: sub.targetSubTab,
+                                              })
+                                            );
+                                          }
                                         }}
                                         className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all py-1.5 px-2.5 rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-slate-700 cursor-pointer"
                                       >
@@ -956,6 +970,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                                 );
                                                 window.dispatchEvent(
                                                   new CustomEvent('parliamentary-issue-subtab', {
+                                                    detail: sub.targetSubTab,
+                                                  })
+                                                );
+                                              }
+                                              if (
+                                                sub.targetSubTab &&
+                                                mainTab === 'Bills/PreConstitutions Act'
+                                              ) {
+                                                sessionStorage.setItem(
+                                                  'billsPreConstitutionsInitTab',
+                                                  sub.targetSubTab
+                                                );
+                                                window.dispatchEvent(
+                                                  new CustomEvent('bills-preconstitutions-subtab', {
                                                     detail: sub.targetSubTab,
                                                   })
                                                 );

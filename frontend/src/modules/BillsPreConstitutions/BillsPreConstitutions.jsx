@@ -23,15 +23,40 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
   if (canView) tabs.push({ id: 'list', label: 'Data List' });
   if (canView) tabs.push({ id: 'report', label: 'Reports' });
 
+  const INIT_TAB_KEY = 'billsPreConstitutionsInitTab';
+  const resolveSubTabId = (label) => {
+    if (label === 'Input Form') return canAdd ? 'add' : 'list';
+    if (label === 'Reports' || label === 'Report') return 'report';
+    if (label === 'Data List') return 'list';
+    return null;
+  };
+
+  // Menu flyout -> Data List / Input Form / Reports (mirrors ParliamentaryIssues pattern)
   useEffect(() => {
-    if (activeSubTabProp === 'Input Form') {
-      setActiveSubTab('add');
-    } else if (activeSubTabProp === 'Reports' || activeSubTabProp === 'Report') {
-      setActiveSubTab('report');
-    } else if (activeSubTabProp === 'Data List') {
-      setActiveSubTab('list');
+    const apply = (label) => {
+      const next = resolveSubTabId(label);
+      if (next) {
+        if (next !== 'add') setEditData(null);
+        setActiveSubTab(next);
+      }
+    };
+
+    const init = sessionStorage.getItem(INIT_TAB_KEY);
+    if (init) {
+      sessionStorage.removeItem(INIT_TAB_KEY);
+      apply(init);
     }
-  }, [activeSubTabProp]);
+
+    const onMenu = (e) => apply(e.detail);
+    window.addEventListener('bills-preconstitutions-subtab', onMenu);
+    return () => window.removeEventListener('bills-preconstitutions-subtab', onMenu);
+  }, [canAdd]);
+
+  // Keep in sync if parent passes a sub-tab label directly
+  useEffect(() => {
+    const next = resolveSubTabId(activeSubTabProp);
+    if (next) setActiveSubTab(next);
+  }, [activeSubTabProp, canAdd]);
 
   useEffect(() => {
     fetchWings()
