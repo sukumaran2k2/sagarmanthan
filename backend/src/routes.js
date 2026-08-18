@@ -1011,6 +1011,7 @@ router.post("/add-consultant-id", auth, requireModulePermission("CONSULTANT_APPO
 
 //delete consultant appoinment and candidate details
 router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "DELETE"), consultantAppointmentTab.deleteCACandidateData);
+router.delete("/ca-candidate-single/:candidate_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "DELETE"), consultantAppointmentTab.deleteCACandidateSingle);
 
 //HR
 router.post("/hr-department", hrDepartmentTab.createHrDepartment);

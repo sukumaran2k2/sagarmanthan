@@ -121,4 +121,8 @@ export function addConsultantID(payload) {
   return api.post('/add-consultant-id', payload);
 }
 
+export function deleteCandidateDetail(candidateId, userId) {
+  return api.delete(`/ca-candidate-single/${candidateId}/${userId}`);
+}
+
 export default api;

@@ -1,5 +1,6 @@
 import { pool } from "../../db.js";
 import fs from 'fs';
+import path from 'path';
 import sql from 'mssql';
 
 function toBit(value) {
@@ -704,6 +705,88 @@ async function deleteCACandidateData(req, res)
     }
 }
 
+async function deleteCACandidateSingle(req, res) {
+    try {
+        const candidateID = req.params.candidate_id;
+        const userID = req.params.userID || 1;
+
+        const now = new Date();
+        const datePart = now.toISOString().slice(0, 10).replace(/-/g, ''); 
+        const hourPart = String(now.getHours()).padStart(2, '0'); 
+        const minutePart = String(now.getMinutes()).padStart(2, '0'); 
+        const secondPart = String(now.getSeconds()).padStart(2, '0'); 
+        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+        const logFolder = `./delete_log/Consultant_Appointment`;
+        const logFileName = `${logFolder}/deleted_candidate_single_log_${timestamp}.txt`;
+
+        if (!fs.existsSync(logFolder)) {
+            fs.mkdirSync(logFolder, { recursive: true });
+        }
+
+        const conn = await pool;
+        const request = conn.request();
+        request.input('candidateID', candidateID);
+
+        // 1. Fetch Candidate details for logging
+        const candResult = await request.query(`SELECT * FROM tbl_ca_candidate WHERE candidate_id = @candidateID`);
+        const candData = candResult.recordset[0];
+        if (!candData) {
+            return res.status(404).json({ message: "Candidate not found." });
+        }
+
+        // 2. Fetch and delete candidate document
+        const docResult = await request.query(`SELECT * FROM tbl_ca_candidate_document WHERE candidate_id = @candidateID`);
+        for (const doc of docResult.recordset) {
+            const fileName = doc.appointment_order_document;
+            if (fileName) {
+                const filePath = path.resolve('./fileuploads/Consultant_Appointment', fileName);
+                if (fs.existsSync(filePath)) {
+                    try {
+                        fs.unlinkSync(filePath);
+                    } catch (e) {
+                        console.error('Error removing document file:', e);
+                    }
+                }
+            }
+        }
+        await request.query(`DELETE FROM tbl_ca_candidate_document WHERE candidate_id = @candidateID`);
+
+        // 3. Delete from tbl_ca_candidate
+        await request.query(`DELETE FROM tbl_ca_candidate WHERE candidate_id = @candidateID`);
+
+        // 4. Clean up candidate_id in tbl_consultant_appointment if present
+        const caList = await conn.request().query(`
+            SELECT consultant_appointment_id, candidate_id 
+            FROM tbl_consultant_appointment 
+            WHERE candidate_id LIKE '%${candidateID}%'
+        `);
+        for (const ca of caList.recordset) {
+            const ids = (ca.candidate_id || '')
+                .split(',')
+                .map(s => s.trim())
+                .filter(id => id && id !== String(candidateID));
+            const newIdStr = ids.join(',');
+            const req2 = conn.request();
+            req2.input('newIdStr', newIdStr);
+            req2.input('caId', ca.consultant_appointment_id);
+            await req2.query(`
+                UPDATE tbl_consultant_appointment 
+                SET candidate_id = @newIdStr 
+                WHERE consultant_appointment_id = @caId
+            `);
+        }
+
+        // 5. Log deletion
+        const logMsg = `Deleted candidate ${candidateID} (${JSON.stringify(candData)}) by user ${userID} at ${new Date().toISOString()}\n`;
+        fs.appendFile(logFileName, logMsg, () => {});
+
+        return res.status(200).json({ message: "Candidate deleted successfully." });
+    } catch (err) {
+        console.error("Error deleting single candidate:", err);
+        return res.status(500).json({ message: err.message || "Failed to delete candidate." });
+    }
+}
+
 export default { getConsultantAppointment, createConsultantAppointment, addCandidateDetail, updateCandidateDetail, getCandidatesByConsultantAppointmentId, updateConsultantAppointment, 
     getCandidateDetail, getCandidateDetailDocument, createConsultantAppointmentStage, getUpdateConsultantAppointmentData, 
-    getCandidateID, addConsultantID, deleteCACandidateData };
+    getCandidateID, addConsultantID, deleteCACandidateData, deleteCACandidateSingle };

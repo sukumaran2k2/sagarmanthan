@@ -335,6 +335,9 @@ export default function DataList({
         appointment={drilldownAppointment}
         onBack={() => setDrilldownAppointment(null)}
         triggerNotification={triggerNotification}
+        canEdit={canEdit}
+        canAdd={canAdd}
+        canRemove={canRemove}
       />
     );
   }

@@ -14,7 +14,8 @@ import {
   RefreshCw,
   File,
   CheckCircle,
-  ChevronDown
+  ChevronDown,
+  Trash2
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import CopyButton from '../../../components/CopyButton';
@@ -23,15 +24,20 @@ import {
   fetchCandidatesByConsultantAppointmentId,
   addCandidateDetail,
   updateCandidateDetail,
+  deleteCandidateDetail,
   uploadCandidateDocument,
   addConsultantID,
   API_BASE
 } from '../api';
+import { getCurrentUserId } from '../../../utils/authSession';
 
 export default function CandidateDrilldownView({
   appointment,
   onBack,
-  triggerNotification
+  triggerNotification,
+  canEdit = true,
+  canAdd = true,
+  canRemove = true
 }) {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -274,6 +280,26 @@ export default function CandidateDrilldownView({
     } finally {
       setUploadingForCandidateId(null);
       e.target.value = '';
+    }
+  };
+
+  const handleDeleteCandidate = async (candidate) => {
+    if (!candidate || !candidate.candidate_id) return;
+    if (!window.confirm(`Are you sure you want to delete candidate "${candidate.name || 'Candidate'}"? This will also remove their uploaded appointment order.`)) {
+      return;
+    }
+    const userId = getCurrentUserId() || 1;
+    try {
+      await deleteCandidateDetail(candidate.candidate_id, userId);
+      if (triggerNotification) {
+        triggerNotification(`Candidate ${candidate.name || ''} deleted successfully.`, 'success');
+      }
+      await loadCandidates();
+    } catch (err) {
+      console.error('Error deleting candidate:', err);
+      if (triggerNotification) {
+        triggerNotification('Failed to delete candidate.', 'error');
+      }
     }
   };
 
@@ -522,57 +548,80 @@ export default function CandidateDrilldownView({
                     <span>Download</span>
                   </button>
 
+                  {canEdit && (
+                    <button
+                      type="button"
+                      disabled={isUploading}
+                      onClick={() => fileInputRefs.current[row.candidate_id]?.click()}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-bold text-xs rounded-lg border border-slate-200 dark:border-slate-700 transition cursor-pointer disabled:opacity-50"
+                      title="Replace Appointment Order PDF"
+                    >
+                      {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                      <span>Replace</span>
+                    </button>
+                  )}
+                </>
+              ) : (
+                (canEdit || canAdd) ? (
                   <button
                     type="button"
                     disabled={isUploading}
                     onClick={() => fileInputRefs.current[row.candidate_id]?.click()}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-bold text-xs rounded-lg border border-slate-200 dark:border-slate-700 transition cursor-pointer disabled:opacity-50"
-                    title="Replace Appointment Order PDF"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#0f417a] hover:bg-blue-800 text-white font-bold text-xs rounded-lg shadow-xs transition cursor-pointer disabled:opacity-50"
                   >
                     {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                    <span>Replace</span>
+                    <span>Upload PDF</span>
                   </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  disabled={isUploading}
-                  onClick={() => fileInputRefs.current[row.candidate_id]?.click()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#0f417a] hover:bg-blue-800 text-white font-bold text-xs rounded-lg shadow-xs transition cursor-pointer disabled:opacity-50"
-                >
-                  {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                  <span>Upload PDF</span>
-                </button>
+                ) : (
+                  <span className="text-slate-400 text-xs italic">No document</span>
+                )
               )}
             </div>
           );
         },
         hide: !visibleCols.appointment_order_document
-      },
-      {
+      }
+    ];
+
+    if (canEdit || canRemove) {
+      cols.push({
         headerName: 'Action',
-        minWidth: 90,
-        maxWidth: 100,
+        minWidth: 110,
+        maxWidth: 120,
         headerClass: 'text-center',
         cellRenderer: (params) => {
           const row = params.data;
           const idx = params.node ? params.node.rowIndex : 0;
           return (
-            <div className="flex items-center justify-center w-full h-full py-1">
-              <button
-                type="button"
-                onClick={() => handleOpenEditCandidate(row, idx)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
-                title="Edit Candidate Details"
-              >
-                <Edit2 className="h-4 w-4" />
-              </button>
+            <div className="flex items-center justify-center gap-1.5 w-full h-full py-1">
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenEditCandidate(row, idx)}
+                  className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                  title="Edit Candidate Details"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </button>
+              )}
+              {canRemove && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCandidate(row)}
+                  className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg text-red-600 dark:text-red-400 transition cursor-pointer"
+                  title="Delete Candidate"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           );
         }
-      }
-    ];
-  }, [visibleCols, uploadingForCandidateId]);
+      });
+    }
+
+    return cols;
+  }, [visibleCols, uploadingForCandidateId, candidates, canEdit, canRemove, canAdd]);
 
   // ==========================================
   // RENDER 1: IN-PLACE CANDIDATE EDIT FORM (NO MODAL / NO OVERLAY)
@@ -856,7 +905,7 @@ export default function CandidateDrilldownView({
             </div>
           </div>
 
-          {candidates.length < totalRequiredResources && (
+          {canAdd && candidates.length < totalRequiredResources && (
             <button
               type="button"
               onClick={() => handleOpenEditCandidate(null, candidates.length)}
