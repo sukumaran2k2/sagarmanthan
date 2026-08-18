@@ -66,6 +66,7 @@ export function mapIssueToForm(row) {
     parliamentarySubject: row.subject || '',
     fileNumber: row.file_number || '',
     issueType: canonicalizeIssueType(row.parliamentary_issue_type) || row.parliamentary_issue_type || '',
+    remarks: row.remarks || '',
     assuranceNumber: row.assurance_number || '',
     parliamentHouse: row.parliament_house || '',
     nameOfMP: row.name_of_mp || '',

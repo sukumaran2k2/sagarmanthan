@@ -137,7 +137,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
   const [stages, setStages] = useState([]);
   const [reportTabs, setReportTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
-  const [reportView, setReportView] = useState('all');
+  const [reportView, setReportView] = useState('wing');
   const [drillDownPath, setDrillDownPath] = useState([]);
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState([]);

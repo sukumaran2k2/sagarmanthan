@@ -55,13 +55,13 @@ function nvarcharType(length) {
 }
 
 function bindListFilters(request, query, { includeStatus = false } = {}) {
-  let sql = "";
+  let filterSql = "";
 
   if (!isAllParam(query.wingId)) {
     const wingId = Number.parseInt(query.wingId, 10);
     if (Number.isFinite(wingId)) {
       request.input("wingId", sql.Int, wingId);
-      sql += " AND tpi.wing = @wingId";
+      filterSql += " AND tpi.wing = @wingId";
     }
   }
 
@@ -69,19 +69,19 @@ function bindListFilters(request, query, { includeStatus = false } = {}) {
     const divisionId = Number.parseInt(query.divisionId, 10);
     if (Number.isFinite(divisionId)) {
       request.input("divisionId", sql.Int, divisionId);
-      sql += " AND tpi.division = @divisionId";
+      filterSql += " AND tpi.division = @divisionId";
     }
   }
 
   if (!isAllParam(query.issueType)) {
     request.input("issueType", nvarcharType(200), String(query.issueType).trim());
-    sql += " AND tpi.parliamentary_issue_type = @issueType";
+    filterSql += " AND tpi.parliamentary_issue_type = @issueType";
   }
 
   const search = String(query.search || "").trim();
   if (search) {
     request.input("search", nvarcharType(300), `%${escapeLike(search)}%`);
-    sql += ` AND (
+    filterSql += ` AND (
       tpi.subject LIKE @search
       OR tpi.remarks LIKE @search
       OR tpi.received_at_ministry_remarks LIKE @search
@@ -98,10 +98,10 @@ function bindListFilters(request, query, { includeStatus = false } = {}) {
 
   if (includeStatus && !isAllParam(query.status)) {
     request.input("status", nvarcharType(200), String(query.status).trim());
-    sql += " AND mps.parlia_stage_name = @status";
+    filterSql += " AND mps.parlia_stage_name = @status";
   }
 
-  return sql;
+  return filterSql;
 }
 
 function bindIssueFields(request, body) {
@@ -110,6 +110,7 @@ function bindIssueFields(request, body) {
   request.input("parliamentarySubject", body.parliamentarySubject);
   request.input("fileNumber", body.fileNumber);
   request.input("issueType", body.issueType);
+  request.input("remarks", emptyToNull(body.remarks));
   request.input("assuranceNumber", body.assuranceNumber);
   request.input("parliamentHouse", body.parliamentHouse);
   request.input("nameOfMP", body.nameOfMP);
@@ -291,7 +292,7 @@ async function createParliamentaryIssue(req, res) {
   try {
     const result = await request.query(`
       INSERT INTO tbl_parliamentary_issue (
-        wing, division, subject, file_number, parliamentary_issue_type, assurance_number,
+        wing, division, subject, file_number, parliamentary_issue_type, remarks, assurance_number,
         parliament_house, name_of_mp, extension_sought_date, received_at_ministry_date,
         received_at_ministry_remarks, debated_in_parliament_date, debated_in_parliament_remarks,
         comment_soughted_date, comment_soughted_remarks, comment_soughted_wings,
@@ -307,7 +308,7 @@ async function createParliamentaryIssue(req, res) {
       )
       OUTPUT INSERTED.parliamentary_issue_id
       VALUES (
-        @wing, @division, @parliamentarySubject, @fileNumber, @issueType, @assuranceNumber,
+        @wing, @division, @parliamentarySubject, @fileNumber, @issueType, @remarks, @assuranceNumber,
         @parliamentHouse, @nameOfMP, @extensionSought, @receivedDate, @receivedRemark,
         @debatedInParliamentDate, @debatedInParliamentRemark, @commentSoughtDate, @commentSoughtRemark,
         @wings, @commentsReceivedDate, @commentsReceivedRemark, @shippingDate, @shippingRemark,
@@ -345,6 +346,7 @@ async function editParliamentaryIssue(req, res) {
         subject = @parliamentarySubject,
         file_number = @fileNumber,
         parliamentary_issue_type = @issueType,
+        remarks = @remarks,
         assurance_number = @assuranceNumber,
         parliament_house = @parliamentHouse,
         name_of_mp = @nameOfMP,

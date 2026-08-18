@@ -225,7 +225,6 @@ export default function IssueListPage({
     setFilters((prev) => ({
       ...prev,
       status: 'All',
-      // Issue Type filter is only relevant for the "Active" view.
       issueType: next === 'completed' ? 'All' : prev.issueType,
     }));
     setPage(1);
