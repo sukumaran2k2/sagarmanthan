@@ -285,4 +285,14 @@ body {
   .ag-theme-quartz .ag-paging-button:has(.ag-icon-last) {
     display: none !important;
   }
+
+/* AG Grid's theme CSS forces `.ag-cell, .ag-cell *` to white-space: nowrap via !important,
+   which silently defeats any per-column wrapText/autoHeight config (and any inline cellStyle
+   or custom cellRenderer, since the rule also targets all descendants). Override it with our
+   own higher-specificity !important, scoped to cells that explicitly opted into wrapping via
+   the `ag-cell-wrap-text` class AG Grid applies when a column sets wrapText: true. */
+.ag-theme-quartz .ag-cell.ag-cell-wrap-text,
+.ag-theme-quartz .ag-cell.ag-cell-wrap-text * {
+  white-space: normal !important;
+  word-break: break-word !important;
 }
