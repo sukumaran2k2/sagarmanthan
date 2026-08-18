@@ -149,7 +149,7 @@ async function getMinistryDetailsReport (req, res)
                 CASE WHEN tbl_cabinet_notes_ministry_change.coord_II_date IS NOT NULL THEN 'Coord_II, ' ELSE '' END,
                 CASE WHEN tbl_cabinet_notes_ministry_change.dgll_parliament_and_trw_date IS NOT NULL THEN 'DGLL Parliament & TRW, ' ELSE '' END,
                 CASE WHEN tbl_cabinet_notes_ministry_change.development_date IS NOT NULL THEN 'Development, ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry_change.finance IS NOT NULL THEN 'Finance, ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.finance_date IS NOT NULL THEN 'Finance, ' ELSE '' END,
                 CASE WHEN tbl_cabinet_notes_ministry_change.sagarmala_date IS NOT NULL THEN 'Sagarmala, ' ELSE '' END
             ) AS [Comments yet to be received From],
             CONCAT(
@@ -162,7 +162,7 @@ async function getMinistryDetailsReport (req, res)
                 CASE WHEN tbl_cabinet_notes_ministry_change.coord_II_date IS NULL THEN ',Coord_II ' ELSE '' END,
                 CASE WHEN tbl_cabinet_notes_ministry_change.dgll_parliament_and_trw_date IS NULL THEN ',DGLL Parliament & TRW ' ELSE '' END,
                 CASE WHEN tbl_cabinet_notes_ministry_change.development_date IS NULL THEN ',Development ' ELSE '' END,
-                CASE WHEN tbl_cabinet_notes_ministry_change.finance IS NULL THEN ',Finance ' ELSE '' END,
+                CASE WHEN tbl_cabinet_notes_ministry_change.finance_date IS NULL THEN ',Finance ' ELSE '' END,
                 CASE WHEN tbl_cabinet_notes_ministry_change.sagarmala_date IS NULL THEN ',Sagarmala ' ELSE '' END
             ) AS [Comments not yet to be received From]
         FROM 
@@ -193,7 +193,7 @@ async function getMinistryDetailsReport (req, res)
             tbl_cabinet_notes_ministry_change.coord_II_date,
             tbl_cabinet_notes_ministry_change.dgll_parliament_and_trw_date,
             tbl_cabinet_notes_ministry_change.development_date,
-            tbl_cabinet_notes_ministry_change.finance,
+            tbl_cabinet_notes_ministry_change.finance_date,
             tbl_cabinet_notes_ministry_change.sagarmala_date
         ORDER BY 
             mmt_ministry.ministry_id;

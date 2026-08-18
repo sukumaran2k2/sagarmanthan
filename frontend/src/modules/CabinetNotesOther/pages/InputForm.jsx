@@ -632,13 +632,16 @@ export default function InputForm({
               {[1, 2, 3, 4, 5].map((stageNum) => {
                 const currentStage = stages[stageNum];
                 const isStageDisabled = stageNum > 1 && !stages[stageNum - 1]?.date;
+                const isFilled = !!currentStage?.date;
 
                 return (
                   <div
                     key={stageNum}
-                    className={`flex flex-col gap-3 p-3 border rounded-xl shadow-xs transition-all duration-200 ${isStageDisabled
-                      ? 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-850 opacity-55'
-                      : 'bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800 hover:border-slate-250'
+                    className={`flex flex-col py-3 px-4 rounded-xl border transition-all ${isStageDisabled
+                      ? 'bg-slate-100/60 dark:bg-slate-900/30 border-slate-200/60 dark:border-slate-800/40 opacity-50'
+                      : isFilled
+                        ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60'
+                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800'
                       }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -646,6 +649,11 @@ export default function InputForm({
                         <span className={`text-xs font-bold block truncate ${isStageDisabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
                           {stageLabels[stageNum]}
                         </span>
+                        {isStageDisabled && (
+                          <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 italic">
+                            (Complete stage {stageNum - 1} first)
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center space-x-3 flex-shrink-0">
@@ -666,7 +674,7 @@ export default function InputForm({
                     </div>
 
                     {/* Stage-specific optional remark field matching CabinetNotesMOPSW */}
-                    {!isStageDisabled && (
+                    {!isStageDisabled && !!currentStage.date && (
                       <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
                         <input
                           type="text"
@@ -770,19 +778,21 @@ export default function InputForm({
                                 </div>
 
                                 {/* Wing-specific optional remark field */}
-                                <div className="border-t border-slate-200 dark:border-slate-700/60 pt-1.5">
-                                  <input
-                                    type="text"
-                                    placeholder={`Add remark for ${wName} (optional)`}
-                                    disabled={readOnly}
-                                    value={wingRemark}
-                                    onChange={e => setWingDetails(prev => ({
-                                      ...prev,
-                                      [wName]: { ...(prev[wName] || {}), remark: e.target.value }
-                                    }))}
-                                    className="w-full text-xs px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-700 dark:text-slate-200"
-                                  />
-                                </div>
+                                {!!wingDate && (
+                                  <div className="border-t border-slate-200 dark:border-slate-700/60 pt-1.5">
+                                    <input
+                                      type="text"
+                                      placeholder={`Add remark for ${wName} (optional)`}
+                                      disabled={readOnly}
+                                      value={wingRemark}
+                                      onChange={e => setWingDetails(prev => ({
+                                        ...prev,
+                                        [wName]: { ...(prev[wName] || {}), remark: e.target.value }
+                                      }))}
+                                      className="w-full text-xs px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-slate-700 dark:text-slate-200"
+                                    />
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

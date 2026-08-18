@@ -80,43 +80,92 @@ export default function ReportTable({
     }
   };
 
-  const handleExport = (type) => {
-    if (type === 'Excel') {
-      if (gridRef.current?.api) {
-        gridRef.current.api.exportDataAsCsv({
-          fileName: `${title.replace(/\s+/g, '_')}_export.csv`
-        });
+  const formatExportFileName = (type) => {
+    const cleanTitle = (title || 'Cabinet_Notes_Other_Ministry_Report')
+      .replace(/[:\/\\?%*|"<>]/g, '')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_');
+    
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    return `${cleanTitle}_${dateStr}_${timeStr}.${type === 'Excel' ? 'csv' : 'pdf'}`;
+  };
+
+  const getLeafColumns = (cols) => {
+    let result = [];
+    (cols || []).forEach((col) => {
+      if (col.children && Array.isArray(col.children)) {
+        result = result.concat(getLeafColumns(col.children));
+      } else if (col.field || col.headerName) {
+        result.push(col);
       }
-    } else if (type === 'PDF') {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
-      const docTitle = title || 'Report';
+    });
+    return result;
+  };
 
-      let headersHtml = '';
-      columns.forEach(col => {
-        if (col.headerName) {
-          headersHtml += `<th style="border:1px solid ${brandColor}; padding:10px 14px; text-align:left; background:${brandColor}; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${col.headerName}</th>`;
-        }
-      });
-
-      let rowsHtml = '';
-      viewData.forEach((row, i) => {
-        const bg = i % 2 === 0 ? '#fff' : oddRowColor;
-        rowsHtml += `<tr style="background:${bg}">`;
-        columns.forEach(col => {
-          if (col.headerName) {
-            let val = '';
-            if (col.field === 'S No' || col.headerName === 'S.No') val = i + 1;
-            else if (col.valueFormatter) val = col.valueFormatter({ value: row[col.field], data: row });
-            else val = row[col.field] !== undefined ? row[col.field] : '';
-            rowsHtml += `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155;">${val}</td>`;
+  const handleExport = (type) => {
+    try {
+      const fileName = formatExportFileName(type);
+      if (type === 'Excel') {
+        if (gridRef.current?.api) {
+          gridRef.current.api.exportDataAsCsv({
+            fileName: fileName
+          });
+          if (triggerNotification && typeof triggerNotification === 'function') {
+            triggerNotification(`Report exported to Excel successfully! (${fileName})`);
           }
-        });
-        rowsHtml += '</tr>';
-      });
+        }
+      } else if (type === 'PDF') {
+        const leafCols = getLeafColumns(columns).filter(c => c.field !== 'Ministry Id' && c.field !== 'Ministry ID');
+        const docTitle = title || 'Report';
 
-      printWindow.document.write(`<html><head><title>${docTitle}</title><style>body{font-family:'Inter',system-ui,sans-serif;color:#334155;padding:24px}h1{font-size:18px;margin-bottom:4px;color:${brandColor}}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${docTitle}</h1><p style="font-size:11px;color:#64748b;margin:0 0 20px">Generated on: ${new Date().toLocaleDateString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
-      printWindow.document.close();
+        let headersHtml = '';
+        leafCols.forEach(col => {
+          const hName = col.headerName || col.field || '';
+          headersHtml += `<th style="border:1px solid ${brandColor}; padding:10px 14px; text-align:center; background:${brandColor}; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${hName}</th>`;
+        });
+
+        let rowsHtml = '';
+        (viewData || []).forEach((row, i) => {
+          const bg = i % 2 === 0 ? '#fff' : oddRowColor;
+          rowsHtml += `<tr style="background:${bg}">`;
+          leafCols.forEach(col => {
+            let val = '';
+            if (col.field === 'S No' || col.field === 'S.No' || col.headerName === 'S No' || col.headerName === 'S.No') {
+              val = i + 1;
+            } else if (col.valueFormatter && typeof col.valueFormatter === 'function') {
+              try { val = col.valueFormatter({ value: row[col.field], data: row }); } catch (_) { val = row[col.field]; }
+            } else {
+              val = row[col.field] !== undefined && row[col.field] !== null ? row[col.field] : '';
+            }
+            if (typeof val === 'object') val = '';
+            rowsHtml += `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155; text-align:center;">${val}</td>`;
+          });
+          rowsHtml += '</tr>';
+        });
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+          if (triggerNotification && typeof triggerNotification === 'function') {
+            triggerNotification('Popup blocker prevented opening PDF print preview window.');
+          }
+          return;
+        }
+
+        printWindow.document.write(`<html><head><title>${docTitle}</title><style>body{font-family:'Inter',system-ui,sans-serif;color:#334155;padding:24px}h1{font-size:18px;margin-bottom:4px;color:${brandColor}}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${docTitle}</h1><p style="font-size:11px;color:#64748b;margin:0 0 20px">Generated on: ${new Date().toLocaleString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
+        printWindow.document.close();
+
+        if (triggerNotification && typeof triggerNotification === 'function') {
+          triggerNotification('PDF document generated successfully!');
+        }
+      }
+    } catch (err) {
+      console.error("Export error caught safely:", err);
+      if (triggerNotification && typeof triggerNotification === 'function') {
+        triggerNotification('An error occurred during export.');
+      }
     }
   };
 
@@ -141,7 +190,11 @@ export default function ReportTable({
       tsv += rowTsv + '\n';
     });
 
-    navigator.clipboard.writeText(tsv).catch((err) => {
+    navigator.clipboard.writeText(tsv).then(() => {
+      if (triggerNotification && typeof triggerNotification === 'function') {
+        triggerNotification('Report data copied to clipboard!');
+      }
+    }).catch((err) => {
       console.error('Copy failed', err);
     });
   };
