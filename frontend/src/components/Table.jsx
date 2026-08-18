@@ -1,4 +1,4 @@
-﻿import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
+import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { FileSpreadsheet } from 'lucide-react';
@@ -138,7 +138,8 @@ const Table = forwardRef(({
       <style>{`
         .${colorClass} .ag-header,
         .${colorClass} .ag-header-row,
-        .${colorClass} .ag-header-cell {
+        .${colorClass} .ag-header-cell,
+        .${colorClass} .ag-header-group-cell {
           background-color: ${color} !important;
           background: ${color} !important;
           color: #ffffff !important;

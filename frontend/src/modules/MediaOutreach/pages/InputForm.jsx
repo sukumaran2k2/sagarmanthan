@@ -1,38 +1,41 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
 import { ChevronLeft, ChevronRight, Save, X } from 'lucide-react';
+import { createSocialMedia, updateSocialMedia } from '../api';
+import { getSessionOrganisationId } from '../../../utils/authSession';
+import { MONTHS, FINANCIAL_YEARS, SOCIAL_CHANNELS, STEPS } from '../utils/constants';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+// Stable input field component placed outside InputForm to prevent focus loss & re-mount glitches
+function FormField({ label, value, onChange, disabled = false, placeholder = '' }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">{label}</label>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
+        onKeyDown={(e) => {
+          if (['e', 'E', '-', '+', '.'].includes(e.key)) {
+            e.preventDefault();
+          }
+        }}
+        disabled={disabled}
+        placeholder={placeholder}
+        className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900/60 dark:text-slate-400' : ''}`}
+      />
+    </div>
+  );
+}
 
-const MONTHS = ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
-
-const FINANCIAL_YEARS = (() => {
-  const years = [];
-  for (let y = 2020; y <= 2028; y++) years.push(`${y}-${y + 1}`);
-  return years;
-})();
-
-const SOCIAL_CHANNELS = [
-  { key: 'twitter', label: 'Twitter / X' },
-  { key: 'instagram', label: 'Instagram' },
-  { key: 'facebook', label: 'Facebook' },
-  { key: 'linkedIn', label: 'LinkedIn' },
-  { key: 'youTube', label: 'YouTube' },
-];
-
-const STEPS = [
-  { id: 0, key: 'broadcast', label: 'Broadcast TV Media' },
-  { id: 1, key: 'print_media', label: 'Print Media' },
-  { id: 2, key: 'online', label: 'Online' },
-  { id: 3, key: 'social_media', label: 'Social Media' },
-];
-
-export default function InputForm({ onBack, onSuccess, triggerNotification, editData, activeMediaType, organisations, getOrgName }) {
+export default function InputForm({ onBack, onSuccess, triggerNotification, editData, activeMediaType, organisations, getOrgName, isStandardView = false, permissions }) {
   const isEdit = !!editData;
+  const hideOrgSelect = isStandardView || permissions?.isStandardView;
 
   // Common fields
   const [financialYear, setFinancialYear] = useState('');
   const [month, setMonth] = useState('');
+  const [organisationId, setOrganisationId] = useState('');
 
   // Step state
   const [currentStep, setCurrentStep] = useState(0);
@@ -78,11 +81,12 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
     return e + v;
   }, [onlineEnglish, onlineVernacular]);
 
-  // Pre-fill edit data
+  // Pre-fill edit data or auto-fill session organisation
   useEffect(() => {
     if (editData) {
       setFinancialYear(editData.financial_year || '');
       setMonth(editData.month || '');
+      setOrganisationId(editData.organisation_id ? String(editData.organisation_id) : '');
       setBroadcastNational(editData.broadcast_national ?? '');
       setBroadcastRegional(editData.broadcast_regional ?? '');
       setPrintNational(editData.print_media_national ?? '');
@@ -96,6 +100,8 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
         linkedIn: { posts: editData.linkedIn_posts ?? '', impression: editData.linkedIn_impression ?? '', engagement: editData.linkedIn_engagement ?? '' },
         youTube: { posts: editData.youTube_posts ?? '', impression: editData.youTube_impression ?? '', engagement: editData.youTube_engagement ?? '' },
       });
+    } else {
+      setOrganisationId('');
     }
   }, [editData]);
 
@@ -107,8 +113,11 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
   };
 
   const handleSubmit = async () => {
-    if (!financialYear || !month) {
-      if (triggerNotification) triggerNotification('Please select Financial Year and Month.');
+    const sessionOrg = getSessionOrganisationId();
+    const finalOrgId = organisationId || (hideOrgSelect ? sessionOrg : null) || (isEdit ? editData?.organisation_id : null);
+
+    if (!financialYear || !month || !finalOrgId) {
+      if (triggerNotification) triggerNotification(hideOrgSelect ? 'Please select Financial Year and Month.' : 'Please select Financial Year, Month, and Organisation.');
       return;
     }
 
@@ -116,20 +125,18 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
 
     // Get user info from token
     let userId = 1;
-    let organisationId = 1;
     try {
       const token = localStorage.getItem('accessToken');
       if (token) {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        userId = payload.userId;
-        organisationId = payload.organisationId;
+        userId = payload.userId || payload.user_id || payload.id || 1;
       }
     } catch (e) { console.error(e); }
 
     if (isEdit) {
       // Determine which media type we're editing based on activeMediaType
       const mediaOutreachId = editData.media_outreach_id;
-      let updatePayload = { type: '', userID: userId, mediaOutreachIdOrg: mediaOutreachId };
+      let updatePayload = { type: '', userID: userId, mediaOutreachIdOrg: mediaOutreachId, organisation: finalOrgId };
 
       if (activeMediaType === 'broadcast') {
         updatePayload.type = 'broadcast';
@@ -166,7 +173,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
       }
 
       try {
-        await axios.put(`${API}/media-outreach-data-edit`, updatePayload);
+        await updateSocialMedia(updatePayload);
         onSuccess();
       } catch (err) {
         console.error(err);
@@ -179,7 +186,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
       const payload = {
         financialYear,
         month,
-        organisation: organisationId,
+        organisation: finalOrgId,
         BroadcastChecked: 1,
         BroadcastNational: Number(broadcastNational) || 0,
         BroadcastRegional: Number(broadcastRegional) || 0,
@@ -211,7 +218,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
       };
 
       try {
-        const res = await axios.post(`${API}/create-social-media`, payload);
+        const res = await createSocialMedia(payload);
         if (res.status === 302 || res.status === 200) {
           if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.');
         } else {
@@ -261,8 +268,8 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Financial Year & Month selectors */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        {/* Financial Year, Month & Organisation selectors */}
+        <div className={`grid grid-cols-1 ${hideOrgSelect ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-5`}>
           <div className="space-y-1.5">
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Financial Year*</label>
             <select
@@ -287,15 +294,21 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
               {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
-          {isEdit && (
+          {!hideOrgSelect && (
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Organisation</label>
-              <input
-                type="text"
-                value={getOrgName(editData.organisation_id)}
-                disabled
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 border border-slate-250 rounded-xl font-semibold text-slate-500 dark:bg-slate-900/60 dark:border-slate-800 dark:text-slate-400 cursor-not-allowed"
-              />
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Organisation*</label>
+              <select
+                value={organisationId}
+                onChange={(e) => setOrganisationId(e.target.value)}
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
+              >
+                <option value="">--Select Organisation--</option>
+                {organisations && organisations.map(org => (
+                  <option key={org.organisation_id} value={org.organisation_id}>
+                    {org.organisation_name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>
@@ -335,9 +348,9 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
               Broadcast / TV Media
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-              <Field label="National" value={broadcastNational} onChange={setBroadcastNational} placeholder="No. of National coverage" />
-              <Field label="Regional" value={broadcastRegional} onChange={setBroadcastRegional} placeholder="No. of Regional coverage" />
-              <Field label="Overall (Auto)" value={broadcastOverall} onChange={() => {}} disabled />
+              <FormField label="National" value={broadcastNational} onChange={setBroadcastNational} placeholder="No. of National coverage" />
+              <FormField label="Regional" value={broadcastRegional} onChange={setBroadcastRegional} placeholder="No. of Regional coverage" />
+              <FormField label="Overall (Auto)" value={broadcastOverall} onChange={() => {}} disabled />
             </div>
           </div>
         )}
@@ -348,9 +361,9 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
               Print Media
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-              <Field label="National" value={printNational} onChange={setPrintNational} placeholder="No. of National coverage" />
-              <Field label="Regional" value={printRegional} onChange={setPrintRegional} placeholder="No. of Regional coverage" />
-              <Field label="Overall (Auto)" value={printOverall} onChange={() => {}} disabled />
+              <FormField label="National" value={printNational} onChange={setPrintNational} placeholder="No. of National coverage" />
+              <FormField label="Regional" value={printRegional} onChange={setPrintRegional} placeholder="No. of Regional coverage" />
+              <FormField label="Overall (Auto)" value={printOverall} onChange={() => {}} disabled />
             </div>
           </div>
         )}
@@ -361,9 +374,9 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
               Online Media
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-              <Field label="English" value={onlineEnglish} onChange={setOnlineEnglish} placeholder="No. of English articles" />
-              <Field label="Vernacular" value={onlineVernacular} onChange={setOnlineVernacular} placeholder="No. of Vernacular articles" />
-              <Field label="Overall (Auto)" value={onlineOverall} onChange={() => {}} disabled />
+              <FormField label="English" value={onlineEnglish} onChange={setOnlineEnglish} placeholder="No. of English articles" />
+              <FormField label="Vernacular" value={onlineVernacular} onChange={setOnlineVernacular} placeholder="No. of Vernacular articles" />
+              <FormField label="Overall (Auto)" value={onlineOverall} onChange={() => {}} disabled />
             </div>
           </div>
         )}
@@ -390,27 +403,48 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
                       <td className="px-4 py-3 font-bold text-slate-700">{ch.label}</td>
                       <td className="px-2 py-2">
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={socialData[ch.key].posts}
-                          onChange={(e) => handleSocialChange(ch.key, 'posts', e.target.value)}
+                          onChange={(e) => handleSocialChange(ch.key, 'posts', e.target.value.replace(/[^0-9]/g, ''))}
+                          onKeyDown={(e) => {
+                            if (['e', 'E', '-', '+', '.'].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
                           className="w-full text-xs text-center px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700"
                           placeholder="0"
                         />
                       </td>
                       <td className="px-2 py-2">
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={socialData[ch.key].impression}
-                          onChange={(e) => handleSocialChange(ch.key, 'impression', e.target.value)}
+                          onChange={(e) => handleSocialChange(ch.key, 'impression', e.target.value.replace(/[^0-9]/g, ''))}
+                          onKeyDown={(e) => {
+                            if (['e', 'E', '-', '+', '.'].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
                           className="w-full text-xs text-center px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700"
                           placeholder="0"
                         />
                       </td>
                       <td className="px-2 py-2">
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={socialData[ch.key].engagement}
-                          onChange={(e) => handleSocialChange(ch.key, 'engagement', e.target.value)}
+                          onChange={(e) => handleSocialChange(ch.key, 'engagement', e.target.value.replace(/[^0-9]/g, ''))}
+                          onKeyDown={(e) => {
+                            if (['e', 'E', '-', '+', '.'].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
                           className="w-full text-xs text-center px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700"
                           placeholder="0"
                         />

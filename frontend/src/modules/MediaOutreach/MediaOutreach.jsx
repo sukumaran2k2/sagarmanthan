@@ -1,20 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
-import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
-const MEDIA_TABS = [
-  { id: 'broadcast', label: 'Broadcast / TV Media' },
-  { id: 'print_media', label: 'Print Media' },
-  { id: 'online', label: 'Online' },
-  { id: 'social_media', label: 'Social Media' },
-  { id: 'add_details', label: 'Input Form' },
-];
+import { useMediaOutreachPermissions } from './hooks/useMediaOutreachPermissions';
+import { resolveMediaOutreachListView } from './views';
+import { fetchOrganisations, fetchSocialMediaData, deleteSocialMedia } from './api';
+import { getCurrentUserId } from '../../utils/authSession';
+import { MEDIA_TABS_ALL } from './utils/constants';
 
 export default function MediaOutreachView({ triggerNotification }) {
+  const permissions = useMediaOutreachPermissions();
+  const ListViewComponent = resolveMediaOutreachListView(permissions.uiViewCode);
+
+  // Filter available tabs based on permissions
+  const mediaTabs = useMemo(() => {
+    if (!permissions.canAdd) {
+      return MEDIA_TABS_ALL.filter(tab => tab.id !== 'add_details');
+    }
+    return MEDIA_TABS_ALL;
+  }, [permissions.canAdd]);
+
   // Read initial tab from sessionStorage if navigated via nav flyout
   const initTab = (() => {
     try {
@@ -31,28 +35,19 @@ export default function MediaOutreachView({ triggerNotification }) {
   const [loading, setLoading] = useState(false);
   const [organisations, setOrganisations] = useState([]);
 
-  // Load organisations dropdown
+  // Load organisations dropdown using API helper
   useEffect(() => {
-    axios.get(`${API}/mmt-dropdown/mmt_organisation`)
+    fetchOrganisations()
       .then(res => setOrganisations(res.data || []))
       .catch(() => {});
   }, []);
 
-  // Fetch all media outreach data
+  // Fetch all media outreach data using API helper
   const fetchData = useCallback(() => {
     setLoading(true);
-    const userId = (() => {
-      try {
-        const token = localStorage.getItem('accessToken');
-        if (token) {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          return payload.userId;
-        }
-      } catch (e) {}
-      return 1;
-    })();
+    const userId = getCurrentUserId() || 1;
 
-    axios.get(`${API}/monthly-socialmedia-parameter/${userId}/`)
+    fetchSocialMediaData(userId)
       .then(res => setRowData(res.data || []))
       .catch((err) => {
         console.error('Error fetching social media data:', err);
@@ -63,39 +58,59 @@ export default function MediaOutreachView({ triggerNotification }) {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const getOrgName = useCallback((orgId) => {
-    const org = organisations.find(o => o.organisation_id === orgId);
-    return org ? org.organisation_name : `Org ${orgId}`;
+    if (!orgId) return '-';
+    const org = organisations.find(o => o.organisation_id === orgId || String(o.organisation_id) === String(orgId));
+    return (org && org.organisation_name) ? org.organisation_name : '-';
   }, [organisations]);
 
   const handleTabChange = (tabId) => {
-    if (tabId !== 'add_details') {
-      setPrevMediaType(tabId);
-    } else {
+    if (tabId === 'add_details') {
+      if (!permissions.canAdd) return;
       setEditData(null);
+      setActiveMediaType('add_details');
+    } else {
+      setPrevMediaType(tabId);
+      setActiveMediaType(tabId);
     }
-    setActiveMediaType(tabId);
   };
 
   const handleEdit = (row) => {
+    if (!permissions.canEdit) return;
     setEditData(row);
     setActiveMediaType('add_details');
   };
 
+  const handleDelete = (row) => {
+    if (!permissions.canRemove) return;
+    if (window.confirm("Are you sure you want to delete this record?")) {
+      deleteSocialMedia(row.media_outreach_id)
+        .then(() => {
+          fetchData();
+          if (triggerNotification) triggerNotification("Record deleted successfully.");
+        })
+        .catch(err => {
+          console.error("Delete error:", err);
+          if (triggerNotification) triggerNotification("Failed to delete record.", "error");
+        });
+    }
+  };
+
   const handleAddNew = () => {
+    if (!permissions.canAdd) return;
     setEditData(null);
     setActiveMediaType('add_details');
   };
 
-  const handleSuccess = () => {
-    setEditData(null);
+  const handleBack = () => {
     setActiveMediaType(prevMediaType);
-    fetchData();
-    if (triggerNotification) triggerNotification('Media Outreach data saved successfully.');
+    setEditData(null);
   };
 
-  const handleBack = () => {
-    setEditData(null);
+  const handleSuccess = () => {
+    fetchData();
     setActiveMediaType(prevMediaType);
+    setEditData(null);
+    if (triggerNotification) triggerNotification(editData ? 'Record updated successfully!' : 'Record created successfully!');
   };
 
   return (
@@ -113,7 +128,7 @@ export default function MediaOutreachView({ triggerNotification }) {
         </div>
 
         <InternalNavigation
-          tabs={MEDIA_TABS}
+          tabs={mediaTabs}
           currentTab={activeMediaType}
           onTabChange={handleTabChange}
         />
@@ -128,19 +143,22 @@ export default function MediaOutreachView({ triggerNotification }) {
           activeMediaType={prevMediaType}
           organisations={organisations}
           getOrgName={getOrgName}
+          permissions={permissions}
         />
       ) : (
-        <DataList
+        <ListViewComponent
           rowData={rowData}
           loading={loading}
           activeMediaType={activeMediaType}
           setActiveMediaType={handleTabChange}
           onEdit={handleEdit}
+          onDelete={handleDelete}
           onAddNew={handleAddNew}
           onRefresh={fetchData}
           organisations={organisations}
           getOrgName={getOrgName}
           triggerNotification={triggerNotification}
+          permissions={permissions}
         />
       )}
     </div>

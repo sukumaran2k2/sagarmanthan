@@ -130,11 +130,16 @@ async function getMonthlySocialParameter(req, res) {
         if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
 
             query = `
-                SELECT *
-                FROM tbl_social_media
+                SELECT 
+                    sm.*,
+                    o.organisation_name,
+                    c.organisation_category_name
+                FROM tbl_social_media sm
+                LEFT JOIN mmt_organisation o ON sm.organisation_id = o.organisation_id
+                LEFT JOIN mmt_organisation_category c ON o.organisation_category_id = c.organisation_category_id
                 ORDER BY
-                    financial_year DESC,
-                    CASE month
+                    sm.financial_year DESC,
+                    CASE sm.month
                         WHEN 'January' THEN 1
                         WHEN 'February' THEN 2
                         WHEN 'March' THEN 3
@@ -163,12 +168,17 @@ async function getMonthlySocialParameter(req, res) {
             request.input("organisationID", organisationID);
 
             query = `
-                SELECT *
-                FROM tbl_social_media
-                WHERE organisation_id = @organisationID
+                SELECT 
+                    sm.*,
+                    o.organisation_name,
+                    c.organisation_category_name
+                FROM tbl_social_media sm
+                LEFT JOIN mmt_organisation o ON sm.organisation_id = o.organisation_id
+                LEFT JOIN mmt_organisation_category c ON o.organisation_category_id = c.organisation_category_id
+                WHERE sm.organisation_id = @organisationID
                 ORDER BY
-                    financial_year DESC,
-                    CASE month
+                    sm.financial_year DESC,
+                    CASE sm.month
                         WHEN 'January' THEN 1
                         WHEN 'February' THEN 2
                         WHEN 'March' THEN 3
@@ -184,10 +194,10 @@ async function getMonthlySocialParameter(req, res) {
                     END DESC;
             `;
         }
-
+        console.log(query)
         const result = await request.query(query);
 
-        console.log(result.recordset);
+        // console.log(result.recordset);
         res.json(result.recordset);
 
     } catch (err) {
@@ -937,8 +947,7 @@ async function getMonthlyBroadPrintReport(req,res){
             const orgResult = await request.query(
             `SELECT organisation_id FROM tbl_user WHERE user_id = @userID`
             );
-            const organisationID = orgResu
-            lt.recordset[0].organisation_id;
+            const organisationID = orgResult.recordset[0].organisation_id;
 
             request.input("organisationID", organisationID);
     
@@ -1124,7 +1133,20 @@ async function getMonthlyBroadPrintReport(req,res){
         }
     }
 
+async function deleteSocialMedia(req, res) {
+    const conn = await pool;
+    const request = conn.request();
+    const mediaOutreachId = req.params.mediaOutreachId;
+    request.input("mediaOutreachId", mediaOutreachId);
 
+    try {
+        await request.query(`DELETE FROM tbl_social_media WHERE media_outreach_id = @mediaOutreachId`);
+        res.sendStatus(200);
+    } catch (err) {
+        console.error("Error deleting social media record:", err);
+        return res.sendStatus(500);
+    }
+}
 
 export default { createSocialMedia, getMonthlySocialParameter, getQuarterlySocialParameter, getAnnuallySocialMediaData, 
-    getSocialMediaData, getMonthlyOnlineReport, getMonthlySocialReport, getMonthlyBroadPrintReport, getUpdateBroadcastmediadata, updateBroadcastmediadata };
+    getSocialMediaData, getMonthlyOnlineReport, getMonthlySocialReport, getMonthlyBroadPrintReport, getUpdateBroadcastmediadata, updateBroadcastmediadata, deleteSocialMedia };
