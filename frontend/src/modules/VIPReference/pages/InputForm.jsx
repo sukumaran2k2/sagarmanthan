@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Save } from 'lucide-react';
 
@@ -310,18 +310,18 @@ export default function InputForm({
       !receivedFrom.trim() ||
       !remarks.trim()
     ) {
-      alert("Please fill in all mandatory fields highlighted in red.");
+      if (triggerNotification) triggerNotification("Please fill in all mandatory fields highlighted in red.", "warning");
       return;
     }
 
     if (errors.remarks) {
-      alert(errors.remarks);
+      if (triggerNotification) triggerNotification(errors.remarks, "warning");
       return;
     }
 
     // Verify stage 1 has a date
     if (!stages[1].date) {
-      alert("Please specify the Action Date for Stage 1: Received at Ministry.");
+      if (triggerNotification) triggerNotification("Please specify the Action Date for Stage 1: Received at Ministry.", "warning");
       return;
     }
 
@@ -365,11 +365,16 @@ export default function InputForm({
       } else {
         await axios.post("http://localhost:3000/vip-reference", payload);
       }
-      triggerNotification?.(isEdit ? "VIP Reference updated successfully." : "New VIP Reference registered successfully.");
+      triggerNotification?.(
+        isEdit ? "VIP Reference updated successfully." : "New VIP Reference registered successfully.",
+        "success"
+      );
       onSuccess();
     } catch (err) {
       console.error("Error saving VIP reference:", err);
-      alert("Failed to save VIP reference.");
+      if (triggerNotification) {
+        triggerNotification("Failed to save VIP reference.", "error");
+      }
     } finally {
       setSubmitting(false);
     }

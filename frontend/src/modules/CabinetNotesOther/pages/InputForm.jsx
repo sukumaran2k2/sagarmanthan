@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Save, X, FileText } from 'lucide-react';
 
@@ -433,12 +433,18 @@ export default function InputForm({
         await axios.post("http://localhost:3000/cabinet-ministry", payload);
       }
       if (triggerNotification) {
-        triggerNotification(isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.");
+        triggerNotification(
+          isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.",
+          "success"
+        );
       }
       onSuccess();
     } catch (err) {
       console.error("Save error details:", err.response?.data || err.message || err);
-      alert(err.response?.data?.error || "Failed to save Cabinet Note. Please try again.");
+      const errorMsg = err.response?.data?.error || "Failed to save Cabinet Note. Please try again.";
+      if (triggerNotification) {
+        triggerNotification(errorMsg, "error");
+      }
     } finally {
       setSubmitting(false);
     }

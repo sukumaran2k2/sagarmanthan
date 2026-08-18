@@ -84,12 +84,19 @@ export default function ReportTable({
     if (type === 'Excel') {
       if (gridRef.current?.api) {
         gridRef.current.api.exportDataAsCsv({
-          fileName: `${title.replace(/\s+/g, '_')}_export.csv`
+          fileName: `${(title || 'report').replace(/\s+/g, '_')}_export.csv`
         });
+        triggerNotification?.('Report exported to Excel (CSV) successfully!', 'success');
+      } else {
+        triggerNotification?.('Grid is not ready for export yet.', 'warning');
       }
     } else if (type === 'PDF') {
+      triggerNotification?.('Preparing PDF document...', 'info');
       const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
+      if (!printWindow) {
+        triggerNotification?.('Failed to open print window. Please allow popups.', 'error');
+        return;
+      }
       const docTitle = title || 'Report';
 
       let headersHtml = '';
@@ -121,7 +128,10 @@ export default function ReportTable({
   };
 
   const handleCopy = () => {
-    if (!gridRef.current?.api) return;
+    if (!gridRef.current?.api) {
+      triggerNotification?.('Grid is not ready for copy yet.', 'warning');
+      return;
+    }
     let tsv = '';
     const activeCols = columns.filter(c => c.headerName && c.field !== 'Document');
     tsv += activeCols.map(c => c.headerName).join('\t') + '\n';
@@ -141,9 +151,14 @@ export default function ReportTable({
       tsv += rowTsv + '\n';
     });
 
-    navigator.clipboard.writeText(tsv).catch((err) => {
-      console.error('Copy failed', err);
-    });
+    navigator.clipboard.writeText(tsv)
+      .then(() => {
+        triggerNotification?.('Report copied to clipboard!', 'success');
+      })
+      .catch((err) => {
+        console.error('Copy failed', err);
+        triggerNotification?.('Failed to copy report data.', 'error');
+      });
   };
 
   const iconBtnClass =
@@ -261,14 +276,33 @@ export default function ReportTable({
         </div>
       </div>
 
-      <div className="relative">
+      <div className={`relative ${loading ? 'min-h-[260px]' : ''}`}>
         {loading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/80 dark:bg-slate-900/85 backdrop-blur-[3px]">
-            <div className="flex items-center gap-2.5 px-6 py-3 rounded-[14px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg">
-              <Loader2 size={18} className="animate-spin text-[color:var(--theme-primary-color)] dark:text-slate-200" />
-              <span className="text-[13px] font-bold text-[color:var(--theme-primary-color)] dark:text-slate-200">
-                Loading report data…
-              </span>
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 space-y-4 bg-white/85 dark:bg-slate-900/85 backdrop-blur-[3px] animate-fade-in">
+            <div className="w-full absolute top-0 left-0 right-0 h-1 bg-slate-100 dark:bg-slate-800 overflow-hidden">
+              <div
+                className="h-full animate-indeterminate-progress"
+                style={{
+                  background: `linear-gradient(to right, ${brandColor}, #38bdf8, ${brandColor})`
+                }}
+              ></div>
+            </div>
+            <div className="flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-700 shadow-xl">
+              <div className="relative flex items-center justify-center">
+                <Loader2 size={20} className="animate-spin text-[#0f417a] dark:text-blue-400" />
+                <div
+                  className="absolute inset-0 rounded-full animate-ping opacity-25"
+                  style={{ backgroundColor: brandColor }}
+                ></div>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-black tracking-wide text-slate-800 dark:text-slate-100">
+                  Loading report data...
+                </span>
+                <span className="text-[10px] text-slate-400 font-semibold">
+                  Please wait a moment...
+                </span>
+              </div>
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { ChevronLeft, ChevronRight, Save, X } from 'lucide-react';
 
@@ -108,7 +108,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
 
   const handleSubmit = async () => {
     if (!financialYear || !month) {
-      if (triggerNotification) triggerNotification('Please select Financial Year and Month.');
+      if (triggerNotification) triggerNotification('Please select Financial Year and Month.', 'warning');
       return;
     }
 
@@ -167,10 +167,11 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
 
       try {
         await axios.put(`${API}/media-outreach-data-edit`, updatePayload);
+        if (triggerNotification) triggerNotification('Media outreach record updated successfully.', 'success');
         onSuccess();
       } catch (err) {
         console.error(err);
-        if (triggerNotification) triggerNotification('Error updating record. Please try again.');
+        if (triggerNotification) triggerNotification('Error updating record. Please try again.', 'error');
       } finally {
         setSubmitting(false);
       }
@@ -213,16 +214,17 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
       try {
         const res = await axios.post(`${API}/create-social-media`, payload);
         if (res.status === 302 || res.status === 200) {
-          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.');
+          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.', 'warning');
         } else {
+          if (triggerNotification) triggerNotification('Media outreach record registered successfully.', 'success');
           onSuccess();
         }
       } catch (err) {
         if (err.response?.status === 302) {
-          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.');
+          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.', 'warning');
         } else {
           console.error(err);
-          if (triggerNotification) triggerNotification('Error saving record. Please try again.');
+          if (triggerNotification) triggerNotification('Error saving record. Please try again.', 'error');
         }
       } finally {
         setSubmitting(false);

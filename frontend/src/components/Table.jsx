@@ -10,6 +10,7 @@ const Table = forwardRef(({
   rowData = [],
   columnDefs = [],
   loading = false,
+  loadingMessage = 'Fetching records from database...',
   pagination = true,
   paginationPageSize = 10,
   enableExport = false,
@@ -190,25 +191,36 @@ const Table = forwardRef(({
         </div>
       )}
 
-      <div className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative shadow-sm bg-white dark:bg-slate-900`}>
+      <div className={`ag-theme-quartz ${colorClass} rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative shadow-sm bg-white dark:bg-slate-900 transition-all ${loading ? 'min-h-[260px]' : ''}`}>
         {loading && (
-          <div className="absolute inset-0 bg-white/90 dark:bg-slate-950/90 z-30 flex flex-col items-center justify-center space-y-4 backdrop-blur-[2px] animate-fade-in">
-            <div className="w-full absolute top-0 left-0 right-0 h-1.5 bg-slate-100 dark:bg-slate-800 overflow-hidden">
+          <div className="absolute inset-0 bg-white/85 dark:bg-slate-950/85 z-30 flex flex-col items-center justify-center p-6 space-y-4 backdrop-blur-[3px] animate-fade-in">
+            <div className="w-full absolute top-0 left-0 right-0 h-1 bg-slate-100 dark:bg-slate-800 overflow-hidden">
               <div
                 className="h-full animate-indeterminate-progress"
                 style={{
-                  background: `linear-gradient(to right, ${color}, #3b82f6, ${color})`
+                  background: `linear-gradient(to right, ${color}, #38bdf8, ${color})`
                 }}
               ></div>
             </div>
-            <div className="p-4 bg-white/95 dark:bg-slate-900/95 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 flex items-center space-x-3 shadow-lg">
-              <div
-                className="animate-spin rounded-full h-6 w-6 border-3 border-t-transparent"
-                style={{ borderColor: `${color} transparent ${color} ${color}` }}
-              ></div>
-              <span className="text-xs font-extrabold tracking-wide">
-                Fetching records from database...
-              </span>
+            <div className="px-5 py-3.5 bg-white/95 dark:bg-slate-900/95 rounded-2xl border border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-slate-100 flex items-center space-x-3.5 shadow-xl">
+              <div className="relative flex items-center justify-center">
+                <div
+                  className="animate-spin rounded-full h-6 w-6 border-2.5 border-t-transparent"
+                  style={{ borderColor: `${color} transparent ${color} ${color}` }}
+                ></div>
+                <div
+                  className="absolute inset-0 rounded-full animate-ping opacity-25"
+                  style={{ backgroundColor: color }}
+                ></div>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-black tracking-wide text-slate-800 dark:text-slate-100">
+                  {loadingMessage}
+                </span>
+                <span className="text-[10px] text-slate-400 font-semibold">
+                  Please wait a moment...
+                </span>
+              </div>
             </div>
           </div>
         )}

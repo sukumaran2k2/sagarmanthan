@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Save } from 'lucide-react';
 
@@ -218,11 +218,11 @@ export default function InputForm({
     });
 
     if (!wing || !division || !subject.trim() || !remarks.trim()) {
-      alert("Please fill in all mandatory fields highlighted in red.");
+      if (triggerNotification) triggerNotification("Please fill in all mandatory fields highlighted in red.", "warning");
       return;
     }
     if (errors.remarks) {
-      alert(errors.remarks);
+      if (triggerNotification) triggerNotification(errors.remarks, "warning");
       return;
     }
 
@@ -294,12 +294,14 @@ export default function InputForm({
       }
 
       if (triggerNotification) {
-        triggerNotification(isEdit ? "Bill updated successfully." : "Bill created successfully.");
+        triggerNotification(isEdit ? "Bill updated successfully." : "Bill created successfully.", "success");
       }
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error("Error saving bill:", err);
-      alert("Error saving Bill Pre-Constitutions Act details.");
+      if (triggerNotification) {
+        triggerNotification("Failed to save Legislative Bill / Pre-Constitutions Act details.", "error");
+      }
     } finally {
       setSubmitting(false);
     }

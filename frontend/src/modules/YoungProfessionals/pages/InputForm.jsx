@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, X, Upload } from 'lucide-react';
 import api, { API_BASE } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
@@ -260,23 +260,23 @@ export default function InputForm({
     e.preventDefault();
 
     if (!wing) {
-      alert("Please select a Wing.");
+      if (triggerNotification) triggerNotification("Please select a Wing.", "warning");
       return;
     }
     if (!division) {
-      alert("Please select a Division.");
+      if (triggerNotification) triggerNotification("Please select a Division.", "warning");
       return;
     }
     if (!name.trim()) {
-      alert("Name is required.");
+      if (triggerNotification) triggerNotification("Name is required.", "warning");
       return;
     }
     if (Object.keys(errors).length > 0) {
-      alert("Please correct validation errors: " + Object.values(errors).join(" "));
+      if (triggerNotification) triggerNotification("Please correct validation errors: " + Object.values(errors).join(" "), "warning");
       return;
     }
     if (!isEdit && (!fileInputRef.current || !fileInputRef.current.files[0])) {
-      alert("Appointment order document is required.");
+      if (triggerNotification) triggerNotification("Appointment order document is required.", "warning");
       return;
     }
 
@@ -317,13 +317,19 @@ export default function InputForm({
       }
 
       if (triggerNotification) {
-        triggerNotification(isEdit ? "Young Professional updated successfully." : "New Young Professional registered successfully.");
+        triggerNotification(
+          isEdit ? "Young Professional updated successfully." : "New Young Professional registered successfully.",
+          "success"
+        );
       }
 
       onSuccess();
     } catch (err) {
       console.error(err);
-      alert("Failed to save Young Professional details.");
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+      if (triggerNotification) {
+        triggerNotification(`Failed to save Young Professional details: ${serverMsg || ''}`, "error");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -544,14 +550,14 @@ export default function InputForm({
                 const file = e.target.files[0];
                 if (file) {
                   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-                    alert("Invalid file type. Only PDF files are allowed.");
+                    if (triggerNotification) triggerNotification("Invalid file type. Only PDF files are allowed.", "error");
                     e.target.value = '';
                     setDocumentName('');
                     if (touched.documentName) handleBlur('documentName');
                     return;
                   }
                   if (file.size > 10 * 1024 * 1024) {
-                    alert("File size exceeds 10 MB. Please choose a smaller file.");
+                    if (triggerNotification) triggerNotification("File size exceeds 10 MB. Please choose a smaller file.", "warning");
                     e.target.value = '';
                     setDocumentName('');
                     if (touched.documentName) handleBlur('documentName');

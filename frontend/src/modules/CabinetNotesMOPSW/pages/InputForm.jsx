@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Save, Upload, FileText } from 'lucide-react';
 
@@ -278,11 +278,11 @@ export default function InputForm({
     });
 
     if (!wing || !division || !subject.trim()) {
-      alert("Please fill in all mandatory fields highlighted in red.");
+      if (triggerNotification) triggerNotification("Please fill in all mandatory fields highlighted in red.", "warning");
       return;
     }
     if (errors.remarks) {
-      alert(errors.remarks);
+      if (triggerNotification) triggerNotification(errors.remarks, "warning");
       return;
     }
 
@@ -373,12 +373,17 @@ export default function InputForm({
       }
 
       if (triggerNotification) {
-        triggerNotification(isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.");
+        triggerNotification(
+          isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.",
+          "success"
+        );
       }
       onSuccess();
     } catch (err) {
       console.error(err);
-      alert("Failed to save Cabinet Note. Please try again.");
+      if (triggerNotification) {
+        triggerNotification("Failed to save Cabinet Note. Please try again.", "error");
+      }
     } finally {
       setSubmitting(false);
       setUploadProgress(0);
@@ -509,14 +514,14 @@ export default function InputForm({
                       const file = e.target.files[0];
                       if (file) {
                         if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-                          alert("Invalid file type. Only PDF files are allowed.");
+                          if (triggerNotification) triggerNotification("Invalid file type. Only PDF files are allowed.", "error");
                           e.target.value = '';
                           setDocumentName('');
                           setSelectedFile(null);
                           return;
                         }
                         if (file.size > 10 * 1024 * 1024) {
-                          alert("File size exceeds 10 MB. Please choose a smaller file.");
+                          if (triggerNotification) triggerNotification("File size exceeds 10 MB. Please choose a smaller file.", "warning");
                           e.target.value = '';
                           setDocumentName('');
                           setSelectedFile(null);

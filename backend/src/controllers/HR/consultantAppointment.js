@@ -17,24 +17,33 @@ async function createConsultantAppointment(req, res) {
         console.log("createConsultantAppointment payload:", req.body);
         const wing = req.body.wing;
         const division = req.body.division;
-        const numberOfResources = req.body.resourceNumber;
-        const appointmentType = req.body.appointmentType;
-        const adminApprovalForNKGConsultant = req.body.adminApproval;
-        let adminApprovalForNKGConsultantDate = req.body.adminApprovalDate;
-        const tenderPublished = req.body.tenderPublished;
-        let tenderPublishedDate = req.body.tenderPublishedDate;
-        const preBidQueriesResponded = req.body.preBidQueriesResponded;
-        let preBidQueriesRespondedDate = req.body.preBidQueriesRespondedDate;
-        const bidReceived = req.body.bidReceived;
-        let bidReceivedDate = req.body.bidReceivedDate;
-        const technicalBidFinalized = req.body.technicalBidFinalized;
-        let technicalBidFinalizedDate = req.body.technicalBidFinalizedDate;
-        const financialBidFinalized = req.body.financialBidFinalized;
-        let financialBidFinalizedDate = req.body.financialBidFinalizedDate;
-        const workOrderIssued = req.body.workOrderIssued;
-        let workOrderIssuedDate = req.body.workOrderIssuedDate;
-        const contractSigned = req.body.contractSigned;
-        let contractSignedDate = req.body.contractSignedDate;
+        const numberOfResources = req.body.resourceNumber || req.body.numberOfResources || 1;
+        const appointmentType = req.body.appointmentType || 'Full Time';
+        
+        const adminApprovalDate = req.body.adminApprovalDate || null;
+        const adminApprovalRemarks = req.body.adminApprovalRemarks || req.body.remarks?.adminApproval || null;
+        
+        const tenderPublishedDate = req.body.tenderPublishedDate || null;
+        const tenderPublishedRemarks = req.body.tenderPublishedRemarks || req.body.remarks?.tenderPublished || null;
+        
+        const preBidQueriesRespondedDate = req.body.preBidQueriesRespondedDate || req.body.preBidQueriesDate || null;
+        const preBidQueriesRespondedRemarks = req.body.preBidQueriesRespondedRemarks || req.body.remarks?.preBidQueries || null;
+        
+        const bidReceivedDate = req.body.bidReceivedDate || null;
+        const bidReceivedRemarks = req.body.bidReceivedRemarks || req.body.remarks?.bidReceived || null;
+        
+        const technicalBidFinalizedDate = req.body.technicalBidFinalizedDate || req.body.techBidFinalizedDate || null;
+        const technicalBidFinalizedRemarks = req.body.technicalBidFinalizedRemarks || req.body.remarks?.techBidFinalized || null;
+        
+        const financialBidFinalizedDate = req.body.financialBidFinalizedDate || req.body.finBidFinalizedDate || null;
+        const financialBidFinalizedRemarks = req.body.financialBidFinalizedRemarks || req.body.remarks?.finBidFinalized || null;
+        
+        const workOrderIssuedDate = req.body.workOrderIssuedDate || null;
+        const workOrderIssuedRemarks = req.body.workOrderIssuedRemarks || req.body.remarks?.workOrderIssued || null;
+        
+        const contractSignedDate = req.body.contractSignedDate || null;
+        const contractSignedRemarks = req.body.contractSignedRemarks || req.body.remarks?.contractSigned || null;
+        
         const nameOfConsultingFirm = req.body.consultingFirmName || '';
         let candidateIDs = req.body.candidateIDs;
         if (Array.isArray(candidateIDs)) {
@@ -42,33 +51,8 @@ async function createConsultantAppointment(req, res) {
         } else {
             candidateIDs = candidateIDs ? String(candidateIDs) : '';
         }
-        const stageID = req.body.stageID;
-        const userID = req.body.userID;
-
-        if (adminApprovalForNKGConsultantDate === "") {
-            adminApprovalForNKGConsultantDate = null;
-        }
-        if (tenderPublishedDate === "") {
-            tenderPublishedDate = null;
-        }
-        if (preBidQueriesRespondedDate === "") {
-            preBidQueriesRespondedDate = null;
-        }
-        if (bidReceivedDate === "") {
-            bidReceivedDate = null;
-        }
-        if (technicalBidFinalizedDate === "") {
-            technicalBidFinalizedDate = null;
-        }
-        if (financialBidFinalizedDate === "") {
-            financialBidFinalizedDate = null;
-        }
-        if (workOrderIssuedDate === "") {
-            workOrderIssuedDate = null;
-        }
-        if (contractSignedDate === "") {
-            contractSignedDate = null;
-        }
+        const stageID = req.body.stageID || 1;
+        const userID = req.body.userID || 1;
 
         if (!wing || !division || !numberOfResources || !appointmentType) {
             return res.status(400).json({ message: "Required fields are missing." });
@@ -80,22 +64,22 @@ async function createConsultantAppointment(req, res) {
         request.input("division", division);
         request.input("numberOfResources", numberOfResources);
         request.input("appointmentType", appointmentType);
-        request.input("adminApprovalForNKGConsultant", sql.Bit, toBit(adminApprovalForNKGConsultant));
-        request.input("adminApprovalForNKGConsultantDate", adminApprovalForNKGConsultantDate);
-        request.input("tenderPublished", sql.Bit, toBit(tenderPublished));
+        request.input("adminApprovalDate", adminApprovalDate);
+        request.input("adminApprovalRemarks", adminApprovalRemarks);
         request.input("tenderPublishedDate", tenderPublishedDate);
-        request.input("preBidQueriesResponded", sql.Bit, toBit(preBidQueriesResponded));
+        request.input("tenderPublishedRemarks", tenderPublishedRemarks);
         request.input("preBidQueriesRespondedDate", preBidQueriesRespondedDate);
-        request.input("bidReceived", sql.Bit, toBit(bidReceived));
+        request.input("preBidQueriesRespondedRemarks", preBidQueriesRespondedRemarks);
         request.input("bidReceivedDate", bidReceivedDate);
-        request.input("technicalBidFinalized", sql.Bit, toBit(technicalBidFinalized));
+        request.input("bidReceivedRemarks", bidReceivedRemarks);
         request.input("technicalBidFinalizedDate", technicalBidFinalizedDate);
-        request.input("financialBidFinalized", sql.Bit, toBit(financialBidFinalized));
+        request.input("technicalBidFinalizedRemarks", technicalBidFinalizedRemarks);
         request.input("financialBidFinalizedDate", financialBidFinalizedDate);
-        request.input("workOrderIssued", sql.Bit, toBit(workOrderIssued));
+        request.input("financialBidFinalizedRemarks", financialBidFinalizedRemarks);
         request.input("workOrderIssuedDate", workOrderIssuedDate);
-        request.input("contractSigned", sql.Bit, toBit(contractSigned));
+        request.input("workOrderIssuedRemarks", workOrderIssuedRemarks);
         request.input("contractSignedDate", contractSignedDate);
+        request.input("contractSignedRemarks", contractSignedRemarks);
         request.input("nameOfConsultingFirm", nameOfConsultingFirm);
         request.input("candidateIDs", candidateIDs);
         request.input("stageID", stageID);
@@ -104,22 +88,28 @@ async function createConsultantAppointment(req, res) {
         const result = await request.query(`
             INSERT INTO tbl_consultant_appointment (
                 wing, division, number_of_resources, appointment_type,
-                admin_approval_for_nkg_consultant, admin_approval_for_nkg_consultant_date,
-                tender_published, tender_published_date, pre_bid_queries_responded,
-                pre_bid_queries_responded_date, bid_received, bid_received_date,
-                technical_bid_finalized, technical_bid_finalized_date, financial_bid_finalized,
-                financial_bid_finalized_date, work_order_issued, work_order_issued_date,
-                contract_signed, contract_signed_date, name_of_consulting_firm, candidate_id, stage_id, created_by
+                admin_approval_for_nkg_consultant_date, admin_approval_for_nkg_consultant_remarks,
+                tender_published_date, tender_published_remarks,
+                pre_bid_queries_responded_date, pre_bid_queries_responded_remarks,
+                bid_received_date, bid_received_remarks,
+                technical_bid_finalized_date, technical_bid_finalized_remarks,
+                financial_bid_finalized_date, financial_bid_finalized_remarks,
+                work_order_issued_date, work_order_issued_remarks,
+                contract_signed_date, contract_signed_remarks,
+                name_of_consulting_firm, candidate_id, stage_id, created_by, created_date
             )
             OUTPUT INSERTED.consultant_appointment_id
             VALUES (
                 @wing, @division, @numberOfResources, @appointmentType,
-                @adminApprovalForNKGConsultant, @adminApprovalForNKGConsultantDate,
-                @tenderPublished, @tenderPublishedDate, @preBidQueriesResponded,
-                @preBidQueriesRespondedDate, @bidReceived, @bidReceivedDate,
-                @technicalBidFinalized, @technicalBidFinalizedDate, @financialBidFinalized,
-                @financialBidFinalizedDate, @workOrderIssued, @workOrderIssuedDate,
-                @contractSigned, @contractSignedDate, @nameOfConsultingFirm, @candidateIDs, @stageID, @userID
+                @adminApprovalDate, @adminApprovalRemarks,
+                @tenderPublishedDate, @tenderPublishedRemarks,
+                @preBidQueriesRespondedDate, @preBidQueriesRespondedRemarks,
+                @bidReceivedDate, @bidReceivedRemarks,
+                @technicalBidFinalizedDate, @technicalBidFinalizedRemarks,
+                @financialBidFinalizedDate, @financialBidFinalizedRemarks,
+                @workOrderIssuedDate, @workOrderIssuedRemarks,
+                @contractSignedDate, @contractSignedRemarks,
+                @nameOfConsultingFirm, @candidateIDs, @stageID, @userID, GETDATE()
             )
         `);
 
@@ -149,7 +139,7 @@ async function getConsultantAppointment(req, res) {
         mmt_division d ON ca.division = d.division_id
     INNER JOIN
         mmt_consultant_appointment_stage AS stage ON ca.stage_id = stage.stage_id
-    ORDER BY stage_id;   
+    ORDER BY ca.consultant_appointment_id DESC;   
     `);
         res.json(result.recordset);
     }
@@ -200,86 +190,133 @@ async function addCandidateDetail(req, res) {
     }
 }
 
+async function updateCandidateDetail(req, res) {
+    const candidate_id = req.body.candidate_id || req.body.candidateID;
+    const name = req.body.name;
+    const qualification = req.body.qualification;
+    const workExperience = req.body.workExperience;
+    const salary = req.body.salary;
+    const category = req.body.category;
+    const appointmentDate = req.body.appointmentDate;
+    const skillSet = req.body.skillSet;
+
+    if (!candidate_id) {
+        return res.status(400).json({ message: "Candidate ID is required for update." });
+    }
+
+    const conn = await pool;
+    const request = conn.request();
+
+    request.input('candidate_id', candidate_id);
+    request.input('name', name);
+    request.input('qualification', qualification);
+    request.input('workExperience', workExperience);
+    request.input('salary', salary);
+    request.input('category', category);
+    request.input('appointmentDate', appointmentDate);
+    request.input('skillSet', skillSet);
+
+    try {
+        await request.query(`
+            UPDATE tbl_ca_candidate 
+            SET name = @name,
+                qualification = @qualification,
+                work_experience = @workExperience,
+                salary = @salary,
+                category = @category,
+                date_of_appointment = @appointmentDate,
+                skill_set = @skillSet
+            WHERE candidate_id = @candidate_id
+        `);
+
+        res.status(200).json({ message: "Candidate details updated successfully", candidate_id });
+    } catch (err) {
+        console.error("Error updating candidate detail:", err);
+        return res.status(500).json({ message: "Failed to update candidate details." });
+    }
+}
+
+async function getCandidatesByConsultantAppointmentId(req, res) {
+    const consultantAppointmentID = req.params.consultantAppointmentID;
+    const conn = await pool;
+    const request = conn.request();
+    request.input("consultantAppointmentID", consultantAppointmentID);
+
+    try {
+        const result = await request.query(`
+            SELECT c.*, doc.appointment_order_document
+            FROM tbl_ca_candidate c
+            LEFT JOIN tbl_ca_candidate_document doc ON c.candidate_id = doc.candidate_id
+            WHERE c.consultant_appointment_id = @consultantAppointmentID
+            ORDER BY c.candidate_id ASC
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Error fetching candidates for CA:", err);
+        return res.sendStatus(500);
+    }
+}
+
 async function updateConsultantAppointment(req, res) {
     const consultantAppointmentId = req.body.consultantAppointmentID;
     const wing = req.body.wing;
     const division = req.body.division;
-    const appointmentType = req.body.appointmentType;
-    const adminApprovalForNKGConsultant = req.body.adminApproval;
-    let adminApprovalForNKGConsultantDate = req.body.adminApprovalDate;
-    const tenderPublished = req.body.tenderPublished;
-    let tenderPublishedDate = req.body.tenderPublishedDate;
-    const preBidQueriesResponded = req.body.preBidQueriesResponded;
-    let preBidQueriesRespondedDate = req.body.preBidQueriesRespondedDate;
-    const bidReceived = req.body.bidReceived;
-    let bidReceivedDate = req.body.bidReceivedDate;
-    const technicalBidFinalized = req.body.technicalBidFinalized;
-    let technicalBidFinalizedDate = req.body.technicalBidFinalizedDate;
-    const financialBidFinalized = req.body.financialBidFinalized;
-    let financialBidFinalizedDate = req.body.financialBidFinalizedDate;
-    const workOrderIssued = req.body.workOrderIssued;
-    let workOrderIssuedDate = req.body.workOrderIssuedDate;
-    const contractSigned = req.body.contractSigned;
-    let contractSignedDate = req.body.contractSignedDate;
-    const consultingFirmName = req.body.consultingFirmName;
-    const stageID = req.body.stageID;
-    const userID = req.body.userID;
-    if (adminApprovalForNKGConsultantDate === "") {
-        adminApprovalForNKGConsultantDate = null;
-    }
-
-    if (tenderPublishedDate === "") {
-        tenderPublishedDate = null;
-    }
-
-    if (preBidQueriesRespondedDate === "") {
-        preBidQueriesRespondedDate = null;
-    }
-
-    if (bidReceivedDate === "") {
-        bidReceivedDate = null;
-    }
-
-    if (technicalBidFinalizedDate === "") {
-        technicalBidFinalizedDate = null;
-    }
-
-    if (financialBidFinalizedDate === "") {
-        financialBidFinalizedDate = null;
-    }
-
-    if (workOrderIssuedDate === "") {
-        workOrderIssuedDate = null;
-    }
-
-    if (contractSignedDate === "") {
-        contractSignedDate = null;
-    }
+    const numberOfResources = req.body.resourceNumber || req.body.numberOfResources;
+    const appointmentType = req.body.appointmentType || 'Full Time';
+    
+    const adminApprovalDate = req.body.adminApprovalDate || null;
+    const adminApprovalRemarks = req.body.adminApprovalRemarks || req.body.remarks?.adminApproval || null;
+    
+    const tenderPublishedDate = req.body.tenderPublishedDate || null;
+    const tenderPublishedRemarks = req.body.tenderPublishedRemarks || req.body.remarks?.tenderPublished || null;
+    
+    const preBidQueriesRespondedDate = req.body.preBidQueriesRespondedDate || req.body.preBidQueriesDate || null;
+    const preBidQueriesRespondedRemarks = req.body.preBidQueriesRespondedRemarks || req.body.remarks?.preBidQueries || null;
+    
+    const bidReceivedDate = req.body.bidReceivedDate || null;
+    const bidReceivedRemarks = req.body.bidReceivedRemarks || req.body.remarks?.bidReceived || null;
+    
+    const technicalBidFinalizedDate = req.body.technicalBidFinalizedDate || req.body.techBidFinalizedDate || null;
+    const technicalBidFinalizedRemarks = req.body.technicalBidFinalizedRemarks || req.body.remarks?.techBidFinalized || null;
+    
+    const financialBidFinalizedDate = req.body.financialBidFinalizedDate || req.body.finBidFinalizedDate || null;
+    const financialBidFinalizedRemarks = req.body.financialBidFinalizedRemarks || req.body.remarks?.finBidFinalized || null;
+    
+    const workOrderIssuedDate = req.body.workOrderIssuedDate || null;
+    const workOrderIssuedRemarks = req.body.workOrderIssuedRemarks || req.body.remarks?.workOrderIssued || null;
+    
+    const contractSignedDate = req.body.contractSignedDate || null;
+    const contractSignedRemarks = req.body.contractSignedRemarks || req.body.remarks?.contractSigned || null;
+    
+    const consultingFirmName = req.body.consultingFirmName || '';
+    const stageID = req.body.stageID || 1;
+    const userID = req.body.userID || 1;
 
     const conn = await pool;
     const request = conn.request();
     request.input("id", consultantAppointmentId);
     request.input("wing", wing);
     request.input("division", division);
+    request.input("numberOfResources", numberOfResources);
     request.input("appointmentType", appointmentType);
-    request.input("adminApprovalForNKGConsultant", sql.Bit, toBit(adminApprovalForNKGConsultant));
-    request.input("adminApprovalForNKGConsultantDate", adminApprovalForNKGConsultantDate);
-    request.input("tenderPublished", sql.Bit, toBit(tenderPublished));
+    request.input("adminApprovalDate", adminApprovalDate);
+    request.input("adminApprovalRemarks", adminApprovalRemarks);
     request.input("tenderPublishedDate", tenderPublishedDate);
-    request.input("preBidQueriesResponded", sql.Bit, toBit(preBidQueriesResponded));
+    request.input("tenderPublishedRemarks", tenderPublishedRemarks);
     request.input("preBidQueriesRespondedDate", preBidQueriesRespondedDate);
-    request.input("bidReceived", sql.Bit, toBit(bidReceived));
+    request.input("preBidQueriesRespondedRemarks", preBidQueriesRespondedRemarks);
     request.input("bidReceivedDate", bidReceivedDate);
-    request.input("technicalBidFinalized", sql.Bit, toBit(technicalBidFinalized));
+    request.input("bidReceivedRemarks", bidReceivedRemarks);
     request.input("technicalBidFinalizedDate", technicalBidFinalizedDate);
-    request.input("financialBidFinalized", sql.Bit, toBit(financialBidFinalized));
+    request.input("technicalBidFinalizedRemarks", technicalBidFinalizedRemarks);
     request.input("financialBidFinalizedDate", financialBidFinalizedDate);
-    request.input("workOrderIssued", sql.Bit, toBit(workOrderIssued));
+    request.input("financialBidFinalizedRemarks", financialBidFinalizedRemarks);
     request.input("workOrderIssuedDate", workOrderIssuedDate);
-    request.input("stageID", stageID);
-    request.input("contractSigned", sql.Bit, toBit(contractSigned));
+    request.input("workOrderIssuedRemarks", workOrderIssuedRemarks);
     request.input("contractSignedDate", contractSignedDate);
-    request.input("consultingFirmName", consultingFirmName || '');
+    request.input("contractSignedRemarks", contractSignedRemarks);
+    request.input("consultingFirmName", consultingFirmName);
+    request.input("stageID", stageID);
     request.input("userID", userID);
 
     try {
@@ -287,35 +324,36 @@ async function updateConsultantAppointment(req, res) {
         UPDATE tbl_consultant_appointment
         SET wing = @wing,
             division = @division,
+            number_of_resources = COALESCE(@numberOfResources, number_of_resources),
             appointment_type = @appointmentType,
-            admin_approval_for_nkg_consultant = @adminApprovalForNKGConsultant,
-            admin_approval_for_nkg_consultant_date = @adminApprovalForNKGConsultantDate,
-            tender_published = @tenderPublished,
+            admin_approval_for_nkg_consultant_date = @adminApprovalDate,
+            admin_approval_for_nkg_consultant_remarks = @adminApprovalRemarks,
             tender_published_date = @tenderPublishedDate,
-            pre_bid_queries_responded = @preBidQueriesResponded,
+            tender_published_remarks = @tenderPublishedRemarks,
             pre_bid_queries_responded_date = @preBidQueriesRespondedDate,
-            bid_received = @bidReceived,
+            pre_bid_queries_responded_remarks = @preBidQueriesRespondedRemarks,
             bid_received_date = @bidReceivedDate,
-            technical_bid_finalized = @technicalBidFinalized,
+            bid_received_remarks = @bidReceivedRemarks,
             technical_bid_finalized_date = @technicalBidFinalizedDate,
-            financial_bid_finalized = @financialBidFinalized,
+            technical_bid_finalized_remarks = @technicalBidFinalizedRemarks,
             financial_bid_finalized_date = @financialBidFinalizedDate,
-            work_order_issued = @workOrderIssued,
+            financial_bid_finalized_remarks = @financialBidFinalizedRemarks,
             work_order_issued_date = @workOrderIssuedDate,
-            contract_signed = @contractSigned,
+            work_order_issued_remarks = @workOrderIssuedRemarks,
             contract_signed_date = @contractSignedDate,
+            contract_signed_remarks = @contractSignedRemarks,
             name_of_consulting_firm = @consultingFirmName,
             stage_id = @stageID,
             updated_by = @userID,
-            updated_date = getDate()
+            updated_date = GETDATE()
             OUTPUT INSERTED.candidate_id, INSERTED.consultant_appointment_id
         WHERE consultant_appointment_id = @id
         `);
 
-        const candidate_id = result.recordset[0].candidate_id;
-        const consultant_appointment_id = result.recordset[0].consultant_appointment_id;
+        const candidate_id = result.recordset[0]?.candidate_id;
+        const consultant_appointment_id = result.recordset[0]?.consultant_appointment_id;
 
-        res.status(201).json({ candidate_id, consultant_appointment_id });
+        res.status(200).json({ candidate_id, consultant_appointment_id });
     } catch (err) {
         console.error("Error updating consultant appointment:", err);
         return res.status(500).json({ message: err.message || "Failed to update consultant appointment." });
@@ -631,6 +669,6 @@ async function deleteCACandidateData(req, res)
     }
 }
 
-export default { getConsultantAppointment, createConsultantAppointment, addCandidateDetail, updateConsultantAppointment, 
+export default { getConsultantAppointment, createConsultantAppointment, addCandidateDetail, updateCandidateDetail, getCandidatesByConsultantAppointmentId, updateConsultantAppointment, 
     getCandidateDetail, getCandidateDetailDocument, createConsultantAppointmentStage, getUpdateConsultantAppointmentData, 
     getCandidateID, addConsultantID, deleteCACandidateData };

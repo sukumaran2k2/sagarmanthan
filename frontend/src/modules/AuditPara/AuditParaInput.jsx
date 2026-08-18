@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FileSpreadsheet,
   Plus,
@@ -74,7 +74,7 @@ const STATUS_STEPS = {
 
 const CATEGORIES = ['Audit Para', 'Draft Para', 'CAG Report Item'];
 
-export default function AuditParaInput({ auditParas, setAuditParas, refreshData }) {
+export default function AuditParaInput({ auditParas, setAuditParas, refreshData, triggerNotification }) {
   const gridRef = useRef();
 
   const [selectedWing, setSelectedWing] = useState('All');
@@ -132,11 +132,11 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
 
   const handleOpenEdit = (para) => {
     setEditingPara(para);
-    setFormNumber(para.paraNumber || para.number || '');
-    setFormSubject(para.subject);
-    setFormWing(para.wing);
-    setFormDivision(para.division);
-    setFormCategory(para.category);
+    setFormNumber(para.auditParaNumber || '');
+    setFormSubject(para.subject || '');
+    setFormWing(para.wing || 'Ports');
+    setFormDivision(para.division || 'PD-III');
+    setFormCategory(para.category || 'Audit Para');
     setFormRemarks(para.remarks || '');
     setFormStatusSteps({ ...para.statusSteps });
     setFormStatusDates(para.statusDates || {});
@@ -146,14 +146,14 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
   const handleSavePara = async (e) => {
     e.preventDefault();
     if (!formNumber.trim() || !formSubject.trim()) {
-      alert('Please fill in all required fields marked with *');
+      if (triggerNotification) triggerNotification('Please fill in all required fields marked with *', 'warning');
       return;
     }
 
     // Word count check for remarks
     const wordCount = formRemarks.trim().split(/\s+/).filter(Boolean).length;
     if (wordCount > 250) {
-      alert('Remarks cannot exceed 250 words.');
+      if (triggerNotification) triggerNotification('Remarks cannot exceed 250 words.', 'warning');
       return;
     }
 
@@ -200,11 +200,19 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
       } else {
         await axios.post("http://localhost:3000/audit-para", payload);
       }
+      if (triggerNotification) {
+        triggerNotification(
+          editingPara ? 'Audit Para updated successfully.' : 'New Audit Para registered successfully.',
+          'success'
+        );
+      }
       setIsFormOpen(false);
       if (refreshData) refreshData();
     } catch (err) {
       console.error("Error saving Audit Para:", err);
-      alert("Failed to save Audit Para.");
+      if (triggerNotification) {
+        triggerNotification("Failed to save Audit Para.", "error");
+      }
     }
   };
 

@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Table from '../../../components/Table';
 import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
@@ -163,7 +163,7 @@ export default function DataList({
   const handleRelieveSubmit = async (e) => {
     e.preventDefault();
     if (!lastWorkingDate) {
-      alert("Please select the last working date.");
+      if (triggerNotification) triggerNotification("Please select the last working date.", "warning");
       return;
     }
     setSubmittingRelieve(true);
@@ -178,13 +178,13 @@ export default function DataList({
         updated_by: activeUserId
       });
       if (triggerNotification) {
-        triggerNotification(`${selectedYp.name} has been relieved successfully.`);
+        triggerNotification(`${selectedYp.name} has been relieved successfully.`, 'success');
       }
       setRelieveModalOpen(false);
       onRefresh();
     } catch (err) {
       console.error(err);
-      alert("Failed to relieve young professional.");
+      if (triggerNotification) triggerNotification("Failed to relieve young professional.", "error");
     } finally {
       setSubmittingRelieve(false);
     }
@@ -222,11 +222,13 @@ export default function DataList({
         
         navigator.clipboard.writeText(tsv)
           .then(() => {
-            if (triggerNotification) triggerNotification('Table data copied to clipboard!');
+            if (triggerNotification) triggerNotification('Table data copied to clipboard!', 'success');
           })
-          .catch(() => alert('Failed to copy table data.'));
+          .catch(() => {
+            if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
+          });
       } else {
-        alert("Grid is not ready for copy yet.");
+        if (triggerNotification) triggerNotification("Grid is not ready for copy yet.", "warning");
       }
     } else if (type === 'Excel') {
       if (gridApi) {
@@ -234,14 +236,14 @@ export default function DataList({
           fileName: `Young_Professionals_Register_export.csv`
         });
         if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`);
+          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
         }
       } else {
-        alert("Grid is not ready for export yet.");
+        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
       }
     } else if (type === 'PDF') {
       if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`);
+        triggerNotification(`Preparing PDF document...`, 'info');
       }
 
       const printWindow = window.open('', '_blank');

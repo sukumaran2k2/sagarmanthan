@@ -38,7 +38,7 @@ export default function ParliamentaryIssues({
   const notify = useCallback(
     (message, type = 'success') => {
       if (typeof triggerNotification === 'function') {
-        triggerNotification(message);
+        triggerNotification(message, type);
         return;
       }
       setToast({ message, type });

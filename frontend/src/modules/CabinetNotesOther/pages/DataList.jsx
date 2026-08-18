@@ -182,12 +182,14 @@ export default function DataList({
           fileName: `Cabinet_Notes_Other_Ministry_Register_export.csv`
         });
         if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`);
+          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
         }
+      } else {
+        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
       }
     } else if (type === 'PDF') {
       if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`);
+        triggerNotification(`Preparing PDF document...`, 'info');
       }
       const printWindow = window.open('', '_blank');
       const title = 'Cabinet Notes Other Ministry Register';

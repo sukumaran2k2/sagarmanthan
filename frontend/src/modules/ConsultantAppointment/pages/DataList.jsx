@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Table from '../../../components/Table';
-import { Search, X, Edit, ChevronDown } from 'lucide-react';
+import { Search, X, Edit, ChevronDown, Users } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import CandidateDrilldownView from './CandidateDrilldownView';
 
 // All stages a pending appointment can be at (Contract Signed belongs to Completed tab)
 const PENDING_STAGES = [
@@ -34,6 +35,7 @@ export default function DataList({
   const [gridApi, setGridApi] = useState(null); // Ag Grid API
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'completed'
   const [selectedStage, setSelectedStage] = useState(''); // stage filter for pending tab
+  const [drilldownAppointment, setDrilldownAppointment] = useState(null);
 
   // Reset stage filter when switching tabs
   const handleTabChange = (tab) => {
@@ -49,7 +51,8 @@ export default function DataList({
     division: true,
     appointmentType: true,
     status: true,
-    numResources: true
+    numResources: true,
+    lastUpdated: true
   });
 
   useEffect(() => {
@@ -133,10 +136,10 @@ export default function DataList({
           tsv += line.join('\t') + '\n';
         });
         navigator.clipboard.writeText(tsv)
-          .then(() => { if (triggerNotification) triggerNotification('Table data copied to clipboard!'); })
-          .catch(() => alert('Failed to copy table data.'));
+          .then(() => { if (triggerNotification) triggerNotification('Table data copied to clipboard!', 'success'); })
+          .catch(() => { if (triggerNotification) triggerNotification('Failed to copy table data.', 'error'); });
       } else {
-        alert('Grid is not ready for copy yet.');
+        if (triggerNotification) triggerNotification('Grid is not ready for copy yet.', 'warning');
       }
     } else if (type === 'Excel') {
       if (gridApi) {
@@ -144,14 +147,14 @@ export default function DataList({
           fileName: `Consultant_Appointment_Register_export.csv`
         });
         if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`);
+          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
         }
       } else {
-        alert("Grid is not ready for export yet.");
+        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
       }
     } else if (type === 'PDF') {
       if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`);
+        triggerNotification(`Preparing PDF document...`, 'info');
       }
 
       const printWindow = window.open('', '_blank');
@@ -257,10 +260,35 @@ export default function DataList({
         field: 'numResources',
         headerName: 'Number of Resources',
         flex: 1,
-        minWidth: 140,
-        cellClass: 'text-center font-bold text-slate-800 dark:text-slate-200',
+        minWidth: 155,
         headerClass: 'text-center',
+        cellRenderer: (params) => {
+          const row = params.data;
+          const count = params.value || 1;
+          return (
+            <div className="flex items-center justify-center w-full h-full py-1">
+              <button
+                type="button"
+                onClick={() => setDrilldownAppointment(row)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 hover:bg-blue-100 text-[#0f417a] dark:bg-blue-950/60 dark:hover:bg-blue-900/60 dark:text-blue-300 font-extrabold text-xs rounded-lg border border-blue-200 dark:border-blue-800 transition cursor-pointer shadow-sm hover:scale-105 active:scale-95 group"
+                title="Click to view candidate details & documents"
+              >
+                <Users className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400 group-hover:scale-110 transition-transform" />
+                <span>{count}</span>
+              </button>
+            </div>
+          );
+        },
         hide: !visibleCols.numResources
+      },
+      {
+        field: 'lastUpdated',
+        headerName: 'Last Updated',
+        flex: 1.3,
+        minWidth: 165,
+        cellClass: 'font-mono text-slate-700 dark:text-slate-300 text-xs font-semibold text-center',
+        headerClass: 'text-center',
+        hide: !visibleCols.lastUpdated
       }
     ];
 
@@ -287,6 +315,16 @@ export default function DataList({
 
     return cols;
   }, [onEdit, visibleCols, canEdit]);
+
+  if (drilldownAppointment) {
+    return (
+      <CandidateDrilldownView
+        appointment={drilldownAppointment}
+        onBack={() => setDrilldownAppointment(null)}
+        triggerNotification={triggerNotification}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in relative">
@@ -415,7 +453,7 @@ export default function DataList({
                       onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
                       className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
-                    <span>{col === 'appointmentType' ? 'Appointment Type' : col === 'numResources' ? 'Num Resources' : col}</span>
+                    <span>{col === 'appointmentType' ? 'Appointment Type' : col === 'numResources' ? 'Num Resources' : col === 'lastUpdated' ? 'Last Updated' : col}</span>
                   </label>
                 ))}
               </div>
