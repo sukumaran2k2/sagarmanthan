@@ -119,6 +119,10 @@ export function fetchAssuranceWingWiseReport() {
   return api.get('/assurancewingwise-report');
 }
 
+export function fetchAssuranceWingDivisionReport() {
+  return api.get('/assurancewingdivision-report');
+}
+
 export function fetchAssuranceDivisionWiseReport(wingId) {
   return api.get(`/assurancedivisionwise-report/${wingId}/`);
 }
@@ -133,6 +137,10 @@ export function fetchAssuranceDivisionDetail(divisionId, stage) {
 
 export function fetchMatterWingWiseReport(issueType) {
   return api.get(`/matterraised-wingwisereport/${encodeURIComponent(issueType)}/`);
+}
+
+export function fetchMatterWingDivisionReport(issueType) {
+  return api.get(`/matterraised-wingdivision/${encodeURIComponent(issueType)}/`);
 }
 
 export function fetchMatterDivisionWiseReport(wingId, issueType) {
@@ -155,6 +163,10 @@ export function fetchMatterDivisionDetail(divisionId, stage, issueType) {
 
 export function fetchPscWingWiseReport() {
   return api.get('/psnwingwise-report');
+}
+
+export function fetchPscWingDivisionReport() {
+  return api.get('/psnwingdivision-report');
 }
 
 export function fetchPscDivisionWiseReport(wingId) {

@@ -46,6 +46,14 @@ function escapeLike(value) {
   return String(value).replace(/[%_[\]]/g, (ch) => `[${ch}]`);
 }
 
+// `mssql` type helpers differ slightly between versions/builds.
+// In your runtime, `sql.NVarChar` exists but is not callable.
+function nvarcharType(length) {
+  const t = sql?.NVarChar;
+  if (!t) return undefined;
+  return typeof t === 'function' ? t(length) : t;
+}
+
 function bindListFilters(request, query, { includeStatus = false } = {}) {
   let sql = "";
 
@@ -66,13 +74,13 @@ function bindListFilters(request, query, { includeStatus = false } = {}) {
   }
 
   if (!isAllParam(query.issueType)) {
-    request.input("issueType", sql.NVarChar(200), String(query.issueType).trim());
+    request.input("issueType", nvarcharType(200), String(query.issueType).trim());
     sql += " AND tpi.parliamentary_issue_type = @issueType";
   }
 
   const search = String(query.search || "").trim();
   if (search) {
-    request.input("search", sql.NVarChar(300), `%${escapeLike(search)}%`);
+    request.input("search", nvarcharType(300), `%${escapeLike(search)}%`);
     sql += ` AND (
       tpi.subject LIKE @search
       OR tpi.remarks LIKE @search
@@ -89,7 +97,7 @@ function bindListFilters(request, query, { includeStatus = false } = {}) {
   }
 
   if (includeStatus && !isAllParam(query.status)) {
-    request.input("status", sql.NVarChar(200), String(query.status).trim());
+    request.input("status", nvarcharType(200), String(query.status).trim());
     sql += " AND mps.parlia_stage_name = @status";
   }
 
@@ -173,7 +181,7 @@ async function getParliamentaryIssue(req, res) {
     bindListFilters(pageRequest, req.query, { includeStatus: category === "active" });
 
     if (category === "active" && !isAllParam(req.query.status)) {
-      countRequest.input("status", sql.NVarChar(200), String(req.query.status).trim());
+      countRequest.input("status", nvarcharType(200), String(req.query.status).trim());
     }
 
     const categoryFilter =

@@ -374,21 +374,23 @@ export default function IssueListTable({
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             </div>
 
-            <div className="relative">
-              <select
-                value={filters.issueType === 'All' ? '' : filters.issueType}
-                onChange={(e) => handleIssueTypeChange(e.target.value)}
-                className={`${selectClass} min-w-[150px]`}
-              >
-                <option value="">All Issue Types</option>
-                {issueTypeOptions.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
+            {category === 'active' && (
+              <div className="relative">
+                <select
+                  value={filters.issueType === 'All' ? '' : filters.issueType}
+                  onChange={(e) => handleIssueTypeChange(e.target.value)}
+                  className={`${selectClass} min-w-[150px]`}
+                >
+                  <option value="">All Issue Types</option>
+                  {issueTypeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            )}
 
             {category === 'active' && (
               <div className="relative">

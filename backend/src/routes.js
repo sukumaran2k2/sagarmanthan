@@ -1297,6 +1297,12 @@ router.get(
   parlimentaryReportTab.assuranceWingWiseReports
 );
 router.get(
+  "/assurancewingdivision-report",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.assuranceWingDivisionReports
+);
+router.get(
   "/assurancedivisionwise-report/:wingID/",
   auth,
   requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
@@ -1323,6 +1329,12 @@ router.get(
   parlimentaryReportTab.parliaMatterRaisedWingWise
 );
 router.get(
+  "/matterraised-wingdivision/:issueType/",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.parliaMatterWingDivision
+);
+router.get(
   "/matterraised-divisionwise/:wingID/:issueType/",
   auth,
   requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
@@ -1347,6 +1359,12 @@ router.get(
   auth,
   requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
   parlimentaryReportTab.getPsnReportsData
+);
+router.get(
+  "/psnwingdivision-report",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parlimentaryReportTab.pscWingDivisionReports
 );
 router.get(
   "/psndivisionwise-report/:wingID/",

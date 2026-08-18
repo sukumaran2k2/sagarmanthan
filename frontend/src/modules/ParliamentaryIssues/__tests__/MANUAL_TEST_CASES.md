@@ -28,9 +28,10 @@
 
 ## Reports
 19. Report tab loads for each type (Assurance, Zero Hours, Rule 377, PSC, Special Mention).
-20. Empty data does not crash.
-21. Drilldown / navigation works where available.
+20. Report View dropdown: Wing, Division, Wing and Division. Title and columns update without leaving the report.
+21. Empty data does not crash.
+22. Drilldown / navigation works where available.
 
 ## Scope
-22. User only sees data in their data scope (wing/division/org as configured).
-23. Filters still work within that scope.
+23. User only sees data in their data scope (wing/division/org as configured).
+24. Filters still work within that scope.

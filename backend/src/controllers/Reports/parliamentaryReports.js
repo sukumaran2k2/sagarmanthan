@@ -1103,6 +1103,152 @@ async function getPscDivisionWise (req, res)
     }
 };
 
+function sendGrid(res, recordset) {
+    const rowData = recordset || [];
+    if (rowData.length === 0) {
+        return res.json(rowData);
+    }
+    const columnDefs = Object.keys(rowData[0]).map((key) => ({
+        headerName: key.charAt(0).toUpperCase() + key.slice(1),
+        field: key,
+    }));
+    return res.json({ columnDefs, rowData });
+}
+
+async function assuranceWingDivisionReports(req, res) {
+    const conn = await pool;
+    try {
+        const result = await conn.query(`
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id, mmt_division.division_id) AS [S No],
+                mmt_wings.wing_id AS [Wing Id],
+                mmt_wings.wing_name AS [Wing Name],
+                mmt_division.division_id AS [Division Id],
+                mmt_division.division_name AS [Division Name],
+                COUNT(tbl_parliamentary_issue.stage_id) AS [No of Assurance],
+                COUNT(CASE WHEN mmt_parliamentary_stage.parlia_stage_id = 1 THEN tbl_parliamentary_issue.stage_id END) AS [Received At Ministry],
+                COUNT(CASE WHEN mmt_parliamentary_stage.parlia_stage_id = 2 THEN tbl_parliamentary_issue.stage_id END) AS [Comments Sought],
+                COUNT(CASE WHEN mmt_parliamentary_stage.parlia_stage_id = 3 THEN tbl_parliamentary_issue.stage_id END) AS [Comments Received],
+                COUNT(CASE WHEN mmt_parliamentary_stage.parlia_stage_id = 4 THEN tbl_parliamentary_issue.stage_id END) AS [Extension Of Time Sought],
+                COUNT(CASE WHEN mmt_parliamentary_stage.parlia_stage_id = 5 THEN tbl_parliamentary_issue.stage_id END) AS [Implementation Report Furnished / Request For Dropping],
+                COUNT(CASE WHEN mmt_parliamentary_stage.parlia_stage_id = 6 THEN tbl_parliamentary_issue.stage_id END) AS [Matter Disposed]
+            FROM mmt_wings
+            INNER JOIN mmt_division ON mmt_division.wing_id = mmt_wings.wing_id
+            LEFT JOIN tbl_parliamentary_issue
+                ON mmt_division.division_id = tbl_parliamentary_issue.division
+                AND (tbl_parliamentary_issue.parliamentary_issue_type = 'Assurance'
+                    OR tbl_parliamentary_issue.parliamentary_issue_type IS NULL)
+            LEFT JOIN mmt_parliamentary_stage
+                ON tbl_parliamentary_issue.stage_id = mmt_parliamentary_stage.parlia_stage_id
+            GROUP BY
+                mmt_wings.wing_id,
+                mmt_wings.wing_name,
+                mmt_division.division_id,
+                mmt_division.division_name
+        `);
+        return sendGrid(res, result.recordset);
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
+async function parliaMatterWingDivision(req, res) {
+    const issueType = req.params.issueType;
+    const conn = await pool;
+    const request = conn.request();
+    request.input("issueType", issueType);
+    try {
+        const result = await request.query(`
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id, mmt_division.division_id) AS [S No],
+                mmt_wings.wing_id AS [Wing Id],
+                mmt_wings.wing_name AS [Wing Name],
+                mmt_division.division_id AS [Division Id],
+                mmt_division.division_name AS [Division Name],
+                COUNT(tbl_parliamentary_issue.stage_id) AS [No of Matter Raised],
+                COUNT(CASE WHEN
+                    mmt_parliamentary_stage.parlia_stage_id = 8 OR
+                    mmt_parliamentary_stage.parlia_stage_id = 14 OR
+                    mmt_parliamentary_stage.parlia_stage_id = 20
+                THEN tbl_parliamentary_issue.stage_id END) AS [Received At Ministry],
+                COUNT(CASE WHEN
+                    mmt_parliamentary_stage.parlia_stage_id = 9 OR
+                    mmt_parliamentary_stage.parlia_stage_id = 15 OR
+                    mmt_parliamentary_stage.parlia_stage_id = 21
+                THEN tbl_parliamentary_issue.stage_id END) AS [Debated in Parliament],
+                COUNT(CASE WHEN
+                    mmt_parliamentary_stage.parlia_stage_id = 10 OR
+                    mmt_parliamentary_stage.parlia_stage_id = 16 OR
+                    mmt_parliamentary_stage.parlia_stage_id = 22
+                THEN tbl_parliamentary_issue.stage_id END) AS [Comments Sought],
+                COUNT(CASE WHEN
+                    mmt_parliamentary_stage.parlia_stage_id = 11 OR
+                    mmt_parliamentary_stage.parlia_stage_id = 17 OR
+                    mmt_parliamentary_stage.parlia_stage_id = 23
+                THEN tbl_parliamentary_issue.stage_id END) AS [Comments Received],
+                COUNT(CASE WHEN
+                    mmt_parliamentary_stage.parlia_stage_id = 12 OR
+                    mmt_parliamentary_stage.parlia_stage_id = 18 OR
+                    mmt_parliamentary_stage.parlia_stage_id = 24
+                THEN tbl_parliamentary_issue.stage_id END) AS [Replay Sent]
+            FROM mmt_wings
+            INNER JOIN mmt_division ON mmt_division.wing_id = mmt_wings.wing_id
+            LEFT JOIN tbl_parliamentary_issue
+                ON mmt_division.division_id = tbl_parliamentary_issue.division
+                AND (tbl_parliamentary_issue.parliamentary_issue_type = @issueType
+                    OR tbl_parliamentary_issue.parliamentary_issue_type IS NULL)
+            LEFT JOIN mmt_parliamentary_stage
+                ON tbl_parliamentary_issue.stage_id = mmt_parliamentary_stage.parlia_stage_id
+            GROUP BY
+                mmt_wings.wing_id,
+                mmt_wings.wing_name,
+                mmt_division.division_id,
+                mmt_division.division_name
+        `);
+        return sendGrid(res, result.recordset);
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
+async function pscWingDivisionReports(req, res) {
+    const conn = await pool;
+    try {
+        const result = await conn.query(`
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY mmt_wings.wing_id, mmt_division.division_id) AS [S No],
+                mmt_wings.wing_id AS [Wing Id],
+                mmt_wings.wing_name AS [Wing Name],
+                mmt_division.division_id AS [Division Id],
+                mmt_division.division_name AS [Division Name],
+                COUNT(tbl_parliamentary_issue.stage_id) AS [No of PSC Report],
+                COUNT(CASE WHEN mmt_parliamentary_stage.parlia_stage_id = 26 THEN tbl_parliamentary_issue.stage_id END) AS [Received At Ministry],
+                COUNT(CASE WHEN mmt_parliamentary_stage.parlia_stage_id = 27 THEN tbl_parliamentary_issue.stage_id END) AS [Comments Sought],
+                COUNT(CASE WHEN mmt_parliamentary_stage.parlia_stage_id = 28 THEN tbl_parliamentary_issue.stage_id END) AS [Comments Received],
+                COUNT(CASE WHEN mmt_parliamentary_stage.parlia_stage_id = 29 THEN tbl_parliamentary_issue.stage_id END) AS [Reply sent]
+            FROM mmt_wings
+            INNER JOIN mmt_division ON mmt_division.wing_id = mmt_wings.wing_id
+            LEFT JOIN tbl_parliamentary_issue
+                ON mmt_division.division_id = tbl_parliamentary_issue.division
+                AND tbl_parliamentary_issue.parliamentary_issue_type = 'PSC Report'
+            LEFT JOIN mmt_parliamentary_stage
+                ON tbl_parliamentary_issue.stage_id = mmt_parliamentary_stage.parlia_stage_id
+            GROUP BY
+                mmt_wings.wing_id,
+                mmt_wings.wing_name,
+                mmt_division.division_id,
+                mmt_division.division_name
+        `);
+        return sendGrid(res, result.recordset);
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
 export default { assuranceWingWiseReports, assuranceDivisionWiseReports, getAssuranceWingWise, getAssuranceDivisionWise,
     parliaMatterRaisedWingWise, parliaMatterDivisionWise, getMatterWingWise, getMatterDivisionWise,
-    getPsnReportsData, parliaPscDivisionWise, getPscWingWise, getPscDivisionWise };
+    getPsnReportsData, parliaPscDivisionWise, getPscWingWise, getPscDivisionWise,
+    assuranceWingDivisionReports, parliaMatterWingDivision, pscWingDivisionReports };

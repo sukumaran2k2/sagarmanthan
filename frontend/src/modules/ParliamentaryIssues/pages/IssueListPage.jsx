@@ -57,6 +57,44 @@ export default function IssueListPage({
     return () => clearTimeout(timer);
   }, [filters.search]);
 
+  const loadTabTotals = useCallback(async () => {
+    if (!permissions.canView) return;
+    try {
+      const [activeRes, completedRes] = await Promise.allSettled([
+        fetchParliamentaryIssues({
+          page: 1,
+          limit: 1,
+          category: 'active',
+          wingId: 'All',
+          divisionId: 'All',
+          issueType: 'All',
+          status: 'All',
+          search: '',
+        }),
+        fetchParliamentaryIssues({
+          page: 1,
+          limit: 1,
+          category: 'completed',
+          wingId: 'All',
+          divisionId: 'All',
+          issueType: 'All',
+          status: 'All',
+          search: '',
+        }),
+      ]);
+
+      const activePayload = activeRes.status === 'fulfilled' ? activeRes.value?.data : null;
+      const completedPayload = completedRes.status === 'fulfilled' ? completedRes.value?.data : null;
+
+      setCounts({
+        active: Number(activePayload?.pagination?.total) || 0,
+        completed: Number(completedPayload?.pagination?.total) || 0,
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }, [permissions.canView]);
+
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch]);
@@ -65,26 +103,23 @@ export default function IssueListPage({
     if (!permissions.canView) return;
     setLoading(true);
     try {
-      const res = await fetchParliamentaryIssues(
-        {
-          page,
-          limit: pageSize,
-          category,
-          wingId: filters.wingId,
-          divisionId: filters.divisionId,
-          issueType: filters.issueType,
-          status: filters.status,
-          search: debouncedSearch,
-        },
+      const commonParams = {
+        wingId: filters.wingId,
+        divisionId: filters.divisionId,
+        issueType: filters.issueType,
+        status: filters.status,
+        search: debouncedSearch,
+      };
+
+      const listRes = await fetchParliamentaryIssues(
+        { page, limit: pageSize, category, ...commonParams },
         { signal }
       );
-      const payload = res.data || {};
+
+      const payload = listRes?.data || {};
       const data = Array.isArray(payload.data) ? payload.data : [];
       setRows(data.map(mapIssueListRow));
-      setCounts({
-        active: Number(payload.counts?.active) || 0,
-        completed: Number(payload.counts?.completed) || 0,
-      });
+
       setPagination({
         total: Number(payload.pagination?.total) || 0,
         page: Number(payload.pagination?.page) || page,
@@ -130,6 +165,10 @@ export default function IssueListPage({
     return () => controller.abort();
   }, [loadList]);
 
+  useEffect(() => {
+    loadTabTotals();
+  }, [loadTabTotals]);
+
   const handleAdd = () => {
     if (!permissions.canAdd) return;
     setFormData(null);
@@ -167,6 +206,7 @@ export default function IssueListPage({
       notify?.('Parliamentary issue deleted successfully.', 'success');
       setDeleteTarget(null);
       loadList();
+      loadTabTotals();
     } catch (err) {
       console.error(err);
       notify?.(err?.response?.data?.message || 'Failed to delete issue.', 'error');
@@ -182,7 +222,12 @@ export default function IssueListPage({
 
   const handleCategoryChange = (next) => {
     setCategory(next);
-    setFilters((prev) => ({ ...prev, status: 'All' }));
+    setFilters((prev) => ({
+      ...prev,
+      status: 'All',
+      // Issue Type filter is only relevant for the "Active" view.
+      issueType: next === 'completed' ? 'All' : prev.issueType,
+    }));
     setPage(1);
   };
 
@@ -217,6 +262,7 @@ export default function IssueListPage({
           setMode('list');
           setFormData(null);
           loadList();
+          loadTabTotals();
         }}
         notify={notify}
       />

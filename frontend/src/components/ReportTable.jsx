@@ -23,7 +23,8 @@ export default function ReportTable({
   accentColor = '#f1f5f9',
   oddRowColor = '#f8fafc',
   totalLabel = 'Total',
-  pinnedBottomRowData = undefined
+  pinnedBottomRowData = undefined,
+  toolbarExtra = null,
 }) {
   // Detail titles with "|" keep the full string in the eyebrow (legacy Form 8.2).
   // Summary titles use the segment before " - ".
@@ -208,6 +209,8 @@ export default function ReportTable({
               </button>
             )}
           </div>
+
+          {toolbarExtra}
 
           <button type="button" onClick={handleCopy} className={ghostBtnClass}>
             <Copy size={15} />
@@ -467,11 +470,6 @@ export default function ReportTable({
         .${themeClass} .ag-pinned-left-cols-container {
           box-shadow: 4px 0 12px rgba(0,0,0,0.04) !important;
         }
-<<<<<<< Updated upstream
-=======
-
-        /* ── PAGINATION (YP Report Style) ── */
->>>>>>> Stashed changes
         .${themeClass} .ag-paging-panel {
           border-top: 1px solid #D3D6D9 !important;
           background: var(--theme-row-odd-bg, #f8faf6) !important;

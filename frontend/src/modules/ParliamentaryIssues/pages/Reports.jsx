@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Building2 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
 import {
   buildDrilldownStageMap,
@@ -11,17 +12,22 @@ import {
   fetchAssuranceDivisionDetail,
   fetchAssuranceDivisionWiseReport,
   fetchAssuranceWingDetail,
-  fetchAssuranceWingWiseReport,
+  fetchAssuranceWingDivisionReport,
   fetchMatterDivisionDetail,
   fetchMatterDivisionWiseReport,
   fetchMatterWingDetail,
-  fetchMatterWingWiseReport,
+  fetchMatterWingDivisionReport,
   fetchParliamentaryStages,
   fetchPscDivisionDetail,
   fetchPscDivisionWiseReport,
   fetchPscWingDetail,
-  fetchPscWingWiseReport,
+  fetchPscWingDivisionReport,
 } from '../api';
+
+const WING_FIELDS = new Set(['Wing Id', 'Wing ID', 'Wing Name', 'Wing']);
+const DIVISION_FIELDS = new Set(['Division Id', 'Division ID', 'Division Name', 'Division']);
+const ID_FIELDS = new Set(['Wing Id', 'Wing ID', 'Division Id', 'Division ID']);
+const META_FIELDS = new Set(['S No', 'S.No', ...WING_FIELDS, ...DIVISION_FIELDS]);
 
 function linkButton(label, onClick) {
   return (
@@ -59,36 +65,28 @@ function issueTypeParen(family, issueType) {
   return `(Matter Raised - ${issueType})`;
 }
 
+function abstractLevel(reportView) {
+  if (reportView === 'wing') return 'Abstract Wing Wise';
+  if (reportView === 'division') return 'Abstract Division Wise';
+  return 'Abstract Wing & Division Wise';
+}
+
 function form82Title(level, family, issueType) {
   return `Form No.:8.2 - ${level} - Parliamentary Issues ${issueTypeParen(family, issueType)}`;
 }
 
+function combinedFetcher(tab) {
+  if (tab.family === 'assurance') return fetchAssuranceWingDivisionReport;
+  if (tab.family === 'psc') return fetchPscWingDivisionReport;
+  return () => fetchMatterWingDivisionReport(tab.issueType);
+}
+
 function buildRootView(tab) {
-  const title = form82Title('Abstract Wing Wise', tab.family, tab.issueType);
-  if (tab.family === 'assurance') {
-    return {
-      type: 'wing',
-      family: 'assurance',
-      issueType: tab.issueType,
-      title,
-      fetcher: fetchAssuranceWingWiseReport,
-    };
-  }
-  if (tab.family === 'psc') {
-    return {
-      type: 'wing',
-      family: 'psc',
-      issueType: tab.issueType,
-      title,
-      fetcher: fetchPscWingWiseReport,
-    };
-  }
   return {
-    type: 'wing',
-    family: 'matter',
+    type: 'summary',
+    family: tab.family,
     issueType: tab.issueType,
-    title,
-    fetcher: () => fetchMatterWingWiseReport(tab.issueType),
+    fetcher: combinedFetcher(tab),
   };
 }
 
@@ -100,10 +98,46 @@ function formatReportMonth(date = new Date()) {
   return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 }
 
+function wingIdOf(row = {}) {
+  return row['Wing Id'] ?? row['Wing ID'];
+}
+
+function divisionIdOf(row = {}) {
+  return row['Division Id'] ?? row['Division ID'];
+}
+
+function isNumericKey(key) {
+  return !META_FIELDS.has(key);
+}
+
+function aggregateBy(rows, idGetter, seedRow) {
+  const grouped = {};
+  rows.forEach((row) => {
+    const id = idGetter(row);
+    if (id == null || id === '') return;
+    if (!grouped[id]) {
+      grouped[id] = seedRow(row);
+      Object.keys(row).forEach((key) => {
+        if (isNumericKey(key)) grouped[id][key] = 0;
+      });
+    }
+    Object.keys(row).forEach((key) => {
+      if (!isNumericKey(key)) return;
+      grouped[id][key] += Number(row[key]) || 0;
+    });
+  });
+  return Object.values(grouped).map((item, idx) => ({ ...item, 'S No': idx + 1 }));
+}
+
+function flattenColumns(cols = []) {
+  return cols.flatMap((col) => (col.children ? flattenColumns(col.children) : [col]));
+}
+
 export default function ParliamentaryIssuesReports({ notify }) {
   const [stages, setStages] = useState([]);
   const [reportTabs, setReportTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
+  const [reportView, setReportView] = useState('all');
   const [drillDownPath, setDrillDownPath] = useState([]);
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState([]);
@@ -130,6 +164,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
   const activeTab =
     reportTabs.find((t) => t.id === activeTabId) || reportTabs[0] || null;
   const currentView = drillDownPath[drillDownPath.length - 1];
+  const isSummary = currentView?.type === 'summary';
 
   useEffect(() => {
     if (!activeTab) return;
@@ -167,6 +202,23 @@ export default function ParliamentaryIssuesReports({ notify }) {
   useEffect(() => {
     fetchReportData();
   }, [fetchReportData]);
+
+  const viewData = useMemo(() => {
+    if (!isSummary) return reportData;
+    if (reportView === 'wing') {
+      return aggregateBy(reportData, wingIdOf, (row) => ({
+        'Wing Id': wingIdOf(row),
+        'Wing Name': row['Wing Name'] || row.Wing || '',
+      }));
+    }
+    if (reportView === 'division') {
+      return aggregateBy(reportData, divisionIdOf, (row) => ({
+        'Division Id': divisionIdOf(row),
+        'Division Name': row['Division Name'] || row.Division || '',
+      }));
+    }
+    return reportData.map((row, idx) => ({ ...row, 'S No': idx + 1 }));
+  }, [isSummary, reportData, reportView]);
 
   const mapColumnRenderers = useCallback(
     (cols) =>
@@ -209,13 +261,14 @@ export default function ParliamentaryIssuesReports({ notify }) {
 
         if (
           (field === 'Wing Name' || field === 'Wing') &&
-          currentView?.type === 'wing'
+          isSummary &&
+          reportView === 'wing'
         ) {
           return {
             ...col,
             pinned: 'left',
             cellRenderer: (p) => {
-              const wingId = p.data?.['Wing Id'] ?? p.data?.['Wing ID'];
+              const wingId = wingIdOf(p.data);
               const wingName = p.value;
               if (!wingId || wingName === 'Total') return p.value;
               return linkButton(wingName, () => {
@@ -259,21 +312,25 @@ export default function ParliamentaryIssuesReports({ notify }) {
             if (!Number.isFinite(countVal) || countVal <= 0) {
               return <span className="text-slate-400 dark:text-slate-500">-</span>;
             }
-            const wingId =
-              p.data?.['Wing Id'] ?? p.data?.['Wing ID'] ?? currentView.wingId;
-            const divisionId =
-              p.data?.['Division Id'] ?? p.data?.['Division ID'];
+            const wingId = wingIdOf(p.data) ?? currentView.wingId;
+            const divisionId = divisionIdOf(p.data);
             const label = field;
 
             return linkButton(String(countVal), () => {
-              if (currentView.type === 'division' && divisionId) {
-                const divName = p.data?.['Division Name'] || 'Division';
+              if (
+                (currentView.type === 'division' ||
+                  (isSummary && (reportView === 'division' || reportView === 'all'))) &&
+                divisionId
+              ) {
+                const divName = p.data?.['Division Name'] || p.data?.Division || 'Division';
+                const wingName =
+                  p.data?.['Wing Name'] || p.data?.Wing || currentView.wingName;
                 setDrillDownPath((prev) => [
                   ...prev,
                   {
                     type: 'detail',
                     family,
-                    wingName: currentView.wingName,
+                    wingName,
                     divisionName: divName,
                     stageLabel: label,
                     title: form82Title(
@@ -328,7 +385,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
           },
         };
       }),
-    [currentView, stageMap]
+    [currentView, stageMap, isSummary, reportView]
   );
 
   const columns = useMemo(() => {
@@ -343,10 +400,23 @@ export default function ParliamentaryIssuesReports({ notify }) {
         header === 'S.No'
       );
     };
-    const serial = mapped.filter(isSerial);
-    const rest = mapped.filter((col) => !isSerial(col));
+    const hideCol = (col) => {
+      const field = col.field || '';
+      if (!isSummary) return false;
+      if (ID_FIELDS.has(field)) return true;
+      if (reportView === 'wing' && DIVISION_FIELDS.has(field)) return true;
+      if (reportView === 'division' && WING_FIELDS.has(field)) return true;
+      return false;
+    };
+    const visible = flattenColumns(mapped).filter((col) => !hideCol(col));
+    const serial = visible.filter(isSerial);
+    const rest = visible.filter((col) => !isSerial(col));
     return [...serial, ...rest];
-  }, [mapColumnRenderers, reportCols]);
+  }, [mapColumnRenderers, reportCols, isSummary, reportView]);
+
+  const reportTitle = isSummary
+    ? form82Title(abstractLevel(reportView), currentView?.family, currentView?.issueType)
+    : currentView?.title;
 
   const reportSubtitle = useMemo(() => {
     const asOn = formatAsOnDate();
@@ -362,6 +432,17 @@ export default function ParliamentaryIssuesReports({ notify }) {
             <span className="text-[#eadede] dark:text-slate-600">•</span>
           </>
         )}
+        {currentView?.divisionName && (
+          <>
+            <span>
+              For Division:{' '}
+              <strong className="text-[#4b2424] dark:text-[#eadede]">
+                {currentView.divisionName}
+              </strong>
+            </span>
+            <span className="text-[#eadede] dark:text-slate-600">•</span>
+          </>
+        )}
         <span>
           As On date:{' '}
           <strong className="text-[#4b2424] dark:text-[#eadede] underline">{asOn}</strong>
@@ -373,7 +454,33 @@ export default function ParliamentaryIssuesReports({ notify }) {
         </span>
       </>
     );
-  }, [currentView?.wingName]);
+  }, [currentView?.wingName, currentView?.divisionName]);
+
+  const reportViewSelect = isSummary ? (
+    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border-2 border-indigo-400/60 dark:border-indigo-500/60 text-xs shadow-sm">
+      <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold shrink-0">
+        <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+        <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-800 dark:text-indigo-300 whitespace-nowrap">
+          Report View:
+        </span>
+      </div>
+      <select
+        value={reportView}
+        onChange={(e) => setReportView(e.target.value)}
+        className="bg-transparent border-none text-xs font-extrabold text-indigo-950 dark:text-indigo-100 outline-none cursor-pointer pr-1 max-w-[200px]"
+      >
+        <option value="wing" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">
+          Wing
+        </option>
+        <option value="division" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">
+          Division
+        </option>
+        <option value="all" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">
+          Wing and Division
+        </option>
+      </select>
+    </div>
+  ) : null;
 
   if (!activeTab || !currentView) {
     return (
@@ -404,13 +511,13 @@ export default function ParliamentaryIssuesReports({ notify }) {
 
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <ReportTable
-          title={currentView.title}
-          eyebrow={currentView.title}
+          title={reportTitle}
+          eyebrow={reportTitle}
           subtitle={reportSubtitle}
           showBackButton={drillDownPath.length > 1}
           onBack={() => setDrillDownPath((prev) => prev.slice(0, -1))}
-          rawData={reportData}
-          viewData={reportData}
+          rawData={viewData}
+          viewData={viewData}
           columns={columns}
           loading={loading}
           onRefresh={fetchReportData}
@@ -420,6 +527,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
           accentColor="#f7f3f3"
           oddRowColor="#f8faf6"
           themeClass="yp-pro-grid"
+          toolbarExtra={reportViewSelect}
         />
       </div>
     </div>
