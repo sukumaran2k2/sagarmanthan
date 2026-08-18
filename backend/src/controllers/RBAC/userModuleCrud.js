@@ -19,7 +19,7 @@ async function getMatrixUsers(req, res) {
         r.role_name,
         r.role_code,
         u.organisation_id,
-        o.oranisation_name AS organisation_name,
+        o.organisation_name AS organisation_name,
         o.organisation_category_id AS category_id,
         c.organisation_category_name AS category_name,
         u.wing_id,

@@ -62,7 +62,7 @@ async function validation(req, res) {
     const result =
       await request.query(`SELECT tbl_user.user_id, tbl_user.password, tbl_user.email, tbl_user.role_id, tbl_role.role_name,
             tbl_user.status, tbl_user.vibhas_id, tbl_user.password_status, tbl_user.wing_id, tbl_user.organisation_id,
-            tbl_user.password_updated_on, mmt_organisation.oranisation_name AS organisation_name
+            tbl_user.password_updated_on, mmt_organisation.organisation_name AS organisation_name
             FROM tbl_user
             INNER JOIN tbl_role ON tbl_role.role_id = tbl_user.role_id
             LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_user.organisation_id

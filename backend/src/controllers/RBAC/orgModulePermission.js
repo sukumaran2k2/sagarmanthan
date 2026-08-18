@@ -24,7 +24,7 @@ async function getOrganisationsByCategory(req, res) {
     const request = conn.request();
     let sqlText = `
       SELECT o.organisation_id,
-             o.oranisation_name AS organisation_name,
+             o.organisation_name AS organisation_name,
              o.organisation_code,
              o.organisation_category_id AS category_id,
              c.organisation_category_name AS category_name,
@@ -38,7 +38,7 @@ async function getOrganisationsByCategory(req, res) {
       request.input('categoryId', Number(categoryId));
       sqlText += ` AND o.organisation_category_id = @categoryId`;
     }
-    sqlText += ` ORDER BY c.organisation_category_name, o.oranisation_name`;
+    sqlText += ` ORDER BY c.organisation_category_name, o.organisation_name`;
     const result = await request.query(sqlText);
     res.json(result.recordset);
   } catch (error) {
@@ -81,7 +81,7 @@ async function getOrgModulePermissions(req, res) {
     const result = await conn.request().query(`
       SELECT
         o.organisation_id,
-        o.oranisation_name AS organisation_name,
+        o.organisation_name AS organisation_name,
         m.module_id,
         m.module_name,
         m.module_code,
@@ -93,7 +93,7 @@ async function getOrgModulePermissions(req, res) {
        AND p.module_id = m.module_id
       WHERE o.organisation_id IN (${idList})
         AND ISNULL(m.is_active, 1) = 1
-      ORDER BY o.oranisation_name, m.module_name
+      ORDER BY o.organisation_name, m.module_name
     `);
 
     const byOrg = {};
