@@ -144,11 +144,14 @@ const Table = forwardRef(({
           background: ${color} !important;
           color: #ffffff !important;
         }
-        .${colorClass} .ag-header-cell-text {
+        .${colorClass} .ag-header-cell-text,
+        .${colorClass} .ag-header-group-cell-label {
           white-space: normal !important;
           word-break: break-word !important;
           text-align: center !important;
+          justify-content: center !important;
           line-height: 1.25 !important;
+          color: #ffffff !important;
         }
         @keyframes indeterminateProgress {
           0% { transform: translateX(-100%) scaleX(0.2); }
