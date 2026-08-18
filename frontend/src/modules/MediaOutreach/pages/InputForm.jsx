@@ -101,8 +101,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
         youTube: { posts: editData.youTube_posts ?? '', impression: editData.youTube_impression ?? '', engagement: editData.youTube_engagement ?? '' },
       });
     } else {
-      const sessionOrg = getSessionOrganisationId();
-      setOrganisationId(sessionOrg ? String(sessionOrg) : '');
+      setOrganisationId('');
     }
   }, [editData]);
 
@@ -115,9 +114,9 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
 
   const handleSubmit = async () => {
     const sessionOrg = getSessionOrganisationId();
-    const finalOrgId = organisationId || sessionOrg || (isEdit ? editData?.organisation_id : null);
+    const finalOrgId = organisationId || (hideOrgSelect ? sessionOrg : null) || (isEdit ? editData?.organisation_id : null);
 
-    if (!financialYear || !month || (!isEdit && !finalOrgId)) {
+    if (!financialYear || !month || !finalOrgId) {
       if (triggerNotification) triggerNotification(hideOrgSelect ? 'Please select Financial Year and Month.' : 'Please select Financial Year, Month, and Organisation.');
       return;
     }

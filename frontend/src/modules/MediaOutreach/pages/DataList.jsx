@@ -288,7 +288,7 @@ export default function DataList({
         if (config.visible) {
           dataCols.push({
             headerName: config.label,
-            headerClass: 'font-bold text-white text-center-header bg-[#0d3868]',
+            headerClass: 'font-bold text-white text-center-header',
             children: [
               {
                 field: `${config.key}_posts`,
