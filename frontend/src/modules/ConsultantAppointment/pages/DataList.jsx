@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Table from '../../../components/Table';
-import { Search, X, Edit, ChevronDown, Users } from 'lucide-react';
+import { Search, X, Edit, Trash2, ChevronDown, Users } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import CandidateDrilldownView from './CandidateDrilldownView';
@@ -21,6 +21,7 @@ export default function DataList({
   rowData = [],
   loading,
   onEdit,
+  onDelete,
   onAddClick,
   wings = [],
   divisions = [],
@@ -292,21 +293,33 @@ export default function DataList({
       }
     ];
 
-    if (canEdit) {
+    if (canEdit || canRemove) {
       cols.push({
         headerName: 'Action',
         minWidth: 120,
+        headerClass: 'text-center',
         cellRenderer: (params) => {
           const row = params.data;
           return (
-            <div className="flex items-center justify-center w-full h-full py-1">
-              <button
-                onClick={() => onEdit(row)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
-                title="Update"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
+            <div className="flex items-center justify-center gap-1.5 w-full h-full py-1">
+              {canEdit && (
+                <button
+                  onClick={() => onEdit(row)}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                  title="Update Appointment"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+              )}
+              {canRemove && onDelete && (
+                <button
+                  onClick={() => onDelete(row)}
+                  className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-red-600 dark:text-red-400 transition cursor-pointer"
+                  title="Delete Appointment"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           );
         }
@@ -314,7 +327,7 @@ export default function DataList({
     }
 
     return cols;
-  }, [onEdit, visibleCols, canEdit]);
+  }, [onEdit, onDelete, visibleCols, canEdit, canRemove]);
 
   if (drilldownAppointment) {
     return (

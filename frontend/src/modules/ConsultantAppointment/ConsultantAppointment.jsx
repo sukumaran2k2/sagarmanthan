@@ -5,7 +5,8 @@ import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { useConsultantPermissions } from './hooks/useConsultantPermissions';
-import { fetchConsultantAppointments, fetchWings, fetchDivisions } from './api';
+import { fetchConsultantAppointments, fetchWings, fetchDivisions, deleteConsultantAppointment } from './api';
+import { getCurrentUserId } from '../../utils/authSession';
 
 const STAGES = [
   { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
@@ -183,6 +184,25 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
     }
   };
 
+  const handleDelete = async (ca) => {
+    if (!window.confirm(`Are you sure you want to delete this Consultant Appointment record (${ca.wing} / ${ca.division})? This will also remove associated candidate records and documents.`)) {
+      return;
+    }
+    const userId = getCurrentUserId() || 1;
+    try {
+      await deleteConsultantAppointment(ca.id, userId);
+      if (triggerNotification) {
+        triggerNotification("Consultant Appointment and associated candidates deleted successfully.", "success");
+      }
+      fetchData();
+    } catch (err) {
+      console.error("Error deleting consultant appointment:", err);
+      if (triggerNotification) {
+        triggerNotification("Failed to delete Consultant Appointment.", "error");
+      }
+    }
+  };
+
   if (!canAdd && !canView && !canEdit) {
     return <RestrictedAccess moduleName="Consultant Appointment" />;
   }
@@ -232,6 +252,7 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
               rowData={rowData}
               loading={loading}
               onEdit={handleEdit}
+              onDelete={handleDelete}
               onAddClick={() => {
                 setActiveSubTab('add');
                 if (setActiveSubTabProp) {

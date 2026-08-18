@@ -826,42 +826,48 @@ export default function CandidateDrilldownView({
   // ==========================================
   return (
     <div className="space-y-6 animate-fade-in relative">
-      {/* Top Breadcrumb & Back Action */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 select-none px-1">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="p-2 rounded-xl border border-slate-250 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition cursor-pointer shadow-sm group"
-            title="Back to Consultant Appointments"
-          >
-            <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
-          </button>
-          <div>
-            <h2 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 font-display">
-              Candidate Details & Appointment Orders
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-              {appointment.wing} • {appointment.division} • {appointment.appointmentType} •{' '}
-              <span className="text-blue-600 dark:text-blue-400">{appointment.status}</span>
-            </p>
+      {/* Unified Single Card Container */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5 dark:bg-slate-950 dark:border-slate-800">
+        
+        {/* Top Header Row inside the card */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="p-2 rounded-xl border border-slate-250 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition cursor-pointer shadow-sm group shrink-0"
+              title="Back to Consultant Appointments"
+            >
+              <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+            </button>
+            <div>
+              <h2 className="text-base font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 font-display">
+                Candidate Details & Appointment Orders
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span>{appointment.wing}</span>
+                <span>•</span>
+                <span>{appointment.division}</span>
+                <span>•</span>
+                <span>{appointment.appointmentType}</span>
+                <span>•</span>
+                <span className="text-blue-600 dark:text-blue-400 font-bold">{appointment.status}</span>
+              </p>
+            </div>
           </div>
+
+          {candidates.length < totalRequiredResources && (
+            <button
+              type="button"
+              onClick={() => handleOpenEditCandidate(null, candidates.length)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer self-start sm:self-auto shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Candidate ({candidates.length + 1}/{totalRequiredResources})</span>
+            </button>
+          )}
         </div>
 
-        {candidates.length < totalRequiredResources && (
-          <button
-            type="button"
-            onClick={() => handleOpenEditCandidate(null, candidates.length)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Add Candidate ({candidates.length + 1}/{totalRequiredResources})</span>
-          </button>
-        )}
-      </div>
-
-      {/* Main Table Container Matching DataList UI */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 dark:bg-slate-950 dark:border-slate-800">
         {/* Filter and Export Toolbar matching DataList */}
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
           <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">

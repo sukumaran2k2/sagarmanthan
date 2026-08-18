@@ -92,7 +92,7 @@ export default function InputForm({
   const [touched, setTouched] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const validateField = (field, value) => {
+  const validateField = (field, value, currentDates = dates) => {
     let err = '';
     if (field === 'numResources') {
       if (value !== '' && (isNaN(value) || Number(value) <= 0)) {
@@ -105,6 +105,16 @@ export default function InputForm({
         today.setHours(23, 59, 59, 999);
         if (selected > today) {
           err = 'Date cannot be in the future.';
+        } else {
+          // Check if earlier than previous stage's date
+          const stageIndex = STAGES.findIndex(s => s.dateKey === field);
+          if (stageIndex > 0) {
+            const prevStage = STAGES[stageIndex - 1];
+            const prevDate = currentDates[prevStage.dateKey];
+            if (prevDate && value < prevDate) {
+              err = `Date cannot be earlier than ${prevStage.label} (${prevDate}).`;
+            }
+          }
         }
       }
     }
@@ -126,7 +136,7 @@ export default function InputForm({
   const isFieldInvalid = (field, val) => {
     if (errors[field]) return true;
     if (field.endsWith('Date')) {
-      return false;
+      return !!errors[field];
     }
     if (touched[field]) {
       return !val || (typeof val === 'string' && !val.trim());
@@ -222,6 +232,7 @@ export default function InputForm({
   };
 
   const handleDateChange = (dateKey, val) => {
+    let updatedDates = {};
     setDates(prev => {
       const newDates = { ...prev, [dateKey]: val };
       if (!val) {
@@ -235,23 +246,35 @@ export default function InputForm({
           }
           if (stage.dateKey === dateKey) clear = true;
         }
+      } else {
+        // If a stage date is set, ensure no subsequent stage has an earlier date than this one
+        let isSubsequent = false;
+        for (const stage of STAGES) {
+          if (isSubsequent) {
+            if (newDates[stage.dateKey] && newDates[stage.dateKey] < val) {
+              newDates[stage.dateKey] = '';
+            }
+          }
+          if (stage.dateKey === dateKey) isSubsequent = true;
+        }
       }
+      updatedDates = newDates;
       return newDates;
     });
     
-    if (!val) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (!val) {
         let clear = false;
         for (const stage of STAGES) {
           if (clear) delete newErrors[stage.dateKey];
           if (stage.dateKey === dateKey) clear = true;
         }
-        return newErrors;
-      });
-    }
+      }
+      return newErrors;
+    });
     
-    validateField(dateKey, val);
+    validateField(dateKey, val, { ...dates, [dateKey]: val });
   };
 
   const handleRemarkChange = (key, val) => {
@@ -622,6 +645,7 @@ export default function InputForm({
                           <input
                             type="date"
                             value={dates[stage.dateKey]}
+                            min={idx > 0 && dates[STAGES[idx - 1].dateKey] ? dates[STAGES[idx - 1].dateKey] : undefined}
                             onChange={(e) => handleDateChange(stage.dateKey, e.target.value)}
                             onBlur={() => handleBlur(stage.dateKey)}
                             className={`w-full text-xs pl-8 pr-3 py-1.5 bg-white dark:bg-slate-900 border ${isFieldInvalid(stage.dateKey, dates[stage.dateKey]) ? 'border-red-500 focus:border-red-550' : 'border-slate-200 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}

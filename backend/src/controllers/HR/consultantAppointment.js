@@ -243,13 +243,30 @@ async function getCandidatesByConsultantAppointmentId(req, res) {
     request.input("consultantAppointmentID", consultantAppointmentID);
 
     try {
-        const result = await request.query(`
+        const caResult = await request.query(`
+            SELECT candidate_id FROM tbl_consultant_appointment 
+            WHERE consultant_appointment_id = @consultantAppointmentID
+        `);
+        const caCandidateIdStr = caResult.recordset[0]?.candidate_id || '';
+        const idList = caCandidateIdStr
+            .split(',')
+            .map(s => parseInt(s.trim(), 10))
+            .filter(n => !isNaN(n) && n > 0);
+
+        let query = `
             SELECT c.*, doc.appointment_order_document
             FROM tbl_ca_candidate c
             LEFT JOIN tbl_ca_candidate_document doc ON c.candidate_id = doc.candidate_id
             WHERE c.consultant_appointment_id = @consultantAppointmentID
-            ORDER BY c.candidate_id ASC
-        `);
+        `;
+
+        if (idList.length > 0) {
+            query += ` OR c.candidate_id IN (${idList.join(',')})`;
+        }
+
+        query += ` ORDER BY c.candidate_id ASC`;
+
+        const result = await request.query(query);
         res.json(result.recordset);
     } catch (err) {
         console.error("Error fetching candidates for CA:", err);
@@ -489,6 +506,24 @@ async function addConsultantID(req, res) {
             SET consultant_appointment_id = @consultantAppointmentID
             WHERE candidate_id = @candidateID
         `);
+
+        const caRes = await request.query(`
+            SELECT candidate_id FROM tbl_consultant_appointment
+            WHERE consultant_appointment_id = @consultantAppointmentID
+        `);
+        let currentIds = caRes.recordset[0]?.candidate_id ? caRes.recordset[0].candidate_id.split(',').map(s => s.trim()).filter(Boolean) : [];
+        if (!currentIds.includes(String(candidateID))) {
+            currentIds.push(String(candidateID));
+            const newIdStr = currentIds.join(',');
+            const req2 = conn.request();
+            req2.input("newIdStr", newIdStr);
+            req2.input("consultantAppointmentID", consultantAppointmentID);
+            await req2.query(`
+                UPDATE tbl_consultant_appointment
+                SET candidate_id = @newIdStr
+                WHERE consultant_appointment_id = @consultantAppointmentID
+            `);
+        }
 
         res.status(200).json({ message: "Consultant ID added successfully." });
     } catch (err) {
