@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { Plus, Search, ChevronLeft, ChevronRight, Edit } from 'lucide-react';
+import { Plus, Search, ChevronLeft, ChevronRight, Edit, Trash2 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { STATUS_STEPS, CATEGORIES, getParaStatusText } from '../constants';
@@ -12,9 +12,11 @@ export default function DataList({
   wings = [],
   divisions = [],
   onEdit,
+  onDelete,
   onAddClick,
   canEdit = true,
   canAdd = true,
+  canRemove = false,
 }) {
   const gridRef = useRef();
 
@@ -117,20 +119,33 @@ export default function DataList({
       valueFormatter: (params) => params.value || '--'
     },
     { headerName: 'Last Updated Date', field: 'lastUpdated', minWidth: 155, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium' },
-    ...(canEdit ? [{
-      headerName: 'Update', field: 'id', width: 90,
-      cellClass: 'text-center flex items-center justify-center',
+    ...(canEdit || canRemove ? [{
+      headerName: 'Actions', field: 'id', width: canEdit && canRemove ? 90 : 60,
+      cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
-        <button
-          onClick={() => onEdit && onEdit(params.data)}
-          className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded shadow-sm hover:shadow transition cursor-pointer"
-          title="Update Status Details"
-        >
-          <Edit className="h-3.5 w-3.5" />
-        </button>
+        <>
+          {canEdit && (
+            <button
+              onClick={() => onEdit && onEdit(params.data)}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+              title="Update Status Details"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          )}
+          {canRemove && (
+            <button
+              onClick={() => onDelete && onDelete(params.data)}
+              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
+              title="Delete Audit Para"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </>
       )
     }] : []),
-  ], [currentPage, entriesLimit, canEdit, onEdit]);
+  ], [currentPage, entriesLimit, canEdit, canRemove, onEdit, onDelete]);
 
   return (
     <div className="space-y-6">

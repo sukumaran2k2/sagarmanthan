@@ -6,7 +6,8 @@ import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { useAuditParaPermissions } from './hooks/useAuditParaPermissions';
-import { fetchAuditParas, fetchWings, fetchDivisions } from './api';
+import { fetchAuditParas, fetchWings, fetchDivisions, deleteAuditPara } from './api';
+import { getCurrentUserId } from '../../utils/authSession';
 
 function parseAuditParaRow(r) {
   const steps = {
@@ -81,6 +82,19 @@ export default function AuditParaView({ activeSubTab: activeSubTabProp, setActiv
 
   const handleEdit = (para) => setEditData(para);
 
+  const handleDelete = (para) => {
+    if (!window.confirm(`Delete Audit Para "${para.paraNumber}"? This cannot be undone.`)) return;
+    deleteAuditPara(para.id, getCurrentUserId())
+      .then(() => {
+        triggerNotification && triggerNotification('Audit Para deleted successfully', 'success');
+        fetchData();
+      })
+      .catch((err) => {
+        console.error('Error deleting Audit Para:', err);
+        triggerNotification ? triggerNotification('Failed to delete Audit Para.', 'error') : alert('Failed to delete Audit Para.');
+      });
+  };
+
   const handleSuccess = () => {
     setEditData(null);
     fetchData();
@@ -144,6 +158,7 @@ export default function AuditParaView({ activeSubTab: activeSubTabProp, setActiv
               wings={wings}
               divisions={divisions}
               onEdit={handleEdit}
+              onDelete={handleDelete}
               onAddClick={() => setActiveSubTab('add')}
               canEdit={canEdit}
               canAdd={canAdd}

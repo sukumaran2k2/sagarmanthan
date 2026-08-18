@@ -67,6 +67,10 @@ export function updateAuditPara(payload) {
   return api.put('/audit-para', payload);
 }
 
+export function deleteAuditPara(auditParaId, userId) {
+  return api.delete(`/audit-para/${auditParaId}/${userId}`);
+}
+
 export function fetchWings() {
   return api.get('/mmt-dropdown/mmt_wings');
 }

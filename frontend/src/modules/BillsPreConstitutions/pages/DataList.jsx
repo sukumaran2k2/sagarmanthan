@@ -45,7 +45,8 @@ export default function DataList({
   triggerNotification,
   wings = [],
   divisions = [],
-  canEdit = true
+  canEdit = true,
+  canRemove = false
 }) {
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
@@ -240,23 +241,34 @@ export default function DataList({
     },
     {
       headerName: 'Actions',
-      minWidth: 120,
+      minWidth: canRemove ? 165 : 120,
       flex: 0.5,
-      cellClass: 'text-center flex justify-center items-center',
+      cellClass: 'text-center flex justify-center items-center gap-1.5',
       cellRenderer: (params) => {
         const bill = params.data;
         return (
-          <button
-            onClick={() => onEdit(bill)}
-            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
-            title={canEdit ? "Update Bill" : "View Bill"}
-          >
-            <Edit className="h-4.5 w-4.5" />
-          </button>
+          <>
+            <button
+              onClick={() => onEdit(bill)}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+              title={canEdit ? "Update Bill" : "View Bill"}
+            >
+              <Edit className="h-4.5 w-4.5" />
+            </button>
+            {canRemove && (
+              <button
+                onClick={() => handleDelete(bill.id || bill.bill_id)}
+                className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
+                title="Delete Bill"
+              >
+                <Trash2 className="h-4.5 w-4.5" />
+              </button>
+            )}
+          </>
         );
       }
     }
-  ], [onEdit, visibleCols, activeUserId, activeCategory, canEdit]);
+  ], [onEdit, visibleCols, activeUserId, activeCategory, canEdit, canRemove]);
 
   const handleExport = (type) => {
     if (type === 'Excel') {
