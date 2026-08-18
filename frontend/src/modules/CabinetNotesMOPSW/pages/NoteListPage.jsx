@@ -1,39 +1,37 @@
 import { useCallback, useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, FileText, Download } from 'lucide-react';
 import RestrictedAccess from '../../../components/RestrictedAccess';
-import IssueListTable from '../components/IssueListTable';
-import IssueForm from './IssueForm';
+import NoteListTable from '../components/NoteListTable';
+import NoteForm from './NoteForm';
 import {
-  deleteParliamentaryIssue,
+  deleteCabinetNote,
+  downloadNoteDocument,
+  fetchCabinetNoteById,
+  fetchCabinetNotes,
+  fetchCabinetStages,
   fetchDivisions,
-  fetchParliamentaryIssueById,
-  fetchParliamentaryIssues,
-  fetchParliamentaryStages,
+  fetchNoteDocuments,
   fetchWings,
 } from '../api';
-import { mapIssueListRow, mapIssueToForm } from '../utils/mapIssue';
-import { useParliamentaryPermissions } from '../hooks/useParliamentaryPermissions';
-import { issueTypesFromStages } from '../utils/stageHelpers';
+import { mapNoteListRow, mapNoteToForm } from '../utils/mapNote';
+import { useCabinetNotesPermissions } from '../hooks/useCabinetNotesPermissions';
+import { statusNamesFromStages } from '../utils/stageHelpers';
 import { getCurrentUserId } from '../../../utils/authSession';
 
 const DEFAULT_FILTERS = {
   wingId: 'All',
   divisionId: 'All',
-  issueType: 'All',
   status: 'All',
   search: '',
 };
 
-export default function IssueListPage({
-  notify,
-  onGoHome,
-}) {
-  const permissions = useParliamentaryPermissions();
+export default function NoteListPage({ notify, onGoHome }) {
+  const permissions = useCabinetNotesPermissions();
   const [rows, setRows] = useState([]);
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [stages, setStages] = useState([]);
-  const [issueTypeOptions, setIssueTypeOptions] = useState([]);
+  const [statusOptions, setStatusOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [category, setCategory] = useState('active');
@@ -50,6 +48,9 @@ export default function IssueListPage({
   const [formData, setFormData] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [docsTarget, setDocsTarget] = useState(null);
+  const [docs, setDocs] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   useEffect(() => {
@@ -61,23 +62,21 @@ export default function IssueListPage({
     if (!permissions.canView) return;
     try {
       const [activeRes, completedRes] = await Promise.allSettled([
-        fetchParliamentaryIssues({
+        fetchCabinetNotes({
           page: 1,
           limit: 1,
           category: 'active',
           wingId: 'All',
           divisionId: 'All',
-          issueType: 'All',
           status: 'All',
           search: '',
         }),
-        fetchParliamentaryIssues({
+        fetchCabinetNotes({
           page: 1,
           limit: 1,
           category: 'completed',
           wingId: 'All',
           divisionId: 'All',
-          issueType: 'All',
           status: 'All',
           search: '',
         }),
@@ -106,19 +105,18 @@ export default function IssueListPage({
       const commonParams = {
         wingId: filters.wingId,
         divisionId: filters.divisionId,
-        issueType: filters.issueType,
         status: filters.status,
         search: debouncedSearch,
       };
 
-      const listRes = await fetchParliamentaryIssues(
+      const listRes = await fetchCabinetNotes(
         { page, limit: pageSize, category, ...commonParams },
         { signal }
       );
 
       const payload = listRes?.data || {};
       const data = Array.isArray(payload.data) ? payload.data : [];
-      setRows(data.map(mapIssueListRow));
+      setRows(data.map(mapNoteListRow));
 
       setPagination({
         total: Number(payload.pagination?.total) || 0,
@@ -129,7 +127,7 @@ export default function IssueListPage({
     } catch (err) {
       if (err?.code === 'ERR_CANCELED') return;
       console.error(err);
-      notify?.(err?.response?.data?.message || 'Failed to load parliamentary issues.', 'error');
+      notify?.(err?.response?.data?.message || 'Failed to load cabinet notes.', 'error');
       setRows([]);
     } finally {
       if (!signal?.aborted) setLoading(false);
@@ -142,21 +140,31 @@ export default function IssueListPage({
     category,
     filters.wingId,
     filters.divisionId,
-    filters.issueType,
     filters.status,
     debouncedSearch,
   ]);
 
   useEffect(() => {
-    Promise.all([fetchWings(), fetchDivisions(), fetchParliamentaryStages()])
-      .then(([wingsRes, divisionsRes, stagesRes]) => {
-        setWings(Array.isArray(wingsRes.data) ? wingsRes.data : []);
-        setDivisions(Array.isArray(divisionsRes.data) ? divisionsRes.data : []);
-        const stageRows = Array.isArray(stagesRes.data) ? stagesRes.data : [];
-        setStages(stageRows);
-        setIssueTypeOptions(issueTypesFromStages(stageRows));
-      })
-      .catch((err) => console.error(err));
+    Promise.all([
+      fetchWings().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+      fetchDivisions().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+      fetchCabinetStages().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+    ]).then(([wingsRes, divisionsRes, stagesRes]) => {
+      setWings(Array.isArray(wingsRes.data) ? wingsRes.data : []);
+      setDivisions(Array.isArray(divisionsRes.data) ? divisionsRes.data : []);
+      const stageRows = Array.isArray(stagesRes.data) ? stagesRes.data : [];
+      setStages(stageRows);
+      setStatusOptions(statusNamesFromStages(stageRows, { excludeCompleted: true }));
+    });
   }, []);
 
   useEffect(() => {
@@ -178,13 +186,13 @@ export default function IssueListPage({
   const handleEdit = async (row) => {
     if (!permissions.canEdit && !permissions.canView) return;
     try {
-      const res = await fetchParliamentaryIssueById(row.id);
+      const res = await fetchCabinetNoteById(row.id);
       const record = Array.isArray(res.data) ? res.data[0] : res.data;
-      setFormData(mapIssueToForm(record));
+      setFormData(mapNoteToForm(record));
       setMode('form');
     } catch (err) {
       console.error(err);
-      notify?.('Failed to load issue for edit.', 'error');
+      notify?.('Failed to load cabinet note for edit.', 'error');
     }
   };
 
@@ -202,16 +210,31 @@ export default function IssueListPage({
     if (!deleteTarget || !permissions.canRemove) return;
     setDeleting(true);
     try {
-      await deleteParliamentaryIssue(deleteTarget.id, getCurrentUserId());
-      notify?.('Parliamentary issue deleted successfully.', 'success');
+      await deleteCabinetNote(deleteTarget.id, getCurrentUserId());
+      notify?.('Cabinet note deleted successfully.', 'success');
       setDeleteTarget(null);
       loadList();
       loadTabTotals();
     } catch (err) {
       console.error(err);
-      notify?.(err?.response?.data?.message || 'Failed to delete issue.', 'error');
+      notify?.(err?.response?.data?.message || 'Failed to delete cabinet note.', 'error');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleDocs = async (row) => {
+    setDocsTarget(row);
+    setLoadingDocs(true);
+    try {
+      const res = await fetchNoteDocuments(row.id);
+      setDocs(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
+      setDocs([]);
+      notify?.('Failed to load documents.', 'error');
+    } finally {
+      setLoadingDocs(false);
     }
   };
 
@@ -222,11 +245,7 @@ export default function IssueListPage({
 
   const handleCategoryChange = (next) => {
     setCategory(next);
-    setFilters((prev) => ({
-      ...prev,
-      status: 'All',
-      issueType: next === 'completed' ? 'All' : prev.issueType,
-    }));
+    setFilters((prev) => ({ ...prev, status: 'All' }));
     setPage(1);
   };
 
@@ -237,20 +256,16 @@ export default function IssueListPage({
 
   if (!permissions.canView) {
     return (
-      <RestrictedAccess
-        moduleName="Parliamentary Issues"
-        onGoHome={onGoHome}
-      />
+      <RestrictedAccess moduleName="Cabinet Notes - MoPSW" onGoHome={onGoHome} />
     );
   }
 
   if (mode === 'form') {
     return (
-      <IssueForm
+      <NoteForm
         wings={wings}
         divisions={divisions}
         stages={stages}
-        issueTypeOptions={issueTypeOptions}
         initialForm={formData}
         readOnly={!permissions.canEdit && !!formData}
         onBack={() => {
@@ -270,13 +285,12 @@ export default function IssueListPage({
 
   return (
     <>
-      <IssueListTable
+      <NoteListTable
         rows={rows}
         loading={loading}
         wings={wings}
         divisions={divisions}
-        issueTypeOptions={issueTypeOptions}
-        stages={stages}
+        statusOptions={statusOptions}
         canEdit={permissions.canEdit}
         canDelete={permissions.canRemove}
         canCreate={permissions.canAdd}
@@ -293,6 +307,7 @@ export default function IssueListPage({
         onEdit={handleEdit}
         onDelete={handleDelete}
         onAdd={handleAdd}
+        onDocs={handleDocs}
       />
 
       {deleteTarget && (
@@ -300,7 +315,7 @@ export default function IssueListPage({
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-rose-700 text-white">
               <h3 className="text-sm font-black uppercase tracking-wider">
-                Delete Parliamentary Issue
+                Delete Cabinet Note
               </h3>
               <button
                 type="button"
@@ -314,12 +329,10 @@ export default function IssueListPage({
 
             <div className="p-6 space-y-4">
               <p className="text-sm text-slate-700">
-                Are you sure you want to delete this parliamentary issue?
+                Are you sure you want to delete this cabinet note?
               </p>
               {deleteTarget.subject ? (
-                <p className="text-sm font-semibold text-slate-900">
-                  {deleteTarget.subject}
-                </p>
+                <p className="text-sm font-semibold text-slate-900">{deleteTarget.subject}</p>
               ) : null}
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -340,6 +353,72 @@ export default function IssueListPage({
                   {deleting ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {docsTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-[#0f417a] text-white">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider">Documents</h3>
+                <p className="text-[10px] text-blue-200 font-semibold mt-0.5 truncate max-w-[320px]">
+                  {docsTarget.subject}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDocsTarget(null);
+                  setDocs([]);
+                }}
+                className="text-blue-200 hover:text-white transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-3 max-h-80 overflow-y-auto">
+              {loadingDocs ? (
+                <p className="text-xs font-semibold text-slate-500">Loading files…</p>
+              ) : docs.length === 0 ? (
+                <div className="text-center py-6 text-xs font-medium text-slate-400 bg-slate-50 dark:bg-slate-950 rounded-xl">
+                  No files uploaded yet.
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {docs.map((doc) => (
+                    <li
+                      key={doc.cabinet_notes_mopsw_document || doc.id}
+                      className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-4 w-4 text-[#0f417a] shrink-0" />
+                        <p
+                          className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate"
+                          title={doc.cabinet_notes_mopsw_document}
+                        >
+                          {doc.cabinet_notes_mopsw_document}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadNoteDocument(
+                            docsTarget.id,
+                            doc.cabinet_notes_mopsw_document
+                          ).catch(() => notify?.('Download failed.', 'error'))
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-[#0f417a] hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg transition cursor-pointer bg-transparent border border-blue-100 dark:border-blue-900 shrink-0"
+                      >
+                        <Download className="h-3 w-3" />
+                        Download
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>

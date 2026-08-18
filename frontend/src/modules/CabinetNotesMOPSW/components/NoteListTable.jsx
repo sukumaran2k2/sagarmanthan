@@ -7,25 +7,24 @@ import {
   X,
   ChevronDown,
   Columns3,
+  FileText,
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { stageNamesForIssueType } from '../utils/stageHelpers';
 
 function formatDate(value) {
   if (!value || value === '--') return '--';
   return String(value).slice(0, 10);
 }
 
-export default function IssueListTable({
+export default function NoteListTable({
   rows = [],
   loading = false,
   wings = [],
   divisions = [],
-  issueTypeOptions = [],
-  stages = [],
+  statusOptions = [],
   canEdit = false,
   canDelete = false,
   canCreate = false,
@@ -42,6 +41,7 @@ export default function IssueListTable({
   onEdit,
   onDelete,
   onAdd,
+  onDocs,
 }) {
   const [gridApi, setGridApi] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -50,9 +50,9 @@ export default function IssueListTable({
     subject: true,
     wing: true,
     division: true,
-    issueType: true,
     status: true,
     remarks: true,
+    docs: true,
     lastUpdated: true,
   });
 
@@ -72,13 +72,6 @@ export default function IssueListTable({
       (d) => d.wing_id == null || String(d.wing_id) === String(filters.wingId)
     );
   }, [divisions, filters.wingId]);
-
-  const issueTypeSelected = filters.issueType && filters.issueType !== 'All';
-
-  const stageOptions = useMemo(() => {
-    if (!issueTypeSelected) return [];
-    return stageNamesForIssueType(stages, filters.issueType, { excludeCompleted: true });
-  }, [stages, filters.issueType, issueTypeSelected]);
 
   const displayRows = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -119,14 +112,6 @@ export default function IssueListTable({
         hide: !visibleCols.division,
       },
       {
-        field: 'issueType',
-        headerName: 'Issue Type',
-        flex: 1.2,
-        minWidth: 150,
-        cellClass: 'text-slate-700 font-semibold',
-        hide: !visibleCols.issueType,
-      },
-      {
         field: 'status',
         headerName: 'Status',
         flex: 1.2,
@@ -145,6 +130,27 @@ export default function IssueListTable({
         minWidth: 140,
         cellClass: 'text-slate-600',
         hide: !visibleCols.remarks,
+      },
+      {
+        field: 'docCount',
+        headerName: 'Docs',
+        minWidth: 90,
+        hide: !visibleCols.docs,
+        cellRenderer: (params) => {
+          const row = params.data;
+          if (!row) return null;
+          return (
+            <button
+              type="button"
+              onClick={() => onDocs?.(row)}
+              className="inline-flex items-center gap-1 text-xs font-bold text-[#0f417a] hover:underline cursor-pointer"
+              title="Documents"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              {row.docCount || 0}
+            </button>
+          );
+        },
       },
       {
         field: 'lastUpdated',
@@ -193,29 +199,16 @@ export default function IssueListTable({
       });
     }
     return cols;
-  }, [canEdit, canDelete, onEdit, onDelete, visibleCols]);
+  }, [canEdit, canDelete, onEdit, onDelete, onDocs, visibleCols]);
 
   const setFilter = (key, value) => {
     onFiltersChange?.({ ...filters, [key]: value });
-  };
-
-  const handleCategoryChange = (next) => {
-    onCategoryChange?.(next);
-  };
-
-  const handleIssueTypeChange = (value) => {
-    onFiltersChange?.({
-      ...filters,
-      issueType: value || 'All',
-      status: 'All',
-    });
   };
 
   const clearFilters = () => {
     onFiltersChange?.({
       wingId: 'All',
       divisionId: 'All',
-      issueType: 'All',
       status: 'All',
       search: '',
     });
@@ -225,7 +218,6 @@ export default function IssueListTable({
     filters.search ||
     (filters.wingId && filters.wingId !== 'All') ||
     (filters.divisionId && filters.divisionId !== 'All') ||
-    (filters.issueType && filters.issueType !== 'All') ||
     (filters.status && filters.status !== 'All');
 
   const handleExport = (type) => {
@@ -258,7 +250,7 @@ export default function IssueListTable({
     if (type === 'Excel') {
       if (!gridApi) return;
       gridApi.exportDataAsCsv({
-        fileName: 'Parliamentary_Issues_Register_export.csv',
+        fileName: 'Cabinet_Notes_MoPSW_Register_export.csv',
         columnKeys: columnDefs
           .filter((c) => c.field && c.headerName !== 'Update' && !c.hide)
           .map((c) => c.field),
@@ -290,10 +282,10 @@ export default function IssueListTable({
         rowsHtml += '</tr>';
       });
       printWindow.document.write(`
-        <html><head><title>Parliamentary Issues</title>
+        <html><head><title>Cabinet Notes MoPSW</title>
         <style>body{font-family:system-ui,sans-serif;color:#1e293b;padding:20px}h1{font-size:18px;color:#0f417a}table{width:100%;border-collapse:collapse;margin-top:15px}</style>
         </head><body>
-        <h1>Parliamentary Issues Register</h1>
+        <h1>Cabinet Notes MoPSW Register</h1>
         <p style="font-size:11px;color:#64748b">Generated on: ${new Date().toLocaleDateString()}</p>
         <table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
         <script>window.onload=function(){window.print();window.close()}</script>
@@ -311,7 +303,7 @@ export default function IssueListTable({
       <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
         <button
           type="button"
-          onClick={() => handleCategoryChange('active')}
+          onClick={() => onCategoryChange?.('active')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             category === 'active'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -322,7 +314,7 @@ export default function IssueListTable({
         </button>
         <button
           type="button"
-          onClick={() => handleCategoryChange('completed')}
+          onClick={() => onCategoryChange?.('completed')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             category === 'completed'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -377,35 +369,12 @@ export default function IssueListTable({
             {category === 'active' && (
               <div className="relative">
                 <select
-                  value={filters.issueType === 'All' ? '' : filters.issueType}
-                  onChange={(e) => handleIssueTypeChange(e.target.value)}
-                  className={`${selectClass} min-w-[150px]`}
-                >
-                  <option value="">All Issue Types</option>
-                  {issueTypeOptions.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            )}
-
-            {category === 'active' && (
-              <div className="relative">
-                <select
                   value={filters.status === 'All' ? '' : filters.status}
                   onChange={(e) => setFilter('status', e.target.value || 'All')}
-                  disabled={!issueTypeSelected}
-                  className={`${selectClass} min-w-[140px] ${
-                    issueTypeSelected ? '' : 'opacity-60 cursor-not-allowed'
-                  }`}
+                  className={`${selectClass} min-w-[140px]`}
                 >
-                  <option value="">
-                    {issueTypeSelected ? 'All Stages' : 'Select issue type first'}
-                  </option>
-                  {stageOptions.map((s) => (
+                  <option value="">All Stages</option>
+                  {statusOptions.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
@@ -502,8 +471,8 @@ export default function IssueListTable({
                       />
                       {key === 'lastUpdated'
                         ? 'Last Updated'
-                        : key === 'issueType'
-                          ? 'Issue Type'
+                        : key === 'docs'
+                          ? 'Docs'
                           : key.charAt(0).toUpperCase() + key.slice(1)}
                     </label>
                   ))}
@@ -518,7 +487,7 @@ export default function IssueListTable({
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0f417a] hover:bg-[#1d5594] text-white text-xs font-bold rounded-lg shadow-sm"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add Issues
+                Add Notes
               </button>
             )}
           </div>

@@ -84,4 +84,60 @@ export function requireModulePermission(moduleCode, action) {
   };
 }
 
+/** Allow if the user has any one of the listed actions. */
+export function requireAnyModulePermission(moduleCode, actions = []) {
+  const code = String(moduleCode || '').toUpperCase();
+  const normalized = (Array.isArray(actions) ? actions : [actions])
+    .map(normalizeAction)
+    .filter(Boolean);
+
+  return (req, res, next) => {
+    if (!normalized.length) {
+      return res.status(500).json({ message: 'Invalid permission actions configured' });
+    }
+
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ status: 'fail', message: 'Unauthorized!' });
+    }
+
+    if (user.roleCode === 'SUPERADMIN') {
+      return res.status(403).json({
+        status: 'fail',
+        message: 'Superadmin cannot access module data APIs',
+      });
+    }
+
+    const allowedCodes = Array.isArray(user.allowedModuleCodes)
+      ? user.allowedModuleCodes.map((c) => String(c).toUpperCase())
+      : [];
+    const moduleAllowed = allowedCodes.includes(code);
+
+    if (user.roleCode === 'VIEW_ONLY_ADMIN') {
+      return res.status(403).json({
+        status: 'fail',
+        message: 'View Only Admin has read-only access',
+      });
+    }
+
+    if (!moduleAllowed) {
+      return res.status(403).json({
+        status: 'fail',
+        message: 'Module not allowed for organisation',
+      });
+    }
+
+    const perm = findModulePermission(user, code);
+    const ok = normalized.some((action) => hasAction(perm, action));
+    if (!ok) {
+      return res.status(403).json({
+        status: 'fail',
+        message: `Missing permission for ${code}`,
+      });
+    }
+
+    return next();
+  };
+}
+
 export default requireModulePermission;
