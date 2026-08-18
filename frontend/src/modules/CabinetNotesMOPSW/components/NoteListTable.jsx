@@ -10,6 +10,7 @@ import {
   FileText,
 } from 'lucide-react';
 import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 
@@ -29,13 +30,20 @@ export default function NoteListTable({
   canCreate = false,
   filters,
   onFiltersChange,
+  category = 'active',
+  onCategoryChange,
+  counts = { active: 0, completed: 0 },
+  page = 1,
+  pageSize = 10,
+  pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
+  onPageChange,
+  onPageSizeChange,
   onEdit,
   onDelete,
   onAdd,
   onDocs,
 }) {
   const [gridApi, setGridApi] = useState(null);
-  const [pageSize, setPageSize] = useState(10);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
   const [visibleCols, setVisibleCols] = useState({
@@ -65,31 +73,10 @@ export default function NoteListTable({
     );
   }, [divisions, filters.wingId]);
 
-  const filteredRows = useMemo(() => {
-    const q = String(filters.search || '').toLowerCase().trim();
-    return rows
-      .filter((row) => {
-        if (filters.wingId && filters.wingId !== 'All' && String(row.wingId) !== String(filters.wingId)) {
-          return false;
-        }
-        if (
-          filters.divisionId &&
-          filters.divisionId !== 'All' &&
-          String(row.divisionId) !== String(filters.divisionId)
-        ) {
-          return false;
-        }
-        if (filters.status && filters.status !== 'All' && row.status !== filters.status) {
-          return false;
-        }
-        if (q) {
-          const hay = `${row.subject} ${row.wing} ${row.division} ${row.status} ${row.remarks}`.toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        return true;
-      })
-      .map((item, index) => ({ ...item, sNo: index + 1 }));
-  }, [rows, filters]);
+  const displayRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return rows.map((item, index) => ({ ...item, sNo: start + index + 1 }));
+  }, [rows, page, pageSize]);
 
   const columnDefs = useMemo(() => {
     const cols = [
@@ -243,7 +230,7 @@ export default function NoteListTable({
         }
       });
       tsv += `${headers.join('\t')}\n`;
-      filteredRows.forEach((row) => {
+      displayRows.forEach((row) => {
         const line = [];
         columnDefs.forEach((col) => {
           if (col.headerName && col.headerName !== 'Update' && !col.hide) {
@@ -281,7 +268,7 @@ export default function NoteListTable({
         }
       });
       let rowsHtml = '';
-      filteredRows.forEach((row) => {
+      displayRows.forEach((row) => {
         rowsHtml += '<tr>';
         columnDefs.forEach((col) => {
           if (col.headerName && col.headerName !== 'Update' && !col.hide) {
@@ -313,6 +300,31 @@ export default function NoteListTable({
 
   return (
     <div className="space-y-6 animate-fade-in relative">
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+        <button
+          type="button"
+          onClick={() => onCategoryChange?.('active')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            category === 'active'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
+        >
+          Active ({counts.active})
+        </button>
+        <button
+          type="button"
+          onClick={() => onCategoryChange?.('completed')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            category === 'completed'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
+        >
+          Completed ({counts.completed})
+        </button>
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 pb-4">
           <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
@@ -354,21 +366,23 @@ export default function NoteListTable({
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             </div>
 
-            <div className="relative">
-              <select
-                value={filters.status === 'All' ? '' : filters.status}
-                onChange={(e) => setFilter('status', e.target.value || 'All')}
-                className={`${selectClass} min-w-[140px]`}
-              >
-                <option value="">All Status</option>
-                {statusOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
+            {category === 'active' && (
+              <div className="relative">
+                <select
+                  value={filters.status === 'All' ? '' : filters.status}
+                  onChange={(e) => setFilter('status', e.target.value || 'All')}
+                  className={`${selectClass} min-w-[140px]`}
+                >
+                  <option value="">All Stages</option>
+                  {statusOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            )}
 
             <div className="relative min-w-[160px] max-w-xs flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -405,7 +419,7 @@ export default function NoteListTable({
               <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Rows</span>
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(e) => onPageSizeChange?.(Number(e.target.value))}
                 className="text-xs font-bold text-slate-700 bg-transparent border-0 focus:outline-none cursor-pointer"
               >
                 {[10, 25, 50, 100].map((n) => (
@@ -417,7 +431,7 @@ export default function NoteListTable({
             </div>
 
             <div className="px-2.5 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] font-black uppercase tracking-wider text-[#0f417a]">
-              Total: {filteredRows.length}
+              Total: {pagination.total}
             </div>
 
             <CopyButton
@@ -481,11 +495,10 @@ export default function NoteListTable({
 
         <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <Table
-            rowData={filteredRows}
+            rowData={displayRows}
             columnDefs={columnDefs}
             loading={loading}
-            pagination
-            paginationPageSize={pageSize}
+            pagination={false}
             enableExport={false}
             color="#0f417a"
             onGridReady={(params) => setGridApi(params.api)}
@@ -496,6 +509,16 @@ export default function NoteListTable({
               resizable: true,
             }}
           />
+          {pagination.totalPages > 0 && (
+            <TablePagination
+              currentPage={Math.max(0, page - 1)}
+              totalPages={pagination.totalPages}
+              totalRows={pagination.total}
+              pageSize={pageSize}
+              onPageChange={(pageIndex) => onPageChange?.(pageIndex + 1)}
+              color="#0f417a"
+            />
+          )}
         </div>
       </div>
     </div>

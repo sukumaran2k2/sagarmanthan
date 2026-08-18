@@ -1409,6 +1409,12 @@ router.get(
   cabinetMopswReportTab.getMopswReport
 );
 router.get(
+  "/cabinetmopsw-wingdivision-report",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswReportTab.getCabinetMopswWingDivisionReport
+);
+router.get(
   "/cabinetmopsw-divisionwise/:wingID/",
   auth,
   requireModulePermission("CABINET_NOTES_MOPSW", "read"),

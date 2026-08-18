@@ -7,25 +7,30 @@
 
 ## Data List
 4. List loads with wing, division, status, docs, last updated.
-5. Filters: wing → division cascade; status; search; Clear.
-6. Edit opens form with mapped Yes/No + dates.
-7. Delete confirms and removes note (+ documents when present).
-8. Docs column opens modal; download works with auth.
+5. Active / Completed tabs show unfiltered totals; switching tabs resets stage filter and page.
+6. Active tab filters: wing → division cascade; stage (excluding Completed); search; Clear.
+7. Completed tab hides the stage filter.
+8. Edit opens form with mapped dates and stage remarks.
+9. Delete confirms and removes note (+ documents when present).
+10. Docs column opens modal; download works with auth.
 
 ## Input Form
-9. Subject, wing, division required.
-10. Stages unlock sequentially (Yes/No or date on prior stage).
-11. Dates cannot be after today; min date respects prior stage date.
-12. Clearing a stage to No clears subsequent stages.
-13. Remarks capped at 250 words.
-14. Create posts note, optional PDF upload, returns to list.
-15. Update persists stage remarks and stage_id (highest Yes).
+11. Two-column layout: Note Information on the left, Stages Checklist & Dates on the right.
+12. Subject, wing, division required.
+13. Stages unlock sequentially when the previous stage has a date.
+14. Dates cannot be after today; min date respects prior stage date.
+15. Clearing a stage date clears subsequent stages.
+16. Stage remarks appear when a date is set.
+17. Remarks capped at 250 words.
+18. Create posts note, optional PDF upload, returns to list.
+19. Update persists stage remarks and stage_id (highest dated stage).
 
 ## Reports
-16. Wing-wise matrix loads with all 11 stages (including DCM).
-17. Wing name → division abstract.
-18. Stage count → detail rows.
-19. Back navigation works through drilldown path.
+20. Report View dropdown: Wing, Division, Wing and Division. Title and columns update without leaving the report.
+21. Wing name (Wing view) → division abstract.
+22. Stage count → detail rows.
+23. Back navigation works through drilldown path.
+24. Empty data does not crash.
 
 ## Scope
-20. ORGANISATION data scope only shows notes created by users in the same org.
+25. ORGANISATION data scope only shows notes created by users in the same org.

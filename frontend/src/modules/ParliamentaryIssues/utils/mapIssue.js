@@ -22,14 +22,6 @@ function stageDateColumn(dbRemark) {
   return String(dbRemark).replace(/_remarks$/, '_date');
 }
 
-export function summarizeStageRemarks(row = {}) {
-  const parts = STAGE_REMARK_FIELDS.map(({ dbRemark }) =>
-    String(row[dbRemark] || '').trim()
-  ).filter(Boolean);
-  if (parts.length) return parts.join('; ');
-  return String(row.remarks || '').trim();
-}
-
 export function mapIssueListRow(row) {
   return {
     id: row.parliamentary_issue_id,
@@ -41,7 +33,7 @@ export function mapIssueListRow(row) {
     issueType: row.parliamentary_issue_type || row.parlia_issue_type || '',
     status: row.parlia_stage_name || '',
     isCompleted: isCompletedParliamentaryIssue(row),
-    remarks: summarizeStageRemarks(row),
+    remarks: String(row.remarks || '').trim(),
     lastUpdated: row.updated_date
       ? toDateInput(row.updated_date)
       : row.created_date

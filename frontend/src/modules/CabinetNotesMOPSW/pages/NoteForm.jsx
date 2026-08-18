@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Save, Upload } from 'lucide-react';
-import YesNoDateField from '../components/YesNoDateField';
+import { Upload } from 'lucide-react';
+import StageDateField from '../components/StageDateField';
 import {
   STAGE_FIELDS,
   buildNotePayload,
@@ -17,11 +17,15 @@ import {
 } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 
+const EMPTY_FORM = emptyForm();
+
 const labelClass =
   'block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider';
 const inputClass =
   'w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-60 disabled:cursor-not-allowed';
 const selectClass = `${inputClass} cursor-pointer dark:[color-scheme:dark]`;
+const sectionCardClass =
+  'rounded-2xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/40';
 
 export default function NoteForm({
   wings = [],
@@ -33,7 +37,7 @@ export default function NoteForm({
   notify,
 }) {
   const isEdit = !!initialForm?.mopswCabinetID;
-  const [form, setForm] = useState(emptyForm());
+  const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [noteDocs, setNoteDocs] = useState([]);
@@ -43,7 +47,7 @@ export default function NoteForm({
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   useEffect(() => {
-    setForm(initialForm ? { ...emptyForm(), ...initialForm } : emptyForm());
+    setForm(initialForm ? { ...EMPTY_FORM, ...initialForm } : { ...EMPTY_FORM });
     setSelectedFiles([]);
 
     if (initialForm?.mopswCabinetID) {
@@ -73,17 +77,17 @@ export default function NoteForm({
 
   const wordCount = countWords(form.remarks);
 
-  const handleStageChange = (stage, yesNo) => {
+  const setStageDate = (stage, value) => {
     setForm((prev) => {
-      const next = { ...prev, [stage.key]: yesNo };
-      if (yesNo !== 'Yes') {
-        next[stage.dateKey] = '';
-        next[stage.remarkKey] = '';
-        // Clear subsequent stages when clearing earlier ones
+      const next = {
+        ...prev,
+        [stage.dateKey]: value,
+        [stage.remarkKey]: value ? prev[stage.remarkKey] : '',
+      };
+      if (!value) {
         const idx = STAGE_FIELDS.findIndex((s) => s.key === stage.key);
         for (let i = idx + 1; i < STAGE_FIELDS.length; i++) {
           const s = STAGE_FIELDS[i];
-          next[s.key] = '';
           next[s.dateKey] = '';
           next[s.remarkKey] = '';
         }
@@ -171,242 +175,245 @@ export default function NoteForm({
     }
   };
 
+  const formTitle = readOnly
+    ? 'View Cabinet Notes-MoPSW'
+    : isEdit
+      ? 'Update Cabinet Notes-MoPSW'
+      : 'Add Cabinet Notes-MoPSW';
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in"
-    >
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4 flex items-center justify-between text-white">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
+      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider">
-            {readOnly
-              ? 'View Cabinet Notes-MoPSW (Read-only)'
-              : isEdit
-                ? 'Update Cabinet Notes-MoPSW'
-                : 'Add Cabinet Notes-MoPSW'}
+          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+            {formTitle}
           </h3>
-          <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">
+          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">
             Ministry of Ports, Shipping and Waterways
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back
-        </button>
       </div>
 
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="space-y-5">
-          <div className="space-y-1.5">
-            <label className={labelClass}>
-              Subject <span className="text-rose-500">*</span>
-            </label>
-            <input
-              className={inputClass}
-              value={form.subject}
-              disabled={readOnly}
-              onChange={(e) => setField('subject', e.target.value)}
-              maxLength={500}
-            />
-          </div>
+      <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(340px,0.95fr)_minmax(0,1.45fr)] gap-6 items-start">
+          <div className={sectionCardClass}>
+            <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
+              Note Information
+            </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className={labelClass}>
-                Wing <span className="text-rose-500">*</span>
-              </label>
-              <select
-                className={selectClass}
-                value={form.wing}
-                disabled={readOnly}
-                onChange={(e) => {
-                  setField('wing', e.target.value);
-                  setField('division', '');
-                }}
-              >
-                <option value="">Select Wing</option>
-                {wings.map((w) => (
-                  <option key={w.wing_id} value={w.wing_id}>
-                    {w.wing_name}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className={labelClass}>
+                  Concerned Wing<span className="text-red-500">*</span>
+                </label>
+                <select
+                  className={selectClass}
+                  value={form.wing}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    setForm((prev) => ({ ...prev, wing: e.target.value, division: '' }));
+                  }}
+                >
+                  <option value="" className="dark:bg-slate-955 dark:text-slate-300">
+                    Select Wing
                   </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className={labelClass}>
-                Division <span className="text-rose-500">*</span>
-              </label>
-              <select
-                className={selectClass}
-                value={form.division}
-                disabled={readOnly || !form.wing}
-                onChange={(e) => setField('division', e.target.value)}
-              >
-                <option value="">Select Division</option>
-                {filteredDivisions.map((d) => (
-                  <option key={d.division_id} value={d.division_id}>
-                    {d.division_name}
+                  {wings.map((w) => (
+                    <option
+                      key={w.wing_id}
+                      value={w.wing_id}
+                      className="dark:bg-slate-955 dark:text-slate-300"
+                    >
+                      {w.wing_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className={labelClass}>
+                  Concerned Division<span className="text-red-500">*</span>
+                </label>
+                <select
+                  className={selectClass}
+                  value={form.division}
+                  disabled={readOnly}
+                  onChange={(e) => setField('division', e.target.value)}
+                >
+                  <option value="" className="dark:bg-slate-955 dark:text-slate-300">
+                    Select Division
                   </option>
-                ))}
-              </select>
-            </div>
-          </div>
+                  {filteredDivisions.map((d) => (
+                    <option
+                      key={d.division_id}
+                      value={d.division_id}
+                      className="dark:bg-slate-955 dark:text-slate-300"
+                    >
+                      {d.division_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="space-y-1.5">
-            <label className={labelClass}>
-              Remarks{' '}
-              <span className="normal-case font-semibold text-slate-400">
-                ({wordCount}/250 words)
-              </span>
-            </label>
-            <textarea
-              className={`${inputClass} min-h-[100px]`}
-              value={form.remarks}
-              disabled={readOnly}
-              onChange={(e) => setField('remarks', e.target.value)}
-            />
-            {wordCount > 250 && (
-              <p className="text-[11px] text-rose-600 font-semibold">
-                Remarks cannot exceed 250 words.
-              </p>
-            )}
-          </div>
-
-          {!readOnly && (
-            <div className="space-y-1.5 max-w-sm">
-              <label className={labelClass}>Cabinet Note Document</label>
-              <div className="flex items-center justify-center border-2 border-dashed border-slate-250 dark:border-slate-800 rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative">
+              <div className="space-y-1.5">
+                <label className={labelClass}>
+                  Name of the Subject<span className="text-red-500">*</span>
+                </label>
                 <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept=".pdf"
-                  multiple
-                  onChange={handleFileChange}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  type="text"
+                  className={inputClass}
+                  value={form.subject}
+                  disabled={readOnly}
+                  placeholder="Enter subject"
+                  maxLength={500}
+                  onChange={(e) => setField('subject', e.target.value)}
                 />
-                <div className="text-center space-y-1 pointer-events-none">
-                  <Upload className="mx-auto h-6 w-6 text-slate-400" />
-                  <p className="text-[11px] font-bold text-slate-655 dark:text-slate-400 uppercase tracking-wide">
-                    Upload PDF file
-                  </p>
-                  <p className="text-[9px] text-slate-400 font-semibold">
-                    (Only PDF under 10 MB is allowed)
-                  </p>
-                  {selectedFiles.length > 0 && (
-                    <div className="space-y-0.5 pt-1">
-                      {selectedFiles.map((file) => (
-                        <p
-                          key={file.name}
-                          className="text-[11px] font-black text-emerald-600 truncate max-w-[240px] mx-auto"
-                          title={file.name}
-                        >
-                          Selected: {file.name}
-                        </p>
-                      ))}
+              </div>
+
+              {!readOnly && (
+                <div className="space-y-1.5">
+                  <label className={labelClass}>Cabinet Note Document</label>
+                  <div className="flex items-center justify-center border-2 border-dashed border-slate-250 dark:border-slate-800 rounded-xl p-4 hover:bg-white dark:hover:bg-slate-900/50 transition cursor-pointer relative">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept=".pdf"
+                      multiple
+                      onChange={handleFileChange}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                    <div className="text-center space-y-1 pointer-events-none">
+                      <Upload className="mx-auto h-6 w-6 text-slate-400" />
+                      <p className="text-[11px] font-bold text-slate-655 dark:text-slate-400 uppercase tracking-wide">
+                        Upload PDF file
+                      </p>
+                      <p className="text-[9px] text-slate-400 font-semibold">
+                        (Only PDF under 10 MB is allowed)
+                      </p>
+                      {selectedFiles.length > 0 && (
+                        <div className="space-y-0.5 pt-1">
+                          {selectedFiles.map((file) => (
+                            <p
+                              key={file.name}
+                              className="text-[11px] font-black text-emerald-600 truncate max-w-[240px] mx-auto"
+                              title={file.name}
+                            >
+                              Selected: {file.name}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {(loadingDocs || noteDocs.length > 0) && (
+                <div className="space-y-1.5">
+                  <p className={labelClass}>Uploaded Documents</p>
+                  {loadingDocs ? (
+                    <p className="text-xs text-slate-500 font-semibold">Loading…</p>
+                  ) : noteDocs.length === 0 ? (
+                    <p className="text-xs text-slate-400 font-semibold">No documents uploaded yet.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {noteDocs.map((doc) => (
+                        <li key={doc.cabinet_notes_mopsw_document} className="text-xs">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              downloadNoteDocument(
+                                form.mopswCabinetID,
+                                doc.cabinet_notes_mopsw_document
+                              ).catch(() => notify?.('Download failed.', 'error'))
+                            }
+                            className="inline-flex items-center gap-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-left"
+                          >
+                            <span>View current document:</span>
+                            <span
+                              className="text-slate-600 dark:text-slate-450 font-semibold truncate max-w-[200px]"
+                              title={doc.cabinet_notes_mopsw_document}
+                            >
+                              {doc.cabinet_notes_mopsw_document}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {(loadingDocs || noteDocs.length > 0) && (
-            <div className="space-y-1.5 max-w-sm">
-              <p className={labelClass}>Uploaded Documents</p>
-              {loadingDocs ? (
-                <p className="text-xs text-slate-500 font-semibold">Loading…</p>
-              ) : noteDocs.length === 0 ? (
-                <p className="text-xs text-slate-400 font-semibold">No documents uploaded yet.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {noteDocs.map((doc) => (
-                    <li key={doc.cabinet_notes_mopsw_document} className="text-xs">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          downloadNoteDocument(
-                            form.mopswCabinetID,
-                            doc.cabinet_notes_mopsw_document
-                          ).catch(() => notify?.('Download failed.', 'error'))
-                        }
-                        className="inline-flex items-center gap-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-left"
-                      >
-                        <span>View current document:</span>
-                        <span
-                          className="text-slate-600 dark:text-slate-450 font-semibold truncate max-w-[200px]"
-                          title={doc.cabinet_notes_mopsw_document}
-                        >
-                          {doc.cabinet_notes_mopsw_document}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
               )}
             </div>
+          </div>
+
+          <div className={sectionCardClass}>
+            <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mb-4">
+              Stages Checklist & Dates
+            </h3>
+            <div className="space-y-3">
+              {STAGE_FIELDS.map((stage, index) => (
+                <StageDateField
+                  key={stage.key}
+                  stageNumber={stage.id}
+                  label={stage.label}
+                  dateLabel="Date"
+                  date={form[stage.dateKey]}
+                  remark={form[stage.remarkKey]}
+                  disabled={!unlocked[stage.key]}
+                  readOnly={readOnly}
+                  minDate={prevDateFor(index)}
+                  maxDate={todayStr}
+                  onDateChange={(d) => setStageDate(stage, d)}
+                  onRemarkChange={(v) => setField(stage.remarkKey, v)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className={labelClass}>Remarks (if any)</label>
+          <textarea
+            className={inputClass}
+            value={form.remarks || ''}
+            disabled={readOnly}
+            rows={4}
+            placeholder="Add overall remarks"
+            onChange={(e) => setField('remarks', e.target.value)}
+          />
+          {wordCount > 250 && (
+            <p className="text-[11px] text-rose-600 font-semibold">
+              Remarks cannot exceed 250 words.
+            </p>
           )}
         </div>
 
-        <div className="space-y-1 max-h-[70vh] overflow-y-auto pr-1">
-          <p className={`${labelClass} mb-3 sticky top-0 bg-white dark:bg-slate-900 py-1 z-10`}>
-            Stage progression
-          </p>
-          {STAGE_FIELDS.map((stage, index) => (
-            <div
-              key={stage.key}
-              className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-2 last:border-0"
-            >
-              <YesNoDateField
-                label={`${stage.id}. ${stage.label}`}
-                name={stage.key}
-                value={form[stage.key]}
-                date={form[stage.dateKey]}
-                disabled={!unlocked[stage.key]}
-                readOnly={readOnly}
-                minDate={prevDateFor(index)}
-                maxDate={todayStr}
-                onChange={(v) => handleStageChange(stage, v)}
-                onDateChange={(d) => setField(stage.dateKey, d)}
-              />
-              {form[stage.key] === 'Yes' && (
-                <div className="mt-2 space-y-1.5">
-                  <label className={labelClass}>Stage remarks</label>
-                  <input
-                    className={inputClass}
-                    value={form[stage.remarkKey] || ''}
-                    disabled={readOnly || !unlocked[stage.key]}
-                    onChange={(e) => setField(stage.remarkKey, e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {!readOnly && (
-        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/60 dark:bg-slate-950/40">
+        <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100 dark:border-slate-800">
           <button
             type="button"
             onClick={onBack}
-            className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-white transition"
+            className="px-4.5 py-2.5 border border-slate-250 dark:border-slate-800 text-slate-655 dark:text-slate-400 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer"
           >
-            Cancel
+            {readOnly ? 'Back' : 'Discard'}
           </button>
-          <button
-            type="submit"
-            disabled={submitting || wordCount > 250}
-            className="inline-flex items-center gap-2 px-5 py-2 bg-[#0f417a] hover:bg-[#1d5594] disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md transition"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {submitting ? 'Saving…' : isEdit ? 'Update' : 'Submit'}
-          </button>
+          {!readOnly && (
+            <button
+              type="submit"
+              disabled={submitting || wordCount > 250}
+              className={`px-5.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                submitting || wordCount > 250
+                  ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-550 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                  : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg dark:bg-[#0f417a] dark:hover:bg-[#0a2d55]'
+              }`}
+            >
+              {submitting
+                ? 'Saving...'
+                : isEdit
+                  ? 'Update Cabinet Note'
+                  : 'Save Cabinet Note'}
+            </button>
+          )}
         </div>
-      )}
-    </form>
+      </form>
+    </div>
   );
 }

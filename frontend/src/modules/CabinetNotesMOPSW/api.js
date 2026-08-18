@@ -55,8 +55,31 @@ api.interceptors.response.use(
   }
 );
 
-export function fetchCabinetNotes() {
-  return api.get('/cabinet-mopsw');
+function toNoteListParams(params = {}) {
+  const query = {
+    page: params.page || 1,
+    limit: params.limit || 10,
+    category: params.category || 'active',
+  };
+  if (params.wingId && params.wingId !== 'All') query.wingId = params.wingId;
+  if (params.divisionId && params.divisionId !== 'All') query.divisionId = params.divisionId;
+  if (
+    query.category === 'active' &&
+    params.status &&
+    params.status !== 'All'
+  ) {
+    query.status = params.status;
+  }
+  const search = String(params.search || '').trim();
+  if (search) query.search = search;
+  return query;
+}
+
+export function fetchCabinetNotes(params = {}, config = {}) {
+  return api.get('/cabinet-mopsw', {
+    params: toNoteListParams(params),
+    ...config,
+  });
 }
 
 export function fetchCabinetNoteById(id) {
@@ -119,6 +142,10 @@ export async function downloadNoteDocument(noteId, fileName) {
 
 export function fetchCabinetWingWiseReport() {
   return api.get('/cabinetmopsw-report');
+}
+
+export function fetchCabinetWingDivisionReport() {
+  return api.get('/cabinetmopsw-wingdivision-report');
 }
 
 export function fetchCabinetDivisionWiseReport(wingId) {

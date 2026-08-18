@@ -23,6 +23,7 @@ describe('mapIssueListRow', () => {
       issueType: 'Assurance',
       status: 'Comments Sought',
       isCompleted: false,
+      remarks: 'Follow up',
       lastUpdated: '2026-03-15',
     });
   });
@@ -39,6 +40,13 @@ describe('mapIssueListRow', () => {
       mapIssueListRow({
         parliamentary_issue_id: 2,
         parlia_stage_name: 'Reply sent',
+      }).isCompleted
+    ).toBe(true);
+
+    expect(
+      mapIssueListRow({
+        parliamentary_issue_id: 3,
+        parlia_stage_name: 'Replay sent',
       }).isCompleted
     ).toBe(true);
   });

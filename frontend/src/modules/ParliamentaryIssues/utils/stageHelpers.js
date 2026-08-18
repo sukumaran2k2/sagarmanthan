@@ -169,8 +169,21 @@ export function buildDrilldownStageMap(stages = [], issueType) {
     if (n.includes('implementation')) {
       map['Implementation Report Furnished / Request For Dropping'] = map[name];
     }
+    map[normalizeText(name)] = map[name];
   });
   return map;
+}
+
+export function lookupDrilldownStageId(stageMap = {}, ...labels) {
+  for (const label of labels) {
+    if (label == null || label === '') continue;
+    if (stageMap[label] != null) return stageMap[label];
+    const n = normalizeText(label);
+    if (stageMap[n] != null) return stageMap[n];
+    const hit = Object.keys(stageMap).find((k) => normalizeText(k) === n);
+    if (hit) return stageMap[hit];
+  }
+  return null;
 }
 
 export function commentFieldsForWings(wings = []) {

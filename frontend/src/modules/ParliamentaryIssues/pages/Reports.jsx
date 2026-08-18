@@ -1,27 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Building2 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
+import { stripTimesFromReportRows } from '../../../utils/formatReportDate';
 import {
   buildDrilldownStageMap,
   canonicalizeIssueType,
   isAssuranceType,
   isPscType,
   issueTypesFromStages,
+  lookupDrilldownStageId,
 } from '../utils/stageHelpers';
 import {
   fetchAssuranceDivisionDetail,
   fetchAssuranceDivisionWiseReport,
   fetchAssuranceWingDetail,
   fetchAssuranceWingDivisionReport,
+  fetchAssuranceWingWiseReport,
   fetchMatterDivisionDetail,
   fetchMatterDivisionWiseReport,
   fetchMatterWingDetail,
   fetchMatterWingDivisionReport,
+  fetchMatterWingWiseReport,
   fetchParliamentaryStages,
   fetchPscDivisionDetail,
   fetchPscDivisionWiseReport,
   fetchPscWingDetail,
   fetchPscWingDivisionReport,
+  fetchPscWingWiseReport,
 } from '../api';
 
 const WING_FIELDS = new Set(['Wing Id', 'Wing ID', 'Wing Name', 'Wing']);
@@ -79,6 +84,17 @@ function combinedFetcher(tab) {
   if (tab.family === 'assurance') return fetchAssuranceWingDivisionReport;
   if (tab.family === 'psc') return fetchPscWingDivisionReport;
   return () => fetchMatterWingDivisionReport(tab.issueType);
+}
+
+function wingWiseFetcher(tab) {
+  if (tab.family === 'assurance') return fetchAssuranceWingWiseReport;
+  if (tab.family === 'psc') return fetchPscWingWiseReport;
+  return () => fetchMatterWingWiseReport(tab.issueType);
+}
+
+function summaryFetcher(tab, reportView) {
+  if (reportView === 'wing') return wingWiseFetcher(tab);
+  return combinedFetcher(tab);
 }
 
 function buildRootView(tab) {
@@ -177,16 +193,24 @@ export default function ParliamentaryIssuesReports({ notify }) {
   }, [stages, activeTab]);
 
   const fetchReportData = useCallback(async () => {
-    if (!currentView?.fetcher) return;
+    const fetcher =
+      currentView?.type === 'summary' && activeTab
+        ? summaryFetcher(activeTab, reportView)
+        : currentView?.fetcher;
+    if (!fetcher) return;
     setLoading(true);
     try {
-      const response = await currentView.fetcher();
+      const response = await fetcher();
       const payload = response.data || {};
       if (Array.isArray(payload)) {
-        setReportData([]);
-        setReportCols([]);
+        setReportData(stripTimesFromReportRows(payload));
+        setReportCols(
+          payload[0]
+            ? Object.keys(payload[0]).map((key) => ({ headerName: key, field: key }))
+            : []
+        );
       } else {
-        setReportData(payload.rowData || []);
+        setReportData(stripTimesFromReportRows(payload.rowData || []));
         setReportCols(payload.columnDefs || []);
       }
     } catch (err) {
@@ -197,7 +221,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
     } finally {
       setLoading(false);
     }
-  }, [currentView, notify]);
+  }, [activeTab, currentView, notify, reportView]);
 
   useEffect(() => {
     fetchReportData();
@@ -206,6 +230,10 @@ export default function ParliamentaryIssuesReports({ notify }) {
   const viewData = useMemo(() => {
     if (!isSummary) return reportData;
     if (reportView === 'wing') {
+      const hasDivision = reportData.some((row) => divisionIdOf(row) != null && divisionIdOf(row) !== '');
+      if (!hasDivision) {
+        return reportData.map((row, idx) => ({ ...row, 'S No': idx + 1 }));
+      }
       return aggregateBy(reportData, wingIdOf, (row) => ({
         'Wing Id': wingIdOf(row),
         'Wing Name': row['Wing Name'] || row.Wing || '',
@@ -302,7 +330,9 @@ export default function ParliamentaryIssuesReports({ notify }) {
           };
         }
 
-        const stageId = stageMap[field];
+        if (currentView?.type === 'detail') return col;
+
+        const stageId = lookupDrilldownStageId(stageMap, field, header);
         if (stageId == null) return col;
 
         return {
@@ -410,7 +440,18 @@ export default function ParliamentaryIssuesReports({ notify }) {
     };
     const visible = flattenColumns(mapped).filter((col) => !hideCol(col));
     const serial = visible.filter(isSerial);
-    const rest = visible.filter((col) => !isSerial(col));
+    const rest = visible.filter((col) => !isSerial(col)).map((col) => {
+      const field = String(col.field || '');
+      if (!/implementation report furnished/i.test(field)) return col;
+      return {
+        ...col,
+        width: 160,
+        minWidth: 140,
+        maxWidth: 170,
+        wrapHeaderText: true,
+        autoHeaderHeight: true,
+      };
+    });
     return [...serial, ...rest];
   }, [mapColumnRenderers, reportCols, isSummary, reportView]);
 
@@ -528,6 +569,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
           oddRowColor="#f8faf6"
           themeClass="yp-pro-grid"
           toolbarExtra={reportViewSelect}
+          autoHeaderHeight
         />
       </div>
     </div>

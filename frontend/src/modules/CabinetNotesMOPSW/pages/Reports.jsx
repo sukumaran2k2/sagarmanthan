@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Building2 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
-import { buildStageDrilldownMap, STAGE_FIELDS } from '../utils/stageHelpers';
+import { stripTimesFromReportRows } from '../../../utils/formatReportDate';
+import { buildStageDrilldownMap, lookupStageDrilldownId } from '../utils/stageHelpers';
 import {
   fetchCabinetDivisionDetail,
   fetchCabinetDivisionWiseReport,
   fetchCabinetStages,
   fetchCabinetWingDetail,
+  fetchCabinetWingDivisionReport,
   fetchCabinetWingWiseReport,
 } from '../api';
+
+const WING_FIELDS = new Set(['Wing Id', 'Wing ID', 'Wing Name', 'Wing']);
+const DIVISION_FIELDS = new Set(['Division Id', 'Division ID', 'Division Name', 'Division']);
+const ID_FIELDS = new Set(['Wing Id', 'Wing ID', 'Division Id', 'Division ID']);
+const META_FIELDS = new Set(['S No', 'S.No', ...WING_FIELDS, ...DIVISION_FIELDS]);
 
 function linkButton(label, onClick) {
   return (
@@ -29,15 +37,67 @@ function formatReportMonth(date = new Date()) {
   return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 }
 
+function abstractLevel(reportView) {
+  if (reportView === 'wing') return 'Abstract Wing Wise';
+  if (reportView === 'division') return 'Abstract Division Wise';
+  return 'Abstract Wing & Division Wise';
+}
+
+function form11Title(level) {
+  return `Form No.:1.1 - ${level} - Cabinet Notes MoPSW`;
+}
+
+function summaryFetcher(reportView) {
+  if (reportView === 'wing') return fetchCabinetWingWiseReport;
+  return fetchCabinetWingDivisionReport;
+}
+
+function buildRootView() {
+  return {
+    type: 'summary',
+    fetcher: fetchCabinetWingDivisionReport,
+  };
+}
+
+function wingIdOf(row = {}) {
+  return row['Wing Id'] ?? row['Wing ID'];
+}
+
+function divisionIdOf(row = {}) {
+  return row['Division Id'] ?? row['Division ID'];
+}
+
+function isNumericKey(key) {
+  return !META_FIELDS.has(key);
+}
+
+function aggregateBy(rows, idGetter, seedRow) {
+  const grouped = {};
+  rows.forEach((row) => {
+    const id = idGetter(row);
+    if (id == null || id === '') return;
+    if (!grouped[id]) {
+      grouped[id] = seedRow(row);
+      Object.keys(row).forEach((key) => {
+        if (isNumericKey(key)) grouped[id][key] = 0;
+      });
+    }
+    Object.keys(row).forEach((key) => {
+      if (!isNumericKey(key)) return;
+      grouped[id][key] += Number(row[key]) || 0;
+    });
+  });
+  return Object.values(grouped).map((item, idx) => ({ ...item, 'S No': idx + 1 }));
+}
+
+function flattenColumns(cols = []) {
+  return cols.flatMap((col) => (col.children ? flattenColumns(col.children) : [col]));
+}
+
 export default function CabinetNotesReports({ notify }) {
   const [stages, setStages] = useState([]);
-  const [drillDownPath, setDrillDownPath] = useState([
-    {
-      type: 'wing',
-      title: 'Form No.:1.1 - Abstract Wing Wise - Cabinet Notes MoPSW',
-      fetcher: fetchCabinetWingWiseReport,
-    },
-  ]);
+  const [reportView, setReportView] = useState('wing');
+  const [drillDownPath, setDrillDownPath] = useState([buildRootView()]);
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState([]);
   const [reportCols, setReportCols] = useState([]);
@@ -52,20 +112,29 @@ export default function CabinetNotesReports({ notify }) {
   }, [notify]);
 
   const currentView = drillDownPath[drillDownPath.length - 1];
+  const isSummary = currentView?.type === 'summary';
 
   const stageMap = useMemo(() => buildStageDrilldownMap(stages), [stages]);
 
   const fetchReportData = useCallback(async () => {
-    if (!currentView?.fetcher) return;
+    const fetcher =
+      currentView?.type === 'summary'
+        ? summaryFetcher(reportView)
+        : currentView?.fetcher;
+    if (!fetcher) return;
     setLoading(true);
     try {
-      const response = await currentView.fetcher();
+      const response = await fetcher();
       const payload = response.data || {};
       if (Array.isArray(payload)) {
-        setReportData([]);
-        setReportCols([]);
+        setReportData(stripTimesFromReportRows(payload));
+        setReportCols(
+          payload[0]
+            ? Object.keys(payload[0]).map((key) => ({ headerName: key, field: key }))
+            : []
+        );
       } else {
-        setReportData(payload.rowData || []);
+        setReportData(stripTimesFromReportRows(payload.rowData || []));
         setReportCols(payload.columnDefs || []);
       }
     } catch (err) {
@@ -76,11 +145,32 @@ export default function CabinetNotesReports({ notify }) {
     } finally {
       setLoading(false);
     }
-  }, [currentView, notify]);
+  }, [currentView, notify, reportView]);
 
   useEffect(() => {
     fetchReportData();
   }, [fetchReportData]);
+
+  const viewData = useMemo(() => {
+    if (!isSummary) return reportData;
+    if (reportView === 'wing') {
+      const hasDivision = reportData.some((row) => divisionIdOf(row) != null && divisionIdOf(row) !== '');
+      if (!hasDivision) {
+        return reportData.map((row, idx) => ({ ...row, 'S No': idx + 1 }));
+      }
+      return aggregateBy(reportData, wingIdOf, (row) => ({
+        'Wing Id': wingIdOf(row),
+        'Wing Name': row['Wing Name'] || row.Wing || '',
+      }));
+    }
+    if (reportView === 'division') {
+      return aggregateBy(reportData, divisionIdOf, (row) => ({
+        'Division Id': divisionIdOf(row),
+        'Division Name': row['Division Name'] || row.Division || '',
+      }));
+    }
+    return reportData.map((row, idx) => ({ ...row, 'S No': idx + 1 }));
+  }, [isSummary, reportData, reportView]);
 
   const mapColumnRenderers = useCallback(
     (cols) =>
@@ -120,12 +210,16 @@ export default function CabinetNotesReports({ notify }) {
           };
         }
 
-        if ((field === 'Wing Name' || field === 'Wing') && currentView?.type === 'wing') {
+        if (
+          (field === 'Wing Name' || field === 'Wing') &&
+          isSummary &&
+          reportView === 'wing'
+        ) {
           return {
             ...col,
             pinned: 'left',
             cellRenderer: (p) => {
-              const wingId = p.data?.['Wing Id'] ?? p.data?.['Wing ID'];
+              const wingId = wingIdOf(p.data);
               const wingName = p.value;
               if (!wingId || wingName === 'Total') return p.value;
               return linkButton(wingName, () => {
@@ -135,7 +229,7 @@ export default function CabinetNotesReports({ notify }) {
                     type: 'division',
                     wingId,
                     wingName,
-                    title: 'Form No.:1.1 - Abstract Division Wise - Cabinet Notes MoPSW',
+                    title: form11Title('Abstract Division Wise'),
                     fetcher: () => fetchCabinetDivisionWiseReport(wingId),
                   },
                 ]);
@@ -144,7 +238,9 @@ export default function CabinetNotesReports({ notify }) {
           };
         }
 
-        const stageId = stageMap[field];
+        if (currentView?.type === 'detail') return col;
+
+        const stageId = lookupStageDrilldownId(stageMap, field, header);
         if (stageId == null) return col;
 
         return {
@@ -154,23 +250,27 @@ export default function CabinetNotesReports({ notify }) {
             if (!Number.isFinite(countVal) || countVal <= 0) {
               return <span className="text-slate-400 dark:text-slate-500">-</span>;
             }
-            const wingId =
-              p.data?.['Wing Id'] ?? p.data?.['Wing ID'] ?? currentView.wingId;
-            const divisionId =
-              p.data?.['Division Id'] ?? p.data?.['Division ID'];
+            const wingId = wingIdOf(p.data) ?? currentView.wingId;
+            const divisionId = divisionIdOf(p.data);
             const label = field;
 
             return linkButton(String(countVal), () => {
-              if (currentView.type === 'division' && divisionId) {
-                const divName = p.data?.['Division Name'] || 'Division';
+              if (
+                (currentView.type === 'division' ||
+                  (isSummary && (reportView === 'division' || reportView === 'all'))) &&
+                divisionId
+              ) {
+                const divName = p.data?.['Division Name'] || p.data?.Division || 'Division';
+                const wingName =
+                  p.data?.['Wing Name'] || p.data?.Wing || currentView.wingName;
                 setDrillDownPath((prev) => [
                   ...prev,
                   {
                     type: 'detail',
-                    wingName: currentView.wingName,
+                    wingName,
                     divisionName: divName,
                     stageLabel: label,
-                    title: 'Form No.:1.1 - Detailed Division Wise - Cabinet Notes MoPSW',
+                    title: form11Title('Detailed Division Wise'),
                     fetcher: () => fetchCabinetDivisionDetail(divisionId, stageId),
                   },
                 ]);
@@ -185,7 +285,7 @@ export default function CabinetNotesReports({ notify }) {
                   type: 'detail',
                   wingName,
                   stageLabel: label,
-                  title: 'Form No.:1.1 - Detailed Wing Wise - Cabinet Notes MoPSW',
+                  title: form11Title('Detailed Wing Wise'),
                   fetcher: () => fetchCabinetWingDetail(wingId, stageId),
                 },
               ]);
@@ -193,7 +293,7 @@ export default function CabinetNotesReports({ notify }) {
           },
         };
       }),
-    [currentView, stageMap]
+    [currentView, stageMap, isSummary, reportView]
   );
 
   const columns = useMemo(() => {
@@ -208,10 +308,23 @@ export default function CabinetNotesReports({ notify }) {
         header === 'S.No'
       );
     };
-    const serial = mapped.filter(isSerial);
-    const rest = mapped.filter((col) => !isSerial(col));
+    const hideCol = (col) => {
+      const field = col.field || '';
+      if (!isSummary) return false;
+      if (ID_FIELDS.has(field)) return true;
+      if (reportView === 'wing' && DIVISION_FIELDS.has(field)) return true;
+      if (reportView === 'division' && WING_FIELDS.has(field)) return true;
+      return false;
+    };
+    const visible = flattenColumns(mapped).filter((col) => !hideCol(col));
+    const serial = visible.filter(isSerial);
+    const rest = visible.filter((col) => !isSerial(col));
     return [...serial, ...rest];
-  }, [mapColumnRenderers, reportCols]);
+  }, [mapColumnRenderers, reportCols, isSummary, reportView]);
+
+  const reportTitle = isSummary
+    ? form11Title(abstractLevel(reportView))
+    : currentView?.title;
 
   const reportSubtitle = useMemo(() => {
     const asOn = formatAsOnDate();
@@ -224,6 +337,17 @@ export default function CabinetNotesReports({ notify }) {
               For Wing:{' '}
               <strong className="text-[#4b2424] dark:text-[#eadede]">
                 {currentView.wingName}
+              </strong>
+            </span>
+            <span className="text-[#eadede] dark:text-slate-600">•</span>
+          </>
+        )}
+        {currentView?.divisionName && (
+          <>
+            <span>
+              For Division:{' '}
+              <strong className="text-[#4b2424] dark:text-[#eadede]">
+                {currentView.divisionName}
               </strong>
             </span>
             <span className="text-[#eadede] dark:text-slate-600">•</span>
@@ -251,19 +375,45 @@ export default function CabinetNotesReports({ notify }) {
         </span>
       </>
     );
-  }, [currentView?.wingName, currentView?.stageLabel]);
+  }, [currentView?.wingName, currentView?.divisionName, currentView?.stageLabel]);
+
+  const reportViewSelect = isSummary ? (
+    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border-2 border-indigo-400/60 dark:border-indigo-500/60 text-xs shadow-sm">
+      <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold shrink-0">
+        <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+        <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-800 dark:text-indigo-300 whitespace-nowrap">
+          Report View:
+        </span>
+      </div>
+      <select
+        value={reportView}
+        onChange={(e) => setReportView(e.target.value)}
+        className="bg-transparent border-none text-xs font-extrabold text-indigo-950 dark:text-indigo-100 outline-none cursor-pointer pr-1 max-w-[200px]"
+      >
+        <option value="wing" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">
+          Wing
+        </option>
+        <option value="division" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">
+          Division
+        </option>
+        <option value="all" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">
+          Wing and Division
+        </option>
+      </select>
+    </div>
+  ) : null;
 
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <ReportTable
-          title={currentView.title}
-          eyebrow={currentView.title}
+          title={reportTitle}
+          eyebrow={reportTitle}
           subtitle={reportSubtitle}
           showBackButton={drillDownPath.length > 1}
           onBack={() => setDrillDownPath((prev) => prev.slice(0, -1))}
-          rawData={reportData}
-          viewData={reportData}
+          rawData={viewData}
+          viewData={viewData}
           columns={columns}
           loading={loading}
           onRefresh={fetchReportData}
@@ -273,11 +423,9 @@ export default function CabinetNotesReports({ notify }) {
           accentColor="#f7f3f3"
           oddRowColor="#f8faf6"
           themeClass="yp-pro-grid"
+          toolbarExtra={reportViewSelect}
         />
       </div>
-      <p className="text-[10px] text-slate-400 px-1">
-        Stages tracked: {STAGE_FIELDS.map((s) => s.label).join(' · ')}
-      </p>
     </div>
   );
 }

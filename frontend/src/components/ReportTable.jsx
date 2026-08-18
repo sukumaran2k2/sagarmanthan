@@ -25,6 +25,7 @@ export default function ReportTable({
   totalLabel = 'Total',
   pinnedBottomRowData = undefined,
   toolbarExtra = null,
+  autoHeaderHeight = false,
 }) {
   // Detail titles with "|" keep the full string in the eyebrow (legacy Form 8.2).
   // Summary titles use the segment before " - ".
@@ -292,7 +293,8 @@ export default function ReportTable({
             suppressColumnVirtualisation={true}
             quickFilterText={quickFilter}
             animateRows={true}
-            headerHeight={46}
+            headerHeight={autoHeaderHeight ? undefined : 46}
+            autoHeaderHeight={autoHeaderHeight}
             onGridReady={(params) => {
               if (gridRef.current) gridRef.current.api = params.api;
               params.api.sizeColumnsToFit();
@@ -405,6 +407,11 @@ export default function ReportTable({
         }
         .${themeClass} .ag-header-cell-label .ag-header-cell-text {
           color: #ffffff !important;
+        }
+        .${themeClass} .ag-header-cell-wrap-text .ag-header-cell-text {
+          white-space: normal !important;
+          line-height: 1.25;
+          text-align: center;
         }
         .${themeClass} .ag-header-cell .ag-icon {
           color: rgba(255, 255, 255, 0.7) !important;
