@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import { createBill, updateBill } from '../api';
 import { ArrowLeft, Save } from 'lucide-react';
 
 function decodeToken(token) {
@@ -288,9 +288,9 @@ export default function InputForm({
     try {
       if (isEdit) {
         payload.billID = editData.id || editData.bill_id;
-        await axios.put("http://localhost:3000/bill", payload);
+        await updateBill(payload);
       } else {
-        await axios.post("http://localhost:3000/bill", payload);
+        await createBill(payload);
       }
 
       if (triggerNotification) {
@@ -306,7 +306,7 @@ export default function InputForm({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
       <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4 flex items-center justify-between text-white">
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider">
@@ -331,11 +331,11 @@ export default function InputForm({
           
           {/* Left panel: lg:col-span-5 */}
           <div className="lg:col-span-5 space-y-4 pr-0 lg:pr-2">
-            <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-2">Basic Details</h3>
+            <h3 className="text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider mb-2">Basic Details</h3>
             
             {/* Subject */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Subject*</label>
               <input
                 type="text"
                 value={subject}
@@ -343,7 +343,7 @@ export default function InputForm({
                 onBlur={() => handleBlur('subject')}
                 disabled={readOnly}
                 placeholder="Enter subject name"
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('subject', subject) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700`}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('subject', subject) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200`}
               />
               {isFieldInvalid('subject', subject) && (
                 <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
@@ -352,13 +352,13 @@ export default function InputForm({
 
             {/* Wing */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing*</label>
               <select
                 value={wing}
                 onChange={e => setWing(e.target.value)}
                 onBlur={() => handleBlur('wing')}
                 disabled={readOnly}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 cursor-pointer`}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer`}
               >
                 <option value="">--Select Wing--</option>
                 {wings.map(w => (
@@ -372,13 +372,13 @@ export default function InputForm({
 
             {/* Division */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division*</label>
               <select
                 value={division}
                 onChange={e => setDivision(e.target.value)}
                 onBlur={() => handleBlur('division')}
                 disabled={readOnly}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 cursor-pointer`}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer`}
               >
                 <option value="">--Select Division--</option>
                 {divisions.map(d => (
@@ -393,8 +393,8 @@ export default function InputForm({
             {/* Remarks */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">General Remarks* (Max 250 words)</label>
-                <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-red-500' : 'text-slate-400'}`}>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks* (Max 250 words)</label>
+                <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}`}>
                   {getWordCount(remarks)} / 250 words
                 </span>
               </div>
@@ -407,7 +407,7 @@ export default function InputForm({
                 onBlur={() => handleBlur('remarks')}
                 disabled={readOnly}
                 rows={4}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('remarks', remarks) || errors.remarks ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700`}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('remarks', remarks) || errors.remarks ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200`}
                 placeholder="Enter remarks..."
               />
               {isFieldInvalid('remarks', remarks) && (
@@ -420,8 +420,8 @@ export default function InputForm({
           </div>
 
           {/* Right panel: lg:col-span-7 */}
-          <div className="lg:col-span-7 border border-slate-200 rounded-2xl p-4 overflow-y-auto space-y-4 bg-slate-50" style={{ maxHeight: '425px' }}>
-            <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider pb-2 border-b border-slate-200">
+          <div className="lg:col-span-7 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-950" style={{ maxHeight: '425px' }}>
+            <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800">
               Stages Checklist & Dates
             </h4>
             <div className="space-y-3.5">
@@ -438,16 +438,16 @@ export default function InputForm({
                     onMouseLeave={() => setHoveredStage(null)}
                     className={`flex flex-col gap-3 p-4 border rounded-xl transition ${
                       stageVal.date
-                        ? 'border-emerald-250 bg-emerald-50/20'
-                        : 'border-slate-150 bg-white'
+                        ? 'border-emerald-250 dark:border-emerald-800 bg-emerald-50/20 dark:bg-emerald-950/20'
+                        : 'border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900'
                     } ${isStageDisabled ? 'opacity-40 pointer-events-none' : ''}`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <span className="text-[10px] font-black text-slate-400 tracking-wide uppercase">
+                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 tracking-wide uppercase">
                           Milestone {idx + 1}
                         </span>
-                        <h4 className="text-xs font-bold text-slate-800 mt-0.5">{stage.label}</h4>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5">{stage.label}</h4>
                       </div>
 
                       <div className="w-full sm:w-auto">
@@ -473,7 +473,7 @@ export default function InputForm({
                           : 'max-h-0 opacity-0 scale-y-95 pointer-events-none'
                           }`}
                       >
-                        <div className="border-t border-slate-100 pt-2">
+                        <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
                           <input
                             type="text"
                             placeholder="Add stage-specific remark (optional)"
@@ -482,7 +482,7 @@ export default function InputForm({
                             onFocus={() => !readOnly && setFocusedStage(stageNum)}
                             onBlur={() => setFocusedStage(null)}
                             disabled={readOnly}
-                            className="w-full text-[11px] px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white font-medium text-slate-700 placeholder-slate-400"
+                            className="w-full text-[11px] px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-medium text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-600"
                           />
                         </div>
                       </div>
@@ -496,18 +496,18 @@ export default function InputForm({
 
         {/* Footer actions */}
         {!readOnly && (
-          <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-slate-150">
+          <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-slate-150 dark:border-slate-800">
             <button
               type="button"
               onClick={onBack}
-              className="px-4 py-2 border border-slate-250 hover:bg-slate-50 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 transition cursor-pointer"
+              className="px-4 py-2 border border-slate-250 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 transition cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting || !isDirty || !isFormValid}
-              className="flex items-center gap-2 px-5 py-2 bg-[#0f417a] hover:bg-[#16569e] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-lg transition cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2 bg-[#0f417a] hover:bg-[#16569e] disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-lg transition cursor-pointer"
             >
               <Save className="h-4.5 w-4.5" />
               <span>{submitting ? "Saving..." : "Save details"}</span>

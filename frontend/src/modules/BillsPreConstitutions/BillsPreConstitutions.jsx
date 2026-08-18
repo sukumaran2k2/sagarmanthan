@@ -1,23 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
+import RestrictedAccess from '../../components/RestrictedAccess';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
+import { useBillsPermissions } from './hooks/useBillsPermissions';
+import { fetchBills, fetchWings, fetchDivisions } from './api';
 
 export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
-  const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
+  const permissions = useBillsPermissions();
+  const { canAdd, canEdit, canRemove, canView } = permissions;
+
+  const [activeSubTab, setActiveSubTab] = useState(canAdd ? 'add' : (canView ? 'list' : 'add'));
   const [loading, setLoading] = useState(false);
   const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
 
-  const tabs = [
-    { id: 'add', label: 'Input Form' },
-    { id: 'list', label: 'Data List' },
-    { id: 'report', label: 'Reports' }
-  ];
+  const tabs = [];
+  if (canAdd) tabs.push({ id: 'add', label: 'Input Form' });
+  if (canView) tabs.push({ id: 'list', label: 'Data List' });
+  if (canView) tabs.push({ id: 'report', label: 'Reports' });
 
   useEffect(() => {
     if (activeSubTabProp === 'Input Form') {
@@ -30,22 +34,20 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
   }, [activeSubTabProp]);
 
   useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
-      .then(res => setWings(res.data || []))
-      .catch(err => console.error("Error loading wings:", err));
+    fetchWings()
+      .then((res) => setWings(res.data || []))
+      .catch((err) => console.error('Error loading wings:', err));
 
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_division")
-      .then(res => setDivisions(res.data || []))
-      .catch(err => console.error("Error loading divisions:", err));
+    fetchDivisions()
+      .then((res) => setDivisions(res.data || []))
+      .catch((err) => console.error('Error loading divisions:', err));
   }, []);
 
   const fetchData = () => {
     setLoading(true);
-    axios.get("http://localhost:3000/bill")
-      .then(res => {
-        setRowData(res.data || []);
-      })
-      .catch(err => console.error("Error loading Bills data list:", err))
+    fetchBills()
+      .then((res) => setRowData(res.data || []))
+      .catch((err) => console.error('Error loading Bills data list:', err))
       .finally(() => setLoading(false));
   };
 
@@ -61,6 +63,7 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
     setEditData(null);
     fetchData();
     setActiveSubTab('list');
+    if (setActiveSubTabProp) setActiveSubTabProp('Bills/PreConstitutions Act');
   };
 
   const handleBack = () => {
@@ -68,14 +71,18 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
     setActiveSubTab('list');
   };
 
+  if (!canAdd && !canView && !canEdit) {
+    return <RestrictedAccess moduleName="Bills/Pre-Constitutions Act" />;
+  }
+
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none">
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4 mb-6 select-none">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
+          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
             Bills/Pre-Constitutions Act
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
             Manage, record, and track Legislative Bills and Pre-Constitutions Acts.
           </p>
         </div>
@@ -84,13 +91,12 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
           tabs={tabs}
           currentTab={activeSubTab}
           onTabChange={(tabId) => {
-            setEditData(null);
+            if (tabId !== 'add') setEditData(null);
             setActiveSubTab(tabId);
           }}
         />
       </div>
 
-      {/* Dynamic Tab Render Area */}
       <div className="space-y-8">
         {activeSubTab === 'list' && (
           editData ? (
@@ -101,7 +107,7 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
               onSuccess={handleSuccess}
               triggerNotification={triggerNotification}
               editData={editData}
-              readOnly={false}
+              readOnly={!canEdit}
             />
           ) : (
             <DataList
@@ -112,6 +118,9 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
               triggerNotification={triggerNotification}
               wings={wings}
               divisions={divisions}
+              canEdit={canEdit}
+              canAdd={canAdd}
+              canRemove={canRemove}
             />
           )
         )}
@@ -120,7 +129,7 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
           <InputForm
             wings={wings}
             divisions={divisions}
-            onBack={handleBack}
+            onBack={canView ? handleBack : undefined}
             onSuccess={handleSuccess}
             triggerNotification={triggerNotification}
             editData={null}
@@ -131,6 +140,7 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
         {activeSubTab === 'report' && (
           <Reports
             triggerNotification={triggerNotification}
+            wings={wings}
           />
         )}
       </div>

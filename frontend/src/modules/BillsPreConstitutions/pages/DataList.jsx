@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import Table from '../../../components/Table';
 import { Search, X, Edit, Trash2, ChevronDown, BarChart3, List } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import axios from 'axios';
+import { deleteBill } from '../api';
 import ExportDropdown from '../../../components/ExportDropdown';
 
 const STAGES = {
@@ -44,7 +44,8 @@ export default function DataList({
   onRefresh,
   triggerNotification,
   wings = [],
-  divisions = []
+  divisions = [],
+  canEdit = true
 }) {
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
@@ -174,7 +175,7 @@ export default function DataList({
   const handleDelete = async (billId) => {
     if (!window.confirm("Are you sure you want to delete this Bill?")) return;
     try {
-      await axios.delete(`http://localhost:3000/delete-bill/${billId}/${activeUserId || 1}`);
+      await deleteBill(billId, activeUserId || 1);
       triggerNotification("Bill deleted successfully!");
       if (onRefresh) onRefresh();
     } catch (err) {
@@ -248,14 +249,14 @@ export default function DataList({
           <button
             onClick={() => onEdit(bill)}
             className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
-            title="Update Bill"
+            title={canEdit ? "Update Bill" : "View Bill"}
           >
             <Edit className="h-4.5 w-4.5" />
           </button>
         );
       }
     }
-  ], [onEdit, visibleCols, activeUserId, activeCategory]);
+  ], [onEdit, visibleCols, activeUserId, activeCategory, canEdit]);
 
   const handleExport = (type) => {
     if (type === 'Excel') {
