@@ -77,7 +77,7 @@ async function getDashboardDataEntryStatus(req,res){
             GROUP BY wing) cnm ON mmt_wings.wing_id = cnm.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_cabinet_notes_other_ministries]
-            FROM tbl_cabinet_notes_ministry 
+            FROM tbl_cabinet_notes_ministry_change
             GROUP BY wing) cno ON mmt_wings.wing_id = cno.wing
         LEFT JOIN 
             (SELECT wing, COUNT(*) AS [total_audit_para]

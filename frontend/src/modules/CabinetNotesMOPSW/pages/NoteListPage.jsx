@@ -34,6 +34,16 @@ export default function NoteListPage({ notify, onGoHome }) {
   const [statusOptions, setStatusOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [category, setCategory] = useState('active');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [counts, setCounts] = useState({ active: 0, completed: 0 });
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 0,
+  });
   const [mode, setMode] = useState('list');
   const [formData, setFormData] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -41,38 +51,131 @@ export default function NoteListPage({ notify, onGoHome }) {
   const [docsTarget, setDocsTarget] = useState(null);
   const [docs, setDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const loadList = useCallback(async () => {
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
+  const loadTabTotals = useCallback(async () => {
+    if (!permissions.canView) return;
+    try {
+      const [activeRes, completedRes] = await Promise.allSettled([
+        fetchCabinetNotes({
+          page: 1,
+          limit: 1,
+          category: 'active',
+          wingId: 'All',
+          divisionId: 'All',
+          status: 'All',
+          search: '',
+        }),
+        fetchCabinetNotes({
+          page: 1,
+          limit: 1,
+          category: 'completed',
+          wingId: 'All',
+          divisionId: 'All',
+          status: 'All',
+          search: '',
+        }),
+      ]);
+
+      const activePayload = activeRes.status === 'fulfilled' ? activeRes.value?.data : null;
+      const completedPayload = completedRes.status === 'fulfilled' ? completedRes.value?.data : null;
+
+      setCounts({
+        active: Number(activePayload?.pagination?.total) || 0,
+        completed: Number(completedPayload?.pagination?.total) || 0,
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }, [permissions.canView]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const loadList = useCallback(async (signal) => {
     if (!permissions.canView) return;
     setLoading(true);
     try {
-      const res = await fetchCabinetNotes();
-      const data = Array.isArray(res.data) ? res.data : [];
+      const commonParams = {
+        wingId: filters.wingId,
+        divisionId: filters.divisionId,
+        status: filters.status,
+        search: debouncedSearch,
+      };
+
+      const listRes = await fetchCabinetNotes(
+        { page, limit: pageSize, category, ...commonParams },
+        { signal }
+      );
+
+      const payload = listRes?.data || {};
+      const data = Array.isArray(payload.data) ? payload.data : [];
       setRows(data.map(mapNoteListRow));
+
+      setPagination({
+        total: Number(payload.pagination?.total) || 0,
+        page: Number(payload.pagination?.page) || page,
+        limit: Number(payload.pagination?.limit) || pageSize,
+        totalPages: Number(payload.pagination?.totalPages) || 0,
+      });
     } catch (err) {
+      if (err?.code === 'ERR_CANCELED') return;
       console.error(err);
       notify?.(err?.response?.data?.message || 'Failed to load cabinet notes.', 'error');
       setRows([]);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [permissions.canView, notify]);
+  }, [
+    permissions.canView,
+    notify,
+    page,
+    pageSize,
+    category,
+    filters.wingId,
+    filters.divisionId,
+    filters.status,
+    debouncedSearch,
+  ]);
 
   useEffect(() => {
-    Promise.all([fetchWings(), fetchDivisions(), fetchCabinetStages()])
-      .then(([wingsRes, divisionsRes, stagesRes]) => {
-        setWings(Array.isArray(wingsRes.data) ? wingsRes.data : []);
-        setDivisions(Array.isArray(divisionsRes.data) ? divisionsRes.data : []);
-        const stageRows = Array.isArray(stagesRes.data) ? stagesRes.data : [];
-        setStages(stageRows);
-        setStatusOptions(statusNamesFromStages(stageRows));
-      })
-      .catch((err) => console.error(err));
+    Promise.all([
+      fetchWings().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+      fetchDivisions().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+      fetchCabinetStages().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+    ]).then(([wingsRes, divisionsRes, stagesRes]) => {
+      setWings(Array.isArray(wingsRes.data) ? wingsRes.data : []);
+      setDivisions(Array.isArray(divisionsRes.data) ? divisionsRes.data : []);
+      const stageRows = Array.isArray(stagesRes.data) ? stagesRes.data : [];
+      setStages(stageRows);
+      setStatusOptions(statusNamesFromStages(stageRows, { excludeCompleted: true }));
+    });
   }, []);
 
   useEffect(() => {
-    loadList();
+    const controller = new AbortController();
+    loadList(controller.signal);
+    return () => controller.abort();
   }, [loadList]);
+
+  useEffect(() => {
+    loadTabTotals();
+  }, [loadTabTotals]);
 
   const handleAdd = () => {
     if (!permissions.canAdd) return;
@@ -111,6 +214,7 @@ export default function NoteListPage({ notify, onGoHome }) {
       notify?.('Cabinet note deleted successfully.', 'success');
       setDeleteTarget(null);
       loadList();
+      loadTabTotals();
     } catch (err) {
       console.error(err);
       notify?.(err?.response?.data?.message || 'Failed to delete cabinet note.', 'error');
@@ -132,6 +236,22 @@ export default function NoteListPage({ notify, onGoHome }) {
     } finally {
       setLoadingDocs(false);
     }
+  };
+
+  const handleFiltersChange = (next) => {
+    setFilters(next);
+    if (next.search === filters.search) setPage(1);
+  };
+
+  const handleCategoryChange = (next) => {
+    setCategory(next);
+    setFilters((prev) => ({ ...prev, status: 'All' }));
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (next) => {
+    setPageSize(next);
+    setPage(1);
   };
 
   if (!permissions.canView) {
@@ -156,6 +276,7 @@ export default function NoteListPage({ notify, onGoHome }) {
           setMode('list');
           setFormData(null);
           loadList();
+          loadTabTotals();
         }}
         notify={notify}
       />
@@ -174,7 +295,15 @@ export default function NoteListPage({ notify, onGoHome }) {
         canDelete={permissions.canRemove}
         canCreate={permissions.canAdd}
         filters={filters}
-        onFiltersChange={setFilters}
+        onFiltersChange={handleFiltersChange}
+        category={category}
+        onCategoryChange={handleCategoryChange}
+        counts={counts}
+        page={page}
+        pageSize={pageSize}
+        pagination={pagination}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
         onEdit={handleEdit}
         onDelete={handleDelete}
         onAdd={handleAdd}

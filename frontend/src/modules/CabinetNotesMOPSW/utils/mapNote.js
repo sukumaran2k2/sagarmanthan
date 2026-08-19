@@ -1,4 +1,4 @@
-import { STAGE_FIELDS, emptyForm } from './stageHelpers';
+import { STAGE_FIELDS, emptyForm, isCompletedCabinetNote } from './stageHelpers';
 
 function toDateInput(value) {
   if (!value) return '';
@@ -62,7 +62,8 @@ export function mapNoteListRow(row) {
     division: row.division_name || '',
     divisionId: row.division,
     status: row.mopsw_stage_name || '',
-    remarks: row.remarks || '',
+    isCompleted: isCompletedCabinetNote(row),
+    remarks: String(row.remarks || '').trim(),
     docCount: Number(row.doc_count) || 0,
     lastUpdated: row.updated_date
       ? toDateInput(row.updated_date)
@@ -90,7 +91,6 @@ export function mapNoteToForm(row) {
     const dateStr = toDateInput(dateVal);
     form[s.dateKey] = dateStr;
     form[s.remarkKey] = remarkVal || '';
-    form[s.key] = dateStr ? 'Yes' : '';
   });
 
   return form;

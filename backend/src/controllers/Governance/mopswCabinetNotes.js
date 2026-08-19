@@ -7,6 +7,89 @@ function emptyToNull(value) {
   return value === "" || value === undefined ? null : value;
 }
 
+const LIST_FROM_SQL = `
+  FROM tbl_cabinet_notes_mopsw AS notes
+  INNER JOIN mmt_division AS division ON notes.division = division.division_id
+  INNER JOIN mmt_wings AS wings ON notes.wing = wings.wing_id
+  INNER JOIN mmt_cabinet_mopsw_stage AS stage ON notes.stage_id = stage.mopsw_stage_id
+`;
+
+const COMPLETED_SQL = `(
+  LOWER(LTRIM(RTRIM(stage.mopsw_stage_name))) = N'completed'
+  OR notes.stage_id = 10
+  OR notes.completed_date IS NOT NULL
+)`;
+
+function parsePositiveInt(value, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+function isAllParam(value) {
+  return value == null || value === "" || String(value).toLowerCase() === "all";
+}
+
+function escapeLike(value) {
+  return String(value).replace(/[%_[\]]/g, (ch) => `[${ch}]`);
+}
+
+function nvarcharType(length) {
+  const t = sql?.NVarChar;
+  if (!t) return undefined;
+  return typeof t === "function" ? t(length) : t;
+}
+
+function bindListFilters(request, query, { includeStatus = false } = {}) {
+  let filterSql = "";
+
+  if (!isAllParam(query.wingId)) {
+    const wingId = Number.parseInt(query.wingId, 10);
+    if (Number.isFinite(wingId)) {
+      request.input("wingId", sql.Int, wingId);
+      filterSql += " AND notes.wing = @wingId";
+    }
+  }
+
+  if (!isAllParam(query.divisionId)) {
+    const divisionId = Number.parseInt(query.divisionId, 10);
+    if (Number.isFinite(divisionId)) {
+      request.input("divisionId", sql.Int, divisionId);
+      filterSql += " AND notes.division = @divisionId";
+    }
+  }
+
+  const search = String(query.search || "").trim();
+  if (search) {
+    request.input("search", nvarcharType(300), `%${escapeLike(search)}%`);
+    filterSql += ` AND (
+      notes.subject LIKE @search
+      OR notes.remarks LIKE @search
+      OR notes.pre_dcn_prepared_remarks LIKE @search
+      OR notes.pre_dcn_approved_remarks LIKE @search
+      OR notes.cirucalted_for_imc_remarks LIKE @search
+      OR notes.imc_comments_rec_remarks LIKE @search
+      OR notes.final_dcn_prepared_remarks LIKE @search
+      OR notes.final_dcn_approved_remarks LIKE @search
+      OR notes.dcmbeen_approved_remarks LIKE @search
+      OR notes.advance_copy_sent_to_pmo_remarks LIKE @search
+      OR notes.cabinet_approved_remarks LIKE @search
+      OR notes.on_hold_remarks LIKE @search
+      OR notes.completed_remarks LIKE @search
+      OR wings.wing_name LIKE @search
+      OR division.division_name LIKE @search
+      OR stage.mopsw_stage_name LIKE @search
+    )`;
+  }
+
+  if (includeStatus && !isAllParam(query.status)) {
+    request.input("status", nvarcharType(200), String(query.status).trim());
+    filterSql += " AND stage.mopsw_stage_name = @status";
+  }
+
+  return filterSql;
+}
+
 function parseDate(val) {
   if (!val || val === "") return null;
   if (val instanceof Date) return Number.isNaN(val.getTime()) ? null : val;
@@ -62,33 +145,114 @@ async function getCabinetMopsw(req, res) {
   const conn = await pool;
 
   try {
-    const request = conn.request();
-    const { joinSql, whereSql } = applyDataScope(request, req.user, {
+    const page = parsePositiveInt(req.query.page, 1, 1);
+    const limit = parsePositiveInt(req.query.limit, 10, 1, 100);
+    const offset = (page - 1) * limit;
+    const category =
+      String(req.query.category || "active").toLowerCase() === "completed"
+        ? "completed"
+        : "active";
+
+    const countRequest = conn.request();
+    const pageRequest = conn.request();
+    const { joinSql, whereSql } = applyDataScope(countRequest, req.user, {
       strategy: "viaCreatedBy",
       alias: "notes",
     });
+    applyDataScope(pageRequest, req.user, { strategy: "viaCreatedBy", alias: "notes" });
 
-    const result = await request.query(`
-      SELECT
-        notes.*,
-        division.division_name,
-        wings.wing_name,
-        stage.mopsw_stage_name,
-        (
-          SELECT COUNT(*)
-          FROM tbl_cabinet_notes_mopsw_document
-          WHERE mopsw_cabinet_id = notes.cabinet_notes_mopsw_id
-        ) AS doc_count
-      FROM tbl_cabinet_notes_mopsw AS notes
-      INNER JOIN mmt_division AS division ON notes.division = division.division_id
-      INNER JOIN mmt_wings AS wings ON notes.wing = wings.wing_id
-      INNER JOIN mmt_cabinet_mopsw_stage AS stage ON notes.stage_id = stage.mopsw_stage_id
-      ${joinSql}
-      WHERE 1 = 1
-      ${whereSql}
-      ORDER BY notes.stage_id;
-    `);
-    res.json(result.recordset);
+    const sharedFilter = bindListFilters(countRequest, req.query);
+    bindListFilters(pageRequest, req.query, { includeStatus: category === "active" });
+
+    if (category === "active" && !isAllParam(req.query.status)) {
+      countRequest.input("status", nvarcharType(200), String(req.query.status).trim());
+    }
+
+    const categoryFilter =
+      category === "completed"
+        ? ` AND ${COMPLETED_SQL}`
+        : ` AND NOT ${COMPLETED_SQL}`;
+    const statusFilter =
+      category === "active" && !isAllParam(req.query.status)
+        ? " AND stage.mopsw_stage_name = @status"
+        : "";
+    const pageMatchSql = `${category === "completed" ? COMPLETED_SQL : `NOT ${COMPLETED_SQL}`}${statusFilter}`;
+
+    pageRequest.input("offset", sql.Int, offset);
+    pageRequest.input("limit", sql.Int, limit);
+
+    const [countResult, pageResult] = await Promise.all([
+      countRequest.query(`
+        SELECT
+          SUM(CASE WHEN ${COMPLETED_SQL} THEN 1 ELSE 0 END) AS completed_count,
+          SUM(CASE WHEN NOT ${COMPLETED_SQL} THEN 1 ELSE 0 END) AS active_count,
+          SUM(CASE WHEN ${pageMatchSql} THEN 1 ELSE 0 END) AS page_total
+        ${LIST_FROM_SQL}
+        ${joinSql}
+        WHERE 1 = 1
+        ${whereSql}
+        ${sharedFilter}
+      `),
+      pageRequest.query(`
+        SELECT
+          notes.cabinet_notes_mopsw_id,
+          notes.subject,
+          notes.wing,
+          notes.division,
+          notes.remarks,
+          notes.stage_id,
+          notes.completed_date,
+          notes.created_by,
+          notes.created_date,
+          notes.updated_date,
+          notes.pre_dcn_prepared_remarks,
+          notes.pre_dcn_approved_remarks,
+          notes.cirucalted_for_imc_remarks,
+          notes.imc_comments_rec_remarks,
+          notes.final_dcn_prepared_remarks,
+          notes.final_dcn_approved_remarks,
+          notes.dcmbeen_approved_remarks,
+          notes.advance_copy_sent_to_pmo_remarks,
+          notes.cabinet_approved_remarks,
+          notes.on_hold_remarks,
+          notes.completed_remarks,
+          stage.mopsw_stage_name,
+          division.division_name,
+          wings.wing_name,
+          (
+            SELECT COUNT(*)
+            FROM tbl_cabinet_notes_mopsw_document
+            WHERE mopsw_cabinet_id = notes.cabinet_notes_mopsw_id
+          ) AS doc_count
+        ${LIST_FROM_SQL}
+        ${joinSql}
+        WHERE 1 = 1
+        ${whereSql}
+        ${sharedFilter}
+        ${categoryFilter}
+        ${statusFilter}
+        ORDER BY notes.stage_id, notes.cabinet_notes_mopsw_id
+        OFFSET @offset ROWS
+        FETCH NEXT @limit ROWS ONLY;
+      `),
+    ]);
+
+    const countRow = countResult.recordset?.[0] || {};
+    const activeCount = Number(countRow.active_count) || 0;
+    const completedCount = Number(countRow.completed_count) || 0;
+    const total = Number(countRow.page_total) || 0;
+    const rows = pageResult.recordset || [];
+
+    res.json({
+      data: rows,
+      counts: { active: activeCount, completed: completedCount },
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    });
   } catch (err) {
     console.log(err);
     return res.sendStatus(500);

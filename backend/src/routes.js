@@ -560,13 +560,43 @@ router.delete(
   cabinetMopswTab.deleteCabinetNotesMopsw
 );
 
-// Ministry
-router.get("/cabinet-ministry/:userID", cabinetBillTab.getCabinetMinistry);
-router.post("/cabinet-ministry", cabinetBillTab.createMinistryCabinet);
-router.get("/cabinet-ministry-update/:ministryCabinetID", cabinetBillTab.getUpdateCabinetMinistryData);
-router.put("/cabinet-ministry", cabinetBillTab.editMinistryCabinet);
-router.post("/cabinet-ministry-stage", cabinetBillTab.createCabinetNotesMinistryStage);
-router.delete("/cabinet-ministry/:cabinet_notes_ministry_id/:userID", cabinetBillTab.deleteCabinetNotesMinistry);
+// Ministry (Cabinet Notes - Other Ministry)
+router.get(
+  "/cabinet-ministry/:userID",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetBillTab.getCabinetMinistry
+);
+router.post(
+  "/cabinet-ministry",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "create"),
+  cabinetBillTab.createMinistryCabinet
+);
+router.get(
+  "/cabinet-ministry-update/:ministryCabinetID",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetBillTab.getUpdateCabinetMinistryData
+);
+router.put(
+  "/cabinet-ministry",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "update"),
+  cabinetBillTab.editMinistryCabinet
+);
+router.post(
+  "/cabinet-ministry-stage",
+  auth,
+  cabinetBillTab.createCabinetNotesMinistryStage
+);
+router.delete(
+  "/cabinet-ministry/:cabinet_notes_ministry_id/:userID",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "delete"),
+  cabinetBillTab.deleteCabinetNotesMinistry
+);
+
 
 // Parliamentary Issue
 router.get(
@@ -1409,6 +1439,12 @@ router.get(
   cabinetMopswReportTab.getMopswReport
 );
 router.get(
+  "/cabinetmopsw-wingdivision-report",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswReportTab.getCabinetMopswWingDivisionReport
+);
+router.get(
   "/cabinetmopsw-divisionwise/:wingID/",
   auth,
   requireModulePermission("CABINET_NOTES_MOPSW", "read"),
@@ -1473,6 +1509,7 @@ router.get("/quarterly-socialmedia-parameter/:platform/:userID/", socialmediaTab
 router.get("/annually-socialmedia-parameter/:platform/:userID/", socialmediaTab.getAnnuallySocialMediaData);
 router.get("/update-Broadcast-media-data/:mediaOutreachId", socialmediaTab.getUpdateBroadcastmediadata);
 router.put('/media-outreach-data-edit',socialmediaTab.updateBroadcastmediadata);
+router.delete("/delete-social-media/:mediaOutreachId", socialmediaTab.deleteSocialMedia);
 
 //social Media week1 Report
 router.get("/monthly-onlinemedia-report-parameter/:userID/:currentMonth/:currentFinYear/", socialmediaTab.getMonthlyOnlineReport);

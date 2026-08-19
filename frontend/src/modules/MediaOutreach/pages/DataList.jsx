@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import TableWithToolbar from '../../../components/TableWithToolbar';
-import { Pencil, SlidersHorizontal, ChevronDown, Landmark, Anchor, Building } from 'lucide-react';
-
-const SOCIAL_CHANNELS = ['facebook', 'instagram', 'linkedIn', 'twitter', 'youTube'];
-const SOCIAL_METRICS = ['posts', 'engagement', 'impression']; // Ordered as shown in screenshot
+import { Edit, Trash2, SlidersHorizontal, ChevronDown, Landmark, Anchor, Building } from 'lucide-react';
+import { SOCIAL_CHANNELS_KEYS, SOCIAL_METRICS } from '../utils/constants';
+import { getOrgCategory, calculateCategoryCounts } from '../utils/categoryHelpers';
+import { aggregateYearWiseData } from '../utils/dataTransformers';
+import { copyTableToClipboard, exportTableCSV, printTablePDF } from '../utils/exportHelpers';
 
 export default function DataList({
   rowData,
@@ -12,12 +13,16 @@ export default function DataList({
   setActiveMediaType,
   mediaTabs,
   onEdit,
+  onDelete,
   onAddNew,
   onRefresh,
   organisations,
   getOrgName,
-  triggerNotification
+  triggerNotification,
+  isStandardView = false,
+  permissions
 }) {
+  const hideOrgFilter = isStandardView || permissions?.isStandardView;
   const [gridApi, setGridApi] = useState(null);
 
   // Compute current Indian financial year (April–March)
@@ -31,13 +36,39 @@ export default function DataList({
   }, []);
 
   // States for filters
-  const [financialYearFilter, setFinancialYearFilter] = useState(currentFY);
+  const [financialYearFilter, setFinancialYearFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
+  const [organisationFilter, setOrganisationFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showYearWise, setShowYearWise] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all'); // 'all' | 'major_port' | 'ministry' | 'non_port'
   const [selectedSubOrgId, setSelectedSubOrgId] = useState('');
   const [isFiltersOpen, setIsFiltersOpen] = useState(true);
+
+  const organisationOptions = useMemo(() => {
+    const list = [];
+    const map = new Map();
+
+    (organisations || []).forEach(o => {
+      if (o.organisation_id && o.organisation_name) {
+        map.set(String(o.organisation_id), o.organisation_name);
+      }
+    });
+
+    (rowData || []).forEach(r => {
+      const id = r.organisation_id ?? r.organisation;
+      const name = r.organisation_name || r['Organisation Name'] || getOrgName(id);
+      if (id && name && name !== '-' && !name.startsWith('Org ')) {
+        map.set(String(id), name);
+      }
+    });
+
+    map.forEach((name, id) => {
+      list.push({ id, name });
+    });
+
+    return list.sort((a, b) => a.name.localeCompare(b.name));
+  }, [organisations, rowData, getOrgName]);
   
   // Clear selectedSubOrgId whenever activeCategory changes
   useEffect(() => {
@@ -72,76 +103,35 @@ export default function DataList({
     return [...new Set(mList)];
   }, [rowData]);
 
-  // Helper mapping: resolves dynamic organisation ID to its specific category based on DB category or name
-  const getOrgCategory = useCallback((orgId) => {
-    const org = organisations.find(o => o.organisation_id === orgId);
-    if (!org) return 'non_port';
-    const name = org.organisation_name.toLowerCase();
-    
-    // Major Ports: category_id = 1 or containing specific port tags
-    if (
-      org.organisation_category_id === 1 ||
-      name.includes('port authority') ||
-      name.includes('port limited') ||
-      name.includes('mookeerjii port') ||
-      name.includes('dock system') ||
-      name.includes('dock complex') ||
-      name.includes('vadhavan port')
-    ) {
-      return 'major_port';
-    }
-    
-    // Ministry: containing 'ministry' or specific IDs
-    if (
-      name.includes('ministry of') ||
-      org.organisation_id === 14 ||
-      org.organisation_id === 49
-    ) {
-      return 'ministry';
-    }
-    
-    // Non Port Organisations
-    return 'non_port';
-  }, [organisations]);
-
   // Category counts computed based on current filters (except activeCategory itself)
   const categoryCounts = useMemo(() => {
     const baseFiltered = rowData.filter(row => {
       const matchesFY = financialYearFilter ? row.financial_year === financialYearFilter : true;
       const matchesMonth = monthFilter ? row.month === monthFilter : true;
+      const rowOrgId = row.organisation_id ?? row.organisation;
+      const matchesOrg = organisationFilter ? String(rowOrgId) === String(organisationFilter) : true;
       
       const search = searchTerm.toLowerCase();
-      const orgName = getOrgName(row.organisation_id).toLowerCase();
+      const orgName = getOrgName(rowOrgId).toLowerCase();
       const matchesSearch = search ? (
         orgName.includes(search) ||
         (row.financial_year || '').toLowerCase().includes(search) ||
         (row.month || '').toLowerCase().includes(search)
       ) : true;
 
-      return matchesFY && matchesMonth && matchesSearch;
+      return matchesFY && matchesMonth && matchesOrg && matchesSearch;
     });
 
-    let majorPort = 0;
-    let ministry = 0;
-    let nonPort = 0;
-
-    baseFiltered.forEach(row => {
-      const cat = getOrgCategory(row.organisation_id);
-      if (cat === 'major_port') majorPort++;
-      else if (cat === 'ministry') ministry++;
-      else nonPort++;
-    });
-
-    return { majorPort, ministry, nonPort };
-  }, [rowData, financialYearFilter, monthFilter, searchTerm, getOrgName, getOrgCategory]);
+    return calculateCategoryCounts(baseFiltered, organisations, getOrgCategory);
+  }, [rowData, financialYearFilter, monthFilter, organisationFilter, searchTerm, getOrgName, organisations]);
 
   // Unique list of sub-organisations belonging to the active category
   const subOrganisations = useMemo(() => {
     if (activeCategory === 'all') return [];
 
     const orgIds = rowData
-      .filter(row => getOrgCategory(row.organisation_id) === activeCategory)
-      .map(row => row.organisation_id);
+      .filter(row => getOrgCategory(row.organisation_id ?? row.organisation, row.organisation_category_name) === activeCategory)
+      .map(row => row.organisation_id ?? row.organisation);
     const uniqueIds = [...new Set(orgIds)];
 
     return uniqueIds
@@ -156,218 +146,226 @@ export default function DataList({
       return rowData.filter(row => {
         const matchesFY = financialYearFilter ? row.financial_year === financialYearFilter : true;
         const matchesMonth = monthFilter ? row.month === monthFilter : true;
+        const rowOrgId = row.organisation_id ?? row.organisation;
+        const matchesOrg = organisationFilter ? String(rowOrgId) === String(organisationFilter) : true;
         
         // Category filter
         if (activeCategory !== 'all') {
-          const cat = getOrgCategory(row.organisation_id);
+          const cat = getOrgCategory(rowOrgId, row.organisation_category_name);
           if (cat !== activeCategory) return false;
         }
 
         // Sub organisation filter
-        if (selectedSubOrgId && String(row.organisation_id) !== String(selectedSubOrgId)) {
+        if (selectedSubOrgId && String(rowOrgId) !== String(selectedSubOrgId)) {
           return false;
         }
 
         const search = searchTerm.toLowerCase();
-        const orgName = getOrgName(row.organisation_id).toLowerCase();
+        const orgName = getOrgName(rowOrgId).toLowerCase();
         const matchesSearch = search ? (
           orgName.includes(search) ||
           (row.financial_year || '').toLowerCase().includes(search) ||
           (row.month || '').toLowerCase().includes(search)
         ) : true;
 
-        return matchesFY && matchesMonth && matchesSearch;
+        return matchesFY && matchesMonth && matchesOrg && matchesSearch;
       });
     }
 
     // Group and sum all numerical fields by Financial Year + Organisation ID
-    const groups = {};
-    rowData.forEach(row => {
-      const key = `${row.financial_year}_${row.organisation_id}`;
-      if (!groups[key]) {
-        groups[key] = {
-          financial_year: row.financial_year,
-          organisation_id: row.organisation_id,
-          broadcast_national: 0,
-          broadcast_regional: 0,
-          broadcast_overall: 0,
-          print_media_national: 0,
-          print_media_regional: 0,
-          print_media_overall: 0,
-          online_english: 0,
-          online_vernacular: 0,
-          online_overall: 0,
-          // Social media post, engagement, impression counts
-          twitter_posts: 0, twitter_impression: 0, twitter_engagement: 0,
-          instagram_posts: 0, instagram_impression: 0, instagram_engagement: 0,
-          facebook_posts: 0, facebook_impression: 0, facebook_engagement: 0,
-          linkedIn_posts: 0, linkedIn_impression: 0, linkedIn_engagement: 0,
-          youTube_posts: 0, youTube_impression: 0, youTube_engagement: 0,
-          media_outreach_id: `yearwise_${row.financial_year}_${row.organisation_id}`
-        };
-      }
+    const aggregated = aggregateYearWiseData(rowData);
 
-      groups[key].broadcast_national += row.broadcast_national || 0;
-      groups[key].broadcast_regional += row.broadcast_regional || 0;
-      groups[key].broadcast_overall += row.broadcast_overall || 0;
-
-      groups[key].print_media_national += row.print_media_national || 0;
-      groups[key].print_media_regional += row.print_media_regional || 0;
-      groups[key].print_media_overall += row.print_media_overall || 0;
-
-      groups[key].online_english += row.online_english || 0;
-      groups[key].online_vernacular += row.online_vernacular || 0;
-      groups[key].online_overall += row.online_overall || 0;
-
-      SOCIAL_CHANNELS.forEach(ch => {
-        groups[key][`${ch}_posts`] += row[`${ch}_posts`] || 0;
-        groups[key][`${ch}_impression`] += row[`${ch}_impression`] || 0;
-        groups[key][`${ch}_engagement`] += row[`${ch}_engagement`] || 0;
-      });
-    });
-
-    return Object.values(groups).filter(row => {
+    return aggregated.filter(row => {
       const matchesFY = financialYearFilter ? row.financial_year === financialYearFilter : true;
+      const rowOrgId = row.organisation_id ?? row.organisation;
+      const matchesOrg = organisationFilter ? String(rowOrgId) === String(organisationFilter) : true;
       
       // Category filter
       if (activeCategory !== 'all') {
-        const cat = getOrgCategory(row.organisation_id);
+        const cat = getOrgCategory(rowOrgId, row.organisation_category_name, organisations);
         if (cat !== activeCategory) return false;
       }
 
       // Sub organisation filter
-      if (selectedSubOrgId && String(row.organisation_id) !== String(selectedSubOrgId)) {
+      if (selectedSubOrgId && String(rowOrgId) !== String(selectedSubOrgId)) {
         return false;
       }
 
       const search = searchTerm.toLowerCase();
-      const orgName = getOrgName(row.organisation_id).toLowerCase();
+      const orgName = getOrgName(rowOrgId).toLowerCase();
       const matchesSearch = search ? (
         orgName.includes(search) ||
         (row.financial_year || '').toLowerCase().includes(search)
       ) : true;
 
-      return matchesFY && matchesSearch;
+      return matchesFY && matchesOrg && matchesSearch;
     });
-  }, [rowData, showYearWise, financialYearFilter, monthFilter, searchTerm, getOrgName, activeCategory, organisations, selectedSubOrgId, getOrgCategory]);
+  }, [rowData, showYearWise, financialYearFilter, monthFilter, organisationFilter, searchTerm, getOrgName, activeCategory, organisations, selectedSubOrgId]);
 
   // Define table columns
   const columnDefs = useMemo(() => {
     const baseCols = [
       {
-        headerName: 'S No',
-        valueGetter: 'node.rowIndex + 1',
-        width: 80,
+        field: 'sNo',
+        headerName: 'S.NO',
+        minWidth: 70,
+        width: 75,
+        maxWidth: 80,
         pinned: 'left',
         suppressSizeToFit: true,
-        headerClass: 'text-center-header font-bold text-white',
-        cellStyle: { color: '#000000', fontWeight: '500', textAlign: 'center' },
+        headerClass: 'font-bold text-white',
+        cellClass: 'font-semibold text-slate-700 dark:text-slate-200 text-center',
+        valueGetter: (params) => params.node ? params.node.rowIndex + 1 : '',
         hide: !visibleCols.sNo
       },
       {
-        headerName: 'Organisation',
         field: 'organisation_id',
-        minWidth: 260,
-        headerClass: 'text-center-header font-bold text-white',
-        valueFormatter: (params) => getOrgName(params.value),
-        cellStyle: { color: '#000000', textAlign: 'center' },
+        headerName: 'ORGANISATION NAME',
+        minWidth: 200,
+        flex: 1.8,
+        pinned: 'left',
+        headerClass: 'font-bold text-white',
+        cellClass: 'font-bold text-slate-800 dark:text-slate-100',
+        valueGetter: (params) => {
+          if (!params.data) return '';
+          return getOrgName(params.data.organisation_id ?? params.data.organisation);
+        },
         hide: !visibleCols.organisation
       },
       {
-        headerName: 'Financial Year',
         field: 'financial_year',
-        minWidth: 140,
-        headerClass: 'text-center-header font-bold text-white',
-        cellStyle: { color: '#000000', textAlign: 'center' },
+        headerName: 'FINANCIAL YEAR',
+        minWidth: 130,
+        flex: 1,
+        headerClass: 'font-bold text-white',
+        cellClass: 'font-semibold text-slate-700 dark:text-slate-300 text-center',
         hide: !visibleCols.financialYear
-      },
-      {
-        headerName: 'Month',
-        field: 'month',
-        minWidth: 120,
-        headerClass: 'text-center-header font-bold text-white',
-        cellStyle: { color: '#000000', textAlign: 'center' },
-        hide: showYearWise || !visibleCols.month
-      },
+      }
     ];
+
+    if (!showYearWise) {
+      baseCols.push({
+        field: 'month',
+        headerName: 'MONTH',
+        minWidth: 110,
+        flex: 1,
+        headerClass: 'font-bold text-white',
+        cellClass: 'font-semibold text-slate-700 dark:text-slate-300 text-center',
+        hide: !visibleCols.month
+      });
+    }
 
     let dataCols = [];
 
     if (activeMediaType === 'broadcast') {
       dataCols = [
-        { headerName: 'National', field: 'broadcast_national', minWidth: 120, hide: !visibleCols.national },
-        { headerName: 'Regional', field: 'broadcast_regional', minWidth: 120, hide: !visibleCols.regional },
-        { headerName: 'Overall', field: 'broadcast_overall', minWidth: 120, hide: !visibleCols.overall },
+        { field: 'broadcast_national', headerName: 'NATIONAL', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'broadcast_regional', headerName: 'REGIONAL', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'broadcast_overall', headerName: 'OVERALL', minWidth: 110, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
     } else if (activeMediaType === 'print_media') {
       dataCols = [
-        { headerName: 'National', field: 'print_media_national', minWidth: 120, hide: !visibleCols.national },
-        { headerName: 'Regional', field: 'print_media_regional', minWidth: 120, hide: !visibleCols.regional },
-        { headerName: 'Overall', field: 'print_media_overall', minWidth: 120, hide: !visibleCols.overall },
+        { field: 'print_media_national', headerName: 'NATIONAL', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'print_media_regional', headerName: 'REGIONAL', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'print_media_overall', headerName: 'OVERALL', minWidth: 110, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
     } else if (activeMediaType === 'online') {
       dataCols = [
-        { headerName: 'English', field: 'online_english', minWidth: 120, hide: !visibleCols.national },
-        { headerName: 'Vernacular', field: 'online_vernacular', minWidth: 120, hide: !visibleCols.regional },
-        { headerName: 'Overall', field: 'online_overall', minWidth: 120, hide: !visibleCols.overall },
+        { field: 'online_english', headerName: 'ENGLISH', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'online_vernacular', headerName: 'VERNACULAR', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'online_overall', headerName: 'OVERALL', minWidth: 110, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
     } else if (activeMediaType === 'social_media') {
-      SOCIAL_CHANNELS.forEach(channel => {
-        const label = channel === 'youTube' ? 'YouTube' : channel === 'linkedIn' ? 'LinkedIn' : channel.charAt(0).toUpperCase() + channel.slice(1);
-        const isChannelVisible = visibleCols[channel];
-        
-        dataCols.push({
-          headerName: label,
-          headerClass: 'text-center-header font-bold text-white',
-          marryChildren: true,
-          hide: !isChannelVisible,
-          children: SOCIAL_METRICS.map(metric => ({
-            headerName: metric.charAt(0).toUpperCase() + metric.slice(1),
-            field: `${channel}_${metric}`,
-            minWidth: 130,
-            flex: 1,
-            headerClass: 'text-center-header font-bold text-white',
-            cellStyle: { color: '#000000', textAlign: 'center' },
-            valueFormatter: (params) => params.value ?? '0',
-          }))
-        });
+      const channelConfigs = [
+        { key: 'facebook', label: 'FACEBOOK', visible: visibleCols.facebook },
+        { key: 'instagram', label: 'INSTAGRAM', visible: visibleCols.instagram },
+        { key: 'linkedIn', label: 'LINKEDIN', visible: visibleCols.linkedIn },
+        { key: 'twitter', label: 'TWITTER / X', visible: visibleCols.twitter },
+        { key: 'youTube', label: 'YOUTUBE', visible: visibleCols.youTube }
+      ];
+
+      channelConfigs.forEach(config => {
+        if (config.visible) {
+          dataCols.push({
+            headerName: config.label,
+            headerClass: 'font-bold text-white text-center-header',
+            children: [
+              {
+                field: `${config.key}_posts`,
+                headerName: 'NO. OF POSTS',
+                minWidth: 110,
+                cellClass: 'text-center font-medium',
+                headerClass: 'text-center-header text-[10px] font-bold text-white',
+                valueFormatter: (p) => p.value ?? 0
+              },
+              {
+                field: `${config.key}_impression`,
+                headerName: 'IMPRESSION',
+                minWidth: 110,
+                cellClass: 'text-center font-medium',
+                headerClass: 'text-center-header text-[10px] font-bold text-white',
+                valueFormatter: (p) => p.value ?? 0
+              },
+              {
+                field: `${config.key}_engagement`,
+                headerName: 'ENGAGEMENT',
+                minWidth: 110,
+                cellClass: 'text-center font-medium',
+                headerClass: 'text-center-header text-[10px] font-bold text-white',
+                valueFormatter: (p) => p.value ?? 0
+              }
+            ]
+          });
+        }
       });
     }
 
-    // Style flat data columns (non-grouped)
-    if (activeMediaType !== 'social_media') {
-      dataCols = dataCols.map(col => ({
-        ...col,
+    const canEdit = permissions ? permissions.canEdit : true;
+    const canDelete = permissions ? permissions.canRemove : true;
+
+    if (canEdit || canDelete) {
+      const actionCol = {
+        headerName: 'ACTIONS',
+        field: 'media_outreach_id',
+        minWidth: 110,
+        width: 110,
+        pinned: 'right',
+        suppressSizeToFit: true,
         headerClass: 'text-center-header font-bold text-white',
-        cellStyle: { color: '#000000', textAlign: 'center' },
-        valueFormatter: (params) => params.value ?? '0',
-      }));
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
+        cellRenderer: (params) => {
+          const item = params.data;
+          return (
+            <div className="flex items-center justify-center space-x-1.5">
+              {canEdit && (
+                <button
+                  onClick={() => onEdit(item)}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+                  title="Edit Note"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  onClick={() => onDelete && onDelete(item)}
+                  className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
+                  title="Delete Note"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          );
+        },
+        hide: !visibleCols.action
+      };
+
+      return [...baseCols, ...dataCols, actionCol];
     }
 
-    // Action column (Update) matching orange pencil button from screenshot
-    const actionCol = {
-      headerName: 'Update',
-      field: 'media_outreach_id',
-      width: 100,
-      pinned: 'right',
-      suppressSizeToFit: true,
-      headerClass: 'text-center-header font-bold text-white',
-      cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
-      cellRenderer: (params) => (
-        <button
-          onClick={() => onEdit(params.data)}
-          className="p-1.5 bg-[#f0ad4e] hover:bg-[#ec971f] text-white rounded transition cursor-pointer border border-[#d58512]"
-          title="Update"
-          style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Pencil className="h-4 w-4 text-white" />
-        </button>
-      ),
-      hide: !visibleCols.action
-    };
-
-    return [...baseCols, ...dataCols, actionCol];
-  }, [activeMediaType, getOrgName, onEdit, visibleCols, showYearWise]);
+    return [...baseCols, ...dataCols];
+  }, [activeMediaType, getOrgName, onEdit, onDelete, visibleCols, showYearWise, permissions]);
 
   const defaultColDef = useMemo(() => ({
     sortable: true,
@@ -379,137 +377,30 @@ export default function DataList({
     autoHeaderHeight: true
   }), []);
 
-  // Export handlers
+  // Export handlers using exportHelpers
   const handleCopy = () => {
-    if (!gridApi) return;
-    let tsv = '';
-    // Flattened headers for Copy
-    const headers = [];
-    columnDefs.forEach(c => {
-      if (c.children) {
-        c.children.forEach(ch => {
-          headers.push(`${c.headerName} - ${ch.headerName}`);
-        });
-      } else if (c.headerName) {
-        headers.push(c.headerName);
-      }
+    copyTableToClipboard({
+      gridApi,
+      columnDefs,
+      filteredRowData,
+      activeMediaType,
+      getOrgName,
+      showYearWise,
+      triggerNotification
     });
-    tsv += headers.join('\t') + '\n';
-    
-    // Rows
-    filteredRowData.forEach((row, idx) => {
-      const line = [
-        idx + 1,
-        getOrgName(row.organisation_id),
-        row.financial_year
-      ];
-      if (!showYearWise) {
-        line.push(row.month);
-      }
-      if (activeMediaType === 'broadcast') {
-        line.push(row.broadcast_national ?? 0, row.broadcast_regional ?? 0, row.broadcast_overall ?? 0);
-      } else if (activeMediaType === 'print_media') {
-        line.push(row.print_media_national ?? 0, row.print_media_regional ?? 0, row.print_media_overall ?? 0);
-      } else if (activeMediaType === 'online') {
-        line.push(row.online_english ?? 0, row.online_vernacular ?? 0, row.online_overall ?? 0);
-      } else if (activeMediaType === 'social_media') {
-        SOCIAL_CHANNELS.forEach(channel => {
-          SOCIAL_METRICS.forEach(metric => {
-            line.push(row[`${channel}_${metric}`] ?? 0);
-          });
-        });
-      }
-      tsv += line.join('\t') + '\n';
-    });
-
-    navigator.clipboard.writeText(tsv)
-      .then(() => {
-        if (triggerNotification) triggerNotification('Table data copied to clipboard!');
-        else alert('Table data copied to clipboard!');
-      })
-      .catch(() => {
-        if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
-        else alert('Failed to copy table data.');
-      });
   };
 
   const handleExportCSV = () => {
-    if (gridApi) {
-      gridApi.exportDataAsCsv({
-        marryChildren: true,
-        fileName: `Media_Outreach_${activeMediaType}_Export.csv`
-      });
-    }
+    exportTableCSV(gridApi, activeMediaType);
   };
 
   const handlePrintPDF = () => {
-    const printWindow = window.open('', '_blank');
-    const title = `Media Outreach - ${activeMediaType === 'broadcast' ? 'Broadcast' : activeMediaType === 'print_media' ? 'Print Media' : activeMediaType === 'online' ? 'Online' : 'Social Media'}`;
-    
-    let tableHeaders = `<th>S.No</th><th>Organisation</th><th>Financial Year</th>${showYearWise ? '' : '<th>Month</th>'}`;
-    if (activeMediaType === 'broadcast') {
-      tableHeaders += '<th>National</th><th>Regional</th><th>Overall</th>';
-    } else if (activeMediaType === 'print_media') {
-      tableHeaders += '<th>National</th><th>Regional</th><th>Overall</th>';
-    } else if (activeMediaType === 'online') {
-      tableHeaders += '<th>English</th><th>Vernacular</th><th>Overall</th>';
-    } else if (activeMediaType === 'social_media') {
-      SOCIAL_CHANNELS.forEach(ch => {
-        const label = ch.charAt(0).toUpperCase() + ch.slice(1);
-        SOCIAL_METRICS.forEach(m => {
-          tableHeaders += `<th>${label} ${m}</th>`;
-        });
-      });
-    }
-
-    let tableRows = '';
-    filteredRowData.forEach((row, idx) => {
-      tableRows += '<tr>';
-      tableRows += `<td>${idx + 1}</td>`;
-      tableRows += `<td>${getOrgName(row.organisation_id)}</td>`;
-      tableRows += `<td>${row.financial_year || ''}</td>`;
-      if (!showYearWise) {
-        tableRows += `<td>${row.month || ''}</td>`;
-      }
-      
-      if (activeMediaType === 'broadcast') {
-        tableRows += `<td>${row.broadcast_national ?? 0}</td><td>${row.broadcast_regional ?? 0}</td><td>${row.broadcast_overall ?? 0}</td>`;
-      } else if (activeMediaType === 'print_media') {
-        tableRows += `<td>${row.print_media_national ?? 0}</td><td>${row.print_media_regional ?? 0}</td><td>${row.print_media_overall ?? 0}</td>`;
-      } else if (activeMediaType === 'online') {
-        tableRows += `<td>${row.online_english ?? 0}</td><td>${row.online_vernacular ?? 0}</td><td>${row.online_overall ?? 0}</td>`;
-      } else if (activeMediaType === 'social_media') {
-        SOCIAL_CHANNELS.forEach(ch => {
-          SOCIAL_METRICS.forEach(m => {
-            tableRows += `<td>${row[`${ch}_${m}`] ?? 0}</td>`;
-          });
-        });
-      }
-      tableRows += '</tr>';
+    printTablePDF({
+      filteredRowData,
+      activeMediaType,
+      getOrgName,
+      showYearWise
     });
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${title}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h1 { color: #0f417a; text-align: center; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 12px; color: #000; }
-            th { background-color: #0f417a; color: white; }
-          </style>
-        </head>
-        <body onload="window.print()">
-          <h1>${title}</h1>
-          <table>
-            <thead><tr>${tableHeaders}</tr></thead>
-            <tbody>${tableRows}</tbody>
-          </table>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
   };
 
   const handleToggleColumn = (colKey) => {
@@ -697,7 +588,7 @@ export default function DataList({
 
         {/* Card Body (Collapsible Filter Fields Grid) */}
         {isFiltersOpen && (
-          <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-5 animate-fade-in animate-duration-300">
+          <div className={`px-5 py-4 grid grid-cols-1 ${hideOrgFilter ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-4 animate-fade-in animate-duration-300`}>
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Financial Year</label>
               <select
@@ -722,6 +613,22 @@ export default function DataList({
                 {!showYearWise && months.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
+
+            {!hideOrgFilter && (
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Organisation</label>
+                <select
+                  value={organisationFilter}
+                  onChange={(e) => setOrganisationFilter(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
+                >
+                  <option value="">Show All Organisations</option>
+                  {organisationOptions.map(org => (
+                    <option key={org.id} value={org.id}>{org.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Summary View</label>

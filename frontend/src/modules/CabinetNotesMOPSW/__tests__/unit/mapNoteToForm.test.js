@@ -20,10 +20,9 @@ describe('mapNoteToForm', () => {
       mopswCabinetID: 5,
       wing: '1',
       division: '2',
-      preliDcnPrepared: 'Yes',
       preliDcnPreparedDate: '2026-01-10',
       preliDcnPreparedRemark: 'prep',
-      completed: '',
+      completedDate: '',
     });
   });
 

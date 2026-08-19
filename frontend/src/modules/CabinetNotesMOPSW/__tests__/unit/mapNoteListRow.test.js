@@ -25,6 +25,8 @@ describe('mapNoteListRow', () => {
       wing: 'Ports',
       wingId: 3,
       status: 'Completed',
+      isCompleted: true,
+      remarks: 'ok',
       docCount: 2,
       lastUpdated: '2026-03-01',
     });

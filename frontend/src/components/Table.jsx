@@ -1,4 +1,4 @@
-﻿import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
+import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { FileSpreadsheet } from 'lucide-react';
@@ -138,16 +138,20 @@ const Table = forwardRef(({
       <style>{`
         .${colorClass} .ag-header,
         .${colorClass} .ag-header-row,
-        .${colorClass} .ag-header-cell {
+        .${colorClass} .ag-header-cell,
+        .${colorClass} .ag-header-group-cell {
           background-color: ${color} !important;
           background: ${color} !important;
           color: #ffffff !important;
         }
-        .${colorClass} .ag-header-cell-text {
+        .${colorClass} .ag-header-cell-text,
+        .${colorClass} .ag-header-group-cell-label {
           white-space: normal !important;
           word-break: break-word !important;
           text-align: center !important;
+          justify-content: center !important;
           line-height: 1.25 !important;
+          color: #ffffff !important;
         }
         @keyframes indeterminateProgress {
           0% { transform: translateX(-100%) scaleX(0.2); }

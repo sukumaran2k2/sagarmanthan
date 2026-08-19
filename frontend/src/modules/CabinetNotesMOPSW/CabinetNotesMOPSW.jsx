@@ -42,13 +42,24 @@ export default function CabinetNotesMOPSW({
   );
 
   useEffect(() => {
-    Promise.all([fetchWings(), fetchDivisions(), fetchCabinetStages()])
-      .then(([wingsRes, divisionsRes, stagesRes]) => {
-        setWings(Array.isArray(wingsRes.data) ? wingsRes.data : []);
-        setDivisions(Array.isArray(divisionsRes.data) ? divisionsRes.data : []);
-        setStages(Array.isArray(stagesRes.data) ? stagesRes.data : []);
-      })
-      .catch((err) => console.error(err));
+    Promise.all([
+      fetchWings().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+      fetchDivisions().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+      fetchCabinetStages().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+    ]).then(([wingsRes, divisionsRes, stagesRes]) => {
+      setWings(Array.isArray(wingsRes.data) ? wingsRes.data : []);
+      setDivisions(Array.isArray(divisionsRes.data) ? divisionsRes.data : []);
+      setStages(Array.isArray(stagesRes.data) ? stagesRes.data : []);
+    });
   }, []);
 
   useEffect(() => {
@@ -124,11 +135,6 @@ export default function CabinetNotesMOPSW({
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
             Manage, record, and track Cabinet Notes stages for the Ministry of Ports, Shipping and Waterways.
-            <span className="text-slate-400 dark:text-slate-500">
-              {' '}
-              · Scope: {permissions.dataScopeCode || '-'} · View: {permissions.uiViewCode}
-              {permissions.isViewOnlyAdmin ? ' · View Only Admin' : ''}
-            </span>
           </p>
         </div>
 
