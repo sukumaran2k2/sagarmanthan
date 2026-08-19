@@ -35,6 +35,7 @@ import ConsultantAppointmentView from './modules/ConsultantAppointment/Consultan
 import MediaOutreachView from './modules/MediaOutreach/MediaOutreach';
 import CapexView from './modules/Capex/Capex';
 import GEMProcurementView from './modules/GEMProcurement/GEMProcurement';
+import KPIDGLLView from './modules/KPIDGLL/KPIDGLL';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
 import Loader from './components/Loader';
@@ -605,6 +606,10 @@ export default function App() {
 
             {activeTab === 'Bills/PreConstitutions Act' && (
               <BillsPreConstitutionsView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
+            )}
+
+            {(activeTab === 'DGLL Input Form' || activeTab === 'DGLL Reports') && (
+              <KPIDGLLView activeTab={activeTab} triggerNotification={triggerNotification} />
             )}
 
             {activeTab === 'Acts & Rules' && (

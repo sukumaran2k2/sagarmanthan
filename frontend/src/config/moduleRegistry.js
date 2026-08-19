@@ -73,6 +73,7 @@ export const MODULE_PAGES = {
 
   KPI_DGLL: {
     tabs: ['DGLL Input Form', 'DGLL Reports'],
+    uiTabs: ['DGLL Input Form', 'DGLL Reports'],
   },
 
   KPI_CSL: {

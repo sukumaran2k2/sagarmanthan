@@ -440,6 +440,50 @@ async function updateVtmsData(req,res){
     }
 }
 
+async function deleteVtmsIntegration(req, res) {
+    const vtmsId = req.params.vtms_id;
+    const userID = req.params.userID;
+
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const hourPart = String(now.getHours()).padStart(2, '0');
+    const minutePart = String(now.getMinutes()).padStart(2, '0');
+    const secondPart = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+    const logFolder = `./delete_log/VTMS_Integration`;
+    const logFileName = `${logFolder}/deleted_VtmsIntegration_log_${timestamp}.txt`;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("vtmsId", vtmsId);
+    request.input("userID", userID);
+    try {
+        const dataToDelete = await request.query(`SELECT * FROM tbl_vtms_integration WHERE vtms_id = @vtmsId;`);
+        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+        const result = await request.query(`DELETE FROM tbl_vtms_integration WHERE vtms_id = @vtmsId;`);
+
+        if (result.rowsAffected[0] > 0) {
+            const logMessage = `User '${userID}' deleted VTMS Integration data with Data ID '${vtmsId}'. Deleted Data: ${dataJSON}\n`;
+
+            fs.mkdirSync(logFolder, { recursive: true });
+            fs.appendFile(logFileName, logMessage, (err) => {
+                if (err) {
+                    console.error('Error writing to delete_logs.txt:', err);
+                }
+            });
+
+            return res.sendStatus(201);
+        } else {
+            return res.status(404).send("Data not found");
+        }
+    }
+    catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
 
 async function addNaisUptime(req, res) {
     const { financialYear, naisAvailability, userID } = req.body;
@@ -1050,7 +1094,7 @@ async function getFinancialPerformanceDataByID(req,res) {
 
 export default {addLightsHouseMaster,getLightHouseMaster,getUpdatelightHouseData,updateLightsHousedata,addHydrographicSurvey,
     getHydrographicsurvey,getUpdatehydrographicdata,updateHydrographicSurveyData,addVesselAccidents,getVesselAccidents,
-    getUpdateVesselAccidentsdata,updateVesselData,addVtmsIntegration,getVtmsIntegration,getUpdateVtmsdata,updateVtmsData,
+    getUpdateVesselAccidentsdata,updateVesselData,addVtmsIntegration,getVtmsIntegration,getUpdateVtmsdata,updateVtmsData,deleteVtmsIntegration,
     addNaisUptime,getnaisList,getUpdateNaisdata,updateNaisData,addNAISIntegration,getnaisIntegrationList,
     getUpdateNaisIntegrationdata, updateNaisIntegrationData, addTouristDestinations, getTouristDestinations, addTargetDetails, 
     getTargetDetails, getByIdTouristDestinations, UpdateTouristDestinations,getByIdTargetDestinations, updateTargetDestinationData, 

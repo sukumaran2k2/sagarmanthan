@@ -2090,6 +2090,7 @@ router.post("/vtms-Integration",dgllTab.addVtmsIntegration);
 router.get("/vtms-list/:userID", dgllTab.getVtmsIntegration);
 router.get("/update-Vtms-data/:VtmsId", dgllTab.getUpdateVtmsdata);
 router.put('/vtms-edit',dgllTab.updateVtmsData);
+router.delete("/vtms-integration/:vtms_id/:userID", dgllTab.deleteVtmsIntegration);
 
 router.post("/nais-uptime",dgllTab.addNaisUptime);
 router.get("/nais-list/:userID", dgllTab.getnaisList);
