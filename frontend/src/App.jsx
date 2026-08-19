@@ -159,6 +159,24 @@ const INITIAL_PROJECTS = [
   },
 ];
 
+// Maps a breadcrumb label to the tab it should navigate to when clicked.
+// Only the label directly above the current page is ever a real destination
+// (e.g. "DGLL" -> its default Input Form tab); higher-level category labels
+// like "KPI" or "HR & Institutional" span many unrelated modules and have no
+// single tab to go to, so they stay as plain text.
+const BREADCRUMB_PARENT_TARGETS = {
+  'DGLL': 'DGLL Input Form',
+  'Major Ports': 'Major Ports Input Form',
+  'DSG': 'DSG Input Form',
+  'IWAI': 'IWAI Master',
+  'CSL': 'CSL Input Form',
+  'IMU': 'IMU Input Form',
+  'SCI': 'SCI Input Form',
+  'CMEC': 'CMEC Input Form',
+  'Young Professionals': 'Input Form',
+  'Consultant Appointment': 'Consultant Input Form',
+};
+
 const getBreadcrumbs = (tab) => {
   if (tab === 'landing') return ['Home'];
   if (tab === 'Ports Reports') return ['KPI - Major Ports - (Output Reports)'];
@@ -489,14 +507,32 @@ export default function App() {
         {!usesOwnPageHeader(activeTab) && tabAllowed && (
           <div className="flex items-center space-x-2 text-slate-400 text-xs font-semibold px-2 mb-6 mt-3 animate-fade-in select-none bg-white py-2.5 px-4 rounded-xl border border-slate-200 shadow-sm w-fit">
             <Home className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => goToTab('landing')} />
-            {getBreadcrumbs(activeTab).slice(1).map((crumb, idx, arr) => (
-              <div key={idx} className="flex items-center space-x-2">
-                <span className="text-slate-350">/</span>
-                <span className={idx === arr.length - 1 ? "text-blue-800 font-bold" : "text-slate-550"}>
-                  {crumb}
-                </span>
-              </div>
-            ))}
+            {getBreadcrumbs(activeTab).slice(1).map((crumb, idx, arr) => {
+              const isCurrent = idx === arr.length - 1;
+              const isImmediateParent = idx === arr.length - 2;
+              const parentTarget = isImmediateParent ? BREADCRUMB_PARENT_TARGETS[crumb] : null;
+              // Don't render a click target that just points back at the page
+              // we're already on (e.g. "DGLL" -> "DGLL Input Form" while
+              // already viewing DGLL Input Form) -- that's a dead click.
+              const target = parentTarget && normalizeTab(parentTarget) !== normalizeTab(activeTab) ? parentTarget : null;
+              return (
+                <div key={idx} className="flex items-center space-x-2">
+                  <span className="text-slate-350">/</span>
+                  {target ? (
+                    <span
+                      className="text-slate-550 hover:text-blue-700 cursor-pointer transition-colors"
+                      onClick={() => goToTab(target)}
+                    >
+                      {crumb}
+                    </span>
+                  ) : (
+                    <span className={isCurrent ? "text-blue-800 font-bold" : "text-slate-550"}>
+                      {crumb}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 

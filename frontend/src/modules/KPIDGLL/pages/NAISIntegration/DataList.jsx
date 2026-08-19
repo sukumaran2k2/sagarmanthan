@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-export default function LightHouseMasterDataList({
+export default function NAISIntegrationDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -15,42 +15,33 @@ export default function LightHouseMasterDataList({
   canAdd = true,
   canRemove = false,
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('');
+
+  const years = useMemo(
+    () => [...new Set(rowData.map((r) => r.financial_year))].sort().reverse(),
+    [rowData]
+  );
 
   const filteredData = useMemo(() => {
-    let data = rowData;
-    if (statusFilter !== 'all') data = data.filter((r) => String(r.light_status) === statusFilter);
-    if (!searchQuery.trim()) return data;
-    const q = searchQuery.toLowerCase();
-    return data.filter((r) =>
-      (r.alol || '').toLowerCase().includes(q) ||
-      (r.light_house_name || '').toLowerCase().includes(q) ||
-      (r.state_name || '').toLowerCase().includes(q) ||
-      (r.district_name || '').toLowerCase().includes(q)
-    );
-  }, [rowData, searchQuery]);
+    if (!yearFilter) return rowData;
+    return rowData.filter((r) => r.financial_year === yearFilter);
+  }, [rowData, yearFilter]);
 
   const colDefs = useMemo(() => [
     { headerName: 'S.No', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
-    { headerName: 'ALOL', field: 'alol', flex: 1, minWidth: 90, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
-    { headerName: 'Light House Name', field: 'light_house_name', flex: 2, minWidth: 180, cellClass: 'text-slate-700 dark:text-slate-200 flex items-center font-semibold border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     {
-      headerName: 'Status', field: 'light_status', flex: 1, minWidth: 120,
-      cellClass: 'text-center flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
-      cellRenderer: (params) => {
-        const isActive = String(params.value) === '1';
-        const label = isActive ? 'Active' : 'Inactive';
-        return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800'}`}>
-            {label}
-          </span>
-        );
-      }
+      headerName: 'NAIS Integrated with NMDA (%)', field: 'nais_integrated_with_nmda', flex: 1.5, minWidth: 200,
+      cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700',
+      valueFormatter: (params) => params.value != null ? `${params.value}%` : '',
+    },
+    {
+      headerName: 'Number of NAIS System Upgraded', field: 'no_of_nais_upgraded', flex: 1.5, minWidth: 200,
+      cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700',
     },
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'lights_house_id', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'nais_integration_id', width: canEdit && canRemove ? 90 : 60,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
@@ -67,7 +58,7 @@ export default function LightHouseMasterDataList({
             <button
               onClick={() => onDelete && onDelete(params.data)}
               className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
-              title="Delete Light House Master Entry"
+              title="Delete NAIS Integration Entry"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -81,33 +72,24 @@ export default function LightHouseMasterDataList({
     <div className="space-y-4">
       <div className="flex flex-row items-center gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</span>
+          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Financial Year</span>
           <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
             className="text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
           >
-            <option value="all">Show All</option>
-            <option value="1">Active</option>
-            <option value="0">Inactive</option>
+            <option value="">Show All</option>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
         <div className="flex-1" />
-        <div className="relative w-full md:max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          <input
-            type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search ALOL, name, state, district..."
-            className="w-full text-xs pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-medium text-slate-700 dark:text-slate-200"
-          />
-        </div>
         {canAdd && (
           <button
             onClick={onAddClick}
             className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition cursor-pointer flex-shrink-0"
           >
             <Plus className="h-4 w-4" />
-            <span>Add Light House Master Entry</span>
+            <span>Add NAIS Integration</span>
           </button>
         )}
       </div>

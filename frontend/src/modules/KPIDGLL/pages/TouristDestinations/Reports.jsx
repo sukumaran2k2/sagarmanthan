@@ -3,12 +3,12 @@ import { TrendingUp, RefreshCw } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
-import { fetchLightHouseMasterReport } from '../../api';
+import { fetchTouristDestinationReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 
-export default function LightHouseMasterReports() {
+export default function TouristDestinationsReports() {
   const gridRef = useRef(null);
   const chartDivRef = useRef(null);
   const chartRootRef = useRef(null);
@@ -18,43 +18,47 @@ export default function LightHouseMasterReports() {
   const [chartData, setChartData] = useState([]);
   const [error, setError] = useState(null);
 
-  const title = 'Form No. DGLL K-3.1 - Abstract - Light House Master';
+  const title = 'Form No. DGLL K-3.5 - Abstract - Lighthouse as Tourist Destinations';
 
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    fetchLightHouseMasterReport()
+    fetchTouristDestinationReport()
       .then((res) => {
         const data = res.data?.rowData || res.data || [];
+        const cols = res.data?.columnDefs || [];
         if (!data.length) { setRowData([]); setColumnDefs([]); setChartData([]); return; }
 
-        const yearCols = Object.keys(data[0]).filter((k) => k !== 'Metric');
-        const totalRow = data.find((r) => r.Metric === 'Total No. of Lighthouses') || {};
-        const activeRow = data.find((r) => r.Metric === 'Total No. of Active/Available Lighthouses') || {};
+        const yearCols = cols.length
+          ? cols.filter((c) => c.field !== 'Metric').map((c) => c.field)
+          : Object.keys(data[0]).filter((k) => k !== 'Metric');
+
+        const developedRow = data.find((r) => r.Metric === 'No. of Lighthouses developed as Tourist Destination') || {};
+        const footfallRow = data.find((r) => r.Metric === 'Annual Tourist Footfall') || {};
 
         setChartData(yearCols.map((yr) => ({
           year: yr,
-          total: Number(totalRow[yr] || 0),
-          active: Number(activeRow[yr] || 0),
+          developed: Number(developedRow[yr] || 0),
+          footfall: Number(footfallRow[yr] || 0),
         })));
 
-        const cols = [
-          { field: 'Metric', headerName: 'Metric', pinned: 'left', minWidth: 300, cellClass: 'font-bold text-slate-800 dark:text-slate-100 flex items-center border-r border-slate-200 dark:border-slate-700' },
+        const gridCols = cols.length ? cols.map((c) => ({
+          ...c,
+          cellClass: c.field === 'Metric'
+            ? 'font-bold text-slate-800 dark:text-slate-100 flex items-center border-r border-slate-200 dark:border-slate-700'
+            : 'text-center font-semibold flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+        })) : [
+          { field: 'Metric', headerName: 'Metric', pinned: 'left', minWidth: 340, cellClass: 'font-bold text-slate-800 dark:text-slate-100 flex items-center border-r border-slate-200 dark:border-slate-700' },
           ...yearCols.map((yr) => ({
             field: yr, headerName: yr, minWidth: 110,
             cellClass: 'text-center font-semibold flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
-            cellRenderer: (params) => (
-              <span className={(params.value || 0) > 0 ? 'text-[#4b2424] dark:text-blue-400 font-bold' : 'text-slate-400 dark:text-slate-500'}>
-                {params.value ?? '—'}
-              </span>
-            )
-          }))
+          })),
         ];
-        setColumnDefs(cols);
+        setColumnDefs(gridCols);
         setRowData(data);
       })
       .catch((err) => {
-        console.error('Error loading Light House Master report:', err);
+        console.error('Error loading Tourist Destinations report:', err);
         setError('Failed to load report data.');
       })
       .finally(() => setLoading(false));
@@ -87,12 +91,12 @@ export default function LightHouseMasterReports() {
 
     const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: yRenderer, extraMin: 0.05, extraMax: 0.05 }));
 
-    // TOTAL LIGHTHOUSES — BARS (swapped from old site which had dots here)
+    // NO. OF LIGHTHOUSES DEVELOPED -- BARS
     const barSeries = chart.series.push(
       am5xy.ColumnSeries.new(root, {
-        name: 'Total No. of Lighthouses', xAxis, yAxis,
-        valueYField: 'total', categoryXField: 'year',
-        tooltip: am5.Tooltip.new(root, { labelText: 'Total No. of Lighthouses: [bold]{valueY}[/]' }),
+        name: 'No. of Lighthouses Developed', xAxis, yAxis,
+        valueYField: 'developed', categoryXField: 'year',
+        tooltip: am5.Tooltip.new(root, { labelText: 'No. of Lighthouses Developed: [bold]{valueY}[/]' }),
       })
     );
     barSeries.columns.template.setAll({ fill: am5.color(0x90c4e4), stroke: am5.color(0x90c4e4), cornerRadiusTL: 3, cornerRadiusTR: 3, width: am5.percent(80) });
@@ -103,13 +107,21 @@ export default function LightHouseMasterReports() {
     });
     barSeries.data.setAll(chartData);
 
-    // ACTIVE LIGHTHOUSES — LINE WITH DOTS (swapped from old site which had bars here)
+    // ANNUAL TOURIST FOOTFALL -- LINE WITH DOTS (separate axis: footfall is
+    // typically orders of magnitude larger than the lighthouse count, so a
+    // shared axis would flatten the bars to nothing)
+    const yAxis2 = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+      renderer: am5xy.AxisRendererY.new(root, { opposite: true }),
+      extraMin: 0.05, extraMax: 0.05,
+    }));
+    yAxis2.get('renderer').labels.template.setAll({ fontSize: 11, fill: am5.color(0xe85d04) });
+
     const lineSeries = chart.series.push(
       am5xy.LineSeries.new(root, {
-        name: 'Active Lighthouses', xAxis, yAxis,
-        valueYField: 'active', categoryXField: 'year',
+        name: 'Annual Tourist Footfall', xAxis, yAxis: yAxis2,
+        valueYField: 'footfall', categoryXField: 'year',
         stroke: am5.color(0xe85d04), fill: am5.color(0xe85d04),
-        tooltip: am5.Tooltip.new(root, { labelText: 'Active Lighthouses: [bold]{valueY}[/]' }),
+        tooltip: am5.Tooltip.new(root, { labelText: 'Annual Tourist Footfall: [bold]{valueY}[/]' }),
       })
     );
     lineSeries.strokes.template.setAll({ strokeWidth: 2, stroke: am5.color(0xe85d04) });
@@ -125,6 +137,32 @@ export default function LightHouseMasterReports() {
     const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 12 }));
     legend.labels.template.setAll({ fontSize: 12, fontWeight: '500', fill: am5.color(0x475569) });
     legend.data.setAll(chart.series.values);
+
+    // Horizontal scrollbar for zooming into a date range -- matches the
+    // legacy site's slider, useful once there are more than a handful of years.
+    const scrollbarX = chart.set('scrollbarX', am5xy.XYChartScrollbar.new(root, {
+      orientation: 'horizontal',
+      height: 40,
+    }));
+    const sbxAxis = scrollbarX.chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+      categoryField: 'year',
+      renderer: am5xy.AxisRendererX.new(root, { minGridDistance: 30 }),
+    }));
+    sbxAxis.get('renderer').labels.template.set('forceHidden', true);
+    sbxAxis.data.setAll(chartData);
+
+    const sbyAxis = scrollbarX.chart.yAxes.push(am5xy.ValueAxis.new(root, {
+      renderer: am5xy.AxisRendererY.new(root, {}),
+    }));
+
+    const sbSeries = scrollbarX.chart.series.push(am5xy.LineSeries.new(root, {
+      xAxis: sbxAxis, yAxis: sbyAxis,
+      valueYField: 'footfall', categoryXField: 'year',
+      fill: am5.color(0xe85d04), stroke: am5.color(0xe85d04),
+    }));
+    sbSeries.fills.template.setAll({ visible: true, fillOpacity: 0.3 });
+    sbSeries.data.setAll(chartData);
+    root.container.children.moveValue(chart.get('scrollbarX'), 0);
 
     chart.set('cursor', am5xy.XYCursor.new(root, { behavior: 'none', xAxis }));
     chart.appear(800, 100);
@@ -145,7 +183,7 @@ export default function LightHouseMasterReports() {
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'light_house_master_report.csv' });
+    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'tourist_destinations_report.csv' });
     else if (type === 'PDF') window.print();
   };
 
@@ -155,7 +193,7 @@ export default function LightHouseMasterReports() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp size={14} className="text-[#8c4242] dark:text-blue-400" strokeWidth={2.5} />
-            <span className="text-[10.5px] font-black text-[#8c4242] dark:text-blue-400 uppercase tracking-widest">DGLL - Light House Master Report</span>
+            <span className="text-[10.5px] font-black text-[#8c4242] dark:text-blue-400 uppercase tracking-widest">DGLL - Lighthouse as Tourist Destinations Report</span>
           </div>
           <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight">{title}</h3>
           <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -178,27 +216,27 @@ export default function LightHouseMasterReports() {
       ) : (
         <>
           <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-            <div ref={chartDivRef} style={{ width: '100%', height: '380px' }} />
+            <div ref={chartDivRef} style={{ width: '100%', height: '440px' }} />
           </div>
-          <div className="ag-theme-quartz lhm-report-grid mt-4" style={{ width: '100%' }}>
+          <div className="ag-theme-quartz tourist-destinations-report-grid mt-4" style={{ width: '100%' }}>
             <Table ref={gridRef} theme="legacy" rowData={rowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
           </div>
         </>
       )}
 
       <style dangerouslySetInnerHTML={{ __html: `
-        .lhm-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 48px; --ag-active-color: #4b2424; }
-        .lhm-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-        .lhm-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
-        .lhm-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
-        .lhm-report-grid .ag-header-cell-label { justify-content: center !important; }
-        .lhm-report-grid .ag-row-even { background: #ffffff !important; }
-        .lhm-report-grid .ag-row-odd { background: #f8faf6 !important; }
-        .lhm-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
-        .dark .lhm-report-grid .ag-header { background: #0f172a !important; }
-        .dark .lhm-report-grid .ag-row-even { background: #090d16 !important; }
-        .dark .lhm-report-grid .ag-row-odd { background: #0f172a !important; }
-        .dark .lhm-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
+        .tourist-destinations-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 48px; --ag-active-color: #4b2424; }
+        .tourist-destinations-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
+        .tourist-destinations-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
+        .tourist-destinations-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
+        .tourist-destinations-report-grid .ag-header-cell-label { justify-content: center !important; }
+        .tourist-destinations-report-grid .ag-row-even { background: #ffffff !important; }
+        .tourist-destinations-report-grid .ag-row-odd { background: #f8faf6 !important; }
+        .tourist-destinations-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
+        .dark .tourist-destinations-report-grid .ag-header { background: #0f172a !important; }
+        .dark .tourist-destinations-report-grid .ag-row-even { background: #090d16 !important; }
+        .dark .tourist-destinations-report-grid .ag-row-odd { background: #0f172a !important; }
+        .dark .tourist-destinations-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
       `}} />
     </div>
   );

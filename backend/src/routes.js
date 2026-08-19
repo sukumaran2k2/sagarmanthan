@@ -2085,6 +2085,7 @@ router.post("/light-house-master", dgllTab.addLightsHouseMaster);
 router.get("/light-house-list/:userID", dgllTab.getLightHouseMaster);
 router.get("/update-light-house-list/:lightHouseId", dgllTab.getUpdatelightHouseData);
 router.put('/Light-House-edit',dgllTab.updateLightsHousedata);
+router.delete("/light-house-master/:lights_house_id/:userID", dgllTab.deleteLightHouseMaster);
 
 router.post("/vtms-Integration",dgllTab.addVtmsIntegration);
 router.get("/vtms-list/:userID", dgllTab.getVtmsIntegration);
@@ -2096,11 +2097,13 @@ router.post("/nais-uptime",dgllTab.addNaisUptime);
 router.get("/nais-list/:userID", dgllTab.getnaisList);
 router.get("/update-nais-data/:NaisId", dgllTab.getUpdateNaisdata);
 router.put('/nais-edit',dgllTab.updateNaisData);
+router.delete("/nais-uptime/:nais_id/:userID", dgllTab.deleteNaisUptime);
 
 router.post("/nais-integration",dgllTab.addNAISIntegration);
 router.get("/nais-integration-list/:userID", dgllTab.getnaisIntegrationList);
 router.get("/update-nais-integration-data/:NaisIntegrationId", dgllTab.getUpdateNaisIntegrationdata);
 router.put('/nais-integration-edit',dgllTab.updateNaisIntegrationData);
+router.delete("/nais-integration/:nais_integration_id/:userID", dgllTab.deleteNaisIntegration);
 
 router.get("/get-vtms-integration-report",dgllReportTab.getVTMSIntegrationReport);
 router.get("/get-nais-uptime-report",dgllReportTab.getNAISUptimeReport);
@@ -2111,6 +2114,7 @@ router.post("/lighthose-tourist-destination", dgllTab.addTouristDestinations);
 router.get("/lighthouse-tourist-destination/:userID", dgllTab.getTouristDestinations );
 router.get('/update-lighthouse-tourist-destination/:TouristDestinationsId', dgllTab.getByIdTouristDestinations);
 router.put('/edit-lighthouse-tourist-destination' , dgllTab.UpdateTouristDestinations);
+router.delete("/lighthouse-tourist-destination/:tourist_destination_id/:userID", dgllTab.deleteTouristDestination);
 router.get('/get-lighthouse-tourist-destination-report', dgllReportTab.getLighthouseTouristDestinationReport);
 router.get("/get-dgll-financial-performance-report",dgllReportTab.getFinancialPerformanceReport)
 
@@ -2120,11 +2124,13 @@ router.post('/target-Details-lighthouse',dgllTab.addTargetDetails);
 router.get('/target-Details-lighthouse/:userID', dgllTab.getTargetDetails);
 router.get('/update-target-Details-destination/:TouristDestinationsId', dgllTab.getByIdTargetDestinations);
 router.put('/edit-target-Details-lighthouse', dgllTab.updateTargetDestinationData);
+router.delete("/target-Details-lighthouse/:tourist_destination_target_id/:userID", dgllTab.deleteTargetDetail);
 router.get("/check-targetYears/:year", dgllTab.checkYear);
 
 router.post("/dgll-submit-financial-performance",dgllTab.submitFinancialPerformance);
 router.get("/get-dgll-financial-performance",dgllTab.getFinancialPerfomanceData);
 router.get("/get-dgll-financial-performance/:financialId",dgllTab.getFinancialPerformanceDataByID)
+router.delete("/dgll-financial-performance/:financial_id/:userID", dgllTab.deleteFinancialPerformance);
 
 // CSL
 router.post("/vessels-built",cslTab. addVesselsBuilt);

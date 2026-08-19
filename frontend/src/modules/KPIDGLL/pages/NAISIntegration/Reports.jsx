@@ -3,12 +3,12 @@ import { TrendingUp, RefreshCw } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
-import { fetchLightHouseMasterReport } from '../../api';
+import { fetchNaisIntegrationReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 
-export default function LightHouseMasterReports() {
+export default function NAISIntegrationReports() {
   const gridRef = useRef(null);
   const chartDivRef = useRef(null);
   const chartRootRef = useRef(null);
@@ -18,43 +18,50 @@ export default function LightHouseMasterReports() {
   const [chartData, setChartData] = useState([]);
   const [error, setError] = useState(null);
 
-  const title = 'Form No. DGLL K-3.1 - Abstract - Light House Master';
+  const title = 'Form No. DGLL K-3.4 - Abstract - NAIS Integration';
 
   const fetchData = () => {
     setLoading(true);
     setError(null);
-    fetchLightHouseMasterReport()
+    fetchNaisIntegrationReport()
       .then((res) => {
         const data = res.data?.rowData || res.data || [];
+        const cols = res.data?.columnDefs || [];
         if (!data.length) { setRowData([]); setColumnDefs([]); setChartData([]); return; }
 
-        const yearCols = Object.keys(data[0]).filter((k) => k !== 'Metric');
-        const totalRow = data.find((r) => r.Metric === 'Total No. of Lighthouses') || {};
-        const activeRow = data.find((r) => r.Metric === 'Total No. of Active/Available Lighthouses') || {};
+        const yearCols = cols.length
+          ? cols.filter((c) => c.field !== 'Metric').map((c) => c.field)
+          : Object.keys(data[0]).filter((k) => k !== 'Metric');
+
+        // Backend returns two stacked metric rows (integration % and systems upgraded count).
+        // Match by prefix rather than exact string since the legacy label carries a
+        // trailing "** " footnote marker we don't want to depend on matching exactly.
+        const integrationRow = data.find((r) => r.Metric?.startsWith('NAIS System Integration with NMDA')) || {};
+        const upgradedRow = data.find((r) => r.Metric?.startsWith('No. of NAIS Systems Upgraded')) || {};
 
         setChartData(yearCols.map((yr) => ({
           year: yr,
-          total: Number(totalRow[yr] || 0),
-          active: Number(activeRow[yr] || 0),
+          integration: Number(integrationRow[yr] || 0),
+          upgraded: Number(upgradedRow[yr] || 0),
         })));
 
-        const cols = [
-          { field: 'Metric', headerName: 'Metric', pinned: 'left', minWidth: 300, cellClass: 'font-bold text-slate-800 dark:text-slate-100 flex items-center border-r border-slate-200 dark:border-slate-700' },
+        const gridCols = cols.length ? cols.map((c) => ({
+          ...c,
+          cellClass: c.field === 'Metric'
+            ? 'font-bold text-slate-800 dark:text-slate-100 flex items-center border-r border-slate-200 dark:border-slate-700'
+            : 'text-center font-semibold flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+        })) : [
+          { field: 'Metric', headerName: 'Metric', pinned: 'left', minWidth: 340, cellClass: 'font-bold text-slate-800 dark:text-slate-100 flex items-center border-r border-slate-200 dark:border-slate-700' },
           ...yearCols.map((yr) => ({
             field: yr, headerName: yr, minWidth: 110,
             cellClass: 'text-center font-semibold flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
-            cellRenderer: (params) => (
-              <span className={(params.value || 0) > 0 ? 'text-[#4b2424] dark:text-blue-400 font-bold' : 'text-slate-400 dark:text-slate-500'}>
-                {params.value ?? '—'}
-              </span>
-            )
-          }))
+          })),
         ];
-        setColumnDefs(cols);
+        setColumnDefs(gridCols);
         setRowData(data);
       })
       .catch((err) => {
-        console.error('Error loading Light House Master report:', err);
+        console.error('Error loading NAIS Integration report:', err);
         setError('Failed to load report data.');
       })
       .finally(() => setLoading(false));
@@ -87,12 +94,12 @@ export default function LightHouseMasterReports() {
 
     const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: yRenderer, extraMin: 0.05, extraMax: 0.05 }));
 
-    // TOTAL LIGHTHOUSES — BARS (swapped from old site which had dots here)
+    // NUMBER OF NAIS SYSTEMS UPGRADED -- BARS
     const barSeries = chart.series.push(
       am5xy.ColumnSeries.new(root, {
-        name: 'Total No. of Lighthouses', xAxis, yAxis,
-        valueYField: 'total', categoryXField: 'year',
-        tooltip: am5.Tooltip.new(root, { labelText: 'Total No. of Lighthouses: [bold]{valueY}[/]' }),
+        name: 'No. of NAIS Systems Upgraded', xAxis, yAxis,
+        valueYField: 'upgraded', categoryXField: 'year',
+        tooltip: am5.Tooltip.new(root, { labelText: 'No. of NAIS Systems Upgraded: [bold]{valueY}[/]' }),
       })
     );
     barSeries.columns.template.setAll({ fill: am5.color(0x90c4e4), stroke: am5.color(0x90c4e4), cornerRadiusTL: 3, cornerRadiusTR: 3, width: am5.percent(80) });
@@ -103,13 +110,13 @@ export default function LightHouseMasterReports() {
     });
     barSeries.data.setAll(chartData);
 
-    // ACTIVE LIGHTHOUSES — LINE WITH DOTS (swapped from old site which had bars here)
+    // NAIS INTEGRATED WITH NMDA (%) -- LINE WITH DOTS
     const lineSeries = chart.series.push(
       am5xy.LineSeries.new(root, {
-        name: 'Active Lighthouses', xAxis, yAxis,
-        valueYField: 'active', categoryXField: 'year',
+        name: 'NAIS Integrated with NMDA (%)', xAxis, yAxis,
+        valueYField: 'integration', categoryXField: 'year',
         stroke: am5.color(0xe85d04), fill: am5.color(0xe85d04),
-        tooltip: am5.Tooltip.new(root, { labelText: 'Active Lighthouses: [bold]{valueY}[/]' }),
+        tooltip: am5.Tooltip.new(root, { labelText: 'NAIS Integrated with NMDA: [bold]{valueY}%[/]' }),
       })
     );
     lineSeries.strokes.template.setAll({ strokeWidth: 2, stroke: am5.color(0xe85d04) });
@@ -117,7 +124,7 @@ export default function LightHouseMasterReports() {
       sprite: am5.Circle.new(root, { radius: 5, fill: am5.color(0xe85d04), stroke: am5.color(0xffffff), strokeWidth: 2 })
     }));
     lineSeries.bullets.push((root, series, dataItem) => {
-      const label = am5.Label.new(root, { fill: am5.color(0xe85d04), centerX: am5.p50, centerY: am5.p100, dy: -12, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}' });
+      const label = am5.Label.new(root, { fill: am5.color(0xe85d04), centerX: am5.p50, centerY: am5.p100, dy: -12, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}%' });
       return am5.Bullet.new(root, { sprite: label });
     });
     lineSeries.data.setAll(chartData);
@@ -145,7 +152,7 @@ export default function LightHouseMasterReports() {
   };
 
   const handleExport = (type) => {
-    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'light_house_master_report.csv' });
+    if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'nais_integration_report.csv' });
     else if (type === 'PDF') window.print();
   };
 
@@ -155,7 +162,7 @@ export default function LightHouseMasterReports() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp size={14} className="text-[#8c4242] dark:text-blue-400" strokeWidth={2.5} />
-            <span className="text-[10.5px] font-black text-[#8c4242] dark:text-blue-400 uppercase tracking-widest">DGLL - Light House Master Report</span>
+            <span className="text-[10.5px] font-black text-[#8c4242] dark:text-blue-400 uppercase tracking-widest">DGLL - NAIS Integration Report</span>
           </div>
           <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight">{title}</h3>
           <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -180,25 +187,25 @@ export default function LightHouseMasterReports() {
           <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
             <div ref={chartDivRef} style={{ width: '100%', height: '380px' }} />
           </div>
-          <div className="ag-theme-quartz lhm-report-grid mt-4" style={{ width: '100%' }}>
+          <div className="ag-theme-quartz nais-integration-report-grid mt-4" style={{ width: '100%' }}>
             <Table ref={gridRef} theme="legacy" rowData={rowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
           </div>
         </>
       )}
 
       <style dangerouslySetInnerHTML={{ __html: `
-        .lhm-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 48px; --ag-active-color: #4b2424; }
-        .lhm-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
-        .lhm-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
-        .lhm-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
-        .lhm-report-grid .ag-header-cell-label { justify-content: center !important; }
-        .lhm-report-grid .ag-row-even { background: #ffffff !important; }
-        .lhm-report-grid .ag-row-odd { background: #f8faf6 !important; }
-        .lhm-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
-        .dark .lhm-report-grid .ag-header { background: #0f172a !important; }
-        .dark .lhm-report-grid .ag-row-even { background: #090d16 !important; }
-        .dark .lhm-report-grid .ag-row-odd { background: #0f172a !important; }
-        .dark .lhm-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
+        .nais-integration-report-grid.ag-theme-quartz { --ag-font-family: 'Inter', system-ui, sans-serif; --ag-row-height: 48px; --ag-active-color: #4b2424; }
+        .nais-integration-report-grid .ag-root-wrapper { border: none !important; border-radius: 0 !important; }
+        .nais-integration-report-grid .ag-header { background: #4b2424 !important; border-bottom: 2px solid #3a1a1a !important; }
+        .nais-integration-report-grid .ag-header-cell { color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-right: 1px solid rgba(255,255,255,0.15) !important; }
+        .nais-integration-report-grid .ag-header-cell-label { justify-content: center !important; }
+        .nais-integration-report-grid .ag-row-even { background: #ffffff !important; }
+        .nais-integration-report-grid .ag-row-odd { background: #f8faf6 !important; }
+        .nais-integration-report-grid .ag-cell { border-right: 1px solid #D3D6D9 !important; }
+        .dark .nais-integration-report-grid .ag-header { background: #0f172a !important; }
+        .dark .nais-integration-report-grid .ag-row-even { background: #090d16 !important; }
+        .dark .nais-integration-report-grid .ag-row-odd { background: #0f172a !important; }
+        .dark .nais-integration-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
       `}} />
     </div>
   );

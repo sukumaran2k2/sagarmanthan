@@ -161,7 +161,7 @@ export default function VTMSIntegrationReports() {
           <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
             <div ref={chartDivRef} style={{ width: '100%', height: '380px' }} />
           </div>
-          <div className="ag-theme-quartz vtms-report-grid" style={{ width: '100%' }}>
+          <div className="ag-theme-quartz vtms-report-grid mt-4" style={{ width: '100%' }}>
             <Table ref={gridRef} theme="legacy" rowData={rowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
           </div>
         </>
