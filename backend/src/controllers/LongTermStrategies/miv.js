@@ -469,11 +469,12 @@ async function editMIVData(req, res) {
             OutcomesRemarks
         } = req.body;
 
+        const recordId = req.params.id || ID || req.body.id;
 
         const conn = await pool;
         const request = conn.request();
 
-        request.input("ID", ID);
+        request.input("ID", recordId);
         request.input("organisationID", organisationID);
         request.input("initiativeID", initiativeID);
         request.input("initiativeName", initiativeName);
@@ -850,7 +851,7 @@ async function getMIVDashboard(req, res) {
                 ON ti.organisation_id = o.organisation_id
 
             WHERE
-                (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR o.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR o.organisation_id = @organisationID)
                 AND (@currentStatus IS NULL OR ti.status_current = @currentStatus)
 
@@ -901,7 +902,7 @@ async function getMIVDashboard(req, res) {
         INNER JOIN mmt_organisation o 
             ON tmd.organisation_id = o.organisation_id
         WHERE
-            (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+            (@clusterID = 0 OR o.organisation_category_id = @clusterID)
             AND (@organisationID = 0 OR o.organisation_id = @organisationID);
         `;
 
@@ -949,9 +950,8 @@ async function getMIVactivityStatusWise(req, res) {
                 COUNT(*) AS stage_wise_count
             FROM tbl_initiative ti
             INNER JOIN mmt_organisation o ON ti.organisation_id = o.organisation_id
-            INNER JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
             WHERE
-                (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR o.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR o.organisation_id = @organisationID)
                 AND (@currentStatus IS NULL OR ti.status_current = @currentStatus)
                 AND (
@@ -990,14 +990,13 @@ async function getMIVactivityCurrentStatusPortWise(req, res) {
         const result = await request.query(`
             SELECT 
                 mmt.organisation_id,
-                mmt.organisation_label,
+                mmt.organisation_name AS organisation_label,
                 ini.status_current AS project_status,
                 COUNT(*) AS stage_wise_count
             FROM tbl_initiative ini
             LEFT JOIN mmt_organisation mmt ON ini.organisation_id = mmt.organisation_id
-            INNER JOIN mmt_hr_cluster cid ON mmt.hr_cluster_id = cid.hr_cluster_id
             WHERE
-                (@clusterID = 0 OR mmt.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR mmt.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR mmt.organisation_id = @organisationID)
                 AND (@currentStatus IS NULL OR ini.status_current = @currentStatus)
                 AND (
@@ -1007,7 +1006,7 @@ async function getMIVactivityCurrentStatusPortWise(req, res) {
             GROUP BY 
                 ini.status_current,
                 mmt.organisation_id,
-                mmt.organisation_label
+                mmt.organisation_name
             ORDER BY mmt.organisation_id;
         `);
 
@@ -1042,9 +1041,8 @@ async function getMIVCategoryCountWise(req, res) {
                 COUNT(*) AS count
             FROM tbl_initiative ti
             INNER JOIN mmt_organisation mmt ON ti.organisation_id = mmt.organisation_id
-            INNER JOIN mmt_hr_cluster cid ON mmt.hr_cluster_id = cid.hr_cluster_id
             WHERE
-                (@clusterID = 0 OR mmt.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR mmt.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR mmt.organisation_id = @organisationID)
                 AND ti.category IS NOT NULL
                 AND (@currentStatus IS NULL OR ti.status_current = @currentStatus)
@@ -1096,7 +1094,7 @@ async function detailedMivDashboard(req, res) {
                 INNER JOIN mmt_organisation o 
                     ON tmd.organisation_id = o.organisation_id
                 WHERE
-                    (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+                    (@clusterID = 0 OR o.organisation_category_id = @clusterID)
                     AND (@organisationID = 0 OR o.organisation_id = @organisationID)
                 ORDER BY tmd.date_of_meeting DESC;
             `;
@@ -1136,7 +1134,7 @@ async function detailedMivDashboard(req, res) {
                 ON ti.organisation_id = o.organisation_id
 
             WHERE
-                (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR o.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR o.organisation_id = @organisationID)
 
                 AND (@currentStatus IS NULL OR ti.status_current = @currentStatus)
@@ -1240,10 +1238,8 @@ async function getMivCategoryDetails(req, res) {
             FROM tbl_initiative ti
             INNER JOIN mmt_organisation mmt 
                 ON ti.organisation_id = mmt.organisation_id
-            INNER JOIN mmt_hr_cluster cid 
-                ON mmt.hr_cluster_id = cid.hr_cluster_id
             WHERE
-                (@clusterID = 0 OR mmt.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR mmt.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR mmt.organisation_id = @organisationID)
                 AND (@category IS NULL OR ti.category = @category)
                 AND (@stage IS NULL OR ti.status_current = @stage)
@@ -1308,9 +1304,8 @@ async function getDetailsMivActivityStatusWise(req, res) {
                 ti.status_current AS status
             FROM tbl_initiative ti
             INNER JOIN mmt_organisation o ON ti.organisation_id = o.organisation_id
-            INNER JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
             WHERE
-                (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR o.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR o.organisation_id = @organisationID)
                 AND (@stage IS NULL OR ti.status_current = @stage)
                 AND (@startDate IS NULL OR ti.start_date >= @startDate OR ti.completion_date >= @startDate)
@@ -1341,6 +1336,17 @@ async function getDetailsMivActivityStatusWise(req, res) {
     }
 }
 
+async function getNewInitiatives(req, res) {
+    try {
+        const conn = await pool;
+        const result = await conn.query("SELECT DISTINCT Initiaitive_ID, Initiaitive_name FROM mmt_new_initiatives WHERE Initiaitive_ID IS NOT NULL AND Initiaitive_ID != '' ORDER BY Initiaitive_ID");
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Error fetching new initiatives dropdown:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+}
+
 const MIVTab = {
     getMIVData, createMIVData,
     createMeeting, getMeeting,
@@ -1348,7 +1354,7 @@ const MIVTab = {
     uploadFiles, downloadMeeting, getUpdateMIV, getMIVMeeting, getInitiativeMopswData, 
     getLogMeetingMopsw, getInitiativeName, getInitiativeTargetDate,getMIVDashboard,
     getMIVactivityStatusWise,getMIVactivityCurrentStatusPortWise,getMIVCategoryCountWise,detailedMivDashboard,
-    getMivCategoryDetails,getDetailsMivActivityStatusWise
+    getMivCategoryDetails,getDetailsMivActivityStatusWise, getNewInitiatives
 };
 
 export default MIVTab;

@@ -52,10 +52,8 @@ const InternalNavigation = ({
               {/* Main tab button */}
               <button
                 onClick={() => {
-                  if (!hasSubMenu) {
-                    onTabChange && onTabChange(tab.id);
-                  } else {
-                    // Toggle open on click too (for touch devices)
+                  onTabChange && onTabChange(tab.id);
+                  if (hasSubMenu) {
                     setOpenMenu(isOpen ? null : tab.id);
                   }
                 }}

@@ -35,6 +35,7 @@ import ConsultantAppointmentView from './modules/ConsultantAppointment/Consultan
 import MediaOutreachView from './modules/MediaOutreach/MediaOutreach';
 import CapexView from './modules/Capex/Capex';
 import GEMProcurementView from './modules/GEMProcurement/GEMProcurement';
+import MIV2030View from './modules/MIV2030/MIV2030';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
 import Loader from './components/Loader';
@@ -223,6 +224,9 @@ const getBreadcrumbs = (tab) => {
   const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
 
+  const mivItems = ['MIV 2030', 'MIV Dashboard', 'MIV Data List', 'MIV Input Form', 'MIV Meetings', 'MIV Org Report', 'MIV Theme Report', 'Organisation Report', 'Theme Report'];
+  if (mivItems.includes(tab)) return ['Home', 'Long Term Strategies', 'MIV 2030', tab === 'MIV 2030' ? 'Dashboard' : tab];
+
   const visionItems = ['Vision 2047', 'Maritime India Summit', 'Blue Economy Policy'];
   if (visionItems.includes(tab)) return ['Home', 'Long Term Strategies', tab];
 
@@ -276,6 +280,15 @@ const ROUTE_MAP = {
   'Acts & Rules': 'legal/acts-rules',
 
   // Strategies nested routes
+  'MIV 2030': 'strategies/miv-2030',
+  'MIV Dashboard': 'strategies/miv-2030/dashboard',
+  'MIV Data List': 'strategies/miv-2030/data-list',
+  'MIV Input Form': 'strategies/miv-2030/input-form',
+  'MIV Meetings': 'strategies/miv-2030/meetings',
+  'MIV Org Report': 'strategies/miv-2030/org-report',
+  'MIV Theme Report': 'strategies/miv-2030/theme-report',
+  'Organisation Report': 'strategies/miv-2030/org-report',
+  'Theme Report': 'strategies/miv-2030/theme-report',
   'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
   'Blue Economy Policy': 'strategies/blue-economy-policy',
@@ -637,6 +650,14 @@ export default function App() {
 
             {['GEM Procurements', 'GEM Procurement', 'GEM', 'gem'].includes(activeTab) && (
               <GEMProcurementView />
+            )}
+
+            {['MIV 2030', 'MIV Dashboard', 'MIV Data List', 'MIV Input Form', 'MIV Meetings', 'MIV Org Report', 'MIV Theme Report', 'Organisation Report', 'Theme Report'].includes(activeTab) && (
+              <MIV2030View
+                activeSubTab={activeTab}
+                setActiveSubTab={setActiveTab}
+                triggerNotification={triggerNotification}
+              />
             )}
 
             {/* Placeholder / Empty State for other inactive government menu views */}

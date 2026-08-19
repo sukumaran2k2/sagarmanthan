@@ -293,6 +293,7 @@ export default function IssueListPage({
         onEdit={handleEdit}
         onDelete={handleDelete}
         onAdd={handleAdd}
+        notify={notify}
       />
 
       {deleteTarget && (

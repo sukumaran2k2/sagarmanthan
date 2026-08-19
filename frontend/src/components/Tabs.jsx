@@ -52,6 +52,8 @@ import {
   Gavel,
   Shield,
   Menu,
+  Target,
+  BarChart3,
   X
 } from 'lucide-react';
 
@@ -370,11 +372,24 @@ export default function Tabs({ activeTab, setActiveTab }) {
     },
     {
       id: 'vision',
-      label: 'Strategies',
+      label: 'Long Term Strategies',
       icon: TrendingUp,
       align: 'left-0',
-      width: 'w-[240px]',
+      width: 'w-[260px]',
       items: [
+        m('MIV_2030', {
+          label: 'MIV 2030',
+          icon: Target,
+          targetTab: 'MIV 2030',
+          subItems: [
+            { label: 'Dashboard', tab: 'MIV 2030', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Data List', tab: 'MIV 2030', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'MIV 2030', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'MIV Meetings', tab: 'MIV 2030', targetSubTab: 'MIV Meetings', icon: Users },
+            { label: 'Organisation Report', tab: 'MIV 2030', targetSubTab: 'Organisation Report', icon: FilePieChart },
+            { label: 'Theme Report', tab: 'MIV 2030', targetSubTab: 'Theme Report', icon: BarChart3 },
+          ]
+        }),
         m('AKV_2047', { label: 'Vision 2047', icon: Milestone }),
         m('MIV_2030', { label: 'Maritime India Summit', icon: Anchor }),
         m('AKV_2047', { label: 'Blue Economy Policy', icon: Globe }),
@@ -685,6 +700,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                             );
                                             window.dispatchEvent(
                                               new CustomEvent('cabinet-notes-mopsw-subtab', {
+                                                detail: sub.targetSubTab,
+                                              })
+                                            );
+                                          }
+                                          if (
+                                            sub.targetSubTab &&
+                                            (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
+                                          ) {
+                                            sessionStorage.setItem(
+                                              'miv2030InitTab',
+                                              sub.targetSubTab
+                                            );
+                                            window.dispatchEvent(
+                                              new CustomEvent('miv-2030-subtab', {
                                                 detail: sub.targetSubTab,
                                               })
                                             );

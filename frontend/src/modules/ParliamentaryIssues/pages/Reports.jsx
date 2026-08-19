@@ -521,6 +521,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
           columns={columns}
           loading={loading}
           onRefresh={fetchReportData}
+          triggerNotification={notify}
           pagination
           brandColor="#4b2424"
           brandColorHover="#6b3535"

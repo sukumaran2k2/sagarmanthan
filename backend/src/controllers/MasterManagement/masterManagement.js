@@ -353,10 +353,10 @@ async function getDropDownData(req, res) {
             break;
 
         case "mmt_organisation":
-            query = `SELECT organisation_id, organisation_name, organisation_code, organisation_label, mmt_organisation.organisation_category_id, mmt_organisation_category.organisation_category_name 
+            query = `SELECT organisation_id, organisation_name, organisation_code, organisation_name AS organisation_label, mmt_organisation.organisation_category_id, mmt_organisation_category.organisation_category_name 
                 FROM mmt_organisation 
                 LEFT JOIN mmt_organisation_category ON mmt_organisation_category.organisation_category_id = mmt_organisation.organisation_category_id 
-                WHERE mmt_organisation.status = 1 
+                WHERE ISNULL(mmt_organisation.status, 1) = 1 
                 ORDER BY organisation_name`;
             break;
 
@@ -1258,7 +1258,7 @@ async function getDropDownAllValues(req, res) {
             break;
 
         case "mmt_organisation_category":
-            query = "SELECT organisation_category_id, organisation_category_name FROM mmt_organisation_category WHERE status = 1 ORDER BY ";
+            query = "SELECT organisation_category_id, organisation_category_name FROM mmt_organisation_category WHERE ISNULL(status, 1) = 1 ORDER BY organisation_category_name";
             break;
 
         case "mmt_ministry":

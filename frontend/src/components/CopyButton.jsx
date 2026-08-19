@@ -3,14 +3,70 @@ import { Copy } from 'lucide-react';
 
 export default function CopyButton({
   onCopy,
+  headers = [],
+  data = [],
+  rows = [],
+  onSuccess,
+  triggerNotification,
   color = '#0f417a',
   hoverBg = '#f1f5f9',
   className = ''
 }) {
+  const handleClick = (e) => {
+    e.preventDefault();
+    if (typeof onCopy === 'function') {
+      onCopy();
+      return;
+    }
+
+    const rowList = (data && data.length > 0) ? data : rows;
+    if (!rowList || rowList.length === 0) {
+      if (typeof onSuccess === 'function') {
+        onSuccess();
+      } else if (typeof triggerNotification === 'function') {
+        triggerNotification('Table copied to clipboard!');
+      }
+      return;
+    }
+
+    let tsv = '';
+    if (headers && headers.length > 0) {
+      tsv += `${headers.join('\t')}\n`;
+    }
+
+    rowList.forEach((row) => {
+      if (Array.isArray(row)) {
+        const line = row.map((cell) => {
+          let str = String(cell ?? '');
+          // Remove wrapping quotes if added previously
+          if (str.startsWith('"') && str.endsWith('"')) {
+            str = str.slice(1, -1).replace(/""/g, '"');
+          }
+          return str.replace(/\t/g, ' ').replace(/\n/g, ' ');
+        });
+        tsv += `${line.join('\t')}\n`;
+      } else if (typeof row === 'object' && row !== null) {
+        tsv += `${Object.values(row).join('\t')}\n`;
+      }
+    });
+
+    navigator.clipboard.writeText(tsv)
+      .then(() => {
+        if (typeof onSuccess === 'function') {
+          onSuccess();
+        } else if (typeof triggerNotification === 'function') {
+          triggerNotification('Table copied to clipboard!');
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to copy to clipboard:', err);
+      });
+  };
+
   return (
     <button
       type="button"
-      onClick={onCopy}
+      onClick={handleClick}
       style={{
         color: color,
         borderColor: `${color}33`,
@@ -23,6 +79,7 @@ export default function CopyButton({
         e.currentTarget.style.backgroundColor = 'transparent';
       }}
       className={`inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-semibold cursor-pointer bg-transparent ${className}`}
+      title="Copy Table"
     >
       <Copy className="h-3.5 w-3.5" />
       <span>Copy</span>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
+import Notification from '../../components/Notification';
 import { useParliamentaryPermissions } from './hooks/useParliamentaryPermissions';
 import { resolveParliamentaryListView } from './views';
 import ParliamentaryIssuesReports from './pages/Reports';
@@ -114,16 +115,8 @@ export default function ParliamentaryIssues({
   }
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      {toast && (
-        <div
-          className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm text-white shadow ${
-            toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'
-          }`}
-        >
-          {toast.message}
-        </div>
-      )}
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100 relative">
+      <Notification message={toast} onDismiss={() => setToast(null)} />
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>

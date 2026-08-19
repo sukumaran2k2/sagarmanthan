@@ -255,7 +255,29 @@ export const MODULE_PAGES = {
   },
 
   MIV_2030: {
-    tabs: ['Maritime India Summit'],
+    tabs: [
+      'MIV 2030',
+      'MIV Dashboard',
+      'MIV Data List',
+      'MIV Input Form',
+      'MIV Meetings',
+      'MIV Org Report',
+      'MIV Theme Report',
+      'Organisation Report',
+      'Theme Report',
+      'Maritime India Summit',
+    ],
+    uiTabs: [
+      'MIV 2030',
+      'MIV Dashboard',
+      'MIV Data List',
+      'MIV Input Form',
+      'MIV Meetings',
+      'MIV Org Report',
+      'MIV Theme Report',
+      'Organisation Report',
+      'Theme Report',
+    ],
   },
 
   KNOWLEDGE_REPOSITORY: {

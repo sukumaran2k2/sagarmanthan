@@ -285,7 +285,7 @@ router.post("/mikr-logout", auth, mikrLogout);
 
 // MMT
 router.get("/mmt/:tid", masterTable.getMmt);
-router.get("/mmt-dropdown/:tid", auth, masterTable.getDropDownData);
+router.get("/mmt-dropdown/:tid", masterTable.getDropDownData);
 router.get("/mmt-dependecy-dropdown/:tid", masterTable.getFilterDependecyDropDown);
 
 router.post("/mmt", masterTable.createMmt);
@@ -293,7 +293,7 @@ router.put("/mmt", masterTable.updateMmt);
 router.put("/mmt-status", masterTable.toggleStatusMmt);
 // router.delete("/mmt", masterTable.deleteMmt);
 
-router.get("/allvalue-dropdown/:tid", auth, masterTable.getDropDownAllValues);
+router.get("/allvalue-dropdown/:tid", masterTable.getDropDownAllValues);
 
 //Terminal/Jetty image uploader
 router.post("/terminal-image-uploader", terminalImageUploaderTab.upload.single('imageFile'), terminalImageUploaderTab.terminalImageUploader);
@@ -2368,6 +2368,7 @@ router.get("/get-imu-k-5-1-1-report",imuReportTab.getfinalYearpassPercentageRepo
 //MIV data
 router.get('/miv-meetingsdata', MIVTab.getMIVMeeting);
 router.get('/mopsw-initiative-data', MIVTab.getInitiativeMopswData);
+router.get('/miv-new-initiatives', MIVTab.getNewInitiatives);
 router.get('/get-initiative-name/:initiativeID', MIVTab.getInitiativeName);
 router.get('/get-target-date/:initiativeID', MIVTab.getInitiativeTargetDate);
 router.get('/meetinglogs-mopsw/:organisationId', MIVTab.getLogMeetingMopsw);
@@ -2382,9 +2383,13 @@ router.get("/get-details-miv-activity-status-wise", MIVTab.getDetailsMivActivity
 
 router.get('/miv-data', MIVTab.getMIVData);
 router.post('/miv-data', MIVTab.createMIVData);
+router.get('/miv', MIVTab.getMIVData);
+router.post('/miv', MIVTab.createMIVData);
 router.get("/miv-datas/:ID", MIVTab.getUpdateMIV);
+router.get("/miv/:ID", MIVTab.getUpdateMIV);
 router.post('/miv-data/upload-files', MIVTab.uploadFiles);
 router.put('/miv-data/:id', MIVTab.editMIVData);
+router.put('/miv/:id', MIVTab.editMIVData);
 router.get('/meeting', MIVTab.getMeeting);
 router.post("/meeting", MIVTab.uploadMeeting.single('file'), MIVTab.createMeeting);
 router.get("/meeting/download/:id", MIVTab.downloadMeeting);
