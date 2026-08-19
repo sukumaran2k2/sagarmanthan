@@ -1,6 +1,6 @@
 export const STATUS_STEPS = {
-  1: 'Received but yet to be sent for Comments',
-  2: 'Comments sought from organisation',
+  1: 'Received at Ministry',
+  2: 'Comments Sought from Organisation',
   3: 'Comments Received from organisation',
   4: 'Under Clarification',
   5: 'Comments Furnished to CAG',

@@ -5,8 +5,8 @@ import { getCurrentUserId } from '../../../utils/authSession';
 import { CATEGORIES } from '../constants';
 
 const stageLabels = {
-  1: '1. Received but yet to be sent for Comments',
-  2: '2. Comments sought from organisation',
+  1: '1. Received at Ministry',
+  2: '2. Comments Sought from Organisation',
   3: '3. Comments Received from organisation',
   4: '4. Under Clarification',
   5: '5. Comments Furnished to CAG',
@@ -36,6 +36,15 @@ export default function InputForm({
   const [formRemarks, setFormRemarks] = useState(editData?.remarks || '');
 
   const [focusedStage, setFocusedStage] = useState(null);
+  const [touched, setTouched] = useState({});
+
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const isFieldInvalid = (field, val) => {
+    return touched[field] && (!val || !String(val).trim());
+  };
 
   const [stages, setStages] = useState(() => {
     const init = {};
@@ -80,8 +89,10 @@ export default function InputForm({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setTouched({ formNumber: true, formSubject: true, formWing: true, formDivision: true });
+
     if (!formNumber.trim() || !formSubject.trim()) {
-      triggerNotification ? triggerNotification('Please fill in all required fields marked with *', 'error') : alert('Please fill in all required fields marked with *');
+      triggerNotification ? triggerNotification('Please fill in all required fields highlighted in red.', 'error') : alert('Please fill in all required fields highlighted in red.');
       return;
     }
 
@@ -145,7 +156,7 @@ export default function InputForm({
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4 flex items-center justify-between text-white">
+      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider">
             {isEdit ? 'Update Audit Para Entry' : 'Register New Audit Para'}
@@ -168,48 +179,64 @@ export default function InputForm({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-5 space-y-5">
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Para Number *</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Para Number <span className="text-red-500">*</span></label>
               <input
                 type="text" value={formNumber} onChange={(e) => setFormNumber(e.target.value)}
+                onBlur={() => handleBlur('formNumber')}
                 placeholder="e.g. 5.1" required
-                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-800 dark:text-slate-100"
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('formNumber', formNumber) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
               />
+              {isFieldInvalid('formNumber', formNumber) && (
+                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Subject *</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Subject <span className="text-red-500">*</span></label>
               <input
                 type="text" value={formSubject} onChange={(e) => setFormSubject(e.target.value)}
+                onBlur={() => handleBlur('formSubject')}
                 placeholder="Audit subject description..." required
-                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-800 dark:text-slate-100"
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('formSubject', formSubject) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
               />
+              {isFieldInvalid('formSubject', formSubject) && (
+                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing *</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
               <select
-                value={formWing} onChange={(e) => setFormWing(e.target.value)} required
-                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                value={formWing} onChange={(e) => setFormWing(e.target.value)}
+                onBlur={() => handleBlur('formWing')} required
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('formWing', formWing) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer`}
               >
                 {wings.map((w) => <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>)}
               </select>
+              {isFieldInvalid('formWing', formWing) && (
+                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division *</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
               <select
-                value={formDivision} onChange={(e) => setFormDivision(e.target.value)} required
-                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                value={formDivision} onChange={(e) => setFormDivision(e.target.value)}
+                onBlur={() => handleBlur('formDivision')} required
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('formDivision', formDivision) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer`}
               >
                 {divisions.map((d) => <option key={d.division_id} value={d.division_name}>{d.division_name}</option>)}
               </select>
+              {isFieldInvalid('formDivision', formDivision) && (
+                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Category *</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Category <span className="text-red-500">*</span></label>
               <select
                 value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required
-                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
               >
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -220,7 +247,7 @@ export default function InputForm({
               <textarea
                 value={formRemarks} onChange={(e) => setFormRemarks(e.target.value)}
                 placeholder="Enter remarks..." rows={4}
-                className="w-full text-xs px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-slate-800 dark:text-slate-100"
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 focus:border-[#0f417a] font-medium text-slate-800 dark:text-slate-100"
               />
             </div>
           </div>

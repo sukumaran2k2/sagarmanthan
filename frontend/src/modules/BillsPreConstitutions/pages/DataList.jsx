@@ -7,18 +7,18 @@ import { deleteBill } from '../api';
 import ExportDropdown from '../../../components/ExportDropdown';
 
 const STAGES = {
-  1: 'Pre-Draft Bill Prepared',
-  2: 'Pre-Draft Bill Approved',
+  1: 'Draft Bill Prepared',
+  2: 'DCN & Draft Bill Approved by Minister',
   3: 'Circulated for IMC',
   4: 'IMC Comments Received',
-  5: 'DCN Draft Prepared',
-  6: 'DCN Draft Approved',
+  5: 'DCN & Draft Bill Prepared',
+  6: 'DCN & Draft Bill Approved by Minister',
   7: 'Submitted for Legal Vetting',
-  8: 'Legal Vetting Completed',
-  9: 'Final DCN Approved',
-  10: 'Advance Copy Sent',
+  8: 'Legal Vetting to be Completed',
+  9: 'Final DCN & Draft Bill Approved by Minister',
+  10: 'Advance Copy to be Sent to PMO & Cab Sectt.',
   11: 'Approved by Cabinet',
-  12: 'Introduced in Parliament',
+  12: 'Bill Introduced in Parliament',
   13: 'Bill Passed',
   14: 'Bill Notified',
   15: 'Completed'

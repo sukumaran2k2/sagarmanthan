@@ -6,7 +6,7 @@ import CopyButton from '../../../components/CopyButton';
 
 export default function Reports({ rowData = [], wings = [], divisions = [] }) {
   const gridRef = useRef(null);
-  const [reportView, setReportView] = useState('all');
+  const [reportView, setReportView] = useState('wing');
   const [quickFilter, setQuickFilter] = useState('');
   const [loading] = useState(false);
 

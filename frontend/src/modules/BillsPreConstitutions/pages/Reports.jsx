@@ -19,7 +19,7 @@ const ABSTRACT_TITLE = 'Report No. 1.1 - Abstract ( Wing & Division Wise ) - Bil
 
 export default function Reports({ triggerNotification, wings = [] }) {
   const gridRef = useRef(null);
-  const [reportView, setReportView] = useState('all');
+  const [reportView, setReportView] = useState('wing');
   const [drillDownPath, setDrillDownPath] = useState([{ type: 'combined' }]);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);

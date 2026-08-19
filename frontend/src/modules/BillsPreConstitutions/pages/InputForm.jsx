@@ -16,18 +16,18 @@ function decodeToken(token) {
 }
 
 const STAGES_LIST = [
-  { id: 1, label: 'Pre-Draft Bill Prepared', dateKey: 'draftBillPreparedDate', remarkKey: 'draftBillPreparedRemark' },
-  { id: 2, label: 'Pre-Draft Bill Approved', dateKey: 'dcnDraftBillApprovedMinisterDate', remarkKey: 'dcnDraftBillApprovedMinisterRemark' },
+  { id: 1, label: 'Draft Bill Prepared', dateKey: 'draftBillPreparedDate', remarkKey: 'draftBillPreparedRemark' },
+  { id: 2, label: 'DCN & Draft Bill Approved by Minister', dateKey: 'dcnDraftBillApprovedMinisterDate', remarkKey: 'dcnDraftBillApprovedMinisterRemark' },
   { id: 3, label: 'Circulated for IMC', dateKey: 'circulatedImcDate', remarkKey: 'circulatedImcRemark' },
   { id: 4, label: 'IMC Comments Received', dateKey: 'imcCommentsRecDate', remarkKey: 'imcCommentsRecRemark' },
-  { id: 5, label: 'DCN Draft Prepared', dateKey: 'dcnDraftBillPreparedDate', remarkKey: 'dcnDraftBillPreparedRemark' },
-  { id: 6, label: 'DCN Draft Approved', dateKey: 'dcnDraftBillApprovedDate', remarkKey: 'dcnDraftBillApprovedRemark' },
+  { id: 5, label: 'DCN & Draft Bill Prepared', dateKey: 'dcnDraftBillPreparedDate', remarkKey: 'dcnDraftBillPreparedRemark' },
+  { id: 6, label: 'DCN & Draft Bill Approved by Minister', dateKey: 'dcnDraftBillApprovedDate', remarkKey: 'dcnDraftBillApprovedRemark' },
   { id: 7, label: 'Submitted for Legal Vetting', dateKey: 'submittedLegalVettingDate', remarkKey: 'submittedLegalVettingRemark' },
-  { id: 8, label: 'Legal Vetting Completed', dateKey: 'legalVettingCompletedDate', remarkKey: 'legalVettingCompletedRemark' },
-  { id: 9, label: 'Final DCN Approved', dateKey: 'finalDcnDraftApprovedDate', remarkKey: 'finalDcnDraftApprovedRemark' },
-  { id: 10, label: 'Advance Copy Sent', dateKey: 'advanceCopyDate', remarkKey: 'advanceCopyRemark' },
+  { id: 8, label: 'Legal Vetting to be Completed', dateKey: 'legalVettingCompletedDate', remarkKey: 'legalVettingCompletedRemark' },
+  { id: 9, label: 'Final DCN & Draft Bill Approved by Minister', dateKey: 'finalDcnDraftApprovedDate', remarkKey: 'finalDcnDraftApprovedRemark' },
+  { id: 10, label: 'Advance Copy to be Sent to PMO & Cab Sectt.', dateKey: 'advanceCopyDate', remarkKey: 'advanceCopyRemark' },
   { id: 11, label: 'Approved by Cabinet', dateKey: 'approvedByCabinetDate', remarkKey: 'approvedByCabinetRemark' },
-  { id: 12, label: 'Introduced in Parliament', dateKey: 'billIntroducedInParliamentDate', remarkKey: 'billIntroducedInParliamentRemark' },
+  { id: 12, label: 'Bill Introduced in Parliament', dateKey: 'billIntroducedInParliamentDate', remarkKey: 'billIntroducedInParliamentRemark' },
   { id: 13, label: 'Bill Passed', dateKey: 'billPassedDate', remarkKey: 'billPassedRemark' },
   { id: 14, label: 'Bill Notified', dateKey: 'billNotifiedDate', remarkKey: 'billNotifiedRemark' },
   { id: 15, label: 'Completed', dateKey: 'completedDate', remarkKey: 'completedRemark' }
@@ -307,7 +307,7 @@ export default function InputForm({
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4 flex items-center justify-between text-white">
+      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider">
             {readOnly ? "View Legislative Bill / Pre-Constitutions Act (Read-only)" : isEdit ? "Update Legislative Bill / Pre-Constitutions Act" : "Add Legislative Bill / Pre-Constitutions Act"}
@@ -335,7 +335,7 @@ export default function InputForm({
             
             {/* Subject */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Subject*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Subject <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={subject}
@@ -352,7 +352,7 @@ export default function InputForm({
 
             {/* Wing */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
               <select
                 value={wing}
                 onChange={e => setWing(e.target.value)}
@@ -372,7 +372,7 @@ export default function InputForm({
 
             {/* Division */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
               <select
                 value={division}
                 onChange={e => setDivision(e.target.value)}
@@ -393,7 +393,7 @@ export default function InputForm({
             {/* Remarks */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks* (Max 250 words)</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks <span className="text-red-500">*</span> (Max 250 words)</label>
                 <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}`}>
                   {getWordCount(remarks)} / 250 words
                 </span>
