@@ -1062,27 +1062,27 @@ router.post("/update-subproject", addNewProjectTab.updateSubProject);
 
 
 //young professionals
-router.get("/young-professional", youngProfessionalsTab.getYoungProfessional);
-router.post("/young-professional", youngProfessionalsTab.createYoungProfessional);
-router.put("/young-professional/:youngProfessionalId", youngProfessionalsTab.updateYoungProfessional);
-router.delete("/delete-young-professional/:youngProfessionalId", youngProfessionalsTab.deleteYoungProfessionalData);
-router.get("/get-young-professional-wing-data/:wingId/:divisionId", youngProfessionalsTab.getYoungProfessionalWingData);
-router.post("/upload-yp-document/:candidateId", youngProfessionalsTab.uploadYPDocument);
+router.get("/young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getYoungProfessional);
+router.post("/young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "create"), youngProfessionalsTab.createYoungProfessional);
+router.put("/young-professional/:youngProfessionalId", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.updateYoungProfessional);
+router.delete("/delete-young-professional/:youngProfessionalId", auth, requireModulePermission("YOUNG_PROFESSIONAL", "delete"), youngProfessionalsTab.deleteYoungProfessionalData);
+router.get("/get-young-professional-wing-data/:wingId/:divisionId", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getYoungProfessionalWingData);
+router.post("/upload-yp-document/:candidateId", auth, requireAnyModulePermission("YOUNG_PROFESSIONAL", ["create", "update"]), youngProfessionalsTab.uploadYPDocument);
 router.get("/download-yp-document", youngProfessionalsTab.ypFileDownload);
 
 
 //candidate detail young professional
-router.post("/candidate-detail", youngProfessionalsTab.addCandidateDetail);
-router.put("/candidate-detail", youngProfessionalsTab.updateCandidateDetail);
-router.delete("/yp-candidate-all-data/:youngProfessionalId/:userID", youngProfessionalsTab.deleteYpCandidateData);
+router.post("/candidate-detail", auth, requireModulePermission("YOUNG_PROFESSIONAL", "create"), youngProfessionalsTab.addCandidateDetail);
+router.put("/candidate-detail", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.updateCandidateDetail);
+router.delete("/yp-candidate-all-data/:youngProfessionalId/:userID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "delete"), youngProfessionalsTab.deleteYpCandidateData);
 
-router.put("/candidate-uploader", candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUpdater);
-router.post("/candidate-uploader", candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUploader);
-router.get("/candidate-detail/:youngProfessionalId", youngProfessionalsTab.getCandidateDetail);
-router.get("/candidate-detail-document/:candidate_id", youngProfessionalsTab.getCandidateDetailDocument);
+router.put("/candidate-uploader", auth, requireAnyModulePermission("YOUNG_PROFESSIONAL", ["create", "update"]), candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUpdater);
+router.post("/candidate-uploader", auth, requireAnyModulePermission("YOUNG_PROFESSIONAL", ["create", "update"]), candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUploader);
+router.get("/candidate-detail/:youngProfessionalId", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getCandidateDetail);
+router.get("/candidate-detail-document/:candidate_id", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getCandidateDetailDocument);
 
 
-router.put( "/relieve-young-professional",youngProfessionalsTab.relieveYoungProfessional);
+router.put( "/relieve-young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.relieveYoungProfessional);
 //consultant appointment
 router.get("/consultant-appointment", consultantAppointmentTab.getConsultantAppointment);
 router.post("/consultant-appointment", consultantAppointmentTab.createConsultantAppointment);
@@ -1477,11 +1477,11 @@ router.get("/auditparadivision-report/:wingID/", aditParaReportTab.auditParaDivi
 router.get("/getauditpara-wingwise/:wingID/:auditParaStage", aditParaReportTab.getDetailAuditParaWingWise);
 router.get("/getauditpara-divisionwise/:divisionID/:auditParaStage", aditParaReportTab.getDetailAuditParaDivisionWise);
 
-router.get("/yp-report", ypReportTab.getYoungProfessionalReport);
-router.get("/ypdivision-report/:ypID/:wingID/", ypReportTab.ypDivisionWiseReport);
-router.get("/wingwise-ypcandidate/:ypID/:wingID", ypReportTab.getYpWingWiseCandidate);
-router.get("/divisionwise-ypcandidate/:ypID/:divisionID", ypReportTab.getYpDivisionWiseCandidate);
-router.get("/yp-wing-wise-report/:ypID/:wingID", ypReportTab.getYpWingWiseReport);
+router.get("/yp-report", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYoungProfessionalReport);
+router.get("/ypdivision-report/:ypID/:wingID/", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.ypDivisionWiseReport);
+router.get("/wingwise-ypcandidate/:ypID/:wingID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYpWingWiseCandidate);
+router.get("/divisionwise-ypcandidate/:ypID/:divisionID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYpDivisionWiseCandidate);
+router.get("/yp-wing-wise-report/:ypID/:wingID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYpWingWiseReport);
 
 router.get("/consultantapp-report", consultAppReportTab.getconsulAppReport);
 router.get("/cadivision-report/:wingID/", consultAppReportTab.caDivisionWiseReport);

@@ -2,10 +2,9 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Table from '../../../components/Table';
 import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import axios from 'axios';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { API_BASE_URL } from '../../../config/api';
+import { relieveYoungProfessional } from '../api';
 
 function decodeToken(token) {
   try {
@@ -188,7 +187,7 @@ export default function DataList({
     }
 
     try {
-      await axios.put(`${API_BASE_URL}/relieve-young-professional`, {
+      await relieveYoungProfessional({
         candidateId: selectedYp.yp_id,
         lastWorkingDate,
         remarks,

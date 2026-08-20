@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, X, Upload } from 'lucide-react';
-import axios from 'axios';
 import { API_BASE_URL } from '../../../config/api';
+import { createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
 
 function decodeToken(token) {
   try {
@@ -321,19 +321,17 @@ export default function InputForm({
     try {
       let ypId = null;
       if (isEdit) {
-        await axios.put(`${API_BASE_URL}/young-professional/${editData.yp_id}`, payload);
+        await updateYoungProfessional(editData.yp_id, payload);
         ypId = editData.yp_id;
       } else {
-        const response = await axios.post(`${API_BASE_URL}/young-professional`, payload);
+        const response = await createYoungProfessional(payload);
         ypId = response.data.insertedYPId;
       }
 
       if (fileInputRef.current && fileInputRef.current.files[0]) {
         const formData = new FormData();
         formData.append("file", fileInputRef.current.files[0]);
-        await axios.post(`${API_BASE_URL}/upload-yp-document/${ypId}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        await uploadYPDocument(ypId, formData);
       }
 
       if (triggerNotification) {

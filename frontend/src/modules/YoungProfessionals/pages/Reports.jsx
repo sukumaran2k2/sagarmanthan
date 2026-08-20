@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { ChevronLeft, Search, Users, Loader2, RefreshCw, X, TrendingUp, Copy, FileSpreadsheet } from 'lucide-react';
-import axios from 'axios';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { API_BASE_URL } from '../../../config/api';
+import { fetchYPReport, fetchYPDivisionWiseCandidates } from '../api';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -35,12 +35,12 @@ export default function Reports({ triggerNotification }) {
     setLoading(true);
     try {
       if (currentView.type === 'summary') {
-        const response = await axios.get(`${API_BASE_URL}/yp-report`);
+        const response = await fetchYPReport();
         const list = response.data.rowData || [];
         // Add S No helper values
         setData(list.map((item, idx) => ({ ...item, 'S No': idx + 1 })));
       } else if (currentView.type === 'drilldown') {
-        const response = await axios.get(`${API_BASE_URL}/divisionwise-ypcandidate/0/${currentView.divisionId}`);
+        const response = await fetchYPDivisionWiseCandidates(currentView.divisionId);
         const list = response.data.rowData || [];
         // Add S No helper values
         setData(list.map((item, idx) => ({ ...item, 'S No': idx + 1 })));

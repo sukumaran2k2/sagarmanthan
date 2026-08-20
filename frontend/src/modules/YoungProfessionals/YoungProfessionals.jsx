@@ -1,16 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import InternalNavigation from '../../components/InternalNavigation';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
-function authHeaders() {
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { fetchWings, fetchDivisions, fetchYoungProfessionals } from './api';
 
 export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
   const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
@@ -37,19 +30,18 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
   }, [activeSubTabProp]);
 
   useEffect(() => {
-    const headers = authHeaders();
-    axios.get(`${API}/mmt-dropdown/mmt_wings`, { headers })
+    fetchWings()
       .then(res => setWings(res.data || []))
       .catch(err => console.error("Error loading wings:", err));
 
-    axios.get(`${API}/mmt-dropdown/mmt_division`, { headers })
+    fetchDivisions()
       .then(res => setDivisions(res.data || []))
       .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
   const fetchData = () => {
     setLoading(true);
-    axios.get(`${API}/young-professional`, { headers: authHeaders() })
+    fetchYoungProfessionals()
       .then(res => {
         setRowData(res.data || []);
       })
