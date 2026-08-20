@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import axios from 'axios';
 import { 
   Users, Plus, Calendar, FileText, Download, Trash2, 
   Building2, Search, X, Upload, CheckCircle2, Eye, RefreshCw, Layers, ArrowLeft 
@@ -8,13 +7,14 @@ import Table from '../../../components/Table';
 import Loader from '../../../components/Loader';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
-function authHeaders() {
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { 
+  API_BASE,
+  fetchMIVMeetingsData, 
+  fetchOrganisations, 
+  fetchMeetingLogsByOrg, 
+  createMeeting as apiCreateMeeting, 
+  deleteMeeting as apiDeleteMeeting 
+} from '../api';
 
 export default function MIVMeetings({ triggerNotification }) {
   const [meetingSummary, setMeetingSummary] = useState([]);
@@ -38,7 +38,7 @@ export default function MIVMeetings({ triggerNotification }) {
 
   const fetchMeetingSummary = () => {
     setLoading(true);
-    axios.get(`${API}/miv-meetingsdata`, { headers: authHeaders() })
+    fetchMIVMeetingsData()
       .then(res => {
         setMeetingSummary(res.data || []);
       })
@@ -51,7 +51,7 @@ export default function MIVMeetings({ triggerNotification }) {
   useEffect(() => {
     fetchMeetingSummary();
 
-    axios.get(`${API}/mmt-dropdown/mmt_organisation`, { headers: authHeaders() })
+    fetchOrganisations()
       .then(res => setOrganisations(res.data || []))
       .catch(err => console.error("Error loading organisations:", err));
   }, []);
@@ -61,7 +61,7 @@ export default function MIVMeetings({ triggerNotification }) {
     setLogsLoading(true);
     const orgID = org.organisation_id;
 
-    axios.get(`${API}/meetinglogs-mopsw/${orgID}`, { headers: authHeaders() })
+    fetchMeetingLogsByOrg(orgID)
       .then(res => {
         setOrgLogs(res.data || []);
       })
@@ -92,12 +92,7 @@ export default function MIVMeetings({ triggerNotification }) {
         formData.append('file', file);
       }
 
-      await axios.post(`${API}/meeting`, formData, {
-        headers: {
-          ...authHeaders(),
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      await apiCreateMeeting(formData);
 
       triggerNotification?.("MVIC Meeting uploaded successfully!");
       setShowAddModal(false);
@@ -118,7 +113,7 @@ export default function MIVMeetings({ triggerNotification }) {
   const handleDeleteMeeting = async (meetingId) => {
     if (!window.confirm("Are you sure you want to delete this meeting record?")) return;
     try {
-      await axios.delete(`${API}/meeting/delete/${meetingId}`, { headers: authHeaders() });
+      await apiDeleteMeeting(meetingId);
       triggerNotification?.("Meeting record deleted successfully.");
       if (selectedOrgForLogs) {
         handleOpenLogs(selectedOrgForLogs);

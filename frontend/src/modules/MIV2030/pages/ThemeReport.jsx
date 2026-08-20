@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
 import { 
   FolderTree, FileText, Download, Eye, Layers, 
   CheckCircle, Clock, AlertTriangle, RefreshCw, X, Search, 
@@ -10,13 +9,7 @@ import { getCurrentUserId } from '../../../utils/authSession';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import MIVDetailModal from '../components/MIVDetailModal';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
-function authHeaders() {
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { fetchThemeWiseMIVAbstractReport, fetchThemeWiseMIVDetailedReport } from '../api';
 
 export default function MIVThemeReport({ triggerNotification }) {
   const [loading, setLoading] = useState(true);
@@ -41,7 +34,7 @@ export default function MIVThemeReport({ triggerNotification }) {
     setLoading(true);
     const userId = getCurrentUserId() || 1;
 
-    axios.get(`${API}/themewise-mivabstract-report/${userId}`, { headers: authHeaders() })
+    fetchThemeWiseMIVAbstractReport(userId)
       .then(res => {
         const rows = Array.isArray(res.data) ? res.data : (res.data?.rowData || []);
         setReportData(rows);
@@ -62,12 +55,12 @@ export default function MIVThemeReport({ triggerNotification }) {
     setSelectedThemeDrilldown(theme);
     setDrilldownLoading(true);
 
-    axios.post(`${API}/miv-theme-detailed-report/`, {
+    fetchThemeWiseMIVDetailedReport({
       themeNumber: themeId,
       statusOn: null,
       statusCurrent: statusCurrentFilter,
       category: null,
-    }, { headers: authHeaders() })
+    })
       .then(res => {
         setDrilldownRows(res.data || []);
       })

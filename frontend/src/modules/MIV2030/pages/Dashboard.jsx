@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { 
   TrendingUp, Target, Clock, CheckCircle, AlertCircle, 
   DollarSign, Filter, RefreshCw, Calendar, Building2, 
@@ -7,13 +6,13 @@ import {
 } from 'lucide-react';
 import StatCard from '../../../components/StatCard';
 import Loader from '../../../components/Loader';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
-function authHeaders() {
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import api, { 
+  fetchMIVDashboard, 
+  fetchMIVActivityStatusWise, 
+  fetchMIVActivityCurrentStatusPortWise, 
+  fetchMIVCategoryCountWise, 
+  fetchOrganisations 
+} from '../api';
 
 export default function MIVDashboard({ onNavigateToTab }) {
   const [loading, setLoading] = useState(true);
@@ -42,19 +41,17 @@ export default function MIVDashboard({ onNavigateToTab }) {
 
   // Load dropdown lists
   useEffect(() => {
-    const headers = authHeaders();
-    axios.get(`${API}/mmt-dropdown/mmt_organisation`, { headers })
+    fetchOrganisations()
       .then(res => setOrganisations(res.data || []))
       .catch(err => console.error("Error loading organisations:", err));
 
-    axios.get(`${API}/mmt-dropdown/mmt_hr_cluster`, { headers })
+    api.get('/mmt-dropdown/mmt_hr_cluster')
       .then(res => setClusters(res.data || []))
       .catch(err => console.error("Error loading clusters:", err));
   }, []);
 
   const fetchDashboardData = () => {
     setLoading(true);
-    const headers = authHeaders();
     const params = {
       clusterID: selectedCluster,
       orgID: selectedOrg,
@@ -64,10 +61,10 @@ export default function MIVDashboard({ onNavigateToTab }) {
     };
 
     Promise.allSettled([
-      axios.get(`${API}/get-miv-dashboard`, { headers, params }),
-      axios.get(`${API}/get-miv-activity-status-wise`, { headers, params }),
-      axios.get(`${API}/get-miv-activity-current-status-port-wise`, { headers, params }),
-      axios.get(`${API}/get-miv-category-count-wise`, { headers, params })
+      fetchMIVDashboard(params),
+      fetchMIVActivityStatusWise(params),
+      fetchMIVActivityCurrentStatusPortWise(params),
+      fetchMIVCategoryCountWise(params)
     ]).then(([totalsRes, stageRes, portRes, catRes]) => {
       if (totalsRes.status === 'fulfilled' && totalsRes.value.data?.combinedTotals) {
         setTotals(totalsRes.value.data.combinedTotals);

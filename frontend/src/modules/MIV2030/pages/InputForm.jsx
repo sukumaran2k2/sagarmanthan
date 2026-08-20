@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { 
   Save, ArrowLeft, Upload, FileText, CheckCircle2, 
   AlertCircle, DollarSign, Calendar, Layers, Building2, 
   Clock, X, Check, ArrowRight, Users, UploadCloud 
 } from 'lucide-react';
 import { getCurrentUserId, getSessionOrganisationId } from '../../../utils/authSession';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
-function authHeaders() {
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import {
+  API_BASE,
+  fetchNewInitiatives,
+  fetchOrganisations,
+  fetchInitiativeName,
+  fetchInitiativeTargetDate,
+  fetchMIVMeetingsData,
+  createMIVData as apiCreateMIVData,
+  updateMIVData as apiUpdateMIVData,
+  uploadMIVFiles as apiUploadMIVFiles,
+  createMeeting as apiCreateMeeting
+} from '../api';
 
 const CATEGORY_OPTIONS = [
   { value: 'infrastructure', label: 'Infrastructure' },
@@ -126,26 +130,19 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
 
   // Load Dropdowns
   useEffect(() => {
-    const headers = authHeaders();
-
-    // Fetch MIV New Initiatives list (public + fallback)
-    axios.get(`${API}/miv-new-initiatives`, { headers })
+    // Fetch MIV New Initiatives list
+    fetchNewInitiatives()
       .then(res => {
         if (res.data && res.data.length > 0) {
           setInitiativeList(res.data);
-        } else {
-          return axios.get(`${API}/mmt-dropdown/mmt_new_initiatives`, { headers });
         }
-      })
-      .then(res => {
-        if (res && res.data) setInitiativeList(res.data);
       })
       .catch(err => {
         console.error("Error loading initiative IDs:", err);
       });
 
     // Fetch Organisations
-    axios.get(`${API}/mmt-dropdown/mmt_organisation`, { headers })
+    fetchOrganisations()
       .then(res => {
         setOrganisations(res.data || []);
         if (res.data && res.data.length > 0) {
@@ -155,7 +152,7 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
       })
       .catch(() => {
         // Fallback organisations from meeting data
-        axios.get(`${API}/miv-meetingsdata`, { headers })
+        fetchMIVMeetingsData()
           .then(res => {
             const list = (res.data || []).map(m => ({
               organisation_id: m.organisation_id,
@@ -214,7 +211,7 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
   // Fetch activities when Initiative ID changes
   const fetchActivityNames = (id) => {
     if (!id) return;
-    axios.get(`${API}/get-initiative-name/${id}`, { headers: authHeaders() })
+    fetchInitiativeName(id)
       .then(res => {
         setInitiativeNameList(res.data || []);
       })
@@ -462,14 +459,10 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
       let createdOrUpdatedId = (editData && (editData.ID || editData.id)) ? (editData.ID || editData.id) : null;
 
       if (createdOrUpdatedId) {
-        await axios.put(`${API}/miv-data/${createdOrUpdatedId}`, payloadData, {
-          headers: authHeaders()
-        });
+        await apiUpdateMIVData(createdOrUpdatedId, payloadData);
         triggerNotification?.("Initiative updated successfully!");
       } else {
-        const res = await axios.post(`${API}/miv-data`, payloadData, {
-          headers: authHeaders()
-        });
+        const res = await apiCreateMIVData(payloadData);
         triggerNotification?.("Initiative created successfully!");
         if (res.data && res.data.ID) {
           createdOrUpdatedId = res.data.ID;
@@ -489,12 +482,7 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
               filesPayload.append('latestImage', pptFiles[i]);
             }
           }
-          await axios.post(`${API}/miv-data/upload-files`, filesPayload, {
-            headers: {
-              ...authHeaders(),
-              'Content-Type': 'multipart/form-data'
-            }
-          });
+          await apiUploadMIVFiles(filesPayload);
         } catch (fileErr) {
           console.error("Error uploading attachments:", fileErr);
         }
@@ -531,12 +519,7 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
         payload.append('file', meetingFile);
       }
 
-      await axios.post(`${API}/meeting`, payload, {
-        headers: {
-          ...authHeaders(),
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      await apiCreateMeeting(payload);
 
       triggerNotification?.("MVIC Meeting document registered successfully!");
       setMeetingDate('');

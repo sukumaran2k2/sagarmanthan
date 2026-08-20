@@ -1,59 +1,60 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
 import { 
-  LayoutDashboard, Users, Layers, FileEdit, FilePieChart, 
+  LayoutDashboard, Users, Layers, FilePieChart, 
   PlusCircle, BarChart3, Building2 
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
+import RestrictedAccess from '../../components/RestrictedAccess';
 import Dashboard from './pages/Dashboard';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Meetings from './pages/Meetings';
 import OrgReport from './pages/OrgReport';
 import ThemeReport from './pages/ThemeReport';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
-function authHeaders() {
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { useMIVPermissions } from './hooks/useMIVPermissions';
 
 export default function MIV2030View({
   activeSubTab: activeSubTabProp,
   setActiveSubTab: setActiveSubTabProp,
   triggerNotification
 }) {
-  const [activeTab, setActiveTab] = useState('list'); // 'dashboard' | 'meetings' | 'list' | 'add' | 'org-report' | 'theme-report'
+  const permissions = useMIVPermissions();
+  const { canAdd, canEdit, canView } = permissions;
+
+  const [activeTab, setActiveTab] = useState(canView ? 'list' : (canAdd ? 'add' : 'list'));
   const [currentSubReport, setCurrentSubReport] = useState('org-report');
   const [inputFormType, setInputFormType] = useState('initiative'); // 'initiative' | 'meeting'
-  const [rowData, setRowData] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [editData, setEditData] = useState(null);
 
-  const tabs = useMemo(() => [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { 
-      id: 'add', 
-      label: 'Input Form', 
-      icon: PlusCircle,
-      subMenu: [
-        { id: 'initiative', label: 'Add Initiative' },
-        { id: 'meeting', label: 'Add MVIC Meeting' },
-      ]
-    },
-    { id: 'meetings', label: 'MIV Meetings', icon: Users },
-    { id: 'list', label: 'MIV Initiatives', icon: Layers },
-    { 
-      id: 'reports', 
-      label: 'Reports', 
-      icon: FilePieChart,
-      subMenu: [
-        { id: 'org-report', label: 'Organisation Report' },
-        { id: 'theme-report', label: 'Theme Report' },
-      ]
-    },
-  ], []);
+  const tabs = useMemo(() => {
+    const list = [];
+    if (canView) list.push({ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard });
+    if (canAdd) {
+      list.push({ 
+        id: 'add', 
+        label: 'Input Form', 
+        icon: PlusCircle,
+        subMenu: [
+          { id: 'initiative', label: 'Add Initiative' },
+          { id: 'meeting', label: 'Add MVIC Meeting' },
+        ]
+      });
+    }
+    if (canView) list.push({ id: 'meetings', label: 'MIV Meetings', icon: Users });
+    if (canView) list.push({ id: 'list', label: 'MIV Initiatives', icon: Layers });
+    if (canView) {
+      list.push({ 
+        id: 'reports', 
+        label: 'Reports', 
+        icon: FilePieChart,
+        subMenu: [
+          { id: 'org-report', label: 'Organisation Report' },
+          { id: 'theme-report', label: 'Theme Report' },
+        ]
+      });
+    }
+    return list;
+  }, [canAdd, canView]);
 
   // Map subtab strings from props / events
   const mapTabNameToId = (name) => {
@@ -114,22 +115,6 @@ export default function MIV2030View({
     return () => window.removeEventListener('miv-2030-subtab', handleSubTabEvent);
   }, []);
 
-  const fetchInitiatives = () => {
-    setLoading(true);
-    axios.get(`${API}/miv-data`, { headers: authHeaders() })
-      .then((res) => {
-        setRowData(res.data || []);
-      })
-      .catch((err) => {
-        console.error("Error fetching MIV data:", err);
-      })
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchInitiatives();
-  }, []);
-
   const handleEditInitiative = (item) => {
     setEditData(item);
     setInputFormType('initiative');
@@ -144,7 +129,6 @@ export default function MIV2030View({
 
   const handleFormSuccess = () => {
     setEditData(null);
-    fetchInitiatives();
     setActiveTab('list');
   };
 
@@ -152,6 +136,10 @@ export default function MIV2030View({
     setEditData(null);
     setActiveTab('list');
   };
+
+  if (!canAdd && !canView && !canEdit) {
+    return <RestrictedAccess moduleName="Maritime India Vision 2030 (MIV 2030)" />;
+  }
 
   const currentTabId = (activeTab === 'org-report' || activeTab === 'theme-report') ? 'reports' : activeTab;
   const currentActiveSubItem = currentTabId === 'add' ? inputFormType : currentSubReport;
@@ -208,11 +196,8 @@ export default function MIV2030View({
 
         {activeTab === 'list' && (
           <DataList
-            rowData={rowData}
-            loading={loading}
             onEdit={handleEditInitiative}
-            onAddNew={handleAddNew}
-            onRefresh={fetchInitiatives}
+            onAddNew={canAdd ? handleAddNew : null}
             triggerNotification={triggerNotification}
           />
         )}

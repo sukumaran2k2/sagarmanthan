@@ -1,40 +1,43 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import Table from '../../../components/Table';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { 
-  Search, X, Edit, Eye, BarChart3, List, ChevronDown, 
-  Plus, RefreshCw, Layers, Building2, TrendingUp, CheckCircle, Clock, AlertTriangle, Filter 
+  Plus, Edit, Eye, Search, X, List, BarChart3, Building2, ChevronDown 
 } from 'lucide-react';
-import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, 
-  ResponsiveContainer, Cell, PieChart, Pie 
-} from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
+import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import MIVDetailModal from '../components/MIVDetailModal';
+import { fetchMIVData, fetchOrganisations } from '../api';
 
 const STATUS_COLORS = {
+  'Under Implementation': '#0284c7',
   'Completed': '#10b981',
-  'Under Implementation - On Time': '#3b82f6',
-  'Under Implementation - Delayed': '#f59e0b',
-  'Yet to be Started': '#8b5cf6',
+  'Yet to be Started': '#f59e0b',
   'Dropped': '#ef4444',
 };
 
 export default function MIVDataList({
-  rowData = [],
-  loading = false,
   onEdit,
   onAddNew,
-  onRefresh,
   triggerNotification
 }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [counts, setCounts] = useState({ all: 0, ui: 0, completed: 0, yetToStart: 0, dropped: 0 });
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedOrg, setSelectedOrg] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [activeStatusTab, setActiveStatusTab] = useState('all'); // 'all' | 'under_implementation' | 'completed' | 'yet_to_start' | 'dropped'
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'visualisation'
   const [selectedInitiative, setSelectedInitiative] = useState(null);
-  const [pageSize, setPageSize] = useState(10);
+  const [organisations, setOrganisations] = useState([]);
   const [gridApi, setGridApi] = useState(null);
 
   // Column visibility checklist
@@ -50,6 +53,22 @@ export default function MIVDataList({
     updatedDate: true,
   });
 
+  // Debounce search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Load organisations list once
+  useEffect(() => {
+    fetchOrganisations()
+      .then(res => setOrganisations(res.data || []))
+      .catch(err => console.error("Error loading organisations:", err));
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
@@ -60,76 +79,73 @@ export default function MIVDataList({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Extract unique filter dropdown values
-  const organisations = useMemo(() => {
-    const orgs = new Set();
-    rowData.forEach(r => {
-      if (r.organisation_name) orgs.add(r.organisation_name);
-    });
-    return Array.from(orgs).sort();
-  }, [rowData]);
+  const handleOrgChange = (val) => {
+    setSelectedOrg(val);
+    setCurrentPage(1);
+  };
 
-  const categories = useMemo(() => {
-    const cats = new Set();
-    rowData.forEach(r => {
-      if (r.category) cats.add(r.category.trim());
-    });
-    return Array.from(cats).sort();
-  }, [rowData]);
+  const handleCategoryChange = (val) => {
+    setSelectedCategory(val);
+    setCurrentPage(1);
+  };
 
-  // Counts for status tabs
-  const counts = useMemo(() => {
-    let all = rowData.length;
-    let ui = 0;
-    let completed = 0;
-    let yetToStart = 0;
-    let dropped = 0;
+  const handleStatusTabChange = (status) => {
+    setActiveStatusTab(status);
+    setCurrentPage(1);
+  };
 
-    rowData.forEach(r => {
-      const s = (r.status_current || r.status_on || '').toLowerCase();
-      if (s.includes('completed')) completed++;
-      else if (s.includes('under implementation')) ui++;
-      else if (s.includes('yet to be started')) yetToStart++;
-      else if (s.includes('dropped')) dropped++;
-    });
+  // Fetch paginated initiatives from server
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchMIVData({
+        page: currentPage,
+        limit: pageSize,
+        search: debouncedSearch,
+        organisation: selectedOrg,
+        category: selectedCategory,
+        status: activeStatusTab === 'all' ? '' : activeStatusTab
+      });
 
-    return { all, ui, completed, yetToStart, dropped };
-  }, [rowData]);
-
-  // Filtered rows
-  const filteredData = useMemo(() => {
-    return rowData.filter(item => {
-      // Status Tab filter
-      const s = (item.status_current || item.status_on || '').toLowerCase();
-      if (activeStatusTab === 'completed' && !s.includes('completed')) return false;
-      if (activeStatusTab === 'under_implementation' && !s.includes('under implementation')) return false;
-      if (activeStatusTab === 'yet_to_start' && !s.includes('yet to be started')) return false;
-      if (activeStatusTab === 'dropped' && !s.includes('dropped')) return false;
-
-      // Organisation filter
-      if (selectedOrg && item.organisation_name !== selectedOrg) return false;
-
-      // Category filter
-      if (selectedCategory && item.category?.trim() !== selectedCategory) return false;
-
-      // Search term
-      if (searchTerm) {
-        const q = searchTerm.toLowerCase();
-        const org = (item.organisation_name || '').toLowerCase();
-        const name = (item.initiative_name || '').toLowerCase();
-        const id = String(item.initiative_id || '').toLowerCase();
-        const cat = (item.category || '').toLowerCase();
-        const proj = (item.project_detail || '').toLowerCase();
-        if (!org.includes(q) && !name.includes(q) && !id.includes(q) && !cat.includes(q) && !proj.includes(q)) {
-          return false;
+      const payload = res.data;
+      if (payload && payload.data && payload.pagination) {
+        const rows = payload.data || [];
+        const pag = payload.pagination;
+        setData(rows.map((item, idx) => ({
+          ...item,
+          sNo: (pag.page - 1) * pag.limit + idx + 1
+        })));
+        setTotalCount(pag.total || 0);
+        setTotalPages(pag.totalPages || 1);
+        if (pag.counts) {
+          setCounts(pag.counts);
         }
+      } else {
+        const list = Array.isArray(payload) ? payload : [];
+        setData(list.map((item, idx) => ({ ...item, sNo: idx + 1 })));
+        setTotalCount(list.length);
+        setTotalPages(Math.ceil(list.length / pageSize) || 1);
       }
+    } catch (err) {
+      console.error("Error fetching MIV data:", err);
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, pageSize, debouncedSearch, selectedOrg, selectedCategory, activeStatusTab]);
 
-      return true;
-    });
-  }, [rowData, activeStatusTab, selectedOrg, selectedCategory, searchTerm]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  // Format date
+  // Categories list
+  const CATEGORIES = [
+    'General', 'Infrastructure', 'Digital / IT', 'Policy & Regulatory',
+    'Green & Sustainability', 'Port Modernization', 'Operations & Logistics',
+    'Capacity Expansion', 'Maritime Security', 'Coastal Shipping'
+  ];
+
+  // Format date helper
   const formatDate = (val) => {
     if (!val) return '-';
     try {
@@ -144,11 +160,11 @@ export default function MIVDataList({
     }
   };
 
-  // AG Grid column definitions matching YP/CA format
+  // AG Grid column definitions
   const columnDefs = useMemo(() => [
     {
       headerName: 'S.No',
-      valueGetter: 'node.rowIndex + 1',
+      field: 'sNo',
       width: 75,
       pinned: 'left',
       cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center font-bold',
@@ -202,7 +218,6 @@ export default function MIVDataList({
           {params.value || 'General'}
         </span>
       )
-
     },
     {
       headerName: 'Progress',
@@ -285,35 +300,116 @@ export default function MIVDataList({
 
   // Analytics Chart Data
   const chartData = useMemo(() => {
-    const statusMap = {};
-    filteredData.forEach(item => {
-      const s = item.status_current || item.status_on || 'Other';
-      statusMap[s] = (statusMap[s] || 0) + 1;
-    });
+    return [
+      { name: 'Completed', count: counts.completed, fill: STATUS_COLORS['Completed'] },
+      { name: 'Under Implementation', count: counts.ui, fill: STATUS_COLORS['Under Implementation'] },
+      { name: 'Yet to be Started', count: counts.yetToStart, fill: STATUS_COLORS['Yet to be Started'] },
+      { name: 'Dropped', count: counts.dropped, fill: STATUS_COLORS['Dropped'] },
+    ];
+  }, [counts]);
 
-    return Object.entries(statusMap).map(([name, count]) => ({
-      name,
-      count,
-      fill: STATUS_COLORS[name] || '#64748b',
-    }));
-  }, [filteredData]);
+  const handleExport = (type) => {
+    if (type === 'Copy') {
+      if (gridApi) {
+        let tsv = '';
+        const headers = [];
+        columnDefs.forEach(col => {
+          if (col.headerName && col.headerName !== 'Action') {
+            headers.push(col.headerName);
+          }
+        });
+        tsv += headers.join('\t') + '\n';
+        
+        data.forEach((row, rowIndex) => {
+          const line = [];
+          columnDefs.forEach(col => {
+            if (col.headerName && col.headerName !== 'Action') {
+              const val = row[col.field] !== undefined ? row[col.field] : '';
+              line.push(val);
+            }
+          });
+          tsv += line.join('\t') + '\n';
+        });
+        
+        navigator.clipboard.writeText(tsv)
+          .then(() => {
+            if (triggerNotification) triggerNotification('Current page data copied to clipboard!');
+          })
+          .catch(() => alert('Failed to copy table data.'));
+      } else {
+        alert("Grid is not ready for copy yet.");
+      }
+    } else if (type === 'Excel') {
+      if (gridApi) {
+        gridApi.exportDataAsCsv({
+          fileName: `MIV_2030_Initiatives_Page_${currentPage}.csv`
+        });
+        if (triggerNotification) {
+          triggerNotification(`Exported to CSV successfully!`);
+        }
+      } else {
+        alert("Grid is not ready for export yet.");
+      }
+    } else if (type === 'PDF') {
+      if (triggerNotification) {
+        triggerNotification(`Preparing PDF document...`);
+      }
 
-  // Export headers & rows
-  const exportData = useMemo(() => {
-    const headers = ['S.No', 'Organisation', 'Initiative ID', 'Initiative Name', 'Cost (Cr)', 'Category', 'Progress', 'Status', 'Updated Date'];
-    const rows = filteredData.map((r, i) => [
-      i + 1,
-      r.organisation_name || '-',
-      r.initiative_id || '-',
-      r.initiative_name || '-',
-      r.total_cost || 0,
-      r.category || '-',
-      `${r.physical_progress || 0}%`,
-      r.status_current || r.status_on || 'Active',
-      formatDate(r.updated_date || r.actual_date || r.completion_date)
-    ]);
-    return { headers, rows };
-  }, [filteredData]);
+      const printWindow = window.open('', '_blank');
+      const title = 'Maritime India Vision 2030 - Initiatives';
+
+      let headersHtml = '';
+      columnDefs.forEach(col => {
+        if (col.headerName && col.headerName !== 'Action') {
+          headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${col.headerName}</th>`;
+        }
+      });
+
+      let rowsHtml = '';
+      data.forEach((row, rowIndex) => {
+        rowsHtml += '<tr>';
+        columnDefs.forEach(col => {
+          if (col.headerName && col.headerName !== 'Action') {
+            const val = row[col.field] !== undefined ? row[col.field] : '';
+            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${val}</td>`;
+          }
+        });
+        rowsHtml += '</tr>';
+      });
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>${title}</title>
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
+              h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
+              table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            </style>
+          </head>
+          <body>
+            <h1>${title}</h1>
+            <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
+            <table>
+              <thead>
+                <tr>${headersHtml}</tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in relative">
@@ -321,7 +417,7 @@ export default function MIVDataList({
       {/* Category / Status Tabs matching YP and CA style */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
         <button
-          onClick={() => setActiveStatusTab('all')}
+          onClick={() => handleStatusTabChange('all')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeStatusTab === 'all'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -332,7 +428,7 @@ export default function MIVDataList({
         </button>
         
         <button
-          onClick={() => setActiveStatusTab('yet_to_start')}
+          onClick={() => handleStatusTabChange('yet_to_start')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeStatusTab === 'yet_to_start'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -343,7 +439,7 @@ export default function MIVDataList({
         </button>
 
         <button
-          onClick={() => setActiveStatusTab('under_implementation')}
+          onClick={() => handleStatusTabChange('under_implementation')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeStatusTab === 'under_implementation'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -354,7 +450,7 @@ export default function MIVDataList({
         </button>
 
         <button
-          onClick={() => setActiveStatusTab('completed')}
+          onClick={() => handleStatusTabChange('completed')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeStatusTab === 'completed'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -364,9 +460,8 @@ export default function MIVDataList({
           COMPLETED ({counts.completed})
         </button>
 
-
         <button
-          onClick={() => setActiveStatusTab('dropped')}
+          onClick={() => handleStatusTabChange('dropped')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeStatusTab === 'dropped'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -399,7 +494,7 @@ export default function MIVDataList({
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -410,12 +505,12 @@ export default function MIVDataList({
             <div className="relative min-w-[180px]">
               <select
                 value={selectedOrg}
-                onChange={(e) => setSelectedOrg(e.target.value)}
+                onChange={(e) => handleOrgChange(e.target.value)}
                 className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
               >
                 <option value="">All Organisations ({organisations.length})</option>
                 {organisations.map((org, i) => (
-                  <option key={i} value={org}>{org}</option>
+                  <option key={i} value={org.organisation_name || org}>{org.organisation_name || org}</option>
                 ))}
               </select>
             </div>
@@ -424,11 +519,11 @@ export default function MIVDataList({
             <div className="relative min-w-[150px]">
               <select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                onChange={(e) => handleCategoryChange(e.target.value)}
                 className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer capitalize"
               >
-                <option value="">All Categories ({categories.length})</option>
-                {categories.map((cat, i) => (
+                <option value="">All Categories</option>
+                {CATEGORIES.map((cat, i) => (
                   <option key={i} value={cat}>{cat}</option>
                 ))}
               </select>
@@ -440,6 +535,7 @@ export default function MIVDataList({
                   setSelectedOrg('');
                   setSelectedCategory('');
                   setSearchTerm('');
+                  setCurrentPage(1);
                 }}
                 className="px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg font-bold transition cursor-pointer"
               >
@@ -451,6 +547,28 @@ export default function MIVDataList({
           {/* Action Toolbar Cluster */}
           <div className="flex items-center space-x-2 self-end lg:self-auto">
             
+            {/* Rows Limit Select Dropdown */}
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent border-none text-xs font-bold text-slate-755 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+
+            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+              Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{totalCount}</span>
+            </div>
+
             {/* View Mode Toggle */}
             <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
               <button
@@ -477,66 +595,101 @@ export default function MIVDataList({
               </button>
             </div>
 
+            {/* Visibility checklist */}
+            <div className="relative" ref={colDropdownRef}>
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {dropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  {Object.keys(visibleCols).map(col => (
+                    <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[col]}
+                        onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{col}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Copy Button */}
             <CopyButton
-              data={exportData.rows}
-              headers={exportData.headers}
-              onSuccess={() => triggerNotification?.("Table data copied to clipboard!")}
+              onCopy={() => handleExport('Copy')}
+              color="#0f417a"
+              hoverBg="#f1f5f9"
             />
 
             {/* Export Dropdown */}
             <ExportDropdown
-              headers={exportData.headers}
-              rows={exportData.rows}
-              fileName="MIV_2030_Initiatives_Report"
-              title="Maritime India Vision 2030 - Initiatives"
-              triggerNotification={triggerNotification}
+              onExportExcel={() => handleExport('Excel')}
+              onExportPdf={() => handleExport('PDF')}
+              color="#0f417a"
+              hoverColor="#1e5ea8"
             />
 
             {/* Add Initiative CTA */}
-            <button
-              onClick={onAddNew}
-              className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-[#0f417a] hover:from-blue-700 hover:to-[#0a2e56] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer whitespace-nowrap"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Initiative</span>
-            </button>
+            {onAddNew && (
+              <button
+                onClick={onAddNew}
+                className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-[#0f417a] hover:from-blue-700 hover:to-[#0a2e56] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Initiative</span>
+              </button>
+            )}
           </div>
 
         </div>
 
         {/* View Mode Content */}
         {viewMode === 'table' ? (
-          <div>
+          <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
             <Table
-              rowData={filteredData}
+              rowData={data}
               columnDefs={columnDefs}
               loading={loading}
-              pageSize={pageSize}
+              pagination={false}
+              enableExport={false}
               onGridReady={(params) => setGridApi(params.api)}
+              defaultColDef={{
+                minWidth: 90,
+                filter: false,
+                sortable: true,
+                resizable: true
+              }}
             />
             
-            {/* Table Footer with Summary */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <span className="font-semibold">
-                Showing <strong className="text-slate-800 dark:text-slate-200">{filteredData.length}</strong> of{' '}
-                <strong className="text-slate-800 dark:text-slate-200">{rowData.length}</strong> initiatives
-              </span>
+            {/* Server-Side Pagination Bar */}
+            <TablePagination
+              currentPage={currentPage - 1}
+              totalPages={totalPages}
+              totalRows={totalCount}
+              pageSize={pageSize}
+              onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
+              onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              color="#0f417a"
+            />
 
-              <div className="flex items-center space-x-2">
-                <span>Rows per page:</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="px-2 py-1 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg"
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </div>
-            </div>
+            <style dangerouslySetInnerHTML={{
+              __html: `
+              .ag-theme-quartz.rounded-xl,
+              .ag-theme-quartz.rounded-2xl {
+                border-radius: 16px !important;
+              }
+              .ag-theme-quartz .ag-root-wrapper {
+                border-radius: 16px 16px 0 0 !important;
+              }
+            `}} />
           </div>
         ) : (
           /* Visualisation Analytics View matching YP/CA */
@@ -582,25 +735,25 @@ export default function MIVDataList({
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Initiatives</span>
-                  <span className="text-xl font-black text-slate-900 dark:text-white">{filteredData.length}</span>
+                  <span className="text-xl font-black text-slate-900 dark:text-white">{totalCount}</span>
                 </div>
                 <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Investment</span>
                   <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">
-                    ₹ {Math.round(filteredData.reduce((acc, c) => acc + (parseFloat(c.total_cost) || 0), 0)).toLocaleString()} Cr
+                    ₹ {Math.round(data.reduce((acc, c) => acc + (parseFloat(c.total_cost) || 0), 0)).toLocaleString()} Cr
                   </span>
                 </div>
                 <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Organisations Active</span>
                   <span className="text-xl font-black text-blue-600 dark:text-blue-400">
-                    {new Set(filteredData.map(d => d.organisation_name)).size}
+                    {organisations.length}
                   </span>
                 </div>
                 <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                   <span className="text-[10px] text-slate-400 font-bold uppercase block">Completed Rate</span>
                   <span className="text-xl font-black text-purple-600 dark:text-purple-400">
-                    {filteredData.length > 0 
-                      ? Math.round((filteredData.filter(d => (d.status_current || '').includes('Completed')).length / filteredData.length) * 100) 
+                    {counts.all > 0 
+                      ? Math.round((counts.completed / counts.all) * 100) 
                       : 0}%
                   </span>
                 </div>
