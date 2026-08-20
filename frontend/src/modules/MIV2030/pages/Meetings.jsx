@@ -282,7 +282,7 @@ export default function MIVMeetings({ triggerNotification }) {
         return (
           <div className="flex items-center h-full py-1">
             <a
-              href={`${API}/meeting/download/${id}`}
+              href={`${API_BASE}/meeting/download/${id}`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center space-x-2 px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-xl text-xs font-bold transition border border-blue-200 dark:border-blue-800 shadow-sm"

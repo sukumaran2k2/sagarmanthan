@@ -1,7 +1,6 @@
 import React from 'react';
 import { X, Calendar, DollarSign, Building2, Briefcase, FileText, CheckCircle2, AlertTriangle, Layers, Users, TrendingUp, Download, Eye, Image } from 'lucide-react';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+import { API_BASE } from '../api';
 
 export default function MIVDetailModal({ initiative, onClose, onEdit }) {
   if (!initiative) return null;
@@ -238,7 +237,7 @@ export default function MIVDetailModal({ initiative, onClose, onEdit }) {
               <div className="flex flex-wrap gap-2">
                 {initiative.supportDocument && (
                   <a
-                    href={`${API}/miv-document/download/${initiative.supportDocument}`}
+                    href={`${API_BASE}/miv-document/download/${initiative.supportDocument}`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition-colors"
