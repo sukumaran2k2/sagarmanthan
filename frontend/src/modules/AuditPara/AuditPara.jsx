@@ -4,6 +4,7 @@ import InternalNavigation from '../../components/InternalNavigation';
 import AuditParaInput from './AuditParaInput';
 import AuditParaReports from './AuditParaReports';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/api';
 
 export default function AuditPara() {
   const [auditParas, setAuditParas] = useState([]);
@@ -15,7 +16,7 @@ export default function AuditPara() {
   ];
 
   const fetchData = () => {
-    axios.get("http://localhost:3000/audit-para")
+    axios.get(`${API_BASE_URL}/audit-para`)
       .then(res => {
         const mapped = res.data.map(r => {
           const steps = {

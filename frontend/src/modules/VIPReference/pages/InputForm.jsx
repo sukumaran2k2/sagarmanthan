@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Save } from 'lucide-react';
+import { API_BASE_URL } from '../../../config/api';
 
 const STATUS_STEPS = {
   1: 'Received at Ministry',
@@ -361,9 +362,9 @@ export default function InputForm({
     try {
       if (isEdit) {
         payload.vipReferenceID = editData.id;
-        await axios.put("http://localhost:3000/vip-reference", payload);
+        await axios.put(`${API_BASE_URL}/vip-reference`, payload);
       } else {
-        await axios.post("http://localhost:3000/vip-reference", payload);
+        await axios.post(`${API_BASE_URL}/vip-reference`, payload);
       }
       triggerNotification?.(isEdit ? "VIP Reference updated successfully." : "New VIP Reference registered successfully.");
       onSuccess();

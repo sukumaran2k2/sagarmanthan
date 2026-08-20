@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell
 import axios from 'axios';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
+import { API_BASE_URL } from '../../../config/api';
 
 const STAGE_STEPS = {
   1: 'Received at Ministry',
@@ -77,7 +78,7 @@ export default function DataList({
   // Fetch references dynamically from backend
   const fetchData = () => {
     setLoading(true);
-    axios.get("http://localhost:3000/vip-reference", {
+    axios.get(`${API_BASE_URL}/vip-reference`, {
       params: {
         wing: selectedWing,
         division: selectedDivision,

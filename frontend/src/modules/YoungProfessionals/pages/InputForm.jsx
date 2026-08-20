@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, X, Upload } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL } from '../../../config/api';
 
 function decodeToken(token) {
   try {
@@ -320,17 +321,17 @@ export default function InputForm({
     try {
       let ypId = null;
       if (isEdit) {
-        await axios.put(`http://localhost:3000/young-professional/${editData.yp_id}`, payload);
+        await axios.put(`${API_BASE_URL}/young-professional/${editData.yp_id}`, payload);
         ypId = editData.yp_id;
       } else {
-        const response = await axios.post("http://localhost:3000/young-professional", payload);
+        const response = await axios.post(`${API_BASE_URL}/young-professional`, payload);
         ypId = response.data.insertedYPId;
       }
 
       if (fileInputRef.current && fileInputRef.current.files[0]) {
         const formData = new FormData();
         formData.append("file", fileInputRef.current.files[0]);
-        await axios.post(`http://localhost:3000/upload-yp-document/${ypId}`, formData, {
+        await axios.post(`${API_BASE_URL}/upload-yp-document/${ypId}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       }
@@ -595,7 +596,7 @@ export default function InputForm({
           {isEdit && editData.appointment_document && (
             <div className="mt-2 text-xs">
               <a
-                href={`http://localhost:3000/download-yp-document?fileName=${editData.appointment_document}`}
+                href={`${API_BASE_URL}/download-yp-document?fileName=${editData.appointment_document}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center space-x-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { ArrowLeft, Save } from 'lucide-react';
+import { API_BASE_URL } from '../../../config/api';
 
 function decodeToken(token) {
   try {
@@ -288,9 +289,9 @@ export default function InputForm({
     try {
       if (isEdit) {
         payload.billID = editData.id || editData.bill_id;
-        await axios.put("http://localhost:3000/bill", payload);
+        await axios.put(`${API_BASE_URL}/bill`, payload);
       } else {
-        await axios.post("http://localhost:3000/bill", payload);
+        await axios.post(`${API_BASE_URL}/bill`, payload);
       }
 
       if (triggerNotification) {

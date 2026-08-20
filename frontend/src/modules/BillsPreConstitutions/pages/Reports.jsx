@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import ReportTable from '../../../components/ReportTable';
+import { API_BASE_URL } from '../../../config/api';
 
 const COLUMN_STAGE_MAP = {
   "Draft Bill Prepared": 1,
@@ -40,7 +41,7 @@ export default function Reports({ triggerNotification }) {
     setLoading(true);
     try {
       if (currentView.type === 'summary') {
-        const response = await axios.get("http://localhost:3000/billwingwise-report");
+        const response = await axios.get(`${API_BASE_URL}/billwingwise-report`);
         const rawRows = response.data?.rowData || [];
         const rawCols = response.data?.columnDefs || [];
 
@@ -48,44 +49,42 @@ export default function Reports({ triggerNotification }) {
           if (col.field === 'wing_id') {
             return { ...col, hide: true };
           }
-          if (col.field === 'Wing') {
+          if (col.field === 'Wing' || col.field === 'Wings') {
             return {
               ...col,
               pinned: 'left',
               cellClass: 'text-left font-bold border-r border-slate-150',
               headerClass: 'border-r border-slate-150',
               cellRenderer: (p) => {
-                const val = p.value;
-                if (val && p.data && p.data.Wing !== 'Total') {
-                  return (
-                    <button
-                      onClick={() => {
-                        const wingId = p.data.wing_id;
-                        setDrillDownPath(prev => [
-                          ...prev,
-                          {
-                            type: 'division-summary',
-                            wingId,
-                            title: `Division-wise Summary - Wing: ${val}`
-                          }
-                        ]);
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#0f417a',
-                        fontWeight: 800,
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        textAlign: 'left'
-                      }}
-                    >
-                      {val}
-                    </button>
-                  );
-                }
-                return val || '';
+                const wingId = p.data.wing_id;
+                const wingName = p.value;
+                if (!wingName || wingName === 'Total') return <strong>{wingName || ''}</strong>;
+                return (
+                  <button
+                    onClick={() => {
+                      setDrillDownPath(prev => [
+                        ...prev,
+                        {
+                          type: 'division-summary',
+                          wingId,
+                          title: `Report No. 1.2 - Division-wise Bills Matrix (Wing: ${wingName})`
+                        }
+                      ]);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#0f417a',
+                      fontWeight: 800,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      fontSize: '13px'
+                    }}
+                  >
+                    {wingName}
+                  </button>
+                );
               }
             };
           }
@@ -96,12 +95,12 @@ export default function Reports({ triggerNotification }) {
               ...col,
               cellRenderer: (p) => {
                 const val = p.value;
-                if (val > 0 && p.data && p.data.Wing !== 'Total') {
+                if (val > 0 && p.data && p.data.Wings !== 'Total') {
                   return (
                     <button
                       onClick={() => {
                         const wingId = p.data.wing_id;
-                        const wingName = p.data.Wing;
+                        const wingName = p.data.Wings;
                         setDrillDownPath(prev => [
                           ...prev,
                           {
@@ -137,7 +136,7 @@ export default function Reports({ triggerNotification }) {
         setData(rawRows.map((r, idx) => ({ ...r, 'S No': idx + 1 })));
 
       } else if (currentView.type === 'division-summary') {
-        const response = await axios.get(`http://localhost:3000/billdivisionwise-report/${currentView.wingId}`);
+        const response = await axios.get(`${API_BASE_URL}/billdivisionwise-report/${currentView.wingId}`);
         const rawRows = response.data?.rowData || [];
         const rawCols = response.data?.columnDefs || [];
 
@@ -201,7 +200,7 @@ export default function Reports({ triggerNotification }) {
         setData(rawRows.map((r, idx) => ({ ...r, 'S No': idx + 1 })));
 
       } else if (currentView.type === 'detail-wing') {
-        const response = await axios.get(`http://localhost:3000/getbill-wingwise/${currentView.wingId}/${currentView.stageId}`);
+        const response = await axios.get(`${API_BASE_URL}/getbill-wingwise/${currentView.wingId}/${currentView.stageId}`);
         const rawRows = response.data?.rowData || [];
         const rawCols = response.data?.columnDefs || [];
 
@@ -209,7 +208,7 @@ export default function Reports({ triggerNotification }) {
         setData(rawRows.map((r, idx) => ({ ...r, 'S No': idx + 1 })));
 
       } else if (currentView.type === 'detail-division') {
-        const response = await axios.get(`http://localhost:3000/getbill-divisionwise/${currentView.divisionId}/${currentView.stageId}`);
+        const response = await axios.get(`${API_BASE_URL}/getbill-divisionwise/${currentView.divisionId}/${currentView.stageId}`);
         const rawRows = response.data?.rowData || [];
         const rawCols = response.data?.columnDefs || [];
 

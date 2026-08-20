@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import ReportTable from '../../../components/ReportTable';
+import { API_BASE_URL } from '../../../config/api';
 
 const STAGE_MAPPING = {
   "No Status": 0,
@@ -16,7 +17,7 @@ export default function Reports({ triggerNotification }) {
   const [drillDownPath, setDrillDownPath] = useState([
     {
       type: 'summary',
-      url: 'http://localhost:3000/vipwingwise-report',
+      url: `${API_BASE_URL}/vipwingwise-report`,
       title: 'Report No. 5.1A - Wing-wise VIP Reference Stage Matrix'
     }
   ]);
@@ -87,7 +88,7 @@ export default function Reports({ triggerNotification }) {
                     {
                       type: 'division',
                       wingId,
-                      url: `http://localhost:3000/vipdivisionwise-report/${wingId}/`,
+                      url: `${API_BASE_URL}/vipdivisionwise-report/${wingId}/`,
                       title: `Report No. 5.1B - Division-wise VIP Reference Matrix (Wing: ${wingName})`
                     }
                   ]);
@@ -136,11 +137,11 @@ export default function Reports({ triggerNotification }) {
 
             if (currentView.type === 'division' && divisionId) {
               const divName = p.data['Division Name'] || 'Division';
-              detailUrl = `http://localhost:3000/getvip-divisionwise/${divisionId}/${stageId}`;
+              detailUrl = `${API_BASE_URL}/getvip-divisionwise/${divisionId}/${stageId}`;
               detailTitle = `VIP Reference Details - Division: ${divName} | Stage: ${stageLabel}`;
             } else if (wingId) {
               const wingName = p.data['Wing Name'] || 'Wing';
-              detailUrl = `http://localhost:3000/getvip-wingwise/${wingId}/${stageId}`;
+              detailUrl = `${API_BASE_URL}/getvip-wingwise/${wingId}/${stageId}`;
               detailTitle = `VIP Reference Details - Wing: ${wingName} | Stage: ${stageLabel}`;
             }
 

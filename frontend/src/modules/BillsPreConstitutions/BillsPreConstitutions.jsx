@@ -4,6 +4,7 @@ import InternalNavigation from '../../components/InternalNavigation';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
+import { API_BASE_URL } from '../../config/api';
 
 export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
   const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
@@ -30,18 +31,18 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
   }, [activeSubTabProp]);
 
   useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
+    axios.get(`${API_BASE_URL}/mmt-dropdown/mmt_wings`)
       .then(res => setWings(res.data || []))
       .catch(err => console.error("Error loading wings:", err));
 
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_division")
+    axios.get(`${API_BASE_URL}/mmt-dropdown/mmt_division`)
       .then(res => setDivisions(res.data || []))
       .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
   const fetchData = () => {
     setLoading(true);
-    axios.get("http://localhost:3000/bill")
+    axios.get(`${API_BASE_URL}/bill`)
       .then(res => {
         setRowData(res.data || []);
       })

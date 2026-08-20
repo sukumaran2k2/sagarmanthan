@@ -6,6 +6,7 @@ import axios from 'axios';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import { API_BASE_URL } from '../../../config/api';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -34,12 +35,12 @@ export default function Reports({ triggerNotification }) {
     setLoading(true);
     try {
       if (currentView.type === 'summary') {
-        const response = await axios.get("http://localhost:3000/yp-report");
+        const response = await axios.get(`${API_BASE_URL}/yp-report`);
         const list = response.data.rowData || [];
         // Add S No helper values
         setData(list.map((item, idx) => ({ ...item, 'S No': idx + 1 })));
       } else if (currentView.type === 'drilldown') {
-        const response = await axios.get(`http://localhost:3000/divisionwise-ypcandidate/0/${currentView.divisionId}`);
+        const response = await axios.get(`${API_BASE_URL}/divisionwise-ypcandidate/0/${currentView.divisionId}`);
         const list = response.data.rowData || [];
         // Add S No helper values
         setData(list.map((item, idx) => ({ ...item, 'S No': idx + 1 })));
@@ -316,7 +317,7 @@ export default function Reports({ triggerNotification }) {
           return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
               <a
-                href={`http://localhost:3000/download-yp-document?fileName=${encodeURIComponent(fileName)}`}
+                href={`${API_BASE_URL}/download-yp-document?fileName=${encodeURIComponent(fileName)}`}
                 target="_blank"
                 rel="noreferrer"
                 style={{

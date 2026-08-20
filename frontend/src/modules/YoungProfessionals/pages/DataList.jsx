@@ -5,6 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell
 import axios from 'axios';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import { API_BASE_URL } from '../../../config/api';
 
 function decodeToken(token) {
   try {
@@ -187,7 +188,7 @@ export default function DataList({
     }
 
     try {
-      await axios.put("http://localhost:3000/relieve-young-professional", {
+      await axios.put(`${API_BASE_URL}/relieve-young-professional`, {
         candidateId: selectedYp.yp_id,
         lastWorkingDate,
         remarks,

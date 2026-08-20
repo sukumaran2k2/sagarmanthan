@@ -4,6 +4,7 @@ import InternalNavigation from '../../components/InternalNavigation';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
+import { API_BASE_URL } from '../../config/api';
 
 export default function VIPReference({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
   const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
@@ -30,17 +31,17 @@ export default function VIPReference({ activeSubTab: activeSubTabProp, setActive
 
   // Fetch wings and divisions on mount
   useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
+    axios.get(`${API_BASE_URL}/mmt-dropdown/mmt_wings`)
       .then(res => setWings(res.data || []))
       .catch(err => console.error("Error loading wings:", err));
 
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_division")
+    axios.get(`${API_BASE_URL}/mmt-dropdown/mmt_division`)
       .then(res => setDivisions(res.data || []))
       .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
   const fetchData = () => {
-    axios.get("http://localhost:3000/vip-reference")
+    axios.get(`${API_BASE_URL}/vip-reference`)
       .then(res => {
         // Handle paginated or list format
         const dataArray = Array.isArray(res.data) ? res.data : (res.data.data || []);

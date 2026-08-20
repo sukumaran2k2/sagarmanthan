@@ -16,6 +16,7 @@ import {
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/api';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -196,9 +197,9 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
     try {
       if (editingPara) {
         payload.auditParaID = editingPara.id;
-        await axios.put("http://localhost:3000/audit-para", payload);
+        await axios.put(`${API_BASE_URL}/audit-para`, payload);
       } else {
-        await axios.post("http://localhost:3000/audit-para", payload);
+        await axios.post(`${API_BASE_URL}/audit-para`, payload);
       }
       setIsFormOpen(false);
       if (refreshData) refreshData();

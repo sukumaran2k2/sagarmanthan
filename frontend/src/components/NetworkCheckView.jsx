@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Wifi, WifiOff, AlertTriangle, ArrowRight, LogOut, RefreshCw, Gauge, X, Globe, Lock, Cookie, Database, Monitor, CheckCircle, ShieldCheck, Shield, Cloud, Settings, Activity, Clock } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
+import { API_BASE_URL } from '../config/api';
 
 export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
   const [speed, setSpeed] = useState(null); // in Mbps
@@ -65,7 +66,7 @@ export default function NetworkCheckView({ onContinue, onCancel, isManual }) {
 
       // Step 3: Run speed test and measure round-trip latency
       const startTime = performance.now();
-      await fetch('http://localhost:3000/userlist', { cache: 'no-store' });
+      await fetch(`${API_BASE_URL}/userlist`, { cache: 'no-store' });
       const endTime = performance.now();
       
       const durationMs = endTime - startTime;

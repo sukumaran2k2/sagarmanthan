@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import axios from 'axios';
 import { isOrgSeniorOfficer } from '../utils/authSession';
 import { TAB_USER_MODULE_PERMISSION } from '../utils/moduleAccess';
+import { API_BASE_URL } from '../config/api';
 
 function decodeToken(token) {
   try {
@@ -51,7 +52,7 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
       setUserOrg(decoded.organisationName);
     }
 
-    axios.get('http://localhost:3000/userlist')
+    axios.get(`${API_BASE_URL}/userlist`)
       .then(res => {
         const users = res.data || [];
         const matched = users.find(u => u.email.toLowerCase() === decoded.email.toLowerCase());

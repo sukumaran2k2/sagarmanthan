@@ -5,6 +5,7 @@ import { Search, X, Edit, Trash2, ChevronDown, BarChart3, List } from 'lucide-re
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import axios from 'axios';
 import ExportDropdown from '../../../components/ExportDropdown';
+import { API_BASE_URL } from '../../../config/api';
 
 const STAGES = {
   1: 'Pre-Draft Bill Prepared',
@@ -174,7 +175,7 @@ export default function DataList({
   const handleDelete = async (billId) => {
     if (!window.confirm("Are you sure you want to delete this Bill?")) return;
     try {
-      await axios.delete(`http://localhost:3000/delete-bill/${billId}/${activeUserId || 1}`);
+      await axios.delete(`${API_BASE_URL}/delete-bill/${billId}/${activeUserId || 1}`);
       triggerNotification("Bill deleted successfully!");
       if (onRefresh) onRefresh();
     } catch (err) {
