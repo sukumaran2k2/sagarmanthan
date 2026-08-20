@@ -58,11 +58,129 @@ async function createYoungProfessional(req, res) {
     }
 }
 
-// 2. Get All Young Professionals
+// 2. Get All Young Professionals (Server-Side Pagination, Filtering & Search)
 async function getYoungProfessional(req, res) {
     const conn = await pool;
+    const request = conn.request();
+
+    const {
+        page,
+        limit,
+        search,
+        wing,
+        division,
+        status,
+        all
+    } = req.query;
+
+    const isFetchAll = all === 'true' || limit === 'all' || (!page && !limit && !search && !wing && !division && !status);
+    const pageNum = parseInt(page) || 1;
+    const pageSize = parseInt(limit) || 10;
+    const offset = (pageNum - 1) * pageSize;
+
+    let baseWhereClauses = [];
+
+    // Search filter
+    if (search && search.trim() !== '') {
+        request.input('searchTerm', `%${search.trim()}%`);
+        baseWhereClauses.push(`(
+            yp.name LIKE @searchTerm OR 
+            yp.qualification LIKE @searchTerm OR 
+            yp.role LIKE @searchTerm OR 
+            yp.skills LIKE @searchTerm OR 
+            w.wing_name LIKE @searchTerm OR 
+            d.division_name LIKE @searchTerm
+        )`);
+    }
+
+    // Wing filter
+    if (wing && wing !== 'All' && wing !== 'all' && wing !== '') {
+        if (!isNaN(wing)) {
+            request.input('wingId', parseInt(wing));
+            baseWhereClauses.push(`yp.wing_id = @wingId`);
+        } else {
+            request.input('wingName', wing.trim());
+            baseWhereClauses.push(`w.wing_name = @wingName`);
+        }
+    }
+
+    // Division filter
+    if (division && division !== 'All' && division !== 'all' && division !== '') {
+        if (!isNaN(division)) {
+            request.input('divisionId', parseInt(division));
+            baseWhereClauses.push(`yp.division_id = @divisionId`);
+        } else {
+            request.input('divisionName', division.trim());
+            baseWhereClauses.push(`d.division_name = @divisionName`);
+        }
+    }
+
+    // Clone baseWhereClauses for status-filtered query
+    let filteredWhereClauses = [...baseWhereClauses];
+
+    // Status filter
+    if (status && status !== 'All' && status !== 'all' && status !== '') {
+        if (status === 'active' || status === '1' || status === 1) {
+            filteredWhereClauses.push(`(yp.is_active = 1 OR yp.is_active IS NULL)`);
+        } else if (status === 'relieved' || status === '0' || status === 0) {
+            filteredWhereClauses.push(`yp.is_active = 0`);
+        }
+    }
+
+    const filteredWhereSql = filteredWhereClauses.length > 0 ? `WHERE ${filteredWhereClauses.join(' AND ')}` : '';
+    const baseWhereSql = baseWhereClauses.length > 0 ? `WHERE ${baseWhereClauses.join(' AND ')}` : '';
+
     try {
-        const result = await conn.query(`
+        if (isFetchAll) {
+            const query = `
+                SELECT 
+                    yp.yp_id,
+                    yp.wing_id,
+                    w.wing_name AS wing,
+                    yp.division_id,
+                    d.division_name AS division,
+                    yp.name,
+                    yp.qualification,
+                    yp.role,
+                    FORMAT(yp.appointment_date, 'yyyy-MM-dd') AS appointment_date,
+                    yp.salary,
+                    yp.total_experience,
+                    yp.skills,
+                    yp.is_active,
+                    FORMAT(yp.last_working_date, 'yyyy-MM-dd') AS last_working_date,
+                    yp.remarks,
+                    yp.relieved_at,
+                    yp.appointment_document
+                FROM dbo.tbl_young_professionals yp
+                LEFT JOIN mmt_wings w ON w.wing_id = yp.wing_id
+                LEFT JOIN mmt_division d ON d.division_id = yp.division_id
+                ${filteredWhereSql}
+                ORDER BY yp.yp_id DESC
+            `;
+            const result = await request.query(query);
+            return res.json(result.recordset);
+        }
+
+        request.input('offset', offset);
+        request.input('pageSize', pageSize);
+
+        // Fetch counts for status tabs
+        const countQuery = `
+            SELECT 
+                COUNT(*) AS total_base_count,
+                SUM(CASE WHEN yp.is_active = 1 OR yp.is_active IS NULL THEN 1 ELSE 0 END) AS active_count,
+                SUM(CASE WHEN yp.is_active = 0 THEN 1 ELSE 0 END) AS relieved_count
+            FROM dbo.tbl_young_professionals yp
+            LEFT JOIN mmt_wings w ON w.wing_id = yp.wing_id
+            LEFT JOIN mmt_division d ON d.division_id = yp.division_id
+            ${baseWhereSql}
+        `;
+        const countResult = await request.query(countQuery);
+        const activeCount = countResult.recordset[0]?.active_count || 0;
+        const relievedCount = countResult.recordset[0]?.relieved_count || 0;
+
+        // Fetch paginated rows with total filtered count
+        const query = `
             SELECT 
                 yp.yp_id,
                 yp.wing_id,
@@ -80,13 +198,32 @@ async function getYoungProfessional(req, res) {
                 FORMAT(yp.last_working_date, 'yyyy-MM-dd') AS last_working_date,
                 yp.remarks,
                 yp.relieved_at,
-                yp.appointment_document
+                yp.appointment_document,
+                COUNT(*) OVER() AS total_count
             FROM dbo.tbl_young_professionals yp
             LEFT JOIN mmt_wings w ON w.wing_id = yp.wing_id
             LEFT JOIN mmt_division d ON d.division_id = yp.division_id
+            ${filteredWhereSql}
             ORDER BY yp.yp_id DESC
-        `);
-        res.json(result.recordset);
+            OFFSET @offset ROWS
+            FETCH NEXT @pageSize ROWS ONLY;
+        `;
+
+        const result = await request.query(query);
+        const rows = result.recordset || [];
+        const total = rows.length > 0 ? rows[0].total_count : 0;
+
+        res.json({
+            data: rows,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: pageSize,
+                totalPages: Math.ceil(total / pageSize) || 1,
+                activeCount,
+                relievedCount
+            }
+        });
     } catch (err) {
         console.error("Error fetching young professionals:", err);
         return res.sendStatus(500);

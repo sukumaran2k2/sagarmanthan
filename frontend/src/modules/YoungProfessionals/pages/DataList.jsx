@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Table from '../../../components/Table';
-import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown } from 'lucide-react';
+import TablePagination from '../../../components/TablePagination';
+import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { relieveYoungProfessional } from '../api';
+import { fetchYoungProfessionals, relieveYoungProfessional } from '../api';
 
 function decodeToken(token) {
   try {
@@ -20,26 +21,34 @@ function decodeToken(token) {
 }
 
 export default function DataList({
-  rowData,
-  loading,
   onEdit,
-  onRefresh,
   triggerNotification,
   wings = [],
   divisions = []
 }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [activeYpCount, setActiveYpCount] = useState(0);
+  const [relievedYpCount, setRelievedYpCount] = useState(0);
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
-  const [viewMode, setViewMode] = useState('table'); // table or visualisation switching
+  const [activeStatusTab, setActiveStatusTab] = useState('active'); // 'active' | 'relieved'
+  const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
+
+  // Relieve Modal
   const [relieveModalOpen, setRelieveModalOpen] = useState(false);
   const [selectedYp, setSelectedYp] = useState(null);
   const [lastWorkingDate, setLastWorkingDate] = useState('');
   const [remarks, setRemarks] = useState('');
   const [submittingRelieve, setSubmittingRelieve] = useState(false);
-  const [gridApi, setGridApi] = useState(null); //Ag Grid API
-  const [pageSize, setPageSize] = useState(10);
-  const [activeStatusTab, setActiveStatusTab] = useState('active'); // 'active' | 'relieved'
+  const [gridApi, setGridApi] = useState(null);
 
   // Column visibility checklist dropdown states
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -52,6 +61,31 @@ export default function DataList({
     status: true
   });
 
+  // Debounce search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1); // Reset to page 1 on new search
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Reset to page 1 on filter changes
+  const handleWingChange = (val) => {
+    setSelectedWing(val);
+    setCurrentPage(1);
+  };
+
+  const handleDivisionChange = (val) => {
+    setSelectedDivision(val);
+    setCurrentPage(1);
+  };
+
+  const handleStatusTabChange = (status) => {
+    setActiveStatusTab(status);
+    setCurrentPage(1);
+  };
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
@@ -62,7 +96,50 @@ export default function DataList({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Static fallback lists (used if API is unavailable / returns empty)
+  // Fetch server data
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchYoungProfessionals({
+        page: currentPage,
+        limit: pageSize,
+        search: debouncedSearch,
+        wing: selectedWing,
+        division: selectedDivision,
+        status: activeStatusTab
+      });
+
+      const payload = res.data;
+      if (payload && payload.data && payload.pagination) {
+        const rows = payload.data || [];
+        const pag = payload.pagination;
+        setData(rows.map((item, index) => ({
+          ...item,
+          sNo: (pag.page - 1) * pag.limit + index + 1
+        })));
+        setTotalCount(pag.total || 0);
+        setTotalPages(pag.totalPages || 1);
+        setActiveYpCount(pag.activeCount || 0);
+        setRelievedYpCount(pag.relievedCount || 0);
+      } else {
+        const list = Array.isArray(payload) ? payload : [];
+        setData(list.map((item, idx) => ({ ...item, sNo: idx + 1 })));
+        setTotalCount(list.length);
+        setTotalPages(Math.ceil(list.length / pageSize) || 1);
+      }
+    } catch (err) {
+      console.error("Error loading young professionals:", err);
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, pageSize, debouncedSearch, selectedWing, selectedDivision, activeStatusTab]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Static fallback lists
   const STATIC_WINGS = [
     'Shipping', 'Vigilance', 'Ports', 'IWT', 'Administration',
     'Coord-I', 'Coord-II', 'DGLL, Parliament & TRW', 'Development',
@@ -79,7 +156,6 @@ export default function DataList({
     'Special Initiatives & Projects'
   ];
 
-  // Derive display options — API shape: { wing_id, wing_name } / { division_id, division_name }
   const wingOptions = useMemo(() => {
     if (wings.length > 0) {
       return wings.map(w => ({
@@ -87,11 +163,8 @@ export default function DataList({
         label: w.wing_name ?? w.label ?? w.value ?? String(w)
       }));
     }
-    // Fallback: derive unique names from rowData, or use static list
-    const fromData = [...new Set(rowData.map(r => r.wing).filter(Boolean))].sort();
-    const source = fromData.length > 0 ? fromData : STATIC_WINGS;
-    return source.map(name => ({ value: name, label: name }));
-  }, [wings, rowData]);
+    return STATIC_WINGS.map(name => ({ value: name, label: name }));
+  }, [wings]);
 
   const divisionOptions = useMemo(() => {
     if (divisions.length > 0) {
@@ -100,57 +173,13 @@ export default function DataList({
         label: d.division_name ?? d.label ?? d.value ?? String(d)
       }));
     }
-    // Fallback: derive unique names from rowData, or use static list
-    const fromData = [...new Set(rowData.map(r => r.division).filter(Boolean))].sort();
-    const source = fromData.length > 0 ? fromData : STATIC_DIVISIONS;
-    return source.map(name => ({ value: name, label: name }));
-  }, [divisions, rowData]);
-
-  const baseFilteredData = useMemo(() => {
-    return rowData.filter(item => {
-      const search = searchTerm.toLowerCase();
-      const matchesSearch =
-        (item.name || '').toLowerCase().includes(search) ||
-        (item.role || '').toLowerCase().includes(search) ||
-        (item.wing || '').toLowerCase().includes(search) ||
-        (item.division || '').toLowerCase().includes(search);
-
-      const matchesWing = selectedWing
-        ? (item.wing || '') === selectedWing
-        : true;
-
-      const matchesDivision = selectedDivision
-        ? (item.division || '') === selectedDivision
-        : true;
-
-      return matchesSearch && matchesWing && matchesDivision;
-    });
-  }, [rowData, searchTerm, selectedWing, selectedDivision]);
-
-  const activeYpCount = useMemo(() => {
-    return baseFilteredData.filter(yp => yp.is_active === 1 || yp.is_active === true).length;
-  }, [baseFilteredData]);
-
-  const relievedYpCount = useMemo(() => {
-    return baseFilteredData.filter(yp => yp.is_active === 0 || yp.is_active === false).length;
-  }, [baseFilteredData]);
-
-  const filteredData = useMemo(() => {
-    return baseFilteredData
-      .filter(yp => {
-        const isActive = yp.is_active === 1 || yp.is_active === true;
-        return activeStatusTab === 'active' ? isActive : !isActive;
-      })
-      .map((item, index) => ({
-        ...item,
-        sNo: index + 1
-      }));
-  }, [baseFilteredData, activeStatusTab]);
+    return STATIC_DIVISIONS.map(name => ({ value: name, label: name }));
+  }, [divisions]);
 
   // Group data by wing for the chart visualization
   const chartData = useMemo(() => {
     const counts = {};
-    filteredData.forEach(item => {
+    data.forEach(item => {
       const w = item.wing || 'Unknown';
       counts[w] = (counts[w] || 0) + 1;
     });
@@ -158,7 +187,7 @@ export default function DataList({
       name: key,
       'In Position': counts[key]
     }));
-  }, [filteredData]);
+  }, [data]);
 
   const COLORS = ['#0f417a', '#1e5ea8', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -197,7 +226,7 @@ export default function DataList({
         triggerNotification(`${selectedYp.name} has been relieved successfully.`);
       }
       setRelieveModalOpen(false);
-      onRefresh();
+      fetchData();
     } catch (err) {
       console.error(err);
       alert("Failed to relieve young professional.");
@@ -206,7 +235,7 @@ export default function DataList({
     }
   };
 
-  const handleExport = (type) => {
+  const handleExport = async (type) => {
     if (type === 'Copy') {
       if (gridApi) {
         let tsv = '';
@@ -218,15 +247,15 @@ export default function DataList({
         });
         tsv += headers.join('\t') + '\n';
         
-        filteredData.forEach((row, rowIndex) => {
+        data.forEach((row, rowIndex) => {
           const line = [];
           columnDefs.forEach(col => {
             if (col.headerName && col.headerName !== 'Action') {
               let val = '';
               if (col.field === 'sNo') {
-                val = rowIndex + 1;
+                val = row.sNo || rowIndex + 1;
               } else if (col.field === 'is_active') {
-                val = row[col.field] ? 'Active' : 'Relieved';
+                val = (row[col.field] === 1 || row[col.field] === true) ? 'Active' : 'Relieved';
               } else {
                 val = row[col.field] !== undefined ? row[col.field] : '';
               }
@@ -238,7 +267,7 @@ export default function DataList({
         
         navigator.clipboard.writeText(tsv)
           .then(() => {
-            if (triggerNotification) triggerNotification('Table data copied to clipboard!');
+            if (triggerNotification) triggerNotification('Current page data copied to clipboard!');
           })
           .catch(() => alert('Failed to copy table data.'));
       } else {
@@ -247,10 +276,10 @@ export default function DataList({
     } else if (type === 'Excel') {
       if (gridApi) {
         gridApi.exportDataAsCsv({
-          fileName: `Young_Professionals_Register_export.csv`
+          fileName: `Young_Professionals_Page_${currentPage}.csv`
         });
         if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`);
+          triggerNotification(`Exported to CSV successfully!`);
         }
       } else {
         alert("Grid is not ready for export yet.");
@@ -271,15 +300,15 @@ export default function DataList({
       });
 
       let rowsHtml = '';
-      filteredData.forEach((row, rowIndex) => {
+      data.forEach((row, rowIndex) => {
         rowsHtml += '<tr>';
         columnDefs.forEach(col => {
           if (col.headerName && col.headerName !== 'Action') {
             let val = '';
             if (col.field === 'sNo') {
-              val = rowIndex + 1;
+              val = row.sNo || rowIndex + 1;
             } else if (col.field === 'is_active') {
-              val = row[col.field] ? 'Active' : 'Relieved';
+              val = (row[col.field] === 1 || row[col.field] === true) ? 'Active' : 'Relieved';
             } else {
               val = row[col.field] !== undefined ? row[col.field] : '';
             }
@@ -369,10 +398,9 @@ export default function DataList({
       minWidth: 120,
       hide: !visibleCols.status,
       cellRenderer: (params) => {
-        const isActive = params.value;
+        const isActive = params.value === 1 || params.value === true;
         return (
-          <span className={`text-xs font-black uppercase ${isActive ? 'text-emerald-600' : 'text-rose-600'
-            }`}>
+          <span className={`text-xs font-black uppercase ${isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
             {isActive ? 'Active' : 'Relieved'}
           </span>
         );
@@ -383,6 +411,7 @@ export default function DataList({
       minWidth: 120,
       cellRenderer: (params) => {
         const yp = params.data;
+        const isActive = yp.is_active === 1 || yp.is_active === true;
         return (
           <div className="flex items-center w-full h-full py-1">
             <div className="w-1/2 flex justify-end pr-2">
@@ -395,7 +424,7 @@ export default function DataList({
               </button>
             </div>
             <div className="w-1/2 flex justify-start pl-2">
-              {yp.is_active ? (
+              {isActive ? (
                 <button
                   onClick={() => handleOpenRelieve(yp)}
                   className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
@@ -404,7 +433,7 @@ export default function DataList({
                   <UserMinus className="h-4 w-4" />
                 </button>
               ) : (
-                <div className="w-7 h-7" /> /* Spacer to match button size and maintain layout alignment */
+                <div className="w-7 h-7" />
               )}
             </div>
           </div>
@@ -415,10 +444,10 @@ export default function DataList({
 
   return (
     <div className="space-y-6 animate-fade-in relative">
-      {/* Category selector tabs matching CabinetNotesMOPSW */}
+      {/* Category selector tabs */}
       <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
         <button
-          onClick={() => setActiveStatusTab('active')}
+          onClick={() => handleStatusTabChange('active')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeStatusTab === 'active'
             ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
             : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
@@ -427,7 +456,7 @@ export default function DataList({
           ACTIVE YPS ({activeYpCount})
         </button>
         <button
-          onClick={() => setActiveStatusTab('relieved')}
+          onClick={() => handleStatusTabChange('relieved')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeStatusTab === 'relieved'
             ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
             : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
@@ -448,7 +477,7 @@ export default function DataList({
           <div className="relative">
             <select
               value={selectedWing}
-              onChange={(e) => setSelectedWing(e.target.value)}
+              onChange={(e) => handleWingChange(e.target.value)}
               className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[120px]"
             >
               <option value="">All Wings</option>
@@ -463,7 +492,7 @@ export default function DataList({
           <div className="relative">
             <select
               value={selectedDivision}
-              onChange={(e) => setSelectedDivision(e.target.value)}
+              onChange={(e) => handleDivisionChange(e.target.value)}
               className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[130px]"
             >
               <option value="">All Divisions</option>
@@ -473,6 +502,7 @@ export default function DataList({
             </select>
             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           </div>
+
           {/* Search input */}
           <div className="relative min-w-[160px] max-w-xs flex-1">
             <input
@@ -486,7 +516,7 @@ export default function DataList({
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -494,10 +524,10 @@ export default function DataList({
           </div>
 
           {/* Clear filters pill */}
-          {(selectedWing || selectedDivision) && (
+          {(selectedWing || selectedDivision || searchTerm) && (
             <button
-              onClick={() => { setSelectedWing(''); setSelectedDivision(''); }}
-              className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition"
+              onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSearchTerm(''); setCurrentPage(1); }}
+              className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition cursor-pointer"
             >
               <X className="h-3 w-3" />
               Clear filters
@@ -510,23 +540,25 @@ export default function DataList({
           {viewMode === 'table' && (
             <>
               {/* Rows Limit Select Dropdown */}
-              <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none">
+              <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
                 <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
                 <select
                   value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="bg-transparent border-none text-xs font-bold text-slate-755 focus:outline-none cursor-pointer p-0"
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-transparent border-none text-xs font-bold text-slate-755 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
                 >
                   <option value="10">10</option>
                   <option value="25">25</option>
                   <option value="50">50</option>
                   <option value="100">100</option>
-                  <option value="500">500</option>
                 </select>
               </div>
 
-              <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                Total Rows: {filteredData.length}
+              <div className="text-xs font-bold text-slate-555 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                Total: {totalCount}
               </div>
               <CopyButton
                 onCopy={() => handleExport('Copy')}
@@ -574,14 +606,14 @@ export default function DataList({
           <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50 dark:bg-slate-900 dark:border-slate-800">
             <button
               onClick={() => setViewMode('chart')}
-              className={`p-1.5 rounded transition ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
+              className={`p-1.5 rounded transition cursor-pointer ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
               title="Chart View"
             >
               <BarChart3 className="h-4 w-4" />
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded transition ${viewMode === 'table' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
+              className={`p-1.5 rounded transition cursor-pointer ${viewMode === 'table' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
               title="Table View"
             >
               <List className="h-4 w-4" />
@@ -590,25 +622,35 @@ export default function DataList({
         </div>
       </div>
 
-
-
       {viewMode === 'table' ? (
-        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
           <Table
-            rowData={filteredData}
+            rowData={data}
             columnDefs={columnDefs}
             loading={loading}
-            pagination={true}
-            paginationPageSize={pageSize}
+            pagination={false}
             enableExport={false}
             onGridReady={(params) => setGridApi(params.api)}
             defaultColDef={{
               minWidth: 90,
-              filter: true,
+              filter: false,
               sortable: true,
               resizable: true
             }}
           />
+          
+          {/* Server-Side Pagination Bar */}
+          <TablePagination
+            currentPage={currentPage - 1}
+            totalPages={totalPages}
+            totalRows={totalCount}
+            pageSize={pageSize}
+            onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
+            onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            color="#0f417a"
+          />
+
           <style dangerouslySetInnerHTML={{
             __html: `
             .ag-theme-quartz.rounded-xl,
@@ -616,49 +658,7 @@ export default function DataList({
               border-radius: 16px !important;
             }
             .ag-theme-quartz .ag-root-wrapper {
-              border-radius: 16px !important;
-            }
-            .ag-theme-quartz .ag-paging-panel {
-              color: #1e293b !important;
-              font-weight: 700 !important;
-              opacity: 1 !important;
-            }
-            .dark .ag-theme-quartz .ag-paging-panel {
-              color: #f1f5f9 !important;
-            }
-            .ag-theme-quartz .ag-paging-button {
-              color: #0f417a !important;
-              opacity: 1 !important;
-            }
-            .dark .ag-theme-quartz .ag-paging-button {
-              color: #3b82f6 !important;
-            }
-            .ag-theme-quartz .ag-paging-panel .ag-icon {
-              color: #0f417a !important;
-              opacity: 1 !important;
-            }
-            .dark .ag-theme-quartz .ag-paging-panel .ag-icon {
-              color: #3b82f6 !important;
-            }
-            .ag-theme-quartz .ag-paging-row-summary-panel select {
-              color: #1e293b !important;
-              background-color: #fff !important;
-              opacity: 1 !important;
-              border: 1px solid #cbd5e1 !important;
-              border-radius: 4px !important;
-            }
-            .dark .ag-theme-quartz .ag-paging-row-summary-panel select {
-              color: #f1f5f9 !important;
-              background-color: #1f2937 !important;
-              border: 1px solid #4b5563 !important;
-            }
-            .ag-theme-quartz select option {
-              color: #1e293b !important;
-              background-color: #ffffff !important;
-            }
-            .dark .ag-theme-quartz select option {
-              color: #f1f5f9 !important;
-              background-color: #1f2937 !important;
+              border-radius: 16px 16px 0 0 !important;
             }
           `}} />
         </div>
@@ -684,57 +684,55 @@ export default function DataList({
         </div>
       )}
 
-      {/* Bottom info row removed */}
-
       {/* Relieve Modal */}
       {relieveModalOpen && selectedYp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up">
-            <div className="px-6 py-4.5 border-b border-slate-100 flex justify-between items-center bg-rose-700 text-white">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up dark:bg-slate-900">
+            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-rose-700 text-white">
               <h3 className="text-sm font-black font-display uppercase tracking-wider">Relieve Young Professional</h3>
-              <button onClick={() => setRelieveModalOpen(false)} className="text-rose-200 hover:text-white transition">
+              <button onClick={() => setRelieveModalOpen(false)} className="text-rose-200 hover:text-white transition cursor-pointer">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <form onSubmit={handleRelieveSubmit} className="p-6 space-y-5">
               <div>
-                <p className="text-xs font-bold text-slate-700">Name</p>
-                <p className="text-sm font-black text-slate-900 mt-0.5">{selectedYp.name}</p>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Name</p>
+                <p className="text-sm font-black text-slate-900 dark:text-slate-100 mt-0.5">{selectedYp.name}</p>
               </div>
 
               <div>
-                <p className="text-xs font-bold text-slate-700">Role</p>
-                <p className="text-xs font-semibold text-slate-655 mt-0.5">{selectedYp.role} ({selectedYp.wing} - {selectedYp.division})</p>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Role</p>
+                <p className="text-xs font-semibold text-slate-655 dark:text-slate-400 mt-0.5">{selectedYp.role} ({selectedYp.wing} - {selectedYp.division})</p>
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Last Working Date*</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Last Working Date*</label>
                 <input
                   type="date"
                   value={lastWorkingDate}
                   onChange={(e) => setLastWorkingDate(e.target.value)}
                   required
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Remarks</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Remarks</label>
                 <textarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   rows={3}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-medium text-slate-700"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-medium text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
                   placeholder="Reason for relieving, remarks..."
                 />
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setRelieveModalOpen(false)}
-                  className="px-4.5 py-2 border border-slate-250 text-slate-655 rounded-xl text-xs font-bold hover:bg-slate-100 transition cursor-pointer"
+                  className="px-4.5 py-2 border border-slate-250 dark:border-slate-700 text-slate-655 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   Cancel
                 </button>

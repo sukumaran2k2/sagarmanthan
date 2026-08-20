@@ -55,8 +55,8 @@ api.interceptors.response.use(
   }
 );
 
-export function fetchYoungProfessionals() {
-  return api.get('/young-professional');
+export function fetchYoungProfessionals(params = {}) {
+  return api.get('/young-professional', { params });
 }
 
 export function createYoungProfessional(payload) {

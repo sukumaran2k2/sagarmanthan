@@ -7,8 +7,6 @@ import { fetchWings, fetchDivisions, fetchYoungProfessionals } from './api';
 
 export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
   const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
-  const [loading, setLoading] = useState(false);
-  const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
@@ -39,27 +37,12 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
       .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
-  const fetchData = () => {
-    setLoading(true);
-    fetchYoungProfessionals()
-      .then(res => {
-        setRowData(res.data || []);
-      })
-      .catch(err => console.error("Error loading YP data list:", err))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const handleEdit = (yp) => {
     setEditData(yp);
   };
 
   const handleSuccess = () => {
     setEditData(null);
-    fetchData();
     setActiveSubTab('list');
   };
 
@@ -107,10 +90,7 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
             />
           ) : (
             <DataList
-              rowData={rowData}
-              loading={loading}
               onEdit={handleEdit}
-              onRefresh={fetchData}
               triggerNotification={triggerNotification}
               wings={wings}
               divisions={divisions}
