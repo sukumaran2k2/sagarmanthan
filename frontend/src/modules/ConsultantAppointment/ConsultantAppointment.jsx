@@ -68,8 +68,6 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
   const { canAdd, canEdit, canRemove, canView, isViewOnlyAdmin } = permissions;
 
   const [activeSubTab, setActiveSubTab] = useState(canAdd ? 'add' : (canView ? 'list' : 'add'));
-  const [loading, setLoading] = useState(false);
-  const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
@@ -105,27 +103,12 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
       .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
-  const fetchData = () => {
-    setLoading(true);
-    fetchConsultantAppointments()
-      .then(res => {
-        setRowData(res.data.map(parseAppointmentRow));
-      })
-      .catch(err => console.error("Error loading CA data list:", err))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const handleEdit = (ca) => {
     setEditData(ca);
   };
 
   const handleSuccess = () => {
     setEditData(null);
-    fetchData();
     setActiveSubTab('list');
     if (setActiveSubTabProp) {
       setActiveSubTabProp('Consultant Data List');
@@ -186,21 +169,11 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
             />
           ) : (
             <DataList
-              rowData={rowData}
-              loading={loading}
               onEdit={handleEdit}
-              onAddClick={() => {
-                setActiveSubTab('add');
-                if (setActiveSubTabProp) {
-                  setActiveSubTabProp('Consultant Input Form');
-                }
-              }}
               triggerNotification={triggerNotification}
               wings={wings}
               divisions={divisions}
               canEdit={canEdit}
-              canAdd={canAdd}
-              canRemove={canRemove}
             />
           )
         )}

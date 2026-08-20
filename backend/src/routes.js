@@ -1084,22 +1084,22 @@ router.get("/candidate-detail-document/:candidate_id", auth, requireModulePermis
 
 router.put( "/relieve-young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.relieveYoungProfessional);
 //consultant appointment
-router.get("/consultant-appointment", consultantAppointmentTab.getConsultantAppointment);
-router.post("/consultant-appointment", consultantAppointmentTab.createConsultantAppointment);
-router.put("/consultant-appointment", consultantAppointmentTab.updateConsultantAppointment);
-router.post("/consultant-appointment-stage", consultantAppointmentTab.createConsultantAppointmentStage);
-router.get("/edit-consultant-appointment/:consultantAppointmentID", consultantAppointmentTab.getUpdateConsultantAppointmentData);
-router.get("/get-candidate-id/:consultantAppointmentID", consultantAppointmentTab.getCandidateID);
+router.get("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getConsultantAppointment);
+router.post("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointment);
+router.put("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "update"), consultantAppointmentTab.updateConsultantAppointment);
+router.post("/consultant-appointment-stage", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointmentStage);
+router.get("/edit-consultant-appointment/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getUpdateConsultantAppointmentData);
+router.get("/get-candidate-id/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateID);
 
 //candidate detail consultant appointment
-router.post("/ca-candidate-detail", consultantAppointmentTab.addCandidateDetail);
-router.post("/ca-candidate-uploader", candidateCaDocumentTab.upload.single('file'), candidateCaDocumentTab.candidateDocumentUploader);
-router.get("/ca-candidate-detail/:Id", consultantAppointmentTab.getCandidateDetail);
-router.get("/ca-candidate-detail-document/:Id", consultantAppointmentTab.getCandidateDetailDocument);
-router.post("/add-consultant-id", consultantAppointmentTab.addConsultantID);
+router.post("/ca-candidate-detail", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.addCandidateDetail);
+router.post("/ca-candidate-uploader", auth, requireAnyModulePermission("CONSULTANT_APPOINTMENT", ["create", "update"]), candidateCaDocumentTab.upload.single('file'), candidateCaDocumentTab.candidateDocumentUploader);
+router.get("/ca-candidate-detail/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetail);
+router.get("/ca-candidate-detail-document/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetailDocument);
+router.post("/add-consultant-id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.addConsultantID);
 
 //delete consultant appoinment and candidate details
-router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID", consultantAppointmentTab.deleteCACandidateData);
+router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateData);
 
 //HR
 router.post("/hr-department", hrDepartmentTab.createHrDepartment);
@@ -1483,10 +1483,10 @@ router.get("/wingwise-ypcandidate/:ypID/:wingID", auth, requireModulePermission(
 router.get("/divisionwise-ypcandidate/:ypID/:divisionID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYpDivisionWiseCandidate);
 router.get("/yp-wing-wise-report/:ypID/:wingID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYpWingWiseReport);
 
-router.get("/consultantapp-report", consultAppReportTab.getconsulAppReport);
-router.get("/cadivision-report/:wingID/", consultAppReportTab.caDivisionWiseReport);
-router.get("/wingwise-cacandidate/:wingID/", consultAppReportTab.getCaWingWiseCandidateReport);
-router.get("/divisionwise-cacandidate/:divisionID/", consultAppReportTab.getCaDivisionWiseCandidateReport);
+router.get("/consultantapp-report", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.getconsulAppReport);
+router.get("/cadivision-report/:wingID/", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.caDivisionWiseReport);
+router.get("/wingwise-cacandidate/:wingID/", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.getCaWingWiseCandidateReport);
+router.get("/divisionwise-cacandidate/:divisionID/", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.getCaDivisionWiseCandidateReport);
 
 // Vip Reference 
 router.get("/vipwingwise-report", vipReportTab.vipWingWiseReport);

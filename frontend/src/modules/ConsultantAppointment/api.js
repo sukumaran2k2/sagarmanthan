@@ -55,8 +55,8 @@ api.interceptors.response.use(
   }
 );
 
-export function fetchConsultantAppointments() {
-  return api.get('/consultant-appointment');
+export function fetchConsultantAppointments(params = {}) {
+  return api.get('/consultant-appointment', { params });
 }
 
 export function fetchConsultantAppointmentById(id) {

@@ -133,28 +133,112 @@ async function createConsultantAppointment(req, res) {
 
 async function getConsultantAppointment(req, res) {
     const conn = await pool;
+    const request = conn.request();
+
+    const {
+        page,
+        limit,
+        search,
+        wing,
+        division,
+        all
+    } = req.query;
+
+    const isFetchAll = all === 'true' || limit === 'all' || (!page && !limit && !search && !wing && !division);
+    const pageNum = parseInt(page) || 1;
+    const pageSize = parseInt(limit) || 10;
+    const offset = (pageNum - 1) * pageSize;
+
+    let whereClauses = [];
+
+    // Search filter
+    if (search && search.trim() !== '') {
+        request.input('searchTerm', `%${search.trim()}%`);
+        whereClauses.push(`(
+            w.wing_name LIKE @searchTerm OR 
+            d.division_name LIKE @searchTerm OR 
+            ca.appointment_type LIKE @searchTerm OR 
+            stage.stage_name LIKE @searchTerm
+        )`);
+    }
+
+    // Wing filter
+    if (wing && wing !== 'All' && wing !== 'all' && wing !== '') {
+        if (!isNaN(wing)) {
+            request.input('wingId', parseInt(wing));
+            whereClauses.push(`ca.wing = @wingId`);
+        } else {
+            request.input('wingName', wing.trim());
+            whereClauses.push(`w.wing_name = @wingName`);
+        }
+    }
+
+    // Division filter
+    if (division && division !== 'All' && division !== 'all' && division !== '') {
+        if (!isNaN(division)) {
+            request.input('divisionId', parseInt(division));
+            whereClauses.push(`ca.division = @divisionId`);
+        } else {
+            request.input('divisionName', division.trim());
+            whereClauses.push(`d.division_name = @divisionName`);
+        }
+    }
+
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
     try {
+        if (isFetchAll) {
+            const result = await request.query(`
+                SELECT
+                    ca.*,
+                    w.wing_name,
+                    d.division_name,
+                    stage.stage_name 
+                FROM tbl_consultant_appointment ca
+                JOIN mmt_wings w ON ca.wing = w.wing_id
+                JOIN mmt_division d ON ca.division = d.division_id
+                INNER JOIN mmt_consultant_appointment_stage AS stage ON ca.stage_id = stage.stage_id
+                ${whereSql}
+                ORDER BY ca.stage_id, ca.consultant_appointment_id DESC;
+            `);
+            return res.json(result.recordset);
+        }
 
-        const result = await conn.query(`SELECT
-        ca.*,
-        w.wing_name,
-        d.division_name,
-        stage.stage_name 
-    FROM
-        tbl_consultant_appointment ca
-    JOIN
-        mmt_wings w ON ca.wing = w.wing_id
-    JOIN
-        mmt_division d ON ca.division = d.division_id
-    INNER JOIN
-        mmt_consultant_appointment_stage AS stage ON ca.stage_id = stage.stage_id
-    ORDER BY stage_id;   
-    `);
-        res.json(result.recordset);
-    }
-    catch (err) {
-        console.log(err);
+        request.input('offset', offset);
+        request.input('pageSize', pageSize);
+
+        const query = `
+            SELECT
+                ca.*,
+                w.wing_name,
+                d.division_name,
+                stage.stage_name,
+                COUNT(*) OVER() AS total_count
+            FROM tbl_consultant_appointment ca
+            JOIN mmt_wings w ON ca.wing = w.wing_id
+            JOIN mmt_division d ON ca.division = d.division_id
+            INNER JOIN mmt_consultant_appointment_stage AS stage ON ca.stage_id = stage.stage_id
+            ${whereSql}
+            ORDER BY ca.stage_id, ca.consultant_appointment_id DESC
+            OFFSET @offset ROWS
+            FETCH NEXT @pageSize ROWS ONLY;
+        `;
+
+        const result = await request.query(query);
+        const rows = result.recordset || [];
+        const total = rows.length > 0 ? rows[0].total_count : 0;
+
+        res.json({
+            data: rows,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: pageSize,
+                totalPages: Math.ceil(total / pageSize) || 1
+            }
+        });
+    } catch (err) {
+        console.error("Error fetching consultant appointments:", err);
         return res.sendStatus(500);
     }
 };

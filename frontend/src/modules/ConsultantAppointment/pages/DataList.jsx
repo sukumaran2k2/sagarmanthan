@@ -1,24 +1,86 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
 import { Search, X, Edit, ChevronDown } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
+import CopyButton from '../../../components/CopyButton';
+import { fetchConsultantAppointments } from '../api';
+
+const STAGES = [
+  { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
+  { key: 'tenderPublished', label: 'Tender Published' },
+  { key: 'preBidQueries', label: 'Pre-bid Queries Responded' },
+  { key: 'bidReceived', label: 'Bid Received' },
+  { key: 'techBidFinalized', label: 'Technical Bid Finalized' },
+  { key: 'finBidFinalized', label: 'Financial Bid Finalized' },
+  { key: 'workOrderIssued', label: 'Work Order Issued' },
+  { key: 'contractSigned', label: 'Contract Signed' },
+];
+
+const toBool = (val) => val === 'Yes' || val === 1 || val === true;
+const formatDate = (d) => (d ? new Date(d).toISOString().split('T')[0] : '');
+
+const getStatusFromStages = (stages) => {
+  for (let i = STAGES.length - 1; i >= 0; i--) {
+    if (stages[STAGES[i].key]) {
+      return STAGES[i].label;
+    }
+  }
+  return 'Initiated';
+};
+
+function parseAppointmentRow(b) {
+  const stages = {
+    adminApproval: toBool(b.admin_approval_for_nkg_consultant),
+    adminApprovalDate: formatDate(b.admin_approval_for_nkg_consultant_date),
+    tenderPublished: toBool(b.tender_published),
+    tenderPublishedDate: formatDate(b.tender_published_date),
+    preBidQueries: toBool(b.pre_bid_queries_responded),
+    preBidQueriesDate: formatDate(b.pre_bid_queries_responded_date),
+    bidReceived: toBool(b.bid_received),
+    bidReceivedDate: formatDate(b.bid_received_date),
+    techBidFinalized: toBool(b.technical_bid_finalized),
+    techBidFinalizedDate: formatDate(b.technical_bid_finalized_date),
+    finBidFinalized: toBool(b.financial_bid_finalized),
+    finBidFinalizedDate: formatDate(b.financial_bid_finalized_date),
+    workOrderIssued: toBool(b.work_order_issued),
+    workOrderIssuedDate: formatDate(b.work_order_issued_date),
+    contractSigned: toBool(b.contract_signed),
+    contractSignedDate: formatDate(b.contract_signed_date),
+  };
+
+  return {
+    id: b.consultant_appointment_id,
+    wing_id: b.wing,
+    division_id: b.division,
+    wing: b.wing_name || 'Unknown',
+    division: b.division_name || 'Unknown',
+    appointmentType: b.appointment_type || 'Full Time',
+    numResources: b.number_of_resources || 1,
+    status: getStatusFromStages(stages),
+    stages,
+  };
+}
 
 export default function DataList({
-  rowData = [],
-  loading,
   onEdit,
-  onAddClick,
   wings = [],
   divisions = [],
   triggerNotification,
-  canEdit = true,
-  canAdd = true,
-  canRemove = true
+  canEdit = true
 }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
-  const [gridApi, setGridApi] = useState(null); // Ag Grid API
+  const [gridApi, setGridApi] = useState(null);
 
   // Column visibility states
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -31,6 +93,25 @@ export default function DataList({
     numResources: true
   });
 
+  // Debounce search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  const handleWingChange = (val) => {
+    setSelectedWing(val);
+    setCurrentPage(1);
+  };
+
+  const handleDivisionChange = (val) => {
+    setSelectedDivision(val);
+    setCurrentPage(1);
+  };
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
@@ -40,6 +121,48 @@ export default function DataList({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchConsultantAppointments({
+        page: currentPage,
+        limit: pageSize,
+        search: debouncedSearch,
+        wing: selectedWing,
+        division: selectedDivision
+      });
+
+      const payload = res.data;
+      if (payload && payload.data && payload.pagination) {
+        const parsed = (payload.data || []).map((item, idx) => ({
+          ...parseAppointmentRow(item),
+          sNo: (payload.pagination.page - 1) * payload.pagination.limit + idx + 1
+        }));
+        setData(parsed);
+        setTotalCount(payload.pagination.total || 0);
+        setTotalPages(payload.pagination.totalPages || 1);
+      } else {
+        const list = Array.isArray(payload) ? payload : [];
+        const parsed = list.map((item, idx) => ({
+          ...parseAppointmentRow(item),
+          sNo: idx + 1
+        }));
+        setData(parsed);
+        setTotalCount(list.length);
+        setTotalPages(Math.ceil(list.length / pageSize) || 1);
+      }
+    } catch (err) {
+      console.error("Error fetching consultant appointments:", err);
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, pageSize, debouncedSearch, selectedWing, selectedDivision]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const wingOptions = useMemo(() => {
     return wings.map(w => ({
@@ -55,32 +178,44 @@ export default function DataList({
     }));
   }, [divisions]);
 
-  const filteredData = useMemo(() => {
-    return rowData.filter(item => {
-      const search = searchTerm.toLowerCase();
-      const matchesSearch =
-        (item.wing || '').toLowerCase().includes(search) ||
-        (item.division || '').toLowerCase().includes(search) ||
-        (item.status || '').toLowerCase().includes(search);
-
-      const matchesWing = selectedWing ? (item.wing || '') === selectedWing : true;
-      const matchesDivision = selectedDivision ? (item.division || '') === selectedDivision : true;
-
-      return matchesSearch && matchesWing && matchesDivision;
-    }).map((item, index) => ({
-      ...item,
-      sNo: index + 1
-    }));
-  }, [rowData, searchTerm, selectedWing, selectedDivision]);
-
   const handleExport = (type) => {
-    if (type === 'Excel') {
+    if (type === 'Copy') {
+      if (gridApi) {
+        let tsv = '';
+        const headers = [];
+        columnDefs.forEach(col => {
+          if (col.headerName && col.headerName !== 'Action') {
+            headers.push(col.headerName);
+          }
+        });
+        tsv += headers.join('\t') + '\n';
+        
+        data.forEach((row, rowIndex) => {
+          const line = [];
+          columnDefs.forEach(col => {
+            if (col.headerName && col.headerName !== 'Action') {
+              const val = row[col.field] !== undefined ? row[col.field] : '';
+              line.push(val);
+            }
+          });
+          tsv += line.join('\t') + '\n';
+        });
+        
+        navigator.clipboard.writeText(tsv)
+          .then(() => {
+            if (triggerNotification) triggerNotification('Current page data copied to clipboard!');
+          })
+          .catch(() => alert('Failed to copy table data.'));
+      } else {
+        alert("Grid is not ready for copy yet.");
+      }
+    } else if (type === 'Excel') {
       if (gridApi) {
         gridApi.exportDataAsCsv({
-          fileName: `Consultant_Appointment_Register_export.csv`
+          fileName: `Consultant_Appointment_Page_${currentPage}.csv`
         });
         if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`);
+          triggerNotification(`Exported to CSV successfully!`);
         }
       } else {
         alert("Grid is not ready for export yet.");
@@ -101,7 +236,7 @@ export default function DataList({
       });
 
       let rowsHtml = '';
-      filteredData.forEach((row, rowIndex) => {
+      data.forEach((row, rowIndex) => {
         rowsHtml += '<tr>';
         columnDefs.forEach(col => {
           if (col.headerName && col.headerName !== 'Action') {
@@ -225,13 +360,13 @@ export default function DataList({
   }, [onEdit, visibleCols, canEdit]);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative">
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 pb-4">
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative dark:bg-slate-950 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
           <div className="relative">
             <select
               value={selectedWing}
-              onChange={(e) => setSelectedWing(e.target.value)}
+              onChange={(e) => handleWingChange(e.target.value)}
               className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[120px]"
             >
               <option value="">All Wings</option>
@@ -245,7 +380,7 @@ export default function DataList({
           <div className="relative">
             <select
               value={selectedDivision}
-              onChange={(e) => setSelectedDivision(e.target.value)}
+              onChange={(e) => handleDivisionChange(e.target.value)}
               className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[130px]"
             >
               <option value="">All Divisions</option>
@@ -268,17 +403,17 @@ export default function DataList({
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
 
-          {(selectedWing || selectedDivision) && (
+          {(selectedWing || selectedDivision || searchTerm) && (
             <button
-              onClick={() => { setSelectedWing(''); setSelectedDivision(''); }}
-              className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition"
+              onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSearchTerm(''); setCurrentPage(1); }}
+              className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition cursor-pointer"
             >
               <X className="h-3 w-3" />
               Clear filters
@@ -287,9 +422,33 @@ export default function DataList({
         </div>
 
         <div className="flex items-center space-x-2 flex-shrink-0">
-          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-            Total Rows: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{filteredData.length}</span>
+          {/* Rows Limit Select Dropdown */}
+          <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-transparent border-none text-xs font-bold text-slate-755 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+            >
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
           </div>
+
+          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+            Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{totalCount}</span>
+          </div>
+
+          <CopyButton
+            onCopy={() => handleExport('Copy')}
+            color="#0f417a"
+            hoverBg="#f1f5f9"
+          />
 
           <div className="relative" ref={colDropdownRef}>
             <button
@@ -325,23 +484,34 @@ export default function DataList({
         </div>
       </div>
 
-      <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+      <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
         <Table
-          rowData={filteredData}
+          rowData={data}
           columnDefs={columnDefs}
           loading={loading}
-          pagination={true}
-          paginationPageSize={10}
-          paginationPageSizeSelector={[10, 20, 50]}
+          pagination={false}
           enableExport={false}
           onGridReady={(params) => setGridApi(params.api)}
           defaultColDef={{
             minWidth: 90,
-            filter: true,
+            filter: false,
             sortable: true,
             resizable: true
           }}
         />
+
+        {/* Server-Side Pagination Bar */}
+        <TablePagination
+          currentPage={currentPage - 1}
+          totalPages={totalPages}
+          totalRows={totalCount}
+          pageSize={pageSize}
+          onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
+          onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+          onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+          color="#0f417a"
+        />
+
         <style dangerouslySetInnerHTML={{
           __html: `
           .ag-theme-quartz.rounded-xl,
@@ -349,49 +519,7 @@ export default function DataList({
             border-radius: 16px !important;
           }
           .ag-theme-quartz .ag-root-wrapper {
-            border-radius: 16px !important;
-          }
-          .ag-theme-quartz .ag-paging-panel {
-            color: #1e293b !important;
-            font-weight: 700 !important;
-            opacity: 1 !important;
-          }
-          .dark .ag-theme-quartz .ag-paging-panel {
-            color: #f1f5f9 !important;
-          }
-          .ag-theme-quartz .ag-paging-button {
-            color: #0f417a !important;
-            opacity: 1 !important;
-          }
-          .dark .ag-theme-quartz .ag-paging-button {
-            color: #3b82f6 !important;
-          }
-          .ag-theme-quartz .ag-paging-panel .ag-icon {
-            color: #0f417a !important;
-            opacity: 1 !important;
-          }
-          .dark .ag-theme-quartz .ag-paging-panel .ag-icon {
-            color: #3b82f6 !important;
-          }
-          .ag-theme-quartz .ag-paging-row-summary-panel select {
-            color: #1e293b !important;
-            background-color: #fff !important;
-            opacity: 1 !important;
-            border: 1px solid #cbd5e1 !important;
-            border-radius: 4px !important;
-          }
-          .dark .ag-theme-quartz .ag-paging-row-summary-panel select {
-            color: #f1f5f9 !important;
-            background-color: #1f2937 !important;
-            border: 1px solid #4b5563 !important;
-          }
-          .ag-theme-quartz select option {
-            color: #1e293b !important;
-            background-color: #ffffff !important;
-          }
-          .dark .ag-theme-quartz select option {
-            color: #f1f5f9 !important;
-            background-color: #1f2937 !important;
+            border-radius: 16px 16px 0 0 !important;
           }
         `}} />
       </div>
