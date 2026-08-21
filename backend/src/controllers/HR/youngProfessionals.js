@@ -182,11 +182,6 @@ async function getYoungProfessional(req, res) {
 
         // Fetch paginated rows with total filtered count
         const query = `
-=======
-    const { joinSql, whereSql } = applyDataScope(request, req.user, { strategy: "viaCreatedBy", alias: "yp" });
-    try {
-        const result = await request.query(`
->>>>>>> origin/feature/consultant-appointment
             SELECT 
                 yp.yp_id,
                 yp.wing_id,
