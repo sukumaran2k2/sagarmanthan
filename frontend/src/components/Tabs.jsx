@@ -390,6 +390,17 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Theme Report', tab: 'MIV 2030', targetSubTab: 'Theme Report', icon: BarChart3 },
           ]
         }),
+        m('GMIS_IMW_MOU_TRACKING', {
+          label: 'GMIS & IMW MoUs',
+          icon: Globe,
+          targetTab: 'GMIS & IMW MoUs',
+          subItems: [
+            { label: 'Dashboard', tab: 'GMIS & IMW MoUs', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Data List', tab: 'GMIS & IMW MoUs', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'GMIS & IMW MoUs', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'Reports', tab: 'GMIS & IMW MoUs', targetSubTab: 'Reports', icon: FilePieChart },
+          ]
+        }),
         m('AKV_2047', { label: 'Vision 2047', icon: Milestone }),
         m('MIV_2030', { label: 'Maritime India Summit', icon: Anchor }),
         m('AKV_2047', { label: 'Blue Economy Policy', icon: Globe }),
@@ -699,14 +710,14 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                               sub.targetSubTab
                                             );
                                             window.dispatchEvent(
-                                              new CustomEvent('cabinet-notes-mopsw-subtab', {
-                                                detail: sub.targetSubTab,
-                                              })
-                                            );
-                                          }
-                                          if (
-                                            sub.targetSubTab &&
-                                            (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
+                                                new CustomEvent('cabinet-notes-mopsw-subtab', {
+                                                  detail: sub.targetSubTab,
+                                                })
+                                              );
+                                            }
+                                            if (
+                                              sub.targetSubTab &&
+                                              (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
                                           ) {
                                             sessionStorage.setItem(
                                               'miv2030InitTab',
@@ -714,6 +725,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                             );
                                             window.dispatchEvent(
                                               new CustomEvent('miv-2030-subtab', {
+                                                detail: sub.targetSubTab,
+                                              })
+                                            );
+                                          }
+                                          if (
+                                            sub.targetSubTab &&
+                                            (mainTab === 'GMIS & IMW MoUs' || mainTab === 'GMIS-MoU' || mainTab === 'GMISMOU')
+                                          ) {
+                                            sessionStorage.setItem(
+                                              'gmisMouInitTab',
+                                              sub.targetSubTab
+                                            );
+                                            window.dispatchEvent(
+                                              new CustomEvent('gmis-mou-subtab', {
                                                 detail: sub.targetSubTab,
                                               })
                                             );
@@ -1008,6 +1033,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                                 );
                                                 window.dispatchEvent(
                                                   new CustomEvent('cabinet-notes-mopsw-subtab', {
+                                                    detail: sub.targetSubTab,
+                                                  })
+                                                );
+                                              }
+                                              if (
+                                                sub.targetSubTab &&
+                                                (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
+                                              ) {
+                                                sessionStorage.setItem(
+                                                  'miv2030InitTab',
+                                                  sub.targetSubTab
+                                                );
+                                                window.dispatchEvent(
+                                                  new CustomEvent('miv2030-subtab', {
                                                     detail: sub.targetSubTab,
                                                   })
                                                 );

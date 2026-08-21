@@ -175,6 +175,7 @@ export default function MIVDataList({
       field: 'organisation_name',
       flex: 1.5,
       minWidth: 200,
+      pinned: 'left',
       cellClass: 'font-bold text-slate-800 dark:text-slate-200',
       hide: !visibleCols.org
     },

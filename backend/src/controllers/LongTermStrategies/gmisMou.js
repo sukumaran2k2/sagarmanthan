@@ -419,6 +419,180 @@ async function getGmisMouData(req, res) {
 
     }
 }
+
+async function getGmisMouPaginated(req, res) {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const pageSize = parseInt(req.query.pageSize, 10) || 10;
+        const search = req.query.search ? req.query.search.trim() : "";
+        const eventName = req.query.eventName || "";
+        const organisationId = req.query.organisationId || "";
+        const category = req.query.category || "";
+        const status = req.query.status || "";
+        const offset = (page - 1) * pageSize;
+
+        const roleId = req.user?.role_id || req.query.roleId || 2;
+        const userOrgId = req.user?.organisation_id || req.query.userOrgId;
+
+        const conn = await pool;
+        const request = conn.request();
+
+        let whereClauses = ["1=1"];
+
+        // Org scoping if not admin
+        if (roleId != 2 && roleId != 3 && roleId != 4 && roleId != 5 && userOrgId) {
+            whereClauses.push("tbl_gmis_mou.organisation_id = @userOrgId");
+            request.input("userOrgId", userOrgId);
+        }
+
+        if (eventName && eventName !== "all" && eventName !== "All") {
+            whereClauses.push("tbl_gmis_mou.event_name = @eventName");
+            request.input("eventName", eventName);
+        }
+
+        if (organisationId && organisationId !== "all" && organisationId !== "All") {
+            whereClauses.push("tbl_gmis_mou.organisation_id = @organisationId");
+            request.input("organisationId", organisationId);
+        }
+
+        if (category && category !== "all" && category !== "All") {
+            if (!isNaN(Number(category))) {
+                whereClauses.push("(tbl_gmis_mou.mou_category_id = @categoryNum OR mmt_mou_category.mou_category_name = @category)");
+                request.input("categoryNum", Number(category));
+                request.input("category", String(category));
+            } else {
+                whereClauses.push("mmt_mou_category.mou_category_name = @category");
+                request.input("category", String(category));
+            }
+        }
+
+        if (status && status !== "all" && status !== "All") {
+            if (status.toLowerCase().includes("completed")) {
+                whereClauses.push("tbl_gmis_mou.present_status LIKE '%Completed%'");
+            } else if (status.toLowerCase().includes("under") || status.toLowerCase().includes("implementation") || status.toLowerCase() === "ui") {
+                whereClauses.push("tbl_gmis_mou.present_status LIKE '%Under Implementation%'");
+            } else if (status.toLowerCase().includes("dropped")) {
+                whereClauses.push("tbl_gmis_mou.present_status LIKE '%Dropped%'");
+            } else if (status.toLowerCase().includes("yet")) {
+                whereClauses.push("tbl_gmis_mou.present_status LIKE '%Yet to%'");
+            } else {
+                whereClauses.push("tbl_gmis_mou.present_status = @status");
+                request.input("status", status);
+            }
+        }
+
+        if (search) {
+            whereClauses.push(`(
+                tbl_gmis_mou.name_of_mou LIKE @search OR
+                tbl_gmis_mou.name_of_second_party LIKE @search OR
+                tbl_gmis_mou.name_of_first_party LIKE @search OR
+                mmt_organisation.organisation_name LIKE @search OR
+                tbl_gmis_mou.event_name LIKE @search OR
+                tbl_gmis_mou.mou_brief LIKE @search
+            )`);
+            request.input("search", `%${search}%`);
+        }
+
+        const whereSql = whereClauses.join(" AND ");
+
+        request.input("offset", offset);
+        request.input("pageSize", pageSize);
+
+        const dataQuery = `
+            SELECT 
+                tbl_gmis_mou.id,
+                tbl_gmis_mou.event_name,
+                tbl_gmis_mou.organisation_id,
+                mmt_organisation.organisation_name,
+                tbl_gmis_mou.name_of_mou,
+                tbl_gmis_mou.name_of_first_party,
+                tbl_gmis_mou.name_of_second_party,
+                tbl_gmis_mou.nature_of_second_party,
+                tbl_gmis_mou.amount,
+                tbl_gmis_mou.revised_amount,
+                tbl_gmis_mou.mou_category_id,
+                mmt_mou_category.mou_category_name,
+                tbl_gmis_mou.mou_brief,
+                tbl_gmis_mou.present_status,
+                tbl_gmis_mou.reason_for_dropping,
+                tbl_gmis_mou.remark_or_detailed_status,
+                tbl_gmis_mou.next_steps,
+                tbl_gmis_mou.navic_vibhas_id,
+                mmt_navic_vibhas.navic_name,
+                tbl_gmis_mou.document_uploader,
+                tbl_gmis_mou.created_on,
+                tbl_gmis_mou.updated_on,
+                COUNT(*) OVER() AS total_count
+            FROM tbl_gmis_mou
+            LEFT JOIN mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
+            LEFT JOIN mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
+            LEFT JOIN mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
+            WHERE ${whereSql}
+            ORDER BY tbl_gmis_mou.id DESC
+            OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY;
+        `;
+
+        const countRequest = conn.request();
+        if (roleId != 2 && roleId != 3 && roleId != 4 && roleId != 5 && userOrgId) {
+            countRequest.input("userOrgId", userOrgId);
+        }
+        if (eventName && eventName !== "all" && eventName !== "All") countRequest.input("eventName", eventName);
+        if (organisationId && organisationId !== "all" && organisationId !== "All") countRequest.input("organisationId", organisationId);
+        if (category && category !== "all" && category !== "All") {
+            if (!isNaN(Number(category))) {
+                countRequest.input("categoryNum", Number(category));
+                countRequest.input("category", String(category));
+            } else {
+                countRequest.input("category", String(category));
+            }
+        }
+        if (status && status !== "all" && status !== "All") countRequest.input("status", status);
+        if (search) countRequest.input("search", `%${search}%`);
+
+        const countsQuery = `
+            SELECT 
+                COUNT(*) AS count_all,
+                SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Under Implementation%' THEN 1 ELSE 0 END) AS count_ui,
+                SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Completed%' THEN 1 ELSE 0 END) AS count_completed,
+                SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Yet to%' THEN 1 ELSE 0 END) AS count_yet_to_start,
+                SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Dropped%' THEN 1 ELSE 0 END) AS count_dropped,
+                SUM(CAST(ISNULL(tbl_gmis_mou.amount, 0) AS FLOAT)) AS total_amount
+            FROM tbl_gmis_mou
+            LEFT JOIN mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
+            LEFT JOIN mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
+            WHERE ${whereSql};
+        `;
+
+        const [dataResult, countsResult] = await Promise.all([
+            request.query(dataQuery),
+            countRequest.query(countsQuery)
+        ]);
+
+        const recordset = dataResult.recordset || [];
+        const totalCount = recordset.length > 0 ? recordset[0].total_count : 0;
+        const totalPages = Math.ceil(totalCount / pageSize) || 1;
+        const countsRow = countsResult.recordset?.[0] || {};
+
+        res.json({
+            data: recordset,
+            totalCount,
+            totalPages,
+            currentPage: page,
+            pageSize,
+            counts: {
+                all: countsRow.count_all || 0,
+                underImplementation: countsRow.count_ui || 0,
+                completed: countsRow.count_completed || 0,
+                yetToStart: countsRow.count_yet_to_start || 0,
+                dropped: countsRow.count_dropped || 0,
+                totalAmount: countsRow.total_amount || 0,
+            }
+        });
+    } catch (err) {
+        console.error("Error in getGmisMouPaginated:", err);
+        return res.status(500).json({ error: "Internal server error fetching GMIS MoUs" });
+    }
+}
 async function getGmisMouDataByID(req, res) {
    
 
@@ -3930,7 +4104,7 @@ async function getRevisedphysicalprogressdate(req, res) {
     }
 };
 export default {
-    getMouCategory, submitGmisMouData, getGmisMouData, getGmisMouChartData, updateGmisMouData, getGmisMouDataByID, getGmisMouStageDetails,getGmisMouSecondParty, getGmisMouVibhasNavicCell, getGmisMouCategoryName, getGmisMouPresentStatus, getOrganisationWiseCountAmount,getOrganisationWiseStatusCount_2023,getOrganisationWiseCountAmount_2023,getGmisMouStageDetails_2023, getTotalMouAndAmountCategoryWise_2025,getOrganisationWiseCountAmountStatusorgView_2021_category,getOrganisationWiseCountAmountStatusorgView_2023_category,upload,fileUpload,gmisfileDelete,addRevisedfinancialprogressdate,getRevisedfinancialprogressdate,getRevisedphysicalprogressdate,
+    getGmisMouPaginated, getMouCategory, submitGmisMouData, getGmisMouData, getGmisMouChartData, updateGmisMouData, getGmisMouDataByID, getGmisMouStageDetails,getGmisMouSecondParty, getGmisMouVibhasNavicCell, getGmisMouCategoryName, getGmisMouPresentStatus, getOrganisationWiseCountAmount,getOrganisationWiseStatusCount_2023,getOrganisationWiseCountAmount_2023,getGmisMouStageDetails_2023, getTotalMouAndAmountCategoryWise_2025,getOrganisationWiseCountAmountStatusorgView_2021_category,getOrganisationWiseCountAmountStatusorgView_2023_category,upload,fileUpload,gmisfileDelete,addRevisedfinancialprogressdate,getRevisedfinancialprogressdate,getRevisedphysicalprogressdate,
     getStatusWiseCountAmount, getOrganisationWiseStatusCount, getGmisMouDataByOrganisationAndStatus, getOrganisationWiseCountAmountStatus, getMouTotalCountAmount,getTotalMouAndAmountCategoryWise_2021,getGmisMouStageDetails_2021,getOrganisationWiseCountAmountStatus_2023,getStatusWiseCountAmount_2021,getGmisMouStageDetails_2025,getGmisMouStageDetails_2025_org,getGmisMouStageDetails_2023_org,getGmisMouStageDetails_2021_org,getGmisMouStageDetails_org,getOrganisationWiseCountAmountStatusorgView_2025_category,getOrganisationWiseCountAmountStatusorgView_category,addNewgmisFileupload,gmisPdfFileDownload,addRevisedphysicalprogressdate,
     getMouCategories, getTotalMouAndAmountCategoryWise, getOrgWiseMouOrder,getOrganisationWiseCountAmountStatus_2021,getOrganisationWiseStatusCount_2021,getOrganisationWiseCountAmount_2021,getMouTotalCountAmount_2021,getTotalMouAndAmountCategoryWise_2023,getStatusWiseCountAmount_2023,getMouTotalCountAmount_2023,getOrganisationWiseCountAmount_2025,getOrganisationWiseStatusCountorgView_2025,getMouTotalCountAmount_2025,getStatusWiseCountAmount_2025,getOrganisationWiseCountAmountStatus_2025,getOrganisationWiseStatusCount_2025,getOrganisationWiseCountAmountStatusorgView,getOrganisationWiseStatusCountorgView,getTotalMouAndAmountyearWise,getGmisDrilldownData,
     getOrganisationWiseStatusCountorgView_2021,getOrganisationWiseCountAmountStatusorgView_2021,getOrganisationWiseCountAmountStatusorgView_2023,getOrganisationWiseStatusCountorgView_2023,getOrganisationWiseCountAmountStatusorgView_2025,getYearWisegmisData

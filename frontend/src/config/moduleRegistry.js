@@ -280,6 +280,25 @@ export const MODULE_PAGES = {
     ],
   },
 
+  GMIS_IMW_MOU_TRACKING: {
+    tabs: [
+      'GMIS & IMW MoUs',
+      'GMIS-MoU',
+      'GMIS Dashboard',
+      'GMIS Data List',
+      'GMIS Input Form',
+      'GMIS Reports',
+    ],
+    uiTabs: [
+      'GMIS & IMW MoUs',
+      'GMIS-MoU',
+      'GMIS Dashboard',
+      'GMIS Data List',
+      'GMIS Input Form',
+      'GMIS Reports',
+    ],
+  },
+
   KNOWLEDGE_REPOSITORY: {
     tabs: ['Research Papers', 'Policy Documents', 'Guidelines'],
   },

@@ -211,6 +211,7 @@ export default function MIVMeetings({ triggerNotification }) {
       field: 'organisation_name',
       flex: 2,
       minWidth: 260,
+      pinned: 'left',
       cellClass: 'font-bold text-slate-800 dark:text-slate-200',
     },
     {
@@ -230,6 +231,7 @@ export default function MIVMeetings({ triggerNotification }) {
       headerName: 'History & Logs',
       field: 'actions',
       width: 140,
+      pinned: 'right',
       cellClass: 'text-center',
       headerClass: 'text-center',
       cellRenderer: (params) => (
@@ -262,6 +264,7 @@ export default function MIVMeetings({ triggerNotification }) {
       field: 'date_of_meeting',
       flex: 1.5,
       minWidth: 180,
+      pinned: 'left',
       cellRenderer: (params) => (
         <span className="font-bold text-[#0f417a] dark:text-blue-400 font-mono text-xs">
           {formatDate(params.value)}
@@ -298,6 +301,7 @@ export default function MIVMeetings({ triggerNotification }) {
       headerName: 'Actions',
       field: 'actions',
       width: 110,
+      pinned: 'right',
       cellClass: 'text-center',
       headerClass: 'text-center',
       cellRenderer: (params) => {

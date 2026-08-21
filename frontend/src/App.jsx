@@ -36,6 +36,7 @@ import MediaOutreachView from './modules/MediaOutreach/MediaOutreach';
 import CapexView from './modules/Capex/Capex';
 import GEMProcurementView from './modules/GEMProcurement/GEMProcurement';
 import MIV2030View from './modules/MIV2030/MIV2030';
+import GMISMOUView from './modules/GMISMOU/GMISMOU';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
 import Loader from './components/Loader';
@@ -227,6 +228,9 @@ const getBreadcrumbs = (tab) => {
   const mivItems = ['MIV 2030', 'MIV Dashboard', 'MIV Data List', 'MIV Input Form', 'MIV Meetings', 'MIV Org Report', 'MIV Theme Report', 'Organisation Report', 'Theme Report'];
   if (mivItems.includes(tab)) return ['Home', 'Long Term Strategies', 'MIV 2030', tab === 'MIV 2030' ? 'Dashboard' : tab];
 
+  const gmisItems = ['GMIS & IMW MoUs', 'GMIS-MoU', 'GMIS Dashboard', 'GMIS Data List', 'GMIS Input Form', 'GMIS Reports'];
+  if (gmisItems.includes(tab)) return ['Home', 'Long Term Strategies', 'GMIS & IMW MoUs', tab === 'GMIS & IMW MoUs' ? 'Dashboard' : tab];
+
   const visionItems = ['Vision 2047', 'Maritime India Summit', 'Blue Economy Policy'];
   if (visionItems.includes(tab)) return ['Home', 'Long Term Strategies', tab];
 
@@ -289,6 +293,12 @@ const ROUTE_MAP = {
   'MIV Theme Report': 'strategies/miv-2030/theme-report',
   'Organisation Report': 'strategies/miv-2030/org-report',
   'Theme Report': 'strategies/miv-2030/theme-report',
+  'GMIS & IMW MoUs': 'strategies/gmis-mou',
+  'GMIS-MoU': 'strategies/gmis-mou',
+  'GMIS Dashboard': 'strategies/gmis-mou/dashboard',
+  'GMIS Data List': 'strategies/gmis-mou/data-list',
+  'GMIS Input Form': 'strategies/gmis-mou/input-form',
+  'GMIS Reports': 'strategies/gmis-mou/reports',
   'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
   'Blue Economy Policy': 'strategies/blue-economy-policy',
@@ -654,6 +664,14 @@ export default function App() {
 
             {['MIV 2030', 'MIV Dashboard', 'MIV Data List', 'MIV Input Form', 'MIV Meetings', 'MIV Org Report', 'MIV Theme Report', 'Organisation Report', 'Theme Report'].includes(activeTab) && (
               <MIV2030View
+                activeSubTab={activeTab}
+                setActiveSubTab={setActiveTab}
+                triggerNotification={triggerNotification}
+              />
+            )}
+
+            {['GMIS & IMW MoUs', 'GMIS-MoU', 'GMIS Dashboard', 'GMIS Data List', 'GMIS Input Form', 'GMIS Reports'].includes(activeTab) && (
+              <GMISMOUView
                 activeSubTab={activeTab}
                 setActiveSubTab={setActiveTab}
                 triggerNotification={triggerNotification}
