@@ -7,7 +7,17 @@ import CandidateDrilldownView from './CandidateDrilldownView';
 import TablePagination from '../../../components/TablePagination';
 import { fetchConsultantAppointments } from '../api';
 
-// All stages a pending appointment can be at (Contract Signed belongs to Completed tab)
+const STAGES = [
+  { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
+  { key: 'tenderPublished', label: 'Tender Published' },
+  { key: 'preBidQueries', label: 'Pre-bid Queries Responded' },
+  { key: 'bidReceived', label: 'Bid Received' },
+  { key: 'techBidFinalized', label: 'Technical Bid Finalized' },
+  { key: 'finBidFinalized', label: 'Financial Bid Finalized' },
+  { key: 'workOrderIssued', label: 'Work Order Issued' },
+  { key: 'contractSigned', label: 'Contract Signed' },
+];
+
 const PENDING_STAGES = [
   'Initiated',
   'Admin Approval for engaging Consultant',
@@ -19,6 +29,93 @@ const PENDING_STAGES = [
   'Work Order Issued',
 ];
 
+const formatDate = (d) => (d ? new Date(d).toISOString().split('T')[0] : '');
+const formatDateTime = (d) => {
+  if (!d) return '';
+  const str = typeof d === 'string' ? d : d.toISOString ? d.toISOString() : String(d);
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const y = match[1];
+    const m = match[2];
+    const day = match[3];
+    const hStr = match[4];
+    const min = match[5];
+    const sec = match[6];
+    
+    if (hStr === '00' && min === '00' && sec === '00') {
+      return `${day}/${m}/${y}`;
+    }
+
+    let h = parseInt(hStr, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    h = h ? h : 12;
+    const hFormatted = String(h).padStart(2, '0');
+    return `${day}/${m}/${y}, ${hFormatted}:${min} ${ampm}`;
+  }
+  return String(d);
+};
+
+const getStatusFromStages = (stages) => {
+  for (let i = STAGES.length - 1; i >= 0; i--) {
+    if (stages[STAGES[i].key]) {
+      return STAGES[i].label;
+    }
+  }
+  return 'Initiated';
+};
+
+function parseAppointmentRow(b) {
+  const stages = {
+    adminApproval: !!b.admin_approval_for_nkg_consultant_date,
+    adminApprovalDate: formatDate(b.admin_approval_for_nkg_consultant_date),
+    tenderPublished: !!b.tender_published_date,
+    tenderPublishedDate: formatDate(b.tender_published_date),
+    preBidQueries: !!b.pre_bid_queries_responded_date,
+    preBidQueriesDate: formatDate(b.pre_bid_queries_responded_date),
+    bidReceived: !!b.bid_received_date,
+    bidReceivedDate: formatDate(b.bid_received_date),
+    techBidFinalized: !!b.technical_bid_finalized_date,
+    techBidFinalizedDate: formatDate(b.technical_bid_finalized_date),
+    finBidFinalized: !!b.financial_bid_finalized_date,
+    finBidFinalizedDate: formatDate(b.financial_bid_finalized_date),
+    workOrderIssued: !!b.work_order_issued_date,
+    workOrderIssuedDate: formatDate(b.work_order_issued_date),
+    contractSigned: !!b.contract_signed_date,
+    contractSignedDate: formatDate(b.contract_signed_date),
+  };
+
+  const remarks = {
+    adminApproval: b.admin_approval_for_nkg_consultant_remarks || '',
+    tenderPublished: b.tender_published_remarks || '',
+    preBidQueries: b.pre_bid_queries_responded_remarks || '',
+    bidReceived: b.bid_received_remarks || '',
+    techBidFinalized: b.technical_bid_finalized_remarks || '',
+    finBidFinalized: b.financial_bid_finalized_remarks || '',
+    workOrderIssued: b.work_order_issued_remarks || '',
+    contractSigned: b.contract_signed_remarks || '',
+  };
+
+  return {
+    id: b.consultant_appointment_id,
+    wing_id: b.wing,
+    division_id: b.division,
+    wing: b.wing_name || 'Unknown',
+    division: b.division_name || 'Unknown',
+    appointmentType: b.appointment_type || 'Full Time',
+    numResources: b.number_of_resources || 1,
+    status: getStatusFromStages(stages),
+    stages,
+    remarks,
+    created_date: b.created_date,
+    updated_date: b.updated_date,
+    lastUpdated: formatDateTime(b.updated_date || b.created_date),
+    createdDateFormatted: formatDateTime(b.created_date),
+    updatedDateFormatted: formatDateTime(b.updated_date),
+    raw: b,
+  };
+}
+
 export default function DataList({
   onEdit,
   onDelete,
@@ -26,7 +123,9 @@ export default function DataList({
   wings = [],
   divisions = [],
   triggerNotification,
-  canEdit = true
+  canEdit = true,
+  canAdd = true,
+  canRemove = true
 }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -341,12 +440,16 @@ export default function DataList({
     if (canEdit || canRemove) {
       cols.push({
         headerName: 'Action',
-        minWidth: 120,
+        width: 110,
+        pinned: 'right',
+        lockPinned: true,
+        suppressMovable: true,
         headerClass: 'text-center',
+        cellClass: 'text-center',
         cellRenderer: (params) => {
           const row = params.data;
           return (
-            <div className="flex items-center justify-center gap-1.5 w-full h-full py-1">
+            <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
               {canEdit && (
                 <button
                   onClick={() => onEdit(row)}
@@ -358,7 +461,10 @@ export default function DataList({
               )}
               {canRemove && onDelete && (
                 <button
-                  onClick={() => onDelete(row)}
+                  onClick={async () => {
+                    await onDelete(row);
+                    fetchData();
+                  }}
                   className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-red-600 dark:text-red-400 transition cursor-pointer"
                   title="Delete Appointment"
                 >
@@ -372,7 +478,7 @@ export default function DataList({
     }
 
     return cols;
-  }, [onEdit, onDelete, visibleCols, canEdit, canRemove]);
+  }, [onEdit, onDelete, visibleCols, canEdit, canRemove, fetchData]);
 
   if (drilldownAppointment) {
     return (

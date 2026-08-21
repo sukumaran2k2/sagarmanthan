@@ -244,6 +244,8 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
               wings={wings}
               divisions={divisions}
               canEdit={canEdit}
+              canAdd={canAdd}
+              canRemove={canRemove}
             />
           )
         )}

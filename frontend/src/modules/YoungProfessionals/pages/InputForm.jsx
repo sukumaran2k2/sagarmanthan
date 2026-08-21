@@ -1,3 +1,5 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Upload, X, ArrowLeft, Plus, FileText } from 'lucide-react';
 import api, { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 

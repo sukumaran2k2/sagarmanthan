@@ -395,13 +395,18 @@ export default function DataList({
       },
       {
         headerName: 'Action',
-        minWidth: 120,
+        width: 110,
+        pinned: 'right',
+        lockPinned: true,
+        suppressMovable: true,
+        headerClass: 'text-center',
+        cellClass: 'text-center',
         cellRenderer: (params) => {
           const yp = params.data;
           const isActive = yp?.is_active === 1 || yp?.is_active === true;
           return (
-            <div className="flex items-center w-full h-full py-1">
-              <div className="w-1/2 flex justify-end pr-2">
+            <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
+              {canEdit && (
                 <button
                   onClick={() => onEdit(yp)}
                   className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
@@ -409,20 +414,16 @@ export default function DataList({
                 >
                   <Edit className="h-4 w-4" />
                 </button>
-              </div>
-              <div className="w-1/2 flex justify-start pl-2">
-                {isActive ? (
-                  <button
-                    onClick={() => handleOpenRelieve(yp)}
-                    className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
-                    title="Relieve"
-                  >
-                    <UserMinus className="h-4 w-4" />
-                  </button>
-                ) : (
-                  <div className="w-7 h-7" />
-                )}
-              </div>
+              )}
+              {isActive && (
+                <button
+                  onClick={() => handleOpenRelieve(yp)}
+                  className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
+                  title="Relieve"
+                >
+                  <UserMinus className="h-4 w-4" />
+                </button>
+              )}
             </div>
           );
         }
