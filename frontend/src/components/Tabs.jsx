@@ -89,6 +89,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateParliamentary = canCreateModule('PARLIAMENTARY_ISSUES');
   const canCreateCabinetMopsw = canCreateModule('CABINET_NOTES_MOPSW');
   const canCreateConsultant = canCreateModule('CONSULTANT_APPOINTMENT');
+  const canCreateYp = canCreateModule('YOUNG_PROFESSIONAL');
 
   const accessKey = (() => {
     try {
@@ -96,9 +97,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
       if (!t) return '';
       const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       const codes = payload?.allowedModuleCodes;
-      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}`;
+      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}`;
     } catch {
-      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}`;
+      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}`;
     }
   })();
 
@@ -334,7 +335,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Young Professionals',
           icon: UserCheck,
           items: [
-            m('YOUNG_PROFESSIONAL', { label: 'Input Form', tab: 'YP Input Form', icon: FileEdit }),
+            ...(canCreateYp ? [m('YOUNG_PROFESSIONAL', { label: 'Input Form', tab: 'YP Input Form', icon: FileEdit })] : []),
             m('YOUNG_PROFESSIONAL', { label: 'Data List', tab: 'YP Data List', icon: ClipboardList }),
             m('YOUNG_PROFESSIONAL', { label: 'Report', tab: 'YP Report', icon: FilePieChart }),
           ]
@@ -480,7 +481,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       ],
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant]
+    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp]
   );
 
   const handleItemClick = (tabOrLabel) => {

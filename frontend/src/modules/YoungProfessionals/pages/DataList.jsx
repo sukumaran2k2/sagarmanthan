@@ -3,28 +3,19 @@ import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import api, { fetchYoungProfessionals, relieveYoungProfessional } from '../api';
+import { getCurrentUserId } from '../../../utils/authSession';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import { fetchYoungProfessionals, relieveYoungProfessional } from '../api';
-
-function decodeToken(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-}
 
 export default function DataList({
   onEdit,
   triggerNotification,
   wings = [],
-  divisions = []
+  divisions = [],
+  canEdit = true,
+  canAdd = true,
+  canRemove = true
 }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -201,19 +192,12 @@ export default function DataList({
   const handleRelieveSubmit = async (e) => {
     e.preventDefault();
     if (!lastWorkingDate) {
-      alert("Please select the last working date.");
+      if (triggerNotification) triggerNotification("Please select the last working date.", "warning");
       return;
     }
     setSubmittingRelieve(true);
 
-    const token = localStorage.getItem('accessToken');
-    let activeUserId = 1;
-    if (token) {
-      const decoded = decodeToken(token);
-      if (decoded && decoded.userId) {
-        activeUserId = decoded.userId;
-      }
-    }
+    const activeUserId = getCurrentUserId() || 1;
 
     try {
       await relieveYoungProfessional({
@@ -223,13 +207,13 @@ export default function DataList({
         updated_by: activeUserId
       });
       if (triggerNotification) {
-        triggerNotification(`${selectedYp.name} has been relieved successfully.`);
+        triggerNotification(`${selectedYp.name} has been relieved successfully.`, 'success');
       }
       setRelieveModalOpen(false);
       fetchData();
     } catch (err) {
       console.error(err);
-      alert("Failed to relieve young professional.");
+      if (triggerNotification) triggerNotification("Failed to relieve young professional.", "error");
     } finally {
       setSubmittingRelieve(false);
     }
@@ -267,11 +251,13 @@ export default function DataList({
         
         navigator.clipboard.writeText(tsv)
           .then(() => {
-            if (triggerNotification) triggerNotification('Current page data copied to clipboard!');
+            if (triggerNotification) triggerNotification('Current page data copied to clipboard!', 'success');
           })
-          .catch(() => alert('Failed to copy table data.'));
+          .catch(() => {
+            if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
+          });
       } else {
-        alert("Grid is not ready for copy yet.");
+        if (triggerNotification) triggerNotification("Grid is not ready for copy yet.", "warning");
       }
     } else if (type === 'Excel') {
       if (gridApi) {
@@ -279,14 +265,14 @@ export default function DataList({
           fileName: `Young_Professionals_Page_${currentPage}.csv`
         });
         if (triggerNotification) {
-          triggerNotification(`Exported to CSV successfully!`);
+          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
         }
       } else {
-        alert("Grid is not ready for export yet.");
+        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
       }
     } else if (type === 'PDF') {
       if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`);
+        triggerNotification(`Preparing PDF document...`, 'info');
       }
 
       const printWindow = window.open('', '_blank');
@@ -352,95 +338,97 @@ export default function DataList({
     }
   };
 
-  const columnDefs = useMemo(() => [
-    {
-      field: 'sNo',
-      headerName: 'S.No',
-      minWidth: 95,
-      cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center',
-      headerClass: 'text-center'
-    },
-    {
-      field: 'name',
-      headerName: 'Name',
-      flex: 1.5,
-      minWidth: 160,
-      cellClass: 'font-bold text-slate-800 dark:text-slate-200',
-      hide: !visibleCols.name
-    },
-    {
-      field: 'role',
-      headerName: 'Role',
-      flex: 1.2,
-      minWidth: 130,
-      cellClass: 'text-slate-700 dark:text-slate-350 font-semibold',
-      hide: !visibleCols.role
-    },
-    {
-      field: 'wing',
-      headerName: 'Wing',
-      flex: 1.2,
-      minWidth: 130,
-      cellClass: 'text-slate-600 dark:text-slate-400 font-medium',
-      hide: !visibleCols.wing
-    },
-    {
-      field: 'division',
-      headerName: 'Division',
-      flex: 1.2,
-      minWidth: 130,
-      cellClass: 'text-slate-655 dark:text-slate-400 font-medium',
-      hide: !visibleCols.division
-    },
-    {
-      field: 'is_active',
-      headerName: 'Status',
-      minWidth: 120,
-      hide: !visibleCols.status,
-      cellRenderer: (params) => {
-        const isActive = params.value === 1 || params.value === true;
-        return (
-          <span className={`text-xs font-black uppercase ${isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {isActive ? 'Active' : 'Relieved'}
-          </span>
-        );
-      }
-    },
-    {
-      headerName: 'Action',
-      minWidth: 120,
-      cellRenderer: (params) => {
-        const yp = params.data;
-        const isActive = yp.is_active === 1 || yp.is_active === true;
-        return (
-          <div className="flex items-center w-full h-full py-1">
-            <div className="w-1/2 flex justify-end pr-2">
-              <button
-                onClick={() => onEdit(yp)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
-                title="Update"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="w-1/2 flex justify-start pl-2">
-              {isActive ? (
+  const columnDefs = useMemo(() => {
+    return [
+      {
+        field: 'sNo',
+        headerName: 'S.No',
+        minWidth: 95,
+        cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center',
+        headerClass: 'text-center'
+      },
+      {
+        field: 'name',
+        headerName: 'Name',
+        flex: 1.5,
+        minWidth: 160,
+        cellClass: 'font-bold text-slate-800 dark:text-slate-200',
+        hide: !visibleCols.name
+      },
+      {
+        field: 'role',
+        headerName: 'Role',
+        flex: 1.2,
+        minWidth: 130,
+        cellClass: 'text-slate-700 dark:text-slate-350 font-semibold',
+        hide: !visibleCols.role
+      },
+      {
+        field: 'wing',
+        headerName: 'Wing',
+        flex: 1.2,
+        minWidth: 130,
+        cellClass: 'text-slate-600 dark:text-slate-400 font-medium',
+        hide: !visibleCols.wing
+      },
+      {
+        field: 'division',
+        headerName: 'Division',
+        flex: 1.2,
+        minWidth: 130,
+        cellClass: 'text-slate-655 dark:text-slate-400 font-medium',
+        hide: !visibleCols.division
+      },
+      {
+        field: 'is_active',
+        headerName: 'Status',
+        minWidth: 120,
+        hide: !visibleCols.status,
+        cellRenderer: (params) => {
+          const isActive = params.value === 1 || params.value === true;
+          return (
+            <span className={`text-xs font-black uppercase ${isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {isActive ? 'Active' : 'Relieved'}
+            </span>
+          );
+        }
+      },
+      {
+        headerName: 'Action',
+        minWidth: 120,
+        cellRenderer: (params) => {
+          const yp = params.data;
+          const isActive = yp?.is_active === 1 || yp?.is_active === true;
+          return (
+            <div className="flex items-center w-full h-full py-1">
+              <div className="w-1/2 flex justify-end pr-2">
                 <button
-                  onClick={() => handleOpenRelieve(yp)}
-                  className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
-                  title="Relieve"
+                  onClick={() => onEdit(yp)}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                  title="Update"
                 >
-                  <UserMinus className="h-4 w-4" />
+                  <Edit className="h-4 w-4" />
                 </button>
-              ) : (
-                <div className="w-7 h-7" />
-              )}
+              </div>
+              <div className="w-1/2 flex justify-start pl-2">
+                {isActive ? (
+                  <button
+                    onClick={() => handleOpenRelieve(yp)}
+                    className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
+                    title="Relieve"
+                  >
+                    <UserMinus className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <div className="w-7 h-7" />
+                )}
+              </div>
             </div>
-          </div>
-        );
+          );
+        }
       }
-    }
-  ], [onEdit, visibleCols]);
+    ];
+  }, [onEdit, visibleCols, canEdit]);
 
   return (
     <div className="space-y-6 animate-fade-in relative">
@@ -707,7 +695,7 @@ export default function DataList({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Last Working Date*</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Last Working Date <span className="text-red-500">*</span></label>
                 <input
                   type="date"
                   value={lastWorkingDate}

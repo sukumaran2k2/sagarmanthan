@@ -2,6 +2,7 @@ import { pool } from "../../db.js";
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
+import { applyDataScope } from "../../middleware/dataScope.js";
 
 // 1. Create Young Professional
 async function createYoungProfessional(req, res) {
@@ -181,6 +182,11 @@ async function getYoungProfessional(req, res) {
 
         // Fetch paginated rows with total filtered count
         const query = `
+=======
+    const { joinSql, whereSql } = applyDataScope(request, req.user, { strategy: "viaCreatedBy", alias: "yp" });
+    try {
+        const result = await request.query(`
+>>>>>>> origin/feature/consultant-appointment
             SELECT 
                 yp.yp_id,
                 yp.wing_id,

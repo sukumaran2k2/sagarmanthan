@@ -311,18 +311,18 @@ export default function InputForm({
       !receivedFrom.trim() ||
       !remarks.trim()
     ) {
-      alert("Please fill in all mandatory fields highlighted in red.");
+      if (triggerNotification) triggerNotification("Please fill in all mandatory fields highlighted in red.", "warning");
       return;
     }
 
     if (errors.remarks) {
-      alert(errors.remarks);
+      if (triggerNotification) triggerNotification(errors.remarks, "warning");
       return;
     }
 
     // Verify stage 1 has a date
     if (!stages[1].date) {
-      alert("Please specify the Action Date for Stage 1: Received at Ministry.");
+      if (triggerNotification) triggerNotification("Please specify the Action Date for Stage 1: Received at Ministry.", "warning");
       return;
     }
 
@@ -366,11 +366,16 @@ export default function InputForm({
       } else {
         await axios.post(`${API_BASE_URL}/vip-reference`, payload);
       }
-      triggerNotification?.(isEdit ? "VIP Reference updated successfully." : "New VIP Reference registered successfully.");
+      triggerNotification?.(
+        isEdit ? "VIP Reference updated successfully." : "New VIP Reference registered successfully.",
+        "success"
+      );
       onSuccess();
     } catch (err) {
       console.error("Error saving VIP reference:", err);
-      alert("Failed to save VIP reference.");
+      if (triggerNotification) {
+        triggerNotification("Failed to save VIP reference.", "error");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -403,7 +408,7 @@ export default function InputForm({
             
             {/* Subject Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Subject of VIP Reference*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Subject of VIP Reference <span className="text-red-500">*</span></label>
               <textarea
                 value={subject}
                 onChange={e => setSubject(e.target.value)}
@@ -419,7 +424,7 @@ export default function InputForm({
 
             {/* E-Office File Number */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">E-Office File Number*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">E-Office File Number <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={eofficeFile}
@@ -437,7 +442,7 @@ export default function InputForm({
             <div className="grid grid-cols-2 gap-4">
               {/* Wing Field */}
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing*</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
                 <select
                   value={wing}
                   onChange={e => setWing(e.target.value)}
@@ -456,7 +461,7 @@ export default function InputForm({
 
               {/* Division Field */}
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division*</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
                 <select
                   value={division}
                   onChange={e => setDivision(e.target.value)}
@@ -476,7 +481,7 @@ export default function InputForm({
 
             {/* Reference Letter Number */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Reference Letter Number*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Reference Letter Number <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={refNumber}
@@ -492,7 +497,7 @@ export default function InputForm({
 
             {/* Received From */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Received From (Sender)*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Received From (Sender) <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={receivedFrom}
@@ -509,7 +514,7 @@ export default function InputForm({
             {/* Remarks Field */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks* (Max 250 words)</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks <span className="text-red-500">*</span>(Max 250 words)</label>
                 <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-red-500' : 'text-slate-400'}`}>
                   {getWordCount(remarks)} / 250 words
                 </span>

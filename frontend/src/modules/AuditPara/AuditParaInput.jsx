@@ -75,7 +75,7 @@ const STATUS_STEPS = {
 
 const CATEGORIES = ['Audit Para', 'Draft Para', 'CAG Report Item'];
 
-export default function AuditParaInput({ auditParas, setAuditParas, refreshData }) {
+export default function AuditParaInput({ auditParas, setAuditParas, refreshData, triggerNotification }) {
   const gridRef = useRef();
 
   const [selectedWing, setSelectedWing] = useState('All');
@@ -133,11 +133,11 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
 
   const handleOpenEdit = (para) => {
     setEditingPara(para);
-    setFormNumber(para.paraNumber || para.number || '');
-    setFormSubject(para.subject);
-    setFormWing(para.wing);
-    setFormDivision(para.division);
-    setFormCategory(para.category);
+    setFormNumber(para.auditParaNumber || '');
+    setFormSubject(para.subject || '');
+    setFormWing(para.wing || 'Ports');
+    setFormDivision(para.division || 'PD-III');
+    setFormCategory(para.category || 'Audit Para');
     setFormRemarks(para.remarks || '');
     setFormStatusSteps({ ...para.statusSteps });
     setFormStatusDates(para.statusDates || {});
@@ -147,14 +147,14 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
   const handleSavePara = async (e) => {
     e.preventDefault();
     if (!formNumber.trim() || !formSubject.trim()) {
-      alert('Please fill in all required fields marked with *');
+      if (triggerNotification) triggerNotification('Please fill in all required fields marked with *', 'warning');
       return;
     }
 
     // Word count check for remarks
     const wordCount = formRemarks.trim().split(/\s+/).filter(Boolean).length;
     if (wordCount > 250) {
-      alert('Remarks cannot exceed 250 words.');
+      if (triggerNotification) triggerNotification('Remarks cannot exceed 250 words.', 'warning');
       return;
     }
 
@@ -201,11 +201,19 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
       } else {
         await axios.post(`${API_BASE_URL}/audit-para`, payload);
       }
+      if (triggerNotification) {
+        triggerNotification(
+          editingPara ? 'Audit Para updated successfully.' : 'New Audit Para registered successfully.',
+          'success'
+        );
+      }
       setIsFormOpen(false);
       if (refreshData) refreshData();
     } catch (err) {
       console.error("Error saving Audit Para:", err);
-      alert("Failed to save Audit Para.");
+      if (triggerNotification) {
+        triggerNotification("Failed to save Audit Para.", "error");
+      }
     }
   };
 
@@ -431,7 +439,7 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
           <form onSubmit={handleSavePara} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Para Number *</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Para Number <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formNumber}
@@ -443,7 +451,7 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject *</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formSubject}
@@ -457,7 +465,7 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing *</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
                 <select
                   value={formWing}
                   onChange={(e) => setFormWing(e.target.value)}
@@ -469,7 +477,7 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division *</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
                 <select
                   value={formDivision}
                   onChange={(e) => setFormDivision(e.target.value)}
@@ -481,7 +489,7 @@ export default function AuditParaInput({ auditParas, setAuditParas, refreshData 
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Category *</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Category <span className="text-red-500">*</span></label>
                 <select
                   value={formCategory}
                   onChange={(e) => setFormCategory(e.target.value)}

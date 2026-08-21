@@ -1082,7 +1082,7 @@ router.get("/candidate-detail/:youngProfessionalId", auth, requireModulePermissi
 router.get("/candidate-detail-document/:candidate_id", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getCandidateDetailDocument);
 
 
-router.put( "/relieve-young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.relieveYoungProfessional);
+router.put("/relieve-young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.relieveYoungProfessional);
 //consultant appointment
 router.get("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getConsultantAppointment);
 router.post("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointment);
@@ -1093,13 +1093,17 @@ router.get("/get-candidate-id/:consultantAppointmentID", auth, requireModulePerm
 
 //candidate detail consultant appointment
 router.post("/ca-candidate-detail", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.addCandidateDetail);
+router.put("/ca-candidate-detail", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "update"), consultantAppointmentTab.updateCandidateDetail);
 router.post("/ca-candidate-uploader", auth, requireAnyModulePermission("CONSULTANT_APPOINTMENT", ["create", "update"]), candidateCaDocumentTab.upload.single('file'), candidateCaDocumentTab.candidateDocumentUploader);
 router.get("/ca-candidate-detail/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetail);
 router.get("/ca-candidate-detail-document/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetailDocument);
+router.get("/get-ca-candidates/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidatesByConsultantAppointmentId);
+router.get("/ca-candidate-document-download/:fileName", candidateCaDocumentTab.downloadCandidateDocument);
 router.post("/add-consultant-id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.addConsultantID);
 
 //delete consultant appoinment and candidate details
 router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateData);
+router.delete("/ca-candidate-single/:candidate_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateSingle);
 
 //HR
 router.post("/hr-department", hrDepartmentTab.createHrDepartment);

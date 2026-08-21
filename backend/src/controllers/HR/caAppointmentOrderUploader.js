@@ -1,6 +1,7 @@
 import multer from 'multer';
 import sql from 'mssql';
 import fs from 'fs';
+import path from 'path';
 import { pool } from "../../db.js";
 
 const uploadDestination = "./fileuploads/Consultant_Appointment";
@@ -71,30 +72,47 @@ async function candidateDocumentUploader(req, res) {
             return res.status(400).json({ error: "No file uploaded" });
         }
 
-        const originalFileName = req.file.originalname;
+        const fileName = req.file.filename || generateUniqueFileName(req.file.originalname);
 
-        const uniqueFileName = generateUniqueFileName(originalFileName);
-
-        request.input("fileName", sql.NVarChar, uniqueFileName);
+        request.input("fileName", sql.NVarChar, fileName);
         request.input("candidateID", sql.NVarChar, candidateID);
 
-        const result = await request.query(`
-            INSERT INTO tbl_ca_candidate_document (candidate_id, appointment_order_document) 
-            VALUES (@candidateID, @fileName)
+        const checkResult = await request.query(`
+            SELECT id FROM tbl_ca_candidate_document WHERE candidate_id = @candidateID
         `);
 
-        const destinationPath = `${uploadDestination}/${uniqueFileName}`;
-        fs.renameSync(req.file.path, destinationPath);
+        if (checkResult.recordset.length > 0) {
+            await request.query(`
+                UPDATE tbl_ca_candidate_document
+                SET appointment_order_document = @fileName
+                WHERE candidate_id = @candidateID
+            `);
+        } else {
+            await request.query(`
+                INSERT INTO tbl_ca_candidate_document (candidate_id, appointment_order_document) 
+                VALUES (@candidateID, @fileName)
+            `);
+        }
 
         res.status(201).json({
-            message: "Consultant Appointment Documents created successfully",
-        });;
+            message: "Candidate document uploaded successfully",
+            fileName: fileName
+        });
     } catch (err) {
-        console.error(err);
+        console.error("Error uploading candidate document:", err);
         res.status(500).json({ error: "Internal server error" });
     }
 }
 
+async function downloadCandidateDocument(req, res) {
+    const fileName = req.params.fileName;
+    const filePath = path.resolve(uploadDestination, fileName);
+    if (fs.existsSync(filePath)) {
+        return res.download(filePath, fileName);
+    } else {
+        return res.status(404).json({ error: "File not found" });
+    }
+}
 
-const candidateDocumentTab = { candidateDocumentUploader, upload };
+const candidateDocumentTab = { candidateDocumentUploader, downloadCandidateDocument, upload };
 export default candidateDocumentTab;

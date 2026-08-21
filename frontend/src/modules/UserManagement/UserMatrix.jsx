@@ -77,8 +77,7 @@ function mapUser(row) {
     perms: {},
   };
 }
-
-export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
+export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNotification }) {
   const isSeniorOfficer = isOrgSeniorOfficer();
   const seniorOrgId = getSessionOrganisationId();
   const isUserList = mode === 'userlist' || isSeniorOfficer;
@@ -127,6 +126,7 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
   const [formCrudDraft, setFormCrudDraft] = useState({});
   const [formCrudLoading, setFormCrudLoading] = useState(false);
   const [formError, setFormError] = useState('');
+
   const [masterWings, setMasterWings] = useState([]);
   const [masterDivisions, setMasterDivisions] = useState([]);
 
@@ -135,11 +135,16 @@ export default function UserMatrix({ onGoHome, mode = 'permissions' }) {
   const [toastVisible, setToastVisible] = useState(false);
 
   const showToast = useCallback((msg, color = '#3B82F6') => {
+    if (typeof triggerNotification === 'function') {
+      const type = color === '#EF4444' ? 'error' : color === '#10B981' ? 'success' : 'info';
+      triggerNotification(msg, type);
+      return;
+    }
     setToastMsg(msg);
     setToastColor(color);
     setToastVisible(true);
     setTimeout(() => setToastVisible(false), 2400);
-  }, []);
+  }, [triggerNotification]);
 
   useEffect(() => {
     rbacApi.getCategories()

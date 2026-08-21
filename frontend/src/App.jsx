@@ -41,7 +41,7 @@ import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
 import Loader from './components/Loader';
 import NetworkCheckView from './components/NetworkCheckView';
-import Notification from './components/Notification';
+import Toast from './components/Toast';
 import ContactUs from './modules/Contact/Contact';
 
 const PROJECT_TABS = [
@@ -361,7 +361,7 @@ export default function App() {
     const path = window.location.pathname;
     return path && path !== '/' ? getTabFromSlug(path) : 'landing';
   });
-  const [notification, setNotification] = useState(null);
+  const [toasts, setToasts] = useState([]);
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return !!localStorage.getItem('accessToken');
   });
@@ -431,19 +431,19 @@ export default function App() {
 
 
 
-  // Notification Trigger
-  const triggerNotification = (message) => {
-    setNotification(message);
+  // Toast Notification Trigger
+  // type: 'success' | 'error' | 'warning' | 'info'  (defaults to 'success')
+  const triggerNotification = (message, type = 'success', title = '') => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type, title }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4300); // slightly longer than animation to let bar finish
   };
 
-  useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => {
-        setNotification(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [notification]);
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   const handleAddProject = (newProject) => {
     setProjects([newProject, ...projects]);
@@ -485,8 +485,8 @@ export default function App() {
         />
       )}
 
-      {/* Toast Notification Alert Banner */}
-      <Notification message={notification} />
+      {/* Toast Notification Stack */}
+      <Toast toasts={toasts} onRemove={removeToast} />
 
       {/* Government Portal Header */}
       <Header
@@ -619,7 +619,7 @@ export default function App() {
 
 
             {activeTab === 'Audit Paras' && (
-              <AuditParaView />
+              <AuditParaView triggerNotification={triggerNotification} />
             )}
 
             {['VIP Reference', 'VIP Reference - Data List', 'VIP Reference - Input Form', 'VIP Reference - Reports'].includes(activeTab) && (
@@ -647,11 +647,11 @@ export default function App() {
             )}
 
             {activeTab === TAB_USER_MODULE_PERMISSION && (
-              <UserMatrix mode="permissions" onGoHome={() => goToTab('landing')} />
+              <UserMatrix mode="permissions" onGoHome={() => goToTab('landing')} triggerNotification={triggerNotification} />
             )}
 
             {activeTab === TAB_USER_LIST && (
-              <UserMatrix mode="userlist" onGoHome={() => goToTab('landing')} />
+              <UserMatrix mode="userlist" onGoHome={() => goToTab('landing')} triggerNotification={triggerNotification} />
             )}
 
             {['Ministry Contacts', 'Helpdesk Support'].includes(activeTab) && (

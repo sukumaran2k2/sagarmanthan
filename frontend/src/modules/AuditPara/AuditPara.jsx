@@ -6,7 +6,7 @@ import AuditParaReports from './AuditParaReports';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/api';
 
-export default function AuditPara() {
+export default function AuditPara({ triggerNotification }) {
   const [auditParas, setAuditParas] = useState([]);
   const [activeSubTab, setActiveSubTab] = useState('input'); // 'input' or 'reports'
 
@@ -97,9 +97,14 @@ export default function AuditPara() {
       {/* Content Section */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         {activeSubTab === 'input' ? (
-          <AuditParaInput auditParas={auditParas} setAuditParas={setAuditParas} refreshData={fetchData} />
+          <AuditParaInput
+            auditParas={auditParas}
+            setAuditParas={setAuditParas}
+            refreshData={fetchData}
+            triggerNotification={triggerNotification}
+          />
         ) : (
-          <AuditParaReports auditParas={auditParas} />
+          <AuditParaReports auditParas={auditParas} triggerNotification={triggerNotification} />
         )}
       </div>
 
