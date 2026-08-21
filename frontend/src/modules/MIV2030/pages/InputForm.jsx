@@ -574,38 +574,39 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
           {/* ==================================================== */}
           {/* EXECUTIVE CLEAN & MODERN STAGE STEPPER */}
           {/* ==================================================== */}
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 border-b border-slate-100 dark:border-slate-800/80 pb-5">
+          <div className="flex flex-col gap-5 border-b border-slate-100 dark:border-slate-800/80 pb-5">
             
-            {/* Left: Back Button + Title + Status */}
-            <div className="flex items-center space-x-3 shrink-0">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition cursor-pointer"
-                title="Back to List"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <h2 className="text-base font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display whitespace-nowrap">
-                    {editData ? 'Edit Initiative' : 'Add Initiative'}
-                  </h2>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-mono">
-                    Stage {activeSection === 'general' ? '1' : activeSection === 'status' ? '2' : activeSection === 'timelines' ? '3' : '4'} of 4
-                  </span>
+            {/* Top Bar: Back Button + Title + Status Badge */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition cursor-pointer"
+                  title="Back to List"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h2 className="text-base font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display whitespace-nowrap">
+                      {editData ? 'Edit Initiative' : 'Add Initiative'}
+                    </h2>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-mono">
+                      Stage {activeSection === 'general' ? '1' : activeSection === 'status' ? '2' : activeSection === 'timelines' ? '3' : '4'} of 4
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 whitespace-nowrap">
+                    Register a new MIV 2030 strategic activity under your port/organisation.
+                  </p>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 whitespace-nowrap">
-                  Register a new MIV 2030 strategic activity under your port/organisation.
-                </p>
               </div>
             </div>
 
-            {/* Right: Clean Segmented Stepper Track */}
-            <div className="flex-1 min-w-0 max-w-full xl:max-w-3xl">
-              <div className="bg-slate-100/90 dark:bg-slate-900/90 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-2 md:grid-cols-4 gap-1.5 shadow-inner">
+            {/* Centered Segmented Stepper Track */}
+            <div className="flex justify-center w-full">
+              <div className="w-full max-w-4xl bg-slate-100/90 dark:bg-slate-900/90 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-2 md:grid-cols-4 gap-1.5 shadow-inner">
                 {INITIATIVE_STAGES.map((stage) => {
-                  const Icon = stage.icon;
                   const isActive = activeSection === stage.id;
                   const isCompleted = stageProgress[stage.id];
 
@@ -614,7 +615,7 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
                       key={stage.id}
                       type="button"
                       onClick={() => handleNavigateToStage(stage.id)}
-                      className={`relative min-w-0 flex items-center space-x-2 px-2.5 py-2 rounded-xl transition-all duration-200 cursor-pointer text-left overflow-hidden ${
+                      className={`relative min-w-0 flex items-center space-x-2.5 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-left overflow-hidden ${
                         isActive
                           ? 'bg-white dark:bg-slate-800 text-[#0f417a] dark:text-blue-400 shadow-md ring-1 ring-slate-200/90 dark:ring-slate-700'
                           : isCompleted

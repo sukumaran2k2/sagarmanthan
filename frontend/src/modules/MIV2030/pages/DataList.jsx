@@ -429,7 +429,7 @@ export default function MIVDataList({
     <div className="space-y-6 animate-fade-in relative">
       
       {/* Category / Status Tabs matching YP and CA style */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+      <div className="flex flex-wrap items-center justify-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
         <button
           onClick={() => handleStatusTabChange('all')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
