@@ -94,6 +94,10 @@ export function fetchCapexSummaryReport(year) {
   return api.get(`/capex-summary-report/${year}`);
 }
 
+export function fetchCapexYoYReport() {
+  return api.get('/capex-yoy-report');
+}
+
 export function fetchCapexDashboard(clusterId, financialYear) {
   return api.get(`/get-capex-dashboard/${clusterId}/${financialYear}`);
 }

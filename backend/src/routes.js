@@ -1561,6 +1561,7 @@ router.get("/hr-report-input-list/:userID", hrReportInputTab. getHrreportInputfo
 // Capex report 
 router.get("/capex-report/:selectedYear", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexReportData);
 router.get("/capex-summary-report/:selectedYear", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexSummaryReportData);
+router.get("/capex-yoy-report", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexYoYReportData);
 router.get("/hrfirst-report/:orgCatDrop/:orgDrop/:financialDrop", hrReportTab.hrFirstReport);
 router.get("/hrsecond-report/:orgCatDrop/:orgDrop", hrReportTab.hrSecondReport);
 router.get("/hrfourth-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrFourthReport);

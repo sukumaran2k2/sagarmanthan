@@ -651,7 +651,7 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
             <tbody>
               {(!orgScoped || majorCategory.rows.length > 0) && (
                 <>
-                  <SectionHeader title="A. Major Ports" />
+                  {!orgScoped && <SectionHeader title="A. Major Ports" />}
                   {majorCategory.rows.map((row) => {
                     const sNo = rowCounter++;
                     return (
@@ -666,7 +666,7 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
 
               {(!orgScoped || shippingCategory.rows.length > 0) && (
                 <>
-                  <SectionHeader title="B. Shipping Sector & Others" />
+                  {!orgScoped && <SectionHeader title="B. Shipping Sector & Others" />}
                   {shippingCategory.rows.map((row) => {
                     const sNo = rowCounter++;
                     return (
@@ -684,7 +684,7 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
 
               {(!orgScoped || otherCategory.rows.length > 0) && (
                 <>
-                  <SectionHeader title="C. Other Organisations" />
+                  {!orgScoped && <SectionHeader title="C. Other Organisations" />}
                   {otherCategory.rows.map((row) => {
                     const sNo = rowCounter++;
                     return (
