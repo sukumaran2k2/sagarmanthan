@@ -543,7 +543,11 @@ export default function App() {
             )}
 
             {['Capex', 'capex', 'Capex Dashboard', 'Capex Datalist', 'Capex Input Form', 'Estimate Values', 'Capex Reports'].includes(activeTab) && (
-              <CapexView />
+              <CapexView
+                activeSubTab={activeTab}
+                onGoHome={() => setActiveTab('Home')}
+                triggerNotification={triggerNotification}
+              />
             )}
 
             {activeTab === 'Major Ports Input Form' && (
