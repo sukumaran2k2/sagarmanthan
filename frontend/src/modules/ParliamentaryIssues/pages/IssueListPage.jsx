@@ -57,44 +57,6 @@ export default function IssueListPage({
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  const loadTabTotals = useCallback(async () => {
-    if (!permissions.canView) return;
-    try {
-      const [activeRes, completedRes] = await Promise.allSettled([
-        fetchParliamentaryIssues({
-          page: 1,
-          limit: 1,
-          category: 'active',
-          wingId: 'All',
-          divisionId: 'All',
-          issueType: 'All',
-          status: 'All',
-          search: '',
-        }),
-        fetchParliamentaryIssues({
-          page: 1,
-          limit: 1,
-          category: 'completed',
-          wingId: 'All',
-          divisionId: 'All',
-          issueType: 'All',
-          status: 'All',
-          search: '',
-        }),
-      ]);
-
-      const activePayload = activeRes.status === 'fulfilled' ? activeRes.value?.data : null;
-      const completedPayload = completedRes.status === 'fulfilled' ? completedRes.value?.data : null;
-
-      setCounts({
-        active: Number(activePayload?.pagination?.total) || 0,
-        completed: Number(completedPayload?.pagination?.total) || 0,
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  }, [permissions.canView]);
-
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch]);
@@ -126,6 +88,13 @@ export default function IssueListPage({
         limit: Number(payload.pagination?.limit) || pageSize,
         totalPages: Number(payload.pagination?.totalPages) || 0,
       });
+
+      if (payload.counts) {
+        setCounts({
+          active: Number(payload.counts.active) || 0,
+          completed: Number(payload.counts.completed) || 0,
+        });
+      }
     } catch (err) {
       if (err?.code === 'ERR_CANCELED') return;
       console.error(err);
@@ -165,10 +134,6 @@ export default function IssueListPage({
     return () => controller.abort();
   }, [loadList]);
 
-  useEffect(() => {
-    loadTabTotals();
-  }, [loadTabTotals]);
-
   const handleAdd = () => {
     if (!permissions.canAdd) return;
     setFormData(null);
@@ -206,7 +171,6 @@ export default function IssueListPage({
       notify?.('Parliamentary issue deleted successfully.', 'success');
       setDeleteTarget(null);
       loadList();
-      loadTabTotals();
     } catch (err) {
       console.error(err);
       notify?.(err?.response?.data?.message || 'Failed to delete issue.', 'error');
@@ -261,7 +225,6 @@ export default function IssueListPage({
           setMode('list');
           setFormData(null);
           loadList();
-          loadTabTotals();
         }}
         notify={notify}
       />
