@@ -7,6 +7,7 @@ import {
   monthsDataToEntries,
 } from '../utils/capexUtils';
 import { fetchCapexMonthlyData, saveCapexMonthlyData } from '../api';
+import { getCurrentUserId } from '../../../utils/authSession';
 
 const labelClass =
   'block text-[11px] font-bold text-slate-700 uppercase tracking-wider';
@@ -88,6 +89,7 @@ export default function CapexActualExpenditurePage({
     try {
       await saveCapexMonthlyData({
         capexID: capexRecord.capex_id,
+        userID: getCurrentUserId(),
         entries: monthsDataToEntries(allMonthsData),
       });
       if (showToast) showToast('✅ Actual Expenditure data saved successfully!', '#10B981');

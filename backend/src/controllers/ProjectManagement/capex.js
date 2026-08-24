@@ -285,7 +285,7 @@ async function getCapexMonthlyData(req, res) {
  */
 async function addCapexMonthlyData(req, res) {
   const capexID = Number(req.body.capexID);
-  const userId = resolveUserId(req, req.body.userID);
+  const userId = resolveUserId(req, req.body.userID ?? req.body.userId);
   let entries = Array.isArray(req.body.entries) ? req.body.entries : [];
 
   // Legacy wide-body support
@@ -296,6 +296,9 @@ async function addCapexMonthlyData(req, res) {
   if (!Number.isFinite(capexID) || capexID <= 0) {
     return res.status(400).json({ error: "Invalid capexID." });
   }
+  if (!userId) {
+    return res.status(400).json({ error: "Missing authenticated user." });
+  }
 
   const conn = await pool;
   const transaction = conn.transaction();
@@ -303,7 +306,7 @@ async function addCapexMonthlyData(req, res) {
   try {
     await transaction.begin();
     const delReq = transaction.request();
-    delReq.input("capexID", capexID);
+    delReq.input("capexID", sql.Int, capexID);
     await delReq.query(`DELETE FROM tbl_capex_monthly WHERE capex_id = @capexID`);
 
     for (const row of entries) {
@@ -318,35 +321,45 @@ async function addCapexMonthlyData(req, res) {
       if (amount == null || Number.isNaN(amount)) continue;
 
       const ins = transaction.request();
-      ins.input("capexID", capexID);
-      ins.input("monthNumber", monthNumber);
-      ins.input("weekNumber", weekNumber);
-      ins.input("fundingType", fundingType);
-      ins.input("amount", amount);
-      ins.input("userId", userId);
+      ins.input("capexID", sql.Int, capexID);
+      ins.input("monthNumber", sql.Int, monthNumber);
+      ins.input("weekNumber", sql.Int, weekNumber);
+      ins.input("fundingType", sql.NVarChar(10), fundingType);
+      ins.input("amount", sql.Float, amount);
+      ins.input("createdBy", sql.Int, userId);
+      ins.input("updatedBy", sql.Int, userId);
       await ins.query(`
-            INSERT INTO tbl_capex_monthly (
+        INSERT INTO tbl_capex_monthly (
           capex_id, month_number, week_number, funding_type, amount,
           created_by, updated_by, created_date, updated_date
-            )
-            VALUES (
+        )
+        VALUES (
           @capexID, @monthNumber, @weekNumber, @fundingType, @amount,
-          @userId, @userId, GETDATE(), GETDATE()
+          @createdBy, @updatedBy, GETDATE(), GETDATE()
         )
       `);
     }
 
+    const touch = transaction.request();
+    touch.input("capexID", sql.Int, capexID);
+    touch.input("updatedBy", sql.Int, userId);
+    await touch.query(`
+      UPDATE tbl_capex
+      SET updated_by = @updatedBy, updated_date = GETDATE()
+      WHERE capex_id = @capexID
+    `);
+
     await transaction.commit();
-        return res.sendStatus(201);
-    } catch (err) {
+    return res.sendStatus(201);
+  } catch (err) {
     try {
       await transaction.rollback();
     } catch (_) {
       /* ignore */
     }
-        console.error(err);
-        return res.sendStatus(500);
-    }
+    console.error(err);
+    return res.sendStatus(500);
+  }
 }
 
 function legacyBodyToEntries(body) {

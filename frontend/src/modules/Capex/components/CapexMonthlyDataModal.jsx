@@ -8,6 +8,7 @@ import {
   monthsDataToEntries,
 } from "../utils/capexUtils";
 import { fetchCapexMonthlyData, saveCapexMonthlyData } from "../api";
+import { getCurrentUserId } from "../../../utils/authSession";
 
 export default function CapexMonthlyDataModal({ isOpen, onClose, capexRecord, showToast }) {
   const [selectedMonth, setSelectedMonth] = useState("January");
@@ -63,6 +64,7 @@ export default function CapexMonthlyDataModal({ isOpen, onClose, capexRecord, sh
     try {
       await saveCapexMonthlyData({
         capexID: capexRecord.capex_id,
+        userID: getCurrentUserId(),
         entries: monthsDataToEntries(allMonthsData),
       });
       if (showToast) showToast("✅ All monthly expenditures saved successfully!", "#10B981");
