@@ -636,7 +636,7 @@ export default function App() {
             )}
 
             {['GEM Procurements', 'GEM Procurement', 'GEM', 'gem'].includes(activeTab) && (
-              <GEMProcurementView />
+              <GEMProcurementView triggerNotification={triggerNotification} />
             )}
 
             {/* Placeholder / Empty State for other inactive government menu views */}

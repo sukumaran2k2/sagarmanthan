@@ -1,1665 +1,853 @@
 import { pool } from "../../db.js";
+import sql from "mssql";
+import { applyDataScope } from "../../middleware/dataScope.js";
 
+const MONTHS = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
 
-async function addGemProcurementGoods(req, res) {
-    const userId = req.body.userID;
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const goodsProcurementPotential = req.body.goodsProcurementPotential;
-    const eightMonthsProportionalTarget = (goodsProcurementPotential / 12) * 8;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("userId", userId);
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("goodsProcurementPotential", goodsProcurementPotential);
-    request.input("eightMonthsProportionalTarget", eightMonthsProportionalTarget);
-
-    try {
-        const checkResult = await request.query(`
-            SELECT COUNT(*) AS count
-            FROM tbl_gem_procurement_goods
-            WHERE goods_financial_year = @financialYear
-            AND goods_organisation_id = @organisationId
-        `);
-
-        if (checkResult.recordset[0].count > 0) {
-            return res.status(400).json({ error: "Record already exists for the specified financialYear and organisationId." });
-        }
-
-        const insertResult = await request.query(`
-            INSERT INTO tbl_gem_procurement_goods (
-                updated_by,
-                goods_financial_year,
-                goods_organisation_id,
-                goods_procurement_potential,
-                eight_months_proportional_target
-            )
-            VALUES (
-                @userId,
-                @financialYear,
-                @organisationId,
-                @goodsProcurementPotential,
-                @eightMonthsProportionalTarget
-            )
-        `);
-
-        return res.sendStatus(201);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+function monthCap(month) {
+  return month.charAt(0).toUpperCase() + month.slice(1);
 }
 
-
-async function addGemProcurementService(req, res) {
-    const userId = req.body.userID;
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const serviceProcurementPotential = req.body.serviceProcurementPotential;
-    const eightMonthsProportionalTarget = (serviceProcurementPotential / 12) * 8;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("userId", userId);
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("serviceProcurementPotential", serviceProcurementPotential);
-    request.input("eightMonthsProportionalTarget", eightMonthsProportionalTarget);
-
-    try {
-        const checkResult = await request.query(`
-            SELECT COUNT(*) AS count
-            FROM tbl_gem_procurement_service
-            WHERE service_financial_year = @financialYear
-            AND service_organisation_id = @organisationId
-        `);
-
-        if (checkResult.recordset[0].count > 0) {
-            return res.status(400).json({ error: "Record already exists for the specified financialYear and organisationId." });
-        }
-
-        const result = await request.query(`
-            INSERT INTO tbl_gem_procurement_service (
-                updated_by,
-                service_financial_year,
-                service_organisation_id,
-                service_procurement_potential,
-                eight_months_proportional_target
-            )
-            VALUES (
-                @userId,
-                @financialYear,
-                @organisationId,
-                @serviceProcurementPotential,
-                @eightMonthsProportionalTarget
-            )
-        `);
-        return res.sendStatus(201);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+function throughSumSql(alias = "m") {
+  return `ISNULL(SUM(${MONTHS.map((m) => `ISNULL(${alias}.procurement_through_gem_${m}, 0)`).join(" + ")}), 0)`;
 }
 
-async function addGemProcurementWork(req, res) {
-    const userId = req.body.userID;
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const workProcurementPotential = req.body.workProcurementPotential;
-    const eightMonthsProportionalTarget = (workProcurementPotential / 12) * 8;
+function outsideSumSql(alias = "m") {
+  return `ISNULL(SUM(${MONTHS.map((m) => `ISNULL(${alias}.procurement_outside_gem_${m}, 0)`).join(" + ")}), 0)`;
+}
 
-    const conn = await pool;
-    const request = conn.request();
+const CATEGORIES = {
+  goods: {
+    key: "goods",
+    table: "tbl_gem_procurement_goods",
+    monthlyTable: "tbl_gem_procurement_goods_monthly",
+    idCol: "goods_gem_id",
+    orgCol: "goods_organisation_id",
+    fyCol: "goods_financial_year",
+    potentialCol: "goods_procurement_potential",
+    idBodyKey: "goodsGemID",
+    potentialBodyKey: "goodsProcurementPotential",
+    alias: "gpg",
+  },
+  service: {
+    key: "service",
+    table: "tbl_gem_procurement_service",
+    monthlyTable: "tbl_gem_procurement_service_monthly",
+    idCol: "service_gem_id",
+    orgCol: "service_organisation_id",
+    fyCol: "service_financial_year",
+    potentialCol: "service_procurement_potential",
+    idBodyKey: "serviceGemID",
+    potentialBodyKey: "serviceProcurementPotential",
+    alias: "gps",
+  },
+  works: {
+    key: "works",
+    table: "tbl_gem_procurement_works",
+    monthlyTable: "tbl_gem_procurement_works_monthly",
+    idCol: "works_gem_id",
+    orgCol: "works_organisation_id",
+    fyCol: "works_financial_year",
+    potentialCol: "works_procurement_potential",
+    idBodyKey: "worksGemID",
+    potentialBodyKey: "worksProcurementPotential",
+    alias: "gpw",
+  },
+};
 
-    request.input("userId", userId);
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("workProcurementPotential", workProcurementPotential);
-    request.input("eightMonthsProportionalTarget", eightMonthsProportionalTarget);
-    try {
-        const checkResult = await request.query(`
-        SELECT COUNT(*) AS count
-        FROM tbl_gem_procurement_works
-        WHERE works_financial_year = @financialYear
-        AND works_organisation_id = @organisationId
+function parsePositiveInt(value, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+function resolveUserId(req, fallback) {
+  const raw = req.user?.userId ?? req.user?.user_id ?? fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function monthlyTotalsCte(cfg) {
+  return `
+    GemMonthlyTotals AS (
+      SELECT
+        ${cfg.idCol},
+        (${throughSumSql("m")}) AS total_procurement_through_gem,
+        (${outsideSumSql("m")}) AS total_procurement_outside_gem
+      FROM ${cfg.monthlyTable} m
+      GROUP BY ${cfg.idCol}
+    )
+  `;
+}
+
+function bindListFilters(request, query = {}, cfg) {
+  const parts = [];
+  const financialYear = String(query.financialYear || "").trim();
+  const organisationId = String(query.organisationId || "").trim();
+  const organisationName = String(query.organisationName || "").trim();
+  const search = String(query.search || "").trim();
+
+  if (financialYear) {
+    request.input("financialYear", sql.NVarChar(50), financialYear);
+    parts.push(` AND ${cfg.alias}.${cfg.fyCol} = @financialYear`);
+  }
+  if (organisationId) {
+    request.input("organisationId", sql.NVarChar(50), organisationId);
+    parts.push(` AND CAST(${cfg.alias}.${cfg.orgCol} AS NVARCHAR(50)) = @organisationId`);
+  }
+  if (organisationName) {
+    request.input("organisationName", sql.NVarChar(255), organisationName);
+    parts.push(" AND org.organisation_name = @organisationName");
+  }
+  if (search) {
+    request.input("search", sql.NVarChar(255), `%${search}%`);
+    parts.push(` AND (
+      org.organisation_name LIKE @search
+      OR ${cfg.alias}.${cfg.fyCol} LIKE @search
+      OR CAST(${cfg.alias}.${cfg.potentialCol} AS NVARCHAR(50)) LIKE @search
+    )`);
+  }
+  return parts.join("");
+}
+
+function listFromSql(cfg) {
+  return `
+    FROM ${cfg.table} ${cfg.alias}
+    LEFT JOIN GemMonthlyTotals monthly ON ${cfg.alias}.${cfg.idCol} = monthly.${cfg.idCol}
+    LEFT JOIN mmt_organisation org ON ${cfg.alias}.${cfg.orgCol} = org.organisation_id
+  `;
+}
+
+async function listCategory(req, res, cfg) {
+  const conn = await pool;
+  try {
+    const fetchAll =
+      String(req.query.all || "").toLowerCase() === "1" ||
+      String(req.query.all || "").toLowerCase() === "true";
+    const page = parsePositiveInt(req.query.page, 1, 1);
+    const limit = fetchAll
+      ? parsePositiveInt(req.query.limit, 2000, 1, 2000)
+      : parsePositiveInt(req.query.limit, 10, 1, 100);
+    const offset = (page - 1) * limit;
+
+    const countRequest = conn.request();
+    const pageRequest = conn.request();
+
+    const { joinSql, whereSql } = applyDataScope(countRequest, req.user, {
+      strategy: "directOrgColumn",
+      alias: cfg.alias,
+      orgColumn: cfg.orgCol,
+    });
+    applyDataScope(pageRequest, req.user, {
+      strategy: "directOrgColumn",
+      alias: cfg.alias,
+      orgColumn: cfg.orgCol,
+    });
+
+    const filterSql = bindListFilters(countRequest, req.query, cfg);
+    bindListFilters(pageRequest, req.query, cfg);
+
+    pageRequest.input("offset", sql.Int, offset);
+    pageRequest.input("limit", sql.Int, limit);
+
+    const [countResult, pageResult] = await Promise.all([
+      countRequest.query(`
+        WITH ${monthlyTotalsCte(cfg)}
+        SELECT COUNT(*) AS total
+        ${listFromSql(cfg)}
+        ${joinSql}
+        WHERE 1 = 1
+        ${whereSql}
+        ${filterSql}
+      `),
+      pageRequest.query(`
+        WITH ${monthlyTotalsCte(cfg)}
+        SELECT
+          ${cfg.alias}.*,
+          COALESCE(monthly.total_procurement_through_gem, 0) AS total_procurement_through_gem,
+          COALESCE(monthly.total_procurement_outside_gem, 0) AS total_procurement_outside_gem,
+          org.organisation_name AS organisation_name
+        ${listFromSql(cfg)}
+        ${joinSql}
+        WHERE 1 = 1
+        ${whereSql}
+        ${filterSql}
+        ORDER BY ${cfg.alias}.${cfg.fyCol} DESC, ${cfg.alias}.${cfg.idCol} DESC
+        OFFSET @offset ROWS
+        FETCH NEXT @limit ROWS ONLY
+      `),
+    ]);
+
+    const total = Number(countResult.recordset?.[0]?.total) || 0;
+    return res.json({
+      data: pageResult.recordset || [],
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    });
+  } catch (err) {
+    console.error(`listCategory(${cfg.key}):`, err);
+    return res.sendStatus(500);
+  }
+}
+
+async function addCategory(req, res, cfg) {
+  const userId = resolveUserId(req, req.body.userID ?? req.body.userId);
+  const financialYear = req.body.financialYear;
+  const organisationId = req.body.organisationId;
+  const potential = Number(
+    req.body[cfg.potentialBodyKey] ??
+      req.body.workProcurementPotential ??
+      req.body.plannedPotential ??
+      req.body.procurementPotential
+  );
+  const eightMonthsProportionalTarget = Number.isFinite(potential)
+    ? (potential / 12) * 8
+    : null;
+
+  if (!userId || !financialYear || !organisationId || !Number.isFinite(potential)) {
+    return res.status(400).json({ error: "Missing required fields." });
+  }
+
+  const conn = await pool;
+  const request = conn.request();
+  request.input("userId", sql.Int, userId);
+  request.input("financialYear", sql.NVarChar(50), financialYear);
+  request.input("organisationId", sql.Int, Number(organisationId));
+  request.input("potential", sql.Float, potential);
+  request.input("eightMonthsProportionalTarget", sql.Float, eightMonthsProportionalTarget);
+
+  try {
+    const check = await request.query(`
+      SELECT COUNT(*) AS count
+      FROM ${cfg.table}
+      WHERE ${cfg.fyCol} = @financialYear
+        AND ${cfg.orgCol} = @organisationId
+    `);
+    if (check.recordset[0].count > 0) {
+      return res.status(400).json({
+        error: "Record already exists for the specified financialYear and organisationId.",
+      });
+    }
+
+    await request.query(`
+      INSERT INTO ${cfg.table} (
+        updated_by,
+        ${cfg.fyCol},
+        ${cfg.orgCol},
+        ${cfg.potentialCol},
+        eight_months_proportional_target
+      )
+      VALUES (
+        @userId,
+        @financialYear,
+        @organisationId,
+        @potential,
+        @eightMonthsProportionalTarget
+      )
+    `);
+    return res.sendStatus(201);
+  } catch (err) {
+    console.error(`addCategory(${cfg.key}):`, err);
+    return res.sendStatus(500);
+  }
+}
+
+async function updateCategory(req, res, cfg) {
+  const userId = resolveUserId(req, req.body.userID ?? req.body.userId);
+  const financialYear = req.body.financialYear;
+  const organisationId = req.body.organisationId;
+  const potential = Number(
+    req.body[cfg.potentialBodyKey] ??
+      req.body.workProcurementPotential ??
+      req.body.plannedPotential ??
+      req.body.procurementPotential
+  );
+  const eightMonthsProportionalTarget = Number.isFinite(potential)
+    ? (potential / 12) * 8
+    : null;
+
+  if (!userId || !financialYear || !organisationId || !Number.isFinite(potential)) {
+    return res.status(400).json({ error: "Missing required fields." });
+  }
+
+  const conn = await pool;
+  const request = conn.request();
+  request.input("userId", sql.Int, userId);
+  request.input("financialYear", sql.NVarChar(50), financialYear);
+  request.input("organisationId", sql.Int, Number(organisationId));
+  request.input("potential", sql.Float, potential);
+  request.input("eightMonthsProportionalTarget", sql.Float, eightMonthsProportionalTarget);
+
+  try {
+    const result = await request.query(`
+      UPDATE ${cfg.table}
+      SET
+        ${cfg.potentialCol} = @potential,
+        eight_months_proportional_target = @eightMonthsProportionalTarget,
+        updated_by = @userId,
+        updated_date = GETDATE()
+      WHERE ${cfg.fyCol} = @financialYear
+        AND ${cfg.orgCol} = @organisationId
+    `);
+    if (!result.rowsAffected?.[0]) {
+      return res.status(404).json({
+        error: "Record not found for the specified financialYear and organisationId.",
+      });
+    }
+    return res.sendStatus(200);
+  } catch (err) {
+    console.error(`updateCategory(${cfg.key}):`, err);
+    return res.sendStatus(500);
+  }
+}
+
+async function deleteCategory(req, res, cfg) {
+  const financialYear = req.body.financialYear;
+  const organisationId = req.body.organisationId;
+  if (!financialYear || !organisationId) {
+    return res.status(400).json({ error: "Missing required fields." });
+  }
+
+  const conn = await pool;
+  const transaction = conn.transaction();
+  try {
+    await transaction.begin();
+    const request = transaction.request();
+    request.input("financialYear", sql.NVarChar(50), financialYear);
+    request.input("organisationId", sql.Int, Number(organisationId));
+
+    const idResult = await request.query(`
+      SELECT ${cfg.idCol} AS id
+      FROM ${cfg.table}
+      WHERE ${cfg.fyCol} = @financialYear
+        AND ${cfg.orgCol} = @organisationId
+    `);
+    if (!idResult.recordset.length) {
+      await transaction.rollback();
+      return res.status(404).json({
+        error: "Record not found for the specified financialYear and organisationId.",
+      });
+    }
+
+    const gemId = idResult.recordset[0].id;
+    const delMonthly = transaction.request();
+    delMonthly.input("gemId", sql.Int, gemId);
+    await delMonthly.query(`
+      DELETE FROM ${cfg.monthlyTable} WHERE ${cfg.idCol} = @gemId
     `);
 
-        if (checkResult.recordset[0].count > 0) {
-            return res.status(400).json({ error: "Record already exists for the specified financialYear and organisationId." });
-        }
+    const delParent = transaction.request();
+    delParent.input("financialYear", sql.NVarChar(50), financialYear);
+    delParent.input("organisationId", sql.Int, Number(organisationId));
+    await delParent.query(`
+      DELETE FROM ${cfg.table}
+      WHERE ${cfg.fyCol} = @financialYear
+        AND ${cfg.orgCol} = @organisationId
+    `);
 
-        const result = await request.query(`
-            INSERT INTO tbl_gem_procurement_works (
-                updated_by,
-                works_financial_year,
-                works_organisation_id,
-                works_procurement_potential,
-                eight_months_proportional_target
-            )
-            VALUES (
-                @userId,
-                @financialYear,
-                @organisationId,
-                @workProcurementPotential,
-                @eightMonthsProportionalTarget
-            )
-        `);
-        return res.sendStatus(201);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
+    await transaction.commit();
+    return res.sendStatus(200);
+  } catch (err) {
+    try {
+      await transaction.rollback();
+    } catch (_) {}
+    console.error(`deleteCategory(${cfg.key}):`, err);
+    return res.sendStatus(500);
+  }
+}
+
+function readMonthlyField(body, month, kind) {
+  const cap = monthCap(month);
+  if (kind === "through") {
+    return (
+      body[`procurementThroughGem${cap}`] ??
+      body[`procurement_through_gem_${month}`] ??
+      null
+    );
+  }
+  if (kind === "outside") {
+    return (
+      body[`procurementOutsideGem${cap}`] ??
+      body[`procurement_outside_gem_${month}`] ??
+      null
+    );
+  }
+  return (
+    body[`reasonForNonProcurement${cap}`] ??
+    body[`reason_for_non_procurement_${month}`] ??
+    null
+  );
+}
+
+async function saveMonthly(req, res, cfg) {
+  const userId = resolveUserId(req, req.body.userID ?? req.body.userId);
+  const gemId = Number(req.body[cfg.idBodyKey] ?? req.params[cfg.idBodyKey]);
+  if (!userId) {
+    return res.status(400).json({ error: "Missing authenticated user." });
+  }
+  if (!Number.isFinite(gemId) || gemId <= 0) {
+    return res.status(400).json({ error: `Invalid ${cfg.idBodyKey}.` });
+  }
+
+  const conn = await pool;
+  const transaction = conn.transaction();
+  try {
+    await transaction.begin();
+    const request = transaction.request();
+    request.input("gemId", sql.Int, gemId);
+    request.input("userId", sql.Int, userId);
+
+    for (const month of MONTHS) {
+      const cap = monthCap(month);
+      const through = readMonthlyField(req.body, month, "through");
+      const outside = readMonthlyField(req.body, month, "outside");
+      const reason = readMonthlyField(req.body, month, "reason");
+      request.input(`through${cap}`, sql.Float, through == null || through === "" ? null : Number(through));
+      request.input(`outside${cap}`, sql.Float, outside == null || outside === "" ? null : Number(outside));
+      request.input(`reason${cap}`, sql.NVarChar(sql.MAX), reason == null ? null : String(reason));
     }
+
+    const exists = await request.query(`
+      SELECT ${cfg.idCol}
+      FROM ${cfg.monthlyTable}
+      WHERE ${cfg.idCol} = @gemId
+    `);
+
+    const setCols = MONTHS.map((month) => {
+      const cap = monthCap(month);
+      return `
+        procurement_through_gem_${month} = @through${cap},
+        procurement_outside_gem_${month} = @outside${cap},
+        reason_for_non_procurement_${month} = @reason${cap}`;
+    }).join(",");
+
+    const insertCols = [
+      cfg.idCol,
+      ...MONTHS.flatMap((month) => [
+        `procurement_through_gem_${month}`,
+        `procurement_outside_gem_${month}`,
+        `reason_for_non_procurement_${month}`,
+      ]),
+    ].join(", ");
+
+    const insertVals = [
+      "@gemId",
+      ...MONTHS.flatMap((month) => {
+        const cap = monthCap(month);
+        return [`@through${cap}`, `@outside${cap}`, `@reason${cap}`];
+      }),
+    ].join(", ");
+
+    if (exists.recordset.length > 0) {
+      await request.query(`
+        UPDATE ${cfg.monthlyTable}
+        SET ${setCols}
+        WHERE ${cfg.idCol} = @gemId
+      `);
+    } else {
+      await request.query(`
+        INSERT INTO ${cfg.monthlyTable} (${insertCols})
+        VALUES (${insertVals})
+      `);
+    }
+
+    const touch = transaction.request();
+    touch.input("gemId", sql.Int, gemId);
+    touch.input("userId", sql.Int, userId);
+    await touch.query(`
+      UPDATE ${cfg.table}
+      SET updated_by = @userId, updated_date = GETDATE()
+      WHERE ${cfg.idCol} = @gemId
+    `);
+
+    await transaction.commit();
+    return res.sendStatus(201);
+  } catch (err) {
+    try {
+      await transaction.rollback();
+    } catch (_) {}
+    console.error(`saveMonthly(${cfg.key}):`, err);
+    return res.sendStatus(500);
+  }
+}
+
+async function getMonthly(req, res, cfg, paramName) {
+  const gemId = Number(req.params[paramName]);
+  if (!Number.isFinite(gemId) || gemId <= 0) {
+    return res.status(400).json({ error: `Invalid ${paramName}.` });
+  }
+  const conn = await pool;
+  const request = conn.request();
+  request.input("gemId", sql.Int, gemId);
+  try {
+    const result = await request.query(`
+      SELECT * FROM ${cfg.monthlyTable} WHERE ${cfg.idCol} = @gemId
+    `);
+    return res.json(result.recordset);
+  } catch (err) {
+    console.error(`getMonthly(${cfg.key}):`, err);
+    return res.sendStatus(500);
+  }
+}
+
+async function getPotential(req, res, cfg, paramName) {
+  const gemId = Number(req.params[paramName]);
+  if (!Number.isFinite(gemId) || gemId <= 0) {
+    return res.status(400).json({ error: `Invalid ${paramName}.` });
+  }
+  const conn = await pool;
+  const request = conn.request();
+  request.input("gemId", sql.Int, gemId);
+  try {
+    const result = await request.query(`
+      SELECT ${cfg.potentialCol}
+      FROM ${cfg.table}
+      WHERE ${cfg.idCol} = @gemId
+    `);
+    return res.json(result.recordset);
+  } catch (err) {
+    console.error(`getPotential(${cfg.key}):`, err);
+    return res.sendStatus(500);
+  }
+}
+
+async function addGemProcurementGoods(req, res) {
+  return addCategory(req, res, CATEGORIES.goods);
+}
+async function addGemProcurementService(req, res) {
+  return addCategory(req, res, CATEGORIES.service);
+}
+async function addGemProcurementWork(req, res) {
+  return addCategory(req, res, CATEGORIES.works);
 }
 
 async function getGemProcurementGoods(req, res) {
-    const userID = req.params.userID;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    try {
-        const result = await request.query(`
-        SELECT
-        gpg.*,
-        COALESCE(monthly.total_procurement_through_gem, 0) AS total_procurement_through_gem,
-        COALESCE(monthly.total_procurement_outside_gem, 0) AS total_procurement_outside_gem
-    FROM tbl_gem_procurement_goods gpg
-    LEFT JOIN (
-        SELECT
-            goods_gem_id,
-            ISNULL(SUM(ISNULL(procurement_through_gem_january, 0) +
-                       ISNULL(procurement_through_gem_february, 0) +
-                       ISNULL(procurement_through_gem_march, 0) +
-                       ISNULL(procurement_through_gem_april, 0) +
-                       ISNULL(procurement_through_gem_may, 0) +
-                       ISNULL(procurement_through_gem_june, 0) +
-                       ISNULL(procurement_through_gem_july, 0) +
-                       ISNULL(procurement_through_gem_august, 0) +
-                       ISNULL(procurement_through_gem_september, 0) +
-                       ISNULL(procurement_through_gem_october, 0) +
-                       ISNULL(procurement_through_gem_november, 0) +
-                       ISNULL(procurement_through_gem_december, 0)), 0) AS total_procurement_through_gem,
-            
-            ISNULL(SUM(ISNULL(procurement_outside_gem_january, 0) +
-                       ISNULL(procurement_outside_gem_february, 0) +
-                       ISNULL(procurement_outside_gem_march, 0) +
-                       ISNULL(procurement_outside_gem_april, 0) +
-                       ISNULL(procurement_outside_gem_may, 0) +
-                       ISNULL(procurement_outside_gem_june, 0) +
-                       ISNULL(procurement_outside_gem_july, 0) +
-                       ISNULL(procurement_outside_gem_august, 0) +
-                       ISNULL(procurement_outside_gem_september, 0) +
-                       ISNULL(procurement_outside_gem_october, 0) +
-                       ISNULL(procurement_outside_gem_november, 0) +
-                       ISNULL(procurement_outside_gem_december, 0)), 0) AS total_procurement_outside_gem
-        FROM tbl_gem_procurement_goods_monthly
-        GROUP BY goods_gem_id
-    ) AS monthly ON gpg.goods_gem_id = monthly.goods_gem_id;    
-    
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+  return listCategory(req, res, CATEGORIES.goods);
 }
-
 async function getGemProcurementService(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-
-    try {
-        const result = await request.query(`
-        SELECT
-        gps.*,
-        COALESCE(monthly.total_procurement_through_gem, 0) AS total_procurement_through_gem,
-        COALESCE(monthly.total_procurement_outside_gem, 0) AS total_procurement_outside_gem
-    FROM tbl_gem_procurement_service gps
-    LEFT JOIN (
-        SELECT
-            service_gem_id,
-            ISNULL(SUM(ISNULL(procurement_through_gem_january, 0) +
-                       ISNULL(procurement_through_gem_february, 0) +
-                       ISNULL(procurement_through_gem_march, 0) +
-                       ISNULL(procurement_through_gem_april, 0) +
-                       ISNULL(procurement_through_gem_may, 0) +
-                       ISNULL(procurement_through_gem_june, 0) +
-                       ISNULL(procurement_through_gem_july, 0) +
-                       ISNULL(procurement_through_gem_august, 0) +
-                       ISNULL(procurement_through_gem_september, 0) +
-                       ISNULL(procurement_through_gem_october, 0) +
-                       ISNULL(procurement_through_gem_november, 0) +
-                       ISNULL(procurement_through_gem_december, 0)), 0) AS total_procurement_through_gem,
-            
-            ISNULL(SUM(ISNULL(procurement_outside_gem_january, 0) +
-                       ISNULL(procurement_outside_gem_february, 0) +
-                       ISNULL(procurement_outside_gem_march, 0) +
-                       ISNULL(procurement_outside_gem_april, 0) +
-                       ISNULL(procurement_outside_gem_may, 0) +
-                       ISNULL(procurement_outside_gem_june, 0) +
-                       ISNULL(procurement_outside_gem_july, 0) +
-                       ISNULL(procurement_outside_gem_august, 0) +
-                       ISNULL(procurement_outside_gem_september, 0) +
-                       ISNULL(procurement_outside_gem_october, 0) +
-                       ISNULL(procurement_outside_gem_november, 0) +
-                       ISNULL(procurement_outside_gem_december, 0)), 0) AS total_procurement_outside_gem
-        FROM tbl_gem_procurement_service_monthly
-        GROUP BY service_gem_id
-    ) AS monthly ON gps.service_gem_id = monthly.service_gem_id;
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+  return listCategory(req, res, CATEGORIES.service);
 }
-
 async function getGemProcurementWork(req, res) {
-    const userID = req.params.userID;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    try {
-        const result = await request.query(`
-        SELECT
-        gpw.*,
-        COALESCE(monthly.total_procurement_through_gem, 0) AS total_procurement_through_gem,
-        COALESCE(monthly.total_procurement_outside_gem, 0) AS total_procurement_outside_gem
-    FROM tbl_gem_procurement_works gpw
-    LEFT JOIN (
-        SELECT
-            works_gem_id,
-            ISNULL(SUM(ISNULL(procurement_through_gem_january, 0) +
-                       ISNULL(procurement_through_gem_february, 0) +
-                       ISNULL(procurement_through_gem_march, 0) +
-                       ISNULL(procurement_through_gem_april, 0) +
-                       ISNULL(procurement_through_gem_may, 0) +
-                       ISNULL(procurement_through_gem_june, 0) +
-                       ISNULL(procurement_through_gem_july, 0) +
-                       ISNULL(procurement_through_gem_august, 0) +
-                       ISNULL(procurement_through_gem_september, 0) +
-                       ISNULL(procurement_through_gem_october, 0) +
-                       ISNULL(procurement_through_gem_november, 0) +
-                       ISNULL(procurement_through_gem_december, 0)), 0) AS total_procurement_through_gem,
-            
-            ISNULL(SUM(ISNULL(procurement_outside_gem_january, 0) +
-                       ISNULL(procurement_outside_gem_february, 0) +
-                       ISNULL(procurement_outside_gem_march, 0) +
-                       ISNULL(procurement_outside_gem_april, 0) +
-                       ISNULL(procurement_outside_gem_may, 0) +
-                       ISNULL(procurement_outside_gem_june, 0) +
-                       ISNULL(procurement_outside_gem_july, 0) +
-                       ISNULL(procurement_outside_gem_august, 0) +
-                       ISNULL(procurement_outside_gem_september, 0) +
-                       ISNULL(procurement_outside_gem_october, 0) +
-                       ISNULL(procurement_outside_gem_november, 0) +
-                       ISNULL(procurement_outside_gem_december, 0)), 0) AS total_procurement_outside_gem
-        FROM tbl_gem_procurement_works_monthly
-        GROUP BY works_gem_id
-    ) AS monthly ON gpw.works_gem_id = monthly.works_gem_id;
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getGemProcurementTotalData(req, res) {
-
-    const conn = await pool;
-    const request = conn.request();
-
-    try {
-        const result = await request.query(`
-        SELECT
-            COALESCE(g.goods_gem_id, s.service_gem_id, w.works_gem_id) AS common_gem_id,
-            COALESCE(g.goods_financial_year, s.service_financial_year, w.works_financial_year) AS common_financial_year,
-            COALESCE(g.goods_organisation_id, s.service_organisation_id, w.works_organisation_id) AS common_organisation_id,
-            COALESCE(g.goods_procurement_potential, 0) + COALESCE(s.service_procurement_potential, 0) + COALESCE(w.works_procurement_potential, 0)AS total_procurement_potential,
-            COALESCE(gm.total_procurement_through_gem, 0) + COALESCE(sm.total_procurement_through_gem, 0) + COALESCE(wm.total_procurement_through_gem, 0) AS total_procurement_through_gem,
-            COALESCE(gm.total_procurement_outside_gem, 0) + COALESCE(sm.total_procurement_outside_gem, 0) + COALESCE(wm.total_procurement_outside_gem, 0) AS total_procurement_outside_gem,
-            COALESCE(g.eight_months_proportional_target, 0) + COALESCE(s.eight_months_proportional_target, 0) + COALESCE(w.eight_months_proportional_target, 0) AS eight_months_proportional_target
-        FROM (
-            SELECT DISTINCT goods_organisation_id, goods_financial_year FROM tbl_gem_procurement_goods
-            UNION
-            SELECT DISTINCT service_organisation_id, service_financial_year FROM tbl_gem_procurement_service
-            UNION
-            SELECT DISTINCT works_organisation_id, works_financial_year FROM tbl_gem_procurement_works
-        ) AS org_years
-        LEFT JOIN tbl_gem_procurement_goods g ON org_years.goods_organisation_id = g.goods_organisation_id AND org_years.goods_financial_year = g.goods_financial_year
-        LEFT JOIN tbl_gem_procurement_service s ON org_years.goods_organisation_id = s.service_organisation_id AND org_years.goods_financial_year = s.service_financial_year
-        LEFT JOIN tbl_gem_procurement_works w ON org_years.goods_organisation_id = w.works_organisation_id AND org_years.goods_financial_year = w.works_financial_year
-        LEFT JOIN (
-        SELECT
-                goods_gem_id,
-                ISNULL(SUM(ISNULL(procurement_through_gem_january, 0) +
-                        ISNULL(procurement_through_gem_february, 0) +
-                        ISNULL(procurement_through_gem_march, 0) +
-                        ISNULL(procurement_through_gem_april, 0) +
-                        ISNULL(procurement_through_gem_may, 0) +
-                        ISNULL(procurement_through_gem_june, 0) +
-                        ISNULL(procurement_through_gem_july, 0) +
-                        ISNULL(procurement_through_gem_august, 0) +
-                        ISNULL(procurement_through_gem_september, 0) +
-                        ISNULL(procurement_through_gem_october, 0) +
-                        ISNULL(procurement_through_gem_november, 0) +
-                        ISNULL(procurement_through_gem_december, 0)), 0) AS total_procurement_through_gem,
-                ISNULL(SUM(ISNULL(procurement_outside_gem_january, 0) +
-                        ISNULL(procurement_outside_gem_february, 0) +
-                        ISNULL(procurement_outside_gem_march, 0) +
-                        ISNULL(procurement_outside_gem_april, 0) +
-                        ISNULL(procurement_outside_gem_may, 0) +
-                        ISNULL(procurement_outside_gem_june, 0) +
-                        ISNULL(procurement_outside_gem_july, 0) +
-                        ISNULL(procurement_outside_gem_august, 0) +
-                        ISNULL(procurement_outside_gem_september, 0) +
-                        ISNULL(procurement_outside_gem_october, 0) +
-                        ISNULL(procurement_outside_gem_november, 0) +
-                        ISNULL(procurement_outside_gem_december, 0)), 0) AS total_procurement_outside_gem
-            FROM tbl_gem_procurement_goods_monthly
-            GROUP BY goods_gem_id
-        ) AS gm ON g.goods_gem_id = gm.goods_gem_id
-        LEFT JOIN (
-            SELECT
-                service_gem_id,
-                ISNULL(SUM(ISNULL(procurement_through_gem_january, 0) +
-                        ISNULL(procurement_through_gem_february, 0) +
-                        ISNULL(procurement_through_gem_march, 0) +
-                        ISNULL(procurement_through_gem_april, 0) +
-                        ISNULL(procurement_through_gem_may, 0) +
-                        ISNULL(procurement_through_gem_june, 0) +
-                        ISNULL(procurement_through_gem_july, 0) +
-                        ISNULL(procurement_through_gem_august, 0) +
-                        ISNULL(procurement_through_gem_september, 0) +
-                        ISNULL(procurement_through_gem_october, 0) +
-                        ISNULL(procurement_through_gem_november, 0) +
-                        ISNULL(procurement_through_gem_december, 0)), 0) AS total_procurement_through_gem,
-                ISNULL(SUM(ISNULL(procurement_outside_gem_january, 0) +
-                        ISNULL(procurement_outside_gem_february, 0) +
-                        ISNULL(procurement_outside_gem_march, 0) +
-                        ISNULL(procurement_outside_gem_april, 0) +
-                        ISNULL(procurement_outside_gem_may, 0) +
-                        ISNULL(procurement_outside_gem_june, 0) +
-                        ISNULL(procurement_outside_gem_july, 0) +
-                        ISNULL(procurement_outside_gem_august, 0) +
-                        ISNULL(procurement_outside_gem_september, 0) +
-                        ISNULL(procurement_outside_gem_october, 0) +
-                        ISNULL(procurement_outside_gem_november, 0) +
-                        ISNULL(procurement_outside_gem_december, 0)), 0) AS total_procurement_outside_gem
-            FROM tbl_gem_procurement_service_monthly
-            GROUP BY service_gem_id
-        ) AS sm ON s.service_gem_id = sm.service_gem_id
-        LEFT JOIN (
-            SELECT
-                works_gem_id,
-                ISNULL(SUM(ISNULL(procurement_through_gem_january, 0) +
-                        ISNULL(procurement_through_gem_february, 0) +
-                        ISNULL(procurement_through_gem_march, 0) +
-                        ISNULL(procurement_through_gem_april, 0) +
-                        ISNULL(procurement_through_gem_may, 0) +
-                        ISNULL(procurement_through_gem_june, 0) +
-                        ISNULL(procurement_through_gem_july, 0) +
-                        ISNULL(procurement_through_gem_august, 0) +
-                        ISNULL(procurement_through_gem_september, 0) +
-                        ISNULL(procurement_through_gem_october, 0) +
-                        ISNULL(procurement_through_gem_november, 0) +
-                        ISNULL(procurement_through_gem_december, 0)), 0) AS total_procurement_through_gem,
-                ISNULL(SUM(ISNULL(procurement_outside_gem_january, 0) +
-                        ISNULL(procurement_outside_gem_february, 0) +
-                        ISNULL(procurement_outside_gem_march, 0) +
-                        ISNULL(procurement_outside_gem_april, 0) +
-                        ISNULL(procurement_outside_gem_may, 0) +
-                        ISNULL(procurement_outside_gem_june, 0) +
-                        ISNULL(procurement_outside_gem_july, 0) +
-                        ISNULL(procurement_outside_gem_august, 0) +
-                        ISNULL(procurement_outside_gem_september, 0) +
-                        ISNULL(procurement_outside_gem_october, 0) +
-                        ISNULL(procurement_outside_gem_november, 0) +
-                        ISNULL(procurement_outside_gem_december, 0)), 0) AS total_procurement_outside_gem
-            FROM tbl_gem_procurement_works_monthly
-            GROUP BY works_gem_id
-        ) AS wm ON w.works_gem_id = wm.works_gem_id ORDER BY common_financial_year desc;
-
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function addGemMonthlyGoodsData(req, res) {
-    const goodsGemID = req.body.goodsGemID;
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("goodsGemID", goodsGemID);
-    
-    const userID = req.body.userID;
-    const procurementThroughGemJanuary = req.body.procurementThroughGemJanuary;
-    const procurementOutsideGemJanuary = req.body.procurementOutsideGemJanuary;
-    const reasonForNonProcurementJanuary = req.body.reasonForNonProcurementJanuary;
-
-    const procurementThroughGemFebruary = req.body.procurementThroughGemFebruary;
-    const procurementOutsideGemFebruary = req.body.procurementOutsideGemFebruary;
-    const reasonForNonProcurementFebruary = req.body.reasonForNonProcurementFebruary;
-
-    const procurementThroughGemMarch = req.body.procurementThroughGemMarch;
-    const procurementOutsideGemMarch = req.body.procurementOutsideGemMarch;
-    const reasonForNonProcurementMarch = req.body.reasonForNonProcurementMarch;
-
-    const procurementThroughGemApril = req.body.procurementThroughGemApril;
-    const procurementOutsideGemApril = req.body.procurementOutsideGemApril;
-    const reasonForNonProcurementApril = req.body.reasonForNonProcurementApril;
-
-    const procurementThroughGemMay = req.body.procurementThroughGemMay;
-    const procurementOutsideGemMay = req.body.procurementOutsideGemMay;
-    const reasonForNonProcurementMay = req.body.reasonForNonProcurementMay;
-
-    const procurementThroughGemJune = req.body.procurementThroughGemJune;
-    const procurementOutsideGemJune = req.body.procurementOutsideGemJune;
-    const reasonForNonProcurementJune = req.body.reasonForNonProcurementJune;
-
-    const procurementThroughGemJuly = req.body.procurementThroughGemJuly;
-    const procurementOutsideGemJuly = req.body.procurementOutsideGemJuly;
-    const reasonForNonProcurementJuly = req.body.reasonForNonProcurementJuly;
-
-    const procurementThroughGemAugust = req.body.procurementThroughGemAugust;
-    const procurementOutsideGemAugust = req.body.procurementOutsideGemAugust;
-    const reasonForNonProcurementAugust = req.body.reasonForNonProcurementAugust;
-
-    const procurementThroughGemSeptember = req.body.procurementThroughGemSeptember;
-    const procurementOutsideGemSeptember = req.body.procurementOutsideGemSeptember;
-    const reasonForNonProcurementSeptember = req.body.reasonForNonProcurementSeptember;
-
-    const procurementThroughGemOctober = req.body.procurementThroughGemOctober;
-    const procurementOutsideGemOctober = req.body.procurementOutsideGemOctober;
-    const reasonForNonProcurementOctober = req.body.reasonForNonProcurementOctober;
-
-    const procurementThroughGemNovember = req.body.procurementThroughGemNovember;
-    const procurementOutsideGemNovember = req.body.procurementOutsideGemNovember;
-    const reasonForNonProcurementNovember = req.body.reasonForNonProcurementNovember;
-
-    const procurementThroughGemDecember = req.body.procurementThroughGemDecember;
-    const procurementOutsideGemDecember = req.body.procurementOutsideGemDecember;
-    const reasonForNonProcurementDecember = req.body.reasonForNonProcurementDecember;
-
-    request.input("userID", userID);
-    request.input("procurementThroughGemJanuary", procurementThroughGemJanuary);
-    request.input("procurementOutsideGemJanuary", procurementOutsideGemJanuary);
-    request.input("reasonForNonProcurementJanuary", reasonForNonProcurementJanuary);
-
-    request.input("procurementThroughGemFebruary", procurementThroughGemFebruary);
-    request.input("procurementOutsideGemFebruary", procurementOutsideGemFebruary);
-    request.input("reasonForNonProcurementFebruary", reasonForNonProcurementFebruary);
-
-    request.input("procurementThroughGemMarch", procurementThroughGemMarch);
-    request.input("procurementOutsideGemMarch", procurementOutsideGemMarch);
-    request.input("reasonForNonProcurementMarch", reasonForNonProcurementMarch);
-
-    request.input("procurementThroughGemApril", procurementThroughGemApril);
-    request.input("procurementOutsideGemApril", procurementOutsideGemApril);
-    request.input("reasonForNonProcurementApril", reasonForNonProcurementApril);
-
-    request.input("procurementThroughGemMay", procurementThroughGemMay);
-    request.input("procurementOutsideGemMay", procurementOutsideGemMay);
-    request.input("reasonForNonProcurementMay", reasonForNonProcurementMay);
-
-    request.input("procurementThroughGemJune", procurementThroughGemJune);
-    request.input("procurementOutsideGemJune", procurementOutsideGemJune);
-    request.input("reasonForNonProcurementJune", reasonForNonProcurementJune);
-
-    request.input("procurementThroughGemJuly", procurementThroughGemJuly);
-    request.input("procurementOutsideGemJuly", procurementOutsideGemJuly);
-    request.input("reasonForNonProcurementJuly", reasonForNonProcurementJuly);
-
-    request.input("procurementThroughGemAugust", procurementThroughGemAugust);
-    request.input("procurementOutsideGemAugust", procurementOutsideGemAugust);
-    request.input("reasonForNonProcurementAugust", reasonForNonProcurementAugust);
-
-    request.input("procurementThroughGemSeptember", procurementThroughGemSeptember);
-    request.input("procurementOutsideGemSeptember", procurementOutsideGemSeptember);
-    request.input("reasonForNonProcurementSeptember", reasonForNonProcurementSeptember);
-
-    request.input("procurementThroughGemOctober", procurementThroughGemOctober);
-    request.input("procurementOutsideGemOctober", procurementOutsideGemOctober);
-    request.input("reasonForNonProcurementOctober", reasonForNonProcurementOctober);
-
-    request.input("procurementThroughGemNovember", procurementThroughGemNovember);
-    request.input("procurementOutsideGemNovember", procurementOutsideGemNovember);
-    request.input("reasonForNonProcurementNovember", reasonForNonProcurementNovember);
-
-    request.input("procurementThroughGemDecember", procurementThroughGemDecember);
-    request.input("procurementOutsideGemDecember", procurementOutsideGemDecember);
-    request.input("reasonForNonProcurementDecember", reasonForNonProcurementDecember);
-
-    try {
-        const checkResult = await request.query(`
-        SELECT * FROM tbl_gem_procurement_goods_monthly
-        WHERE goods_gem_id = @goodsGemID
-    `);
-
-        if (checkResult.recordset.length > 0) {
-            const updateResult = await request.query(`
-            UPDATE tbl_gem_procurement_goods_monthly
-            SET
-                procurement_through_gem_january = @procurementThroughGemJanuary,
-                procurement_outside_gem_january = @procurementOutsideGemJanuary,
-                reason_for_non_procurement_january = @reasonForNonProcurementJanuary,
-                procurement_through_gem_february = @procurementThroughGemFebruary,
-                procurement_outside_gem_february = @procurementOutsideGemFebruary,
-                reason_for_non_procurement_february = @reasonForNonProcurementFebruary,
-                procurement_through_gem_march = @procurementThroughGemMarch,
-                procurement_outside_gem_march = @procurementOutsideGemMarch,
-                reason_for_non_procurement_march = @reasonForNonProcurementMarch,
-                procurement_through_gem_april = @procurementThroughGemApril,
-                procurement_outside_gem_april = @procurementOutsideGemApril,
-                reason_for_non_procurement_april = @reasonForNonProcurementApril,
-                procurement_through_gem_may = @procurementThroughGemMay,
-                procurement_outside_gem_may = @procurementOutsideGemMay,
-                reason_for_non_procurement_may = @reasonForNonProcurementMay,
-                procurement_through_gem_june = @procurementThroughGemJune,
-                procurement_outside_gem_june = @procurementOutsideGemJune,
-                reason_for_non_procurement_june = @reasonForNonProcurementJune,
-                procurement_through_gem_july = @procurementThroughGemJuly,
-                procurement_outside_gem_july = @procurementOutsideGemJuly,
-                reason_for_non_procurement_july = @reasonForNonProcurementJuly,
-                procurement_through_gem_august = @procurementThroughGemAugust,
-                procurement_outside_gem_august = @procurementOutsideGemAugust,
-                reason_for_non_procurement_august = @reasonForNonProcurementAugust,
-                procurement_through_gem_september = @procurementThroughGemSeptember,
-                procurement_outside_gem_september = @procurementOutsideGemSeptember,
-                reason_for_non_procurement_september = @reasonForNonProcurementSeptember,
-                procurement_through_gem_october = @procurementThroughGemOctober,
-                procurement_outside_gem_october = @procurementOutsideGemOctober,
-                reason_for_non_procurement_october = @reasonForNonProcurementOctober,
-                procurement_through_gem_november = @procurementThroughGemNovember,
-                procurement_outside_gem_november = @procurementOutsideGemNovember,
-                reason_for_non_procurement_november = @reasonForNonProcurementNovember,
-                procurement_through_gem_december = @procurementThroughGemDecember,
-                procurement_outside_gem_december = @procurementOutsideGemDecember,
-                reason_for_non_procurement_december = @reasonForNonProcurementDecember
-
-
-                -- Parent table update
-                UPDATE tbl_gem_procurement_goods
-                SET
-                    updated_by = @userID,
-                    updated_date = GETDATE()                 
-
-                
-            WHERE goods_gem_id = @goodsGemID
-        `);
-        } else {
-            const insertResult = await request.query(`
-            INSERT INTO tbl_gem_procurement_goods_monthly (
-                goods_gem_id,
-                procurement_through_gem_january,
-                procurement_outside_gem_january,
-                reason_for_non_procurement_january,
-                procurement_through_gem_february,
-                procurement_outside_gem_february,
-                reason_for_non_procurement_february,
-                procurement_through_gem_march,
-                procurement_outside_gem_march,
-                reason_for_non_procurement_march,
-                procurement_through_gem_april,
-                procurement_outside_gem_april,
-                reason_for_non_procurement_april,
-                procurement_through_gem_may,
-                procurement_outside_gem_may,
-                reason_for_non_procurement_may,
-                procurement_through_gem_june,
-                procurement_outside_gem_june,
-                reason_for_non_procurement_june,
-                procurement_through_gem_july,
-                procurement_outside_gem_july,
-                reason_for_non_procurement_july,
-                procurement_through_gem_august,
-                procurement_outside_gem_august,
-                reason_for_non_procurement_august,
-                procurement_through_gem_september,
-                procurement_outside_gem_september,
-                reason_for_non_procurement_september,
-                procurement_through_gem_october,
-                procurement_outside_gem_october,
-                reason_for_non_procurement_october,
-                procurement_through_gem_november,
-                procurement_outside_gem_november,
-                reason_for_non_procurement_november,
-                procurement_through_gem_december,
-                procurement_outside_gem_december,
-                reason_for_non_procurement_december
-            )
-            VALUES (
-                @goodsGemID,
-                @procurementThroughGemJanuary,
-                @procurementOutsideGemJanuary,
-                @reasonForNonProcurementJanuary,
-                @procurementThroughGemFebruary,
-                @procurementOutsideGemFebruary,
-                @reasonForNonProcurementFebruary,
-                @procurementThroughGemMarch,
-                @procurementOutsideGemMarch,
-                @reasonForNonProcurementMarch,
-                @procurementThroughGemApril,
-                @procurementOutsideGemApril,
-                @reasonForNonProcurementApril,
-                @procurementThroughGemMay,
-                @procurementOutsideGemMay,
-                @reasonForNonProcurementMay,
-                @procurementThroughGemJune,
-                @procurementOutsideGemJune,
-                @reasonForNonProcurementJune,
-                @procurementThroughGemJuly,
-                @procurementOutsideGemJuly,
-                @reasonForNonProcurementJuly,
-                @procurementThroughGemAugust,
-                @procurementOutsideGemAugust,
-                @reasonForNonProcurementAugust,
-                @procurementThroughGemSeptember,
-                @procurementOutsideGemSeptember,
-                @reasonForNonProcurementSeptember,
-                @procurementThroughGemOctober,
-                @procurementOutsideGemOctober,
-                @reasonForNonProcurementOctober,
-                @procurementThroughGemNovember,
-                @procurementOutsideGemNovember,
-                @reasonForNonProcurementNovember,
-                @procurementThroughGemDecember,
-                @procurementOutsideGemDecember,
-                @reasonForNonProcurementDecember
-            );
-        
-            -- Parent table update
-            UPDATE tbl_gem_procurement_goods
-            SET
-                updated_by = @userID,
-                updated_date = GETDATE()   
-        `);
-        }
-        return res.sendStatus(201);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getGemMonthlyGoodsData(req, res) {
-    const goodsGemID = req.params.goodsGemID;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("goodsGemID", goodsGemID);
-    try {
-        const result = await request.query(`
-            SELECT * FROM tbl_gem_procurement_goods_monthly where goods_gem_id = @goodsGemID;
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function addGemMonthlyServiceData(req, res) {
-    const serviceGemID = req.body.serviceGemID;
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("serviceGemID", serviceGemID);
-    const userID = req.body.userID;
-    const procurementThroughGemJanuary = req.body.procurementThroughGemJanuary;
-    const procurementOutsideGemJanuary = req.body.procurementOutsideGemJanuary;
-    const reasonForNonProcurementJanuary = req.body.reasonForNonProcurementJanuary;
-
-    const procurementThroughGemFebruary = req.body.procurementThroughGemFebruary;
-    const procurementOutsideGemFebruary = req.body.procurementOutsideGemFebruary;
-    const reasonForNonProcurementFebruary = req.body.reasonForNonProcurementFebruary;
-
-    const procurementThroughGemMarch = req.body.procurementThroughGemMarch;
-    const procurementOutsideGemMarch = req.body.procurementOutsideGemMarch;
-    const reasonForNonProcurementMarch = req.body.reasonForNonProcurementMarch;
-
-    const procurementThroughGemApril = req.body.procurementThroughGemApril;
-    const procurementOutsideGemApril = req.body.procurementOutsideGemApril;
-    const reasonForNonProcurementApril = req.body.reasonForNonProcurementApril;
-
-    const procurementThroughGemMay = req.body.procurementThroughGemMay;
-    const procurementOutsideGemMay = req.body.procurementOutsideGemMay;
-    const reasonForNonProcurementMay = req.body.reasonForNonProcurementMay;
-
-    const procurementThroughGemJune = req.body.procurementThroughGemJune;
-    const procurementOutsideGemJune = req.body.procurementOutsideGemJune;
-    const reasonForNonProcurementJune = req.body.reasonForNonProcurementJune;
-
-    const procurementThroughGemJuly = req.body.procurementThroughGemJuly;
-    const procurementOutsideGemJuly = req.body.procurementOutsideGemJuly;
-    const reasonForNonProcurementJuly = req.body.reasonForNonProcurementJuly;
-
-    const procurementThroughGemAugust = req.body.procurementThroughGemAugust;
-    const procurementOutsideGemAugust = req.body.procurementOutsideGemAugust;
-    const reasonForNonProcurementAugust = req.body.reasonForNonProcurementAugust;
-
-    const procurementThroughGemSeptember = req.body.procurementThroughGemSeptember;
-    const procurementOutsideGemSeptember = req.body.procurementOutsideGemSeptember;
-    const reasonForNonProcurementSeptember = req.body.reasonForNonProcurementSeptember;
-
-    const procurementThroughGemOctober = req.body.procurementThroughGemOctober;
-    const procurementOutsideGemOctober = req.body.procurementOutsideGemOctober;
-    const reasonForNonProcurementOctober = req.body.reasonForNonProcurementOctober;
-
-    const procurementThroughGemNovember = req.body.procurementThroughGemNovember;
-    const procurementOutsideGemNovember = req.body.procurementOutsideGemNovember;
-    const reasonForNonProcurementNovember = req.body.reasonForNonProcurementNovember;
-
-    const procurementThroughGemDecember = req.body.procurementThroughGemDecember;
-    const procurementOutsideGemDecember = req.body.procurementOutsideGemDecember;
-    const reasonForNonProcurementDecember = req.body.reasonForNonProcurementDecember;
-
-    request.input("userID", userID);
-    request.input("procurementThroughGemJanuary", procurementThroughGemJanuary);
-    request.input("procurementOutsideGemJanuary", procurementOutsideGemJanuary);
-    request.input("reasonForNonProcurementJanuary", reasonForNonProcurementJanuary);
-
-    request.input("procurementThroughGemFebruary", procurementThroughGemFebruary);
-    request.input("procurementOutsideGemFebruary", procurementOutsideGemFebruary);
-    request.input("reasonForNonProcurementFebruary", reasonForNonProcurementFebruary);
-
-    request.input("procurementThroughGemMarch", procurementThroughGemMarch);
-    request.input("procurementOutsideGemMarch", procurementOutsideGemMarch);
-    request.input("reasonForNonProcurementMarch", reasonForNonProcurementMarch);
-
-    request.input("procurementThroughGemApril", procurementThroughGemApril);
-    request.input("procurementOutsideGemApril", procurementOutsideGemApril);
-    request.input("reasonForNonProcurementApril", reasonForNonProcurementApril);
-
-    request.input("procurementThroughGemMay", procurementThroughGemMay);
-    request.input("procurementOutsideGemMay", procurementOutsideGemMay);
-    request.input("reasonForNonProcurementMay", reasonForNonProcurementMay);
-
-    request.input("procurementThroughGemJune", procurementThroughGemJune);
-    request.input("procurementOutsideGemJune", procurementOutsideGemJune);
-    request.input("reasonForNonProcurementJune", reasonForNonProcurementJune);
-
-    request.input("procurementThroughGemJuly", procurementThroughGemJuly);
-    request.input("procurementOutsideGemJuly", procurementOutsideGemJuly);
-    request.input("reasonForNonProcurementJuly", reasonForNonProcurementJuly);
-
-    request.input("procurementThroughGemAugust", procurementThroughGemAugust);
-    request.input("procurementOutsideGemAugust", procurementOutsideGemAugust);
-    request.input("reasonForNonProcurementAugust", reasonForNonProcurementAugust);
-
-    request.input("procurementThroughGemSeptember", procurementThroughGemSeptember);
-    request.input("procurementOutsideGemSeptember", procurementOutsideGemSeptember);
-    request.input("reasonForNonProcurementSeptember", reasonForNonProcurementSeptember);
-
-    request.input("procurementThroughGemOctober", procurementThroughGemOctober);
-    request.input("procurementOutsideGemOctober", procurementOutsideGemOctober);
-    request.input("reasonForNonProcurementOctober", reasonForNonProcurementOctober);
-
-    request.input("procurementThroughGemNovember", procurementThroughGemNovember);
-    request.input("procurementOutsideGemNovember", procurementOutsideGemNovember);
-    request.input("reasonForNonProcurementNovember", reasonForNonProcurementNovember);
-
-    request.input("procurementThroughGemDecember", procurementThroughGemDecember);
-    request.input("procurementOutsideGemDecember", procurementOutsideGemDecember);
-    request.input("reasonForNonProcurementDecember", reasonForNonProcurementDecember);
-
-    try {
-        const checkResult = await request.query(`
-        SELECT * FROM tbl_gem_procurement_service_monthly
-        WHERE service_gem_id = @serviceGemID
-    `);
-
-        if (checkResult.recordset.length > 0) {
-            const updateResult = await request.query(`
-            UPDATE tbl_gem_procurement_service_monthly
-            SET
-                procurement_through_gem_january = @procurementThroughGemJanuary,
-                procurement_outside_gem_january = @procurementOutsideGemJanuary,
-                reason_for_non_procurement_january = @reasonForNonProcurementJanuary,
-                procurement_through_gem_february = @procurementThroughGemFebruary,
-                procurement_outside_gem_february = @procurementOutsideGemFebruary,
-                reason_for_non_procurement_february = @reasonForNonProcurementFebruary,
-                procurement_through_gem_march = @procurementThroughGemMarch,
-                procurement_outside_gem_march = @procurementOutsideGemMarch,
-                reason_for_non_procurement_march = @reasonForNonProcurementMarch,
-                procurement_through_gem_april = @procurementThroughGemApril,
-                procurement_outside_gem_april = @procurementOutsideGemApril,
-                reason_for_non_procurement_april = @reasonForNonProcurementApril,
-                procurement_through_gem_may = @procurementThroughGemMay,
-                procurement_outside_gem_may = @procurementOutsideGemMay,
-                reason_for_non_procurement_may = @reasonForNonProcurementMay,
-                procurement_through_gem_june = @procurementThroughGemJune,
-                procurement_outside_gem_june = @procurementOutsideGemJune,
-                reason_for_non_procurement_june = @reasonForNonProcurementJune,
-                procurement_through_gem_july = @procurementThroughGemJuly,
-                procurement_outside_gem_july = @procurementOutsideGemJuly,
-                reason_for_non_procurement_july = @reasonForNonProcurementJuly,
-                procurement_through_gem_august = @procurementThroughGemAugust,
-                procurement_outside_gem_august = @procurementOutsideGemAugust,
-                reason_for_non_procurement_august = @reasonForNonProcurementAugust,
-                procurement_through_gem_september = @procurementThroughGemSeptember,
-                procurement_outside_gem_september = @procurementOutsideGemSeptember,
-                reason_for_non_procurement_september = @reasonForNonProcurementSeptember,
-                procurement_through_gem_october = @procurementThroughGemOctober,
-                procurement_outside_gem_october = @procurementOutsideGemOctober,
-                reason_for_non_procurement_october = @reasonForNonProcurementOctober,
-                procurement_through_gem_november = @procurementThroughGemNovember,
-                procurement_outside_gem_november = @procurementOutsideGemNovember,
-                reason_for_non_procurement_november = @reasonForNonProcurementNovember,
-                procurement_through_gem_december = @procurementThroughGemDecember,
-                procurement_outside_gem_december = @procurementOutsideGemDecember,
-                reason_for_non_procurement_december = @reasonForNonProcurementDecember
-
-                -- Parent table update
-                UPDATE tbl_gem_procurement_service
-                SET
-                    updated_by = @userID,
-                    updated_date = GETDATE()  
-
-            WHERE service_gem_id = @serviceGemID
-        `);
-        } else {
-            const insertResult = await request.query(`
-            INSERT INTO tbl_gem_procurement_service_monthly (
-                service_gem_id,
-                procurement_through_gem_january,
-                procurement_outside_gem_january,
-                reason_for_non_procurement_january,
-                procurement_through_gem_february,
-                procurement_outside_gem_february,
-                reason_for_non_procurement_february,
-                procurement_through_gem_march,
-                procurement_outside_gem_march,
-                reason_for_non_procurement_march,
-                procurement_through_gem_april,
-                procurement_outside_gem_april,
-                reason_for_non_procurement_april,
-                procurement_through_gem_may,
-                procurement_outside_gem_may,
-                reason_for_non_procurement_may,
-                procurement_through_gem_june,
-                procurement_outside_gem_june,
-                reason_for_non_procurement_june,
-                procurement_through_gem_july,
-                procurement_outside_gem_july,
-                reason_for_non_procurement_july,
-                procurement_through_gem_august,
-                procurement_outside_gem_august,
-                reason_for_non_procurement_august,
-                procurement_through_gem_september,
-                procurement_outside_gem_september,
-                reason_for_non_procurement_september,
-                procurement_through_gem_october,
-                procurement_outside_gem_october,
-                reason_for_non_procurement_october,
-                procurement_through_gem_november,
-                procurement_outside_gem_november,
-                reason_for_non_procurement_november,
-                procurement_through_gem_december,
-                procurement_outside_gem_december,
-                reason_for_non_procurement_december
-            )
-            VALUES (
-                @serviceGemID,
-                @procurementThroughGemJanuary,
-                @procurementOutsideGemJanuary,
-                @reasonForNonProcurementJanuary,
-                @procurementThroughGemFebruary,
-                @procurementOutsideGemFebruary,
-                @reasonForNonProcurementFebruary,
-                @procurementThroughGemMarch,
-                @procurementOutsideGemMarch,
-                @reasonForNonProcurementMarch,
-                @procurementThroughGemApril,
-                @procurementOutsideGemApril,
-                @reasonForNonProcurementApril,
-                @procurementThroughGemMay,
-                @procurementOutsideGemMay,
-                @reasonForNonProcurementMay,
-                @procurementThroughGemJune,
-                @procurementOutsideGemJune,
-                @reasonForNonProcurementJune,
-                @procurementThroughGemJuly,
-                @procurementOutsideGemJuly,
-                @reasonForNonProcurementJuly,
-                @procurementThroughGemAugust,
-                @procurementOutsideGemAugust,
-                @reasonForNonProcurementAugust,
-                @procurementThroughGemSeptember,
-                @procurementOutsideGemSeptember,
-                @reasonForNonProcurementSeptember,
-                @procurementThroughGemOctober,
-                @procurementOutsideGemOctober,
-                @reasonForNonProcurementOctober,
-                @procurementThroughGemNovember,
-                @procurementOutsideGemNovember,
-                @reasonForNonProcurementNovember,
-                @procurementThroughGemDecember,
-                @procurementOutsideGemDecember,
-                @reasonForNonProcurementDecember
-            );
-
-                -- Parent table update
-            UPDATE tbl_gem_procurement_service
-            SET
-                updated_by = @userID,
-                updated_date = GETDATE()  
-        `);
-        }
-        return res.sendStatus(201);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getGemMonthlyServiceData(req, res) {
-    const serviceGemID = req.params.serviceGemID;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("serviceGemID", serviceGemID);
-    try {
-        const result = await request.query(`
-            SELECT * FROM tbl_gem_procurement_service_monthly where service_gem_id = @serviceGemID;
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function addGemMonthlyWorksData(req, res) {
-    const worksGemID = req.body.worksGemID;
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("worksGemID", worksGemID);
-
-    const userID = req.body.userID;
-    const procurementThroughGemJanuary = req.body.procurementThroughGemJanuary;
-    const procurementOutsideGemJanuary = req.body.procurementOutsideGemJanuary;
-    const reasonForNonProcurementJanuary = req.body.reasonForNonProcurementJanuary;
-
-    const procurementThroughGemFebruary = req.body.procurementThroughGemFebruary;
-    const procurementOutsideGemFebruary = req.body.procurementOutsideGemFebruary;
-    const reasonForNonProcurementFebruary = req.body.reasonForNonProcurementFebruary;
-
-    const procurementThroughGemMarch = req.body.procurementThroughGemMarch;
-    const procurementOutsideGemMarch = req.body.procurementOutsideGemMarch;
-    const reasonForNonProcurementMarch = req.body.reasonForNonProcurementMarch;
-
-    const procurementThroughGemApril = req.body.procurementThroughGemApril;
-    const procurementOutsideGemApril = req.body.procurementOutsideGemApril;
-    const reasonForNonProcurementApril = req.body.reasonForNonProcurementApril;
-
-    const procurementThroughGemMay = req.body.procurementThroughGemMay;
-    const procurementOutsideGemMay = req.body.procurementOutsideGemMay;
-    const reasonForNonProcurementMay = req.body.reasonForNonProcurementMay;
-
-    const procurementThroughGemJune = req.body.procurementThroughGemJune;
-    const procurementOutsideGemJune = req.body.procurementOutsideGemJune;
-    const reasonForNonProcurementJune = req.body.reasonForNonProcurementJune;
-
-    const procurementThroughGemJuly = req.body.procurementThroughGemJuly;
-    const procurementOutsideGemJuly = req.body.procurementOutsideGemJuly;
-    const reasonForNonProcurementJuly = req.body.reasonForNonProcurementJuly;
-
-    const procurementThroughGemAugust = req.body.procurementThroughGemAugust;
-    const procurementOutsideGemAugust = req.body.procurementOutsideGemAugust;
-    const reasonForNonProcurementAugust = req.body.reasonForNonProcurementAugust;
-
-    const procurementThroughGemSeptember = req.body.procurementThroughGemSeptember;
-    const procurementOutsideGemSeptember = req.body.procurementOutsideGemSeptember;
-    const reasonForNonProcurementSeptember = req.body.reasonForNonProcurementSeptember;
-
-    const procurementThroughGemOctober = req.body.procurementThroughGemOctober;
-    const procurementOutsideGemOctober = req.body.procurementOutsideGemOctober;
-    const reasonForNonProcurementOctober = req.body.reasonForNonProcurementOctober;
-
-    const procurementThroughGemNovember = req.body.procurementThroughGemNovember;
-    const procurementOutsideGemNovember = req.body.procurementOutsideGemNovember;
-    const reasonForNonProcurementNovember = req.body.reasonForNonProcurementNovember;
-
-    const procurementThroughGemDecember = req.body.procurementThroughGemDecember;
-    const procurementOutsideGemDecember = req.body.procurementOutsideGemDecember;
-    const reasonForNonProcurementDecember = req.body.reasonForNonProcurementDecember;
- 
-    request.input("userID", userID);
-    request.input("procurementThroughGemJanuary", procurementThroughGemJanuary);
-    request.input("procurementOutsideGemJanuary", procurementOutsideGemJanuary);
-    request.input("reasonForNonProcurementJanuary", reasonForNonProcurementJanuary);
-
-    request.input("procurementThroughGemFebruary", procurementThroughGemFebruary);
-    request.input("procurementOutsideGemFebruary", procurementOutsideGemFebruary);
-    request.input("reasonForNonProcurementFebruary", reasonForNonProcurementFebruary);
-
-    request.input("procurementThroughGemMarch", procurementThroughGemMarch);
-    request.input("procurementOutsideGemMarch", procurementOutsideGemMarch);
-    request.input("reasonForNonProcurementMarch", reasonForNonProcurementMarch);
-
-    request.input("procurementThroughGemApril", procurementThroughGemApril);
-    request.input("procurementOutsideGemApril", procurementOutsideGemApril);
-    request.input("reasonForNonProcurementApril", reasonForNonProcurementApril);
-
-    request.input("procurementThroughGemMay", procurementThroughGemMay);
-    request.input("procurementOutsideGemMay", procurementOutsideGemMay);
-    request.input("reasonForNonProcurementMay", reasonForNonProcurementMay);
-
-    request.input("procurementThroughGemJune", procurementThroughGemJune);
-    request.input("procurementOutsideGemJune", procurementOutsideGemJune);
-    request.input("reasonForNonProcurementJune", reasonForNonProcurementJune);
-
-    request.input("procurementThroughGemJuly", procurementThroughGemJuly);
-    request.input("procurementOutsideGemJuly", procurementOutsideGemJuly);
-    request.input("reasonForNonProcurementJuly", reasonForNonProcurementJuly);
-
-    request.input("procurementThroughGemAugust", procurementThroughGemAugust);
-    request.input("procurementOutsideGemAugust", procurementOutsideGemAugust);
-    request.input("reasonForNonProcurementAugust", reasonForNonProcurementAugust);
-
-    request.input("procurementThroughGemSeptember", procurementThroughGemSeptember);
-    request.input("procurementOutsideGemSeptember", procurementOutsideGemSeptember);
-    request.input("reasonForNonProcurementSeptember", reasonForNonProcurementSeptember);
-
-    request.input("procurementThroughGemOctober", procurementThroughGemOctober);
-    request.input("procurementOutsideGemOctober", procurementOutsideGemOctober);
-    request.input("reasonForNonProcurementOctober", reasonForNonProcurementOctober);
-
-    request.input("procurementThroughGemNovember", procurementThroughGemNovember);
-    request.input("procurementOutsideGemNovember", procurementOutsideGemNovember);
-    request.input("reasonForNonProcurementNovember", reasonForNonProcurementNovember);
-
-    request.input("procurementThroughGemDecember", procurementThroughGemDecember);
-    request.input("procurementOutsideGemDecember", procurementOutsideGemDecember);
-    request.input("reasonForNonProcurementDecember", reasonForNonProcurementDecember);
-
-    try {
-        const checkResult = await request.query(`
-        SELECT * FROM tbl_gem_procurement_works_monthly
-        WHERE works_gem_id = @worksGemID
-    `);
-
-        if (checkResult.recordset.length > 0) {
-            const updateResult = await request.query(`
-            UPDATE tbl_gem_procurement_works_monthly
-            SET
-                procurement_through_gem_january = @procurementThroughGemJanuary,
-                procurement_outside_gem_january = @procurementOutsideGemJanuary,
-                reason_for_non_procurement_january = @reasonForNonProcurementJanuary,
-                procurement_through_gem_february = @procurementThroughGemFebruary,
-                procurement_outside_gem_february = @procurementOutsideGemFebruary,
-                reason_for_non_procurement_february = @reasonForNonProcurementFebruary,
-                procurement_through_gem_march = @procurementThroughGemMarch,
-                procurement_outside_gem_march = @procurementOutsideGemMarch,
-                reason_for_non_procurement_march = @reasonForNonProcurementMarch,
-                procurement_through_gem_april = @procurementThroughGemApril,
-                procurement_outside_gem_april = @procurementOutsideGemApril,
-                reason_for_non_procurement_april = @reasonForNonProcurementApril,
-                procurement_through_gem_may = @procurementThroughGemMay,
-                procurement_outside_gem_may = @procurementOutsideGemMay,
-                reason_for_non_procurement_may = @reasonForNonProcurementMay,
-                procurement_through_gem_june = @procurementThroughGemJune,
-                procurement_outside_gem_june = @procurementOutsideGemJune,
-                reason_for_non_procurement_june = @reasonForNonProcurementJune,
-                procurement_through_gem_july = @procurementThroughGemJuly,
-                procurement_outside_gem_july = @procurementOutsideGemJuly,
-                reason_for_non_procurement_july = @reasonForNonProcurementJuly,
-                procurement_through_gem_august = @procurementThroughGemAugust,
-                procurement_outside_gem_august = @procurementOutsideGemAugust,
-                reason_for_non_procurement_august = @reasonForNonProcurementAugust,
-                procurement_through_gem_september = @procurementThroughGemSeptember,
-                procurement_outside_gem_september = @procurementOutsideGemSeptember,
-                reason_for_non_procurement_september = @reasonForNonProcurementSeptember,
-                procurement_through_gem_october = @procurementThroughGemOctober,
-                procurement_outside_gem_october = @procurementOutsideGemOctober,
-                reason_for_non_procurement_october = @reasonForNonProcurementOctober,
-                procurement_through_gem_november = @procurementThroughGemNovember,
-                procurement_outside_gem_november = @procurementOutsideGemNovember,
-                reason_for_non_procurement_november = @reasonForNonProcurementNovember,
-                procurement_through_gem_december = @procurementThroughGemDecember,
-                procurement_outside_gem_december = @procurementOutsideGemDecember,
-                reason_for_non_procurement_december = @reasonForNonProcurementDecember
-
-                -- Parent table update
-                UPDATE tbl_gem_procurement_works
-                SET
-                    updated_by = @userID,
-                    updated_date = GETDATE()  
-
-            WHERE works_gem_id = @worksGemID
-        `);
-        } else {
-            const insertResult = await request.query(`
-            INSERT INTO tbl_gem_procurement_works_monthly (
-                works_gem_id,
-                procurement_through_gem_january,
-                procurement_outside_gem_january,
-                reason_for_non_procurement_january,
-                procurement_through_gem_february,
-                procurement_outside_gem_february,
-                reason_for_non_procurement_february,
-                procurement_through_gem_march,
-                procurement_outside_gem_march,
-                reason_for_non_procurement_march,
-                procurement_through_gem_april,
-                procurement_outside_gem_april,
-                reason_for_non_procurement_april,
-                procurement_through_gem_may,
-                procurement_outside_gem_may,
-                reason_for_non_procurement_may,
-                procurement_through_gem_june,
-                procurement_outside_gem_june,
-                reason_for_non_procurement_june,
-                procurement_through_gem_july,
-                procurement_outside_gem_july,
-                reason_for_non_procurement_july,
-                procurement_through_gem_august,
-                procurement_outside_gem_august,
-                reason_for_non_procurement_august,
-                procurement_through_gem_september,
-                procurement_outside_gem_september,
-                reason_for_non_procurement_september,
-                procurement_through_gem_october,
-                procurement_outside_gem_october,
-                reason_for_non_procurement_october,
-                procurement_through_gem_november,
-                procurement_outside_gem_november,
-                reason_for_non_procurement_november,
-                procurement_through_gem_december,
-                procurement_outside_gem_december,
-                reason_for_non_procurement_december
-            )
-            VALUES (
-                @worksGemID,
-                @procurementThroughGemJanuary,
-                @procurementOutsideGemJanuary,
-                @reasonForNonProcurementJanuary,
-                @procurementThroughGemFebruary,
-                @procurementOutsideGemFebruary,
-                @reasonForNonProcurementFebruary,
-                @procurementThroughGemMarch,
-                @procurementOutsideGemMarch,
-                @reasonForNonProcurementMarch,
-                @procurementThroughGemApril,
-                @procurementOutsideGemApril,
-                @reasonForNonProcurementApril,
-                @procurementThroughGemMay,
-                @procurementOutsideGemMay,
-                @reasonForNonProcurementMay,
-                @procurementThroughGemJune,
-                @procurementOutsideGemJune,
-                @reasonForNonProcurementJune,
-                @procurementThroughGemJuly,
-                @procurementOutsideGemJuly,
-                @reasonForNonProcurementJuly,
-                @procurementThroughGemAugust,
-                @procurementOutsideGemAugust,
-                @reasonForNonProcurementAugust,
-                @procurementThroughGemSeptember,
-                @procurementOutsideGemSeptember,
-                @reasonForNonProcurementSeptember,
-                @procurementThroughGemOctober,
-                @procurementOutsideGemOctober,
-                @reasonForNonProcurementOctober,
-                @procurementThroughGemNovember,
-                @procurementOutsideGemNovember,
-                @reasonForNonProcurementNovember,
-                @procurementThroughGemDecember,
-                @procurementOutsideGemDecember,
-                @reasonForNonProcurementDecember
-            );
-
-            
-            -- Parent table update
-            UPDATE tbl_gem_procurement_works
-            SET
-                updated_by = @userID,
-                updated_date = GETDATE()  
-        `);
-        }
-        return res.sendStatus(201);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+  return listCategory(req, res, CATEGORIES.works);
 }
 
 async function updateGemProcurementGoods(req, res) {
-    const userId = req.body.userID;
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const goodsProcurementPotential = req.body.goodsProcurementPotential;
-    const eightMonthsProportionalTarget = (goodsProcurementPotential / 12) * 8;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("userId", userId);
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("goodsProcurementPotential", goodsProcurementPotential);
-    request.input("eightMonthsProportionalTarget", eightMonthsProportionalTarget);
-
-    try {
-        const updateResult = await request.query(`
-            UPDATE tbl_gem_procurement_goods
-            SET 
-                goods_procurement_potential = @goodsProcurementPotential,
-                eight_months_proportional_target = @eightMonthsProportionalTarget,
-                updated_by = @userId,
-                updated_date = GETDATE()
-            WHERE 
-                goods_financial_year = @financialYear
-                AND goods_organisation_id = @organisationId
-        `);
-
-        if (updateResult.rowsAffected[0] === 0) {
-            return res.status(404).json({ error: "Record not found for the specified financialYear and organisationId." });
-        }
-
-        return res.sendStatus(200);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+  return updateCategory(req, res, CATEGORIES.goods);
 }
-
-
 async function updateGemProcurementService(req, res) {
-    const userId = req.body.userID;
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const serviceProcurementPotential = req.body.serviceProcurementPotential;
-    const eightMonthsProportionalTarget = (serviceProcurementPotential / 12) * 8;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("userId", userId);
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("serviceProcurementPotential", serviceProcurementPotential);
-    request.input("eightMonthsProportionalTarget", eightMonthsProportionalTarget);
-
-    try {
-        const updateResult = await request.query(`
-            UPDATE tbl_gem_procurement_service
-            SET 
-                service_procurement_potential = @serviceProcurementPotential,
-                eight_months_proportional_target = @eightMonthsProportionalTarget,
-                updated_by = @userId,
-                updated_date = GETDATE()
-            WHERE 
-                service_financial_year = @financialYear
-                AND service_organisation_id = @organisationId
-        `);
-
-        if (updateResult.rowsAffected[0] === 0) {
-            return res.status(404).json({ error: "Record not found for the specified financialYear and organisationId." });
-        }
-
-        return res.sendStatus(200);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+  return updateCategory(req, res, CATEGORIES.service);
 }
-
-
 async function updateGemProcurementWork(req, res) {
-    const userId = req.body.userID;
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const workProcurementPotential = req.body.workProcurementPotential;
-    const eightMonthsProportionalTarget = (workProcurementPotential / 12) * 8;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("userId", userId);
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("workProcurementPotential", workProcurementPotential);
-    request.input("eightMonthsProportionalTarget", eightMonthsProportionalTarget);
-
-    try {
-        const updateResult = await request.query(`
-            UPDATE tbl_gem_procurement_works
-            SET 
-                works_procurement_potential = @workProcurementPotential,
-                eight_months_proportional_target = @eightMonthsProportionalTarget,
-                updated_by = @userId,
-                updated_date = GETDATE()
-            WHERE 
-                works_financial_year = @financialYear
-                AND works_organisation_id = @organisationId
-        `);
-
-        if (updateResult.rowsAffected[0] === 0) {
-            return res.status(404).json({ error: "Record not found for the specified financialYear and organisationId." });
-        }
-
-        return res.sendStatus(200);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+  return updateCategory(req, res, CATEGORIES.works);
 }
 
 async function deleteGemProcurementGoods(req, res) {
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-
-    try {
-        const idResult = await request.query(`
-            SELECT goods_gem_id
-            FROM tbl_gem_procurement_goods
-            WHERE goods_financial_year = @financialYear
-            AND goods_organisation_id = @organisationId
-        `);
-
-        if (idResult.recordset.length === 0) {
-            return res.status(404).json({ error: "Record not found for the specified financialYear and organisationId." });
-        }
-
-        const goodsGemId = idResult.recordset[0].goods_gem_id;
-
-        await request.input("goodsGemId", goodsGemId).query(`
-            DELETE FROM tbl_gem_procurement_goods_monthly
-            WHERE goods_gem_id = @goodsGemId
-        `);
-
-        const deleteResult = await request.query(`
-            DELETE FROM tbl_gem_procurement_goods
-            WHERE goods_financial_year = @financialYear
-            AND goods_organisation_id = @organisationId
-        `);
-
-        if (deleteResult.rowsAffected[0] === 0) {
-            return res.status(404).json({ error: "Record not found for the specified financialYear and organisationId." });
-        }
-
-        return res.sendStatus(200);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+  return deleteCategory(req, res, CATEGORIES.goods);
 }
-
 async function deleteGemProcurementService(req, res) {
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-
-    try {
-        const idResult = await request.query(`
-            SELECT service_gem_id
-            FROM tbl_gem_procurement_service
-            WHERE service_financial_year = @financialYear
-            AND service_organisation_id = @organisationId
-        `);
-
-        if (idResult.recordset.length === 0) {
-            return res.status(404).json({ error: "Record not found for the specified financialYear and organisationId." });
-        }
-
-        const serviceGemId = idResult.recordset[0].service_gem_id;
-
-        await request.input("serviceGemId", serviceGemId).query(`
-            DELETE FROM tbl_gem_procurement_service_monthly
-            WHERE service_gem_id = @serviceGemId
-        `);
-
-        const deleteResult = await request.query(`
-            DELETE FROM tbl_gem_procurement_service
-            WHERE service_financial_year = @financialYear
-            AND service_organisation_id = @organisationId
-        `);
-
-        if (deleteResult.rowsAffected[0] === 0) {
-            return res.status(404).json({ error: "Record not found for the specified financialYear and organisationId." });
-        }
-
-        return res.sendStatus(200);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+  return deleteCategory(req, res, CATEGORIES.service);
 }
-
 async function deleteGemProcurementWork(req, res) {
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-
-    const conn = await pool;
-    const request = conn.request();
-
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-
-    try {
-        const idResult = await request.query(`
-            SELECT works_gem_id
-            FROM tbl_gem_procurement_works
-            WHERE works_financial_year = @financialYear
-            AND works_organisation_id = @organisationId
-        `);
-
-        if (idResult.recordset.length === 0) {
-            return res.status(404).json({ error: "Record not found for the specified financialYear and organisationId." });
-        }
-
-        const workGemId = idResult.recordset[0].works_gem_id;
-
-        await request.input("workGemId", workGemId).query(`
-            DELETE FROM tbl_gem_procurement_works_monthly
-            WHERE works_gem_id = @workGemId
-        `);
-
-        const deleteResult = await request.query(`
-            DELETE FROM tbl_gem_procurement_works
-            WHERE works_financial_year = @financialYear
-            AND works_organisation_id = @organisationId
-        `);
-
-        if (deleteResult.rowsAffected[0] === 0) {
-            return res.status(404).json({ error: "Record not found for the specified financialYear and organisationId." });
-        }
-
-        return res.sendStatus(200);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+  return deleteCategory(req, res, CATEGORIES.works);
 }
 
+async function addGemMonthlyGoodsData(req, res) {
+  return saveMonthly(req, res, CATEGORIES.goods);
+}
+async function addGemMonthlyServiceData(req, res) {
+  return saveMonthly(req, res, CATEGORIES.service);
+}
+async function addGemMonthlyWorksData(req, res) {
+  return saveMonthly(req, res, CATEGORIES.works);
+}
+
+async function getGemMonthlyGoodsData(req, res) {
+  return getMonthly(req, res, CATEGORIES.goods, "goodsGemID");
+}
+async function getGemMonthlyServiceData(req, res) {
+  return getMonthly(req, res, CATEGORIES.service, "serviceGemID");
+}
 async function getGemMonthlyWorksData(req, res) {
-    const worksGemID = req.params.worksGemID;
+  return getMonthly(req, res, CATEGORIES.works, "worksGemID");
+}
 
-    const conn = await pool;
-    const request = conn.request();
+async function getGoodsProcurementPotential(req, res) {
+  return getPotential(req, res, CATEGORIES.goods, "goodsGemID");
+}
+async function getServiceProcurementPotential(req, res) {
+  return getPotential(req, res, CATEGORIES.service, "serviceGemID");
+}
+async function getWorksProcurementPotential(req, res) {
+  return getPotential(req, res, CATEGORIES.works, "worksGemID");
+}
 
-    request.input("worksGemID", worksGemID);
-    try {
-        const result = await request.query(`
-            SELECT * FROM tbl_gem_procurement_works_monthly where works_gem_id = @worksGemID;
-        `);
+async function getGemProcurementTotalData(req, res) {
+  const conn = await pool;
+  try {
+    const fetchAll =
+      String(req.query.all || "").toLowerCase() === "1" ||
+      String(req.query.all || "").toLowerCase() === "true";
+    const page = parsePositiveInt(req.query.page, 1, 1);
+    const limit = fetchAll
+      ? parsePositiveInt(req.query.limit, 2000, 1, 2000)
+      : parsePositiveInt(req.query.limit, 10, 1, 100);
+    const offset = (page - 1) * limit;
 
-        res.json(result.recordset);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
+    const countRequest = conn.request();
+    const pageRequest = conn.request();
+
+    const { whereSql } = applyDataScope(countRequest, req.user, {
+      strategy: "directOrgColumn",
+      alias: "t",
+      orgColumn: "common_organisation_id",
+    });
+    applyDataScope(pageRequest, req.user, {
+      strategy: "directOrgColumn",
+      alias: "t",
+      orgColumn: "common_organisation_id",
+    });
+
+    const financialYear = String(req.query.financialYear || "").trim();
+    const organisationId = String(req.query.organisationId || "").trim();
+    const search = String(req.query.search || "").trim();
+    let filterSql = "";
+
+    if (financialYear) {
+      countRequest.input("financialYear", sql.NVarChar(50), financialYear);
+      pageRequest.input("financialYear", sql.NVarChar(50), financialYear);
+      filterSql += " AND t.common_financial_year = @financialYear";
     }
+    if (organisationId) {
+      countRequest.input("organisationId", sql.NVarChar(50), organisationId);
+      pageRequest.input("organisationId", sql.NVarChar(50), organisationId);
+      filterSql += " AND CAST(t.common_organisation_id AS NVARCHAR(50)) = @organisationId";
+    }
+    if (search) {
+      countRequest.input("search", sql.NVarChar(255), `%${search}%`);
+      pageRequest.input("search", sql.NVarChar(255), `%${search}%`);
+      filterSql += " AND (org.organisation_name LIKE @search OR t.common_financial_year LIKE @search)";
+    }
+
+    pageRequest.input("offset", sql.Int, offset);
+    pageRequest.input("limit", sql.Int, limit);
+
+    const baseCte = `
+      GoodsMonthly AS (
+        SELECT goods_gem_id,
+          (${throughSumSql("m")}) AS total_procurement_through_gem,
+          (${outsideSumSql("m")}) AS total_procurement_outside_gem
+        FROM tbl_gem_procurement_goods_monthly m
+        GROUP BY goods_gem_id
+      ),
+      ServiceMonthly AS (
+        SELECT service_gem_id,
+          (${throughSumSql("m")}) AS total_procurement_through_gem,
+          (${outsideSumSql("m")}) AS total_procurement_outside_gem
+        FROM tbl_gem_procurement_service_monthly m
+        GROUP BY service_gem_id
+      ),
+      WorksMonthly AS (
+        SELECT works_gem_id,
+          (${throughSumSql("m")}) AS total_procurement_through_gem,
+          (${outsideSumSql("m")}) AS total_procurement_outside_gem
+        FROM tbl_gem_procurement_works_monthly m
+        GROUP BY works_gem_id
+      ),
+      OrgYears AS (
+        SELECT DISTINCT goods_organisation_id AS organisation_id, goods_financial_year AS financial_year
+        FROM tbl_gem_procurement_goods
+        UNION
+        SELECT DISTINCT service_organisation_id, service_financial_year FROM tbl_gem_procurement_service
+        UNION
+        SELECT DISTINCT works_organisation_id, works_financial_year FROM tbl_gem_procurement_works
+      ),
+      TotalRows AS (
+        SELECT
+          COALESCE(g.goods_gem_id, s.service_gem_id, w.works_gem_id) AS common_gem_id,
+          oy.financial_year AS common_financial_year,
+          oy.organisation_id AS common_organisation_id,
+          COALESCE(g.goods_procurement_potential, 0)
+            + COALESCE(s.service_procurement_potential, 0)
+            + COALESCE(w.works_procurement_potential, 0) AS total_procurement_potential,
+          COALESCE(gm.total_procurement_through_gem, 0)
+            + COALESCE(sm.total_procurement_through_gem, 0)
+            + COALESCE(wm.total_procurement_through_gem, 0) AS total_procurement_through_gem,
+          COALESCE(gm.total_procurement_outside_gem, 0)
+            + COALESCE(sm.total_procurement_outside_gem, 0)
+            + COALESCE(wm.total_procurement_outside_gem, 0) AS total_procurement_outside_gem,
+          COALESCE(g.eight_months_proportional_target, 0)
+            + COALESCE(s.eight_months_proportional_target, 0)
+            + COALESCE(w.eight_months_proportional_target, 0) AS eight_months_proportional_target
+        FROM OrgYears oy
+        LEFT JOIN tbl_gem_procurement_goods g
+          ON oy.organisation_id = g.goods_organisation_id AND oy.financial_year = g.goods_financial_year
+        LEFT JOIN tbl_gem_procurement_service s
+          ON oy.organisation_id = s.service_organisation_id AND oy.financial_year = s.service_financial_year
+        LEFT JOIN tbl_gem_procurement_works w
+          ON oy.organisation_id = w.works_organisation_id AND oy.financial_year = w.works_financial_year
+        LEFT JOIN GoodsMonthly gm ON g.goods_gem_id = gm.goods_gem_id
+        LEFT JOIN ServiceMonthly sm ON s.service_gem_id = sm.service_gem_id
+        LEFT JOIN WorksMonthly wm ON w.works_gem_id = wm.works_gem_id
+      )
+    `;
+
+    const [countResult, pageResult] = await Promise.all([
+      countRequest.query(`
+        WITH ${baseCte}
+        SELECT COUNT(*) AS total
+        FROM TotalRows t
+        LEFT JOIN mmt_organisation org ON t.common_organisation_id = org.organisation_id
+        WHERE 1 = 1
+        ${whereSql}
+        ${filterSql}
+      `),
+      pageRequest.query(`
+        WITH ${baseCte}
+        SELECT
+          t.*,
+          org.organisation_name AS organisation_name
+        FROM TotalRows t
+        LEFT JOIN mmt_organisation org ON t.common_organisation_id = org.organisation_id
+        WHERE 1 = 1
+        ${whereSql}
+        ${filterSql}
+        ORDER BY t.common_financial_year DESC, t.common_organisation_id
+        OFFSET @offset ROWS
+        FETCH NEXT @limit ROWS ONLY
+      `),
+    ]);
+
+    const total = Number(countResult.recordset?.[0]?.total) || 0;
+    return res.json({
+      data: pageResult.recordset || [],
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    });
+  } catch (err) {
+    console.error("getGemProcurementTotalData:", err);
+    return res.sendStatus(500);
+  }
 }
 
 async function getOrganisationName(req, res) {
-    const organisationID = req.params.organisationID;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("organisationID", organisationID);
-
-    try {
-
-        const result = await request.query(`SELECT organisation_name FROM mmt_organisation WHERE organisation_id = @organisationID;`);
-
-        res.json(result.recordset);
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-};
-
-async function getGoodsProcurementPotential(req, res) {
-    const goodsGemID = req.params.goodsGemID;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("goodsGemID", goodsGemID);
-
-    try {
-
-        const result = await request.query(`SELECT goods_procurement_potential FROM tbl_gem_procurement_goods WHERE goods_gem_id = @goodsGemID;`);
-
-        res.json(result.recordset);
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getServiceProcurementPotential(req, res) {
-    const serviceGemID = req.params.serviceGemID;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("serviceGemID", serviceGemID);
-
-    try {
-
-        const result = await request.query(`SELECT service_procurement_potential FROM tbl_gem_procurement_service WHERE service_gem_id = @serviceGemID;`);
-
-        res.json(result.recordset);
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-async function getWorksProcurementPotential(req, res) {
-    const worksGemID = req.params.worksGemID;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("worksGemID", worksGemID);
-
-    try {
-
-        const result = await request.query(`SELECT works_procurement_potential FROM tbl_gem_procurement_works WHERE works_gem_id = @worksGemID;`);
-
-        res.json(result.recordset);
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
+  const organisationID = Number(req.params.organisationID);
+  if (!Number.isFinite(organisationID) || organisationID <= 0) {
+    return res.status(400).json({ error: "Invalid organisationID." });
+  }
+  const conn = await pool;
+  const request = conn.request();
+  request.input("organisationID", sql.Int, organisationID);
+  try {
+    const result = await request.query(`
+      SELECT organisation_name
+      FROM mmt_organisation
+      WHERE organisation_id = @organisationID
+    `);
+    return res.json(result.recordset);
+  } catch (err) {
+    console.error(err);
+    return res.sendStatus(500);
+  }
 }
 
 async function getGemProcurementDataEntry(req, res) {
-    const currentYear = new Date().getFullYear();
-    const financialYear = new Date().getMonth() > 3? `${currentYear}-${currentYear + 1}` : `${currentYear - 1}-${currentYear}`;
+  const currentYear = new Date().getFullYear();
+  const financialYear =
+    new Date().getMonth() > 3
+      ? `${currentYear}-${currentYear + 1}`
+      : `${currentYear - 1}-${currentYear}`;
 
-    const conn = await pool;
-    const request = conn.request();
+  const conn = await pool;
+  const request = conn.request();
+  request.input("financialYear", sql.NVarChar(50), financialYear);
 
-    request.input('financialYear', financialYear);
-
-    try {
-        const result = await request.query(`
-            SELECT TOP (1000) 
-                g.goods_gem_id,
-                mmt.organisation_name,    
-				[goods_procurement_potential],
-				CASE 
-				   WHEN ([goods_procurement_potential] IS NOT NULL) THEN 'TRUE'
-				   ELSE 'FALSE'
-				END AS 'last_procurement_updated_by_ministry',
-                CASE 
-                    WHEN [procurement_through_gem_march] IS NOT NULL OR 
-                         [procurement_outside_gem_march] IS NOT NULL  THEN 'March'
-                    WHEN [procurement_through_gem_february] IS NOT NULL OR 
-                         [procurement_outside_gem_february] IS NOT NULL THEN 'February'
-                    WHEN [procurement_through_gem_january] IS NOT NULL OR 
-                         [procurement_outside_gem_january] IS NOT NULL THEN 'January'
-                    WHEN [procurement_through_gem_december] IS NOT NULL OR 
-                         [procurement_outside_gem_december] IS NOT NULL THEN 'December'
-                    WHEN [procurement_through_gem_november] IS NOT NULL OR 
-                         [procurement_outside_gem_november] IS NOT NULL THEN 'November'
-                    WHEN [procurement_through_gem_october] IS NOT NULL OR 
-                         [procurement_outside_gem_october] IS NOT NULL THEN 'October'
-                    WHEN [procurement_through_gem_september] IS NOT NULL OR 
-                         [procurement_outside_gem_september] IS NOT NULL THEN 'September'
-                    WHEN [procurement_through_gem_august] IS NOT NULL OR 
-                         [procurement_outside_gem_august] IS NOT NULL THEN 'August'
-                    WHEN [procurement_through_gem_july] IS NOT NULL OR 
-                         [procurement_outside_gem_july] IS NOT NULL THEN 'July'
-                    WHEN [procurement_through_gem_june] IS NOT NULL OR 
-                         [procurement_outside_gem_june] IS NOT NULL THEN 'June'
-                    WHEN [procurement_through_gem_may] IS NOT NULL OR 
-                         [procurement_outside_gem_may] IS NOT NULL THEN 'May'
-                    WHEN [procurement_through_gem_april] IS NOT NULL OR 
-                         [procurement_outside_gem_april] IS NOT NULL THEN 'April'
-            	    ELSE '-'
-                END AS updated_month
-            FROM mmt_organisation mmt
-			LEFT JOIN mmt_organisation_category mmt_oc ON mmt.organisation_category_id  = mmt_oc.organisation_category_id 
-			LEFT JOIN tbl_gem_procurement_goods g ON mmt.organisation_id = g.goods_organisation_id AND g.goods_financial_year = @financialYear  
-            LEFT JOIN tbl_gem_procurement_goods_monthly gm ON g.goods_gem_id = gm.goods_gem_id
-			WHERE mmt.organisation_category_id=1 OR mmt.organisation_id IN (25,15,18,19,21,17)
-            ORDER BY updated_month 
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+  try {
+    const result = await request.query(`
+      SELECT TOP (1000)
+        g.goods_gem_id,
+        mmt.organisation_name,
+        [goods_procurement_potential],
+        CASE
+          WHEN ([goods_procurement_potential] IS NOT NULL) THEN 'TRUE'
+          ELSE 'FALSE'
+        END AS last_procurement_updated_by_ministry,
+        CASE
+          WHEN [procurement_through_gem_march] IS NOT NULL OR [procurement_outside_gem_march] IS NOT NULL THEN 'March'
+          WHEN [procurement_through_gem_february] IS NOT NULL OR [procurement_outside_gem_february] IS NOT NULL THEN 'February'
+          WHEN [procurement_through_gem_january] IS NOT NULL OR [procurement_outside_gem_january] IS NOT NULL THEN 'January'
+          WHEN [procurement_through_gem_december] IS NOT NULL OR [procurement_outside_gem_december] IS NOT NULL THEN 'December'
+          WHEN [procurement_through_gem_november] IS NOT NULL OR [procurement_outside_gem_november] IS NOT NULL THEN 'November'
+          WHEN [procurement_through_gem_october] IS NOT NULL OR [procurement_outside_gem_october] IS NOT NULL THEN 'October'
+          WHEN [procurement_through_gem_september] IS NOT NULL OR [procurement_outside_gem_september] IS NOT NULL THEN 'September'
+          WHEN [procurement_through_gem_august] IS NOT NULL OR [procurement_outside_gem_august] IS NOT NULL THEN 'August'
+          WHEN [procurement_through_gem_july] IS NOT NULL OR [procurement_outside_gem_july] IS NOT NULL THEN 'July'
+          WHEN [procurement_through_gem_june] IS NOT NULL OR [procurement_outside_gem_june] IS NOT NULL THEN 'June'
+          WHEN [procurement_through_gem_may] IS NOT NULL OR [procurement_outside_gem_may] IS NOT NULL THEN 'May'
+          WHEN [procurement_through_gem_april] IS NOT NULL OR [procurement_outside_gem_april] IS NOT NULL THEN 'April'
+          ELSE '-'
+        END AS updated_month
+      FROM mmt_organisation mmt
+      LEFT JOIN mmt_organisation_category mmt_oc
+        ON mmt.organisation_category_id = mmt_oc.organisation_category_id
+      LEFT JOIN tbl_gem_procurement_goods g
+        ON mmt.organisation_id = g.goods_organisation_id
+       AND g.goods_financial_year = @financialYear
+      LEFT JOIN tbl_gem_procurement_goods_monthly gm
+        ON g.goods_gem_id = gm.goods_gem_id
+      WHERE mmt.organisation_category_id = 1 OR mmt.organisation_id IN (25, 15, 18, 19, 21, 17)
+      ORDER BY updated_month
+    `);
+    return res.json(result.recordset);
+  } catch (err) {
+    console.error(err);
+    return res.sendStatus(500);
+  }
 }
 
-
 export default {
-    addGemProcurementGoods, addGemProcurementService, addGemProcurementWork, getGemProcurementGoods, getGemProcurementService, getGemProcurementWork,
-    addGemMonthlyGoodsData, getGemMonthlyGoodsData, addGemMonthlyServiceData, getGemMonthlyServiceData, addGemMonthlyWorksData, getGemMonthlyWorksData, getOrganisationName,
-    getGoodsProcurementPotential, getServiceProcurementPotential, getWorksProcurementPotential, getGemProcurementTotalData, updateGemProcurementGoods, updateGemProcurementService, updateGemProcurementWork,
-    deleteGemProcurementGoods, deleteGemProcurementService, deleteGemProcurementWork, getGemProcurementDataEntry
+  addGemProcurementGoods,
+  addGemProcurementService,
+  addGemProcurementWork,
+  getGemProcurementGoods,
+  getGemProcurementService,
+  getGemProcurementWork,
+  addGemMonthlyGoodsData,
+  getGemMonthlyGoodsData,
+  addGemMonthlyServiceData,
+  getGemMonthlyServiceData,
+  addGemMonthlyWorksData,
+  getGemMonthlyWorksData,
+  getOrganisationName,
+  getGoodsProcurementPotential,
+  getServiceProcurementPotential,
+  getWorksProcurementPotential,
+  getGemProcurementTotalData,
+  updateGemProcurementGoods,
+  updateGemProcurementService,
+  updateGemProcurementWork,
+  deleteGemProcurementGoods,
+  deleteGemProcurementService,
+  deleteGemProcurementWork,
+  getGemProcurementDataEntry,
 };

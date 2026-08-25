@@ -63,7 +63,7 @@ export default function GEMAddTargetModal({ isOpen, onClose, onSubmit, organisat
     onClose();
   };
 
-  const calculatedTarget = plannedPotential ? ((Number(plannedPotential) / 12) * 5).toFixed(3) : "0.000";
+  const calculatedTarget = plannedPotential ? ((Number(plannedPotential) / 12) * 8).toFixed(3) : "0.000";
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-fade-in select-none">
@@ -148,7 +148,7 @@ export default function GEMAddTargetModal({ isOpen, onClose, onSubmit, organisat
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between">
             <div>
               <span className="block text-[11px] font-bold text-blue-700 uppercase tracking-wider">
-                Calculated Proportional Target (5 Months):
+                Calculated Proportional Target (8 Months):
               </span>
               <span className="text-xs text-blue-600 font-medium">
                 Auto-calculated formula: (Planned Total / 12) × 5

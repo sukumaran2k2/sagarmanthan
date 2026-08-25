@@ -26,6 +26,9 @@ export default function GEMDataListView({
   visibleCols,
   setVisibleCols,
   viewMode = "ministry",
+  page = 1,
+  setPage,
+  pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
 }) {
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
   const [colDropdownOpen, setColDropdownOpen] = useState(false);
@@ -119,7 +122,7 @@ export default function GEMDataListView({
                     {organisations.map((org) => (
                       <option
                         key={org.organisation_id || org.id}
-                        value={org.organisation_name || org.name}
+                        value={String(org.organisation_id || org.id)}
                       >
                         {org.organisation_name || org.name}
                       </option>
@@ -225,18 +228,45 @@ export default function GEMDataListView({
         </div>
       </div>
 
-      {/* Main AG Grid Data Table */}
       <div className="relative min-h-[380px] gem-grid">
         <Table
           rowData={filteredData}
           columnDefs={colDefs}
           pinnedBottomRowData={pinnedBottomRowData}
-          pagination={true}
-          paginationPageSize={pageSize}
+          pagination={false}
           loading={loading}
           color="#0f417a"
         />
       </div>
+
+      {typeof setPage === "function" && (
+        <div className="flex items-center justify-between gap-3 text-xs font-bold text-slate-600">
+          <span>
+            Page {pagination.page || page} of {pagination.totalPages || 1} ·{" "}
+            {pagination.total || 0} records
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={(pagination.page || page) <= 1}
+              onClick={() => setPage(Math.max(1, (pagination.page || page) - 1))}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white disabled:opacity-40 cursor-pointer"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={(pagination.page || page) >= (pagination.totalPages || 1)}
+              onClick={() =>
+                setPage(Math.min(pagination.totalPages || 1, (pagination.page || page) + 1))
+              }
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white disabled:opacity-40 cursor-pointer"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

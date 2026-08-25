@@ -646,35 +646,38 @@ router.delete(
 // router.get("/gem-quarterly/:tableName", gemProcurementTab.getQuarterlyGemData);
 
 
-router.post("/gem-procurement-goods", gemProcurementTab.addGemProcurementGoods);
-router.post("/gem-procurement-service", gemProcurementTab.addGemProcurementService);
-router.post("/gem-procurement-work", gemProcurementTab.addGemProcurementWork);
+router.post("/gem-procurement-goods", auth, requireModulePermission("GEM_PROCUREMENT", "create"), gemProcurementTab.addGemProcurementGoods);
+router.post("/gem-procurement-service", auth, requireModulePermission("GEM_PROCUREMENT", "create"), gemProcurementTab.addGemProcurementService);
+router.post("/gem-procurement-work", auth, requireModulePermission("GEM_PROCUREMENT", "create"), gemProcurementTab.addGemProcurementWork);
 
-router.put("/edit-gem-procurement-goods", gemProcurementTab.updateGemProcurementGoods);
-router.put("/edit-gem-procurement-service", gemProcurementTab.updateGemProcurementService);
-router.put("/edit-gem-procurement-work", gemProcurementTab.updateGemProcurementWork);
+router.put("/edit-gem-procurement-goods", auth, requireModulePermission("GEM_PROCUREMENT", "update"), gemProcurementTab.updateGemProcurementGoods);
+router.put("/edit-gem-procurement-service", auth, requireModulePermission("GEM_PROCUREMENT", "update"), gemProcurementTab.updateGemProcurementService);
+router.put("/edit-gem-procurement-work", auth, requireModulePermission("GEM_PROCUREMENT", "update"), gemProcurementTab.updateGemProcurementWork);
 
-router.delete("/delete-gem-procurement-goods", gemProcurementTab.deleteGemProcurementGoods);
-router.delete("/delete-gem-procurement-service", gemProcurementTab.deleteGemProcurementService);
-router.delete("/delete-gem-procurement-work", gemProcurementTab.deleteGemProcurementWork);
+router.delete("/delete-gem-procurement-goods", auth, requireModulePermission("GEM_PROCUREMENT", "delete"), gemProcurementTab.deleteGemProcurementGoods);
+router.delete("/delete-gem-procurement-service", auth, requireModulePermission("GEM_PROCUREMENT", "delete"), gemProcurementTab.deleteGemProcurementService);
+router.delete("/delete-gem-procurement-work", auth, requireModulePermission("GEM_PROCUREMENT", "delete"), gemProcurementTab.deleteGemProcurementWork);
 
-router.get("/gem-procurement-goods/:userID", gemProcurementTab.getGemProcurementGoods);
-router.get("/gem-procurement-data-entry", gemProcurementTab.getGemProcurementDataEntry);
-router.get("/gem-procurement-service/:userID", gemProcurementTab.getGemProcurementService);
-router.get("/gem-procurement-work/:userID", gemProcurementTab.getGemProcurementWork);
-router.get("/gem-procurement-total", gemProcurementTab.getGemProcurementTotalData);
+router.get("/gem-procurement-goods", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemProcurementGoods);
+router.get("/gem-procurement-goods/:userID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemProcurementGoods);
+router.get("/gem-procurement-data-entry", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemProcurementDataEntry);
+router.get("/gem-procurement-service", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemProcurementService);
+router.get("/gem-procurement-service/:userID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemProcurementService);
+router.get("/gem-procurement-work", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemProcurementWork);
+router.get("/gem-procurement-work/:userID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemProcurementWork);
+router.get("/gem-procurement-total", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemProcurementTotalData);
 
-router.post("/monthly-goods-data", gemProcurementTab.addGemMonthlyGoodsData);
-router.post("/monthly-service-data", gemProcurementTab.addGemMonthlyServiceData);
-router.post("/monthly-work-data", gemProcurementTab.addGemMonthlyWorksData);
+router.post("/monthly-goods-data", auth, requireModulePermission("GEM_PROCUREMENT", "update"), gemProcurementTab.addGemMonthlyGoodsData);
+router.post("/monthly-service-data", auth, requireModulePermission("GEM_PROCUREMENT", "update"), gemProcurementTab.addGemMonthlyServiceData);
+router.post("/monthly-work-data", auth, requireModulePermission("GEM_PROCUREMENT", "update"), gemProcurementTab.addGemMonthlyWorksData);
 
-router.get("/monthly-goods-data/:goodsGemID", gemProcurementTab.getGemMonthlyGoodsData);
-router.get("/monthly-service-data/:serviceGemID", gemProcurementTab.getGemMonthlyServiceData);
-router.get("/monthly-work-data/:worksGemID", gemProcurementTab.getGemMonthlyWorksData);
+router.get("/monthly-goods-data/:goodsGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemMonthlyGoodsData);
+router.get("/monthly-service-data/:serviceGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemMonthlyServiceData);
+router.get("/monthly-work-data/:worksGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGemMonthlyWorksData);
 
-router.get("/get-goods-procurement/:goodsGemID", gemProcurementTab.getGoodsProcurementPotential);
-router.get("/get-service-procurement/:serviceGemID", gemProcurementTab.getServiceProcurementPotential);
-router.get("/get-works-procurement/:worksGemID", gemProcurementTab.getWorksProcurementPotential);
+router.get("/get-goods-procurement/:goodsGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getGoodsProcurementPotential);
+router.get("/get-service-procurement/:serviceGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getServiceProcurementPotential);
+router.get("/get-works-procurement/:worksGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getWorksProcurementPotential);
 
 router.get("/get-organisation-names/:organisationID", financialParameterTab.getOrganisationName);
 // Vip
@@ -1516,17 +1519,15 @@ router.get("/monthly-onlinemedia-report-parameter/:userID/:currentMonth/:current
 router.get("/monthly-socialmedia-report-parameter/:userID/:currentMonth/:currentFinYear/", socialmediaTab.getMonthlySocialReport);
 router.get("/monthly-BroadPrint-report-parameter/:userID/:platform/:currentMonth/:currentFinYear/", socialmediaTab.getMonthlyBroadPrintReport);
 
-// Gem Procuremnt
-router.get("/gem-goodsreport", gemReportTab.gemGoodsData);
-// router.get("/gem-goods-monthlyreport", gemReportTab.gemGoodsMonthlyReport);
-router.get("/gem-Total-monthlyreport/:gemGoodsID/:gemGoodsFinYear/:orgId", gemReportTab.gemTotalMonthlyReport);
-router.get("/gem-goods-monthlyreport/:goodsGemID", gemReportTab.gemGoodsMonthlyReport);
-router.get("/gem-service-monthlyreport/:serviceGemID", gemReportTab.gemServiceMonthlyReport);
-router.get("/gem-works-monthlyreport/:worksGemID", gemReportTab.gemWorkMonthlyReport);
-
-router.get("/gem-servicereport", gemReportTab.gemServiceData);
-router.get("/gem-worksreport", gemReportTab.gemWorksData);
-router.get("/gem-report/:selectedYear",gemReportTab.getGemReport);
+// Gem Procurement reports
+router.get("/gem-goodsreport", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.gemGoodsData);
+router.get("/gem-Total-monthlyreport/:gemGoodsID/:gemGoodsFinYear/:orgId", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.gemTotalMonthlyReport);
+router.get("/gem-goods-monthlyreport/:goodsGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.gemGoodsMonthlyReport);
+router.get("/gem-service-monthlyreport/:serviceGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.gemServiceMonthlyReport);
+router.get("/gem-works-monthlyreport/:worksGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.gemWorkMonthlyReport);
+router.get("/gem-servicereport", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.gemServiceData);
+router.get("/gem-worksreport", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.gemWorksData);
+router.get("/gem-report/:selectedYear", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.getGemReport);
 // MIV
 router.post("/mivdetailed-report/", mivReportTab.mivDetailedData);
 router.post("/miv-theme-detailed-report/", mivReportTab.mivThemeDetailedData); //MIV THEME WISE REPORT

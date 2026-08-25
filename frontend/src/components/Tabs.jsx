@@ -267,7 +267,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Reports', tab: 'Parliamentary Issue', targetSubTab: 'Reports', icon: FilePieChart },
           ],
         }),
-        m('GEM_PROCUREMENT', { label: 'GEM Procurements', icon: Coins }),
+        m('GEM_PROCUREMENT', {
+          label: 'GEM Procurements',
+          icon: Coins,
+          targetTab: 'GEM Procurements',
+          subItems: [
+            { label: 'Total', tab: 'GEM Procurements', targetSubTab: 'Total', icon: ClipboardList },
+            { label: 'Goods', tab: 'GEM Procurements', targetSubTab: 'Goods', icon: ClipboardList },
+            { label: 'Services', tab: 'GEM Procurements', targetSubTab: 'Services', icon: ClipboardList },
+            { label: 'Works', tab: 'GEM Procurements', targetSubTab: 'Works', icon: ClipboardList },
+            { label: 'Reports', tab: 'GEM Procurements', targetSubTab: 'Reports', icon: FilePieChart },
+          ],
+        }),
         m('CABINET_NOTES_MOPSW', {
           label: 'Cabinet Notes - MoPSW', icon: FileText,
           targetTab: 'Cabinet Notes - MoPSW',
@@ -689,6 +700,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                               })
                                             );
                                           }
+                                          if (
+                                            sub.targetSubTab &&
+                                            (mainTab === 'GEM Procurements' ||
+                                              mainTab === 'GEM Procurement')
+                                          ) {
+                                            sessionStorage.setItem('gemInitTab', sub.targetSubTab);
+                                            window.dispatchEvent(
+                                              new CustomEvent('gem-subtab', {
+                                                detail: sub.targetSubTab,
+                                              })
+                                            );
+                                          }
                                         }}
                                         className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all py-1.5 px-2.5 rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-slate-700 cursor-pointer"
                                       >
@@ -979,6 +1002,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                                 );
                                                 window.dispatchEvent(
                                                   new CustomEvent('cabinet-notes-mopsw-subtab', {
+                                                    detail: sub.targetSubTab,
+                                                  })
+                                                );
+                                              }
+                                              if (
+                                                sub.targetSubTab &&
+                                                (mainTab === 'GEM Procurements' ||
+                                                  mainTab === 'GEM Procurement')
+                                              ) {
+                                                sessionStorage.setItem('gemInitTab', sub.targetSubTab);
+                                                window.dispatchEvent(
+                                                  new CustomEvent('gem-subtab', {
                                                     detail: sub.targetSubTab,
                                                   })
                                                 );

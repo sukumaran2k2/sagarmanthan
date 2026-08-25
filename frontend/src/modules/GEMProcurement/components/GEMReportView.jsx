@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
 import {
   TrendingUp,
   Search,
@@ -14,8 +13,7 @@ import {
 import CopyButton from "../../../components/CopyButton";
 import ExportDropdown from "../../../components/ExportDropdown";
 import * as XLSX from "xlsx";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+import { fetchGemReport } from "../api";
 
 export default function GEMReportView({ showToast }) {
   const [selectedYear, setSelectedYear] = useState("2026-2027");
@@ -33,7 +31,7 @@ export default function GEMReportView({ showToast }) {
   const fetchReportData = async (fy) => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE_URL}/gem-report/${fy}`);
+      const res = await fetchGemReport(fy);
       if (res.data && res.data.gemReport) {
         setReportData(res.data.gemReport);
       } else if (Array.isArray(res.data)) {
@@ -42,46 +40,9 @@ export default function GEMReportView({ showToast }) {
         setReportData([]);
       }
     } catch (err) {
-      console.warn("GeM Report API fallback error:", err.message);
-      // Fallback mock dataset matching YP report structure & screenshot groups
-      setReportData([
-        // Major Ports
-        { display_group: "Major Ports", organisation_name: "Ministry of Ports, Shipping and Waterways", goods_procurement_potential: 11.0, service_procurement_potential: 6.0, works_procurement_potential: 0.0, planned_procurement: 17.0, products: 0.0, services: 0.0, works: 0.0, grand_total: 0.0, outside_gem: 0.0 },
-        { organisation_name: "Chennai Port Authority", goods_procurement_potential: 23.49, service_procurement_potential: 0.93, works_procurement_potential: 0.0, planned_procurement: 24.42, products: 9.28, services: 0.10, works: 0.0, grand_total: 9.38, outside_gem: 0.22 },
-        { organisation_name: "Cochin Port Authority", goods_procurement_potential: 7.0, service_procurement_potential: 0.40, works_procurement_potential: 0.0, planned_procurement: 7.40, products: 2.77, services: 0.0, works: 0.0, grand_total: 2.77, outside_gem: 1.04 },
-        { organisation_name: "Syama Prasad Mookerjee Port", goods_procurement_potential: 0.0, service_procurement_potential: 0.0, works_procurement_potential: 0.0, planned_procurement: 0.0, products: 0.0, services: 0.0, works: 0.0, grand_total: 0.0, outside_gem: 0.0 },
-        { organisation_name: "Jawaharlal Nehru Port Authority", goods_procurement_potential: 337.81, service_procurement_potential: 148.63, works_procurement_potential: 0.0, planned_procurement: 486.44, products: 24.09, services: 28.89, works: 0.0, grand_total: 52.98, outside_gem: 0.0 },
-        { organisation_name: "Kamarajar Port Limited", goods_procurement_potential: 25.50, service_procurement_potential: 19.85, works_procurement_potential: 0.0, planned_procurement: 45.35, products: 0.0, services: 0.0, works: 0.0, grand_total: 0.0, outside_gem: 0.0 },
-        { organisation_name: "Mormugao Port Authority", goods_procurement_potential: 37.37, service_procurement_potential: 2.03, works_procurement_potential: 0.50, planned_procurement: 39.90, products: 7.65, services: 1.49, works: 0.0, grand_total: 9.14, outside_gem: 0.0 },
-        { organisation_name: "Mumbai Port Authority", goods_procurement_potential: 50.0, service_procurement_potential: 247.0, works_procurement_potential: 0.0, planned_procurement: 297.0, products: 0.40, services: 147.84, works: 0.0, grand_total: 148.24, outside_gem: 0.01 },
-        { organisation_name: "New Mangalore Port Authority", goods_procurement_potential: 26.44, service_procurement_potential: 6.43, works_procurement_potential: 0.0, planned_procurement: 32.87, products: 4.46, services: 0.71, works: 0.0, grand_total: 5.17, outside_gem: 0.27 },
-        { organisation_name: "Paradip Port Authority", goods_procurement_potential: 80.0, service_procurement_potential: 2.83, works_procurement_potential: 0.0, planned_procurement: 82.83, products: 2.87, services: 0.0, works: 0.0, grand_total: 2.87, outside_gem: 0.20 },
-        { organisation_name: "SMPA - Kolkata Dock System", goods_procurement_potential: 121.53, service_procurement_potential: 206.94, works_procurement_potential: 0.0, planned_procurement: 328.47, products: 18.52, services: 31.52, works: 0.0, grand_total: 50.04, outside_gem: 1.63 },
-        { organisation_name: "Visakhapatnam Port Authority", goods_procurement_potential: 66.50, service_procurement_potential: 4.0, works_procurement_potential: 0.0, planned_procurement: 70.50, products: 16.20, services: 0.0, works: 0.0, grand_total: 16.20, outside_gem: 0.02 },
-        { organisation_name: "V.O. Chidambaranar Port Authority", goods_procurement_potential: 32.0, service_procurement_potential: 5.0, works_procurement_potential: 0.0, planned_procurement: 37.0, products: 20.47, services: 0.10, works: 0.0, grand_total: 20.57, outside_gem: 0.01 },
-
-        // Authorities
-        { display_group: "Authorities", organisation_name: "Inland Waterways Authority of India", goods_procurement_potential: 2.99, service_procurement_potential: 3.50, works_procurement_potential: 0.0, planned_procurement: 6.49, products: 0.40, services: 1.78, works: 0.0, grand_total: 2.18, outside_gem: 0.0 },
-        { organisation_name: "Indian Maritime University", goods_procurement_potential: 5.25, service_procurement_potential: 23.70, works_procurement_potential: 0.0, planned_procurement: 28.95, products: 2.03, services: 0.0, works: 0.0, grand_total: 2.03, outside_gem: 0.0 },
-
-        // Subordinate / Attached Offices
-        { display_group: "Subordinate/Attached Offices", organisation_name: "Directorate General of Shipping, Mumbai", goods_procurement_potential: 27.18, service_procurement_potential: 17.66, works_procurement_potential: 0.0, planned_procurement: 44.84, products: 0.0, services: 0.0, works: 0.0, grand_total: 0.0, outside_gem: 0.0 },
-        { organisation_name: "Directorate General of Lighthouses and Lightships", goods_procurement_potential: 18.0, service_procurement_potential: 25.0, works_procurement_potential: 5.0, planned_procurement: 48.0, products: 1.93, services: 6.01, works: 0.24, grand_total: 8.18, outside_gem: 0.72 },
-        { organisation_name: "Andaman Lakshadweep Harbour Works", goods_procurement_potential: 3.0, service_procurement_potential: 1.0, works_procurement_potential: 0.0, planned_procurement: 4.0, products: 0.50, services: 0.0, works: 0.0, grand_total: 0.51, outside_gem: 0.01 },
-
-        // Public Sector Undertakings
-        { display_group: "Public Sector Undertakings", organisation_name: "Shipping Corporation of India", goods_procurement_potential: 291.0, service_procurement_potential: 54.0, works_procurement_potential: 0.0, planned_procurement: 345.0, products: 99.05, services: 1.42, works: 0.0, grand_total: 100.47, outside_gem: 96.0 },
-        { organisation_name: "Cochin Shipyard Limited", goods_procurement_potential: 270.0, service_procurement_potential: 30.0, works_procurement_potential: 0.0, planned_procurement: 300.0, products: 243.74, services: 0.0, works: 0.0, grand_total: 243.74, outside_gem: 1058.09 },
-        { organisation_name: "Sagarmala Development Company Limited", goods_procurement_potential: 2.0, service_procurement_potential: 1.90, works_procurement_potential: 0.0, planned_procurement: 3.90, products: 0.07, services: 1.04, works: 0.0, grand_total: 1.11, outside_gem: 0.0 },
-        { organisation_name: "Indian Port Rail & Ropeway Corporation Ltd", goods_procurement_potential: 14.0, service_procurement_potential: 2.90, works_procurement_potential: 0.0, planned_procurement: 16.90, products: 0.05, services: 0.12, works: 0.0, grand_total: 0.17, outside_gem: 0.0 },
-        { organisation_name: "Dredging Corporation of India", goods_procurement_potential: 1215.93, service_procurement_potential: 33.34, works_procurement_potential: 0.0, planned_procurement: 1249.27, products: 1198.47, services: 0.0, works: 0.0, grand_total: 1198.47, outside_gem: 42.10 },
-        { organisation_name: "Hooghly Cochin Shipyard Limited", goods_procurement_potential: 9.30, service_procurement_potential: 0.70, works_procurement_potential: 0.0, planned_procurement: 10.0, products: 2.03, services: 0.12, works: 0.0, grand_total: 2.15, outside_gem: 18.61 },
-        { organisation_name: "Udupi Cochin Shipyard Limited", goods_procurement_potential: 45.0, service_procurement_potential: 3.80, works_procurement_potential: 0.0, planned_procurement: 48.80, products: 8.58, services: 0.0, works: 0.0, grand_total: 8.58, outside_gem: 0.0 },
-
-        // Other Organizations
-        { display_group: "Other Organizations", organisation_name: "Seamen's Provident Fund Organisation", goods_procurement_potential: 0.40, service_procurement_potential: 0.50, works_procurement_potential: 0.0, planned_procurement: 0.90, products: 0.08, services: 0.0, works: 0.0, grand_total: 0.08, outside_gem: 0.0 },
-        { organisation_name: "Tariff Authority for Major Ports", goods_procurement_potential: 0.10, service_procurement_potential: 0.61, works_procurement_potential: 0.0, planned_procurement: 0.71, products: 0.09, services: 0.0, works: 0.0, grand_total: 0.09, outside_gem: 0.0 },
-      ]);
+      console.warn("GeM Report API error:", err.message);
+      showToast?.("❌ Failed to load GEM report", "#EF4444");
+      setReportData([]);
     } finally {
       setLoading(false);
     }
