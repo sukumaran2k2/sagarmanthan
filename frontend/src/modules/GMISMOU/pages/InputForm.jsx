@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Save, ArrowLeft, Building2, Calendar, DollarSign, 
   FileText, CheckCircle2, AlertTriangle, Layers, Upload, 
@@ -8,6 +9,7 @@ import {
 import { 
   submitGmisMouData, updateGmisMouData, uploadGmisDocument, 
   fetchOrganisations, fetchMouCategoryNames, fetchGmisNavicVibhas,
+  fetchGmisMouDataById,
   addRevisedPhysicalProgressDate, addRevisedFinancialProgressDate,
   fetchRevisedPhysicalProgressDate, fetchRevisedFinancialProgressDate
 } from '../api';
@@ -46,11 +48,16 @@ const GMIS_STAGES = [
 ];
 
 export default function GMISInputForm({
-  editData,
+  editData: editDataProp,
   onSuccess,
   onCancel,
   triggerNotification
 }) {
+  const params = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [editData, setEditData] = useState(editDataProp || location.state?.item || null);
   const [organisations, setOrganisations] = useState([]);
   const [categories, setCategories] = useState([]);
   const [navicList, setNavicList] = useState([]);
@@ -69,6 +76,25 @@ export default function GMISInputForm({
   const [savingRevision, setSavingRevision] = useState(false);
 
   const isEditMode = Boolean(editData && (editData.id || editData.mouID || editData.mou_id));
+
+  // If URL has /edit/:mouId and editData is not yet loaded, fetch by ID
+  useEffect(() => {
+    if (params?.mouId && !editData) {
+      fetchGmisMouDataById(params.mouId)
+        .then(res => {
+          const item = Array.isArray(res.data) ? res.data[0] : res.data;
+          if (item) setEditData(item);
+        })
+        .catch(err => console.warn('Failed to load MoU by ID:', err));
+    }
+  }, [params?.mouId, editData]);
+
+  // Keep internal editData in sync if prop changes
+  useEffect(() => {
+    if (editDataProp) {
+      setEditData(editDataProp);
+    }
+  }, [editDataProp]);
 
   // Form State with exact field names matching image
   const [formData, setFormData] = useState({

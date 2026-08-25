@@ -1,23 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { useYpPermissions } from './hooks/useYpPermissions';
-import { fetchYoungProfessionals, fetchWings, fetchDivisions } from './api';
+import { fetchWings, fetchDivisions } from './api';
 
 export default function YoungProfessionalsView({
-  activeSubTab: activeSubTabProp,
-  setActiveSubTab: setActiveSubTabProp,
   triggerNotification
 }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const permissions = useYpPermissions();
   const { canAdd, canEdit, canRemove, canView } = permissions;
 
-  const [activeSubTab, setActiveSubTab] = useState(canAdd ? 'add' : (canView ? 'list' : 'add'));
-  const [loading, setLoading] = useState(false);
-  const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
@@ -25,24 +23,18 @@ export default function YoungProfessionalsView({
   // Dynamically render internal sub-tabs based on permissions
   const tabs = useMemo(() => {
     const list = [];
-    if (canAdd) list.push({ id: 'add', label: 'Input Form' });
-    if (canView) list.push({ id: 'list', label: 'Data List' });
+    if (canAdd) list.push({ id: 'input-form', label: 'Input Form' });
+    if (canView) list.push({ id: 'list-view', label: 'Data List' });
     if (canView) list.push({ id: 'report', label: 'Report' });
     return list;
   }, [canAdd, canView]);
 
-  useEffect(() => {
-    if (activeSubTabProp === 'Input Form' || activeSubTabProp === 'YP Input Form') {
-      if (canAdd) setActiveSubTab('add');
-      else if (canView) setActiveSubTab('list');
-    } else if (activeSubTabProp === 'Report' || activeSubTabProp === 'YP Report') {
-      if (canView) setActiveSubTab('report');
-      else if (canAdd) setActiveSubTab('add');
-    } else if (activeSubTabProp === 'Data List' || activeSubTabProp === 'YP Data List' || activeSubTabProp === 'Young Professionals') {
-      if (canView) setActiveSubTab('list');
-      else if (canAdd) setActiveSubTab('add');
-    }
-  }, [activeSubTabProp, canAdd, canView]);
+  const currentTab = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'input-form';
+    if (path.includes('/report')) return 'report';
+    return 'list-view';
+  }, [location.pathname]);
 
   useEffect(() => {
     fetchWings()
@@ -54,37 +46,19 @@ export default function YoungProfessionalsView({
       .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
-  const fetchData = () => {
-    setLoading(true);
-    fetchYoungProfessionals()
-      .then(res => {
-        setRowData(res.data || []);
-      })
-      .catch(err => console.error("Error loading YP data list:", err))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
   const handleEdit = (yp) => {
     setEditData(yp);
+    navigate('/hr/young-professionals/input-form', { state: { item: yp } });
   };
 
   const handleSuccess = () => {
     setEditData(null);
-    setActiveSubTab('list');
-    if (setActiveSubTabProp) {
-      setActiveSubTabProp('YP Data List');
-    }
+    navigate('/hr/young-professionals/list-view');
   };
 
   const handleBack = () => {
     setEditData(null);
-    setActiveSubTab('list');
-    if (setActiveSubTabProp) {
-      setActiveSubTabProp('YP Data List');
-    }
+    navigate('/hr/young-professionals/list-view');
   };
 
   // Render RestrictedAccess component if user has no permissions at all
@@ -106,24 +80,31 @@ export default function YoungProfessionalsView({
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeSubTab}
+          currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'add') {
-              setEditData(null);
-            }
-            setActiveSubTab(tabId);
-            if (setActiveSubTabProp) {
-              if (tabId === 'add') setActiveSubTabProp('YP Input Form');
-              else if (tabId === 'report') setActiveSubTabProp('YP Report');
-              else if (tabId === 'list') setActiveSubTabProp('YP Data List');
-            }
+            if (tabId !== 'input-form') setEditData(null);
+            if (tabId === 'input-form') navigate('/hr/young-professionals/input-form');
+            else if (tabId === 'report') navigate('/hr/young-professionals/report');
+            else navigate('/hr/young-professionals/list-view');
           }}
         />
       </div>
 
       <div className="space-y-8">
-        {activeSubTab === 'list' && (
-          editData ? (
+        <Routes>
+          <Route path="list-view" element={
+            <DataList
+              onEdit={handleEdit}
+              triggerNotification={triggerNotification}
+              wings={wings}
+              divisions={divisions}
+              canEdit={canEdit}
+              canAdd={canAdd}
+              canRemove={canRemove}
+            />
+          } />
+
+          <Route path="input-form" element={
             <InputForm
               wings={wings}
               divisions={divisions}
@@ -134,39 +115,19 @@ export default function YoungProfessionalsView({
               canEdit={canEdit}
               canAdd={canAdd}
             />
-          ) : (
-            <DataList
-              onEdit={handleEdit}
-              triggerNotification={triggerNotification}
+          } />
+
+          <Route path="report" element={
+            <Reports
               wings={wings}
               divisions={divisions}
-              canEdit={canEdit}
-              canAdd={canAdd}
-              canRemove={canRemove}
+              triggerNotification={triggerNotification}
             />
-          )
-        )}
+          } />
 
-        {activeSubTab === 'add' && (
-          <InputForm
-            wings={wings}
-            divisions={divisions}
-            onBack={handleBack}
-            onSuccess={handleSuccess}
-            triggerNotification={triggerNotification}
-            editData={null}
-            canEdit={canEdit}
-            canAdd={canAdd}
-          />
-        )}
-
-        {activeSubTab === 'report' && (
-          <Reports
-            wings={wings}
-            divisions={divisions}
-            triggerNotification={triggerNotification}
-          />
-        )}
+          <Route index element={<Navigate to={canView ? "list-view" : "input-form"} replace />} />
+          <Route path="*" element={<Navigate to={canView ? "list-view" : "input-form"} replace />} />
+        </Routes>
       </div>
     </div>
   );

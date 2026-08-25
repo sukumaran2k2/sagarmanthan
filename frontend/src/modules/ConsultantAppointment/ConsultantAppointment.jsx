@@ -1,141 +1,38 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { useConsultantPermissions } from './hooks/useConsultantPermissions';
-import { fetchConsultantAppointments, fetchWings, fetchDivisions, deleteConsultantAppointment } from './api';
+import { fetchWings, fetchDivisions, deleteConsultantAppointment } from './api';
 import { getCurrentUserId } from '../../utils/authSession';
 
-const STAGES = [
-  { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
-  { key: 'tenderPublished', label: 'Tender Published' },
-  { key: 'preBidQueries', label: 'Pre-bid Queries Responded' },
-  { key: 'bidReceived', label: 'Bid Received' },
-  { key: 'techBidFinalized', label: 'Technical Bid Finalized' },
-  { key: 'finBidFinalized', label: 'Financial Bid Finalized' },
-  { key: 'workOrderIssued', label: 'Work Order Issued' },
-  { key: 'contractSigned', label: 'Contract Signed' },
-];
-
-const formatDate = (d) => (d ? new Date(d).toISOString().split('T')[0] : '');
-const formatDateTime = (d) => {
-  if (!d) return '';
-  const str = typeof d === 'string' ? d : d.toISOString ? d.toISOString() : String(d);
-  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
-  if (match) {
-    const y = match[1];
-    const m = match[2];
-    const day = match[3];
-    const hStr = match[4];
-    const min = match[5];
-    const sec = match[6];
-    
-    // If midnight without explicit time recorded
-    if (hStr === '00' && min === '00' && sec === '00') {
-      return `${day}/${m}/${y}`;
-    }
-
-    let h = parseInt(hStr, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12;
-    h = h ? h : 12;
-    const hFormatted = String(h).padStart(2, '0');
-    return `${day}/${m}/${y}, ${hFormatted}:${min} ${ampm}`;
-  }
-  return String(d);
-};
-
-function parseAppointmentRow(b) {
-  const stages = {
-    adminApproval: !!b.admin_approval_for_nkg_consultant_date,
-    adminApprovalDate: formatDate(b.admin_approval_for_nkg_consultant_date),
-    tenderPublished: !!b.tender_published_date,
-    tenderPublishedDate: formatDate(b.tender_published_date),
-    preBidQueries: !!b.pre_bid_queries_responded_date,
-    preBidQueriesDate: formatDate(b.pre_bid_queries_responded_date),
-    bidReceived: !!b.bid_received_date,
-    bidReceivedDate: formatDate(b.bid_received_date),
-    techBidFinalized: !!b.technical_bid_finalized_date,
-    techBidFinalizedDate: formatDate(b.technical_bid_finalized_date),
-    finBidFinalized: !!b.financial_bid_finalized_date,
-    finBidFinalizedDate: formatDate(b.financial_bid_finalized_date),
-    workOrderIssued: !!b.work_order_issued_date,
-    workOrderIssuedDate: formatDate(b.work_order_issued_date),
-    contractSigned: !!b.contract_signed_date,
-    contractSignedDate: formatDate(b.contract_signed_date),
-  };
-
-  const remarks = {
-    adminApproval: b.admin_approval_for_nkg_consultant_remarks || '',
-    tenderPublished: b.tender_published_remarks || '',
-    preBidQueries: b.pre_bid_queries_responded_remarks || '',
-    bidReceived: b.bid_received_remarks || '',
-    techBidFinalized: b.technical_bid_finalized_remarks || '',
-    finBidFinalized: b.financial_bid_finalized_remarks || '',
-    workOrderIssued: b.work_order_issued_remarks || '',
-    contractSigned: b.contract_signed_remarks || '',
-  };
-
-  return {
-    id: b.consultant_appointment_id,
-    wing_id: b.wing,
-    division_id: b.division,
-    wing: b.wing_name || 'Unknown',
-    division: b.division_name || 'Unknown',
-    appointmentType: b.appointment_type || 'Full Time',
-    numResources: b.number_of_resources || 1,
-    status: getStatusFromStages(stages),
-    stages,
-    remarks,
-    created_date: b.created_date,
-    updated_date: b.updated_date,
-    lastUpdated: formatDateTime(b.updated_date || b.created_date),
-    createdDateFormatted: formatDateTime(b.created_date),
-    updatedDateFormatted: formatDateTime(b.updated_date),
-    raw: b,
-  }; 
-}
-
-const getStatusFromStages = (stages) => {
-  for (let i = STAGES.length - 1; i >= 0; i--) {
-    if (stages[STAGES[i].key]) {
-      return STAGES[i].label;
-    }
-  }
-  return 'Initiated';
-};
-
-export default function ConsultantAppointmentView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
+export default function ConsultantAppointmentView({ triggerNotification }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const permissions = useConsultantPermissions();
-  const { canAdd, canEdit, canRemove, canView, isViewOnlyAdmin } = permissions;
+  const { canAdd, canEdit, canRemove, canView } = permissions;
 
-  const [activeSubTab, setActiveSubTab] = useState(canAdd ? 'add' : (canView ? 'list' : 'add'));
   const [editData, setEditData] = useState(null);
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
 
   const tabs = useMemo(() => {
     const list = [];
-    if (canAdd) list.push({ id: 'add', label: 'Input Form' });
-    if (canView) list.push({ id: 'list', label: 'Data List' });
-    if (canView) list.push({ id: 'report', label: 'Report' });
+    if (canAdd) list.push({ id: 'input-form', label: 'Input Form' });
+    if (canView) list.push({ id: 'data-list', label: 'Data List' });
+    if (canView) list.push({ id: 'reports', label: 'Report' });
     return list;
   }, [canAdd, canView]);
 
-  useEffect(() => {
-    if (activeSubTabProp === 'Consultant Input Form') {
-      if (canAdd) setActiveSubTab('add');
-      else if (canView) setActiveSubTab('list');
-    } else if (activeSubTabProp === 'Consultant Reports') {
-      if (canView) setActiveSubTab('report');
-      else if (canAdd) setActiveSubTab('add');
-    } else if (activeSubTabProp === 'Consultant Data List') {
-      if (canView) setActiveSubTab('list');
-      else if (canAdd) setActiveSubTab('add');
-    }
-  }, [activeSubTabProp, canAdd, canView]);
+  const currentTab = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'input-form';
+    if (path.includes('/reports') || path.includes('/report')) return 'reports';
+    return 'data-list';
+  }, [location.pathname]);
 
   useEffect(() => {
     fetchWings()
@@ -149,22 +46,17 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
 
   const handleEdit = (ca) => {
     setEditData(ca);
+    navigate('/hr/consultant-appointment/input-form', { state: { item: ca } });
   };
 
   const handleSuccess = () => {
     setEditData(null);
-    setActiveSubTab('list');
-    if (setActiveSubTabProp) {
-      setActiveSubTabProp('Consultant Data List');
-    }
+    navigate('/hr/consultant-appointment/data-list');
   };
 
   const handleBack = () => {
     setEditData(null);
-    setActiveSubTab('list');
-    if (setActiveSubTabProp) {
-      setActiveSubTabProp('Consultant Data List');
-    }
+    navigate('/hr/consultant-appointment/data-list');
   };
 
   const handleDelete = async (ca) => {
@@ -177,7 +69,6 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
       if (triggerNotification) {
         triggerNotification("Consultant Appointment and associated candidates deleted successfully.", "success");
       }
-      fetchData();
     } catch (err) {
       console.error("Error deleting consultant appointment:", err);
       if (triggerNotification) {
@@ -204,24 +95,33 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeSubTab}
+          currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'add') {
-              setEditData(null);
-            }
-            setActiveSubTab(tabId);
-            if (setActiveSubTabProp) {
-              if (tabId === 'add') setActiveSubTabProp('Consultant Input Form');
-              else if (tabId === 'report') setActiveSubTabProp('Consultant Reports');
-              else if (tabId === 'list') setActiveSubTabProp('Consultant Data List');
-            }
+            if (tabId !== 'input-form') setEditData(null);
+            if (tabId === 'input-form') navigate('/hr/consultant-appointment/input-form');
+            else if (tabId === 'reports') navigate('/hr/consultant-appointment/reports');
+            else navigate('/hr/consultant-appointment/data-list');
           }}
         />
       </div>
 
       <div className="space-y-8">
-        {activeSubTab === 'list' && (
-          editData ? (
+        <Routes>
+          <Route path="data-list" element={
+            <DataList
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onAddClick={() => navigate('/hr/consultant-appointment/input-form')}
+              triggerNotification={triggerNotification}
+              wings={wings}
+              divisions={divisions}
+              canEdit={canEdit}
+              canAdd={canAdd}
+              canRemove={canRemove}
+            />
+          } />
+
+          <Route path="input-form" element={
             <InputForm
               wings={wings}
               divisions={divisions}
@@ -230,43 +130,18 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
               triggerNotification={triggerNotification}
               editData={editData}
             />
-          ) : (
-            <DataList
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onAddClick={() => {
-                setActiveSubTab('add');
-                if (setActiveSubTabProp) {
-                  setActiveSubTabProp('Consultant Input Form');
-                }
-              }}
-              triggerNotification={triggerNotification}
+          } />
+
+          <Route path="reports" element={
+            <Reports
               wings={wings}
-              divisions={divisions}
-              canEdit={canEdit}
-              canAdd={canAdd}
-              canRemove={canRemove}
+              triggerNotification={triggerNotification}
             />
-          )
-        )}
+          } />
 
-        {activeSubTab === 'add' && (
-          <InputForm
-            wings={wings}
-            divisions={divisions}
-            onBack={handleBack}
-            onSuccess={handleSuccess}
-            triggerNotification={triggerNotification}
-            editData={null}
-          />
-        )}
-
-        {activeSubTab === 'report' && (
-          <Reports
-            wings={wings}
-            triggerNotification={triggerNotification}
-          />
-        )}
+          <Route index element={<Navigate to={canView ? "data-list" : "input-form"} replace />} />
+          <Route path="*" element={<Navigate to={canView ? "data-list" : "input-form"} replace />} />
+        </Routes>
       </div>
     </div>
   );

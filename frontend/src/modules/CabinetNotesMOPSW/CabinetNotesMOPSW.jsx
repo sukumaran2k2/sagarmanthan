@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import { useCabinetNotesPermissions } from './hooks/useCabinetNotesPermissions';
@@ -7,22 +8,14 @@ import CabinetNotesReports from './pages/Reports';
 import NoteForm from './pages/NoteForm';
 import { fetchCabinetStages, fetchDivisions, fetchWings } from './api';
 
-const INIT_TAB_KEY = 'cabinetNotesMopswInitTab';
-
-function resolveSubTabId(label, canAdd) {
-  if (label === 'Input Form') return canAdd ? 'add' : 'list';
-  if (label === 'Reports' || label === 'Report') return 'report';
-  if (label === 'Data List') return 'list';
-  return null;
-}
-
 export default function CabinetNotesMOPSW({
-  activeSubTab: activeSubTabProp,
   onGoHome,
   triggerNotification,
 }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const permissions = useCabinetNotesPermissions();
-  const [activeSubTab, setActiveSubTab] = useState('list');
+
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [stages, setStages] = useState([]);
@@ -62,45 +55,24 @@ export default function CabinetNotesMOPSW({
     });
   }, []);
 
-  useEffect(() => {
-    const apply = (label) => {
-      const next = resolveSubTabId(label, permissions.canAdd);
-      if (next) setActiveSubTab(next);
-    };
-
-    const init = sessionStorage.getItem(INIT_TAB_KEY);
-    if (init) {
-      sessionStorage.removeItem(INIT_TAB_KEY);
-      apply(init);
-    }
-
-    const onMenu = (e) => apply(e.detail);
-    window.addEventListener('cabinet-notes-mopsw-subtab', onMenu);
-    return () => window.removeEventListener('cabinet-notes-mopsw-subtab', onMenu);
-  }, [permissions.canAdd]);
-
-  useEffect(() => {
-    const next = resolveSubTabId(activeSubTabProp, permissions.canAdd);
-    if (next) setActiveSubTab(next);
-  }, [activeSubTabProp, permissions.canAdd]);
-
-  useEffect(() => {
-    if (activeSubTab === 'add' && !permissions.canAdd) {
-      setActiveSubTab('list');
-    }
-  }, [activeSubTab, permissions.canAdd]);
-
   const tabs = useMemo(() => {
     const items = [];
     if (permissions.canAdd) {
-      items.push({ id: 'add', label: 'Input Form' });
+      items.push({ id: 'input-form', label: 'Input Form' });
     }
     items.push(
-      { id: 'list', label: 'Data List' },
-      { id: 'report', label: 'Report' }
+      { id: 'data-list', label: 'Data List' },
+      { id: 'reports', label: 'Report' }
     );
     return items;
   }, [permissions.canAdd]);
+
+  const currentTab = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/input-form') || path.includes('/add')) return 'input-form';
+    if (path.includes('/reports') || path.includes('/report')) return 'reports';
+    return 'data-list';
+  }, [location.pathname]);
 
   const ListView = useMemo(
     () => resolveCabinetNotesListView(permissions.uiViewCode),
@@ -140,32 +112,43 @@ export default function CabinetNotesMOPSW({
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeSubTab}
-          onTabChange={setActiveSubTab}
+          currentTab={currentTab}
+          onTabChange={(tabId) => {
+            if (tabId === 'input-form') navigate('/governance/cabinet-notes/input-form');
+            else if (tabId === 'reports') navigate('/governance/cabinet-notes/reports');
+            else navigate('/governance/cabinet-notes/data-list');
+          }}
         />
       </div>
 
       <div className="space-y-8">
-        {activeSubTab === 'list' && (
-          <ListView key={listKey} notify={notify} onGoHome={onGoHome} />
-        )}
+        <Routes>
+          <Route path="data-list" element={
+            <ListView key={listKey} notify={notify} onGoHome={onGoHome} />
+          } />
 
-        {activeSubTab === 'add' && permissions.canAdd && (
-          <NoteForm
-            wings={wings}
-            divisions={divisions}
-            stages={stages}
-            initialForm={null}
-            onBack={() => setActiveSubTab('list')}
-            onSuccess={() => {
-              setListKey((k) => k + 1);
-              setActiveSubTab('list');
-            }}
-            notify={notify}
-          />
-        )}
+          {permissions.canAdd && (
+            <Route path="input-form" element={
+              <NoteForm
+                wings={wings}
+                divisions={divisions}
+                stages={stages}
+                initialForm={null}
+                onBack={() => navigate('/governance/cabinet-notes/data-list')}
+                onSuccess={() => {
+                  setListKey((k) => k + 1);
+                  navigate('/governance/cabinet-notes/data-list');
+                }}
+                notify={notify}
+              />
+            } />
+          )}
 
-        {activeSubTab === 'report' && <CabinetNotesReports notify={notify} />}
+          <Route path="reports" element={<CabinetNotesReports notify={notify} />} />
+
+          <Route index element={<Navigate to="data-list" replace />} />
+          <Route path="*" element={<Navigate to="data-list" replace />} />
+        </Routes>
       </div>
     </div>
   );

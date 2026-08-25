@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import { 
-  LayoutDashboard, Layers, FilePieChart, PlusCircle, Globe 
+  LayoutDashboard, Layers, PlusCircle, Globe 
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
@@ -10,15 +11,22 @@ import InputForm from './pages/InputForm';
 import { useGMISPermissions } from './hooks/useGMISPermissions';
 
 export default function GMISMOUView({
-  activeSubTab: activeSubTabProp,
-  setActiveSubTab: setActiveSubTabProp,
   triggerNotification
 }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const permissions = useGMISPermissions();
   const { canAdd, canEdit, canView } = permissions;
 
-  const [activeTab, setActiveTab] = useState(canView ? 'dashboard' : (canAdd ? 'add' : 'list'));
   const [editData, setEditData] = useState(null);
+
+  // Derive active tab ID from current pathname
+  const currentTab = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/data-list') || path.includes('/list')) return 'list';
+    if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'add';
+    return 'dashboard';
+  }, [location.pathname]);
 
   const tabs = useMemo(() => {
     const list = [];
@@ -28,80 +36,35 @@ export default function GMISMOUView({
     return list;
   }, [canAdd, canView, editData]);
 
-  // Sync tab navigation state to URL / Router
-  const syncGlobalRoute = useCallback((tabId) => {
-    if (!setActiveSubTabProp) return;
+  const handleTabChange = (tabId) => {
     if (tabId === 'dashboard') {
-      setActiveSubTabProp('GMIS Dashboard');
+      navigate('/strategies/gmis-mou/dashboard');
     } else if (tabId === 'list') {
-      setActiveSubTabProp('GMIS Data List');
+      navigate('/strategies/gmis-mou/data-list');
     } else if (tabId === 'add') {
-      setActiveSubTabProp('GMIS Input Form');
+      setEditData(null);
+      navigate('/strategies/gmis-mou/input-form');
     }
-  }, [setActiveSubTabProp]);
-
-  // Map subtab strings from props / events / URLs
-  const mapTabNameToId = useCallback((name) => {
-    if (!name) return 'dashboard';
-    const lower = name.toLowerCase();
-    if (lower.includes('input') || lower.includes('add') || lower.includes('edit')) return 'add';
-    if (lower.includes('data') || lower.includes('list') || lower.includes('mou')) return 'list';
-    if (lower.includes('report')) return 'reports';
-    if (lower.includes('dash')) return 'dashboard';
-    return 'dashboard';
-  }, []);
-
-  useEffect(() => {
-    if (activeSubTabProp && activeSubTabProp !== 'GMIS-MoU' && activeSubTabProp !== 'GMIS & IMW MoUs') {
-      const tabId = mapTabNameToId(activeSubTabProp);
-      setActiveTab(tabId);
-    }
-  }, [activeSubTabProp, mapTabNameToId]);
-
-  // Listen for custom sub-tab switch event from top navbar dropdown
-  useEffect(() => {
-    const handleSubTabEvent = (e) => {
-      if (e.detail) {
-        const tabId = mapTabNameToId(e.detail);
-        setActiveTab(tabId);
-        syncGlobalRoute(tabId);
-      }
-    };
-
-    const storedTab = sessionStorage.getItem('gmisMouInitTab');
-    if (storedTab) {
-      const tabId = mapTabNameToId(storedTab);
-      setActiveTab(tabId);
-      syncGlobalRoute(tabId);
-      sessionStorage.removeItem('gmisMouInitTab');
-    }
-
-    window.addEventListener('gmis-mou-subtab', handleSubTabEvent);
-    return () => window.removeEventListener('gmis-mou-subtab', handleSubTabEvent);
-  }, [mapTabNameToId, syncGlobalRoute]);
+  };
 
   const handleEdit = (item) => {
     setEditData(item);
-    setActiveTab('add');
-    syncGlobalRoute('add');
+    navigate(item?.id ? `/strategies/gmis-mou/edit/${item.id}` : '/strategies/gmis-mou/input-form', { state: { item } });
   };
 
   const handleAddNew = () => {
     setEditData(null);
-    setActiveTab('add');
-    syncGlobalRoute('add');
+    navigate('/strategies/gmis-mou/input-form');
   };
 
   const handleFormSuccess = () => {
     setEditData(null);
-    setActiveTab('list');
-    syncGlobalRoute('list');
+    navigate('/strategies/gmis-mou/data-list');
   };
 
   const handleFormCancel = () => {
     setEditData(null);
-    setActiveTab('list');
-    syncGlobalRoute('list');
+    navigate('/strategies/gmis-mou/data-list');
   };
 
   if (!canAdd && !canView && !canEdit) {
@@ -125,47 +88,53 @@ export default function GMISMOUView({
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeTab}
-          onTabChange={(tabId) => {
-            if (tabId !== 'add') {
-              setEditData(null);
-            }
-            setActiveTab(tabId);
-            syncGlobalRoute(tabId);
-          }}
+          currentTab={currentTab}
+          onTabChange={handleTabChange}
         />
       </div>
 
-      {/* Main Tab Render */}
+      {/* Child Routes */}
       <div>
-        {activeTab === 'dashboard' && (
-          <Dashboard 
-            onNavigateToTab={(tabId) => {
-              if (tabId === 'add') setEditData(null);
-              setActiveTab(tabId);
-              syncGlobalRoute(tabId);
-            }} 
-          />
-        )}
+        <Routes>
+          <Route path="dashboard" element={
+            <Dashboard 
+              onNavigateToTab={(tabId) => handleTabChange(tabId)} 
+            />
+          } />
+          
+          <Route path="data-list" element={
+            <DataList
+              onEdit={canEdit ? handleEdit : null}
+              onAddNew={canAdd ? handleAddNew : null}
+              triggerNotification={triggerNotification}
+            />
+          } />
 
-        {activeTab === 'list' && (
-          <DataList
-            onEdit={canEdit ? handleEdit : null}
-            onAddNew={canAdd ? handleAddNew : null}
-            triggerNotification={triggerNotification}
-          />
-        )}
+          <Route path="input-form" element={
+            <InputForm
+              editData={editData}
+              onSuccess={handleFormSuccess}
+              onCancel={handleFormCancel}
+              triggerNotification={triggerNotification}
+            />
+          } />
 
-        {activeTab === 'add' && (
-          <InputForm
-            editData={editData}
-            onSuccess={handleFormSuccess}
-            onCancel={handleFormCancel}
-            triggerNotification={triggerNotification}
-          />
-        )}
+          <Route path="edit/:mouId" element={
+            <InputForm
+              editData={editData}
+              onSuccess={handleFormSuccess}
+              onCancel={handleFormCancel}
+              triggerNotification={triggerNotification}
+            />
+          } />
+
+          {/* Default fallback inside GMIS */}
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="*" element={<Navigate to="dashboard" replace />} />
+        </Routes>
       </div>
 
     </div>
   );
 }
+

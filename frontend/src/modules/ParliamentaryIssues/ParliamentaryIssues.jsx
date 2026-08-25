@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import Notification from '../../components/Notification';
@@ -13,22 +14,14 @@ import {
 } from './api';
 import { issueTypesFromStages } from './utils/stageHelpers';
 
-const INIT_TAB_KEY = 'parliamentaryIssueInitTab';
-
-function resolveSubTabId(label, canAdd) {
-  if (label === 'Input Form') return canAdd ? 'add' : 'list';
-  if (label === 'Reports' || label === 'Report') return 'report';
-  if (label === 'Data List') return 'list';
-  return null;
-}
-
 export default function ParliamentaryIssues({
-  activeSubTab: activeSubTabProp,
   onGoHome,
   triggerNotification,
 }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const permissions = useParliamentaryPermissions();
-  const [activeSubTab, setActiveSubTab] = useState('list');
+
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [stages, setStages] = useState([]);
@@ -60,45 +53,24 @@ export default function ParliamentaryIssues({
       .catch((err) => console.error(err));
   }, []);
 
-  useEffect(() => {
-    const apply = (label) => {
-      const next = resolveSubTabId(label, permissions.canAdd);
-      if (next) setActiveSubTab(next);
-    };
-
-    const init = sessionStorage.getItem(INIT_TAB_KEY);
-    if (init) {
-      sessionStorage.removeItem(INIT_TAB_KEY);
-      apply(init);
-    }
-
-    const onMenu = (e) => apply(e.detail);
-    window.addEventListener('parliamentary-issue-subtab', onMenu);
-    return () => window.removeEventListener('parliamentary-issue-subtab', onMenu);
-  }, [permissions.canAdd]);
-
-  useEffect(() => {
-    const next = resolveSubTabId(activeSubTabProp, permissions.canAdd);
-    if (next) setActiveSubTab(next);
-  }, [activeSubTabProp, permissions.canAdd]);
-
-  useEffect(() => {
-    if (activeSubTab === 'add' && !permissions.canAdd) {
-      setActiveSubTab('list');
-    }
-  }, [activeSubTab, permissions.canAdd]);
-
   const tabs = useMemo(() => {
     const items = [];
     if (permissions.canAdd) {
-      items.push({ id: 'add', label: 'Input Form' });
+      items.push({ id: 'input-form', label: 'Input Form' });
     }
     items.push(
-      { id: 'list', label: 'Data List' },
-      { id: 'report', label: 'Report' }
+      { id: 'data-list', label: 'Data List' },
+      { id: 'reports', label: 'Report' }
     );
     return items;
   }, [permissions.canAdd]);
+
+  const currentTab = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/input-form') || path.includes('/add')) return 'input-form';
+    if (path.includes('/reports') || path.includes('/report')) return 'reports';
+    return 'data-list';
+  }, [location.pathname]);
 
   const ListView = useMemo(
     () => resolveParliamentaryListView(permissions.uiViewCode),
@@ -130,35 +102,44 @@ export default function ParliamentaryIssues({
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeSubTab}
-          onTabChange={setActiveSubTab}
+          currentTab={currentTab}
+          onTabChange={(tabId) => {
+            if (tabId === 'input-form') navigate('/governance/parliamentary-issues/input-form');
+            else if (tabId === 'reports') navigate('/governance/parliamentary-issues/reports');
+            else navigate('/governance/parliamentary-issues/data-list');
+          }}
         />
       </div>
 
       <div className="space-y-8">
-        {activeSubTab === 'list' && (
-          <ListView key={listKey} notify={notify} onGoHome={onGoHome} />
-        )}
+        <Routes>
+          <Route path="data-list" element={
+            <ListView key={listKey} notify={notify} onGoHome={onGoHome} />
+          } />
 
-        {activeSubTab === 'add' && permissions.canAdd && (
-          <IssueForm
-            wings={wings}
-            divisions={divisions}
-            stages={stages}
-            issueTypeOptions={issueTypeOptions}
-            initialForm={null}
-            onBack={() => setActiveSubTab('list')}
-            onSuccess={() => {
-              setListKey((k) => k + 1);
-              setActiveSubTab('list');
-            }}
-            notify={notify}
-          />
-        )}
+          {permissions.canAdd && (
+            <Route path="input-form" element={
+              <IssueForm
+                wings={wings}
+                divisions={divisions}
+                stages={stages}
+                issueTypeOptions={issueTypeOptions}
+                initialForm={null}
+                onBack={() => navigate('/governance/parliamentary-issues/data-list')}
+                onSuccess={() => {
+                  setListKey((k) => k + 1);
+                  navigate('/governance/parliamentary-issues/data-list');
+                }}
+                notify={notify}
+              />
+            } />
+          )}
 
-        {activeSubTab === 'report' && (
-          <ParliamentaryIssuesReports notify={notify} />
-        )}
+          <Route path="reports" element={<ParliamentaryIssuesReports notify={notify} />} />
+
+          <Route index element={<Navigate to="data-list" replace />} />
+          <Route path="*" element={<Navigate to="data-list" replace />} />
+        </Routes>
       </div>
     </div>
   );
