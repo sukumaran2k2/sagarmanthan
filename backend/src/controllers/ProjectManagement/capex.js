@@ -95,6 +95,25 @@ function resolveUserId(req, fallback) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function normalizeMonthlyEntry(row) {
+  const monthNumber = Number(row.month_number);
+  const weekNumber = Number(row.week_number);
+  const fundingType = String(row.funding_type || "").toUpperCase();
+  const amount = row.amount == null || row.amount === "" ? null : Number(row.amount);
+
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(monthNumber)) return null;
+  if (![1, 2, 3, 4].includes(weekNumber)) return null;
+  if (!["GBS", "IEBR", "PPP"].includes(fundingType)) return null;
+  if (amount == null || Number.isNaN(amount)) return null;
+
+  return {
+    month_number: monthNumber,
+    week_number: weekNumber,
+    funding_type: fundingType,
+    amount,
+  };
+}
+
 async function addCapex(req, res) {
   const userId = resolveUserId(req, req.body.userID);
     const financialYear = req.body.financialYear;
@@ -280,15 +299,11 @@ async function getCapexMonthlyData(req, res) {
   }
 }
 
-/**
- * Body: { capexID, entries: [{ month_number, week_number, funding_type, amount }] }
- */
 async function addCapexMonthlyData(req, res) {
   const capexID = Number(req.body.capexID);
   const userId = resolveUserId(req, req.body.userID ?? req.body.userId);
   let entries = Array.isArray(req.body.entries) ? req.body.entries : [];
 
-  // Legacy wide-body support
   if (!entries.length && req.body.capexID) {
     entries = legacyBodyToEntries(req.body);
   }
@@ -300,32 +315,59 @@ async function addCapexMonthlyData(req, res) {
     return res.status(400).json({ error: "Missing authenticated user." });
   }
 
+  const newEntries = entries.map(normalizeMonthlyEntry).filter(Boolean);
+
   const conn = await pool;
   const transaction = conn.transaction();
 
   try {
     await transaction.begin();
+
+    const prevReq = transaction.request();
+    prevReq.input("capexID", sql.Int, capexID);
+    const prevResult = await prevReq.query(`
+      SELECT month_number, week_number, funding_type, amount
+      FROM tbl_capex_monthly
+      WHERE capex_id = @capexID
+      ORDER BY month_number, week_number, funding_type
+    `);
+    const previousEntries = (prevResult.recordset || []).map((row) => ({
+      month_number: Number(row.month_number),
+      week_number: Number(row.week_number),
+      funding_type: String(row.funding_type || "").toUpperCase(),
+      amount: row.amount == null ? null : Number(row.amount),
+    }));
+
+    const targetSummary = `Capex #${capexID} — monthly save (${previousEntries.length} → ${newEntries.length} rows)`;
+    const payloadJson = JSON.stringify({
+      previous_entries: previousEntries,
+      new_entries: newEntries,
+    });
+
+    const logReq = transaction.request();
+    logReq.input("capexID", sql.Int, capexID);
+    logReq.input("action", sql.NVarChar(50), "SAVE");
+    logReq.input("createdBy", sql.Int, userId);
+    logReq.input("targetSummary", sql.NVarChar(500), targetSummary);
+    logReq.input("payloadJson", sql.NVarChar(sql.MAX), payloadJson);
+    await logReq.query(`
+      INSERT INTO dbo.tbl_capex_monthly_log
+        (capex_id, action, created_by, target_summary, payload_json, created_date)
+      VALUES
+        (@capexID, @action, @createdBy, @targetSummary, @payloadJson, GETDATE())
+    `);
+
     const delReq = transaction.request();
     delReq.input("capexID", sql.Int, capexID);
     await delReq.query(`DELETE FROM tbl_capex_monthly WHERE capex_id = @capexID`);
 
-    for (const row of entries) {
-      const monthNumber = Number(row.month_number);
-      const weekNumber = Number(row.week_number);
-      const fundingType = String(row.funding_type || "").toUpperCase();
-      const amount = row.amount == null || row.amount === "" ? null : Number(row.amount);
-
-      if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(monthNumber)) continue;
-      if (![1, 2, 3, 4].includes(weekNumber)) continue;
-      if (!["GBS", "IEBR", "PPP"].includes(fundingType)) continue;
-      if (amount == null || Number.isNaN(amount)) continue;
-
+    for (const row of newEntries) {
       const ins = transaction.request();
       ins.input("capexID", sql.Int, capexID);
-      ins.input("monthNumber", sql.Int, monthNumber);
-      ins.input("weekNumber", sql.Int, weekNumber);
-      ins.input("fundingType", sql.NVarChar(10), fundingType);
-      ins.input("amount", sql.Float, amount);
+      ins.input("monthNumber", sql.Int, row.month_number);
+      ins.input("weekNumber", sql.Int, row.week_number);
+      ins.input("fundingType", sql.NVarChar(10), row.funding_type);
+      ins.input("amount", sql.Decimal(18, 2), row.amount);
       ins.input("createdBy", sql.Int, userId);
       ins.input("updatedBy", sql.Int, userId);
       await ins.query(`
@@ -354,9 +396,7 @@ async function addCapexMonthlyData(req, res) {
   } catch (err) {
     try {
       await transaction.rollback();
-    } catch (_) {
-      /* ignore */
-    }
+    } catch (_) {}
     console.error(err);
     return res.sendStatus(500);
   }

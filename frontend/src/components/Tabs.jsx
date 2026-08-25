@@ -143,10 +143,10 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Capex',
           icon: Coins,
           items: [
+            m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex Datalist' }),
             ...(canCreateCapex && !isOrgUser
               ? [m('CAPEX', { label: 'Capex Input Form', icon: FileEdit, tab: 'Capex Input Form' })]
               : []),
-            m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex Datalist' }),
             m('CAPEX', { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex Reports' }),
           ],
         },

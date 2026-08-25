@@ -27,13 +27,14 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 const INIT_TAB_KEY = 'capexInitTab';
 
 function resolveSubTabId(label, showInputForm) {
-  const key = String(label || '').toLowerCase();
+  const key = String(label || '').toLowerCase().trim();
+  if (!key || key === 'capex') return 'data';
   if (key.includes('input form') || key === 'add') return showInputForm ? 'add' : 'data';
-  if (key.includes('datalist') || key.includes('data list')) return 'data';
+  if (key.includes('datalist') || key.includes('data list') || key.includes('dashboard')) {
+    return 'data';
+  }
   if (key.includes('report')) return 'report';
-  // Dashboard removed from tabs for now
-  if (key.includes('dashboard')) return 'data';
-  return null;
+  return 'data';
 }
 
 export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, triggerNotification }) {
@@ -91,8 +92,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
 
   useEffect(() => {
     const apply = (label) => {
-      const next = resolveSubTabId(label, showInputForm);
-      if (next) setActiveTab(next);
+      setActiveTab(resolveSubTabId(label, showInputForm));
     };
     const init = sessionStorage.getItem(INIT_TAB_KEY);
     if (init) {
@@ -105,8 +105,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
   }, [showInputForm]);
 
   useEffect(() => {
-    const next = resolveSubTabId(activeSubTabProp, showInputForm);
-    if (next) setActiveTab(next);
+    setActiveTab(resolveSubTabId(activeSubTabProp, showInputForm));
   }, [activeSubTabProp, showInputForm]);
 
   useEffect(() => {
