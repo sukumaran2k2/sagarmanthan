@@ -303,8 +303,12 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
 
     if (Object.keys(errs).length > 0) {
       setErrors((prev) => ({ ...prev, ...errs }));
+      const count = Object.keys(errs).length;
       const firstMsg = Object.values(errs)[0];
-      triggerNotification?.(firstMsg);
+      const warningMsg = count > 1
+        ? `Warning: Please fill all ${count} mandatory fields (*) in Stage 1 (General Details) before proceeding.`
+        : `Warning: ${firstMsg}`;
+      triggerNotification?.(warningMsg, 'warning');
       return false;
     }
     return true;
@@ -328,8 +332,12 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
 
     if (Object.keys(errs).length > 0) {
       setErrors((prev) => ({ ...prev, ...errs }));
+      const count = Object.keys(errs).length;
       const firstMsg = Object.values(errs)[0];
-      triggerNotification?.(firstMsg);
+      const warningMsg = count > 1
+        ? `Warning: Please fill all ${count} mandatory fields (*) in Stage 2 (Status & Progress) before proceeding.`
+        : `Warning: ${firstMsg}`;
+      triggerNotification?.(warningMsg, 'warning');
       return false;
     }
     return true;
@@ -347,8 +355,12 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
 
     if (Object.keys(errs).length > 0) {
       setErrors((prev) => ({ ...prev, ...errs }));
+      const count = Object.keys(errs).length;
       const firstMsg = Object.values(errs)[0];
-      triggerNotification?.(firstMsg);
+      const warningMsg = count > 1
+        ? `Warning: Please fill all mandatory dates (*) in Stage 3 (Timelines) before proceeding.`
+        : `Warning: ${firstMsg}`;
+      triggerNotification?.(warningMsg, 'warning');
       return false;
     }
     return true;
@@ -359,7 +371,14 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
     if (targetStageId === activeSection) return;
 
     const stageOrder = ['general', 'status', 'timelines', 'others'];
+    const currentIndex = stageOrder.indexOf(activeSection);
     const targetIndex = stageOrder.indexOf(targetStageId);
+
+    // If moving backwards to a previous stage, allow freely
+    if (targetIndex <= currentIndex) {
+      setActiveSection(targetStageId);
+      return;
+    }
 
     // If moving forward to Stage 2, 3, or 4 -> Stage 1 must be valid
     if (targetIndex >= 1) {
@@ -569,100 +588,114 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
       {/* 1. ADD INITIATIVE FORM */}
       {/* ==================================================== */}
       {formType === 'initiative' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 dark:bg-slate-950 dark:border-slate-800 animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
           
           {/* ==================================================== */}
-          {/* EXECUTIVE CLEAN & MODERN STAGE STEPPER */}
+          {/* UNIFIED EXECUTIVE FORM HEADING WITH CENTERED STEPPER */}
           {/* ==================================================== */}
-          <div className="flex flex-col gap-5 border-b border-slate-100 dark:border-slate-800/80 pb-5">
+          <div className="bg-gradient-to-r from-[#0f417a] via-[#134e96] to-[#1a5ba3] px-6 py-4 text-white border-b border-[#0a2d55]/30">
             
-            {/* Top Bar: Back Button + Title + Status Badge */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center space-x-3 shrink-0">
+            <div className="grid grid-cols-1 lg:grid-cols-12 items-center gap-4 select-none">
+              
+              {/* Left Column (3 cols): Back Button + Title + Subtitle */}
+              <div className="lg:col-span-3 flex items-center space-x-3.5 shrink-0">
                 <button
                   type="button"
                   onClick={onCancel}
-                  className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition cursor-pointer"
+                  className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition cursor-pointer backdrop-blur-sm border border-white/10"
                   title="Back to List"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <div>
-                  <div className="flex items-center space-x-2">
-                    <h2 className="text-base font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display whitespace-nowrap">
-                      {editData ? 'Edit Initiative' : 'Add Initiative'}
-                    </h2>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-mono">
-                      Stage {activeSection === 'general' ? '1' : activeSection === 'status' ? '2' : activeSection === 'timelines' ? '3' : '4'} of 4
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 whitespace-nowrap">
-                    Register a new MIV 2030 strategic activity under your port/organisation.
+                  <h2 className="text-base font-black tracking-wide uppercase font-display text-white whitespace-nowrap">
+                    {editData ? 'Edit Initiative' : 'Add Initiative'}
+                  </h2>
+                  <p className="text-[10px] text-blue-100/80 font-medium mt-0.5 whitespace-nowrap">
+                    Ministry of Ports, Shipping and Waterways
                   </p>
                 </div>
               </div>
-            </div>
 
-            {/* Centered Segmented Stepper Track */}
-            <div className="flex justify-center w-full">
-              <div className="w-full max-w-4xl bg-slate-100/90 dark:bg-slate-900/90 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-2 md:grid-cols-4 gap-1.5 shadow-inner">
-                {INITIATIVE_STAGES.map((stage) => {
-                  const isActive = activeSection === stage.id;
-                  const isCompleted = stageProgress[stage.id];
+              {/* Center Column (7 cols): Connected Gradient Progress Stepper Perfectly Centered */}
+              <div className="lg:col-span-7 flex justify-center w-full">
+                <div className="w-full max-w-lg xl:max-w-xl">
+                  <div className="relative flex items-center justify-between px-2">
+                    
+                    {/* Background Track Line (Non-active grey/matching UI) */}
+                    <div className="absolute top-[14px] md:top-[16px] left-[12%] right-[12%] h-1.5 bg-white/20 rounded-full -translate-y-1/2 z-0" />
+                    
+                    {/* Completed Green Progress Fill Line */}
+                    <div
+                      className="absolute top-[14px] md:top-[16px] left-[12%] h-1.5 bg-emerald-400 rounded-full -translate-y-1/2 z-0 transition-all duration-500 ease-out"
+                      style={{
+                        width: `${(INITIATIVE_STAGES.findIndex(s => s.id === activeSection) / (INITIATIVE_STAGES.length - 1)) * 76}%`
+                      }}
+                    />
 
-                  return (
-                    <button
-                      key={stage.id}
-                      type="button"
-                      onClick={() => handleNavigateToStage(stage.id)}
-                      className={`relative min-w-0 flex items-center space-x-2.5 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-left overflow-hidden ${
-                        isActive
-                          ? 'bg-white dark:bg-slate-800 text-[#0f417a] dark:text-blue-400 shadow-md ring-1 ring-slate-200/90 dark:ring-slate-700'
-                          : isCompleted
-                          ? 'bg-emerald-50/90 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100/70'
-                          : 'text-slate-500 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-800/40 hover:text-slate-800'
-                      }`}
-                    >
-                      {/* Step Number or Checkmark */}
-                      <div
-                        className={`flex items-center justify-center h-6 w-6 rounded-lg text-[10px] font-black shrink-0 transition-all ${
-                          isActive
-                            ? 'bg-[#0f417a] dark:bg-blue-600 text-white shadow-sm font-mono'
-                            : isCompleted
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-200/80 dark:bg-slate-700 text-slate-500 font-mono'
-                        }`}
-                      >
-                        {isCompleted && !isActive ? (
-                          <Check className="h-3.5 w-3.5 stroke-[3]" />
-                        ) : (
-                          stage.number
-                        )}
-                      </div>
+                    {/* Step Nodes Grid */}
+                    <div className="relative z-10 w-full grid grid-cols-4 items-start">
+                      {INITIATIVE_STAGES.map((stage, idx) => {
+                        const activeIndex = INITIATIVE_STAGES.findIndex(s => s.id === activeSection);
+                        const isActive = activeSection === stage.id;
+                        const isCompleted = !!stageProgress[stage.id];
 
-                      {/* Title & Subtitle */}
-                      <div className="min-w-0 flex-1 overflow-hidden">
-                        <span className={`text-[11px] font-black truncate block leading-tight ${
-                          isActive ? 'text-[#0f417a] dark:text-blue-400' : isCompleted ? 'text-emerald-900 dark:text-emerald-200' : 'text-slate-700 dark:text-slate-300'
-                        }`}>
-                          {stage.title}
-                        </span>
-                        <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium truncate block mt-0.5">
-                          {isCompleted ? '✓ Done' : stage.subtitle}
-                        </span>
-                      </div>
+                        return (
+                          <div
+                            key={stage.id}
+                            onClick={() => handleNavigateToStage(stage.id)}
+                            className="flex flex-col items-center text-center cursor-pointer group px-1"
+                          >
+                            {/* Circular Number Node */}
+                            <div
+                              className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-black text-xs transition-all duration-300 shadow-md ${
+                                isCompleted && !isActive
+                                  ? 'bg-emerald-500 text-white shadow-emerald-900/30 hover:bg-emerald-400 hover:scale-105'
+                                  : isActive
+                                  ? 'bg-white text-[#0f417a] ring-4 ring-emerald-400/60 scale-110 shadow-lg'
+                                  : 'bg-white/15 text-white/50 border border-white/20 backdrop-blur-md hover:bg-white/25 hover:text-white'
+                              }`}
+                            >
+                              {isCompleted && !isActive ? (
+                                <Check className="h-3.5 w-3.5 stroke-[3]" />
+                              ) : (
+                                idx + 1
+                              )}
+                            </div>
 
-                      {/* Active Indicator Bar */}
-                      {isActive && (
-                        <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#0f417a] dark:bg-blue-400 rounded-full" />
-                      )}
-                    </button>
-                  );
-                })}
+                            {/* Step Label */}
+                            <div className="mt-1.5 flex flex-col items-center">
+                              <span className={`text-[10px] md:text-[11px] font-bold tracking-tight leading-tight transition-colors truncate max-w-[85px] sm:max-w-none ${
+                                isActive
+                                  ? 'text-white font-black drop-shadow-sm'
+                                  : isCompleted
+                                  ? 'text-emerald-200 font-semibold'
+                                  : 'text-blue-100/50 font-medium'
+                              }`}>
+                                {stage.title}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* Right Column (2 cols): Stage Indicator Pill */}
+              <div className="lg:col-span-2 hidden lg:flex justify-end items-center">
+                <span className="text-[11px] font-black px-3 py-1 rounded-full bg-white/15 border border-white/20 text-white font-mono tracking-wider shadow-sm">
+                  Stage {activeSection === 'general' ? '1' : activeSection === 'status' ? '2' : activeSection === 'timelines' ? '3' : '4'} of 4
+                </span>
+              </div>
+
             </div>
 
           </div>
+
+          {/* Form Content Body */}
+          <div className="p-6 space-y-6">
 
           {/* Stage 1: General Details */}
           {activeSection === 'general' && (
@@ -1198,6 +1231,7 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
               </div>
             </div>
           )}
+          </div>
 
         </div>
       )}
@@ -1206,30 +1240,33 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
       {/* 2. ADD MVIC MEETING FORM */}
       {/* ==================================================== */}
       {formType === 'meeting' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 dark:bg-slate-950 dark:border-slate-800 animate-fade-in">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
           
-          {/* Header Row */}
-          <div className="flex items-center space-x-3 border-b border-slate-100 dark:border-slate-800/60 pb-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition cursor-pointer"
-              title="Back to List"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div>
-              <h2 className="text-base font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
-                Add MVIC Meeting
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Upload Minutes of Meeting (MoM) and documentation for Maritime India Vision Coordination.
-              </p>
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-[#0f417a] via-[#134e96] to-[#1a5ba3] px-6 py-5 text-white border-b border-[#0a2d55]/30">
+            <div className="flex items-center space-x-3.5">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition cursor-pointer backdrop-blur-sm border border-white/10"
+                title="Back to List"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <div>
+                <h2 className="text-base font-black tracking-wide uppercase font-display text-white">
+                  Add MVIC Meeting
+                </h2>
+                <p className="text-[11px] text-blue-100/80 font-medium mt-0.5">
+                  Ministry of Ports, Shipping and Waterways • Maritime India Vision Coordination Meeting (MoM)
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Meeting Form Content */}
-          <form onSubmit={handleSubmitMeeting} className="space-y-6">
+          <div className="p-6">
+            {/* Meeting Form Content */}
+            <form onSubmit={handleSubmitMeeting} className="space-y-6">
             
             {/* 2-Column Responsive Layout: Left Fields & Right File Dropzone */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -1353,6 +1390,7 @@ export default function MIVInputForm({ editData, initialFormType = 'initiative',
             </div>
 
           </form>
+          </div>
 
         </div>
       )}

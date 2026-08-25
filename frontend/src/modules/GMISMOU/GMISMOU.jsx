@@ -7,7 +7,6 @@ import RestrictedAccess from '../../components/RestrictedAccess';
 import Dashboard from './pages/Dashboard';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
-import Reports from './pages/Reports';
 import { useGMISPermissions } from './hooks/useGMISPermissions';
 
 export default function GMISMOUView({
@@ -24,11 +23,10 @@ export default function GMISMOUView({
   const tabs = useMemo(() => {
     const list = [];
     if (canView) list.push({ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard });
-    if (canAdd) list.push({ id: 'add', label: 'Input Form', icon: PlusCircle });
+    if (canAdd) list.push({ id: 'add', label: editData ? 'Update MoU' : 'Input Form', icon: PlusCircle });
     if (canView) list.push({ id: 'list', label: 'Data List', icon: Layers });
-    if (canView) list.push({ id: 'reports', label: 'Reports', icon: FilePieChart });
     return list;
-  }, [canAdd, canView]);
+  }, [canAdd, canView, editData]);
 
   // Sync tab navigation state to URL / Router
   const syncGlobalRoute = useCallback((tabId) => {
@@ -39,8 +37,6 @@ export default function GMISMOUView({
       setActiveSubTabProp('GMIS Data List');
     } else if (tabId === 'add') {
       setActiveSubTabProp('GMIS Input Form');
-    } else if (tabId === 'reports') {
-      setActiveSubTabProp('GMIS Reports');
     }
   }, [setActiveSubTabProp]);
 
@@ -167,10 +163,6 @@ export default function GMISMOUView({
             onCancel={handleFormCancel}
             triggerNotification={triggerNotification}
           />
-        )}
-
-        {activeTab === 'reports' && (
-          <Reports triggerNotification={triggerNotification} />
         )}
       </div>
 

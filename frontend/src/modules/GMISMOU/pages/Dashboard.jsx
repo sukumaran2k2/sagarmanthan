@@ -13,9 +13,10 @@ import { fetchGmisMouPaginated, fetchGmisMouChartData, fetchStatusWiseCount } fr
 const EVENT_TABS = [
   { id: 'all', label: 'All Summits & MoUs' },
   { id: 'GMIS 2025', label: 'GMIS 2025' },
-  { id: 'IMW 2025', label: 'IMW 2025' },
   { id: 'GMIS 2023', label: 'GMIS 2023' },
   { id: 'GMIS 2021', label: 'GMIS 2021' },
+  { id: 'GMIS 2016', label: 'GMIS 2016' },
+  { id: 'IMW 2025', label: 'IMW 2025' },
 ];
 
 const STATUS_COLORS = {

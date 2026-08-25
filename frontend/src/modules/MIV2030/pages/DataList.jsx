@@ -331,14 +331,43 @@ export default function MIVDataList({
           });
           tsv += line.join('\t') + '\n';
         });
-        
-        navigator.clipboard.writeText(tsv)
+
+        const copyText = (text) => {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+          }
+          return fallbackCopy(text);
+        };
+
+        const fallbackCopy = (text) => {
+          try {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.top = '-9999px';
+            textArea.style.left = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            const success = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            if (success) return Promise.resolve();
+            return Promise.reject(new Error('execCommand failed'));
+          } catch (err) {
+            return Promise.reject(err);
+          }
+        };
+
+        copyText(tsv)
           .then(() => {
-            if (triggerNotification) triggerNotification('Current page data copied to clipboard!');
+            if (triggerNotification) triggerNotification('Current page data copied to clipboard!', 'success');
           })
-          .catch(() => alert('Failed to copy table data.'));
+          .catch((err) => {
+            console.error('Clipboard copy error:', err);
+            if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
+          });
       } else {
-        alert("Grid is not ready for copy yet.");
+        if (triggerNotification) triggerNotification('No data available to copy.', 'warning');
       }
     } else if (type === 'Excel') {
       if (gridApi) {
@@ -489,32 +518,11 @@ export default function MIVDataList({
       {/* Main Card Container */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 dark:bg-slate-950 dark:border-slate-800">
         
-        {/* Title & View Switcher Row with Search + Filters */}
+        {/* Search, Filters and Actions Toolbar */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           
-          {/* Search & Dropdown Filters */}
-          <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0 w-full lg:w-auto">
-            
-            {/* Search Box */}
-            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search initiatives, ID, port..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
+          {/* 1. Filters */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
             {/* Organisation dropdown filter */}
             <div className="relative min-w-[180px]">
               <select
@@ -550,6 +558,7 @@ export default function MIVDataList({
                   setSelectedCategory('');
                   setSearchTerm('');
                   setCurrentPage(1);
+                  triggerNotification?.('Filters have been reset', 'info');
                 }}
                 className="px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg font-bold transition cursor-pointer"
               >
@@ -558,9 +567,32 @@ export default function MIVDataList({
             )}
           </div>
 
-          {/* Action Toolbar Cluster */}
-          <div className="flex items-center space-x-2 self-end lg:self-auto">
+          {/* 2. Space */}
+          <div className="hidden lg:block flex-1" />
+
+          {/* 3. Search Bar, 4. Row Count Selector, 5. Copy, 6. Export, 7. Add Button */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
             
+            {/* Search Input */}
+            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search initiatives, ID, port..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
             {/* Rows Limit Select Dropdown */}
             <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
@@ -570,17 +602,13 @@ export default function MIVDataList({
                   setPageSize(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="bg-transparent border-none text-xs font-bold text-slate-755 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 <option value="10">10</option>
                 <option value="25">25</option>
                 <option value="50">50</option>
                 <option value="100">100</option>
               </select>
-            </div>
-
-            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-              Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{totalCount}</span>
             </div>
 
             {/* View Mode Toggle */}
@@ -648,6 +676,7 @@ export default function MIVDataList({
               onExportPdf={() => handleExport('PDF')}
               color="#0f417a"
               hoverColor="#1e5ea8"
+              triggerNotification={triggerNotification}
             />
 
             {/* Add Initiative CTA */}
@@ -661,7 +690,6 @@ export default function MIVDataList({
               </button>
             )}
           </div>
-
         </div>
 
         {/* View Mode Content */}
