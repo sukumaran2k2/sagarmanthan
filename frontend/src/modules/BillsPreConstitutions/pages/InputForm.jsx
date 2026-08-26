@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createBill, updateBill } from '../api';
-import { ArrowLeft, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 
 function decodeToken(token) {
   try {
@@ -314,16 +314,6 @@ export default function InputForm({
           </h3>
           <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
         </div>
-        {(isEdit || readOnly) && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center space-x-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl transition cursor-pointer"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back</span>
-          </button>
-        )}
       </div>
 
       <form onSubmit={handleSubmit} className="p-6">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, X } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { createNaisIntegration, updateNaisIntegration } from '../../api';
 import { getCurrentUserId } from '../../../../utils/authSession';
 
@@ -109,16 +109,6 @@ export default function NAISIntegrationInputForm({
           </h3>
           <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">DGLL - NAIS Integration</p>
         </div>
-        {isEdit && onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center space-x-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl transition cursor-pointer"
-          >
-            <X className="h-4 w-4" />
-            <span>Close</span>
-          </button>
-        )}
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-5">
@@ -129,7 +119,6 @@ export default function NAISIntegrationInputForm({
               value={financialYear}
               onChange={(e) => setFinancialYear(e.target.value)}
               onBlur={() => handleBlur('financialYear')}
-              required
               disabled={isEdit}
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('financialYear', financialYear) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-50`}
             >
@@ -147,7 +136,7 @@ export default function NAISIntegrationInputForm({
               type="number" min="0" max="100" step="any" value={naisIntegration}
               onChange={(e) => setNaisIntegration(e.target.value)}
               onBlur={() => handleBlur('naisIntegration')}
-              placeholder="e.g. 92.5" required
+              placeholder="e.g. 92.5"
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isIntegrationInvalid() ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
             />
             {isIntegrationInvalid() && (
@@ -161,7 +150,7 @@ export default function NAISIntegrationInputForm({
               type="number" min="0" value={naisUpgraded}
               onChange={(e) => setNaisUpgraded(e.target.value)}
               onBlur={() => handleBlur('naisUpgraded')}
-              placeholder="e.g. 4" required
+              placeholder="e.g. 4"
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isUpgradedInvalid() ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
             />
             {isUpgradedInvalid() && (

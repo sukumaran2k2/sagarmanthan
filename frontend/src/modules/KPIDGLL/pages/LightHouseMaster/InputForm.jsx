@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, X } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { createLightHouseMaster, updateLightHouseMaster } from '../../api';
 import { getCurrentUserId } from '../../../../utils/authSession';
 
@@ -91,16 +91,6 @@ export default function LightHouseMasterInputForm({
           </h3>
           <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">DGLL - Light House Master</p>
         </div>
-        {isEdit && onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center space-x-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl transition cursor-pointer"
-          >
-            <X className="h-4 w-4" />
-            <span>Close</span>
-          </button>
-        )}
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-5">
@@ -110,7 +100,7 @@ export default function LightHouseMasterInputForm({
             <input
               type="text" value={alol} onChange={(e) => setAlol(e.target.value)}
               onBlur={() => handleBlur('alol')}
-              placeholder="e.g. 1234" required
+              placeholder="e.g. 1234"
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('alol', alol) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
             />
             {isFieldInvalid('alol', alol) && (
@@ -123,7 +113,7 @@ export default function LightHouseMasterInputForm({
             <input
               type="text" value={lightHouseName} onChange={(e) => setLightHouseName(e.target.value)}
               onBlur={() => handleBlur('lightHouseName')}
-              placeholder="Enter light house name" required
+              placeholder="Enter light house name"
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('lightHouseName', lightHouseName) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-800 dark:text-slate-100`}
             />
             {isFieldInvalid('lightHouseName', lightHouseName) && (
@@ -134,7 +124,7 @@ export default function LightHouseMasterInputForm({
           <div className="space-y-1.5">
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Status <span className="text-red-500">*</span></label>
             <select
-              value={status} onChange={(e) => setStatus(e.target.value)} required
+              value={status} onChange={(e) => setStatus(e.target.value)}
               className="w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -146,7 +136,7 @@ export default function LightHouseMasterInputForm({
             <input
               type="date" value={dateOfCommissioning} max={today}
               onChange={(e) => setDateOfCommissioning(e.target.value)}
-              onBlur={() => handleBlur('dateOfCommissioning')} required
+              onBlur={() => handleBlur('dateOfCommissioning')}
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('dateOfCommissioning', dateOfCommissioning) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 dark:[color-scheme:dark]`}
             />
             {isFieldInvalid('dateOfCommissioning', dateOfCommissioning) && (
@@ -160,7 +150,7 @@ export default function LightHouseMasterInputForm({
               value={stateId}
               onChange={(e) => { setStateId(e.target.value); setDistrictId(''); }}
               onBlur={() => handleBlur('stateId')}
-              required
+             
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('stateId', stateId) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer`}
             >
               <option value="">--Select State--</option>
@@ -175,7 +165,7 @@ export default function LightHouseMasterInputForm({
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">District <span className="text-red-500">*</span></label>
             <select
               value={districtId} onChange={(e) => setDistrictId(e.target.value)}
-              onBlur={() => handleBlur('districtId')} required disabled={!stateId}
+              onBlur={() => handleBlur('districtId')} disabled={!stateId}
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border ${isFieldInvalid('districtId', districtId) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 dark:border-slate-700 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-950 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-50`}
             >
               <option value="">--Select District--</option>

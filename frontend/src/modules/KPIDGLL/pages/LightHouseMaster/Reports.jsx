@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
-import { TrendingUp, RefreshCw } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
@@ -7,6 +7,8 @@ import { fetchLightHouseMasterReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
+import ChartExportMenu from '../../../../components/ChartExportMenu';
+import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 
 export default function LightHouseMasterReports() {
   const gridRef = useRef(null);
@@ -17,6 +19,7 @@ export default function LightHouseMasterReports() {
   const [columnDefs, setColumnDefs] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [error, setError] = useState(null);
+  const [chartRoot, setChartRoot] = useState(null);
 
   const title = 'Form No. DGLL K-3.1 - Abstract - Light House Master';
 
@@ -68,6 +71,7 @@ export default function LightHouseMasterReports() {
 
     const root = am5.Root.new(chartDivRef.current);
     chartRootRef.current = root;
+    setChartRoot(root);
     root.setThemes([am5themes_Animated.new(root)]);
 
     const chart = root.container.children.push(
@@ -117,7 +121,7 @@ export default function LightHouseMasterReports() {
       sprite: am5.Circle.new(root, { radius: 5, fill: am5.color(0xe85d04), stroke: am5.color(0xffffff), strokeWidth: 2 })
     }));
     lineSeries.bullets.push((root, series, dataItem) => {
-      const label = am5.Label.new(root, { fill: am5.color(0xe85d04), centerX: am5.p50, centerY: am5.p100, dy: -12, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}' });
+      const label = am5.Label.new(root, { fill: am5.color(0xe85d04), centerX: am5.p50, centerY: am5.p100, dy: -20, fontSize: 10, fontWeight: '700', populateText: true, text: '{valueY}' });
       return am5.Bullet.new(root, { sprite: label });
     });
     lineSeries.data.setAll(chartData);
@@ -129,7 +133,7 @@ export default function LightHouseMasterReports() {
     chart.set('cursor', am5xy.XYCursor.new(root, { behavior: 'none', xAxis }));
     chart.appear(800, 100);
 
-    return () => { root.dispose(); };
+    return () => { root.dispose(); setChartRoot(null); };
   }, [chartData]);
 
   const defaultColDef = useMemo(() => ({
@@ -146,7 +150,15 @@ export default function LightHouseMasterReports() {
 
   const handleExport = (type) => {
     if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'light_house_master_report.csv' });
-    else if (type === 'PDF') window.print();
+    else if (type === 'PDF') {
+      exportReportToPdf({
+        title,
+        chartRoots: [chartRoot],
+        columnDefs,
+        rowData,
+        fileName: 'light_house_master_report',
+      });
+    }
   };
 
   return (
@@ -167,9 +179,7 @@ export default function LightHouseMasterReports() {
         <div className="flex items-center justify-end gap-2.5 flex-wrap">
           <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
           <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} />
-          <button onClick={fetchData} className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          </button>
+          <ChartExportMenu chartRoot={chartRoot} fileName="light_house_master_chart" />
         </div>
       </div>
 

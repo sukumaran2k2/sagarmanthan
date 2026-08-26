@@ -78,14 +78,17 @@ export const MODULE_PAGES = {
 
   KPI_CSL: {
     tabs: ['CSL Input Form', 'CSL Reports'],
+    uiTabs: ['CSL Input Form', 'CSL Reports'],
   },
 
   KPI_IMU: {
     tabs: ['IMU Input Form', 'IMU Reports'],
+    uiTabs: ['IMU Input Form', 'IMU Reports'],
   },
 
   KPI_SCI: {
     tabs: ['SCI Input Form', 'SCI Reports'],
+    uiTabs: ['SCI Input Form', 'SCI Reports'],
   },
 
   KPI_CMEC: {

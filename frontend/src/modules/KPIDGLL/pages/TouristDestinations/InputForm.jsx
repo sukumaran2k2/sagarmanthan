@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, X } from 'lucide-react';
+import { Save } from 'lucide-react';
 import {
   checkTouristDestinationYear, createTouristDestination, updateTouristDestination,
   checkTargetDetailYear, createTargetDetail, updateTargetDetail,
@@ -171,16 +171,6 @@ export default function TouristDestinationsInputForm({
           </h3>
           <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">DGLL - Lighthouse as Tourist Destinations</p>
         </div>
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center space-x-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl transition cursor-pointer"
-          >
-            <X className="h-4 w-4" />
-            <span>Close</span>
-          </button>
-        )}
       </div>
 
       {/* Tab switcher -- hidden while editing, since edit always targets one specific entity */}
@@ -212,7 +202,6 @@ export default function TouristDestinationsInputForm({
                 value={destFinancialYear}
                 onChange={(e) => setDestFinancialYear(e.target.value)}
                 onBlur={() => handleBlur('destFinancialYear')}
-                required
                 disabled={isDestinationEdit}
                 className={`${inputCls(isFieldInvalid('destFinancialYear', destFinancialYear))} cursor-pointer disabled:opacity-50`}
               >
@@ -228,7 +217,7 @@ export default function TouristDestinationsInputForm({
                 type="number" min="0" value={destLighthouseDeveloped}
                 onChange={(e) => setDestLighthouseDeveloped(e.target.value)}
                 onBlur={() => handleBlur('destLighthouseDeveloped')}
-                placeholder="e.g. 12" required
+                placeholder="e.g. 12"
                 className={inputCls(isFieldInvalid('destLighthouseDeveloped', destLighthouseDeveloped))}
               />
               {isFieldInvalid('destLighthouseDeveloped', destLighthouseDeveloped) && <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>}
@@ -240,7 +229,7 @@ export default function TouristDestinationsInputForm({
                 type="number" min="0" value={destAnnualTourist}
                 onChange={(e) => setDestAnnualTourist(e.target.value)}
                 onBlur={() => handleBlur('destAnnualTourist')}
-                placeholder="e.g. 1800000" required
+                placeholder="e.g. 1800000"
                 className={inputCls(isFieldInvalid('destAnnualTourist', destAnnualTourist))}
               />
               {isFieldInvalid('destAnnualTourist', destAnnualTourist) && <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>}
@@ -268,7 +257,6 @@ export default function TouristDestinationsInputForm({
                 value={targetYear}
                 onChange={(e) => setTargetYear(e.target.value)}
                 onBlur={() => handleBlur('targetYear')}
-                required
                 disabled={isTargetEdit}
                 className={`${inputCls(isFieldInvalid('targetYear', targetYear))} cursor-pointer disabled:opacity-50`}
               >
@@ -287,7 +275,7 @@ export default function TouristDestinationsInputForm({
                 type="number" min="0" value={targetLighthouses}
                 onChange={(e) => setTargetLighthouses(e.target.value)}
                 onBlur={() => handleBlur('targetLighthouses')}
-                placeholder="e.g. 15" required
+                placeholder="e.g. 15"
                 className={inputCls(isFieldInvalid('targetLighthouses', targetLighthouses))}
               />
               {isFieldInvalid('targetLighthouses', targetLighthouses) && <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>}
@@ -299,7 +287,7 @@ export default function TouristDestinationsInputForm({
                 type="number" min="0" value={targetFootfall}
                 onChange={(e) => setTargetFootfall(e.target.value)}
                 onBlur={() => handleBlur('targetFootfall')}
-                placeholder="e.g. 2000000" required
+                placeholder="e.g. 2000000"
                 className={inputCls(isFieldInvalid('targetFootfall', targetFootfall))}
               />
               {isFieldInvalid('targetFootfall', targetFootfall) && <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>}

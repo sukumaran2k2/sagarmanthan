@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
-import { TrendingUp, RefreshCw } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
@@ -7,6 +7,8 @@ import { fetchVtmsIntegrationReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
+import ChartExportMenu from '../../../../components/ChartExportMenu';
+import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 
 export default function VTMSIntegrationReports() {
   const gridRef = useRef(null);
@@ -17,6 +19,7 @@ export default function VTMSIntegrationReports() {
   const [columnDefs, setColumnDefs] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [error, setError] = useState(null);
+  const [chartRoot, setChartRoot] = useState(null);
 
   const title = 'Form No. DGLL K-3.2 - Abstract - VTMS Integration';
 
@@ -69,6 +72,7 @@ export default function VTMSIntegrationReports() {
 
     const root = am5.Root.new(chartDivRef.current);
     chartRootRef.current = root;
+    setChartRoot(root);
     root.setThemes([am5themes_Animated.new(root)]);
 
     const chart = root.container.children.push(
@@ -110,7 +114,7 @@ export default function VTMSIntegrationReports() {
     chart.set('cursor', am5xy.XYCursor.new(root, { behavior: 'none', xAxis }));
     chart.appear(800, 100);
 
-    return () => { root.dispose(); };
+    return () => { root.dispose(); setChartRoot(null); };
   }, [chartData]);
 
   const defaultColDef = useMemo(() => ({
@@ -127,7 +131,15 @@ export default function VTMSIntegrationReports() {
 
   const handleExport = (type) => {
     if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'vtms_integration_report.csv' });
-    else if (type === 'PDF') window.print();
+    else if (type === 'PDF') {
+      exportReportToPdf({
+        title,
+        chartRoots: [chartRoot],
+        columnDefs,
+        rowData,
+        fileName: 'vtms_integration_report',
+      });
+    }
   };
 
   return (
@@ -148,9 +160,7 @@ export default function VTMSIntegrationReports() {
         <div className="flex items-center justify-end gap-2.5 flex-wrap">
           <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
           <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} />
-          <button onClick={fetchData} className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          </button>
+          <ChartExportMenu chartRoot={chartRoot} fileName="vtms_integration_chart" />
         </div>
       </div>
 

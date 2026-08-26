@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, X } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { submitFinancialPerformance } from '../../api';
 import { getCurrentUserId, getSessionOrganisationId, getSessionOrganisationName } from '../../../../utils/authSession';
 
@@ -99,16 +99,6 @@ export default function FinancialPerformanceInputForm({
           </h3>
           <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">DGLL - Financial Performance</p>
         </div>
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center space-x-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl transition cursor-pointer"
-          >
-            <X className="h-4 w-4" />
-            <span>Close</span>
-          </button>
-        )}
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-5">
@@ -119,7 +109,6 @@ export default function FinancialPerformanceInputForm({
               value={financialYear}
               onChange={(e) => setFinancialYear(e.target.value)}
               onBlur={() => handleBlur('financialYear')}
-              required
               disabled={isEdit}
               className={`${inputCls(isFieldInvalid('financialYear', financialYear))} cursor-pointer disabled:opacity-50 md:max-w-xs`}
             >
@@ -135,7 +124,7 @@ export default function FinancialPerformanceInputForm({
               type="number" min="0" step="0.01" value={lightDuesCollect}
               onChange={(e) => setLightDuesCollect(e.target.value)}
               onBlur={() => handleBlur('lightDuesCollect')}
-              placeholder="e.g. 45.50" required
+              placeholder="e.g. 45.50"
               className={inputCls(isFieldInvalid('lightDuesCollect', lightDuesCollect))}
             />
             {isFieldInvalid('lightDuesCollect', lightDuesCollect) && <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>}
@@ -147,7 +136,7 @@ export default function FinancialPerformanceInputForm({
               type="number" min="0" step="0.01" value={revenueFromTourism}
               onChange={(e) => setRevenueFromTourism(e.target.value)}
               onBlur={() => handleBlur('revenueFromTourism')}
-              placeholder="e.g. 12.30" required
+              placeholder="e.g. 12.30"
               className={inputCls(isFieldInvalid('revenueFromTourism', revenueFromTourism))}
             />
             {isFieldInvalid('revenueFromTourism', revenueFromTourism) && <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>}
@@ -159,7 +148,7 @@ export default function FinancialPerformanceInputForm({
               type="number" min="0" step="0.01" value={subsidesFromGovt}
               onChange={(e) => setSubsidesFromGovt(e.target.value)}
               onBlur={() => handleBlur('subsidesFromGovt')}
-              placeholder="e.g. 8.00" required
+              placeholder="e.g. 8.00"
               className={inputCls(isFieldInvalid('subsidesFromGovt', subsidesFromGovt))}
             />
             {isFieldInvalid('subsidesFromGovt', subsidesFromGovt) && <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>}
@@ -171,7 +160,7 @@ export default function FinancialPerformanceInputForm({
               type="number" min="0" step="0.01" value={operatingCoasts}
               onChange={(e) => setOperatingCoasts(e.target.value)}
               onBlur={() => handleBlur('operatingCoasts')}
-              placeholder="e.g. 22.75" required
+              placeholder="e.g. 22.75"
               className={inputCls(isFieldInvalid('operatingCoasts', operatingCoasts))}
             />
             {isFieldInvalid('operatingCoasts', operatingCoasts) && <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>}
@@ -183,7 +172,7 @@ export default function FinancialPerformanceInputForm({
               type="number" min="0" step="0.01" value={capitalExpenditure}
               onChange={(e) => setCapitalExpenditure(e.target.value)}
               onBlur={() => handleBlur('capitalExpenditure')}
-              placeholder="e.g. 15.00" required
+              placeholder="e.g. 15.00"
               className={inputCls(isFieldInvalid('capitalExpenditure', capitalExpenditure))}
             />
             {isFieldInvalid('capitalExpenditure', capitalExpenditure) && <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>}
@@ -195,7 +184,7 @@ export default function FinancialPerformanceInputForm({
               type="number" min="0" step="0.01" value={tourismDevelopmentCosts}
               onChange={(e) => setTourismDevelopmentCosts(e.target.value)}
               onBlur={() => handleBlur('tourismDevelopmentCosts')}
-              placeholder="e.g. 5.25" required
+              placeholder="e.g. 5.25"
               className={inputCls(isFieldInvalid('tourismDevelopmentCosts', tourismDevelopmentCosts))}
             />
             {isFieldInvalid('tourismDevelopmentCosts', tourismDevelopmentCosts) && <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>}

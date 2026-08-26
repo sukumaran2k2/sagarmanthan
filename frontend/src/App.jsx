@@ -36,6 +36,9 @@ import MediaOutreachView from './modules/MediaOutreach/MediaOutreach';
 import CapexView from './modules/Capex/Capex';
 import GEMProcurementView from './modules/GEMProcurement/GEMProcurement';
 import KPIDGLLView from './modules/KPIDGLL/KPIDGLL';
+import CSLView from './modules/CSL/CSL';
+import IMUView from './modules/IMU/IMU';
+import SCIView from './modules/SCI/SCI';
 import Footer from './components/Footer';
 import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
 import Loader from './components/Loader';
@@ -358,6 +361,7 @@ export default function App() {
     return path && path !== '/' ? getTabFromSlug(path) : 'landing';
   });
   const [notification, setNotification] = useState(null);
+  const [notificationType, setNotificationType] = useState('success');
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return !!localStorage.getItem('accessToken');
   });
@@ -428,8 +432,9 @@ export default function App() {
 
 
   // Notification Trigger
-  const triggerNotification = (message) => {
+  const triggerNotification = (message, type = 'success') => {
     setNotification(message);
+    setNotificationType(type);
   };
 
   useEffect(() => {
@@ -482,7 +487,7 @@ export default function App() {
       )}
 
       {/* Toast Notification Alert Banner */}
-      <Notification message={notification} />
+      <Notification message={notification} type={notificationType} />
 
       {/* Government Portal Header */}
       <Header
@@ -510,18 +515,14 @@ export default function App() {
             {getBreadcrumbs(activeTab).slice(1).map((crumb, idx, arr) => {
               const isCurrent = idx === arr.length - 1;
               const isImmediateParent = idx === arr.length - 2;
-              const parentTarget = isImmediateParent ? BREADCRUMB_PARENT_TARGETS[crumb] : null;
-              // Don't render a click target that just points back at the page
-              // we're already on (e.g. "DGLL" -> "DGLL Input Form" while
-              // already viewing DGLL Input Form) -- that's a dead click.
-              const target = parentTarget && normalizeTab(parentTarget) !== normalizeTab(activeTab) ? parentTarget : null;
+              const target = isImmediateParent ? BREADCRUMB_PARENT_TARGETS[crumb] : null;
               return (
                 <div key={idx} className="flex items-center space-x-2">
                   <span className="text-slate-350">/</span>
                   {target ? (
                     <span
                       className="text-slate-550 hover:text-blue-700 cursor-pointer transition-colors"
-                      onClick={() => goToTab(target)}
+                      onClick={() => setActiveTab(target)}
                     >
                       {crumb}
                     </span>
@@ -646,6 +647,18 @@ export default function App() {
 
             {(activeTab === 'DGLL Input Form' || activeTab === 'DGLL Reports') && (
               <KPIDGLLView activeTab={activeTab} triggerNotification={triggerNotification} />
+            )}
+
+            {(activeTab === 'CSL Input Form' || activeTab === 'CSL Reports') && (
+              <CSLView activeTab={activeTab} triggerNotification={triggerNotification} />
+            )}
+
+            {(activeTab === 'IMU Input Form' || activeTab === 'IMU Reports') && (
+              <IMUView activeTab={activeTab} triggerNotification={triggerNotification} />
+            )}
+
+            {(activeTab === 'SCI Input Form' || activeTab === 'SCI Reports') && (
+              <SCIView activeTab={activeTab} triggerNotification={triggerNotification} />
             )}
 
             {activeTab === 'Acts & Rules' && (

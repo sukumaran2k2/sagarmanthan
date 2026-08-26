@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Home } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import DataList from './pages/DataList';
@@ -113,14 +112,6 @@ export default function AuditParaView({ activeSubTab: activeSubTabProp, setActiv
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="flex items-center space-x-1 text-slate-400 text-xs font-semibold px-2">
-        <Home className="h-3.5 w-3.5 text-slate-400" />
-        <span className="text-slate-400">/</span>
-        <span className="text-slate-600 dark:text-slate-300 hover:underline cursor-pointer">Governance</span>
-        <span className="text-slate-400">/</span>
-        <span className="text-blue-800 dark:text-blue-400 font-bold">Audit Paras</span>
-      </div>
-
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
@@ -159,9 +150,7 @@ export default function AuditParaView({ activeSubTab: activeSubTabProp, setActiv
               divisions={divisions}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              onAddClick={() => setActiveSubTab('add')}
               canEdit={canEdit}
-              canAdd={canAdd}
               canRemove={canRemove}
             />
           )

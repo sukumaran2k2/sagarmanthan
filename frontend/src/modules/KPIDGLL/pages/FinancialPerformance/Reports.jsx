@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { TrendingUp, RefreshCw } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { fetchFinancialPerformanceReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
+import { exportReportToPdf } from '../../../../utils/exportReportPdf';
 
 // Unlike the other DGLL reports, Financial Performance is a financial
 // statement (section headers, line items, computed subtotals) rather than a
@@ -18,7 +19,7 @@ export default function FinancialPerformanceReports() {
   const [columnDefs, setColumnDefs] = useState([]);
   const [error, setError] = useState(null);
 
-  const title = 'Form No. DGLL K-3.6 - Abstract - Financial Performance';
+  const title = 'Form No. DGLL K-3.6 - Abstract - Financial Performance - Overall (INR Crores)';
 
   const fetchData = () => {
     setLoading(true);
@@ -70,7 +71,15 @@ export default function FinancialPerformanceReports() {
 
   const handleExport = (type) => {
     if (type === 'Excel' && gridRef.current?.api) gridRef.current.api.exportDataAsCsv({ fileName: 'financial_performance_report.csv' });
-    else if (type === 'PDF') window.print();
+    else if (type === 'PDF') {
+      exportReportToPdf({
+        title,
+        chartRoots: [],
+        columnDefs,
+        rowData,
+        fileName: 'dgll_financial_performance_report',
+      });
+    }
   };
 
   return (
@@ -91,9 +100,6 @@ export default function FinancialPerformanceReports() {
         <div className="flex items-center justify-end gap-2.5 flex-wrap">
           <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
           <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} />
-          <button onClick={fetchData} className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          </button>
         </div>
       </div>
 

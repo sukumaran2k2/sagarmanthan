@@ -2137,31 +2137,37 @@ router.post("/vessels-built",cslTab. addVesselsBuilt);
 router.get("/vessel-list/:userID", cslTab. getVesselBuiltList);
 router.get("/update-CSL-vessel-built/:CslVesselId", cslTab.getUpdateVesselBuiltdata);
 router.put('/csl-vessel-Built-edit',cslTab.updatecslVesselBuiltData);
+router.delete("/csl-vessels-built/:csl_vessel_id/:userID", cslTab.deleteVesselsBuilt);
 
 router.post("/csl-ship-building",cslTab.addShipBuildingOrders);
 router.get("/shipbuilding-list/:userID", cslTab.getshipbildingList);
 router.get("/update-CSL-ship-built/:CslshipbuildingId", cslTab.getUpdateshipBuildingdata);
 router.put('/csl-ship-Built-edit',cslTab.updatecslShipbuildingData);
+router.delete("/csl-ship-building/:csl_shipbuilding_id/:userID", cslTab.deleteShipBuildingOrders);
 
 router.post("/csl-ship-delivery",cslTab.addShipdelivery);
 router.get("/shipdelivery-list/:userID", cslTab.getdeliveryList);
 router.get("/update-CSL-delivery-data/:CslshipdeliveryId",cslTab. getUpdateshipdeliverydata);
 router.put('/csl-ship-delivery-edit',cslTab.updatecslShipdeliveryData);
+router.delete("/csl-ship-delivery/:csl_shipdelivery_id/:userID", cslTab.deleteShipDeliveryPerformance);
 
 router.post("/csl-capacity-utilization",cslTab.addcapacityUtilization);
 router.get("/capacityUtilization-list/:userID", cslTab.getcapacityUtilizationList);
 router.get("/update-CSL-capcity-utilization-data/:CslcapacityUtilizationId",cslTab.getUpdatecapacityUtilizationdata);
 router.put('/csl-capacity-utilization-edit',cslTab.updatecslCapacityutilizationgData);
+router.delete("/csl-capacity-utilization/:csl_capacity_utilization_id/:userID", cslTab.deleteCapacityUtilization);
 
 router.post("/csl-fabrication-steels",cslTab. addfabricationofsteels);
 router.get("/fabrication-list/:userID", cslTab. getfabricationList);
 router.get("/update-CSL-fabrication-data/:CslfabricationId",cslTab.getUpdatefabricationofsteeldata);
 router.put('/csl-fabrication-edit',cslTab.updatecslFabricationupdateData);
+router.delete("/csl-fabrication-steels/:csl_fabrication_id/:userID", cslTab.deleteFabricationOfSteels);
 
 router.post("/csl-ships-repaired",cslTab. addShipRepaired);
 router.get("/ships-reapired-list/:userID", cslTab. getshipRepairedList);
 router.get("/update-ships-reapired-data/:CslreapiredId",cslTab.getUpdateshiptrapireddata);
 router.put('/csl-repaired-edit',cslTab.updatecslshipData);
+router.delete("/csl-ships-repaired/:csl_ships_reapired_id/:userID", cslTab.deleteShipRepaired);
 
 // CSL Report
 router.get('/get-csl-year-wise-report',CslreportTab.CslYearWiseReport);
@@ -2176,18 +2182,21 @@ router.post("/add-vessel-avail-ability",sciTabList.addVesselAvailabiltydata);
 router.get("/sci-Vessel-list/:userID", sciTabList.getsciVesselList);
 router.get("/update-sci-vessel-data/:SciVesselId", sciTabList.getUpdatesciVesseldata);
 router.put('/sci-vessel-built-edit',sciTabList.updatesciVesselData);
+router.delete("/delete-sci-vessel-availability/:sci_vessel_id/:userID", sciTabList.deleteVesselAvailabilityOwnShips);
 
 
 router.post("/add-sci-time-voyage",sciTabList.addscitimeVoyageydata);
 router.get("/sci-time-voyage-bulk-list/:userID", sciTabList.getscitimeVoyageList);
 router.get("/update-sci-time-voyage-data/:ScitimeVoyageBuiklId", sciTabList.getUpdatescitimeVoyageBulkdata);
 router.put('/sci-time-voyage-bulk-edit',sciTabList.updatescitimeVoyageBulkData);
+router.delete("/delete-sci-time-voyage-bulk/:sci_time_voyage_bulk_id/:userID", sciTabList.deleteTimeVoyageBulk);
 
 
 router.post("/add-sci-time-voyage-tanker",sciTabList.addscitimeVoyagetankers);
 router.get("/sci-time-voyage-tanker-list/:userID", sciTabList.getscitimeList);
 router.get("/update-sci-time-voyage-tanker-data/:ScitimeVoyageTankerlId", sciTabList.getUpdatesciVessetankerldata);
 router.put('/sci-time-voyage-tanker-edit',sciTabList.updateTimeVoyagetankerData);
+router.delete("/delete-sci-time-voyage-tanker/:sci_time_voyage_tanker_id/:userID", sciTabList.deleteTimeVoyageTanker);
 
 
 
@@ -2195,54 +2204,64 @@ router.post("/add-sci-time-voyage-offshore",sciTabList.addscitimeVoyageoffshore)
 router.get("/sci-time-voyage-offshore-list/:userID", sciTabList.getscioffshoreList);
 router.get("/update-sci-time-voyage-offshore-data/:ScitimeVoyageoffshorelId", sciTabList.getUpdatesciVesseoffshoreldata);
 router.put('/sci-time-voyage-offshore-edit',sciTabList.updateTimeVoyageoffshoreData);
+router.delete("/delete-sci-time-voyage-offshore/:sci_time_voyage_offshore_id/:userID", sciTabList.deleteTimeVoyageOffshore);
 
 
 router.post("/add-sci-vessel-availability-linear",sciTabList.addscilinearVesselavailability);
 router.get("/sci-linear-vessel-list/:userID", sciTabList.getscilinearvesselList);
 router.get("/update-sci-linear-vessel-data/:SciLinearvesselId", sciTabList.getUpdatescilinearvesseldata);
 router.put('/sci-linear-vessel-edit',sciTabList.updatescilinearvesselAvailabilityData);
+router.delete("/delete-sci-vessel-availability-linear/:sci_vessel_availability_bulk_id/:userID", sciTabList.deleteVesselAvailabilityLiner);
 
 router.post("/add-sci-vessel-procurement",sciTabList.addvesselprocurementdata);
 router.get("/sci-vessel-procurement-list/:userID", sciTabList.getsciprocurementList);
 router.get("/update-sci-vessel-procurement-data/:SciProcurementId", sciTabList.getUpdatesciVesselprocurementdata);
 router.put('/sci-vessel-procurement-edit',sciTabList.submitVesselProcurementdata);
+router.delete("/delete-sci-vessel-procurement/:sci_procurement_id/:userID", sciTabList.deleteVesselProcurement);
 
 
 router.post("/add-sci-vessel-procurement-secondhand",sciTabList.addSecondhandvesselprocurementdata);
 router.get("/sci-secondhand-vessel-procurement-list/:userID", sciTabList.getsecondhandsciprocurementList);
 router.get("/update-sci-secondhand-vessel-procurement-data/:ScisecondhandProcurementId", sciTabList.getUpdatescisecondhandVesselprocurementdata);
 router.put('/sci-secondhand-vessel-procurement-edit',sciTabList.updatesecondhandVesselProcurementdata);
+router.delete("/delete-sci-secondhand-vessel-procurement/:sci_secondhand_procurement_id/:userID", sciTabList.deleteSecondhandVesselProcurement);
 
 router.post("/add-sci-ship-dry-docking",sciTabList.addshipDrydocking);
 router.get("/sci-ship-dry-dock-list/:userID", sciTabList.getShipdrydockList);
 router.get("/update-sci-ship-dry-docking-data/:SciDrydockId", sciTabList.getUpdateshipdrydockdata);
 router.put('/sci-dry-docking-edit',sciTabList.updatesciDrydockingtData);
+router.delete("/delete-sci-ship-dry-docking/:sci_ship_dry_docking_id/:userID", sciTabList.deleteShipDryDocking);
 
 router.post("/add-sci-ship-repair-maintanace",sciTabList.addshipRepaiandMaintanace);
 router.get("/sci-ship-repair-list/:userID", sciTabList.getShiprepairandMaintanaceList);
 router.get("/update-sci-ship-repair-maintanace-data/:ScirepairandMaintanaceId", sciTabList.getUpdateshiprepairandMaintanacedata);
 router.put('/sci-repair-maintance-edit',sciTabList.updaterepairandMaintanceData);
+router.delete("/delete-sci-ship-repair-maintanace/:sci_repair_and_maintanace_id/:userID", sciTabList.deleteRepairAndMaintenance);
 
 router.post("/add-sci-sale-recycling-oldvessels",sciTabList.addsaleandRecycling);
 router.get("/sci-sale-and-recycling-list/:userID", sciTabList.getSaleandrecyclingList);
 router.get("/update-sci-sale-recycling-data/:ScisaleRecyclingId", sciTabList.getUpdatescisaleandRecyclingdata);
 router.put('/sci-sale-recycling-edit',sciTabList.updatesaleandRecyclingData);
+router.delete("/delete-sci-sale-recycling-oldvessels/:sci_sale_recycling_id/:userID", sciTabList.deleteSaleAndRecycling);
 
 
 router.post("/add-sci-sale-recycling-oldvessels-green-recycling",sciTabList.addsaleandRecyclingofgreenRecycling);
 router.get("/sci-sale-and-green-recycling-list/:userID", sciTabList.getSaleandGreenrecyclingList);
 router.get("/update-sci-sale-recycling-green-data/:ScisaleGreenrecyclingId", sciTabList.getUpdatescisaleandGreenrecyclingdata);
 router.put('/sci-sale-greenrecycling-edit',sciTabList.updatesaleandGreenrecyclingData);
+router.delete("/delete-sci-sale-recycling-oldvessels-green-recycling/:sci_sale_green_recycling_id/:userID", sciTabList.deleteGreenRecycling);
 
 router.post("/add-sci-manning-of-owned-ships",sciTabList.addmanningofOwnedships);
 router.get("/sci-manning-list/:userID", sciTabList.getscimanningdataList);
 router.get("/update-sci-manning-of-old-ships-data/:ScimanningId", sciTabList.getUpdatescimanningodOwnedshipsdata);
 router.put('/sci-manning-of-ownedships-edit',sciTabList.updatemanningofOwnedshipsData);
+router.delete("/delete-sci-manning-of-owned-ships/:sci_manning_id/:userID", sciTabList.deleteManningOfOwnedShips);
 
 router.post("/add-sci-ship-management-business",sciTabList.addshipManagementBusiness);
 router.get("/sci-ship-management-list/:userID", sciTabList.getshipmanagementList);
 router.get("/update-sci-ship-management-data/:ScishipmanagementId",sciTabList.getUpdatescishipManagementdata);
 router.put('/sci-ship-management-business',sciTabList.updateshipManagementbusinessData);
+router.delete("/delete-sci-ship-management-business/:sci_ship_management_id/:userID", sciTabList.deleteShipManagementBusiness);
 
 //sci report
 router.get('/kpi-sci-6-1-1-report',sciReportTab.getsciVesselAvailabilityReport);
@@ -2265,26 +2284,31 @@ router.get('/get-sci-ship-management-business-report',sciReportTab.getsciShipman
 router.post("/add-imu-k-5-1",imuTab.createStudentEnrollment);
 router.get("/get-imu-k-5-1",imuTab.getStudentEnrollment);
 router.get("/get-imu-k-5-1/:studentId",imuTab.getStudentEnrollmentByID);
+router.delete("/delete-imu-k-5-1/:student_id/:userID", imuTab.deleteStudentEnrollment);
 router.get("/get-imu-k-5-1-year",imuTab.getStudentEnrollmentYear);
 
 router.post("/add-imu-k-5-2",imuTab.createimunewCourseUpgradation);
 router.get("/get-imu-k-5-2/:courseId",imuTab.getimuNewCourseUpgradationByID);
+router.delete("/delete-imu-k-5-2/:course_id/:userID", imuTab.deleteNewCourseUpgradation);
 router.get("/get-imu-k-5-2",imuTab.getimuNewCourseUpgradation);
 router.get("/get-imu-k-5-2-year",imuTab.getimuNewCourseUpgradationYear);
 
 router.post("/add-imu-k-5-3",imuTab.createimuFacilities);
 router.get("/get-imu-k-5-3",imuTab.getimuFacilities);
 router.get("/get-imu-k-5-3/:facilitiesId",imuTab.getimuFacilitiesByID);
+router.delete("/delete-imu-k-5-3/:facilities_id/:userID", imuTab.deleteFacilities);
 router.get("/get-imu-k-5-3-year",imuTab.getimuFacilitiesYear);
 
 router.post("/add-imu-k-5-4",imuTab.createimuPartnership);
 router.get("/get-imu-k-5-4",imuTab.getimuPartnership);
 router.get("/get-imu-k-5-4/:partnershipId",imuTab.getimuPartnershipByID);
+router.delete("/delete-imu-k-5-4/:partnership_id/:userID", imuTab.deletePartnership);
 router.get("/get-imu-k-5-4-year",imuTab.getimuPartnershipYear);
 
 router.post("/add-imu-k-5-5",imuTab.createImuResearch);
 router.get("/get-imu-k-5-5",imuTab.getImuResearch);
 router.get("/get-imu-k-5-5/:researchId",imuTab.getImuResearchByID);
+router.delete("/delete-imu-k-5-5/:research_id/:userID", imuTab.deleteResearch);
 router.get("/get-imu-k-5-5-year",imuTab.getimuResearchYear);
 
 router.get("/get-imu-k-5-1-report",imuReportTab.getStudentEnrollmentReport);
@@ -2296,6 +2320,7 @@ router.get("/get-imu-k-5-5-report",imuReportTab.getResearchInnovationsReport)
 router.post("/add-imu-k-5-1-1",imuTab.createimuFinalYearpassPercentage);
 router.get("/get-student-perecntage-list/:userID",imuTab.getStudentfinalYearPercentage);
 router.get("/update-student-perecntage-data/:studentId",imuTab.getUpdateFinalyearPercentagedata);
+router.delete("/delete-imu-k-5-1-1/:student_id/:userID", imuTab.deleteFinalYearPassPercentage);
 router.get("/get-imu-k-5-1-1-program",imuTab.checkProgramalreadyExists)
 
 // Report

@@ -5,6 +5,7 @@ import { Search, X, Edit, Trash2, ChevronDown, BarChart3, List } from 'lucide-re
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { deleteBill } from '../api';
 import ExportDropdown from '../../../components/ExportDropdown';
+import CopyButton from '../../../components/CopyButton';
 
 const STAGES = {
   1: 'Draft Bill Prepared',
@@ -49,11 +50,13 @@ export default function DataList({
   canRemove = false
 }) {
   const [selectedWing, setSelectedWing] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
   const [selectedStage, setSelectedStage] = useState('');
   const [viewMode, setViewMode] = useState('table'); // table or chart switching
   const [gridApi, setGridApi] = useState(null); // Ag Grid API reference
   const [dropdownOpen, setDropdownOpen] = useState(false); // Visibility checklist dropdown
+  const [pageSize, setPageSize] = useState(10);
   const colDropdownRef = useRef(null);
   const [visibleCols, setVisibleCols] = useState({
     subject: true,
@@ -152,9 +155,13 @@ export default function DataList({
         ? getBillStageText(item) === selectedStage
         : true;
 
-      return matchesWing && matchesDivision && matchesStage;
+      const matchesSearch = searchQuery.trim()
+        ? (item.subject || '').toLowerCase().includes(searchQuery.toLowerCase())
+        : true;
+
+      return matchesWing && matchesDivision && matchesStage && matchesSearch;
     });
-  }, [rowData, selectedWing, selectedDivision, selectedStage, activeCategory]);
+  }, [rowData, selectedWing, selectedDivision, selectedStage, searchQuery, activeCategory]);
 
   const activeCount = useMemo(() => rowData.filter(item => !(!!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date)).length, [rowData]);
   const disposedCount = useMemo(() => rowData.filter(item => (!!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date)).length, [rowData]);
@@ -230,6 +237,7 @@ export default function DataList({
       headerName: 'Stage',
       flex: 1.2,
       minWidth: 180,
+      pinned: 'left',
       cellClass: 'font-bold text-center flex items-center justify-center',
       hide: !visibleCols.stage,
       cellRenderer: (params) => {
@@ -241,6 +249,7 @@ export default function DataList({
     },
     {
       headerName: 'Actions',
+      pinned: 'right',
       minWidth: canRemove ? 165 : 120,
       flex: 0.5,
       cellClass: 'text-center flex justify-center items-center gap-1.5',
@@ -271,7 +280,29 @@ export default function DataList({
   ], [onEdit, visibleCols, activeUserId, activeCategory, canEdit, canRemove]);
 
   const handleExport = (type) => {
-    if (type === 'Excel') {
+    if (type === 'Copy') {
+      let tsv = '';
+      const headers = [];
+      columnDefs.forEach((col) => {
+        if (col.headerName && col.headerName !== 'Actions' && !col.hide) headers.push(col.headerName);
+      });
+      tsv += headers.join('\t') + '\n';
+      filteredData.forEach((row, rowIndex) => {
+        const line = [];
+        columnDefs.forEach((col) => {
+          if (col.headerName && col.headerName !== 'Actions' && !col.hide) {
+            let val = '';
+            if (col.field === 'sNo') val = rowIndex + 1;
+            else val = row[col.field] !== undefined ? row[col.field] : '';
+            line.push(val);
+          }
+        });
+        tsv += line.join('\t') + '\n';
+      });
+      navigator.clipboard.writeText(tsv)
+        .then(() => { if (triggerNotification) triggerNotification('Copied to clipboard!'); })
+        .catch(() => { if (triggerNotification) triggerNotification('Failed to copy.', 'error'); });
+    } else if (type === 'Excel') {
       if (gridApi) {
         gridApi.exportDataAsCsv({
           fileName: `Bills_PreConstitutions_Register.csv`
@@ -374,10 +405,10 @@ export default function DataList({
       {/* Table & Filters */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
         {/* Filter Toolbar */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Wing Dropdown */}
-            <div className="w-48 relative">
+            <div className="w-36 relative">
               <select
                 value={selectedWing}
                 onChange={(e) => setSelectedWing(e.target.value)}
@@ -391,7 +422,7 @@ export default function DataList({
             </div>
 
             {/* Division Dropdown */}
-            <div className="w-48 relative">
+            <div className="w-36 relative">
               <select
                 value={selectedDivision}
                 onChange={(e) => setSelectedDivision(e.target.value)}
@@ -406,7 +437,7 @@ export default function DataList({
 
             {/* Stage Dropdown */}
             {activeCategory === 'active' && (
-              <div className="w-48 relative">
+              <div className="w-36 relative">
                 <select
                   value={selectedStage}
                   onChange={(e) => setSelectedStage(e.target.value)}
@@ -420,10 +451,30 @@ export default function DataList({
               </div>
             )}
 
+            {/* Search input */}
+            <div className="relative w-32">
+              <input
+                type="text"
+                placeholder="Search subject..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full text-xs pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200"
+              />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
             {/* Clear Button */}
-            {(selectedWing || selectedDivision || selectedStage) && (
+            {(selectedWing || selectedDivision || selectedStage || searchQuery) && (
               <button
-                onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSelectedStage(''); }}
+                onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSelectedStage(''); setSearchQuery(''); }}
                 className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
               >
                 <span className="h-3.5 w-3.5 text-center">✕</span>
@@ -432,7 +483,38 @@ export default function DataList({
             )}
           </div>
 
-          <div className="flex items-center space-x-2 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Rows Limit Select Dropdown */}
+            {viewMode === 'table' && (
+              <>
+                <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="bg-transparent border-none text-xs font-bold focus:outline-none cursor-pointer p-0"
+                  >
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                  </select>
+                </div>
+
+                <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                  Total Rows: {loading ? '...' : filteredData.length}
+                </div>
+
+                <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
+                <ExportDropdown
+                  onExportExcel={() => handleExport('Excel')}
+                  onExportPdf={() => handleExport('PDF')}
+                  color="#0f417a"
+                  hoverColor="#1e5ea8"
+                />
+              </>
+            )}
+
             {/* Column Visibility Dropdown */}
             {viewMode === 'table' && (
               <div className="relative" ref={colDropdownRef}>
@@ -461,7 +543,7 @@ export default function DataList({
               </div>
             )}
 
-            {/* Toggle View */}
+            {/* Toggle View -- hidden for now, kept for potential future use
             <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 bg-slate-50 dark:bg-slate-900">
               <button
                 onClick={() => setViewMode('chart')}
@@ -478,7 +560,8 @@ export default function DataList({
                 <List className="h-4 w-4" />
               </button>
             </div>
-          </div>
+            */}
+        </div>
         </div>
 
         {viewMode === 'table' ? (
@@ -487,7 +570,7 @@ export default function DataList({
             columnDefs={columnDefs}
             loading={loading}
             pagination={true}
-            paginationPageSize={10}
+            paginationPageSize={pageSize}
             paginationPageSizeSelector={[5, 10, 20, 50]}
             enableExport={false}
             onGridReady={(params) => setGridApi(params.api)}
@@ -525,21 +608,6 @@ export default function DataList({
             )}
           </div>
         )}
-
-        {/* Bottom export bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <ExportDropdown
-            onExportExcel={() => handleExport('Excel')}
-            onExportPdf={() => handleExport('PDF')}
-            color="#0f417a"
-            hoverColor="#1e5ea8"
-          />
-          {viewMode === 'table' && (
-            <div className="text-xs font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider">
-              Total Bills: {filteredData.length}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

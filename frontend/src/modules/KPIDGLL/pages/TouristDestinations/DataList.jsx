@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { Edit, Trash2, FileSpreadsheet } from 'lucide-react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 
@@ -15,13 +15,12 @@ export default function TouristDestinationsDataList({
   onEditTarget,
   onDeleteDestination,
   onDeleteTarget,
-  onAddClick,
   canEdit = true,
-  canAdd = true,
   canRemove = false,
 }) {
   const [activeTable, setActiveTable] = useState('destination');
   const [yearFilter, setYearFilter] = useState('');
+  const gridRef = useRef(null);
 
   const destinationYears = useMemo(
     () => [...new Set(destinationRows.map((r) => r.finacial_year))].sort().reverse(),
@@ -43,12 +42,12 @@ export default function TouristDestinationsDataList({
   }, [targetRows, yearFilter]);
 
   const destinationColDefs = useMemo(() => [
-    { headerName: 'S.No', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     { headerName: 'Financial Year', field: 'finacial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     { headerName: 'No. of Lighthouses Developed as Tourist Destinations', field: 'no_lighthouses_developed_tourist_destination', flex: 1.5, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' },
     { headerName: 'Annual Tourist Footfall', field: 'annual_tourist_footfall', flex: 1.2, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' },
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'tourist_destination_id', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'tourist_destination_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
@@ -79,12 +78,12 @@ export default function TouristDestinationsDataList({
   // displayed here as "No. of Target Lighthouses" / "Expected Footfall" to
   // match what the legacy site's own list view shows in production.
   const targetColDefs = useMemo(() => [
-    { headerName: 'S.No', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     { headerName: 'Target Year', field: 'year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     { headerName: 'No. of Target Lighthouses', field: 'collection_of_light_dues', flex: 1.5, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' },
     { headerName: 'Expected Footfall', field: 'footfall_in_the_lighthouses', flex: 1.2, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' },
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'tourist_destination_target_id', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'tourist_destination_target_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
@@ -116,35 +115,28 @@ export default function TouristDestinationsDataList({
   const years = isDestination ? destinationYears : targetYears;
   const colDefs = isDestination ? destinationColDefs : targetColDefs;
 
+  const handleExport = () => {
+    gridRef.current?.api?.exportDataAsCsv({ fileName: isDestination ? 'tourist_destinations' : 'tourist_destinations_target_details' });
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-2">
-          <button
-            onClick={() => { setActiveTable('destination'); setYearFilter(''); }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${isDestination ? 'bg-[#0f417a] text-white' : 'bg-white dark:bg-slate-900 text-[#0f417a] dark:text-blue-400 border border-[#0f417a]/40 dark:border-blue-500/40'}`}
-          >
-            Lighthouse Table
-          </button>
-          <button
-            onClick={() => { setActiveTable('target'); setYearFilter(''); }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${!isDestination ? 'bg-[#0f417a] text-white' : 'bg-white dark:bg-slate-900 text-[#0f417a] dark:text-blue-400 border border-[#0f417a]/40 dark:border-blue-500/40'}`}
-          >
-            KPI Target Details
-          </button>
-        </div>
-        {canAdd && (
-          <button
-            onClick={onAddClick}
-            className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition cursor-pointer flex-shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Lighthouse as Tourist Destinations</span>
-          </button>
-        )}
+    <div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => { setActiveTable('destination'); setYearFilter(''); }}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${isDestination ? 'bg-[#0f417a] text-white' : 'bg-white dark:bg-slate-900 text-[#0f417a] dark:text-blue-400 border border-[#0f417a]/40 dark:border-blue-500/40'}`}
+        >
+          Lighthouse Table
+        </button>
+        <button
+          onClick={() => { setActiveTable('target'); setYearFilter(''); }}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${!isDestination ? 'bg-[#0f417a] text-white' : 'bg-white dark:bg-slate-900 text-[#0f417a] dark:text-blue-400 border border-[#0f417a]/40 dark:border-blue-500/40'}`}
+        >
+          KPI Target Details
+        </button>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mt-5">
         <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
           {isDestination ? 'Financial Year' : 'Target Year'}
         </span>
@@ -158,12 +150,22 @@ export default function TouristDestinationsDataList({
         </select>
       </div>
 
-      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-        {loading ? 'Loading...' : `Showing ${rows.length} entries`}
+      <div className="flex items-center justify-between mt-6">
+        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+          {loading ? 'Loading...' : `Showing ${rows.length} entries`}
+        </span>
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          <span>Export</span>
+        </button>
       </div>
 
-      <div className="ag-theme-quartz rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto">
+      <div className="ag-theme-quartz rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto mt-2">
         <AgGridReact
+          ref={gridRef}
           theme="legacy"
           rowData={rows}
           columnDefs={colDefs}
