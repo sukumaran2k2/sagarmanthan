@@ -709,6 +709,27 @@ export default function InputForm({
                       </div>
                     </div>
 
+                    {/* Expandable Remarks field when date is filled */}
+                    {Boolean(currentStage.date) && (
+                      <div className="mt-2.5 pt-2.5 border-t border-slate-200/80 dark:border-slate-800 space-y-1.5 animate-fade-in">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                            Stage {stageNum} Remarks
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-semibold">
+                            {getWordCount(currentStage.remark || '')} words
+                          </span>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={currentStage.remark || ''}
+                          onChange={e => handleStageChange(stageNum, 'remark', e.target.value)}
+                          placeholder={`Enter remarks for Stage ${stageNum}: ${label}...`}
+                          className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-[#0f417a] font-medium text-slate-700 dark:text-slate-200"
+                        />
+                      </div>
+                    )}
+
                     {hasStageError && (
                       <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1">
                         <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
