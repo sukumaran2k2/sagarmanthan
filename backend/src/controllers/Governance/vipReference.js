@@ -3,6 +3,7 @@ import { pool } from "../../db.js";
 import fs from 'fs';
 
 async function createVipReference(req, res) {
+
     const subject = req.body.vipSubject;
     const eofficeFileNumber = req.body.eofficeFileNumber;
     const wing = req.body.wing;
@@ -10,9 +11,11 @@ async function createVipReference(req, res) {
     const refLetterNum = req.body.referenceLetterNumber;
     const receivedFrom = req.body.receivedFrom;
     const receivedAtMinistry = req.body.vipReceivedMinistry;
+    
     let receivedAtMinistryDate = req.body.vipReceivedMinistryDate;
     const submittedForApproval = req.body.vipSubmittedForApproval;
     let submittedForApprovalDate = req.body.vipSubmittedForApprovalDate;
+
     const commentsReceived = req.body.vipCommentsReceived;
     let commentsReceivedDate = req.body.vipCommentsReceivedDate;
     const commentsSought = req.body.vipCommentsSought;
@@ -21,7 +24,15 @@ async function createVipReference(req, res) {
     let replyFurnishedDate = req.body.vipReplyFurnishedDate;
     const disposed = req.body.vipDisposed;
     let disposedDate = req.body.vipDisposedDate;
+
     const remarks = req.body.vipRemarks;
+    const vipReceivedMinistryRemark = req.body.vipReceivedMinistryRemark;
+    const vipSubmittedForApprovalRemark = req.body.vipSubmittedForApprovalRemark;
+    const vipCommentsSoughtRemark = req.body.vipCommentsSoughtRemark;
+    const vipCommentsReceivedRemark = req.body.vipCommentsReceivedRemark;
+    const vipReplyFurnishedRemark = req.body.vipReplyFurnishedRemark;
+
+    const vipDisposedRemark = req.body.vipDisposedRemark;
     let selectedStage = req.body.selectedStage;
     let deadline = req.body.deadline;
     const userID = req.body.userID;
@@ -72,19 +83,31 @@ async function createVipReference(req, res) {
     request.input("disposedDate", disposedDate);
     request.input("selectedStage", selectedStage);
     request.input("remarks", remarks);
+
+    request.input("vipReceivedMinistryRemark", vipReceivedMinistryRemark);
+    request.input("vipSubmittedForApprovalRemark", vipSubmittedForApprovalRemark);
+    request.input("vipCommentsSoughtRemark", vipCommentsSoughtRemark);
+    request.input("vipCommentsReceivedRemark", vipCommentsReceivedRemark);
+    request.input("vipReplyFurnishedRemark", vipReplyFurnishedRemark);
+    request.input("vipDisposedRemark", vipDisposedRemark);
+
     request.input("deadline", deadline);
     request.input("userID", userID);
 
     try {
-        const result = await request.query(`INSERT INTO tbl_vip_reference_change (subject, eoffice_file_number, stage_id, wing, division, ref_letter_num, 
+        const result = await request.query(`INSERT INTO tbl_vip_reference (subject, eoffice_file_number, stage_id, wing, division, ref_letter_num, 
             received_from, received_at_ministry_date, submitted_for_approval_date, 
             comments_received_date, comments_sought_date, reply_furnished_date, 
-            disposed_date, remarks, deadline, created_by, created_date)
+            disposed_date, remarks,vip_received_ministry_remark,vip_submitted_for_approval_remark ,vip_comments_sought_remark,
+            vip_comments_received_remark,vip_reply_furnished_remark,vip_disposed_remark,
+            deadline, created_by, created_date)
             OUTPUT INSERTED.vip_reference_id
             VALUES (@subject, @eofficeFileNumber, @selectedStage, @wing, @division, @refLetterNum, @receivedFrom, @receivedAtMinistryDate, 
             @submittedForApprovalDate, @commentsReceivedDate, 
-            @commentsSoughtDate, @replyFurnishedDate, @disposedDate, 
-            @remarks,@deadline, @userID, getDate());
+            @commentsSoughtDate, @replyFurnishedDate, @disposedDate,  @remarks,
+            @vipReceivedMinistryRemark,@vipSubmittedForApprovalRemark,@vipCommentsSoughtRemark,@vipCommentsReceivedRemark,
+            @vipReplyFurnishedRemark,@vipDisposedRemark,
+           @deadline, @userID, getDate());
         `);
 
         const vip_reference_id = result.recordset[0].vip_reference_id;
@@ -171,7 +194,7 @@ async function updateVipReference(req, res) {
 
     try {
         const result = await request.query(`
-            UPDATE tbl_vip_reference_change
+            UPDATE tbl_vip_reference
             SET
             subject = @subject,
             eoffice_file_number = @eofficeFileNumber,
@@ -400,6 +423,53 @@ async function getVipReference(req, res) {
     const status = req.query.status && req.query.status !== 'All' ? req.query.status : null;
     const search = req.query.search || null;
 
+    // Explicit column list — avoids SELECT * collisions across joined tables
+    const selectColumns = `
+        tbl_vip_reference.vip_reference_id,
+        tbl_vip_reference.stage_id,
+        tbl_vip_reference.subject,
+        tbl_vip_reference.eoffice_file_number,
+        tbl_vip_reference.ref_letter_num,
+        tbl_vip_reference.received_from,
+        tbl_vip_reference.remarks,
+        tbl_vip_reference.deadline,
+        tbl_vip_reference.wing            AS wing_id,
+        tbl_vip_reference.division        AS division_id,
+        mmt_wings.wing_name,
+        mmt_division.division_name,
+        mmt_vip_stage.vip_stage_id,
+        mmt_vip_stage.vip_stage_name,
+
+        tbl_vip_reference.received_at_ministry,
+        tbl_vip_reference.received_at_ministry_date,
+        tbl_vip_reference.vip_received_ministry_remark,
+
+        tbl_vip_reference.submitted_for_approval,
+        tbl_vip_reference.submitted_for_approval_date,
+        tbl_vip_reference.vip_submitted_for_approval_remark,
+
+        tbl_vip_reference.comments_sought,
+        tbl_vip_reference.comments_sought_date,
+        tbl_vip_reference.vip_comments_sought_remark,
+
+        tbl_vip_reference.comments_received,
+        tbl_vip_reference.comments_received_date,
+        tbl_vip_reference.vip_comments_received_remark,
+
+        tbl_vip_reference.reply_furnished,
+        tbl_vip_reference.reply_furnished_date,
+        tbl_vip_reference.vip_reply_furnished_remark,
+
+        tbl_vip_reference.disposed,
+        tbl_vip_reference.disposed_date,
+        tbl_vip_reference.vip_disposed_remark,
+
+        tbl_vip_reference.created_by,
+        tbl_vip_reference.updated_by,
+        tbl_vip_reference.created_date,
+        tbl_vip_reference.updated_date
+    `;
+
     try {
         const request = conn.request();
         let whereClauses = [];
@@ -432,9 +502,9 @@ async function getVipReference(req, res) {
         }
         if (search) {
             whereClauses.push(`(
-                tbl_vip_reference_change.subject LIKE '%' + @search + '%'
-                OR tbl_vip_reference_change.ref_letter_num LIKE '%' + @search + '%'
-                OR tbl_vip_reference_change.received_from LIKE '%' + @search + '%'
+                tbl_vip_reference.subject LIKE '%' + @search + '%'
+                OR tbl_vip_reference.ref_letter_num LIKE '%' + @search + '%'
+                OR tbl_vip_reference.received_from LIKE '%' + @search + '%'
                 OR mmt_wings.wing_name LIKE '%' + @search + '%'
                 OR mmt_division.division_name LIKE '%' + @search + '%'
             )`);
@@ -449,11 +519,11 @@ async function getVipReference(req, res) {
             request.input('limit', limit);
 
             const result = await request.query(`
-                SELECT *, COUNT(*) OVER() AS total_count 
-                FROM tbl_vip_reference_change
-                INNER JOIN mmt_division ON tbl_vip_reference_change.division = mmt_division.division_id
-                INNER JOIN mmt_wings ON tbl_vip_reference_change.wing = mmt_wings.wing_id
-                INNER JOIN mmt_vip_stage ON tbl_vip_reference_change.stage_id = mmt_vip_stage.vip_stage_id
+                SELECT ${selectColumns}, COUNT(*) OVER() AS total_count
+                FROM tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
                 ${whereSql}
                 ORDER BY stage_id
                 OFFSET @offset ROWS
@@ -472,10 +542,11 @@ async function getVipReference(req, res) {
             });
         } else {
             const query = `
-                SELECT * from tbl_vip_reference_change
-                INNER JOIN mmt_division ON tbl_vip_reference_change.division = mmt_division.division_id
-                INNER JOIN mmt_wings ON tbl_vip_reference_change.wing = mmt_wings.wing_id
-                INNER JOIN mmt_vip_stage ON tbl_vip_reference_change.stage_id = mmt_vip_stage.vip_stage_id
+                SELECT ${selectColumns}
+                FROM tbl_vip_reference
+                INNER JOIN mmt_division ON tbl_vip_reference.division = mmt_division.division_id
+                INNER JOIN mmt_wings ON tbl_vip_reference.wing = mmt_wings.wing_id
+                INNER JOIN mmt_vip_stage ON tbl_vip_reference.stage_id = mmt_vip_stage.vip_stage_id
                 ${whereSql}
                 ORDER BY stage_id;
             `;
@@ -536,7 +607,7 @@ async function getUpdateVipReferenceData (req, res)
 
     try
     {
-        const result = await request.query(`SELECT * FROM tbl_vip_reference_change WHERE tbl_vip_reference_change.vip_reference_id = @vipReferenceID;`);
+        const result = await request.query(`SELECT * FROM tbl_vip_reference WHERE tbl_vip_reference.vip_reference_id = @vipReferenceID;`);
         res.json(result.recordset);
     }
     catch(err)
@@ -571,10 +642,10 @@ async function deleteVipReference (req, res)
     try
     {
 
-        const dataToDelete = await request.query(`SELECT * FROM tbl_vip_reference_change WHERE vip_reference_id = @vipReferenceID;`);
+        const dataToDelete = await request.query(`SELECT * FROM tbl_vip_reference WHERE vip_reference_id = @vipReferenceID;`);
         const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
     
-        const result = await request.query(`DELETE FROM tbl_vip_reference_change WHERE vip_reference_id = @vipReferenceID;`);
+        const result = await request.query(`DELETE FROM tbl_vip_reference WHERE vip_reference_id = @vipReferenceID;`);
         // return res.sendStatus(201);
         console.log('result',result);
         if (result.rowsAffected[0] > 0) {

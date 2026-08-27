@@ -77,55 +77,65 @@ export default function DataList({
 
   // Fetch references dynamically from backend
   const fetchData = () => {
-    setLoading(true);
-    axios.get(`${API_BASE_URL}/vip-reference`, {
-      params: {
-        wing: selectedWing,
-        division: selectedDivision,
-        status: selectedStage,
-        search: debouncedSearch
-      }
+  setLoading(true);
+  axios.get("http://localhost:3000/vip-reference", {
+    params: {
+      wing: selectedWing,
+      division: selectedDivision,
+      status: selectedStage,
+      search: debouncedSearch
+    }
+  })
+    .then(res => {
+      const dataArray = Array.isArray(res.data) ? res.data : (res.data.data || []);
+      const mapped = dataArray.map(r => {
+        const steps = {
+          1: r.received_at_ministry_date ? 'Yes' : 'No',
+          2: r.submitted_for_approval_date ? 'Yes' : 'No',
+          3: r.comments_sought_date ? 'Yes' : 'No',
+          4: r.comments_received_date ? 'Yes' : 'No',
+          5: r.reply_furnished_date ? 'Yes' : 'No',
+          6: r.disposed_date ? 'Yes' : 'No'
+        };
+        const dates = {
+          1: r.received_at_ministry_date ? new Date(r.received_at_ministry_date).toISOString().split('T')[0] : '',
+          2: r.submitted_for_approval_date ? new Date(r.submitted_for_approval_date).toISOString().split('T')[0] : '',
+          3: r.comments_sought_date ? new Date(r.comments_sought_date).toISOString().split('T')[0] : '',
+          4: r.comments_received_date ? new Date(r.comments_received_date).toISOString().split('T')[0] : '',
+          5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : '',
+          6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : ''
+        };
+        const remarksByStage = {
+          1: r.vip_received_ministry_remark || '',
+          2: r.vip_submitted_for_approval_remark || '',
+          3: r.vip_comments_sought_remark || '',
+          4: r.vip_comments_received_remark || '',
+          5: r.vip_reply_furnished_remark || '',
+          6: r.vip_disposed_remark || ''
+        };
+        return {
+          id: r.vip_reference_id,
+          subject: r.subject || '',
+          eofficeFile: r.eoffice_file_number || '',
+          wing: r.wing_name || '',
+          division: r.division_name || '',
+          refNumber: r.ref_letter_num || '',
+          receivedFrom: r.received_from || '',
+          remarks: r.remarks || '',
+          deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
+          stageSteps: steps,
+          statusSteps: steps,
+          statusDates: dates,
+          statusRemarks: remarksByStage,
+          lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
+        };
+      });
+      setRowData(mapped);
+      setTotalEntries(mapped.length);
     })
-      .then(res => {
-        const dataArray = Array.isArray(res.data) ? res.data : (res.data.data || []);
-        const mapped = dataArray.map(r => {
-          const steps = {
-            1: r.received_at_ministry_date ? 'Yes' : 'No',
-            2: r.submitted_for_approval_date ? 'Yes' : 'No',
-            3: r.comments_sought_date ? 'Yes' : 'No',
-            4: r.comments_received_date ? 'Yes' : 'No',
-            5: r.reply_furnished_date ? 'Yes' : 'No',
-            6: r.disposed_date ? 'Yes' : 'No'
-          };
-          const dates = {
-            1: r.received_at_ministry_date ? new Date(r.received_at_ministry_date).toISOString().split('T')[0] : '',
-            2: r.submitted_for_approval_date ? new Date(r.submitted_for_approval_date).toISOString().split('T')[0] : '',
-            3: r.comments_sought_date ? new Date(r.comments_sought_date).toISOString().split('T')[0] : '',
-            4: r.comments_received_date ? new Date(r.comments_received_date).toISOString().split('T')[0] : '',
-            5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : '',
-            6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : ''
-          };
-          return {
-            id: r.vip_reference_id,
-            subject: r.subject || '',
-            eofficeFile: r.eoffice_file_number || '',
-            wing: r.wing_name || '',
-            division: r.division_name || '',
-            refNumber: r.ref_letter_num || '',
-            receivedFrom: r.received_from || '',
-            remarks: r.remarks || '',
-            deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
-            stageSteps: steps,
-            statusDates: dates,
-            lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
-          };
-        });
-        setRowData(mapped);
-        setTotalEntries(mapped.length);
-      })
-      .catch(err => console.error("Error loading VIP references:", err))
-      .finally(() => setLoading(false));
-  };
+    .catch(err => console.error("Error loading VIP references:", err))
+    .finally(() => setLoading(false));
+};
 
   useEffect(() => {
     fetchData();

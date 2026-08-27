@@ -11,6 +11,15 @@ const STATUS_STEPS = {
   5: 'Reply Furnished',
   6: 'Disposed'
 };
+const addDays = (dateStr, days) => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  const yyyy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 export default function InputForm({
   editData = null,
@@ -112,34 +121,31 @@ export default function InputForm({
     if (editData) {
       initSubject = editData.subject || '';
       initEofficeFile = editData.eofficeFile || '';
-      initWing = editData.wing || '';
-      initDivision = editData.division || '';
+
+      const matchedWing = wings.find(w => w.wing_name?.trim() === editData.wing?.trim());
+      initWing = matchedWing ? matchedWing.wing_id : '';
+
+      const matchedDivision = divisions.find(d => d.division_name?.trim() === editData.division?.trim());
+      initDivision = matchedDivision ? matchedDivision.division_id : '';
+
       initRefNumber = editData.refNumber || '';
       initReceivedFrom = editData.receivedFrom || '';
       initRemarks = editData.remarks || '';
       initDeadline = editData.deadline || '';
 
       initStages = {
-        1: { date: editData.statusDates[1] || '', remark: '' },
-        2: { date: editData.statusDates[2] || '', remark: '' },
-        3: { date: editData.statusDates[3] || '', remark: '' },
-        4: { date: editData.statusDates[4] || '', remark: '' },
-        5: { date: editData.statusDates[5] || '', remark: '' },
-        6: { date: editData.statusDates[6] || '', remark: '' }
+        1: { date: editData.statusDates?.[1] || '', remark: editData.statusRemarks?.[1] || '' },
+        2: { date: editData.statusDates?.[2] || '', remark: editData.statusRemarks?.[2] || '' },
+        3: { date: editData.statusDates?.[3] || '', remark: editData.statusRemarks?.[3] || '' },
+        4: { date: editData.statusDates?.[4] || '', remark: editData.statusRemarks?.[4] || '' },
+        5: { date: editData.statusDates?.[5] || '', remark: editData.statusRemarks?.[5] || '' },
+        6: { date: editData.statusDates?.[6] || '', remark: editData.statusRemarks?.[6] || '' }
       };
-    } else {
-      const defaultWing = wings[0]?.wing_name || '';
-      initWing = defaultWing;
-      initStages = {
-        1: { date: new Date().toISOString().split('T')[0], remark: '' },
-        2: { date: '', remark: '' },
-        3: { date: '', remark: '' },
-        4: { date: '', remark: '' },
-        5: { date: '', remark: '' },
-        6: { date: '', remark: '' }
-      };
-    }
 
+      if (!initDeadline && initStages[1].date) {
+        initDeadline = addDays(initStages[1].date, 15);
+      }
+    }
     setSubject(initSubject);
     setEofficeFile(initEofficeFile);
     setWing(initWing);
@@ -172,26 +178,22 @@ export default function InputForm({
       remarks: false
     });
     setErrors({});
-  }, [editData, wings]);
+  }, [editData, wings,divisions]);
 
   // Filter divisions dynamically
-  const filteredDivisions = useMemo(() => {
-    if (!wing) return [];
-    const selectedWingObj = wings.find(w => w.wing_name === wing);
-    if (!selectedWingObj) return [];
-    return divisions.filter(d => d.wing_id === selectedWingObj.wing_id);
-  }, [wing, wings, divisions]);
+ const filteredDivisions = useMemo(() => {
+  if (!wing) return [];
+  return divisions.filter(d => Number(d.wing_id) === Number(wing));
+}, [wing, divisions]);
 
   useEffect(() => {
-    if (filteredDivisions.length > 0) {
-      const exists = filteredDivisions.some(d => d.division_name === division);
-      if (!exists) {
-        setDivision(filteredDivisions[0].division_name);
-      }
-    } else {
-      setDivision('');
-    }
-  }, [filteredDivisions]);
+  if (filteredDivisions.length > 0) {
+    const exists = filteredDivisions.some(d => Number(d.division_id) === Number(division));
+    if (!exists) setDivision('');
+  } else {
+    setDivision('');
+  }
+}, [filteredDivisions, division]);
 
   const isDirty = useMemo(() => {
     if (subject !== initialValues.subject) return true;
@@ -248,9 +250,7 @@ export default function InputForm({
       };
 
       if (num === 1 && field === 'date' && val) {
-        const d = new Date(val);
-        d.setDate(d.getDate() + 15);
-        setDeadline(d.toISOString().split('T')[0]);
+        setDeadline(addDays(val, 15));
       }
 
       // Cascade clear logic matching Cab Notes
@@ -328,10 +328,10 @@ export default function InputForm({
 
     setSubmitting(true);
 
-    const wingObj = wings.find(w => w.wing_name === wing) || { wing_id: 1 };
-    const divisionObj = divisions.find(d => d.division_name === division) || { division_id: 1 };
-    const wingId = wingObj.wing_id;
-    const divisionId = divisionObj.division_id;
+    // const wingObj = wings.find(w => w.wing_name === wing) || { wing_id: 1 };
+    // const divisionObj = divisions.find(d => d.division_name === division) || { division_id: 1 };
+    // const wingId = wingObj.wing_id;
+    // const divisionId = divisionObj.division_id;
 
     let selectedStage = 1;
     for (let i = 1; i <= 6; i++) {
@@ -343,16 +343,35 @@ export default function InputForm({
     const payload = {
       vipSubject: subject.trim(),
       eofficeFileNumber: eofficeFile.trim(),
-      wing: wingId,
-      division: divisionId,
+      wing: wing,
+      division: division,
       referenceLetterNumber: refNumber.trim(),
       receivedFrom: receivedFrom.trim(),
+
+      // Stage 1
       vipReceivedMinistryDate: stages[1].date || '',
+      vipReceivedMinistryRemark: stages[1].remark || '',
+
+      // Stage 2
       vipSubmittedForApprovalDate: stages[2].date || '',
+      vipSubmittedForApprovalRemark: stages[2].remark || '',
+
+      // Stage 3
       vipCommentsSoughtDate: stages[3].date || '',
+      vipCommentsSoughtRemark: stages[3].remark || '',
+
+      // Stage 4
       vipCommentsReceivedDate: stages[4].date || '',
+      vipCommentsReceivedRemark: stages[4].remark || '',
+
+      // Stage 5
       vipReplyFurnishedDate: stages[5].date || '',
+      vipReplyFurnishedRemark: stages[5].remark || '',
+
+      // Stage 6
       vipDisposedDate: stages[6].date || '',
+      vipDisposedRemark: stages[6].remark || '',
+
       vipRemarks: remarks.trim(),
       selectedStage: selectedStage,
       deadline: deadline || '',
@@ -361,11 +380,11 @@ export default function InputForm({
 
     try {
       if (isEdit) {
-        payload.vipReferenceID = editData.id;
-        await axios.put(`${API_BASE_URL}/vip-reference`, payload);
-      } else {
-        await axios.post(`${API_BASE_URL}/vip-reference`, payload);
-      }
+      payload.vipReferenceID = editData.id;
+      await axios.put("http://localhost:3000/vip-reference", payload);
+    } else {
+      await axios.post("http://localhost:3000/vip-reference", payload);
+    }
       triggerNotification?.(isEdit ? "VIP Reference updated successfully." : "New VIP Reference registered successfully.");
       onSuccess();
     } catch (err) {
@@ -446,7 +465,7 @@ export default function InputForm({
                 >
                   <option value="">--Select Wing--</option>
                   {wings.map(w => (
-                    <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>
+                    <option key={w.wing_id} value={w.wing_id}>{w.wing_name}</option>
                   ))}
                 </select>
                 {isFieldInvalid('wing', wing) && (
@@ -454,25 +473,25 @@ export default function InputForm({
                 )}
               </div>
 
-              {/* Division Field */}
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division*</label>
-                <select
-                  value={division}
-                  onChange={e => setDivision(e.target.value)}
-                  onBlur={() => handleBlur('division')}
-                  className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer`}
-                >
-                  <option value="">--Select Division--</option>
-                  {filteredDivisions.map(d => (
-                    <option key={d.division_id} value={d.division_name}>{d.division_name}</option>
-                  ))}
-                </select>
-                {isFieldInvalid('division', division) && (
-                  <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
-                )}
-              </div>
-            </div>
+      {/* Division Field */}
+      <div className="space-y-1.5">
+        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division*</label>
+        <select
+          value={division}
+          onChange={e => setDivision(e.target.value)}
+          onBlur={() => handleBlur('division')}
+          className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer`}
+        >
+          <option value="">--Select Division--</option>
+          {divisions.map(d => (
+            <option key={d.division_id} value={d.division_id}>{d.division_name}</option>
+          ))}
+        </select>
+        {isFieldInvalid('division', division) && (
+          <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+        )}
+      </div>
+    </div>
 
             {/* Reference Letter Number */}
             <div className="space-y-1.5">
@@ -553,45 +572,76 @@ export default function InputForm({
                 const label = STATUS_STEPS[stageNum];
 
                 // Enforce sequential filling on add
-                const isStageDisabled = !isEdit && stageNum > 1 && !stages[stageNum - 1].date;
+                const isStageDisabled = stageNum > 1 && !stages[stageNum - 1].date;
                 const isRemarkFieldVisible = stageNum === focusedStage || !!currentStage.date;
 
                 return (
                   <div
-                    key={stageNum}
-                    onMouseEnter={() => !isStageDisabled && setHoveredStage(stageNum)}
-                    onMouseLeave={() => setHoveredStage(null)}
-                    className={`flex flex-col gap-3 p-3 border rounded-xl shadow-xs transition-all duration-200 ${isStageDisabled
+                  key={stageNum}
+                  onMouseEnter={() => !isStageDisabled && setHoveredStage(stageNum)}
+                  onMouseLeave={() => setHoveredStage(null)}
+                  className={`flex flex-col gap-3 p-3 border rounded-xl shadow-xs transition-all duration-200 ${
+                    isStageDisabled
                       ? 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-850 opacity-55'
                       : 'bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800 hover:border-slate-250'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-xs font-bold block truncate ${isStageDisabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
-                          {stageNum}. {label}
-                        </span>
-                      </div>
-
-                      <div className="flex-shrink-0">
-                        <input
-                          type="date"
-                          value={currentStage.date}
-                          min={getDateLimits(stageNum).min}
-                          max={getDateLimits(stageNum).max}
-                          onChange={e => handleStageChange(stageNum, 'date', e.target.value)}
-                          onFocus={() => !isStageDisabled && setFocusedStage(stageNum)}
-                          onBlur={() => setFocusedStage(null)}
-                          disabled={isStageDisabled}
-                          className={`text-xs px-2.5 py-1.5 border rounded-lg focus:outline-none font-semibold dark:[color-scheme:dark] ${isStageDisabled
-                            ? 'bg-slate-100 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-600 cursor-not-allowed'
-                            : 'bg-white border-slate-200 text-slate-700 cursor-pointer dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 focus:border-[#0f417a]'
-                            }`}
-                        />
-                      </div>
+                  }`}
+                >
+                  {/* Stage name + Date */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <span
+                        className={`text-xs font-bold block truncate ${
+                          isStageDisabled
+                            ? 'text-slate-400 dark:text-slate-500'
+                            : 'text-slate-800 dark:text-slate-200'
+                        }`}
+                      >
+                        {stageNum}. {label}
+                      </span>
                     </div>
 
+                    <div className="flex-shrink-0">
+                      <input
+                        type="date"
+                        value={currentStage.date}
+                        min={getDateLimits(stageNum).min}
+                        max={getDateLimits(stageNum).max}
+                        onChange={e =>
+                          handleStageChange(stageNum, 'date', e.target.value)
+                        }
+                        onFocus={() =>
+                          !isStageDisabled && setFocusedStage(stageNum)
+                        }
+                        onBlur={() => setFocusedStage(null)}
+                        disabled={isStageDisabled}
+                        className={`text-xs px-2.5 py-1.5 border rounded-lg focus:outline-none font-semibold dark:[color-scheme:dark] ${
+                          isStageDisabled
+                            ? 'bg-slate-100 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-600 cursor-not-allowed'
+                            : 'bg-white border-slate-200 text-slate-700 cursor-pointer dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 focus:border-[#0f417a]'
+                        }`}
+                      />
+                    </div>
                   </div>
+
+                  {/* Show remarks ONLY after date is selected */}
+                  {currentStage.date && (
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                        Stage Remarks
+                      </label>
+
+                      <textarea
+                        value={currentStage.remark}
+                        onChange={e =>
+                          handleStageChange(stageNum, 'remark', e.target.value)
+                        }
+                        placeholder={`Enter remarks for ${label}...`}
+                        rows={2}
+                        className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#0f417a] focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+                  )}
+                </div>
                 );
               })}
             </div>

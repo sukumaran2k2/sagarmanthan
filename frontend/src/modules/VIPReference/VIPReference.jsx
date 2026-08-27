@@ -4,7 +4,8 @@ import InternalNavigation from '../../components/InternalNavigation';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
-import { API_BASE_URL } from '../../config/api';
+import {fetchWings,fetchDivisions} from '../ParliamentaryIssues/api'
+
 
 export default function VIPReference({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
   const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
@@ -30,57 +31,127 @@ export default function VIPReference({ activeSubTab: activeSubTabProp, setActive
   }, [activeSubTabProp]);
 
   // Fetch wings and divisions on mount
-  useEffect(() => {
-    axios.get(`${API_BASE_URL}/mmt-dropdown/mmt_wings`)
-      .then(res => setWings(res.data || []))
-      .catch(err => console.error("Error loading wings:", err));
+useEffect(() => {
+    const loadDropdowns = async () => {
+      try {
+        const [wingsRes, divisionsRes] = await Promise.all([
+          fetchWings(),
+          fetchDivisions(),
+        ]);
 
-    axios.get(`${API_BASE_URL}/mmt-dropdown/mmt_division`)
-      .then(res => setDivisions(res.data || []))
-      .catch(err => console.error("Error loading divisions:", err));
+        setWings(wingsRes.data || []);
+        setDivisions(divisionsRes.data || []);
+      } catch (error) {
+        console.error('Error loading dropdowns:', error);
+
+        if (error.response?.status === 401) {
+          console.error('Authentication failed. Token may be missing or expired.');
+        }
+      }
+    };
+
+    loadDropdowns();
   }, []);
 
-  const fetchData = () => {
-    axios.get(`${API_BASE_URL}/vip-reference`)
-      .then(res => {
-        // Handle paginated or list format
-        const dataArray = Array.isArray(res.data) ? res.data : (res.data.data || []);
-        const mapped = dataArray.map(r => {
-          const steps = {
-            1: r.received_at_ministry || 'No',
-            2: r.submitted_for_approval || 'No',
-            3: r.comments_sought || 'No',
-            4: r.comments_received || 'No',
-            5: r.reply_furnished || 'No',
-            6: r.disposed || 'No'
-          };
-          const dates = {
-            1: r.received_at_ministry_date ? new Date(r.received_at_ministry_date).toISOString().split('T')[0] : '',
-            2: r.submitted_for_approval_date ? new Date(r.submitted_for_approval_date).toISOString().split('T')[0] : '',
-            3: r.comments_sought_date ? new Date(r.comments_sought_date).toISOString().split('T')[0] : '',
-            4: r.comments_received_date ? new Date(r.comments_received_date).toISOString().split('T')[0] : '',
-            5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : '',
-            6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : ''
-          };
-          return {
-            id: r.vip_reference_id,
-            subject: r.subject || '',
-            eofficeFile: r.eoffice_file_number || '',
-            wing: r.wing_name || '',
-            division: r.division_name || '',
-            refNumber: r.ref_letter_num || '',
-            receivedFrom: r.received_from || '',
-            remarks: r.remarks || '',
-            deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
-            statusSteps: steps,
-            statusDates: dates,
-            lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
-          };
-        });
-        setVipReferences(mapped);
-      })
-      .catch(err => console.error("Error loading VIP references:", err));
+  const fetchData = async () => {
+    try {
+      const res = await axios.get('http://localhost:3000/vip-reference');
+
+      const dataArray = Array.isArray(res.data)
+        ? res.data
+        : (res.data?.data || []);
+
+      const mapped = dataArray.map(r => ({
+        id: r.vip_reference_id,
+        subject: r.subject || '',
+        eofficeFile: r.eoffice_file_number || '',
+        wing: r.wing_name || '',
+        division: r.division_name || '',
+        refNumber: r.ref_letter_num || '',
+        receivedFrom: r.received_from || '',
+        remarks: r.remarks || '',
+        deadline: r.deadline
+          ? new Date(r.deadline).toISOString().split('T')[0]
+          : '',
+
+        statusSteps: {
+          1: r.received_at_ministry || 'No',
+          2: r.submitted_for_approval || 'No',
+          3: r.comments_sought || 'No',
+          4: r.comments_received || 'No',
+          5: r.reply_furnished || 'No',
+          6: r.disposed || 'No'
+        },
+
+        statusDates: {
+          1: r.received_at_ministry_date
+            ? new Date(r.received_at_ministry_date)
+                .toISOString()
+                .split('T')[0]
+            : '',
+
+          2: r.submitted_for_approval_date
+            ? new Date(r.submitted_for_approval_date)
+                .toISOString()
+                .split('T')[0]
+            : '',
+
+          3: r.comments_sought_date
+            ? new Date(r.comments_sought_date)
+                .toISOString()
+                .split('T')[0]
+            : '',
+
+          4: r.comments_received_date
+            ? new Date(r.comments_received_date)
+                .toISOString()
+                .split('T')[0]
+            : '',
+
+          5: r.reply_furnished_date
+            ? new Date(r.reply_furnished_date)
+                .toISOString()
+                .split('T')[0]
+            : '',
+
+          6: r.disposed_date
+            ? new Date(r.disposed_date)
+                .toISOString()
+                .split('T')[0]
+            : ''
+        },
+
+        statusRemarks: {
+          1: r.vip_received_ministry_remark || '',
+          2: r.vip_submitted_for_approval_remark || '',
+          3: r.vip_comments_sought_remark || '',
+          4: r.vip_comments_received_remark || '',
+          5: r.vip_reply_furnished_remark || '',
+          6: r.vip_disposed_remark || ''
+        },
+
+        lastUpdated: r.updated_date
+          ? new Date(r.updated_date).toISOString().split('T')[0]
+          : ''
+      }));
+
+      setVipReferences(mapped);
+    } catch (error) {
+      console.error('Error loading VIP references:', error);
+
+      if (error.response?.status === 401) {
+        console.error('Authentication failed.');
+      }
+
+      if (error.response?.status === 500) {
+        console.error(
+          'Backend error:',
+          error.response?.data
+        );
+      }
+    }
   };
+
 
   useEffect(() => {
     fetchData();
@@ -141,6 +212,7 @@ export default function VIPReference({ activeSubTab: activeSubTabProp, setActive
             />
           ) : (
             <DataList
+              vipReferences={vipReferences}
               wings={wings}
               divisions={divisions}
               onEdit={handleEdit}
