@@ -1,16 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import axios from 'axios';
-import { ArrowLeft, Save } from 'lucide-react';
-import { API_BASE_URL } from '../../../config/api';
-
-const STATUS_STEPS = {
-  1: 'Received at Ministry',
-  2: 'Submitted for Approval',
-  3: 'Comments Sought',
-  4: 'Comments Received',
-  5: 'Reply Furnished',
-  6: 'Disposed'
-};
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { ArrowLeft, Save, AlertCircle, CheckCircle2, Calendar, FileText, Building2, User } from 'lucide-react';
+import { createVIPReference, updateVIPReference } from '../api';
+import { STAGE_STEPS as STATUS_STEPS } from '../utils/constants';
 
 export default function InputForm({
   editData = null,
@@ -64,14 +55,13 @@ export default function InputForm({
     division: false,
     refNumber: false,
     receivedFrom: false,
-    remarks: false
+    remarks: false,
+    stage1: false
   });
 
-  const [errors, setErrors] = useState({});
-  const [focusedStage, setFocusedStage] = useState(null);
-  const [hoveredStage, setHoveredStage] = useState(null);
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
-  // Track initial values for dirty checks
+  // Track initial values for dirty checks in Edit mode
   const [initialValues, setInitialValues] = useState({
     subject: '',
     eofficeFile: '',
@@ -120,12 +110,12 @@ export default function InputForm({
       initDeadline = editData.deadline || '';
 
       initStages = {
-        1: { date: editData.statusDates[1] || '', remark: '' },
-        2: { date: editData.statusDates[2] || '', remark: '' },
-        3: { date: editData.statusDates[3] || '', remark: '' },
-        4: { date: editData.statusDates[4] || '', remark: '' },
-        5: { date: editData.statusDates[5] || '', remark: '' },
-        6: { date: editData.statusDates[6] || '', remark: '' }
+        1: { date: editData.statusDates?.[1] || '', remark: '' },
+        2: { date: editData.statusDates?.[2] || '', remark: '' },
+        3: { date: editData.statusDates?.[3] || '', remark: '' },
+        4: { date: editData.statusDates?.[4] || '', remark: '' },
+        5: { date: editData.statusDates?.[5] || '', remark: '' },
+        6: { date: editData.statusDates?.[6] || '', remark: '' }
       };
     } else {
       const defaultWing = wings[0]?.wing_name || '';
@@ -138,6 +128,10 @@ export default function InputForm({
         5: { date: '', remark: '' },
         6: { date: '', remark: '' }
       };
+      // Set default deadline 15 days from today
+      const d = new Date();
+      d.setDate(d.getDate() + 15);
+      initDeadline = d.toISOString().split('T')[0];
     }
 
     setSubject(initSubject);
@@ -169,30 +163,32 @@ export default function InputForm({
       division: false,
       refNumber: false,
       receivedFrom: false,
-      remarks: false
+      remarks: false,
+      stage1: false
     });
-    setErrors({});
+    setFormSubmitted(false);
   }, [editData, wings]);
 
-  // Filter divisions dynamically
+  // Filter divisions dynamically based on selected Wing
   const filteredDivisions = useMemo(() => {
     if (!wing) return [];
     const selectedWingObj = wings.find(w => w.wing_name === wing);
     if (!selectedWingObj) return [];
-    return divisions.filter(d => d.wing_id === selectedWingObj.wing_id);
+    return divisions.filter(d => String(d.wing_id) === String(selectedWingObj.wing_id));
   }, [wing, wings, divisions]);
 
   useEffect(() => {
     if (filteredDivisions.length > 0) {
       const exists = filteredDivisions.some(d => d.division_name === division);
-      if (!exists) {
+      if (!exists && !editData) {
         setDivision(filteredDivisions[0].division_name);
       }
     } else {
       setDivision('');
     }
-  }, [filteredDivisions]);
+  }, [filteredDivisions, editData]);
 
+  // Track if any field was changed (for edit mode enabling)
   const isDirty = useMemo(() => {
     if (subject !== initialValues.subject) return true;
     if (eofficeFile !== initialValues.eofficeFile) return true;
@@ -205,15 +201,13 @@ export default function InputForm({
 
     for (let i = 1; i <= 6; i++) {
       if (stages[i].date !== initialValues.stages[i].date) return true;
-      if (stages[i].remark !== initialValues.stages[i].remark) return true;
     }
     return false;
   }, [subject, eofficeFile, wing, division, refNumber, receivedFrom, remarks, deadline, stages, initialValues]);
 
-  // Helper to get today's date YYYY-MM-DD
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  // Compute min/max limits for stage dates
+  // Compute min/max limits for chronological stage dates
   const getDateLimits = (stageNum) => {
     let min = undefined;
     let max = todayStr;
@@ -225,19 +219,68 @@ export default function InputForm({
     return { min, max };
   };
 
-  const isFormValid = useMemo(() => {
-    const hasAtLeastOneDate = Object.values(stages).some(st => !!st.date);
-    return (
-      subject.trim() !== '' &&
-      eofficeFile.trim() !== '' &&
-      String(wing).trim() !== '' &&
-      String(division).trim() !== '' &&
-      refNumber.trim() !== '' &&
-      receivedFrom.trim() !== '' &&
-      remarks.trim() !== '' &&
-      hasAtLeastOneDate
-    );
-  }, [subject, eofficeFile, wing, division, refNumber, receivedFrom, remarks, stages]);
+  const getWordCount = (text) => {
+    return text.trim() ? text.trim().split(/\s+/).length : 0;
+  };
+
+  // Comprehensive Form Validation Errors Object
+  const validationErrors = useMemo(() => {
+    const errs = {};
+
+    if (!subject.trim()) {
+      errs.subject = 'Subject of VIP Reference is mandatory.';
+    } else if (subject.trim().length < 3) {
+      errs.subject = 'Subject must be at least 3 characters long.';
+    }
+
+    if (!eofficeFile.trim()) {
+      errs.eofficeFile = 'E-Office File Number is mandatory.';
+    }
+
+    if (!wing) {
+      errs.wing = 'Wing selection is mandatory.';
+    }
+
+    if (!division) {
+      errs.division = 'Division selection is mandatory.';
+    }
+
+    if (!refNumber.trim()) {
+      errs.refNumber = 'Reference Letter Number is mandatory.';
+    }
+
+    if (!receivedFrom.trim()) {
+      errs.receivedFrom = 'Received From (Sender) is mandatory.';
+    }
+
+    if (!remarks.trim()) {
+      errs.remarks = 'Remarks is mandatory.';
+    } else if (getWordCount(remarks) > 250) {
+      errs.remarks = `Remarks exceeds 250 words (${getWordCount(remarks)} words entered).`;
+    }
+
+    if (!stages[1]?.date) {
+      errs.stage1 = 'Stage 1 (Received at Ministry) date is mandatory.';
+    } else if (stages[1].date > todayStr) {
+      errs.stage1 = 'Received date cannot be in the future.';
+    }
+
+    // Chronological validation for subsequent stages
+    for (let i = 2; i <= 6; i++) {
+      if (stages[i]?.date) {
+        if (stages[i].date > todayStr) {
+          errs[`stage${i}`] = `Stage ${i} date cannot be in the future.`;
+        }
+        if (stages[i - 1]?.date && stages[i].date < stages[i - 1].date) {
+          errs[`stage${i}`] = `Stage ${i} date cannot be earlier than Stage ${i - 1} date.`;
+        }
+      }
+    }
+
+    return errs;
+  }, [subject, eofficeFile, wing, division, refNumber, receivedFrom, remarks, stages, todayStr]);
+
+  const isFormValid = Object.keys(validationErrors).length === 0;
 
   const handleStageChange = (num, field, val) => {
     setStages(prev => {
@@ -253,12 +296,11 @@ export default function InputForm({
         setDeadline(d.toISOString().split('T')[0]);
       }
 
-      // Cascade clear logic matching Cab Notes
+      // Cascade clear later stages if an earlier stage is cleared
       if (field === 'date' && !val) {
         for (let i = num + 1; i <= 6; i++) {
           updated[i] = { date: '', remark: '' };
         }
-        updated[num].remark = '';
       }
       return updated;
     });
@@ -268,29 +310,13 @@ export default function InputForm({
     setTouched(prev => ({ ...prev, [field]: true }));
   };
 
-  const validateRemarks = (text) => {
-    const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
-    if (wordCount > 250) {
-      setErrors(prev => ({ ...prev, remarks: 'Remarks cannot exceed 250 words.' }));
-    } else {
-      setErrors(prev => {
-        const updated = { ...prev };
-        delete updated.remarks;
-        return updated;
-      });
-    }
-  };
-
-  const isFieldInvalid = (field, val) => {
-    return touched[field] && (!val || !String(val).trim());
-  };
-
-  const getWordCount = (text) => {
-    return text.trim() ? text.trim().split(/\s+/).length : 0;
+  const shouldShowError = (field) => {
+    return (touched[field] || formSubmitted) && !!validationErrors[field];
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormSubmitted(true);
 
     setTouched({
       subject: true,
@@ -299,30 +325,16 @@ export default function InputForm({
       division: true,
       refNumber: true,
       receivedFrom: true,
-      remarks: true
+      remarks: true,
+      stage1: true
     });
 
-    if (
-      !subject.trim() ||
-      !eofficeFile.trim() ||
-      !wing ||
-      !division ||
-      !refNumber.trim() ||
-      !receivedFrom.trim() ||
-      !remarks.trim()
-    ) {
-      if (triggerNotification) triggerNotification("Please fill in all mandatory fields highlighted in red.", "warning");
-      return;
-    }
-
-    if (errors.remarks) {
-      if (triggerNotification) triggerNotification(errors.remarks, "warning");
-      return;
-    }
-
-    // Verify stage 1 has a date
-    if (!stages[1].date) {
-      if (triggerNotification) triggerNotification("Please specify the Action Date for Stage 1: Received at Ministry.", "warning");
+    if (!isFormValid) {
+      const errorCount = Object.keys(validationErrors).length;
+      triggerNotification?.(
+        `Please correct the ${errorCount} highlighted validation error(s) before saving.`,
+        "warning"
+      );
       return;
     }
 
@@ -362,20 +374,19 @@ export default function InputForm({
     try {
       if (isEdit) {
         payload.vipReferenceID = editData.id;
-        await axios.put(`${API_BASE_URL}/vip-reference`, payload);
+        await updateVIPReference(payload);
       } else {
-        await axios.post(`${API_BASE_URL}/vip-reference`, payload);
+        await createVIPReference(payload);
       }
       triggerNotification?.(
         isEdit ? "VIP Reference updated successfully." : "New VIP Reference registered successfully.",
         "success"
       );
-      onSuccess();
+      onSuccess?.();
+      onBack?.();
     } catch (err) {
       console.error("Error saving VIP reference:", err);
-      if (triggerNotification) {
-        triggerNotification("Failed to save VIP reference.", "error");
-      }
+      triggerNotification?.(err.response?.data?.message || "Failed to save VIP reference.", "error");
     } finally {
       setSubmitting(false);
     }
@@ -383,10 +394,13 @@ export default function InputForm({
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
+      
+      {/* Header Banner */}
       <div className="bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
-            {isEdit ? 'UPDATE VIP REFERENCE LETTER' : 'REGISTER NEW VIP LETTER'}
+          <h3 className="text-sm font-black uppercase tracking-wider font-display flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span>{isEdit ? 'UPDATE VIP REFERENCE LETTER' : 'REGISTER NEW VIP LETTER'}</span>
           </h3>
           <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
         </div>
@@ -400,41 +414,75 @@ export default function InputForm({
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6">
+      <form onSubmit={handleSubmit} className="p-6" noValidate>
+
+        {/* Global Validation Error Banner */}
+        {formSubmitted && !isFormValid && (
+          <div className="mb-6 p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-xl flex items-start space-x-3 animate-fade-in">
+            <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-xs font-bold text-rose-800 dark:text-rose-300">Please correct the following errors before submitting:</h4>
+              <ul className="mt-1 list-disc list-inside text-xs text-rose-700 dark:text-rose-400 space-y-0.5">
+                {Object.values(validationErrors).map((msg, i) => (
+                  <li key={i}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          {/* Left Panel: Stationary fields */}
+          {/* Left Panel: Primary Stationary Fields */}
           <div className="lg:col-span-5 space-y-4 pr-0 lg:pr-2">
             
             {/* Subject Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Subject of VIP Reference <span className="text-red-500">*</span></label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Subject of VIP Reference <span className="text-rose-500">*</span>
+              </label>
               <textarea
                 value={subject}
                 onChange={e => setSubject(e.target.value)}
                 onBlur={() => handleBlur('subject')}
-                placeholder="Details of the letter..."
+                placeholder="Details of the VIP communication..."
                 rows={3}
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('subject', subject) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
+                  shouldShowError('subject')
+                    ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
+                    : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
+                }`}
               />
-              {isFieldInvalid('subject', subject) && (
-                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              {shouldShowError('subject') && (
+                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
+                  <span>{validationErrors.subject}</span>
+                </p>
               )}
             </div>
 
             {/* E-Office File Number */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">E-Office File Number <span className="text-red-500">*</span></label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                E-Office File Number <span className="text-rose-500">*</span>
+              </label>
               <input
                 type="text"
                 value={eofficeFile}
                 onChange={e => setEofficeFile(e.target.value)}
                 onBlur={() => handleBlur('eofficeFile')}
-                placeholder="e.g. E-100244"
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('eofficeFile', eofficeFile) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
+                placeholder="e.g. E-100244 / File No."
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
+                  shouldShowError('eofficeFile')
+                    ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
+                    : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
+                }`}
               />
-              {isFieldInvalid('eofficeFile', eofficeFile) && (
-                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              {shouldShowError('eofficeFile') && (
+                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
+                  <span>{validationErrors.eofficeFile}</span>
+                </p>
               )}
             </div>
 
@@ -442,139 +490,204 @@ export default function InputForm({
             <div className="grid grid-cols-2 gap-4">
               {/* Wing Field */}
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Wing <span className="text-rose-500">*</span>
+                </label>
                 <select
                   value={wing}
                   onChange={e => setWing(e.target.value)}
                   onBlur={() => handleBlur('wing')}
-                  className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer`}
+                  className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 cursor-pointer transition-all ${
+                    shouldShowError('wing')
+                      ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
+                      : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
+                  }`}
                 >
                   <option value="">--Select Wing--</option>
                   {wings.map(w => (
-                    <option key={w.wing_id} value={w.wing_name}>{w.wing_name}</option>
+                    <option key={w.wing_id || w.wing_name} value={w.wing_name}>{w.wing_name}</option>
                   ))}
                 </select>
-                {isFieldInvalid('wing', wing) && (
-                  <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+                {shouldShowError('wing') && (
+                  <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
+                    <span>{validationErrors.wing}</span>
+                  </p>
                 )}
               </div>
 
               {/* Division Field */}
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Division <span className="text-rose-500">*</span>
+                </label>
                 <select
                   value={division}
                   onChange={e => setDivision(e.target.value)}
                   onBlur={() => handleBlur('division')}
-                  className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer`}
+                  className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 cursor-pointer transition-all ${
+                    shouldShowError('division')
+                      ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
+                      : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
+                  }`}
                 >
                   <option value="">--Select Division--</option>
                   {filteredDivisions.map(d => (
-                    <option key={d.division_id} value={d.division_name}>{d.division_name}</option>
+                    <option key={d.division_id || d.division_name} value={d.division_name}>{d.division_name}</option>
                   ))}
                 </select>
-                {isFieldInvalid('division', division) && (
-                  <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+                {shouldShowError('division') && (
+                  <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
+                    <span>{validationErrors.division}</span>
+                  </p>
                 )}
               </div>
             </div>
 
             {/* Reference Letter Number */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Reference Letter Number <span className="text-red-500">*</span></label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Reference Letter Number <span className="text-rose-500">*</span>
+              </label>
               <input
                 type="text"
                 value={refNumber}
                 onChange={e => setRefNumber(e.target.value)}
                 onBlur={() => handleBlur('refNumber')}
-                placeholder="e.g. 647/25"
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('refNumber', refNumber) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
+                placeholder="e.g. Ref/VIP/647/25"
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
+                  shouldShowError('refNumber')
+                    ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
+                    : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
+                }`}
               />
-              {isFieldInvalid('refNumber', refNumber) && (
-                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              {shouldShowError('refNumber') && (
+                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
+                  <span>{validationErrors.refNumber}</span>
+                </p>
               )}
             </div>
 
             {/* Received From */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Received From (Sender) <span className="text-red-500">*</span></label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Received From (Sender) <span className="text-rose-500">*</span>
+              </label>
               <input
                 type="text"
                 value={receivedFrom}
                 onChange={e => setReceivedFrom(e.target.value)}
                 onBlur={() => handleBlur('receivedFrom')}
-                placeholder="e.g. Shri Ajay Kumar Mandal, MP"
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('receivedFrom', receivedFrom) ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
+                placeholder="e.g. Shri Ajay Kumar Mandal, MP / VIP Dignitary"
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
+                  shouldShowError('receivedFrom')
+                    ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
+                    : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
+                }`}
               />
-              {isFieldInvalid('receivedFrom', receivedFrom) && (
-                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              {shouldShowError('receivedFrom') && (
+                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
+                  <span>{validationErrors.receivedFrom}</span>
+                </p>
               )}
             </div>
 
             {/* Remarks Field */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">General Remarks <span className="text-red-500">*</span>(Max 250 words)</label>
-                <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-red-500' : 'text-slate-400'}`}>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  General Remarks <span className="text-rose-500">*</span>
+                </label>
+                <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-rose-500' : 'text-slate-400'}`}>
                   {getWordCount(remarks)} / 250 words
                 </span>
               </div>
               <textarea
                 value={remarks}
-                onChange={e => { setRemarks(e.target.value); validateRemarks(e.target.value); }}
+                onChange={e => setRemarks(e.target.value)}
                 onBlur={() => handleBlur('remarks')}
                 rows={3}
-                placeholder="Enter remarks..."
-                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border ${isFieldInvalid('remarks', remarks) || errors.remarks ? 'border-red-500 focus:border-red-500' : 'border-slate-250 focus:border-[#0f417a]'} rounded-xl focus:outline-none focus:bg-white font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200`}
+                placeholder="Enter remarks or details..."
+                className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
+                  shouldShowError('remarks')
+                    ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
+                    : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
+                }`}
               />
-              {isFieldInvalid('remarks', remarks) && (
-                <p className="text-[10px] font-bold text-red-500 mt-1">This field is mandatory.</p>
+              {shouldShowError('remarks') && (
+                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
+                  <span>{validationErrors.remarks}</span>
+                </p>
               )}
-              {errors.remarks && <p className="text-[10px] font-bold text-red-500 mt-1">{errors.remarks}</p>}
             </div>
 
             {/* Deadline */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Deadline</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Deadline (Auto-calculated: +15 days)
+              </label>
               <input
                 type="date"
                 value={deadline}
                 readOnly
-                onChange={e => setDeadline(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none font-semibold text-slate-500 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-500 cursor-not-allowed"
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none font-semibold text-slate-600 dark:text-slate-400 cursor-not-allowed"
               />
             </div>
 
           </div>
 
-          {/* Right Panel: Stages list card style */}
-          <div className="lg:col-span-7 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-950" style={{ maxHeight: '580px' }}>
-            <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800">
-              Stages Checklist & Dates
-            </h4>
+          {/* Right Panel: Stages Checklist & Chronological Dates */}
+          <div className="lg:col-span-7 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 overflow-y-auto space-y-4 bg-slate-50/70 dark:bg-slate-950" style={{ maxHeight: '600px' }}>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+              <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+                <span>Stages Checklist & Action Dates</span>
+              </h4>
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                Stage 1 is Required
+              </span>
+            </div>
+
             <div className="space-y-3.5">
               {[1, 2, 3, 4, 5, 6].map((stageNum) => {
                 const currentStage = stages[stageNum];
                 const label = STATUS_STEPS[stageNum];
 
-                // Enforce sequential filling on add
-                const isStageDisabled = !isEdit && stageNum > 1 && !stages[stageNum - 1].date;
-                const isRemarkFieldVisible = stageNum === focusedStage || !!currentStage.date;
+                // Disable future stages if previous stage has not been completed
+                const isStageDisabled = !isEdit && stageNum > 1 && !stages[stageNum - 1]?.date;
+                const isStageCompleted = !!currentStage.date;
+                const hasStageError = shouldShowError(`stage${stageNum}`);
 
                 return (
                   <div
                     key={stageNum}
-                    onMouseEnter={() => !isStageDisabled && setHoveredStage(stageNum)}
-                    onMouseLeave={() => setHoveredStage(null)}
-                    className={`flex flex-col gap-3 p-3 border rounded-xl shadow-xs transition-all duration-200 ${isStageDisabled
-                      ? 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-850 opacity-55'
-                      : 'bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800 hover:border-slate-250'
-                      }`}
+                    className={`flex flex-col gap-2 p-3.5 border rounded-xl shadow-xs transition-all duration-200 ${
+                      isStageDisabled
+                        ? 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-850 opacity-60'
+                        : isStageCompleted
+                          ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                    } ${hasStageError ? 'border-rose-500 ring-1 ring-rose-500' : ''}`}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-xs font-bold block truncate ${isStageDisabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
-                          {stageNum}. {label}
+                      <div className="flex items-center space-x-2 flex-1 min-w-0">
+                        {isStageCompleted ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                        ) : (
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black font-mono flex-shrink-0 ${
+                            isStageDisabled ? 'bg-slate-200 text-slate-500' : 'bg-blue-100 text-[#0f417a] dark:bg-blue-900/50 dark:text-blue-300'
+                          }`}>
+                            {stageNum}
+                          </span>
+                        )}
+                        <span className={`text-xs font-bold block truncate ${
+                          isStageDisabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'
+                        }`}>
+                          {label} {stageNum === 1 && <span className="text-rose-500">*</span>}
                         </span>
                       </div>
 
@@ -585,17 +698,23 @@ export default function InputForm({
                           min={getDateLimits(stageNum).min}
                           max={getDateLimits(stageNum).max}
                           onChange={e => handleStageChange(stageNum, 'date', e.target.value)}
-                          onFocus={() => !isStageDisabled && setFocusedStage(stageNum)}
-                          onBlur={() => setFocusedStage(null)}
+                          onBlur={() => handleBlur(`stage${stageNum}`)}
                           disabled={isStageDisabled}
-                          className={`text-xs px-2.5 py-1.5 border rounded-lg focus:outline-none font-semibold dark:[color-scheme:dark] ${isStageDisabled
-                            ? 'bg-slate-100 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-600 cursor-not-allowed'
-                            : 'bg-white border-slate-200 text-slate-700 cursor-pointer dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 focus:border-[#0f417a]'
-                            }`}
+                          className={`text-xs px-3 py-1.5 border rounded-lg focus:outline-none font-semibold dark:[color-scheme:dark] ${
+                            isStageDisabled
+                              ? 'bg-slate-100 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-600 cursor-not-allowed'
+                              : 'bg-white border-slate-200 text-slate-700 cursor-pointer dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 focus:border-[#0f417a]'
+                          }`}
                         />
                       </div>
                     </div>
 
+                    {hasStageError && (
+                      <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
+                        <span>{validationErrors[`stage${stageNum}`]}</span>
+                      </p>
+                    )}
                   </div>
                 );
               })}
@@ -604,20 +723,36 @@ export default function InputForm({
 
         </div>
 
-        {/* Footer Actions */}
-        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-3">
-          <button
-            type="submit"
-            disabled={submitting || !isFormValid || (isEdit && !isDirty)}
-            className={`flex items-center space-x-2 text-xs transition px-5 py-2.5 rounded-xl font-bold tracking-wider uppercase ${(submitting || !isFormValid || (isEdit && !isDirty))
-                ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
-                : 'bg-[#0f417a] text-white hover:bg-blue-800 cursor-pointer'
+        {/* Footer Submit Actions */}
+        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Fields marked with <span className="text-rose-500 font-bold">*</span> are mandatory.
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={submitting || (isEdit && !isDirty)}
+              className={`flex items-center space-x-2 text-xs transition px-6 py-2.5 rounded-xl font-bold tracking-wider uppercase shadow-sm ${
+                submitting || (isEdit && !isDirty)
+                  ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                  : 'bg-[#0f417a] text-white hover:bg-blue-800 cursor-pointer active:scale-98'
               }`}
-          >
-            <Save className="h-4 w-4" />
-            <span>{isEdit ? "Update Reference" : "Save VIP Letter"}</span>
-          </button>
+            >
+              <Save className="h-4 w-4" />
+              <span>{submitting ? "Saving..." : isEdit ? "Update Reference" : "Save VIP Letter"}</span>
+            </button>
+          </div>
         </div>
+
       </form>
     </div>
   );
