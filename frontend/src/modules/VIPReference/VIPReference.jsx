@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import axios from 'axios';
 import InternalNavigation from '../../components/InternalNavigation';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
-import {fetchWings,fetchDivisions} from '../ParliamentaryIssues/api'
-
+import { fetchWings, fetchDivisions, fetchVIPReferences } from './api';
 
 export default function VIPReference({ triggerNotification }) {
   const location = useLocation();
@@ -30,31 +28,19 @@ export default function VIPReference({ triggerNotification }) {
     return 'data-list';
   }, [location.pathname]);
 
-  // Fetch wings and divisions on mount
-useEffect(() => {
-    const loadDropdowns = async () => {
-      try {
-        const [wingsRes, divisionsRes] = await Promise.all([
-          fetchWings(),
-          fetchDivisions(),
-        ]);
+  // Fetch wings and divisions on mount using centralized API service
+  useEffect(() => {
+    fetchWings()
+      .then(res => setWings(res.data || []))
+      .catch(err => console.error("Error loading wings:", err));
 
-        setWings(wingsRes.data || []);
-        setDivisions(divisionsRes.data || []);
-      } catch (error) {
-        console.error('Error loading dropdowns:', error);
-
-        if (error.response?.status === 401) {
-          console.error('Authentication failed. Token may be missing or expired.');
-        }
-      }
-    };
-
-    loadDropdowns();
+    fetchDivisions()
+      .then(res => setDivisions(res.data || []))
+      .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
   const fetchData = () => {
-    axios.get(`${API_BASE_URL}/vip-reference`)
+    fetchVIPReferences()
       .then(res => {
         const dataArray = Array.isArray(res.data) ? res.data : (res.data.data || []);
         const mapped = dataArray.map(r => {
@@ -135,6 +121,8 @@ useEffect(() => {
       <Routes>
         <Route path="data-list" element={
           <DataList
+            wings={wings}
+            divisions={divisions}
             vipReferences={vipReferences}
             onEdit={handleEdit}
             fetchData={fetchData}
