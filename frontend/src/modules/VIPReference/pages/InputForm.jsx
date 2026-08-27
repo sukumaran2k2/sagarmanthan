@@ -1,7 +1,16 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ArrowLeft, Save, AlertCircle, CheckCircle2, Calendar, FileText, Building2, User } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, Save, AlertCircle, CheckCircle2, Calendar, FileText } from 'lucide-react';
 import { createVIPReference, updateVIPReference } from '../api';
 import { STAGE_STEPS as STATUS_STEPS } from '../utils/constants';
+
+// Schema Constraints Definitions
+const SCHEMA_LIMITS = {
+  subject: { min: 3, max: 2000 },
+  eofficeFile: { max: 50 },
+  refNumber: { max: 256 },
+  receivedFrom: { max: 256 },
+  remarks: { maxWords: 250, maxChars: 2000 }
+};
 
 export default function InputForm({
   editData = null,
@@ -19,7 +28,7 @@ export default function InputForm({
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.userId || 1;
+        return Number(payload.userId) || 1;
       } catch (e) {
         console.error("Error parsing token", e);
       }
@@ -27,24 +36,24 @@ export default function InputForm({
     return 1;
   };
 
-  // Form Fields (Left Panel)
-  const [subject, setSubject] = useState('');
-  const [eofficeFile, setEofficeFile] = useState('');
-  const [wing, setWing] = useState('');
-  const [division, setDivision] = useState('');
-  const [refNumber, setRefNumber] = useState('');
-  const [receivedFrom, setReceivedFrom] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [deadline, setDeadline] = useState('');
+  // Form Fields matching tbl_vip_reference_change schema types
+  const [subject, setSubject] = useState(''); // nvarchar(MAX)
+  const [eofficeFile, setEofficeFile] = useState(''); // nvarchar(50)
+  const [wing, setWing] = useState(''); // int (FK)
+  const [division, setDivision] = useState(''); // int (FK)
+  const [refNumber, setRefNumber] = useState(''); // nvarchar(256)
+  const [receivedFrom, setReceivedFrom] = useState(''); // nvarchar(256)
+  const [remarks, setRemarks] = useState(''); // nvarchar(MAX)
+  const [deadline, setDeadline] = useState(''); // date
 
-  // Milestone Stages (Right Panel)
+  // Milestone Stages (date YYYY-MM-DD + optional stage remark)
   const [stages, setStages] = useState({
-    1: { date: '', remark: '' },
-    2: { date: '', remark: '' },
-    3: { date: '', remark: '' },
-    4: { date: '', remark: '' },
-    5: { date: '', remark: '' },
-    6: { date: '', remark: '' }
+    1: { date: '', remark: '' }, // received_at_ministry_date
+    2: { date: '', remark: '' }, // submitted_for_approval_date
+    3: { date: '', remark: '' }, // comments_sought_date
+    4: { date: '', remark: '' }, // comments_received_date
+    5: { date: '', remark: '' }, // reply_furnished_date
+    6: { date: '', remark: '' }  // disposed_date
   });
 
   // Validation States
@@ -172,14 +181,14 @@ export default function InputForm({
   // Filter divisions dynamically based on selected Wing
   const filteredDivisions = useMemo(() => {
     if (!wing) return [];
-    const selectedWingObj = wings.find(w => w.wing_name === wing);
+    const selectedWingObj = wings.find(w => w.wing_name === wing || String(w.wing_id) === String(wing));
     if (!selectedWingObj) return [];
     return divisions.filter(d => String(d.wing_id) === String(selectedWingObj.wing_id));
   }, [wing, wings, divisions]);
 
   useEffect(() => {
     if (filteredDivisions.length > 0) {
-      const exists = filteredDivisions.some(d => d.division_name === division);
+      const exists = filteredDivisions.some(d => d.division_name === division || String(d.division_id) === String(division));
       if (!exists && !editData) {
         setDivision(filteredDivisions[0].division_name);
       }
@@ -201,13 +210,14 @@ export default function InputForm({
 
     for (let i = 1; i <= 6; i++) {
       if (stages[i].date !== initialValues.stages[i].date) return true;
+      if (stages[i].remark !== initialValues.stages[i].remark) return true;
     }
     return false;
   }, [subject, eofficeFile, wing, division, refNumber, receivedFrom, remarks, deadline, stages, initialValues]);
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  // Compute min/max limits for chronological stage dates
+  // Compute min/max limits for chronological stage dates (schema: date format)
   const getDateLimits = (stageNum) => {
     let min = undefined;
     let max = todayStr;
@@ -223,49 +233,72 @@ export default function InputForm({
     return text.trim() ? text.trim().split(/\s+/).length : 0;
   };
 
-  // Comprehensive Form Validation Errors Object
+  // Schema-Aligned Data Validation
   const validationErrors = useMemo(() => {
     const errs = {};
 
-    if (!subject.trim()) {
-      errs.subject = 'Subject of VIP Reference is mandatory.';
-    } else if (subject.trim().length < 3) {
-      errs.subject = 'Subject must be at least 3 characters long.';
+    // 1. subject: nvarchar(MAX), required, min 3 chars, max 2000 chars
+    const trimmedSubject = subject.trim();
+    if (!trimmedSubject) {
+      errs.subject = 'Subject of VIP Reference is required.';
+    } else if (trimmedSubject.length < SCHEMA_LIMITS.subject.min) {
+      errs.subject = `Subject must be at least ${SCHEMA_LIMITS.subject.min} characters long.`;
+    } else if (trimmedSubject.length > SCHEMA_LIMITS.subject.max) {
+      errs.subject = `Subject cannot exceed ${SCHEMA_LIMITS.subject.max} characters.`;
     }
 
-    if (!eofficeFile.trim()) {
-      errs.eofficeFile = 'E-Office File Number is mandatory.';
+    // 2. eoffice_file_number: nvarchar(50), required
+    const trimmedEoffice = eofficeFile.trim();
+    if (!trimmedEoffice) {
+      errs.eofficeFile = 'E-Office File Number is required.';
+    } else if (trimmedEoffice.length > SCHEMA_LIMITS.eofficeFile.max) {
+      errs.eofficeFile = `E-Office File Number cannot exceed ${SCHEMA_LIMITS.eofficeFile.max} characters.`;
     }
 
+    // 3. wing: int, required FK
     if (!wing) {
-      errs.wing = 'Wing selection is mandatory.';
+      errs.wing = 'Concerned Wing must be selected.';
     }
 
+    // 4. division: int, required FK
     if (!division) {
-      errs.division = 'Division selection is mandatory.';
+      errs.division = 'Concerned Division must be selected.';
     }
 
-    if (!refNumber.trim()) {
-      errs.refNumber = 'Reference Letter Number is mandatory.';
+    // 5. ref_letter_num: nvarchar(256), required
+    const trimmedRefNum = refNumber.trim();
+    if (!trimmedRefNum) {
+      errs.refNumber = 'Reference Letter Number is required.';
+    } else if (trimmedRefNum.length > SCHEMA_LIMITS.refNumber.max) {
+      errs.refNumber = `Reference Letter Number cannot exceed ${SCHEMA_LIMITS.refNumber.max} characters.`;
     }
 
-    if (!receivedFrom.trim()) {
-      errs.receivedFrom = 'Received From (Sender) is mandatory.';
+    // 6. received_from: nvarchar(256), required
+    const trimmedReceivedFrom = receivedFrom.trim();
+    if (!trimmedReceivedFrom) {
+      errs.receivedFrom = 'Received From (Sender) is required.';
+    } else if (trimmedReceivedFrom.length > SCHEMA_LIMITS.receivedFrom.max) {
+      errs.receivedFrom = `Received From cannot exceed ${SCHEMA_LIMITS.receivedFrom.max} characters.`;
     }
 
-    if (!remarks.trim()) {
-      errs.remarks = 'Remarks is mandatory.';
-    } else if (getWordCount(remarks) > 250) {
-      errs.remarks = `Remarks exceeds 250 words (${getWordCount(remarks)} words entered).`;
+    // 7. remarks: nvarchar(MAX), required, max 250 words / max 2000 chars
+    const trimmedRemarks = remarks.trim();
+    if (!trimmedRemarks) {
+      errs.remarks = 'General Remarks is required.';
+    } else if (getWordCount(trimmedRemarks) > SCHEMA_LIMITS.remarks.maxWords) {
+      errs.remarks = `Remarks cannot exceed ${SCHEMA_LIMITS.remarks.maxWords} words (${getWordCount(trimmedRemarks)} words entered).`;
+    } else if (trimmedRemarks.length > SCHEMA_LIMITS.remarks.maxChars) {
+      errs.remarks = `Remarks cannot exceed ${SCHEMA_LIMITS.remarks.maxChars} characters.`;
     }
 
+    // 8. received_at_ministry_date: date, required, <= today
     if (!stages[1]?.date) {
-      errs.stage1 = 'Stage 1 (Received at Ministry) date is mandatory.';
+      errs.stage1 = 'Stage 1 (Received at Ministry) date is required.';
     } else if (stages[1].date > todayStr) {
-      errs.stage1 = 'Received date cannot be in the future.';
+      errs.stage1 = 'Received at Ministry date cannot be in the future.';
     }
 
-    // Chronological validation for subsequent stages
+    // 9. Chronological validation for stage 2 to 6 dates
     for (let i = 2; i <= 6; i++) {
       if (stages[i]?.date) {
         if (stages[i].date > todayStr) {
@@ -332,7 +365,7 @@ export default function InputForm({
     if (!isFormValid) {
       const errorCount = Object.keys(validationErrors).length;
       triggerNotification?.(
-        `Please correct the ${errorCount} highlighted validation error(s) before saving.`,
+        `Please correct the ${errorCount} schema validation error(s) before saving.`,
         "warning"
       );
       return;
@@ -340,10 +373,11 @@ export default function InputForm({
 
     setSubmitting(true);
 
-    const wingObj = wings.find(w => w.wing_name === wing) || { wing_id: 1 };
-    const divisionObj = divisions.find(d => d.division_name === division) || { division_id: 1 };
-    const wingId = wingObj.wing_id;
-    const divisionId = divisionObj.division_id;
+    // Resolve integer foreign keys matching schema: wing (int), division (int)
+    const wingObj = wings.find(w => w.wing_name === wing || String(w.wing_id) === String(wing)) || { wing_id: 1 };
+    const divisionObj = divisions.find(d => d.division_name === division || String(d.division_id) === String(division)) || { division_id: 1 };
+    const wingId = Number(wingObj.wing_id) || 1;
+    const divisionId = Number(divisionObj.division_id) || 1;
 
     let selectedStage = 1;
     for (let i = 1; i <= 6; i++) {
@@ -352,28 +386,29 @@ export default function InputForm({
       }
     }
 
+    // Payload structured to exactly match backend request & SQL schema datatypes
     const payload = {
       vipSubject: subject.trim(),
       eofficeFileNumber: eofficeFile.trim(),
-      wing: wingId,
-      division: divisionId,
+      wing: wingId, // int
+      division: divisionId, // int
       referenceLetterNumber: refNumber.trim(),
       receivedFrom: receivedFrom.trim(),
-      vipReceivedMinistryDate: stages[1].date || '',
-      vipSubmittedForApprovalDate: stages[2].date || '',
-      vipCommentsSoughtDate: stages[3].date || '',
-      vipCommentsReceivedDate: stages[4].date || '',
-      vipReplyFurnishedDate: stages[5].date || '',
-      vipDisposedDate: stages[6].date || '',
+      vipReceivedMinistryDate: stages[1].date || null, // date
+      vipSubmittedForApprovalDate: stages[2].date || null, // date
+      vipCommentsSoughtDate: stages[3].date || null, // date
+      vipCommentsReceivedDate: stages[4].date || null, // date
+      vipReplyFurnishedDate: stages[5].date || null, // date
+      vipDisposedDate: stages[6].date || null, // date
       vipRemarks: remarks.trim(),
-      selectedStage: selectedStage,
-      deadline: deadline || '',
-      userID: getUserIdFromToken()
+      selectedStage: Number(selectedStage), // int
+      deadline: deadline || null, // date
+      userID: getUserIdFromToken() // int
     };
 
     try {
       if (isEdit) {
-        payload.vipReferenceID = editData.id;
+        payload.vipReferenceID = Number(editData.id);
         await updateVIPReference(payload);
       } else {
         await createVIPReference(payload);
@@ -433,16 +468,22 @@ export default function InputForm({
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          {/* Left Panel: Primary Stationary Fields */}
+          {/* Left Panel: Primary Stationary Fields matching SQL Types */}
           <div className="lg:col-span-5 space-y-4 pr-0 lg:pr-2">
             
-            {/* Subject Field */}
+            {/* Subject Field (nvarchar(MAX)) */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Subject of VIP Reference <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Subject of VIP Reference <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[10px] text-slate-400 font-semibold">
+                  {subject.length} / {SCHEMA_LIMITS.subject.max}
+                </span>
+              </div>
               <textarea
                 value={subject}
+                maxLength={SCHEMA_LIMITS.subject.max}
                 onChange={e => setSubject(e.target.value)}
                 onBlur={() => handleBlur('subject')}
                 placeholder="Details of the VIP communication..."
@@ -461,17 +502,23 @@ export default function InputForm({
               )}
             </div>
 
-            {/* E-Office File Number */}
+            {/* E-Office File Number (nvarchar(50)) */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                E-Office File Number <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  E-Office File Number <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[10px] text-slate-400 font-semibold">
+                  {eofficeFile.length} / {SCHEMA_LIMITS.eofficeFile.max}
+                </span>
+              </div>
               <input
                 type="text"
                 value={eofficeFile}
+                maxLength={SCHEMA_LIMITS.eofficeFile.max}
                 onChange={e => setEofficeFile(e.target.value)}
                 onBlur={() => handleBlur('eofficeFile')}
-                placeholder="e.g. E-100244 / File No."
+                placeholder="e.g. E-100244"
                 className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
                   shouldShowError('eofficeFile')
                     ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
@@ -486,7 +533,7 @@ export default function InputForm({
               )}
             </div>
 
-            {/* Wing & Division Row */}
+            {/* Wing & Division Row (int foreign keys) */}
             <div className="grid grid-cols-2 gap-4">
               {/* Wing Field */}
               <div className="space-y-1.5">
@@ -545,14 +592,20 @@ export default function InputForm({
               </div>
             </div>
 
-            {/* Reference Letter Number */}
+            {/* Reference Letter Number (nvarchar(256)) */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Reference Letter Number <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Reference Letter Number <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[10px] text-slate-400 font-semibold">
+                  {refNumber.length} / {SCHEMA_LIMITS.refNumber.max}
+                </span>
+              </div>
               <input
                 type="text"
                 value={refNumber}
+                maxLength={SCHEMA_LIMITS.refNumber.max}
                 onChange={e => setRefNumber(e.target.value)}
                 onBlur={() => handleBlur('refNumber')}
                 placeholder="e.g. Ref/VIP/647/25"
@@ -570,14 +623,20 @@ export default function InputForm({
               )}
             </div>
 
-            {/* Received From */}
+            {/* Received From (nvarchar(256)) */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Received From (Sender) <span className="text-rose-500">*</span>
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Received From (Sender) <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[10px] text-slate-400 font-semibold">
+                  {receivedFrom.length} / {SCHEMA_LIMITS.receivedFrom.max}
+                </span>
+              </div>
               <input
                 type="text"
                 value={receivedFrom}
+                maxLength={SCHEMA_LIMITS.receivedFrom.max}
                 onChange={e => setReceivedFrom(e.target.value)}
                 onBlur={() => handleBlur('receivedFrom')}
                 placeholder="e.g. Shri Ajay Kumar Mandal, MP / VIP Dignitary"
@@ -595,18 +654,19 @@ export default function InputForm({
               )}
             </div>
 
-            {/* Remarks Field */}
+            {/* Remarks Field (nvarchar(MAX)) */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   General Remarks <span className="text-rose-500">*</span>
                 </label>
-                <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-rose-500' : 'text-slate-400'}`}>
-                  {getWordCount(remarks)} / 250 words
+                <span className={`text-[10px] font-bold ${getWordCount(remarks) > SCHEMA_LIMITS.remarks.maxWords ? 'text-rose-500' : 'text-slate-400'}`}>
+                  {getWordCount(remarks)} / {SCHEMA_LIMITS.remarks.maxWords} words
                 </span>
               </div>
               <textarea
                 value={remarks}
+                maxLength={SCHEMA_LIMITS.remarks.maxChars}
                 onChange={e => setRemarks(e.target.value)}
                 onBlur={() => handleBlur('remarks')}
                 rows={3}
@@ -625,7 +685,7 @@ export default function InputForm({
               )}
             </div>
 
-            {/* Deadline */}
+            {/* Deadline (date) */}
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Deadline (Auto-calculated: +15 days)
@@ -640,7 +700,7 @@ export default function InputForm({
 
           </div>
 
-          {/* Right Panel: Stages Checklist & Chronological Dates */}
+          {/* Right Panel: Stages Checklist & Chronological Dates (date data types) */}
           <div className="lg:col-span-7 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 overflow-y-auto space-y-4 bg-slate-50/70 dark:bg-slate-950" style={{ maxHeight: '600px' }}>
             <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
               <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5">
@@ -648,7 +708,7 @@ export default function InputForm({
                 <span>Stages Checklist & Action Dates</span>
               </h4>
               <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
-                Stage 1 is Required
+                Stage 1 Date is Mandatory
               </span>
             </div>
 
