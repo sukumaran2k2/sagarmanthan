@@ -89,6 +89,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateParliamentary = canCreateModule('PARLIAMENTARY_ISSUES');
   const canCreateCabinetMopsw = canCreateModule('CABINET_NOTES_MOPSW');
   const canCreateConsultant = canCreateModule('CONSULTANT_APPOINTMENT');
+  const canCreateYp = canCreateModule('YOUNG_PROFESSIONAL');
 
   const accessKey = (() => {
     try {
@@ -96,9 +97,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
       if (!t) return '';
       const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       const codes = payload?.allowedModuleCodes;
-      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}`;
+      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}`;
     } catch {
-      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}`;
+      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}`;
     }
   })();
 
@@ -334,7 +335,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Young Professionals',
           icon: UserCheck,
           items: [
-            m('YOUNG_PROFESSIONAL', { label: 'Input Form', tab: 'YP Input Form', icon: FileEdit }),
+            ...(canCreateYp ? [m('YOUNG_PROFESSIONAL', { label: 'Input Form', tab: 'YP Input Form', icon: FileEdit })] : []),
             m('YOUNG_PROFESSIONAL', { label: 'Data List', tab: 'YP Data List', icon: ClipboardList }),
             m('YOUNG_PROFESSIONAL', { label: 'Report', tab: 'YP Report', icon: FilePieChart }),
           ]
@@ -388,6 +389,17 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'MIV Meetings', tab: 'MIV 2030', targetSubTab: 'MIV Meetings', icon: Users },
             { label: 'Organisation Report', tab: 'MIV 2030', targetSubTab: 'Organisation Report', icon: FilePieChart },
             { label: 'Theme Report', tab: 'MIV 2030', targetSubTab: 'Theme Report', icon: BarChart3 },
+          ]
+        }),
+        m('GMIS_IMW_MOU_TRACKING', {
+          label: 'GMIS & IMW MoUs',
+          icon: Globe,
+          targetTab: 'GMIS & IMW MoUs',
+          subItems: [
+            { label: 'Dashboard', tab: 'GMIS & IMW MoUs', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Data List', tab: 'GMIS & IMW MoUs', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'GMIS & IMW MoUs', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'Reports', tab: 'GMIS & IMW MoUs', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
         m('AKV_2047', { label: 'Vision 2047', icon: Milestone }),
@@ -469,7 +481,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       ],
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant]
+    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp]
   );
 
   const handleItemClick = (tabOrLabel) => {
@@ -699,14 +711,14 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                               sub.targetSubTab
                                             );
                                             window.dispatchEvent(
-                                              new CustomEvent('cabinet-notes-mopsw-subtab', {
-                                                detail: sub.targetSubTab,
-                                              })
-                                            );
-                                          }
-                                          if (
-                                            sub.targetSubTab &&
-                                            (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
+                                                new CustomEvent('cabinet-notes-mopsw-subtab', {
+                                                  detail: sub.targetSubTab,
+                                                })
+                                              );
+                                            }
+                                            if (
+                                              sub.targetSubTab &&
+                                              (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
                                           ) {
                                             sessionStorage.setItem(
                                               'miv2030InitTab',
@@ -714,6 +726,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                             );
                                             window.dispatchEvent(
                                               new CustomEvent('miv-2030-subtab', {
+                                                detail: sub.targetSubTab,
+                                              })
+                                            );
+                                          }
+                                          if (
+                                            sub.targetSubTab &&
+                                            (mainTab === 'GMIS & IMW MoUs' || mainTab === 'GMIS-MoU' || mainTab === 'GMISMOU')
+                                          ) {
+                                            sessionStorage.setItem(
+                                              'gmisMouInitTab',
+                                              sub.targetSubTab
+                                            );
+                                            window.dispatchEvent(
+                                              new CustomEvent('gmis-mou-subtab', {
                                                 detail: sub.targetSubTab,
                                               })
                                             );
@@ -1008,6 +1034,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                                 );
                                                 window.dispatchEvent(
                                                   new CustomEvent('cabinet-notes-mopsw-subtab', {
+                                                    detail: sub.targetSubTab,
+                                                  })
+                                                );
+                                              }
+                                              if (
+                                                sub.targetSubTab &&
+                                                (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
+                                              ) {
+                                                sessionStorage.setItem(
+                                                  'miv2030InitTab',
+                                                  sub.targetSubTab
+                                                );
+                                                window.dispatchEvent(
+                                                  new CustomEvent('miv2030-subtab', {
                                                     detail: sub.targetSubTab,
                                                   })
                                                 );

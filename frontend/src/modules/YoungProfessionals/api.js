@@ -4,6 +4,7 @@ export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3
 
 const api = axios.create({ baseURL: API_BASE });
 
+// Automatically attach Authorization Bearer token to all outgoing requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
   if (token) {
@@ -29,6 +30,7 @@ async function refreshAccessToken() {
   return next;
 }
 
+// Intercept 401 Unauthorized responses to silently refresh token and retry
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -55,8 +57,13 @@ api.interceptors.response.use(
   }
 );
 
+// Explicit YP Module CRUD Endpoints
 export function fetchYoungProfessionals(params = {}) {
   return api.get('/young-professional', { params });
+}
+
+export function fetchYoungProfessionalById(id) {
+  return api.get(`/edit-young-professional/${id}`);
 }
 
 export function createYoungProfessional(payload) {
@@ -89,8 +96,16 @@ export function fetchDivisions() {
   return api.get('/mmt-dropdown/mmt_division');
 }
 
+export function fetchYpReport() {
+  return api.get('/yp-report');
+}
+
 export function fetchYPReport() {
   return api.get('/yp-report');
+}
+
+export function fetchYpDivisionReport(wingId) {
+  return api.get(`/yp-division-report/${wingId}`);
 }
 
 export function fetchYPDivisionWiseCandidates(divisionId) {

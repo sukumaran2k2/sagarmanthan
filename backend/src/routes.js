@@ -1082,7 +1082,7 @@ router.get("/candidate-detail/:youngProfessionalId", auth, requireModulePermissi
 router.get("/candidate-detail-document/:candidate_id", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getCandidateDetailDocument);
 
 
-router.put( "/relieve-young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.relieveYoungProfessional);
+router.put("/relieve-young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.relieveYoungProfessional);
 //consultant appointment
 router.get("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getConsultantAppointment);
 router.post("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointment);
@@ -1093,13 +1093,17 @@ router.get("/get-candidate-id/:consultantAppointmentID", auth, requireModulePerm
 
 //candidate detail consultant appointment
 router.post("/ca-candidate-detail", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.addCandidateDetail);
+router.put("/ca-candidate-detail", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "update"), consultantAppointmentTab.updateCandidateDetail);
 router.post("/ca-candidate-uploader", auth, requireAnyModulePermission("CONSULTANT_APPOINTMENT", ["create", "update"]), candidateCaDocumentTab.upload.single('file'), candidateCaDocumentTab.candidateDocumentUploader);
 router.get("/ca-candidate-detail/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetail);
 router.get("/ca-candidate-detail-document/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetailDocument);
+router.get("/get-ca-candidates/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidatesByConsultantAppointmentId);
+router.get("/ca-candidate-document-download/:fileName", candidateCaDocumentTab.downloadCandidateDocument);
 router.post("/add-consultant-id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.addConsultantID);
 
 //delete consultant appoinment and candidate details
 router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateData);
+router.delete("/ca-candidate-single/:candidate_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateSingle);
 
 //HR
 router.post("/hr-department", hrDepartmentTab.createHrDepartment);
@@ -2518,41 +2522,42 @@ router.get("/update-cruise-shipping-data/:CruiseShippingId", cruisePortsTab.getU
 router.put('/update-cruise-data-edit',cruisePortsTab.updateCruiseshippingData);
 
 
-//GMIS-MoU
-router.get('/get-mou-category-names', gmisMouTab.getMouCategory);
-router.post('/submit-gmis-mou-data', gmisMouTab.submitGmisMouData);
-router.post("/gmisdocumentUploader", gmisMouTab.upload.single('file'),gmisMouTab.addNewgmisFileupload);
-router.get('/get-gmis-mou-data/:roleId/:organisationId', gmisMouTab.getGmisMouData);
-router.get('/get-gmis-mou-chart-data', gmisMouTab.getGmisMouChartData);
-router.put('/update-gmis-mou-data', gmisMouTab.updateGmisMouData);
-router.get('/get-gmis-mou-data-by-id/:mouID', gmisMouTab.getGmisMouDataByID);
+// GMIS & IMW MoU Tracking
+router.get('/get-gmis-mou-paginated', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouPaginated);
+router.get('/get-mou-category-names', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouCategory);
+router.post('/submit-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.submitGmisMouData);
+router.post("/gmisdocumentUploader", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.upload.single('file'), gmisMouTab.addNewgmisFileupload);
+router.get('/get-gmis-mou-data/:roleId/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouData);
+router.get('/get-gmis-mou-chart-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouChartData);
+router.put('/update-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.updateGmisMouData);
+router.get('/get-gmis-mou-data-by-id/:mouID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByID);
 router.get("/download-gmismou-pdf-document", gmisMouTab.gmisPdfFileDownload);
-router.delete("/delete-gmisfile", gmisMouTab.gmisfileDelete)
-router.get('/get-organisation-wise-count-amount', gmisMouTab.getOrganisationWiseCountAmount);
-router.get('/get-status-wise-count', gmisMouTab.getStatusWiseCountAmount);
-router.get('/get-org-wise-status-count/:organisationId/:financialYear/:greaterThan100Cr', gmisMouTab.getOrganisationWiseStatusCount);
-router.get('/get-mou-data-by-organisation-and-status/:organisation/:status', gmisMouTab.getGmisMouDataByOrganisationAndStatus);
-router.get('/get-org-wise-status-count-orgview/:organisationID', gmisMouTab.getOrganisationWiseStatusCountorgView);
-router.post("/add-revised-financial-progress-date", gmisMouTab.addRevisedfinancialprogressdate);
-router.post("/add-revised-physical-progress-date", gmisMouTab.addRevisedphysicalprogressdate);
-router.get("/get-revised-financial-progress-date/:mouID", gmisMouTab.getRevisedfinancialprogressdate);
-router.get("/get-revised-physical-progress-date/:mouID", gmisMouTab.getRevisedphysicalprogressdate);
+router.delete("/delete-gmisfile", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "delete"), gmisMouTab.gmisfileDelete);
+router.get('/get-organisation-wise-count-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmount);
+router.get('/get-status-wise-count', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getStatusWiseCountAmount);
+router.get('/get-org-wise-status-count/:organisationId/:financialYear/:greaterThan100Cr', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCount);
+router.get('/get-mou-data-by-organisation-and-status/:organisation/:status', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByOrganisationAndStatus);
+router.get('/get-org-wise-status-count-orgview/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCountorgView);
+router.post("/add-revised-financial-progress-date", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.addRevisedfinancialprogressdate);
+router.post("/add-revised-physical-progress-date", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.addRevisedphysicalprogressdate);
+router.get("/get-revised-financial-progress-date/:mouID", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getRevisedfinancialprogressdate);
+router.get("/get-revised-physical-progress-date/:mouID", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getRevisedphysicalprogressdate);
 
-router.get("/get-mou-stage-details-org/:roleId/:organisationID",gmisMouTab.getGmisMouStageDetails_org);
-router.get("/get-mou-stage-details/:organisationId/:financialYear/:greaterThan100Cr",gmisMouTab.getGmisMouStageDetails);
-router.get('/get-yearwise-gmis-data',gmisMouTab.getYearWisegmisData);
-router.get('/get-gmis-drilldown-data',gmisMouTab.getGmisDrilldownData);
-router.get('/get-gismou-second-party', gmisMouTab.getGmisMouSecondParty);
-router.get('/get-gismou-vibhas-navic-cell', gmisMouTab.getGmisMouVibhasNavicCell);
-router.get('/get-gismou-category-name', gmisMouTab.getGmisMouCategoryName);
-router.get('/get-gismou-present-status', gmisMouTab.getGmisMouPresentStatus);
+router.get("/get-mou-stage-details-org/:roleId/:organisationID", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails_org);
+router.get("/get-mou-stage-details/:organisationId/:financialYear/:greaterThan100Cr", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails);
+router.get('/get-yearwise-gmis-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getYearWisegmisData);
+router.get('/get-gmis-drilldown-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisDrilldownData);
+router.get('/get-gismou-second-party', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouSecondParty);
+router.get('/get-gismou-vibhas-navic-cell', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouVibhasNavicCell);
+router.get('/get-gismou-category-name', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouCategoryName);
+router.get('/get-gismou-present-status', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouPresentStatus);
 
-router.get('/get-organisation-wise-count-amount-status', gmisMouTab.getOrganisationWiseCountAmountStatus);
-router.get('/get-mou-total-count-amount', gmisMouTab.getMouTotalCountAmount);
-router.get('/get-mou-categories', gmisMouTab.getMouCategories);
-router.get('/get-total-mou-amount',gmisMouTab.getTotalMouAndAmountCategoryWise),
-router.get('/get-total-mou-amount-yearwise',gmisMouTab.getTotalMouAndAmountyearWise),
-router.get('/get-mou-org-order', gmisMouTab.getOrgWiseMouOrder);
+router.get('/get-organisation-wise-count-amount-status', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatus);
+router.get('/get-mou-total-count-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouTotalCountAmount);
+router.get('/get-mou-categories', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouCategories);
+router.get('/get-total-mou-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountCategoryWise);
+router.get('/get-total-mou-amount-yearwise', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountyearWise);
+router.get('/get-mou-org-order', auth, requireModulePermission("GMIS_MOU", "read"), gmisMouTab.getOrgWiseMouOrder);
 router.get('/get-organisation-wise-count-amount-status-orgview/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView);
 router.get('/get-organisation-wise-count-amount-status-orgview_2021/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2021);
 router.get('/get-organisation-wise-count-amount-status-orgview_2023/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2023);

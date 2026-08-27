@@ -187,16 +187,16 @@ export default function ExportDropdown({
             onClick={handleExcel}
             className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-none text-left transition"
           >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-            <span>CSV (Excel)</span>
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-slate-800 dark:text-white">CSV (Excel)</span>
           </button>
           <button
             type="button"
             onClick={handlePdf}
             className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-none text-left transition"
           >
-            <Download className="h-4 w-4 text-rose-600" />
-            <span>Print / PDF</span>
+            <Download className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            <span className="text-slate-800 dark:text-white">Print / PDF</span>
           </button>
         </div>
       )}

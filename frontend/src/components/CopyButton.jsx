@@ -3,6 +3,7 @@ import { Copy } from 'lucide-react';
 
 export default function CopyButton({
   onCopy,
+  onClick,
   headers = [],
   data = [],
   rows = [],
@@ -12,10 +13,40 @@ export default function CopyButton({
   hoverBg = '#f1f5f9',
   className = ''
 }) {
+  const copyToClipboard = (text) => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(() => {
+        // Fallback if permission rejected
+        return fallbackCopy(text);
+      });
+    }
+    return fallbackCopy(text);
+  };
+
+  const fallbackCopy = (text) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.top = '-9999px';
+      textArea.style.left = '-9999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) return Promise.resolve();
+      return Promise.reject(new Error('execCommand failed'));
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  };
+
   const handleClick = (e) => {
-    e.preventDefault();
-    if (typeof onCopy === 'function') {
-      onCopy();
+    e?.preventDefault?.();
+    const handler = onCopy || onClick;
+    if (typeof handler === 'function') {
+      handler();
       return;
     }
 
@@ -24,7 +55,7 @@ export default function CopyButton({
       if (typeof onSuccess === 'function') {
         onSuccess();
       } else if (typeof triggerNotification === 'function') {
-        triggerNotification('Table copied to clipboard!');
+        triggerNotification('Table copied to clipboard!', 'success');
       }
       return;
     }
@@ -38,7 +69,6 @@ export default function CopyButton({
       if (Array.isArray(row)) {
         const line = row.map((cell) => {
           let str = String(cell ?? '');
-          // Remove wrapping quotes if added previously
           if (str.startsWith('"') && str.endsWith('"')) {
             str = str.slice(1, -1).replace(/""/g, '"');
           }
@@ -50,16 +80,19 @@ export default function CopyButton({
       }
     });
 
-    navigator.clipboard.writeText(tsv)
+    copyToClipboard(tsv)
       .then(() => {
         if (typeof onSuccess === 'function') {
           onSuccess();
         } else if (typeof triggerNotification === 'function') {
-          triggerNotification('Table copied to clipboard!');
+          triggerNotification('Table copied to clipboard!', 'success');
         }
       })
       .catch((err) => {
         console.error('Failed to copy to clipboard:', err);
+        if (typeof triggerNotification === 'function') {
+          triggerNotification('Failed to copy to clipboard', 'error');
+        }
       });
   };
 

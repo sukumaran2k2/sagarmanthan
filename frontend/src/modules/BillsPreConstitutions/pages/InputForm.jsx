@@ -219,11 +219,11 @@ export default function InputForm({
     });
 
     if (!wing || !division || !subject.trim() || !remarks.trim()) {
-      alert("Please fill in all mandatory fields highlighted in red.");
+      if (triggerNotification) triggerNotification("Please fill in all mandatory fields highlighted in red.", "warning");
       return;
     }
     if (errors.remarks) {
-      alert(errors.remarks);
+      if (triggerNotification) triggerNotification(errors.remarks, "warning");
       return;
     }
 
@@ -295,12 +295,14 @@ export default function InputForm({
       }
 
       if (triggerNotification) {
-        triggerNotification(isEdit ? "Bill updated successfully." : "Bill created successfully.");
+        triggerNotification(isEdit ? "Bill updated successfully." : "Bill created successfully.", "success");
       }
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error("Error saving bill:", err);
-      alert("Error saving Bill Pre-Constitutions Act details.");
+      if (triggerNotification) {
+        triggerNotification("Failed to save Legislative Bill / Pre-Constitutions Act details.", "error");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -336,7 +338,7 @@ export default function InputForm({
             
             {/* Subject */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject*</label>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Subject <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={subject}
@@ -353,7 +355,7 @@ export default function InputForm({
 
             {/* Wing */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing*</label>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
               <select
                 value={wing}
                 onChange={e => setWing(e.target.value)}
@@ -373,7 +375,7 @@ export default function InputForm({
 
             {/* Division */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division*</label>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
               <select
                 value={division}
                 onChange={e => setDivision(e.target.value)}
@@ -394,7 +396,7 @@ export default function InputForm({
             {/* Remarks */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">General Remarks* (Max 250 words)</label>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">General Remarks <span className="text-red-500">*</span>(Max 250 words)</label>
                 <span className={`text-[10px] font-bold ${getWordCount(remarks) > 250 ? 'text-red-500' : 'text-slate-400'}`}>
                   {getWordCount(remarks)} / 250 words
                 </span>

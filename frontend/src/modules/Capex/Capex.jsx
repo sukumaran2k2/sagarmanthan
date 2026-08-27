@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useLocation, useNavigate, Routes, Route, Navigate } from "react-router-dom";
 import axios from "axios";
 import * as XLSX from "xlsx";
 import { Download, Edit, Calendar, Plus, RefreshCw, Layers, LayoutDashboard, FilePieChart } from "lucide-react";
@@ -407,73 +408,95 @@ export default function CapexView() {
             viewMode === "org"
               ? [
                   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-                  { id: "data", label: "Datalist", icon: Layers },
+                  { id: "data-list", label: "Datalist", icon: Layers },
                 ]
               : [
                   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-                  { id: "data", label: "Datalist", icon: Layers },
-                  { id: "report", label: "Report", icon: Calendar },
+                  { id: "data-list", label: "Datalist", icon: Layers },
+                  { id: "reports", label: "Report", icon: Calendar },
                 ]
           }
-          currentTab={activeTab}
-          onTabChange={(tabId) => setActiveTab(tabId)}
+          currentTab={
+            location.pathname.includes("/data-list") || location.pathname.includes("/actual-expenditure")
+              ? "data-list"
+              : location.pathname.includes("/reports") || location.pathname.includes("/form32")
+              ? "reports"
+              : "dashboard"
+          }
+          onTabChange={(tabId) => {
+            if (tabId === "data-list") navigate("/finance/capex/data-list");
+            else if (tabId === "reports") navigate("/finance/capex/reports");
+            else navigate("/finance/capex/dashboard");
+          }}
         />
       </div>
 
-
-
       {/* Main Content Area */}
-      {activeTab === "dashboard" && (
-        viewMode === "ministry" ? (
-          <CapexDashboardView showToast={showToast} />
-        ) : (
-          <CapexOrgDashboardView
-            organisations={organisations}
-            selectedOrgId={selectedOrgId}
-            setSelectedOrgId={setSelectedOrgId}
-            showToast={showToast}
-          />
-        )
-      )}
+      <Routes>
+        <Route path="dashboard" element={
+          viewMode === "ministry" ? (
+            <CapexDashboardView showToast={showToast} />
+          ) : (
+            <CapexOrgDashboardView
+              organisations={organisations}
+              selectedOrgId={selectedOrgId}
+              setSelectedOrgId={setSelectedOrgId}
+              showToast={showToast}
+            />
+          )
+        } />
 
-      {activeTab === "data" && (
-        isActualExpenditurePageActive && selectedRecord ? (
+        <Route path="data-list" element={
+          isActualExpenditurePageActive && selectedRecord ? (
+            <CapexActualExpenditurePage
+              capexRecord={selectedRecord}
+              onBack={() => setIsActualExpenditurePageActive(false)}
+              showToast={showToast}
+              onRefresh={fetchCapexData}
+            />
+          ) : (
+            <>
+              <CapexKpiCards data={filteredData} />
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+                <CapexDataListView
+                  searchTerm={searchTerm}
+                  setSearchTerm={setSearchTerm}
+                  pageSize={pageSize}
+                  setPageSize={setPageSize}
+                  filteredData={filteredData}
+                  colDefs={colDefs}
+                  pinnedBottomRowData={pinnedBottomRowData}
+                  loading={loading}
+                  onOpenAddModal={() => setIsAddModalOpen(true)}
+                  handleCopyData={handleCopyData}
+                  handleExportExcel={handleExportExcel}
+                  handleExportPdf={handleExportPdf}
+                  organisations={organisations}
+                  filterYear={filterYear}
+                  setFilterYear={setFilterYear}
+                  filterOrg={filterOrg}
+                  setFilterOrg={setFilterOrg}
+                  viewMode={viewMode}
+                />
+              </div>
+            </>
+          )
+        } />
+
+        <Route path="actual-expenditure" element={
           <CapexActualExpenditurePage
             capexRecord={selectedRecord}
-            onBack={() => setIsActualExpenditurePageActive(false)}
+            onBack={() => navigate("/finance/capex/data-list")}
             showToast={showToast}
             onRefresh={fetchCapexData}
           />
-        ) : (
-          <>
-            <CapexKpiCards data={filteredData} />
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-              <CapexDataListView
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                pageSize={pageSize}
-                setPageSize={setPageSize}
-                filteredData={filteredData}
-                colDefs={colDefs}
-                pinnedBottomRowData={pinnedBottomRowData}
-                loading={loading}
-                onOpenAddModal={() => setIsAddModalOpen(true)}
-                handleCopyData={handleCopyData}
-                handleExportExcel={handleExportExcel}
-                handleExportPdf={handleExportPdf}
-                organisations={organisations}
-                filterYear={filterYear}
-                setFilterYear={setFilterYear}
-                filterOrg={filterOrg}
-                setFilterOrg={setFilterOrg}
-                viewMode={viewMode}
-              />
-            </div>
-          </>
-        )
-      )}
+        } />
 
-      {activeTab === "report" && <CapexForm32Report showToast={showToast} />}
+        <Route path="reports" element={<CapexForm32Report showToast={showToast} />} />
+        
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="*" element={<Navigate to="dashboard" replace />} />
+      </Routes>
 
       {/* Modals */}
       <CapexAddTargetModal

@@ -1,20 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ArrowLeft, X, Upload } from 'lucide-react';
-import { API_BASE_URL } from '../../../config/api';
-import { createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
-
-function decodeToken(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-}
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Upload, X, ArrowLeft, Plus, FileText } from 'lucide-react';
+import api, { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
+import { getCurrentUserId } from '../../../utils/authSession';
 
 const COMMON_SKILLS = [
   'SQL', 'Python', 'Java', 'React', 'Javascript', 'HTML', 'CSS',
@@ -273,36 +260,29 @@ export default function InputForm({
     e.preventDefault();
 
     if (!wing) {
-      alert("Please select a Wing.");
+      if (triggerNotification) triggerNotification("Please select a Wing.", "warning");
       return;
     }
     if (!division) {
-      alert("Please select a Division.");
+      if (triggerNotification) triggerNotification("Please select a Division.", "warning");
       return;
     }
     if (!name.trim()) {
-      alert("Name is required.");
+      if (triggerNotification) triggerNotification("Name is required.", "warning");
       return;
     }
     if (Object.keys(errors).length > 0) {
-      alert("Please correct validation errors: " + Object.values(errors).join(" "));
+      if (triggerNotification) triggerNotification("Please correct validation errors: " + Object.values(errors).join(" "), "warning");
       return;
     }
     if (!isEdit && (!fileInputRef.current || !fileInputRef.current.files[0])) {
-      alert("Appointment order document is required.");
+      if (triggerNotification) triggerNotification("Appointment order document is required.", "warning");
       return;
     }
 
     setSubmitting(true);
 
-    const token = localStorage.getItem('accessToken');
-    let activeUserId = 1;
-    if (token) {
-      const decoded = decodeToken(token);
-      if (decoded && decoded.userId) {
-        activeUserId = decoded.userId;
-      }
-    }
+    const activeUserId = getCurrentUserId() || 1;
 
     const payload = {
       wing_id: parseInt(wing),
@@ -325,7 +305,7 @@ export default function InputForm({
         ypId = editData.yp_id;
       } else {
         const response = await createYoungProfessional(payload);
-        ypId = response.data.insertedYPId;
+        ypId = response.data?.insertedYPId;
       }
 
       if (fileInputRef.current && fileInputRef.current.files[0]) {
@@ -335,13 +315,19 @@ export default function InputForm({
       }
 
       if (triggerNotification) {
-        triggerNotification(isEdit ? "Young Professional updated successfully." : "New Young Professional registered successfully.");
+        triggerNotification(
+          isEdit ? "Young Professional updated successfully." : "New Young Professional registered successfully.",
+          "success"
+        );
       }
 
       onSuccess();
     } catch (err) {
       console.error(err);
-      alert("Failed to save Young Professional details.");
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+      if (triggerNotification) {
+        triggerNotification(`Failed to save Young Professional details: ${serverMsg || ''}`, "error");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -376,7 +362,7 @@ export default function InputForm({
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Wing*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
             <select
               value={wing}
               onChange={(e) => { setWing(e.target.value); if (touched.wing) handleBlur('wing'); }}
@@ -390,7 +376,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Division*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
             <select
               value={division}
               onChange={(e) => { setDivision(e.target.value); if (touched.division) handleBlur('division'); }}
@@ -408,7 +394,7 @@ export default function InputForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Name*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Name <span className="text-red-500">*</span></label>
             <input 
               type="text" 
               value={name} 
@@ -422,7 +408,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Educational Qualification*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Educational Qualification <span className="text-red-500">*</span></label>
             <input 
               type="text" 
               value={qualification} 
@@ -435,7 +421,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Role / Designation*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Role / Designation <span className="text-red-500">*</span></label>
             <input 
               type="text" 
               value={role} 
@@ -448,7 +434,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Date of Appointment*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Date of Appointment <span className="text-red-500">*</span></label>
             <input 
               type="date" 
               value={appointmentDate} 
@@ -462,7 +448,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Salary (per month)*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Salary (per month) <span className="text-red-500">*</span></label>
             <input 
               type="number" 
               step="0.01"
@@ -477,7 +463,7 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Total Experience (Years of Exp - YOE)*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-355 uppercase tracking-wider">Total Experience (Years of Exp - YOE) <span className="text-red-500">*</span></label>
             <input 
               type="number" 
               value={experience} 
@@ -492,7 +478,7 @@ export default function InputForm({
         </div>
 
         <div className="space-y-2">
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Skills Keyword Pool (Type & press Enter or comma)*</label>
+          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Skills Keyword Pool (Type & press Enter or comma) <span className="text-red-500">*</span></label>
           {skillsList.length > 0 && (
             <div className="flex flex-wrap gap-1.5 p-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-xl mb-2">
               {skillsList.map(skill => (
@@ -550,7 +536,7 @@ export default function InputForm({
 
         {/* Appointment document - Minimized towards the left */}
         <div className="space-y-1.5 max-w-sm">
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Appointment Order Document*</label>
+          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Appointment Order Document <span className="text-red-500">*</span></label>
           <div className={`flex items-center justify-center border-2 border-dashed ${isFieldInvalid('documentName', documentName) ? 'border-red-500 bg-red-50/10' : 'border-slate-250 dark:border-slate-800'} rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative`}>
             <input 
               type="file" 
@@ -562,14 +548,14 @@ export default function InputForm({
                 const file = e.target.files[0];
                 if (file) {
                   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-                    alert("Invalid file type. Only PDF files are allowed.");
+                    if (triggerNotification) triggerNotification("Invalid file type. Only PDF files are allowed.", "error");
                     e.target.value = '';
                     setDocumentName('');
                     if (touched.documentName) handleBlur('documentName');
                     return;
                   }
                   if (file.size > 10 * 1024 * 1024) {
-                    alert("File size exceeds 10 MB. Please choose a smaller file.");
+                    if (triggerNotification) triggerNotification("File size exceeds 10 MB. Please choose a smaller file.", "warning");
                     e.target.value = '';
                     setDocumentName('');
                     if (touched.documentName) handleBlur('documentName');
@@ -594,7 +580,7 @@ export default function InputForm({
           {isEdit && editData.appointment_document && (
             <div className="mt-2 text-xs">
               <a
-                href={`${API_BASE_URL}/download-yp-document?fileName=${editData.appointment_document}`}
+                href={`${API_BASE}/download-yp-document?fileName=${editData.appointment_document}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center space-x-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline"

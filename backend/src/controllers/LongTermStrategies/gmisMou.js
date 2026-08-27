@@ -127,9 +127,17 @@ async function submitGmisMouData(req, res) {
 
 
     try {
-        const result = await request.query(`INSERT INTO tbl_gmis_mou ( organisation_id,event_name, navic_vibhas_id, name_of_mou,name_of_first_party,
-             name_of_second_party, nature_of_second_party, amount, mou_category_id, present_status, reason_for_dropping, remark_or_detailed_status, mou_brief, revised_amount,document_uploader,next_steps,physical_progress_date,financial_progress_date,physical_progress_percentage,financial_progress_percentage,created_on, created_by)
-        VALUES (@organisationId,@eventName,@navicId, @nameOfMou, @firstParty, @nameOfSecondParty, @natureOfSecondParty, @amount, @mouCategoryId, @presentStatus, @reasonForDropping, @detailedRemarks, @mouBrief, @revisedAmount,@uniqueFileName,@nextSteps,@physicalProgressDate,@financialProgressDate,@physicalPercentage,@financialPercentage, GETDATE(), @userID);`);
+        const result = await request.query(`INSERT INTO tbl_gmis_mou (
+            organisation_id, event_name, navic_vibhas_id, name_of_mou, name_of_first_party,
+            name_of_second_party, nature_of_second_party, amount, mou_category_id, present_status,
+            reason_for_dropping, remark_or_detailed_status, mou_brief, revised_amount, document_uploader,
+            next_steps, created_on, created_by
+        ) VALUES (
+            @organisationId, @eventName, @navicId, @nameOfMou, @firstParty,
+            @nameOfSecondParty, @natureOfSecondParty, @amount, @mouCategoryId, @presentStatus,
+            @reasonForDropping, @detailedRemarks, @mouBrief, @revisedAmount, @uniqueFileName,
+            @nextSteps, GETDATE(), @userID
+        );`);
 
         res.sendStatus(201);
     } catch (err) {
@@ -183,29 +191,32 @@ const fileUpload= multer({
 });
 
 async function updateGmisMouData(req, res) {
-    const mouID = req.body.mouID;
-    const eventName = req.body.eventName;
-    const organisationId = req.body.organisationName;
-    const navicId = req.body.vibhasNavicID;
-    const nameOfMou = req.body.mouProjectName;
-    const nameOfSecondParty = req.body.stakeholderName;
-    const natureOfSecondParty = req.body.natureOfSecondParty;
+    const mouID = req.body.mouID || req.body.id || req.body.mou_id;
+    const eventName = req.body.eventName || req.body.event_name;
+    const organisationId = req.body.organisationName || req.body.organisation_id;
+    const navicId = req.body.vibhasNavicID || req.body.navic_vibhas_id;
+    const nameOfMou = req.body.mouProjectName || req.body.name_of_mou;
+    const nameOfSecondParty = req.body.stakeholderName || req.body.name_of_second_party;
+    const natureOfSecondParty = req.body.natureOfSecondParty || req.body.nature_of_second_party;
     const amount = req.body.amount;
-    var revisedAmount = req.body.revisedAmount;
-    const mouCategoryId = req.body.mouCategory;
-    const presentStatus = req.body.presentStatus;
-    const detailedRemarks = req.body.detailedRemarks || null;
-    const reasonForDropping = req.body.reasonForDropping || null;
-    const mouBrief = req.body.mouBrief || null;
-    const userId = req.body.userId || null;
-    let uniqueFileName = req.body.uniqueFileName; 
-    let updatenextSteps = req.body.updatenextSteps;
+    let revisedAmount = req.body.revisedAmount !== undefined ? req.body.revisedAmount : req.body.revised_amount;
+    const mouCategoryId = req.body.mouCategory || req.body.mou_category_id;
+    const presentStatus = req.body.presentStatus || req.body.present_status;
+    const detailedRemarks = req.body.detailedRemarks || req.body.remark_or_detailed_status || null;
+    const reasonForDropping = req.body.reasonForDropping || req.body.reason_for_dropping || null;
+    const mouBrief = req.body.mouBrief || req.body.mou_brief || null;
+    const userId = req.body.userId || req.user?.id || null;
+    let uniqueFileName = req.body.gmisDocumentFileName || req.body.uniqueFileName || req.body.document_uploader || null; 
+    let nextSteps = req.body.nextSteps || req.body.updatenextSteps || req.body.next_steps || null;
+    const physicalProgressDate = req.body.physicalProgressDate || req.body.physical_progress_date || null;
+    const physicalPercentage = req.body.physicalPercentage !== undefined ? req.body.physicalPercentage : req.body.physical_progress_percentage;
+    const financialProgressDate = req.body.financialProgressDate || req.body.financial_progress_date || null;
+    const financialPercentage = req.body.financialPercentage !== undefined ? req.body.financialPercentage : req.body.financial_progress_percentage;
 
-
-    if (revisedAmount === '') {
+    if (revisedAmount === '' || revisedAmount === undefined) {
         revisedAmount = null;
     }
-       if (!uniqueFileName || uniqueFileName === "") {
+    if (!uniqueFileName || uniqueFileName === '') {
         uniqueFileName = null;
     }
 
@@ -228,7 +239,11 @@ async function updateGmisMouData(req, res) {
     request.input("mouBrief", mouBrief);
     request.input("userId", userId);
     request.input("uniqueFileName", uniqueFileName);
-    request.input("updatenextSteps", updatenextSteps);
+    request.input("nextSteps", nextSteps);
+    request.input("physicalProgressDate", physicalProgressDate);
+    request.input("physicalPercentage", physicalPercentage !== null && physicalPercentage !== '' ? Number(physicalPercentage) : null);
+    request.input("financialProgressDate", financialProgressDate);
+    request.input("financialPercentage", financialPercentage !== null && financialPercentage !== '' ? Number(financialPercentage) : null);
 
     const firstPartyResult = await request.query(`
         SELECT organisation_name
@@ -242,11 +257,9 @@ async function updateGmisMouData(req, res) {
     }
 
     const firstParty = firstPartyResult.recordset[0].organisation_name;
-
     request.input("firstParty", firstParty);
 
     try {
-        // Build dynamic query
         let updateQuery = `
             UPDATE tbl_gmis_mou 
             SET organisation_id = @organisationId, 
@@ -257,6 +270,7 @@ async function updateGmisMouData(req, res) {
                 name_of_second_party = @nameOfSecondParty, 
                 nature_of_second_party = @natureOfSecondParty,
                 amount = @amount, 
+                revised_amount = @revisedAmount,
                 mou_category_id = @mouCategoryId, 
                 present_status = @presentStatus, 
                 remark_or_detailed_status = @detailedRemarks, 
@@ -264,23 +278,16 @@ async function updateGmisMouData(req, res) {
                 mou_brief = @mouBrief, 
                 updated_by = @userId, 
                 document_uploader = @uniqueFileName,
-                next_steps = @updatenextSteps,
-                updated_on = GETDATE()`;
+                next_steps = @nextSteps,
+                updated_on = GETDATE()
+            WHERE id = @mouID;
+        `;
 
-        // Add revisedAmount only if it exists
-        if (revisedAmount !== null) {
-            updateQuery += `, revised_amount = @revisedAmount`;
-        }
-
-        // Add the WHERE clause
-        updateQuery += ` WHERE id = @mouID;`;
-
-        // Execute the query
-        const result = await request.query(updateQuery);
-        res.sendStatus(201);
+        await request.query(updateQuery);
+        res.status(200).json({ success: true, message: 'MoU updated successfully' });
     } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        console.error('updateGmisMouData Error:', err);
+        return res.status(500).json({ error: 'Failed to update MoU data' });
     }
 }
 
@@ -317,56 +324,14 @@ async function getGmisMouData(req, res) {
                     tbl_gmis_mou.mou_brief,
                     tbl_gmis_mou.present_status,
                     tbl_gmis_mou.reason_for_dropping,
+                    tbl_gmis_mou.remark_or_detailed_status,
                     mmt_navic_vibhas.navic_name,
                     tbl_gmis_mou.revised_amount,
-                    COALESCE(
-                    reb.revised_physical_progress_date,
-                    tbl_gmis_mou.physical_progress_date
-                ) AS physical_progress_date,
-
-                COALESCE(
-                    reb.revised_physical_progress_percentage,
-                    tbl_gmis_mou.physical_progress_percentage
-                ) AS physical_progress_percentage,
-                COALESCE(
-                    rev.revised_financial_progress_date,
-                    tbl_gmis_mou.financial_progress_date
-                ) AS financial_progress_date,
-
-                COALESCE(
-                    rev.revised_financial_progress_percentage,
-                    tbl_gmis_mou.financial_progress_percentage
-                ) AS financial_progress_percentage,
                     tbl_gmis_mou.updated_on
                 FROM tbl_gmis_mou
-
-                OUTER APPLY (
-                SELECT TOP 1
-                    revised_financial_progress_date,
-                    revised_financial_progress_percentage
-                FROM tbl_gmis_mou_financial_progress
-                WHERE mou_id = tbl_gmis_mou.id
-                ORDER BY revised_on DESC
-            ) rev
-
-            OUTER APPLY (
-                SELECT TOP 1
-                    revised_physical_progress_date,
-                    revised_physical_progress_percentage
-                FROM tbl_gmis_mou_physical_progress
-                WHERE mou_id = tbl_gmis_mou.id
-                ORDER BY revised_on DESC
-            ) reb
-
-                LEFT JOIN mmt_organisation 
-                    ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
-
-                LEFT JOIN mmt_navic_vibhas 
-                    ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
-
-                LEFT JOIN mmt_mou_category 
-                    ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
-
+                LEFT JOIN mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
+                LEFT JOIN mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
+                LEFT JOIN mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
                 ORDER BY tbl_gmis_mou.id ASC
             `;
 
@@ -388,41 +353,221 @@ async function getGmisMouData(req, res) {
                     tbl_gmis_mou.mou_brief,
                     tbl_gmis_mou.present_status,
                     tbl_gmis_mou.reason_for_dropping,
+                    tbl_gmis_mou.remark_or_detailed_status,
                     mmt_navic_vibhas.navic_name,
                     tbl_gmis_mou.revised_amount,
                     tbl_gmis_mou.updated_on
                 FROM tbl_gmis_mou
-
-                LEFT JOIN mmt_organisation 
-                    ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
-
-                LEFT JOIN mmt_navic_vibhas 
-                    ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
-
-                LEFT JOIN mmt_mou_category 
-                    ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
-
+                LEFT JOIN mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
+                LEFT JOIN mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
+                LEFT JOIN mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
                 WHERE tbl_gmis_mou.organisation_id = @organisationId
-
                 ORDER BY tbl_gmis_mou.id ASC
             `;
         }
 
         const result = await request.query(query);
-
         res.json(result.recordset);
 
     } catch (err) {
-
         console.log(err);
         return res.sendStatus(500);
+    }
+}
 
+async function getGmisMouPaginated(req, res) {
+    try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const pageSize = parseInt(req.query.pageSize, 10) || 10;
+        const search = req.query.search ? req.query.search.trim() : "";
+        const eventName = req.query.eventName || "";
+        const organisationId = req.query.organisationId || "";
+        const category = req.query.category || "";
+        const natureOfSecondParty = req.query.natureOfSecondParty || "";
+        const navicName = req.query.navicName || "";
+        const status = req.query.status || "";
+        const offset = (page - 1) * pageSize;
+
+        const roleId = req.user?.role_id || req.query.roleId || 2;
+        const userOrgId = req.user?.organisation_id || req.query.userOrgId;
+
+        const conn = await pool;
+        const request = conn.request();
+
+        let baseWhereClauses = ["1=1"];
+
+        // Org scoping if not admin
+        if (roleId != 2 && roleId != 3 && roleId != 4 && roleId != 5 && userOrgId) {
+            baseWhereClauses.push("tbl_gmis_mou.organisation_id = @userOrgId");
+            request.input("userOrgId", userOrgId);
+        }
+
+        if (eventName && eventName !== "all" && eventName !== "All") {
+            baseWhereClauses.push("tbl_gmis_mou.event_name = @eventName");
+            request.input("eventName", eventName);
+        }
+
+        if (organisationId && organisationId !== "all" && organisationId !== "All") {
+            baseWhereClauses.push("tbl_gmis_mou.organisation_id = @organisationId");
+            request.input("organisationId", organisationId);
+        }
+
+        if (category && category !== "all" && category !== "All") {
+            if (!isNaN(Number(category))) {
+                baseWhereClauses.push("(tbl_gmis_mou.mou_category_id = @categoryNum OR mmt_mou_category.mou_category_name = @category)");
+                request.input("categoryNum", Number(category));
+                request.input("category", String(category));
+            } else {
+                baseWhereClauses.push("mmt_mou_category.mou_category_name = @category");
+                request.input("category", String(category));
+            }
+        }
+
+        if (natureOfSecondParty && natureOfSecondParty !== "all" && natureOfSecondParty !== "All") {
+            baseWhereClauses.push("tbl_gmis_mou.nature_of_second_party = @natureOfSecondParty");
+            request.input("natureOfSecondParty", natureOfSecondParty);
+        }
+
+        if (navicName && navicName !== "all" && navicName !== "All") {
+            baseWhereClauses.push("mmt_navic_vibhas.navic_name = @navicName");
+            request.input("navicName", navicName);
+        }
+
+        if (search) {
+            baseWhereClauses.push(`(
+                tbl_gmis_mou.name_of_mou LIKE @search OR
+                tbl_gmis_mou.name_of_second_party LIKE @search OR
+                tbl_gmis_mou.name_of_first_party LIKE @search OR
+                mmt_organisation.organisation_name LIKE @search OR
+                tbl_gmis_mou.event_name LIKE @search OR
+                tbl_gmis_mou.mou_brief LIKE @search OR
+                mmt_navic_vibhas.navic_name LIKE @search
+            )`);
+            request.input("search", `%${search}%`);
+        }
+
+        const baseWhereSql = baseWhereClauses.join(" AND ");
+
+        // Data query clauses (includes status tab filter)
+        let dataWhereClauses = [...baseWhereClauses];
+        if (status && status !== "all" && status !== "All") {
+            if (status.toLowerCase().includes("completed")) {
+                dataWhereClauses.push("tbl_gmis_mou.present_status LIKE '%Completed%'");
+            } else if (status.toLowerCase().includes("under") || status.toLowerCase().includes("implementation") || status.toLowerCase() === "ui") {
+                dataWhereClauses.push("tbl_gmis_mou.present_status LIKE '%Under Implementation%'");
+            } else if (status.toLowerCase().includes("dropped")) {
+                dataWhereClauses.push("tbl_gmis_mou.present_status LIKE '%Dropped%'");
+            } else if (status.toLowerCase().includes("yet")) {
+                dataWhereClauses.push("tbl_gmis_mou.present_status LIKE '%Yet to%'");
+            } else {
+                dataWhereClauses.push("tbl_gmis_mou.present_status = @status");
+                request.input("status", status);
+            }
+        }
+
+        const dataWhereSql = dataWhereClauses.join(" AND ");
+
+        request.input("offset", offset);
+        request.input("pageSize", pageSize);
+
+        const dataQuery = `
+            SELECT 
+                tbl_gmis_mou.id,
+                tbl_gmis_mou.event_name,
+                tbl_gmis_mou.organisation_id,
+                mmt_organisation.organisation_name,
+                tbl_gmis_mou.name_of_mou,
+                tbl_gmis_mou.name_of_first_party,
+                tbl_gmis_mou.name_of_second_party,
+                tbl_gmis_mou.nature_of_second_party,
+                tbl_gmis_mou.amount,
+                tbl_gmis_mou.revised_amount,
+                tbl_gmis_mou.mou_category_id,
+                mmt_mou_category.mou_category_name,
+                tbl_gmis_mou.mou_brief,
+                tbl_gmis_mou.present_status,
+                tbl_gmis_mou.reason_for_dropping,
+                tbl_gmis_mou.remark_or_detailed_status,
+                tbl_gmis_mou.next_steps,
+                tbl_gmis_mou.navic_vibhas_id,
+                mmt_navic_vibhas.navic_name,
+                tbl_gmis_mou.document_uploader,
+                tbl_gmis_mou.created_on,
+                tbl_gmis_mou.updated_on,
+                COUNT(*) OVER() AS total_count
+            FROM tbl_gmis_mou
+            LEFT JOIN mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
+            LEFT JOIN mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
+            LEFT JOIN mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
+            WHERE ${dataWhereSql}
+            ORDER BY tbl_gmis_mou.id DESC
+            OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY;
+        `;
+
+        const countRequest = conn.request();
+        if (roleId != 2 && roleId != 3 && roleId != 4 && roleId != 5 && userOrgId) {
+            countRequest.input("userOrgId", userOrgId);
+        }
+        if (eventName && eventName !== "all" && eventName !== "All") countRequest.input("eventName", eventName);
+        if (organisationId && organisationId !== "all" && organisationId !== "All") countRequest.input("organisationId", organisationId);
+        if (category && category !== "all" && category !== "All") {
+            if (!isNaN(Number(category))) {
+                countRequest.input("categoryNum", Number(category));
+                countRequest.input("category", String(category));
+            } else {
+                countRequest.input("category", String(category));
+            }
+        }
+        if (natureOfSecondParty && natureOfSecondParty !== "all" && natureOfSecondParty !== "All") countRequest.input("natureOfSecondParty", natureOfSecondParty);
+        if (navicName && navicName !== "all" && navicName !== "All") countRequest.input("navicName", navicName);
+        if (search) countRequest.input("search", `%${search}%`);
+
+        const countsQuery = `
+            SELECT 
+                COUNT(*) AS count_all,
+                SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Under Implementation%' THEN 1 ELSE 0 END) AS count_ui,
+                SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Completed%' THEN 1 ELSE 0 END) AS count_completed,
+                SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Yet to%' THEN 1 ELSE 0 END) AS count_yet_to_start,
+                SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Dropped%' THEN 1 ELSE 0 END) AS count_dropped,
+                SUM(CAST(ISNULL(tbl_gmis_mou.amount, 0) AS FLOAT)) AS total_amount
+            FROM tbl_gmis_mou
+            LEFT JOIN mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
+            LEFT JOIN mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
+            LEFT JOIN mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
+            WHERE ${baseWhereSql};
+        `;
+
+        const [dataResult, countsResult] = await Promise.all([
+            request.query(dataQuery),
+            countRequest.query(countsQuery)
+        ]);
+
+        const recordset = dataResult.recordset || [];
+        const totalCount = recordset.length > 0 ? recordset[0].total_count : 0;
+        const totalPages = Math.ceil(totalCount / pageSize) || 1;
+        const countsRow = countsResult.recordset?.[0] || {};
+
+        res.json({
+            data: recordset,
+            totalCount,
+            totalPages,
+            currentPage: page,
+            pageSize,
+            counts: {
+                all: countsRow.count_all || 0,
+                underImplementation: countsRow.count_ui || 0,
+                completed: countsRow.count_completed || 0,
+                yetToStart: countsRow.count_yet_to_start || 0,
+                dropped: countsRow.count_dropped || 0,
+                totalAmount: countsRow.total_amount || 0,
+            }
+        });
+    } catch (err) {
+        console.error("Error in getGmisMouPaginated:", err);
+        return res.status(500).json({ error: "Internal server error fetching GMIS MoUs" });
     }
 }
 async function getGmisMouDataByID(req, res) {
-   
-
-
     const mouID = req.params.mouID;
     const conn = await pool;
     const request = conn.request();
@@ -451,59 +596,24 @@ async function getGmisMouDataByID(req, res) {
             tbl_gmis_mou.event_name,
             tbl_gmis_mou.document_uploader,
             tbl_gmis_mou.next_steps,
-            COALESCE(
-                reb.revised_physical_progress_date,
-                tbl_gmis_mou.physical_progress_date
-            ) AS physical_progress_date,
-
-            COALESCE(
-                reb.revised_physical_progress_percentage,
-                tbl_gmis_mou.physical_progress_percentage
-            ) AS physical_progress_percentage,
-            COALESCE(
-                rev.revised_financial_progress_date,
-                tbl_gmis_mou.financial_progress_date
-            ) AS financial_progress_date,
-
-            COALESCE(
-                rev.revised_financial_progress_percentage,
-                tbl_gmis_mou.financial_progress_percentage
-            ) AS financial_progress_percentage
-
+            tbl_gmis_mou.created_on,
+            tbl_gmis_mou.updated_on
         FROM 
             tbl_gmis_mou
-
-            OUTER APPLY (
-        SELECT TOP 1
-            revised_financial_progress_date,
-            revised_financial_progress_percentage
-        FROM tbl_gmis_mou_financial_progress
-        WHERE mou_id = tbl_gmis_mou.id
-        ORDER BY revised_on DESC
-    ) rev
-
-    OUTER APPLY (
-        SELECT TOP 1
-            revised_physical_progress_date,
-            revised_physical_progress_percentage
-        FROM tbl_gmis_mou_physical_progress
-        WHERE mou_id = tbl_gmis_mou.id
-        ORDER BY revised_on DESC
-    ) reb
         LEFT JOIN 
             mmt_organisation ON tbl_gmis_mou.organisation_id = mmt_organisation.organisation_id
         LEFT JOIN 
+            mmt_navic_vibhas ON mmt_navic_vibhas.id = tbl_gmis_mou.navic_vibhas_id
+        LEFT JOIN 
             mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
         WHERE 
-            tbl_gmis_mou.id = @mouID`);
-
-    console.log("result",result)
-
+            tbl_gmis_mou.id = @mouID;
+        `);
 
         res.json(result.recordset);
     }
     catch (err) {
-        console.log(err,"error");
+        console.error("Error in getGmisMouDataByID:", err);
         return res.sendStatus(500);
     }
 }
@@ -3800,30 +3910,39 @@ async function getRevisedfinancialprogressdate(req, res) {
 
     try {
         const conn = await pool;
-        const request = conn.request();
+        
+        await conn.request().query(`
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tbl_gmis_mou_financial_progress')
+            BEGIN
+                CREATE TABLE tbl_gmis_mou_financial_progress (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    mou_id INT,
+                    revised_financial_progress_date DATE,
+                    revised_financial_progress_percentage DECIMAL(5,2),
+                    revised_on DATETIME DEFAULT GETDATE()
+                );
+            END
+        `);
 
+        const request = conn.request();
         request.input("mouID", mouID);
 
         const result = await request.query(`
             SELECT
-            gm.id,
-            gm.financial_progress_date,
-            gm.financial_progress_percentage,
-            gm.created_on,
-            pfp.revised_financial_progress_date,
-            pfp.revised_financial_progress_percentage,
-            pfp.revised_on
-        FROM tbl_gmis_mou AS gm
-        LEFT JOIN tbl_gmis_mou_financial_progress AS pfp
-            ON gm.id = pfp.mou_id
-        WHERE gm.id = @mouID
-        ORDER BY pfp.revised_on ASC;
+                pfp.id,
+                pfp.mou_id,
+                pfp.revised_financial_progress_date,
+                pfp.revised_financial_progress_percentage,
+                pfp.revised_on
+            FROM tbl_gmis_mou_financial_progress AS pfp
+            WHERE pfp.mou_id = @mouID
+            ORDER BY pfp.revised_on DESC;
         `);
 
-        res.json(result.recordset);
+        return res.json(result.recordset || []);
     } catch (err) {
-        console.error(err);
-        res.sendStatus(500);
+        console.error("Error in getRevisedfinancialprogressdate:", err);
+        return res.json([]);
     }
 }
 
@@ -3832,105 +3951,131 @@ async function getRevisedphysicalprogressdate(req, res) {
 
     try {
         const conn = await pool;
-        const request = conn.request();
+        
+        await conn.request().query(`
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tbl_gmis_mou_physical_progress')
+            BEGIN
+                CREATE TABLE tbl_gmis_mou_physical_progress (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    mou_id INT,
+                    revised_physical_progress_date DATE,
+                    revised_physical_progress_percentage DECIMAL(5,2),
+                    revised_on DATETIME DEFAULT GETDATE()
+                );
+            END
+        `);
 
+        const request = conn.request();
         request.input("mouID", mouID);
 
         const result = await request.query(`
             SELECT
-            gm.id,
-            gm.physical_progress_date,
-            gm.physical_progress_percentage,
-            gm.created_on,
-            pff.revised_physical_progress_date,
-            pff.revised_physical_progress_percentage,
-            pff.revised_on
-        FROM tbl_gmis_mou AS gm
-        LEFT JOIN tbl_gmis_mou_physical_progress AS pff
-            ON gm.id = pff.mou_id
-        WHERE gm.id = @mouID
-        ORDER BY pff.revised_on ASC;
+                pff.id,
+                pff.mou_id,
+                pff.revised_physical_progress_date,
+                pff.revised_physical_progress_percentage,
+                pff.revised_on
+            FROM tbl_gmis_mou_physical_progress AS pff
+            WHERE pff.mou_id = @mouID
+            ORDER BY pff.revised_on DESC;
         `);
 
-        res.json(result.recordset);
+        return res.json(result.recordset || []);
     } catch (err) {
-        console.error(err);
-        res.sendStatus(500);
+        console.error("Error in getRevisedphysicalprogressdate:", err);
+        return res.json([]);
     }
 }
 
-        async function addRevisedphysicalprogressdate(req, res) 
-        {
-            const mouID                      = req.body.mouID;
-            const targetphysicalProgressDate    = req.body.targetphysicalProgressDate;
-            const targetphysicalPercentage    = req.body.targetphysicalPercentage;
+async function addRevisedphysicalprogressdate(req, res) {
+    const mouID = req.body.mouID;
+    let targetphysicalProgressDate = req.body.targetphysicalProgressDate || req.body.physicalProgressDate;
+    let targetphysicalPercentage = req.body.targetphysicalPercentage !== undefined ? req.body.targetphysicalPercentage : req.body.physicalPercentage;
 
-        if (targetphysicalProgressDate == "") {
-                targetphysicalProgressDate = null;
-            }
-        if (targetphysicalPercentage == "") {
-                targetphysicalPercentage = null;
-            }
-            const conn = await pool;
-            const request = conn.request();
-            request.input("mouID", mouID);
-            request.input("targetphysicalProgressDate", targetphysicalProgressDate);
-            request.input("targetphysicalPercentage", targetphysicalPercentage);  
-            try {
-                // if (subProjectID == -1) {
-                    const result = await request.query(`INSERT tbl_gmis_mou_physical_progress (mou_id, revised_physical_progress_date, revised_physical_progress_percentage
-                ) 
-                        VALUES (@mouID, @targetphysicalProgressDate, @targetphysicalPercentage)`
-                    );
+    if (targetphysicalProgressDate === "") targetphysicalProgressDate = null;
+    if (targetphysicalPercentage === "") targetphysicalPercentage = null;
 
-                    res.sendStatus(201);
-
-                // }
+    try {
+        const conn = await pool;
         
-            }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        await conn.request().query(`
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tbl_gmis_mou_physical_progress')
+            BEGIN
+                CREATE TABLE tbl_gmis_mou_physical_progress (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    mou_id INT,
+                    revised_physical_progress_date DATE,
+                    revised_physical_progress_percentage DECIMAL(5,2),
+                    revised_on DATETIME DEFAULT GETDATE()
+                );
+            END
+        `);
+
+        const request = conn.request();
+        request.input("mouID", mouID);
+        request.input("targetphysicalProgressDate", targetphysicalProgressDate);
+        request.input("targetphysicalPercentage", targetphysicalPercentage !== null ? Number(targetphysicalPercentage) : null);
+
+        await request.query(`
+            INSERT INTO tbl_gmis_mou_physical_progress (
+                mou_id, revised_physical_progress_date, revised_physical_progress_percentage, revised_on
+            ) VALUES (
+                @mouID, @targetphysicalProgressDate, @targetphysicalPercentage, GETDATE()
+            );
+        `);
+
+        res.status(201).json({ success: true, message: "Physical progress revised successfully" });
+    } catch (err) {
+        console.error("Error in addRevisedphysicalprogressdate:", err);
+        return res.status(500).json({ error: "Failed to save revised physical progress" });
     }
 }
 
-        async function addRevisedfinancialprogressdate(req, res) 
+async function addRevisedfinancialprogressdate(req, res) {
+    const mouID = req.body.mouID;
+    let targetfinancialProgressDate = req.body.targetfinancialProgressDate || req.body.financialProgressDate;
+    let targetfinancialPercentage = req.body.targetfinancialPercentage !== undefined ? req.body.targetfinancialPercentage : req.body.financialPercentage;
 
-        {
-            const mouID                      = req.body.mouID;
-            const targetfinancialProgressDate    = req.body.targetfinancialProgressDate;
-            const targetfinancialPercentage    = req.body.targetfinancialPercentage;
+    if (targetfinancialProgressDate === "") targetfinancialProgressDate = null;
+    if (targetfinancialPercentage === "") targetfinancialPercentage = null;
 
-            if (targetfinancialProgressDate == "") {
-                    targetfinancialProgressDate = null;
-                }
-            if (targetfinancialPercentage == "") {
-                    targetfinancialPercentage = null;
-                }
-            const conn = await pool;
-            const request = conn.request();
-            request.input("mouID", mouID);
-            request.input("targetfinancialProgressDate", targetfinancialProgressDate);
-            request.input("targetfinancialPercentage", targetfinancialPercentage);  
-            try {
-                // if (subProjectID == -1) {
-                    const result = await request.query(`INSERT tbl_gmis_mou_financial_progress (mou_id, revised_financial_progress_date, revised_financial_progress_percentage
-                ) 
-                        VALUES (@mouID, @targetfinancialProgressDate, @targetfinancialPercentage)`
-                    );
-
-                    res.sendStatus(201);
-
-                // }
+    try {
+        const conn = await pool;
         
-            }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        await conn.request().query(`
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tbl_gmis_mou_financial_progress')
+            BEGIN
+                CREATE TABLE tbl_gmis_mou_financial_progress (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    mou_id INT,
+                    revised_financial_progress_date DATE,
+                    revised_financial_progress_percentage DECIMAL(5,2),
+                    revised_on DATETIME DEFAULT GETDATE()
+                );
+            END
+        `);
+
+        const request = conn.request();
+        request.input("mouID", mouID);
+        request.input("targetfinancialProgressDate", targetfinancialProgressDate);
+        request.input("targetfinancialPercentage", targetfinancialPercentage !== null ? Number(targetfinancialPercentage) : null);
+
+        await request.query(`
+            INSERT INTO tbl_gmis_mou_financial_progress (
+                mou_id, revised_financial_progress_date, revised_financial_progress_percentage, revised_on
+            ) VALUES (
+                @mouID, @targetfinancialProgressDate, @targetfinancialPercentage, GETDATE()
+            );
+        `);
+
+        res.status(201).json({ success: true, message: "Financial progress revised successfully" });
+    } catch (err) {
+        console.error("Error in addRevisedfinancialprogressdate:", err);
+        return res.status(500).json({ error: "Failed to save revised financial progress" });
     }
 };
 export default {
-    getMouCategory, submitGmisMouData, getGmisMouData, getGmisMouChartData, updateGmisMouData, getGmisMouDataByID, getGmisMouStageDetails,getGmisMouSecondParty, getGmisMouVibhasNavicCell, getGmisMouCategoryName, getGmisMouPresentStatus, getOrganisationWiseCountAmount,getOrganisationWiseStatusCount_2023,getOrganisationWiseCountAmount_2023,getGmisMouStageDetails_2023, getTotalMouAndAmountCategoryWise_2025,getOrganisationWiseCountAmountStatusorgView_2021_category,getOrganisationWiseCountAmountStatusorgView_2023_category,upload,fileUpload,gmisfileDelete,addRevisedfinancialprogressdate,getRevisedfinancialprogressdate,getRevisedphysicalprogressdate,
+    getGmisMouPaginated, getMouCategory, submitGmisMouData, getGmisMouData, getGmisMouChartData, updateGmisMouData, getGmisMouDataByID, getGmisMouStageDetails,getGmisMouSecondParty, getGmisMouVibhasNavicCell, getGmisMouCategoryName, getGmisMouPresentStatus, getOrganisationWiseCountAmount,getOrganisationWiseStatusCount_2023,getOrganisationWiseCountAmount_2023,getGmisMouStageDetails_2023, getTotalMouAndAmountCategoryWise_2025,getOrganisationWiseCountAmountStatusorgView_2021_category,getOrganisationWiseCountAmountStatusorgView_2023_category,upload,fileUpload,gmisfileDelete,addRevisedfinancialprogressdate,getRevisedfinancialprogressdate,getRevisedphysicalprogressdate,
     getStatusWiseCountAmount, getOrganisationWiseStatusCount, getGmisMouDataByOrganisationAndStatus, getOrganisationWiseCountAmountStatus, getMouTotalCountAmount,getTotalMouAndAmountCategoryWise_2021,getGmisMouStageDetails_2021,getOrganisationWiseCountAmountStatus_2023,getStatusWiseCountAmount_2021,getGmisMouStageDetails_2025,getGmisMouStageDetails_2025_org,getGmisMouStageDetails_2023_org,getGmisMouStageDetails_2021_org,getGmisMouStageDetails_org,getOrganisationWiseCountAmountStatusorgView_2025_category,getOrganisationWiseCountAmountStatusorgView_category,addNewgmisFileupload,gmisPdfFileDownload,addRevisedphysicalprogressdate,
     getMouCategories, getTotalMouAndAmountCategoryWise, getOrgWiseMouOrder,getOrganisationWiseCountAmountStatus_2021,getOrganisationWiseStatusCount_2021,getOrganisationWiseCountAmount_2021,getMouTotalCountAmount_2021,getTotalMouAndAmountCategoryWise_2023,getStatusWiseCountAmount_2023,getMouTotalCountAmount_2023,getOrganisationWiseCountAmount_2025,getOrganisationWiseStatusCountorgView_2025,getMouTotalCountAmount_2025,getStatusWiseCountAmount_2025,getOrganisationWiseCountAmountStatus_2025,getOrganisationWiseStatusCount_2025,getOrganisationWiseCountAmountStatusorgView,getOrganisationWiseStatusCountorgView,getTotalMouAndAmountyearWise,getGmisDrilldownData,
     getOrganisationWiseStatusCountorgView_2021,getOrganisationWiseCountAmountStatusorgView_2021,getOrganisationWiseCountAmountStatusorgView_2023,getOrganisationWiseStatusCountorgView_2023,getOrganisationWiseCountAmountStatusorgView_2025,getYearWisegmisData

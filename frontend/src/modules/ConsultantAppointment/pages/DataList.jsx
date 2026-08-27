@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Table from '../../../components/Table';
-import TablePagination from '../../../components/TablePagination';
-import { Search, X, Edit, ChevronDown } from 'lucide-react';
+import { Search, X, Edit, Trash2, ChevronDown, Users } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import CandidateDrilldownView from './CandidateDrilldownView';
+import TablePagination from '../../../components/TablePagination';
 import { fetchConsultantAppointments } from '../api';
 
 const STAGES = [
@@ -17,8 +18,43 @@ const STAGES = [
   { key: 'contractSigned', label: 'Contract Signed' },
 ];
 
-const toBool = (val) => val === 'Yes' || val === 1 || val === true;
+const PENDING_STAGES = [
+  'Initiated',
+  'Admin Approval for engaging Consultant',
+  'Tender Published',
+  'Pre-bid Queries Responded',
+  'Bid Received',
+  'Technical Bid Finalized',
+  'Financial Bid Finalized',
+  'Work Order Issued',
+];
+
 const formatDate = (d) => (d ? new Date(d).toISOString().split('T')[0] : '');
+const formatDateTime = (d) => {
+  if (!d) return '';
+  const str = typeof d === 'string' ? d : d.toISOString ? d.toISOString() : String(d);
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const y = match[1];
+    const m = match[2];
+    const day = match[3];
+    const hStr = match[4];
+    const min = match[5];
+    const sec = match[6];
+    
+    if (hStr === '00' && min === '00' && sec === '00') {
+      return `${day}/${m}/${y}`;
+    }
+
+    let h = parseInt(hStr, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    h = h ? h : 12;
+    const hFormatted = String(h).padStart(2, '0');
+    return `${day}/${m}/${y}, ${hFormatted}:${min} ${ampm}`;
+  }
+  return String(d);
+};
 
 const getStatusFromStages = (stages) => {
   for (let i = STAGES.length - 1; i >= 0; i--) {
@@ -31,22 +67,33 @@ const getStatusFromStages = (stages) => {
 
 function parseAppointmentRow(b) {
   const stages = {
-    adminApproval: toBool(b.admin_approval_for_nkg_consultant),
+    adminApproval: !!b.admin_approval_for_nkg_consultant_date,
     adminApprovalDate: formatDate(b.admin_approval_for_nkg_consultant_date),
-    tenderPublished: toBool(b.tender_published),
+    tenderPublished: !!b.tender_published_date,
     tenderPublishedDate: formatDate(b.tender_published_date),
-    preBidQueries: toBool(b.pre_bid_queries_responded),
+    preBidQueries: !!b.pre_bid_queries_responded_date,
     preBidQueriesDate: formatDate(b.pre_bid_queries_responded_date),
-    bidReceived: toBool(b.bid_received),
+    bidReceived: !!b.bid_received_date,
     bidReceivedDate: formatDate(b.bid_received_date),
-    techBidFinalized: toBool(b.technical_bid_finalized),
+    techBidFinalized: !!b.technical_bid_finalized_date,
     techBidFinalizedDate: formatDate(b.technical_bid_finalized_date),
-    finBidFinalized: toBool(b.financial_bid_finalized),
+    finBidFinalized: !!b.financial_bid_finalized_date,
     finBidFinalizedDate: formatDate(b.financial_bid_finalized_date),
-    workOrderIssued: toBool(b.work_order_issued),
+    workOrderIssued: !!b.work_order_issued_date,
     workOrderIssuedDate: formatDate(b.work_order_issued_date),
-    contractSigned: toBool(b.contract_signed),
+    contractSigned: !!b.contract_signed_date,
     contractSignedDate: formatDate(b.contract_signed_date),
+  };
+
+  const remarks = {
+    adminApproval: b.admin_approval_for_nkg_consultant_remarks || '',
+    tenderPublished: b.tender_published_remarks || '',
+    preBidQueries: b.pre_bid_queries_responded_remarks || '',
+    bidReceived: b.bid_received_remarks || '',
+    techBidFinalized: b.technical_bid_finalized_remarks || '',
+    finBidFinalized: b.financial_bid_finalized_remarks || '',
+    workOrderIssued: b.work_order_issued_remarks || '',
+    contractSigned: b.contract_signed_remarks || '',
   };
 
   return {
@@ -59,15 +106,26 @@ function parseAppointmentRow(b) {
     numResources: b.number_of_resources || 1,
     status: getStatusFromStages(stages),
     stages,
+    remarks,
+    created_date: b.created_date,
+    updated_date: b.updated_date,
+    lastUpdated: formatDateTime(b.updated_date || b.created_date),
+    createdDateFormatted: formatDateTime(b.created_date),
+    updatedDateFormatted: formatDateTime(b.updated_date),
+    raw: b,
   };
 }
 
 export default function DataList({
   onEdit,
+  onDelete,
+  onAddClick,
   wings = [],
   divisions = [],
   triggerNotification,
-  canEdit = true
+  canEdit = true,
+  canAdd = true,
+  canRemove = true
 }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -81,6 +139,15 @@ export default function DataList({
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
   const [gridApi, setGridApi] = useState(null);
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'completed'
+  const [selectedStage, setSelectedStage] = useState(''); // stage filter for pending tab
+  const [drilldownAppointment, setDrilldownAppointment] = useState(null);
+
+  // Reset stage filter when switching tabs
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab !== 'pending') setSelectedStage('');
+  };
 
   // Column visibility states
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -90,7 +157,8 @@ export default function DataList({
     division: true,
     appointmentType: true,
     status: true,
-    numResources: true
+    numResources: true,
+    lastUpdated: true
   });
 
   // Debounce search
@@ -178,6 +246,13 @@ export default function DataList({
     }));
   }, [divisions]);
 
+  const pendingCount = useMemo(() => {
+    return data.filter(item => item.status !== 'Contract Signed').length;
+  }, [data]);
+
+  const completedCount = useMemo(() => {
+    return data.filter(item => item.status === 'Contract Signed').length;
+  }, [data]);
   const handleExport = (type) => {
     if (type === 'Copy') {
       if (gridApi) {
@@ -203,11 +278,13 @@ export default function DataList({
         
         navigator.clipboard.writeText(tsv)
           .then(() => {
-            if (triggerNotification) triggerNotification('Current page data copied to clipboard!');
+            if (triggerNotification) triggerNotification('Current page data copied to clipboard!', 'success');
           })
-          .catch(() => alert('Failed to copy table data.'));
+          .catch(() => {
+            if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
+          });
       } else {
-        alert("Grid is not ready for copy yet.");
+        if (triggerNotification) triggerNotification('Grid is not ready for copy yet.', 'warning');
       }
     } else if (type === 'Excel') {
       if (gridApi) {
@@ -215,14 +292,14 @@ export default function DataList({
           fileName: `Consultant_Appointment_Page_${currentPage}.csv`
         });
         if (triggerNotification) {
-          triggerNotification(`Exported to CSV successfully!`);
+          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
         }
       } else {
-        alert("Grid is not ready for export yet.");
+        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
       }
     } else if (type === 'PDF') {
       if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`);
+        triggerNotification(`Preparing PDF document...`, 'info');
       }
 
       const printWindow = window.open('', '_blank');
@@ -287,7 +364,7 @@ export default function DataList({
         field: 'sNo',
         headerName: 'S.No',
         minWidth: 95,
-        cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center',
+        cellClass: 'font-mono text-slate-800 dark:text-white font-bold text-center',
         headerClass: 'text-center',
         pinned: 'left'
       },
@@ -296,7 +373,7 @@ export default function DataList({
         headerName: 'Wing',
         flex: 1.5,
         minWidth: 150,
-        cellClass: 'font-bold text-slate-800 dark:text-slate-200',
+        cellClass: 'font-bold text-slate-800 dark:text-white',
         hide: !visibleCols.wing,
         pinned: 'left'
       },
@@ -305,7 +382,7 @@ export default function DataList({
         headerName: 'Division',
         flex: 1.2,
         minWidth: 120,
-        cellClass: 'text-slate-700 dark:text-slate-350',
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
         hide: !visibleCols.division
       },
       {
@@ -313,7 +390,7 @@ export default function DataList({
         headerName: 'Appointment Type',
         flex: 1.2,
         minWidth: 130,
-        cellClass: 'text-slate-600 dark:text-slate-400',
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
         hide: !visibleCols.appointmentType
       },
       {
@@ -328,28 +405,72 @@ export default function DataList({
         field: 'numResources',
         headerName: 'Number of Resources',
         flex: 1,
-        minWidth: 140,
-        cellClass: 'text-center font-bold text-slate-800 dark:text-slate-200',
+        minWidth: 155,
         headerClass: 'text-center',
-        hide: !visibleCols.numResources
-      }
-    ];
-
-    if (canEdit) {
-      cols.push({
-        headerName: 'Action',
-        minWidth: 120,
         cellRenderer: (params) => {
           const row = params.data;
+          const count = params.value || 1;
           return (
             <div className="flex items-center justify-center w-full h-full py-1">
               <button
-                onClick={() => onEdit(row)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
-                title="Update"
+                type="button"
+                onClick={() => setDrilldownAppointment(row)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 hover:bg-blue-100 text-[#0f417a] dark:bg-blue-950/60 dark:hover:bg-blue-900/60 dark:text-blue-300 font-extrabold text-xs rounded-lg border border-blue-200 dark:border-blue-800 transition cursor-pointer shadow-sm hover:scale-105 active:scale-95 group"
+                title="Click to view candidate details & documents"
               >
-                <Edit className="h-4 w-4" />
+                <Users className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400 group-hover:scale-110 transition-transform" />
+                <span>{count}</span>
               </button>
+            </div>
+          );
+        },
+        hide: !visibleCols.numResources
+      },
+      {
+        field: 'lastUpdated',
+        headerName: 'Last Updated',
+        flex: 1.3,
+        minWidth: 165,
+        cellClass: 'font-mono text-slate-700 dark:text-slate-300 text-xs font-semibold text-center',
+        headerClass: 'text-center',
+        hide: !visibleCols.lastUpdated
+      }
+    ];
+
+    if (canEdit || canRemove) {
+      cols.push({
+        headerName: 'Action',
+        width: 110,
+        pinned: 'right',
+        lockPinned: true,
+        suppressMovable: true,
+        headerClass: 'text-center',
+        cellClass: 'text-center',
+        cellRenderer: (params) => {
+          const row = params.data;
+          return (
+            <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
+              {canEdit && (
+                <button
+                  onClick={() => onEdit(row)}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                  title="Update Appointment"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+              )}
+              {canRemove && onDelete && (
+                <button
+                  onClick={async () => {
+                    await onDelete(row);
+                    fetchData();
+                  }}
+                  className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-red-600 dark:text-red-400 transition cursor-pointer"
+                  title="Delete Appointment"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           );
         }
@@ -357,10 +478,48 @@ export default function DataList({
     }
 
     return cols;
-  }, [onEdit, visibleCols, canEdit]);
+  }, [onEdit, onDelete, visibleCols, canEdit, canRemove, fetchData]);
+
+  if (drilldownAppointment) {
+    return (
+      <CandidateDrilldownView
+        appointment={drilldownAppointment}
+        onBack={() => setDrilldownAppointment(null)}
+        triggerNotification={triggerNotification}
+        canEdit={canEdit}
+        canAdd={canAdd}
+        canRemove={canRemove}
+      />
+    );
+  }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative dark:bg-slate-950 dark:border-slate-800">
+    <div className="space-y-6 animate-fade-in relative">
+      {/* Pending / Completed tabs matching YP DataList */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+        <button
+          onClick={() => handleTabChange('pending')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === 'pending'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
+        >
+          PENDING ({pendingCount})
+        </button>
+        <button
+          onClick={() => handleTabChange('completed')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === 'completed'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
+        >
+          COMPLETED ({completedCount})
+        </button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 dark:bg-slate-950 dark:border-slate-800">
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
           <div className="relative">
@@ -390,6 +549,23 @@ export default function DataList({
             </select>
             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           </div>
+
+          {/* Stage filter — only on Pending tab */}
+          {activeTab === 'pending' && (
+            <div className="relative">
+              <select
+                value={selectedStage}
+                onChange={(e) => setSelectedStage(e.target.value)}
+                className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[160px]"
+              >
+                <option value="">All Stages</option>
+                {PENDING_STAGES.map(stage => (
+                  <option key={stage} value={stage}>{stage}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            </div>
+          )}
 
           <div className="relative min-w-[160px] max-w-xs flex-1">
             <input
@@ -468,13 +644,18 @@ export default function DataList({
                       onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
                       className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
-                    <span>{col === 'appointmentType' ? 'Appointment Type' : col === 'numResources' ? 'Num Resources' : col}</span>
+                    <span>{col === 'appointmentType' ? 'Appointment Type' : col === 'numResources' ? 'Num Resources' : col === 'lastUpdated' ? 'Last Updated' : col}</span>
                   </label>
                 ))}
               </div>
             )}
           </div>
 
+          <CopyButton
+            onCopy={() => handleExport('Copy')}
+            color="#0f417a"
+            hoverBg="#f1f5f9"
+          />
           <ExportDropdown
             onExportExcel={() => handleExport('Excel')}
             onExportPdf={() => handleExport('PDF')}
@@ -522,6 +703,7 @@ export default function DataList({
             border-radius: 16px 16px 0 0 !important;
           }
         `}} />
+      </div>
       </div>
     </div>
   );

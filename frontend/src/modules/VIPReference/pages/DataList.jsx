@@ -199,10 +199,12 @@ export default function DataList({
         gridRef.current.api.exportDataAsCsv({
           fileName: `VIP_Reference_Register_export.csv`
         });
-        triggerNotification?.(`Register data exported to Excel (CSV) successfully!`);
+        triggerNotification?.(`Register data exported to Excel (CSV) successfully!`, 'success');
+      } else {
+        triggerNotification?.('Grid is not ready for export yet.', 'warning');
       }
     } else if (type === 'PDF') {
-      triggerNotification?.(`Preparing PDF document...`);
+      triggerNotification?.(`Preparing PDF document...`, 'info');
       const printWindow = window.open('', '_blank');
       const title = 'VIP Reference - Data List';
 

@@ -265,14 +265,14 @@ export default function DataList({
           fileName: `Bills_PreConstitutions_Register.csv`
         });
         if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel successfully!`);
+          triggerNotification(`Register data exported to Excel successfully!`, 'success');
         }
       } else {
-        alert("Grid is not ready for export yet.");
+        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
       }
     } else if (type === 'PDF') {
       if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`);
+        triggerNotification(`Preparing PDF document...`, 'info');
       }
       const printWindow = window.open('', '_blank');
       const title = 'Bills / Pre-Constitutions Act Register';

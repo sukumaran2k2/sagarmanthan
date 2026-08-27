@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Edit, UserPlus } from 'lucide-react';
 import UserModuleCrudPanel from './UserModuleCrudPanel';
 
@@ -108,7 +108,7 @@ export default function UserFormModal({
               </div>
 
               <div>
-                <label className={labelClass}>Title *</label>
+                <label className={labelClass}>Title <span className="text-red-500">*</span></label>
                 <select
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
@@ -122,7 +122,7 @@ export default function UserFormModal({
               </div>
 
               <div>
-                <label className={labelClass}>Name *</label>
+                <label className={labelClass}>Name <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   required
@@ -134,7 +134,7 @@ export default function UserFormModal({
               </div>
 
               <div>
-                <label className={labelClass}>Designation *</label>
+                <label className={labelClass}>Designation <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   required
@@ -146,7 +146,7 @@ export default function UserFormModal({
               </div>
 
               <div>
-                <label className={labelClass}>Organisation *</label>
+                <label className={labelClass}>Organisation <span className="text-red-500">*</span></label>
                 <select
                   value={formOrg}
                   onChange={(e) => setFormOrg(e.target.value)}
@@ -164,7 +164,7 @@ export default function UserFormModal({
               </div>
 
               <div>
-                <label className={labelClass}>User Role *</label>
+                <label className={labelClass}>User Role <span className="text-red-500">*</span></label>
                 <select
                   value={formRole}
                   onChange={(e) => setFormRole(e.target.value)}
@@ -213,7 +213,7 @@ export default function UserFormModal({
               </div>
 
               <div>
-                <label className={labelClass}>Email *</label>
+                <label className={labelClass}>Email <span className="text-red-500">*</span></label>
                 <input
                   type="email"
                   required
@@ -225,7 +225,7 @@ export default function UserFormModal({
               </div>
 
               <div>
-                <label className={labelClass}>Mobile Number *</label>
+                <label className={labelClass}>Mobile Number <span className="text-red-500">*</span></label>
                 <input
                   type="tel"
                   required

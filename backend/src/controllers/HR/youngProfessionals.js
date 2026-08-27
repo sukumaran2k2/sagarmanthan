@@ -2,6 +2,7 @@ import { pool } from "../../db.js";
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
+import { applyDataScope } from "../../middleware/dataScope.js";
 
 // 1. Create Young Professional
 async function createYoungProfessional(req, res) {
