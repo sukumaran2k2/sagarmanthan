@@ -10,6 +10,7 @@ import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST, normalizeTab } from './utils
 const LandingView = lazy(() => import('./modules/Landing/Landing'));
 const DashboardView = lazy(() => import('./modules/Dashboard/Dashboard'));
 const Projects = lazy(() => import('./modules/Projects/Projects'));
+const CSRProjectsView = lazy(() => import('./modules/CSRProjects/CSRProjects'));
 const GMISMOUView = lazy(() => import('./modules/GMISMOU/GMISMOU'));
 const MIV2030View = lazy(() => import('./modules/MIV2030/MIV2030'));
 const CapexView = lazy(() => import('./modules/Capex/Capex'));
@@ -276,6 +277,10 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
+
+            {/* CSR Projects Routes */}
+            <Route path="projects/csr-projects/*" element={<CSRProjectsView triggerNotification={triggerNotification} />} />
+            <Route path="projects/csr-project/*" element={<Navigate to="/projects/csr-projects/dashboard" replace />} />
 
             {/* KPI - Major Ports */}
             <Route path="kpi/major-ports/major-ports-dashboard" element={<PortsDashboardView />} />

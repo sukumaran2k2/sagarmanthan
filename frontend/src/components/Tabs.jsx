@@ -134,7 +134,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             m('CSR_PROJECTS', { label: 'CSR Dashboard', icon: LayoutDashboard }),
             m('CSR_PROJECTS', { label: 'CSR Fund Details', icon: Coins }),
             m('CSR_PROJECTS', { label: 'CSR Project List', icon: ListTodo }),
-            m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Dashboard', icon: FilePieChart }),
+            m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Reports', icon: FilePieChart }),
           ]
         },
         {

@@ -12,7 +12,22 @@ export const MODULE_PAGES = {
   },
 
   CSR_PROJECTS: {
-    tabs: ['CSR Dashboard', 'CSR Fund Details', 'CSR Project List'],
+    tabs: [
+      'CSR Dashboard',
+      'CSR Fund Details',
+      'CSR Project List',
+      'CSR Input Form',
+      'CSR Reports',
+      'CSR Projects',
+    ],
+    uiTabs: [
+      'CSR Dashboard',
+      'CSR Fund Details',
+      'CSR Project List',
+      'CSR Input Form',
+      'CSR Reports',
+      'CSR Projects',
+    ],
   },
 
   CAPEX: {

@@ -25,6 +25,14 @@ export const ROUTE_MAP = {
   'projects-dropRequests': 'projects/project/view-drop-request',
   'projects-reports': 'projects/project/reports',
 
+  // CSR Projects nested routes
+  'CSR Dashboard': 'projects/csr-projects/dashboard',
+  'CSR Fund Details': 'projects/csr-projects/fund-details',
+  'CSR Project List': 'projects/csr-projects/project-list',
+  'CSR Input Form': 'projects/csr-projects/input-form',
+  'CSR Reports': 'projects/csr-projects/reports',
+  'CSR Projects': 'projects/csr-projects/dashboard',
+
   // KPI nested routes
   'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
