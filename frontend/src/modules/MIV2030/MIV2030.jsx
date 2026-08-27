@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   LayoutDashboard, Users, Layers, FilePieChart, 
   PlusCircle, BarChart3, Building2 
@@ -56,8 +56,28 @@ export default function MIV2030View({
     return list;
   }, [canAdd, canView]);
 
-  // Map subtab strings from props / events
-  const mapTabNameToId = (name) => {
+  // Sync tab navigation state to URL / Router
+  const syncGlobalRoute = useCallback((tabId, subId) => {
+    if (!setActiveSubTabProp) return;
+    if (tabId === 'dashboard') {
+      setActiveSubTabProp('MIV Dashboard');
+    } else if (tabId === 'list') {
+      setActiveSubTabProp('MIV Data List');
+    } else if (tabId === 'add') {
+      setActiveSubTabProp('MIV Input Form');
+    } else if (tabId === 'meetings') {
+      setActiveSubTabProp('MIV Meetings');
+    } else if (tabId === 'org-report' || subId === 'org-report') {
+      setActiveSubTabProp('MIV Org Report');
+    } else if (tabId === 'theme-report' || subId === 'theme-report') {
+      setActiveSubTabProp('MIV Theme Report');
+    } else if (tabId === 'reports') {
+      setActiveSubTabProp(currentSubReport === 'theme-report' ? 'MIV Theme Report' : 'MIV Org Report');
+    }
+  }, [setActiveSubTabProp, currentSubReport]);
+
+  // Map subtab strings from props / events / URLs
+  const mapTabNameToId = useCallback((name) => {
     if (!name) return 'list';
     const lower = name.toLowerCase();
     if (lower.includes('meeting') && lower.includes('add')) {
@@ -65,13 +85,13 @@ export default function MIV2030View({
       return 'add';
     }
     if (lower.includes('input') || lower.includes('add') || lower.includes('edit')) return 'add';
-    if (lower.includes('init') || lower.includes('data') || lower.includes('list')) return 'list';
+    if (lower.includes('data') || lower.includes('initiative') || lower.includes('list')) return 'list';
     if (lower.includes('meet')) return 'meetings';
     if (lower.includes('theme')) return 'theme-report';
     if (lower.includes('org') || lower.includes('abstract') || lower.includes('report')) return 'org-report';
     if (lower.includes('dash')) return 'dashboard';
     return 'list';
-  };
+  }, []);
 
   useEffect(() => {
     if (activeSubTabProp && activeSubTabProp !== 'MIV 2030') {
@@ -83,9 +103,9 @@ export default function MIV2030View({
         setActiveTab(tabId);
       }
     }
-  }, [activeSubTabProp]);
+  }, [activeSubTabProp, mapTabNameToId]);
 
-  // Listen for custom sub-tab switch event from top navbar
+  // Listen for custom sub-tab switch event from top navbar dropdown
   useEffect(() => {
     const handleSubTabEvent = (e) => {
       if (e.detail) {
@@ -93,8 +113,10 @@ export default function MIV2030View({
         if (tabId === 'org-report' || tabId === 'theme-report') {
           setCurrentSubReport(tabId);
           setActiveTab(tabId);
+          syncGlobalRoute(tabId);
         } else {
           setActiveTab(tabId);
+          syncGlobalRoute(tabId);
         }
       }
     };
@@ -105,36 +127,42 @@ export default function MIV2030View({
       if (tabId === 'org-report' || tabId === 'theme-report') {
         setCurrentSubReport(tabId);
         setActiveTab(tabId);
+        syncGlobalRoute(tabId);
       } else {
         setActiveTab(tabId);
+        syncGlobalRoute(tabId);
       }
       sessionStorage.removeItem('miv2030InitTab');
     }
 
     window.addEventListener('miv-2030-subtab', handleSubTabEvent);
     return () => window.removeEventListener('miv-2030-subtab', handleSubTabEvent);
-  }, []);
+  }, [mapTabNameToId, syncGlobalRoute]);
 
   const handleEditInitiative = (item) => {
     setEditData(item);
     setInputFormType('initiative');
     setActiveTab('add');
+    syncGlobalRoute('add');
   };
 
   const handleAddNew = () => {
     setEditData(null);
     setInputFormType('initiative');
     setActiveTab('add');
+    syncGlobalRoute('add');
   };
 
   const handleFormSuccess = () => {
     setEditData(null);
     setActiveTab('list');
+    syncGlobalRoute('list');
   };
 
   const handleFormCancel = () => {
     setEditData(null);
     setActiveTab('list');
+    syncGlobalRoute('list');
   };
 
   if (!canAdd && !canView && !canEdit) {
@@ -167,18 +195,23 @@ export default function MIV2030View({
               setEditData(null);
             }
             if (tabId === 'reports') {
-              setActiveTab(currentSubReport || 'org-report');
+              const nextReport = currentSubReport || 'org-report';
+              setActiveTab(nextReport);
+              syncGlobalRoute(nextReport);
             } else {
               setActiveTab(tabId);
+              syncGlobalRoute(tabId);
             }
           }}
           onSubItemChange={(subId) => {
             if (subId === 'initiative' || subId === 'meeting') {
               setInputFormType(subId);
               setActiveTab('add');
+              syncGlobalRoute('add', subId);
             } else if (subId === 'org-report' || subId === 'theme-report') {
               setCurrentSubReport(subId);
               setActiveTab(subId);
+              syncGlobalRoute(subId);
             }
           }}
         />
@@ -187,7 +220,12 @@ export default function MIV2030View({
       {/* Main View Render */}
       <div>
         {activeTab === 'dashboard' && (
-          <Dashboard onNavigateToTab={(tabId) => setActiveTab(tabId)} />
+          <Dashboard 
+            onNavigateToTab={(tabId) => {
+              setActiveTab(tabId);
+              syncGlobalRoute(tabId);
+            }} 
+          />
         )}
 
         {activeTab === 'meetings' && (
@@ -221,6 +259,7 @@ export default function MIV2030View({
                 onClick={() => {
                   setCurrentSubReport('org-report');
                   setActiveTab('org-report');
+                  syncGlobalRoute('org-report');
                 }}
                 className={`flex items-center space-x-2 px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
                   (activeTab === 'org-report' || (!activeTab.includes('theme') && activeTab === 'reports'))
@@ -237,6 +276,7 @@ export default function MIV2030View({
                 onClick={() => {
                   setCurrentSubReport('theme-report');
                   setActiveTab('theme-report');
+                  syncGlobalRoute('theme-report');
                 }}
                 className={`flex items-center space-x-2 px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
                   activeTab === 'theme-report'

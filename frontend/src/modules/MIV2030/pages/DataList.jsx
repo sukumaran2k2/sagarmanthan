@@ -7,7 +7,7 @@ import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import MIVDetailModal from '../components/MIVDetailModal';
+import MIVDetailView from '../components/MIVDetailView';
 import { fetchMIVData, fetchOrganisations } from '../api';
 
 const STATUS_COLORS = {
@@ -411,6 +411,19 @@ export default function MIVDataList({
     }
   };
 
+  if (selectedInitiative) {
+    return (
+      <MIVDetailView
+        initiative={selectedInitiative}
+        onBack={() => setSelectedInitiative(null)}
+        onEdit={(init) => {
+          setSelectedInitiative(null);
+          onEdit?.(init);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in relative">
       
@@ -768,18 +781,6 @@ export default function MIVDataList({
         )}
 
       </div>
-
-      {/* Details Modal */}
-      {selectedInitiative && (
-        <MIVDetailModal
-          initiative={selectedInitiative}
-          onClose={() => setSelectedInitiative(null)}
-          onEdit={(init) => {
-            setSelectedInitiative(null);
-            onEdit(init);
-          }}
-        />
-      )}
 
     </div>
   );
