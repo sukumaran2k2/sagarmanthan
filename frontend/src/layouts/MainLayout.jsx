@@ -6,6 +6,7 @@ import Footer from '../components/Footer';
 import Toast from '../components/Toast';
 import NetworkCheckView from '../components/NetworkCheckView';
 import RestrictedAccess from '../components/RestrictedAccess';
+import SagarBot from '../components/SagarBot';
 import { 
   canAccessTab, 
   normalizeTab, 
@@ -357,6 +358,9 @@ export default function MainLayout({
 
       {/* Government Portal Footer */}
       <Footer />
+
+      {/* Intelligent Maritime ChatBot Assistant */}
+      <SagarBot />
     </div>
   );
 }
