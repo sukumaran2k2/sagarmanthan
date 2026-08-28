@@ -244,7 +244,6 @@ export default function App() {
                 onAddSubProject={handleAddSubProject}
                 triggerNotification={triggerNotification}
               />
-            } />
             <Route path="projects/project/projects-less-than-5-cr" element={
               <Projects
                 projects={projects}

@@ -320,20 +320,19 @@ router.get("/dashboard-data-entry-status", dashboardController.getDashboardDataE
 router.get("/get-court-cases-dashboard-status", dashboardController.getDashboardCourtCaseStatus);
 
 //Capex
-router.post('/capex', capexController.addCapex);
-router.get('/capex/:userID', capexController.getCapexData);
-router.get('/data-entry-capex', capexController.getCapexDataEntry);
-router.get('/capex-monthly-data/:capexID', capexController.getCapexMonthlyData);
-router.get('/get-capex/:capexID', capexController.getCapexExpediture);
-router.post('/capex-edit', capexController.editCapexExpediture);
-router.post('/capex-monthly-data', capexController.addCapexMonthlyData);
-// router.get('/capex-fin-chart/:finYear', capexController.getCapexDashboardData);
-// router.get('/capex-port-chart/:orgId', capexController.getCapexPortDashboardData);
-router.get("/get-capex-dashboard/:clusterID/:financialYear", capexController.getCapexDashboard);
-router.get("/get-capex-dashboard-bar-graph/:clusterID/:financialYear", capexController.getCapexDashboardBarGraph);
-router.get("/get-capex-dashboard-org/:financialYear/:organisationID", capexController.getCapexDashboardorg);
-router.get("/get-capex-org-wise-table/:organisationID/:financialYear", capexController.getfinancialYearDataOrgwise);
-router.get("/get-capex-dashboard-bar-graph-org/:organisationID", capexController.getCapexDashboardBarGraphorg);
+router.post('/capex', auth, requireModulePermission("CAPEX", "create"), capexController.addCapex);
+router.get('/capex', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexData);
+router.get('/capex/:userID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexData);
+router.get('/data-entry-capex', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDataEntry);
+router.get('/capex-monthly-data/:capexID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexMonthlyData);
+router.get('/get-capex/:capexID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexExpediture);
+router.post('/capex-edit', auth, requireModulePermission("CAPEX", "update"), capexController.editCapexExpediture);
+router.post('/capex-monthly-data', auth, requireModulePermission("CAPEX", "update"), capexController.addCapexMonthlyData);
+router.get("/get-capex-dashboard/:clusterID/:financialYear", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboard);
+router.get("/get-capex-dashboard-bar-graph/:clusterID/:financialYear", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboardBarGraph);
+router.get("/get-capex-dashboard-org/:financialYear/:organisationID", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboardorg);
+router.get("/get-capex-org-wise-table/:organisationID/:financialYear", auth, requireModulePermission("CAPEX", "read"), capexController.getfinancialYearDataOrgwise);
+router.get("/get-capex-dashboard-bar-graph-org/:organisationID", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboardBarGraphorg);
 
 // ExpenditureOutlay
 router.get('/get-main-scheme-dropdown', expenditureController.getMainSchemeDropdown);
@@ -1564,7 +1563,9 @@ router.get("/hrfifth-report-other-org/:roleID/:organisationID",hrReportInputTab.
 router.get("/hr-report-input-list/:userID", hrReportInputTab. getHrreportInputformList);
 
 // Capex report 
-router.get("/capex-report/:selectedYear", capexReportTab.capexReportData);
+router.get("/capex-report/:selectedYear", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexReportData);
+router.get("/capex-summary-report/:selectedYear", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexSummaryReportData);
+router.get("/capex-yoy-report", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexYoYReportData);
 router.get("/hrfirst-report/:orgCatDrop/:orgDrop/:financialDrop", hrReportTab.hrFirstReport);
 router.get("/hrsecond-report/:orgCatDrop/:orgDrop", hrReportTab.hrSecondReport);
 router.get("/hrfourth-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrFourthReport);

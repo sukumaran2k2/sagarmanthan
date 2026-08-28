@@ -9,6 +9,7 @@ import {
   TAB_USER_LIST,
 } from '../utils/moduleAccess';
 import { canCreateModule } from '../utils/modulePermissions';
+import { getDataScopeCode } from '../utils/authSession';
 import {
   Home,
   Briefcase,
@@ -82,6 +83,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const [expandedMenus, setExpandedMenus] = useState({});
 
   const isOrgUser = useMemo(() => {
+    const scope = String(getDataScopeCode() || '').toUpperCase();
+    if (scope === 'ORGANISATION') return true;
+    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
     const roleId = getLoggedInUserRole();
     return roleId === 6 || roleId === 7;
   }, []);
@@ -90,6 +94,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateCabinetMopsw = canCreateModule('CABINET_NOTES_MOPSW');
   const canCreateConsultant = canCreateModule('CONSULTANT_APPOINTMENT');
   const canCreateYp = canCreateModule('YOUNG_PROFESSIONAL');
+  const canCreateCapex = canCreateModule('CAPEX');
 
   const accessKey = (() => {
     try {
@@ -97,9 +102,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
       if (!t) return '';
       const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       const codes = payload?.allowedModuleCodes;
-      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}`;
+      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
     } catch {
-      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}`;
+      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
     }
   })();
 
@@ -140,16 +145,13 @@ export default function Tabs({ activeTab, setActiveTab }) {
         {
           title: 'Capex',
           icon: Coins,
-          items: isOrgUser
-            ? [
-                m('CAPEX', { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex' }),
-                m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex' }),
-              ]
-            : [
-                m('CAPEX', { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex' }),
-                m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex' }),
-                m('CAPEX', { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex' }),
-              ]
+          items: [
+            m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex Datalist' }),
+            ...(canCreateCapex && !isOrgUser
+              ? [m('CAPEX', { label: 'Capex Input Form', icon: FileEdit, tab: 'Capex Input Form' })]
+              : []),
+            m('CAPEX', { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex Reports' }),
+          ],
         },
         {
           title: 'Expenditure',
@@ -481,7 +483,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       ],
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp]
+    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex]
   );
 
   const handleItemClick = (tabOrLabel) => {

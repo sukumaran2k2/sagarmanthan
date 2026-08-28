@@ -374,6 +374,12 @@ export default function ReportTable({
             onGridReady={(params) => {
               if (gridRef.current) gridRef.current.api = params.api;
               params.api.sizeColumnsToFit();
+              // Recompute heights for wrapText/autoHeight columns after fit
+              requestAnimationFrame(() => params.api.resetRowHeights());
+            }}
+            onFirstDataRendered={(params) => {
+              params.api.sizeColumnsToFit();
+              requestAnimationFrame(() => params.api.resetRowHeights());
             }}
             autoSizeStrategy={{
               type: 'fitCellContents',
