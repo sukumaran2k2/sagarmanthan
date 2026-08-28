@@ -1,14 +1,15 @@
 import axios from 'axios';
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
-});
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+
+const api = axios.create({ baseURL: API_BASE });
 
 // Request Interceptor: Automatically attach Bearer token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
     if (token) {
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -17,33 +18,43 @@ api.interceptors.request.use(
 );
 
 // Response Interceptor: Auto-refresh on 401 Unauthorized
+let refreshPromise = null;
+
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (!refreshToken) {
+    throw new Error('No refresh token');
+  }
+  const res = await axios.post(`${API_BASE}/refresh-token`, { refreshToken });
+  const next = res.data?.accessToken;
+  if (!next) throw new Error('Refresh failed');
+  localStorage.setItem('accessToken', next);
+  return next;
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) throw new Error('No refresh token available');
-
-        const res = await axios.post(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/refresh-token`,
-          { refreshToken }
-        );
-
-        const { accessToken } = res.data;
-        localStorage.setItem('accessToken', accessToken);
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-        return api(originalRequest);
-      } catch (refreshErr) {
-        console.error('Session expired. Please log in again.', refreshErr);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        return Promise.reject(refreshErr);
-      }
+    const original = error.config;
+    if (error.response?.status !== 401 || !original || original._retry) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+    original._retry = true;
+    try {
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => {
+          refreshPromise = null;
+        });
+      }
+      const token = await refreshPromise;
+      original.headers = original.headers || {};
+      original.headers.Authorization = `Bearer ${token}`;
+      return api(original);
+    } catch {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      return Promise.reject(error);
+    }
   }
 );
 
@@ -195,7 +206,7 @@ export const fetchCsrExpenditureReport = async (userId = getUserIdFromToken()) =
 // Master Dropdowns
 export const fetchOrganisations = async () => {
   try {
-    const response = await api.get('/organisations');
+    const response = await api.get('/mmt-dropdown/mmt_organisation');
     return response.data;
   } catch {
     return [];
@@ -204,7 +215,7 @@ export const fetchOrganisations = async () => {
 
 export const fetchClusters = async () => {
   try {
-    const response = await api.get('/clusters');
+    const response = await api.get('/mmt-dropdown/mmt_hr_cluster');
     return response.data;
   } catch {
     return [];

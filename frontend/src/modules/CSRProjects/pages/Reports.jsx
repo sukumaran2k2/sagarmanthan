@@ -1,380 +1,644 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  FilePieChart, Coins, RefreshCw, X, ChevronRight, 
-  Building2, Eye, Download, Layers 
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import ReportTable from '../../../components/ReportTable';
 import { 
   fetchCsrAbstractReport, 
-  fetchCsrDetailedReport, 
-  fetchCsrExpenditureReport 
+  fetchCsrDetailedReport,
+  fetchCsrExpenditureReport,
+  fetchOrganisations,
+  getUserIdFromToken
 } from '../api';
-import CopyButton from '../../../components/CopyButton';
-import ExportDropdown from '../../../components/ExportDropdown';
+import { FINANCIAL_YEARS } from '../utils/constants';
+import { FilePieChart, Coins, Filter, RotateCcw } from 'lucide-react';
 
 export default function Reports({ triggerNotification }) {
-  const [activeReportTab, setActiveReportTab] = useState('abstract');
-  const [loading, setLoading] = useState(true);
+  // Mode: 'csr_projects_overview' (C.S.R 1.0 A) | 'csr_fund_overview' (C.S.R 1.1)
+  const [reportType, setReportType] = useState('csr_projects_overview');
 
-  // Abstract report data
-  const [abstractData, setAbstractData] = useState([]);
-  
-  // Fund expenditure report data
-  const [expenditureData, setExpenditureData] = useState([]);
+  // Filters
+  const [organisations, setOrganisations] = useState([]);
+  const [filterOrg, setFilterOrg] = useState('all');
+  const [filterFY, setFilterFY] = useState('all');
 
-  // Drilldown Modal
-  const [selectedOrgForDrilldown, setSelectedOrgForDrilldown] = useState(null);
-  const [detailedOrgProjects, setDetailedOrgProjects] = useState([]);
-  const [loadingDrilldown, setLoadingDrilldown] = useState(false);
+  // Drilldown Navigation Stack for C.S.R 1.0
+  const [projectsDrillDown, setProjectsDrillDown] = useState([
+    {
+      type: 'abstract',
+      title: 'Report No.: C.S.R 1.0 A - Abstract - Overview of CSR Projects Report',
+      subtitle: 'Overview of CSR projects across implementation stages'
+    }
+  ]);
 
-  const loadReports = async () => {
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState([]);
+
+  // Fetch organisations for the filter dropdown
+  useEffect(() => {
+    fetchOrganisations()
+      .then(res => setOrganisations(Array.isArray(res) ? res : []))
+      .catch(err => console.warn('Could not fetch organisations:', err.message));
+  }, []);
+
+  const currentView = projectsDrillDown[projectsDrillDown.length - 1];
+
+  const handleBack = () => {
+    if (projectsDrillDown.length > 1) {
+      setProjectsDrillDown(prev => prev.slice(0, -1));
+    }
+  };
+
+  const handleSwitchReportType = (type) => {
+    if (type === reportType) return;
+    setReportType(type);
+    setFilterOrg('all');
+    setFilterFY('all');
+    setProjectsDrillDown([
+      {
+        type: 'abstract',
+        title: type === 'csr_projects_overview'
+          ? 'Report No.: C.S.R 1.0 A - Abstract - Overview of CSR Projects Report'
+          : 'Report No.: C.S.R 1.1 - Abstract - Overview of CSR Fund Report',
+        subtitle: type === 'csr_projects_overview'
+          ? 'Overview of CSR projects across implementation stages'
+          : 'Overview of CSR fund allocations, expenditures, and balance'
+      }
+    ]);
+  };
+
+  const resetFilters = () => {
+    setFilterOrg('all');
+    setFilterFY('all');
+  };
+
+  // Fetch report data
+  const loadReportData = useCallback(async () => {
     setLoading(true);
     try {
-      if (activeReportTab === 'abstract') {
-        const res = await fetchCsrAbstractReport();
-        setAbstractData(Array.isArray(res) ? res : []);
+      const userId = getUserIdFromToken();
+      if (reportType === 'csr_projects_overview') {
+        if (currentView.type === 'abstract') {
+          const res = await fetchCsrAbstractReport(userId);
+          const rows = res?.rowData || (Array.isArray(res) ? res : []);
+          setReportData(rows);
+        } else if (currentView.type === 'detailed') {
+          const res = await fetchCsrDetailedReport(currentView.orgId, currentView.orgName);
+          const rows = res?.rowData || (Array.isArray(res) ? res : []);
+          setReportData(rows);
+        }
       } else {
-        const res = await fetchCsrExpenditureReport();
-        setExpenditureData(Array.isArray(res) ? res : []);
+        const res = await fetchCsrExpenditureReport(userId);
+        const rows = res?.rowData || (Array.isArray(res) ? res : []);
+        setReportData(rows);
       }
     } catch (err) {
-      console.error("Error loading CSR reports", err);
-      triggerNotification?.("Failed to fetch report data.", "error");
+      console.warn("CSR report fetch notice:", err.message);
+      setReportData([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [reportType, currentView]);
 
   useEffect(() => {
-    loadReports();
-  }, [activeReportTab]);
+    loadReportData();
+  }, [loadReportData]);
 
-  const handleDrilldownOrg = async (orgId, orgName) => {
-    setSelectedOrgForDrilldown({ orgId, orgName });
-    setLoadingDrilldown(true);
-    try {
-      const res = await fetchCsrDetailedReport(orgId, orgName);
-      setDetailedOrgProjects(Array.isArray(res) ? res : []);
-    } catch (err) {
-      console.error("Error loading drilldown report", err);
-      triggerNotification?.("Failed to load detailed organisation projects.", "error");
-    } finally {
-      setLoadingDrilldown(false);
+  // Client-side filtering
+  const filteredData = useMemo(() => {
+    if (!reportData || reportData.length === 0) return [];
+
+    return reportData.filter(row => {
+      // Organisation Filter
+      if (filterOrg !== 'all') {
+        const rowOrgId = String(row.organisation_id || row.organisationID || row['Organisation ID'] || row['organisationID'] || '');
+        if (rowOrgId !== String(filterOrg)) return false;
+      }
+
+      // Financial Year Filter
+      if (filterFY !== 'all') {
+        const rowFY = String(row.financial_year || row['Financial Year'] || '');
+        if (rowFY !== String(filterFY)) return false;
+      }
+
+      return true;
+    });
+  }, [reportData, filterOrg, filterFY]);
+
+  // Handle drilldown click on Organisation or Stage Counts
+  const handleDrilldown = useCallback((orgId, orgName, stageName = '') => {
+    setProjectsDrillDown(prev => [
+      ...prev,
+      {
+        type: 'detailed',
+        orgId,
+        orgName,
+        stageName,
+        title: `Report No.: C.S.R 1.0 B - Detailed - CSR Projects Report - ${orgName}${stageName ? ` (${stageName})` : ''}`,
+        subtitle: `Individual project details for ${orgName}`
+      }
+    ]);
+  }, []);
+
+  // Summary KPI values in Brown theme
+  const summaryKPIs = useMemo(() => {
+    if (!filteredData || filteredData.length === 0) {
+      return { totalProjects: 0, approved: 0, yetToStart: 0, underImpl: 0, completed: 0 };
     }
-  };
+    return {
+      totalProjects: filteredData.reduce((acc, r) => acc + (Number(r['Total Number of CSR Projects till date']) || 0), 0),
+      approved: filteredData.reduce((acc, r) => acc + (Number(r['Approved by Board']) || 0), 0),
+      yetToStart: filteredData.reduce((acc, r) => acc + (Number(r['Project yet to Start']) || 0), 0),
+      underImpl: filteredData.reduce((acc, r) => acc + (Number(r['Project Under implementation']) || 0), 0),
+      completed: filteredData.reduce((acc, r) => acc + (Number(r['Completed']) || 0), 0),
+    };
+  }, [filteredData]);
 
-  // Columns for Abstract Report Export
-  const abstractExportColumns = useMemo(() => [
-    { key: 'S No', label: 'S.No' },
-    { key: 'Organisation Name', label: 'Organisation Name' },
-    { key: 'Approved by Board', label: 'Approved by Board' },
-    { key: 'Project yet to Start', label: 'Project Yet to Start' },
-    { key: 'Project Under implementation', label: 'Under Implementation' },
-    { key: 'Completed', label: 'Completed' },
-    { key: 'Total Number of CSR Projects till date', label: 'Total Projects' },
-  ], []);
+  // Columns Configuration
+  const columns = useMemo(() => {
+    // 1. C.S.R 1.0 A - Overview of CSR Projects Report (Abstract)
+    if (reportType === 'csr_projects_overview' && currentView.type === 'abstract') {
+      return [
+        {
+          headerName: "S.No",
+          field: "S No",
+          width: 75,
+          pinned: 'left',
+          cellStyle: { textAlign: 'center', fontWeight: 700 },
+          valueGetter: (params) => {
+            if (params.node?.rowPinned) return params.data?.['S No'] || 'Total';
+            return params.data?.['S No'] || params.node.rowIndex + 1;
+          }
+        },
+        {
+          headerName: "Organisation Name",
+          field: "Organisation Name",
+          minWidth: 260,
+          flex: 2,
+          pinned: 'left',
+          cellStyle: { fontWeight: 700 },
+          cellRenderer: (params) => {
+            if (!params.value || params.node?.rowPinned) return params.value || '';
+            return (
+              <button
+                type="button"
+                onClick={() => handleDrilldown(params.data?.organisationID, params.value)}
+                style={{ color: '#4b2424' }}
+                className="font-bold hover:underline cursor-pointer text-left"
+              >
+                {params.value}
+              </button>
+            );
+          }
+        },
+        {
+          headerName: "Total Number of CSR Projects till date",
+          field: "Total Number of CSR Projects till date",
+          width: 280,
+          cellStyle: { textAlign: 'center', fontWeight: 800 },
+          cellRenderer: (params) => {
+            if (params.node?.rowPinned) return <strong style={{ color: '#4b2424' }}>{params.value || 0}</strong>;
+            const count = Number(params.value) || 0;
+            if (count === 0) return <span className="text-slate-400">0</span>;
+            return (
+              <button
+                type="button"
+                onClick={() => handleDrilldown(params.data?.organisationID, params.data?.['Organisation Name'])}
+                style={{ color: '#4b2424', background: '#f7f3f3' }}
+                className="font-black hover:underline cursor-pointer px-2.5 py-0.5 rounded"
+              >
+                {count}
+              </button>
+            );
+          }
+        },
+        {
+          headerName: "Current Stage",
+          headerClass: "headercenter",
+          children: [
+            {
+              headerName: "Approved by Board",
+              field: "Approved by Board",
+              width: 170,
+              cellStyle: { textAlign: 'center' },
+              cellRenderer: (params) => {
+                if (params.node?.rowPinned) return <strong style={{ color: '#4b2424' }}>{params.value || 0}</strong>;
+                const count = Number(params.value) || 0;
+                if (count === 0) return <span className="text-slate-300">-</span>;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => handleDrilldown(params.data?.organisationID, params.data?.['Organisation Name'], 'Approved by Board')}
+                    style={{ color: '#2563eb' }}
+                    className="font-bold hover:underline cursor-pointer"
+                  >
+                    {count}
+                  </button>
+                );
+              }
+            },
+            {
+              headerName: "Project yet to Start",
+              field: "Project yet to Start",
+              width: 170,
+              cellStyle: { textAlign: 'center' },
+              cellRenderer: (params) => {
+                if (params.node?.rowPinned) return <strong style={{ color: '#4b2424' }}>{params.value || 0}</strong>;
+                const count = Number(params.value) || 0;
+                if (count === 0) return <span className="text-slate-300">-</span>;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => handleDrilldown(params.data?.organisationID, params.data?.['Organisation Name'], 'Project yet to start')}
+                    style={{ color: '#d97706' }}
+                    className="font-bold hover:underline cursor-pointer"
+                  >
+                    {count}
+                  </button>
+                );
+              }
+            },
+            {
+              headerName: "Project Under implementation",
+              field: "Project Under implementation",
+              width: 220,
+              cellStyle: { textAlign: 'center' },
+              cellRenderer: (params) => {
+                if (params.node?.rowPinned) return <strong style={{ color: '#4b2424' }}>{params.value || 0}</strong>;
+                const count = Number(params.value) || 0;
+                if (count === 0) return <span className="text-slate-300">-</span>;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => handleDrilldown(params.data?.organisationID, params.data?.['Organisation Name'], 'Project Under implementation')}
+                    style={{ color: '#4b2424' }}
+                    className="font-bold hover:underline cursor-pointer"
+                  >
+                    {count}
+                  </button>
+                );
+              }
+            },
+            {
+              headerName: "Completed",
+              field: "Completed",
+              width: 160,
+              cellStyle: { textAlign: 'center' },
+              cellRenderer: (params) => {
+                if (params.node?.rowPinned) return <strong style={{ color: '#4b2424' }}>{params.value || 0}</strong>;
+                const count = Number(params.value) || 0;
+                if (count === 0) return <span className="text-slate-300">-</span>;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => handleDrilldown(params.data?.organisationID, params.data?.['Organisation Name'], 'Completed')}
+                    style={{ color: '#059669' }}
+                    className="font-bold hover:underline cursor-pointer"
+                  >
+                    {count}
+                  </button>
+                );
+              }
+            }
+          ]
+        }
+      ];
+    }
 
-  // Columns for Expenditure Report Export
-  const expenditureExportColumns = useMemo(() => [
-    { key: 'sno', label: 'S.No', render: (_, __, i) => i + 1 },
-    { key: 'organisation_name', label: 'Organisation' },
-    { key: 'financial_year', label: 'Financial Year' },
-    { key: 'net_profit', label: 'Net Profit (₹ Cr)' },
-    { key: 'csr_fund_alloted_year', label: 'CSR Allotted (₹ Cr)' },
-    { key: 'opening_balance_csr', label: 'Opening Bal (₹ Cr)' },
-    { key: 'project_expenditure', label: 'Expenditure (₹ Cr)' },
-    { key: 'csr_fund_balance', label: 'Balance (₹ Cr)' },
-  ], []);
+    // 2. C.S.R 1.0 B - Detailed CSR Projects Report (Drilldown View)
+    if (reportType === 'csr_projects_overview' && currentView.type === 'detailed') {
+      return [
+        {
+          headerName: "S.No",
+          field: "S No",
+          width: 75,
+          pinned: 'left',
+          cellStyle: { textAlign: 'center', fontWeight: 700 },
+          valueGetter: (params) => params.node.rowIndex + 1
+        },
+        {
+          headerName: "Organisation Name",
+          field: "Organisation Name",
+          minWidth: 220,
+          pinned: 'left',
+          cellStyle: { fontWeight: 700, color: '#4b2424' }
+        },
+        {
+          headerName: "CSR Focus",
+          field: "CSR Focus",
+          width: 140,
+          cellStyle: { textAlign: 'center' }
+        },
+        {
+          headerName: "Project Name",
+          field: "Project Name",
+          minWidth: 260,
+          flex: 2,
+          cellStyle: { fontWeight: 600 }
+        },
+        {
+          headerName: "Project Received From",
+          field: "Project Received From",
+          width: 180
+        },
+        {
+          headerName: "Impact Possible Outcome",
+          field: "Impact Possible Outcome",
+          width: 220
+        },
+        {
+          headerName: "Target Beneficiaries",
+          field: "Target Beneficiaries",
+          width: 180
+        },
+        {
+          headerName: "Project Value (₹ Cr)",
+          field: "Project Value",
+          width: 150,
+          cellStyle: { textAlign: 'right', fontWeight: 800, color: '#4b2424' },
+          valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+        },
+        {
+          headerName: "Financial Year",
+          field: "Financial Year",
+          width: 130,
+          cellStyle: { textAlign: 'center' }
+        },
+        {
+          headerName: "Commenced On",
+          field: "Commenced On",
+          width: 130,
+          cellStyle: { textAlign: 'center' },
+          valueFormatter: (params) => params.value ? String(params.value).split('T')[0] : '-'
+        },
+        {
+          headerName: "Completed On",
+          field: "Completed On",
+          width: 130,
+          cellStyle: { textAlign: 'center' },
+          valueFormatter: (params) => params.value ? String(params.value).split('T')[0] : '-'
+        },
+        {
+          headerName: "Financial Progress",
+          field: "Financial Progress",
+          width: 130,
+          cellStyle: { textAlign: 'center', fontWeight: 800, color: '#2563eb' }
+        },
+        {
+          headerName: "Physical Progress",
+          field: "Physical Progress",
+          width: 130,
+          cellStyle: { textAlign: 'center', fontWeight: 800, color: '#059669' }
+        }
+      ];
+    }
+
+    // 3. C.S.R 1.1 - Overview of CSR Fund Report
+    return [
+      {
+        headerName: "S. No",
+        field: "S No",
+        width: 80,
+        pinned: 'left',
+        cellStyle: { textAlign: 'center', fontWeight: 700 },
+        valueGetter: (params) => {
+          if (params.node?.rowPinned) return params.data?.['S No'] || 'Total';
+          return params.data?.['S No'] || params.node.rowIndex + 1;
+        }
+      },
+      {
+        headerName: "Organisation Name",
+        field: "Organisation Name",
+        minWidth: 280,
+        flex: 2,
+        pinned: 'left',
+        cellStyle: { fontWeight: 700, color: '#4b2424' }
+      },
+      {
+        headerName: "Financial Year",
+        field: "Financial Year",
+        width: 160,
+        cellStyle: { textAlign: 'center', fontWeight: 600 }
+      },
+      {
+        headerName: "CSR fund Allotted for the year (Rs.In lakhs)",
+        field: "CSR Fund Allotted Year",
+        minWidth: 280,
+        flex: 1.5,
+        cellStyle: { textAlign: 'right', fontWeight: 800, color: '#4b2424' },
+        valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      },
+      {
+        headerName: "Project Expenditure (Rs.In lakhs)",
+        field: "Project Expenditure",
+        minWidth: 250,
+        flex: 1.5,
+        cellStyle: { textAlign: 'right', fontWeight: 800, color: '#b45309' },
+        valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '0.00'
+      },
+      {
+        headerName: "CSR Fund Balance (Rs.In lakhs)",
+        field: "CSR Fund Balance",
+        minWidth: 250,
+        flex: 1.5,
+        cellStyle: { textAlign: 'right', fontWeight: 800, color: '#059669' },
+        valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      }
+    ];
+  }, [reportType, currentView.type, handleDrilldown]);
+
+  // Pinned Bottom Totals
+  const pinnedBottomRowData = useMemo(() => {
+    if (!filteredData || filteredData.length === 0) return undefined;
+
+    if (reportType === 'csr_projects_overview' && currentView.type === 'abstract') {
+      return [{
+        'S No': 'Total',
+        'Organisation Name': '',
+        'Total Number of CSR Projects till date': filteredData.reduce((acc, r) => acc + (Number(r['Total Number of CSR Projects till date']) || 0), 0),
+        'Approved by Board': filteredData.reduce((acc, r) => acc + (Number(r['Approved by Board']) || 0), 0),
+        'Project yet to Start': filteredData.reduce((acc, r) => acc + (Number(r['Project yet to Start']) || 0), 0),
+        'Project Under implementation': filteredData.reduce((acc, r) => acc + (Number(r['Project Under implementation']) || 0), 0),
+        'Completed': filteredData.reduce((acc, r) => acc + (Number(r['Completed']) || 0), 0),
+      }];
+    }
+
+    if (reportType === 'csr_fund_overview') {
+      const totalAllotted = filteredData.reduce((acc, r) => acc + (Number(r['CSR Fund Allotted Year']) || 0), 0);
+      const totalExp = filteredData.reduce((acc, r) => acc + (Number(r['Project Expenditure']) || 0), 0);
+      const totalBal = filteredData.reduce((acc, r) => acc + (Number(r['CSR Fund Balance']) || 0), 0);
+
+      return [{
+        'S No': 'Total',
+        'Organisation Name': '',
+        'Financial Year': '',
+        'CSR Fund Allotted Year': Math.round(totalAllotted),
+        'Project Expenditure': Math.round(totalExp),
+        'CSR Fund Balance': Math.round(totalBal),
+      }];
+    }
+
+    return undefined;
+  }, [filteredData, reportType, currentView.type]);
+
+  const defaultColDef = useMemo(() => ({
+    sortable: true,
+    filter: true,
+    resizable: true,
+  }), []);
+
+  const subtitle = useMemo(() => {
+    const today = new Date();
+    const formattedDate = `${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}`;
+    const monthName = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    return (
+      <span className="flex items-center gap-2 text-xs">
+        <span>As on date: <strong style={{ color: '#4b2424' }}>{formattedDate}</strong></span>
+        <span style={{ color: '#eadede' }}>•</span>
+        <span>Report for the month — <strong style={{ color: '#4b2424' }}>{monthName}</strong></span>
+      </span>
+    );
+  }, []);
+
+  const hasActiveFilters = filterOrg !== 'all' || filterFY !== 'all';
+
+  // Toolbar extra for switching between the two reports in Brown theme
+  const toolbarExtra = (
+    <div className="flex items-center space-x-2">
+      <button
+        onClick={() => handleSwitchReportType('csr_projects_overview')}
+        style={{
+          backgroundColor: reportType === 'csr_projects_overview' ? '#4b2424' : '#f7f3f3',
+          color: reportType === 'csr_projects_overview' ? '#ffffff' : '#4b2424',
+          borderColor: '#4b2424'
+        }}
+        className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border shadow-xs"
+      >
+        <FilePieChart className="h-3.5 w-3.5" />
+        <span>C.S.R 1.0 A - Overview of CSR Projects</span>
+      </button>
+
+      <button
+        onClick={() => handleSwitchReportType('csr_fund_overview')}
+        style={{
+          backgroundColor: reportType === 'csr_fund_overview' ? '#4b2424' : '#f7f3f3',
+          color: reportType === 'csr_fund_overview' ? '#ffffff' : '#4b2424',
+          borderColor: '#4b2424'
+        }}
+        className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border shadow-xs"
+      >
+        <Coins className="h-3.5 w-3.5" />
+        <span>C.S.R 1.1 - Overview of CSR Fund</span>
+      </button>
+    </div>
+  );
 
   return (
     <div className="space-y-4 animate-fade-in">
-      
-      {/* Report Type Selector & Toolbar */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        
-        {/* Left: Report Sub-tabs */}
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setActiveReportTab('abstract')}
-            className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeReportTab === 'abstract'
-                ? 'bg-[#0f417a] text-white shadow-sm'
-                : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
-            }`}
-          >
-            <FilePieChart className="h-4 w-4" />
-            <span>Organisation Abstract Report</span>
-          </button>
 
-          <button
-            onClick={() => setActiveReportTab('expenditure')}
-            className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-              activeReportTab === 'expenditure'
-                ? 'bg-[#0f417a] text-white shadow-sm'
-                : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
-            }`}
-          >
-            <Coins className="h-4 w-4" />
-            <span>Fund Expenditure Report</span>
-          </button>
-        </div>
-
-        {/* Right: Copy, Export, Refresh */}
-        <div className="flex items-center space-x-2">
-          <CopyButton
-            data={activeReportTab === 'abstract' ? abstractData : expenditureData}
-            columns={activeReportTab === 'abstract' ? abstractExportColumns : expenditureExportColumns}
-            triggerNotification={triggerNotification}
-          />
-
-          <ExportDropdown
-            data={activeReportTab === 'abstract' ? abstractData : expenditureData}
-            columns={activeReportTab === 'abstract' ? abstractExportColumns : expenditureExportColumns}
-            fileName={activeReportTab === 'abstract' ? 'CSR_Abstract_Report' : 'CSR_Expenditure_Report'}
-            title={activeReportTab === 'abstract' ? 'CSR Projects Abstract Summary' : 'CSR Fund Expenditure Summary'}
-            triggerNotification={triggerNotification}
-          />
-
-          <button
-            onClick={loadReports}
-            title="Refresh Report"
-            className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition text-slate-600 dark:text-slate-300 cursor-pointer"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-
-      </div>
-
-      {/* Report Table Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
-        
-        {/* Abstract Report View */}
-        {activeReportTab === 'abstract' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  <th className="py-3.5 px-4 w-12 text-center">#</th>
-                  <th className="py-3.5 px-4">Organisation Name</th>
-                  <th className="py-3.5 px-4 text-center">Approved by Board</th>
-                  <th className="py-3.5 px-4 text-center">Yet to Start</th>
-                  <th className="py-3.5 px-4 text-center">Under Implementation</th>
-                  <th className="py-3.5 px-4 text-center">Completed</th>
-                  <th className="py-3.5 px-4 text-center font-black">Total Projects</th>
-                  <th className="py-3.5 px-4 text-center w-24">Drilldown</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-                {loading ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 font-semibold">
-                      <RefreshCw className="h-6 w-6 animate-spin mx-auto text-[#0f417a] mb-2" />
-                      Generating abstract report...
-                    </td>
-                  </tr>
-                ) : abstractData.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 font-semibold">
-                      No report records available.
-                    </td>
-                  </tr>
-                ) : (
-                  abstractData.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 text-center font-bold text-slate-400">{row['S No'] || idx + 1}</td>
-                      <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100">
-                        {row['Organisation Name'] || '-'}
-                      </td>
-                      <td className="py-3 px-4 text-center font-bold text-blue-600 dark:text-blue-400">
-                        {row['Approved by Board'] || 0}
-                      </td>
-                      <td className="py-3 px-4 text-center font-bold text-amber-600 dark:text-amber-400">
-                        {row['Project yet to Start'] || 0}
-                      </td>
-                      <td className="py-3 px-4 text-center font-bold text-indigo-600 dark:text-indigo-400">
-                        {row['Project Under implementation'] || 0}
-                      </td>
-                      <td className="py-3 px-4 text-center font-bold text-emerald-600 dark:text-emerald-400">
-                        {row['Completed'] || 0}
-                      </td>
-                      <td className="py-3 px-4 text-center font-black text-slate-800 dark:text-slate-100 text-sm">
-                        {row['Total Number of CSR Projects till date'] || 0}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          onClick={() => handleDrilldownOrg(row.organisationID, row['Organisation Name'])}
-                          className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-[#0f417a] dark:text-blue-300 font-bold text-[11px] transition cursor-pointer mx-auto"
-                        >
-                          <Eye className="h-3 w-3" />
-                          <span>View</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+      {/* Summary KPI Badges in Brown Theme matching MIV / GMIS / CA */}
+      {reportType === 'csr_projects_overview' && currentView.type === 'abstract' && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-[#eadede] dark:border-slate-800 shadow-xs">
+            <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Projects</span>
+            <span className="text-lg font-black text-[#4b2424] dark:text-amber-200 mt-0.5 block">{summaryKPIs.totalProjects}</span>
           </div>
-        )}
-
-        {/* Expenditure Report View */}
-        {activeReportTab === 'expenditure' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  <th className="py-3.5 px-4 w-12 text-center">#</th>
-                  <th className="py-3.5 px-4">Organisation</th>
-                  <th className="py-3.5 px-4">Financial Year</th>
-                  <th className="py-3.5 px-4 text-right">Net Profit (₹ Cr)</th>
-                  <th className="py-3.5 px-4 text-right">CSR Allotted (₹ Cr)</th>
-                  <th className="py-3.5 px-4 text-right">Opening Bal (₹ Cr)</th>
-                  <th className="py-3.5 px-4 text-right">Expenditure (₹ Cr)</th>
-                  <th className="py-3.5 px-4 text-right">Fund Balance (₹ Cr)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-                {loading ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 font-semibold">
-                      <RefreshCw className="h-6 w-6 animate-spin mx-auto text-[#0f417a] mb-2" />
-                      Loading expenditure report...
-                    </td>
-                  </tr>
-                ) : expenditureData.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400 font-semibold">
-                      No expenditure records available.
-                    </td>
-                  </tr>
-                ) : (
-                  expenditureData.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
-                      <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100">
-                        {row.organisation_name || '-'}
-                      </td>
-                      <td className="py-3 px-4 font-bold text-slate-600 dark:text-slate-300">
-                        {row.financial_year || '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-slate-700 dark:text-slate-300">
-                        {row.net_profit != null ? Number(row.net_profit).toFixed(2) : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right font-black text-[#0f417a] dark:text-blue-400">
-                        {row.csr_fund_alloted_year != null ? Number(row.csr_fund_alloted_year).toFixed(2) : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-slate-600 dark:text-slate-400">
-                        {row.opening_balance_csr != null ? Number(row.opening_balance_csr).toFixed(2) : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-amber-600 dark:text-amber-400">
-                        {row.project_expenditure != null ? Number(row.project_expenditure).toFixed(2) : '0.00'}
-                      </td>
-                      <td className="py-3 px-4 text-right font-black text-emerald-600 dark:text-emerald-400">
-                        {row.csr_fund_balance != null ? Number(row.csr_fund_balance).toFixed(2) : '-'}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-[#eadede] dark:border-slate-800 shadow-xs">
+            <span className="text-[10px] text-slate-400 font-bold uppercase block">Approved by Board</span>
+            <span className="text-lg font-black text-blue-700 dark:text-blue-400 mt-0.5 block">{summaryKPIs.approved}</span>
           </div>
-        )}
-
-      </div>
-
-      {/* Drilldown Detailed Projects Modal */}
-      {selectedOrgForDrilldown && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border-l-4 border-l-[#0f417a]">
-            
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-[#0f417a] to-[#1e5ea8] px-6 py-4 flex items-center justify-between text-white z-10">
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-wider font-display">
-                  Organisation CSR Projects: {selectedOrgForDrilldown.orgName}
-                </h3>
-                <p className="text-[10px] text-blue-200 font-semibold mt-0.5">
-                  Detailed drilldown of all projects reported by this organisation
-                </p>
-              </div>
-              <button
-                onClick={() => setSelectedOrgForDrilldown(null)}
-                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Modal Table */}
-            <div className="p-6">
-              {loadingDrilldown ? (
-                <div className="py-12 text-center text-slate-400 font-semibold">
-                  <RefreshCw className="h-6 w-6 animate-spin mx-auto text-[#0f417a] mb-2" />
-                  Fetching detailed projects...
-                </div>
-              ) : detailedOrgProjects.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 font-semibold">
-                  No projects recorded for this organisation.
-                </div>
-              ) : (
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 dark:bg-slate-950 text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
-                        <th className="py-3 px-3 w-10 text-center">#</th>
-                        <th className="py-3 px-3">Project Name</th>
-                        <th className="py-3 px-3">Financial Year</th>
-                        <th className="py-3 px-3 text-right">Value (₹ Cr)</th>
-                        <th className="py-3 px-3">Status</th>
-                        <th className="py-3 px-3 text-center">Physical %</th>
-                        <th className="py-3 px-3 text-center">Financial %</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {detailedOrgProjects.map((p, idx) => (
-                        <tr key={p.csr_project_id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          <td className="py-2.5 px-3 text-center font-bold text-slate-400">{idx + 1}</td>
-                          <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200">
-                            {p.project_name}
-                          </td>
-                          <td className="py-2.5 px-3 font-bold text-slate-600 dark:text-slate-400">
-                            {p.financial_year}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-black text-slate-800 dark:text-slate-100">
-                            {p.project_value != null ? Number(p.project_value).toFixed(2) : '-'}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                              {p.project_status || 'Yet to start'}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-center font-bold text-emerald-600">
-                            {p.physical_progress != null ? `${p.physical_progress}%` : '-'}
-                          </td>
-                          <td className="py-2.5 px-3 text-center font-bold text-blue-600">
-                            {p.financial_progress != null ? `${p.financial_progress}%` : '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
-              <button
-                onClick={() => setSelectedOrgForDrilldown(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-
+          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-[#eadede] dark:border-slate-800 shadow-xs">
+            <span className="text-[10px] text-slate-400 font-bold uppercase block">Yet to Start</span>
+            <span className="text-lg font-black text-amber-700 dark:text-amber-400 mt-0.5 block">{summaryKPIs.yetToStart}</span>
+          </div>
+          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-[#eadede] dark:border-slate-800 shadow-xs">
+            <span className="text-[10px] text-slate-400 font-bold uppercase block">Under Implementation</span>
+            <span className="text-lg font-black text-[#6b3535] dark:text-amber-300 mt-0.5 block">{summaryKPIs.underImpl}</span>
+          </div>
+          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-[#eadede] dark:border-slate-800 shadow-xs">
+            <span className="text-[10px] text-slate-400 font-bold uppercase block">Completed</span>
+            <span className="text-lg font-black text-emerald-700 dark:text-emerald-400 mt-0.5 block">{summaryKPIs.completed}</span>
           </div>
         </div>
       )}
+
+      {/* Filter Toolbar matching CA / MIV Brown Theme */}
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: '#4b2424' }}>
+              <Filter className="h-3.5 w-3.5" />
+              <span>Filters:</span>
+            </span>
+
+            {/* Organisation Filter */}
+            <select
+              value={filterOrg}
+              onChange={e => setFilterOrg(e.target.value)}
+              className="text-xs px-3 py-1.5 bg-[#f7f3f3] dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+            >
+              <option value="all">--Show All Organisations--</option>
+              {organisations.map(o => (
+                <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
+              ))}
+            </select>
+
+            {/* Financial Year Filter (for Fund Report) */}
+            {reportType === 'csr_fund_overview' && (
+              <select
+                value={filterFY}
+                onChange={e => setFilterFY(e.target.value)}
+                className="text-xs px-3 py-1.5 bg-[#f7f3f3] dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+              >
+                <option value="all">--Show All Financial Years--</option>
+                {FINANCIAL_YEARS.map(fy => (
+                  <option key={fy} value={fy}>{fy}</option>
+                ))}
+              </select>
+            )}
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="flex items-center space-x-1 text-xs font-bold text-rose-600 hover:text-rose-700 px-2 py-1 transition cursor-pointer"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+
+          <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+            Total Records: <strong style={{ color: '#4b2424' }}>{filteredData.length}</strong>
+          </div>
+
+        </div>
+      </div>
+
+      {/* Main Report Table with MIV / CA Brown Theme */}
+      <ReportTable
+        title={currentView.title}
+        subtitle={subtitle}
+        eyebrow="Corporate Social Responsibility"
+        showBackButton={projectsDrillDown.length > 1}
+        onBack={handleBack}
+        loading={loading}
+        onRefresh={loadReportData}
+        rawData={filteredData}
+        viewData={filteredData}
+        columns={columns}
+        defaultColDef={defaultColDef}
+        pinnedBottomRowData={pinnedBottomRowData}
+        toolbarExtra={toolbarExtra}
+        triggerNotification={triggerNotification}
+        pagination={true}
+        themeClass="yp-pro-grid"
+        brandColor="#4b2424"
+        brandColorHover="#6b3535"
+        accentColor="#f7f3f3"
+        oddRowColor="#f8faf6"
+        totalLabel="Total"
+      />
 
     </div>
   );

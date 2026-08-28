@@ -58,7 +58,7 @@ export default function Dashboard({ triggerNotification }) {
         fetchCsrFundAllocated(selectedCluster, selectedOrg, selectedFY, selectedFocus),
         fetchCsrProjectCountWise(selectedCluster, selectedOrg, selectedFY, selectedFocus),
       ]);
-      setSummaryData(Array.isArray(summary) ? summary : []);
+      setSummaryData(summary || {});
       setStageWiseData(Array.isArray(stageWise) ? stageWise : []);
       setFundData(Array.isArray(fund) ? fund : []);
       setCountWiseData(Array.isArray(countWise) ? countWise : []);
@@ -100,21 +100,27 @@ export default function Dashboard({ triggerNotification }) {
 
   // Aggregate KPI Calculations
   const totalProjects = useMemo(() => {
-    return stageWiseData.reduce((acc, curr) => acc + (Number(curr.total_projects) || 0), 0);
-  }, [stageWiseData]);
+    if (summaryData?.combinedTotals?.total_csr_projects != null) {
+      return Number(summaryData.combinedTotals.total_csr_projects) || 0;
+    }
+    return stageWiseData.reduce((acc, curr) => acc + (Number(curr.stage_wise_count || curr.total_projects) || 0), 0);
+  }, [summaryData, stageWiseData]);
 
   const totalValue = useMemo(() => {
-    return stageWiseData.reduce((acc, curr) => acc + (Number(curr.total_value) || 0), 0);
-  }, [stageWiseData]);
+    if (summaryData?.combinedTotals?.total_project_value != null) {
+      return Number(summaryData.combinedTotals.total_project_value) || 0;
+    }
+    return stageWiseData.reduce((acc, curr) => acc + (Number(curr.stage_wise_cost || curr.total_value) || 0), 0);
+  }, [summaryData, stageWiseData]);
 
   const completedCount = useMemo(() => {
     const completed = stageWiseData.find(s => s.project_status === 'Completed');
-    return completed ? Number(completed.total_projects) || 0 : 0;
+    return completed ? Number(completed.stage_wise_count || completed.total_projects) || 0 : 0;
   }, [stageWiseData]);
 
   const ongoingCount = useMemo(() => {
     const ongoing = stageWiseData.find(s => s.project_status === 'Project Under implementation');
-    return ongoing ? Number(ongoing.total_projects) || 0 : 0;
+    return ongoing ? Number(ongoing.stage_wise_count || ongoing.total_projects) || 0 : 0;
   }, [stageWiseData]);
 
   const resetFilters = () => {
@@ -290,9 +296,9 @@ export default function Dashboard({ triggerNotification }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {[
             { key: 'all', label: 'All Projects', count: totalProjects, color: 'border-[#0f417a] text-[#0f417a]' },
-            { key: 'Approved by Board', label: 'Approved by Board', count: stageWiseData.find(s => s.project_status === 'Approved by Board')?.total_projects || 0, color: 'border-blue-500 text-blue-600' },
-            { key: 'Project yet to start', label: 'Project Yet to Start', count: stageWiseData.find(s => s.project_status === 'Project yet to start')?.total_projects || 0, color: 'border-amber-500 text-amber-600' },
-            { key: 'Project Under implementation', label: 'Under Implementation', count: stageWiseData.find(s => s.project_status === 'Project Under implementation')?.total_projects || 0, color: 'border-indigo-500 text-indigo-600' },
+            { key: 'Approved by Board', label: 'Approved by Board', count: stageWiseData.find(s => s.project_status === 'Approved by Board')?.stage_wise_count || stageWiseData.find(s => s.project_status === 'Approved by Board')?.total_projects || 0, color: 'border-blue-500 text-blue-600' },
+            { key: 'Project yet to start', label: 'Project Yet to Start', count: stageWiseData.find(s => s.project_status === 'Project yet to start')?.stage_wise_count || stageWiseData.find(s => s.project_status === 'Project yet to start')?.total_projects || 0, color: 'border-amber-500 text-amber-600' },
+            { key: 'Project Under implementation', label: 'Under Implementation', count: ongoingCount, color: 'border-indigo-500 text-indigo-600' },
             { key: 'Completed', label: 'Completed', count: completedCount, color: 'border-emerald-500 text-emerald-600' },
           ].map(stage => {
             const isSelected = selectedDrilldownStage === stage.key;
