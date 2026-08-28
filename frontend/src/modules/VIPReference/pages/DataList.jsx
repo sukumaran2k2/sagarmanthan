@@ -116,6 +116,14 @@ export default function DataList({
             5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : '',
             6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : ''
           };
+          const remarksByStage = {
+          1: r.vip_received_ministry_remark || '',
+          2: r.vip_submitted_for_approval_remark || '',
+          3: r.vip_comments_sought_remark || '',
+          4: r.vip_comments_received_remark || '',
+          5: r.vip_reply_furnished_remark || '',
+          6: r.vip_disposed_remark || ''
+        };
           return {
             sNo: idx + 1,
             id: r.vip_reference_id,
@@ -129,6 +137,7 @@ export default function DataList({
             deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
             stageSteps: steps,
             statusDates: dates,
+            statusRemarks: remarksByStage,
             lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
           };
         });
@@ -157,11 +166,13 @@ export default function DataList({
 
   // Dynamically filter divisions based on selected wing
   const filteredDivisions = useMemo(() => {
-    if (selectedWing === 'All') return localDivisions;
-    const selectedWingObj = localWings.find(w => w.wing_name === selectedWing);
+    if (selectedWing === 'All') return divisions.map(d => d.division_name);
+    const selectedWingObj = wings.find(w => w.wing_name === selectedWing);
     if (!selectedWingObj) return [];
-    return localDivisions.filter(d => String(d.wing_id) === String(selectedWingObj.wing_id));
-  }, [selectedWing, localWings, localDivisions]);
+    return divisions
+      .filter(d => d.wing_id === selectedWingObj.wing_id)
+      .map(d => d.division_name);
+  }, [selectedWing, wings, divisions]);
 
   // Instant client-side filtering based on Wing, Division, Status / Stage, Category, and Search
   const filteredData = useMemo(() => {
