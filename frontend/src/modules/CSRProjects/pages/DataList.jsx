@@ -17,12 +17,24 @@ import {
   getUserIdFromToken
 } from '../api';
 import { CSR_FOCUS_AREAS, CSR_STATUSES, FINANCIAL_YEARS } from '../utils/constants';
+import { getDataScopeCode, getSessionClaims } from '../../../utils/authSession';
 
 export default function DataList({
+  isOrgUser: isOrgUserProp,
   onAddNew,
   onEdit,
   triggerNotification
 }) {
+  const isOrgUser = useMemo(() => {
+    if (typeof isOrgUserProp === 'boolean') return isOrgUserProp;
+    const scope = String(getDataScopeCode() || '').toUpperCase();
+    if (scope === 'ORGANISATION') return true;
+    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
+    const claims = getSessionClaims();
+    const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
+    return roleId === 6 || roleId === 7;
+  }, [isOrgUserProp]);
+
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'pending' | 'completed'
   const [projects, setProjects] = useState([]);
   const [organisations, setOrganisations] = useState([]);
@@ -88,13 +100,13 @@ export default function DataList({
   // Counts for Sub-Tabs
   const allCount = projects.length;
   const completedCount = projects.filter(p => p.project_status === 'Completed').length;
-  const pendingCount = allCount - completedCount;
+  const activeCount = allCount - completedCount;
 
   // Filtered dataset
   const filteredProjects = useMemo(() => {
     return projects.filter(p => {
       if (activeTab === 'completed' && p.project_status !== 'Completed') return false;
-      if (activeTab === 'pending' && p.project_status === 'Completed') return false;
+      if ((activeTab === 'active' || activeTab === 'pending') && p.project_status === 'Completed') return false;
 
       if (selectedOrg && String(p.organisation_id) !== String(selectedOrg)) return false;
       if (selectedFY && String(p.financial_year) !== String(selectedFY)) return false;
@@ -205,7 +217,10 @@ export default function DataList({
       field: "project_name",
       minWidth: 220,
       flex: 2,
-      cellStyle: { fontWeight: 600 }
+      wrapText: true,
+      autoHeight: true,
+      cellClass: 'mopsw-wrap-cell',
+      cellStyle: { fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.35' }
     },
     {
       headerName: "FY",
@@ -219,7 +234,8 @@ export default function DataList({
       field: "project_value",
       width: 130,
       minWidth: 110,
-      cellStyle: { textAlign: 'right', fontWeight: 800, color: '#0f417a' },
+      headerClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#0f417a' },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
     },
     {
@@ -284,19 +300,21 @@ export default function DataList({
             >
               <ImageIcon className="h-3.5 w-3.5" />
             </button>
-            <button
-              type="button"
-              onClick={() => onEdit(p)}
-              title="Edit Project"
-              className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/50 rounded-lg transition cursor-pointer"
-            >
-              <Edit className="h-3.5 w-3.5" />
-            </button>
+            {isOrgUser && (
+              <button
+                type="button"
+                onClick={() => onEdit(p)}
+                title="Edit Project"
+                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/50 rounded-lg transition cursor-pointer"
+              >
+                <Edit className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         );
       }
     }
-  ], [currentPage, pageSize, onEdit]);
+  ], [currentPage, pageSize, onEdit, isOrgUser]);
 
   // Export Columns
   const exportColumns = useMemo(() => [
@@ -326,14 +344,14 @@ export default function DataList({
           ALL ({allCount})
         </button>
         <button
-          onClick={() => { setActiveTab('pending'); setCurrentPage(1); }}
+          onClick={() => { setActiveTab('active'); setCurrentPage(1); }}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeTab === 'pending'
+            activeTab === 'active' || activeTab === 'pending'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
               : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
           }`}
         >
-          PENDING ({pendingCount})
+          ACTIVE ({activeCount})
         </button>
         <button
           onClick={() => { setActiveTab('completed'); setCurrentPage(1); }}
@@ -453,13 +471,15 @@ export default function DataList({
             />
 
             {/* Add New Button */}
-            <button
-              onClick={onAddNew}
-              className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer select-none"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add CSR Project</span>
-            </button>
+            {isOrgUser && (
+              <button
+                onClick={onAddNew}
+                className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer select-none"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add CSR Project</span>
+              </button>
+            )}
           </div>
 
         </div>

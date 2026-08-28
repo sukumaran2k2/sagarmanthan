@@ -15,8 +15,19 @@ import {
   getUserIdFromToken
 } from '../api';
 import { FINANCIAL_YEARS } from '../utils/constants';
+import { getDataScopeCode, getSessionClaims } from '../../../utils/authSession';
 
-export default function FundDetails({ triggerNotification }) {
+export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotification }) {
+  const isOrgUser = useMemo(() => {
+    if (typeof isOrgUserProp === 'boolean') return isOrgUserProp;
+    const scope = String(getDataScopeCode() || '').toUpperCase();
+    if (scope === 'ORGANISATION') return true;
+    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
+    const claims = getSessionClaims();
+    const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
+    return roleId === 6 || roleId === 7;
+  }, [isOrgUserProp]);
+
   const [funds, setFunds] = useState([]);
   const [organisations, setOrganisations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -247,7 +258,7 @@ export default function FundDetails({ triggerNotification }) {
       cellStyle: { textAlign: 'right', fontWeight: 800, color: '#059669' },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
     },
-    {
+    ...(isOrgUser ? [{
       headerName: "Actions",
       field: "actions",
       width: 100,
@@ -269,8 +280,8 @@ export default function FundDetails({ triggerNotification }) {
           </div>
         );
       }
-    }
-  ], [currentPage, pageSize]);
+    }] : [])
+  ], [currentPage, pageSize, isOrgUser]);
 
   // Export Columns
   const exportColumns = useMemo(() => [
@@ -449,13 +460,15 @@ export default function FundDetails({ triggerNotification }) {
               triggerNotification={triggerNotification}
             />
 
-            <button
-              onClick={handleOpenAddModal}
-              className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer select-none"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Fund Details</span>
-            </button>
+            {isOrgUser && (
+              <button
+                onClick={handleOpenAddModal}
+                className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer select-none"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Fund Details</span>
+              </button>
+            )}
           </div>
 
         </div>

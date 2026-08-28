@@ -134,6 +134,15 @@ export const ROUTE_MAP = {
   'Consultant Data List': 'hr/consultant-appointment/data-list',
   'Consultant Reports': 'hr/consultant-appointment/reports',
 
+  // CSR Projects routes
+  'CSR Project': 'projects/csr-projects/dashboard',
+  'CSR Projects': 'projects/csr-projects/dashboard',
+  'CSR Dashboard': 'projects/csr-projects/dashboard',
+  'CSR Fund Details': 'projects/csr-projects/fund-details',
+  'CSR Project List': 'projects/csr-projects/project-list',
+  'CSR Input Form': 'projects/csr-projects/input-form',
+  'CSR Reports': 'projects/csr-projects/reports',
+
   // Finance / Capex routes
   'Capex': 'finance/capex/dashboard',
   'Capex Dashboard': 'finance/capex/dashboard',
@@ -147,6 +156,7 @@ export const getTabFromSlug = (slug) => {
   const cleanSlug = decodeURIComponent(slug).replace(/^\//, '').replace(/\/$/, '');
   if (!cleanSlug || cleanSlug === 'landing') return 'landing';
   
+  if (cleanSlug.startsWith('projects/csr-projects') || cleanSlug.startsWith('projects/csr-project')) return 'CSR Projects';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';

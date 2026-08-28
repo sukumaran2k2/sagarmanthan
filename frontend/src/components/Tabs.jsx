@@ -55,6 +55,7 @@ import {
   Menu,
   Target,
   BarChart3,
+  PlusCircle,
   X
 } from 'lucide-react';
 
@@ -135,12 +136,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
         {
           title: 'CSR Project',
           icon: Heart,
-          items: [
-            m('CSR_PROJECTS', { label: 'CSR Dashboard', icon: LayoutDashboard }),
-            m('CSR_PROJECTS', { label: 'CSR Fund Details', icon: Coins }),
-            m('CSR_PROJECTS', { label: 'CSR Project List', icon: ListTodo }),
-            m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Reports', icon: FilePieChart }),
-          ]
+          items: isOrgUser
+            ? [
+                m('CSR_PROJECTS', { label: 'CSR Dashboard', tab: 'CSR Dashboard', icon: LayoutDashboard }),
+                m('CSR_PROJECTS', { label: 'CSR Fund Details', tab: 'CSR Fund Details', icon: Coins }),
+                m('CSR_PROJECTS', { label: 'CSR Project List', tab: 'CSR Project List', icon: ListTodo }),
+                m('CSR_PROJECTS', { label: 'Input Form', tab: 'CSR Input Form', icon: PlusCircle }),
+                m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Reports', icon: FilePieChart }),
+              ]
+            : [
+                m('CSR_PROJECTS', { label: 'CSR Dashboard', tab: 'CSR Dashboard', icon: LayoutDashboard }),
+                m('CSR_PROJECTS', { label: 'CSR Fund Details', tab: 'CSR Fund Details', icon: Coins }),
+                m('CSR_PROJECTS', { label: 'CSR Project List', tab: 'CSR Project List', icon: ListTodo }),
+                m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Reports', icon: FilePieChart }),
+              ],
         },
         {
           title: 'Capex',
