@@ -407,6 +407,35 @@ async function gemWorkMonthlyReport(req, res) {
 
 
 
+const GEM_MONTHS = [
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+];
+
+const monthlySum = (prefix) =>
+    GEM_MONTHS.map((month) => `ISNULL(${prefix}_${month}, 0)`).join(" + ");
+
+// One CTE per category: annual target plus the 12 monthly columns rolled up per organisation.
+const categoryRollup = (alias, table, monthlyTable, idCol, orgCol, yearCol, targetCol) => `
+        ${alias} AS (
+            SELECT
+                t.${orgCol} AS organisation_id,
+                SUM(ISNULL(t.${targetCol}, 0)) AS planned,
+                SUM(ISNULL(m.through_gem, 0)) AS through_gem,
+                SUM(ISNULL(m.outside_gem, 0)) AS outside_gem
+            FROM ${table} t
+            LEFT JOIN (
+                SELECT
+                    ${idCol},
+                    SUM(${monthlySum("procurement_through_gem")}) AS through_gem,
+                    SUM(${monthlySum("procurement_outside_gem")}) AS outside_gem
+                FROM ${monthlyTable}
+                GROUP BY ${idCol}
+            ) m ON m.${idCol} = t.${idCol}
+            WHERE t.${yearCol} = @selectedYear
+            GROUP BY t.${orgCol}
+        )`;
+
 async function getGemReport(req, res)
 {
     const selectedYear = req.params.selectedYear;
@@ -419,66 +448,41 @@ async function getGemReport(req, res)
     try
     {
        const gemReportQuery = await request.query(`
+        WITH
+${categoryRollup("goods", "tbl_gem_procurement_goods", "tbl_gem_procurement_goods_monthly", "goods_gem_id", "goods_organisation_id", "goods_financial_year", "goods_procurement_potential")},
+${categoryRollup("service", "tbl_gem_procurement_service", "tbl_gem_procurement_service_monthly", "service_gem_id", "service_organisation_id", "service_financial_year", "service_procurement_potential")},
+${categoryRollup("works", "tbl_gem_procurement_works", "tbl_gem_procurement_works_monthly", "works_gem_id", "works_organisation_id", "works_financial_year", "works_procurement_potential")}
         SELECT
             o.organisation_id,
             o.organisation_name,
             CASE
-                WHEN o.gemreport_order = 2 THEN 'Major Ports'
-                WHEN o.gemreport_order = 14 THEN 'Authorities'
-                WHEN o.gemreport_order = 16 THEN 'Subordinate/Attached Offices'
-                WHEN o.gemreport_order = 19 THEN 'Public Sector Undertakings'
-                WHEN o.gemreport_order = 26 THEN 'Other Organizations'
+                WHEN o.gemreport_order BETWEEN 2 AND 13 THEN 'Major Ports'
+                WHEN o.gemreport_order BETWEEN 14 AND 15 THEN 'Authorities'
+                WHEN o.gemreport_order BETWEEN 16 AND 18 THEN 'Subordinate/Attached Offices'
+                WHEN o.gemreport_order BETWEEN 19 AND 25 THEN 'Public Sector Undertakings'
+                WHEN o.gemreport_order >= 26 THEN 'Other Organizations'
                 ELSE ''
             END AS display_group,
-            (
-                ISNULL(g.goods_procurement_potential,0)+
-                ISNULL(s.service_procurement_potential,0)+
-                ISNULL(w.works_procurement_potential,0)
-            ) AS planned_procurement,
-            ISNULL(g.goods_procurement_potential,0) AS goods_procurement_potential,
-            ISNULL(s.service_procurement_potential,0) AS service_procurement_potential,
-            ISNULL(w.works_procurement_potential,0) AS works_procurement_potential,
-            ISNULL(gm.through_gem_total,0) AS products,
-            ISNULL(sm.through_gem_total,0) AS services,
-            ISNULL(wm.through_gem_total,0) AS works,
-            (
-                ISNULL(gm.through_gem_total,0)+
-                ISNULL(sm.through_gem_total,0)+
-                ISNULL(wm.through_gem_total,0) ) AS grand_total,
-            (
-                ISNULL(gm.outside_gem_total,0)+
-                ISNULL(sm.outside_gem_total,0)+
-                ISNULL(wm.outside_gem_total,0) ) AS outside_gem
+            (ISNULL(g.planned,0) + ISNULL(s.planned,0) + ISNULL(w.planned,0)) AS planned_procurement,
+            ISNULL(g.planned,0) AS goods_procurement_potential,
+            ISNULL(s.planned,0) AS service_procurement_potential,
+            ISNULL(w.planned,0) AS works_procurement_potential,
+            ISNULL(g.through_gem,0) AS products,
+            ISNULL(s.through_gem,0) AS services,
+            ISNULL(w.through_gem,0) AS works,
+            (ISNULL(g.through_gem,0) + ISNULL(s.through_gem,0) + ISNULL(w.through_gem,0)) AS grand_total,
+            (ISNULL(g.outside_gem,0) + ISNULL(s.outside_gem,0) + ISNULL(w.outside_gem,0)) AS outside_gem
         FROM mmt_organisation o
-
-        LEFT JOIN tbl_gem_procurement_goods g
-        ON o.organisation_id = g.goods_organisation_id
-        AND g.goods_financial_year = @selectedYear
-
-        LEFT JOIN tbl_gem_procurement_service s
-        ON o.organisation_id = s.service_organisation_id
-        AND s.service_financial_year = @selectedYear
-
-        LEFT JOIN tbl_gem_procurement_works w
-        ON o.organisation_id = w.works_organisation_id
-        AND w.works_financial_year = @selectedYear
-
-        LEFT JOIN tbl_gem_procurement_goods_monthly gm
-        ON g.goods_gem_id = gm.goods_gem_id
-
-        LEFT JOIN tbl_gem_procurement_service_monthly sm
-        ON s.service_gem_id = sm.service_gem_id
-
-        LEFT JOIN tbl_gem_procurement_works_monthly wm
-        ON w.works_gem_id = wm.works_gem_id
-
+        LEFT JOIN goods g ON g.organisation_id = o.organisation_id
+        LEFT JOIN service s ON s.organisation_id = o.organisation_id
+        LEFT JOIN works w ON w.organisation_id = o.organisation_id
         WHERE o.gemreport_order IS NOT NULL
-        ORDER BY o.gemreport_order;`);            
+        ORDER BY o.gemreport_order;`);
 
     res.json({
         gemReport: gemReportQuery.recordset
     });
-    
+
     }catch(err){
         return res.status(500).json({
             message: err.message

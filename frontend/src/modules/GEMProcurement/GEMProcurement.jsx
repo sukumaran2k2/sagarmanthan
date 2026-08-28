@@ -1,26 +1,28 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { Calendar, Edit } from 'lucide-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import GEMKpiCards from './components/GEMKpiCards';
 import GEMDataListView from './components/GEMDataListView';
-import GEMAddTargetModal from './components/GEMAddTargetModal';
-import GEMMonthlyDataModal from './components/GEMMonthlyDataModal';
+import GEMInputForm from './pages/InputForm';
+import GEMUpdateForm from './pages/UpdateForm';
+import GEMMonthlyDataPage from './pages/MonthlyDataPage';
 import GEMReportView from './components/GEMReportView';
 import { useGemPermissions } from './hooks/useGemPermissions';
 import {
   fetchGemList,
   createGemTarget,
+  updateGemTarget,
   fetchOrganisationsDropdown,
 } from './api';
 import {
-  calculateGemPercentage,
   getGemFinancialYear,
   getGemOrganisationId,
   getGemPotential,
+  getElapsedFinancialMonths,
+  proportionalTarget,
   GEM_CATEGORY_TABS,
 } from './utils/gemUtils';
 
@@ -57,7 +59,15 @@ export default function GEMProcurementView({
 }) {
   const permissions = useGemPermissions();
   const viewMode = permissions.viewMode;
-  const showAdd = Boolean(permissions.canAdd && viewMode !== 'org');
+  // Planned targets are ministry-owned; organisation users only report actuals.
+  const canManageTargets = Boolean(
+    !permissions.isViewOnlyAdmin && viewMode !== 'org'
+  );
+  const canUpdateMonthly = Boolean(
+    permissions.canEdit && !permissions.isViewOnlyAdmin
+  );
+
+  const elapsedMonths = getElapsedFinancialMonths();
 
   const [activeTab, setActiveTab] = useState('total');
   const [selectedOrgId, setSelectedOrgId] = useState(
@@ -79,9 +89,15 @@ export default function GEMProcurementView({
   const [filterYear, setFilterYear] = useState('2026-2027');
   const [filterOrg, setFilterOrg] = useState('');
 
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
+  const [activePage, setActivePage] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
+
+  const canAddForTab = Boolean(
+    canManageTargets && permissions.canAdd && activeTab !== 'total'
+  );
+  const canUpdateTarget = Boolean(
+    canManageTargets && permissions.canEdit && activeTab !== 'total'
+  );
 
   const [toastMsg, setToastMsg] = useState('');
   const [toastColor, setToastColor] = useState('#10B981');
@@ -132,6 +148,13 @@ export default function GEMProcurementView({
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Never leave a form open once the tab or the user's rights no longer allow it.
+  useEffect(() => {
+    if (activePage === 'add' && !canAddForTab) setActivePage(null);
+    if (activePage === 'target' && !canUpdateTarget) setActivePage(null);
+    if (activePage === 'monthly' && activeTab === 'total') setActivePage(null);
+  }, [activePage, canAddForTab, canUpdateTarget, activeTab]);
+
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, filterYear, filterOrg, pageSize, viewMode, selectedOrgId, activeTab]);
@@ -147,13 +170,16 @@ export default function GEMProcurementView({
           : res.data?.organisations || [];
         setOrganisations(list);
       } catch (err) {
+        if (cancelled) return;
         console.error('Failed to load organisations for GEM:', err);
+        setOrganisations([]);
+        showToast('❌ Failed to load organisation list', '#EF4444');
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showToast]);
 
   const fetchList = useCallback(
     async (signal) => {
@@ -218,9 +244,24 @@ export default function GEMProcurementView({
     return () => controller.abort();
   }, [fetchList]);
 
-  const openMonthly = useCallback((record) => {
+  const openAddPage = useCallback(() => {
+    setSelectedRecord(null);
+    setActivePage('add');
+  }, []);
+
+  const openTargetPage = useCallback((record) => {
     setSelectedRecord(record);
-    setIsMonthlyModalOpen(true);
+    setActivePage('target');
+  }, []);
+
+  const openMonthlyPage = useCallback((record) => {
+    setSelectedRecord(record);
+    setActivePage('monthly');
+  }, []);
+
+  const closeUpdatePage = useCallback(() => {
+    setActivePage(null);
+    setSelectedRecord(null);
   }, []);
 
   const categoryTitle =
@@ -228,42 +269,43 @@ export default function GEMProcurementView({
       ? 'Total'
       : activeTab.charAt(0).toUpperCase() + activeTab.slice(1);
 
-  const [visibleCols, setVisibleCols] = useState({
-    'Sl.No': true,
-    Organisation: true,
-    'Financial Year': true,
-    'Planned Total Procurement': true,
-    '8 Months Proportional Target': true,
-    'Procurement Through GEM': true,
-    'Procurement Outside GEM': true,
-    'Last Updated Date': true,
-    Update: true,
-  });
+  // The consolidated report spans every organisation, so it stays ministry-only.
+  const visibleTabs = useMemo(
+    () =>
+      GEM_CATEGORY_TABS.filter((t) => t.id !== 'report' || viewMode !== 'org').map(
+        (t) => ({
+          id: t.id,
+          label: t.label,
+          icon: t.id === 'report' ? Calendar : undefined,
+        })
+      ),
+    [viewMode]
+  );
+
+  useEffect(() => {
+    if (activeTab === 'report' && viewMode === 'org') setActiveTab('total');
+  }, [activeTab, viewMode]);
 
   const colDefs = useMemo(() => {
-    const canUpdateMonthly = permissions.canEdit && !permissions.isViewOnlyAdmin;
-    return [
+    const canUpdate = canUpdateMonthly;
+    const allDefs = [
       {
         headerName: 'Sl.No',
-        key: 'Sl.No',
         valueGetter: (params) => {
-          const base = (pagination.page - 1) * pagination.limit;
+          const base = (page - 1) * pageSize;
           return params.node ? base + params.node.rowIndex + 1 : base + 1;
         },
         flex: 0.6,
         minWidth: 70,
         pinned: 'left',
         cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
-        hide: visibleCols['Sl.No'] === false,
       },
       {
         field: 'organisation_name',
         headerName: 'Organisation',
-        key: 'Organisation',
         flex: 2,
         minWidth: 220,
         cellClass: 'font-bold text-slate-800 text-left flex items-center',
-        hide: visibleCols.Organisation === false,
         valueGetter: (params) => {
           if (!params.data) return '—';
           if (params.data.organisation_name) return params.data.organisation_name;
@@ -276,147 +318,156 @@ export default function GEMProcurementView({
       },
       {
         headerName: 'Financial Year',
-        key: 'Financial Year',
         flex: 1.2,
         minWidth: 130,
         cellClass: 'font-semibold text-slate-700 text-center flex items-center justify-center',
-        hide: visibleCols['Financial Year'] === false,
         valueGetter: (params) => getGemFinancialYear(params.data) || '—',
       },
       {
         headerName: 'Planned Total Procurement (In Crore)',
-        key: 'Planned Total Procurement',
         flex: 2,
         minWidth: 220,
         cellClass: 'font-black text-[#0f417a] text-center flex items-center justify-center',
-        hide: visibleCols['Planned Total Procurement'] === false,
         valueGetter: (params) =>
           Number(getGemPotential(params.data, listCategoryForTab(activeTab))).toFixed(2),
       },
       {
-        headerName: '8 Months Proportional Target (In Crore)',
-        key: '8 Months Proportional Target',
+        headerName: `${elapsedMonths} Months Proportional Target (In Crore)`,
         flex: 2,
         minWidth: 220,
         cellClass: 'font-semibold text-slate-700 text-center flex items-center justify-center',
-        hide: visibleCols['8 Months Proportional Target'] === false,
         valueGetter: (params) =>
-          Number(params.data?.eight_months_proportional_target || 0).toFixed(2),
+          proportionalTarget(
+            getGemPotential(params.data, listCategoryForTab(activeTab)),
+            elapsedMonths
+          ).toFixed(2),
       },
       {
         headerName: 'Procurement Through GEM (In Crore)',
-        key: 'Procurement Through GEM',
         flex: 2,
         minWidth: 220,
-        cellClass: 'font-semibold text-emerald-700 text-center flex items-center justify-center',
-        hide: visibleCols['Procurement Through GEM'] === false,
-        valueGetter: (params) => {
-          const through = Number(params.data?.total_procurement_through_gem || 0);
-          const potential = getGemPotential(params.data, listCategoryForTab(activeTab));
-          const pct = calculateGemPercentage(through, potential);
-          return `${through.toFixed(2)} (${pct}%)`;
+        cellClass:
+          activeTab === 'total'
+            ? 'font-bold text-slate-800 text-center flex items-center justify-center'
+            : 'font-black text-blue-700 text-center flex items-center justify-center cursor-pointer hover:underline',
+        valueGetter: (params) =>
+          Number(params.data?.total_procurement_through_gem || 0).toFixed(2),
+        cellRenderer: (params) => {
+          if (!params.data) return null;
+          if (activeTab === 'total') return params.value;
+          return (
+            <span
+              onClick={() => openMonthlyPage(params.data)}
+              className="text-blue-700 font-black underline cursor-pointer"
+              title="Click to view/edit monthly procurement data"
+            >
+              {params.value}
+            </span>
+          );
         },
       },
       {
         headerName: 'Procurement Outside GEM (In Crore)',
-        key: 'Procurement Outside GEM',
         flex: 2,
         minWidth: 220,
-        cellClass: 'font-semibold text-amber-700 text-center flex items-center justify-center',
-        hide: visibleCols['Procurement Outside GEM'] === false,
+        cellClass: 'font-bold text-slate-800 text-center flex items-center justify-center',
         valueGetter: (params) =>
           Number(params.data?.total_procurement_outside_gem || 0).toFixed(2),
       },
-      {
+    ];
+
+    if (activeTab !== 'total') {
+      allDefs.push({
         headerName: 'Last Updated Date',
-        key: 'Last Updated Date',
         flex: 1.4,
         minWidth: 150,
-        cellClass: 'text-slate-600 text-center flex items-center justify-center',
-        hide: visibleCols['Last Updated Date'] === false,
+        cellClass: 'text-slate-600 font-semibold text-center flex items-center justify-center',
         valueGetter: (params) => {
           const raw = params.data?.updated_date;
           if (!raw) return '—';
           const d = new Date(raw);
           return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN');
         },
-      },
-      {
+      });
+    }
+
+    if (canUpdate && activeTab !== 'total') {
+      allDefs.push({
         headerName: 'Update',
-        key: 'Update',
         flex: 1,
         minWidth: 110,
+        maxWidth: 120,
         pinned: 'right',
-        cellClass: 'flex items-center justify-center',
-        hide: visibleCols.Update === false || activeTab === 'total' || !canUpdateMonthly,
+        lockPinned: true,
+        suppressMovable: true,
+        sortable: false,
+        filter: false,
+        cellClass: 'text-center flex items-center justify-center',
         cellRenderer: (params) => {
-          if (!params.data || activeTab === 'total' || !canUpdateMonthly) return null;
+          const row = params.data;
+          if (!row) return null;
+          const isMinistry = viewMode !== 'org';
           return (
-            <button
-              type="button"
-              onClick={() => openMonthly(params.data)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-[#0f417a] text-xs font-bold hover:bg-blue-100 cursor-pointer"
-              title="Update monthly expenditure"
-            >
-              <Edit size={13} />
-              Update
-            </button>
+            <div className="flex items-center justify-center gap-1 w-full h-full py-1">
+              <button
+                type="button"
+                onClick={() => (isMinistry ? openTargetPage(row) : openMonthlyPage(row))}
+                className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
+                title={
+                  isMinistry
+                    ? 'Update Planned Total Procurement'
+                    : 'Update monthly procurement'
+                }
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+            </div>
           );
         },
-      },
-    ];
+      });
+    }
+
+    if (viewMode === 'org') {
+      return allDefs.filter((col) => col.field !== 'organisation_name');
+    }
+    return allDefs;
   }, [
-    visibleCols,
     organisations,
     activeTab,
-    permissions.canEdit,
-    permissions.isViewOnlyAdmin,
-    openMonthly,
-    pagination.page,
-    pagination.limit,
+    viewMode,
+    elapsedMonths,
+    canUpdateMonthly,
+    openTargetPage,
+    openMonthlyPage,
+    page,
+    pageSize,
   ]);
-
-  const pinnedBottomRowData = useMemo(() => {
-    if (!rows.length) return [];
-    const category = listCategoryForTab(activeTab);
-    const planned = rows.reduce((sum, r) => sum + getGemPotential(r, category), 0);
-    const through = rows.reduce(
-      (sum, r) => sum + (Number(r.total_procurement_through_gem) || 0),
-      0
-    );
-    const outside = rows.reduce(
-      (sum, r) => sum + (Number(r.total_procurement_outside_gem) || 0),
-      0
-    );
-    const eight = rows.reduce(
-      (sum, r) => sum + (Number(r.eight_months_proportional_target) || 0),
-      0
-    );
-    return [
-      {
-        organisation_name: 'TOTAL (page)',
-        goods_procurement_potential: planned,
-        service_procurement_potential: planned,
-        works_procurement_potential: planned,
-        total_procurement_potential: planned,
-        eight_months_proportional_target: eight,
-        total_procurement_through_gem: through,
-        total_procurement_outside_gem: outside,
-      },
-    ];
-  }, [rows, activeTab]);
 
   const handleAddSubmit = async (payload) => {
     const category = listCategoryForTab(activeTab);
     if (category === 'total') return;
     try {
       await createGemTarget(category, payload);
-      showToast(`✅ ${categoryTitle} target added successfully`, '#10B981');
-      fetchList();
     } catch (err) {
       const msg =
-        err?.response?.data?.error || `❌ Failed to add ${categoryTitle} target`;
-      showToast(msg, '#EF4444');
+        err?.response?.data?.error ||
+        err.message ||
+        `Failed to add ${categoryTitle} target.`;
+      throw new Error(msg, { cause: err });
+    }
+  };
+
+  const handleTargetUpdate = async (payload) => {
+    const category = listCategoryForTab(activeTab);
+    if (category === 'total') return;
+    try {
+      await updateGemTarget(category, payload);
+    } catch (err) {
+      const msg =
+        err?.response?.data?.error ||
+        err.message ||
+        'Failed to update planned procurement.';
+      throw new Error(msg, { cause: err });
     }
   };
 
@@ -428,7 +479,7 @@ export default function GEMProcurementView({
           r.organisation_name || '',
           getGemFinancialYear(r),
           getGemPotential(r, category),
-          r.eight_months_proportional_target || 0,
+          proportionalTarget(getGemPotential(r, category), elapsedMonths),
           r.total_procurement_through_gem || 0,
           r.total_procurement_outside_gem || 0,
         ].join('\t');
@@ -445,7 +496,10 @@ export default function GEMProcurementView({
       Organisation: r.organisation_name || '',
       'Financial Year': getGemFinancialYear(r),
       'Planned Procurement': getGemPotential(r, category),
-      '8 Months Target': r.eight_months_proportional_target || 0,
+      [`${elapsedMonths} Months Proportional Target`]: proportionalTarget(
+        getGemPotential(r, category),
+        elapsedMonths
+      ),
       'Through GEM': r.total_procurement_through_gem || 0,
       'Outside GEM': r.total_procurement_outside_gem || 0,
     }));
@@ -471,70 +525,95 @@ export default function GEMProcurementView({
           </p>
         </div>
         <InternalNavigation
-          tabs={GEM_CATEGORY_TABS.map((t) => ({
-            id: t.id,
-            label: t.label,
-            icon: t.id === 'report' ? Calendar : undefined,
-          }))}
+          tabs={visibleTabs}
           currentTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={(tabId) => {
+            closeUpdatePage();
+            setActiveTab(tabId);
+          }}
         />
       </div>
 
-      {activeTab !== 'report' && (
-        <>
-          <GEMKpiCards data={rows} activeCategory={categoryTitle} />
-          <GEMDataListView
-            categoryTitle={categoryTitle}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            pageSize={pageSize}
-            setPageSize={setPageSize}
-            filteredData={rows}
-            colDefs={colDefs}
-            pinnedBottomRowData={pinnedBottomRowData}
-            loading={loading}
-            onOpenAddModal={() => setIsAddModalOpen(true)}
-            handleCopyData={handleCopyData}
-            handleExportExcel={handleExportExcel}
-            handleExportPdf={() => showToast('PDF export coming soon', '#0f417a')}
+      {activeTab !== 'report' &&
+        (activePage === 'add' && canAddForTab ? (
+          <GEMInputForm
             organisations={organisations}
-            filterYear={filterYear}
-            setFilterYear={setFilterYear}
-            filterOrg={filterOrg}
-            setFilterOrg={setFilterOrg}
-            visibleCols={visibleCols}
-            setVisibleCols={setVisibleCols}
-            viewMode={showAdd ? viewMode : 'org'}
-            page={page}
-            setPage={setPage}
-            pagination={pagination}
+            categoryTitle={categoryTitle}
+            existingData={rows}
+            onSubmit={handleAddSubmit}
+            onBack={closeUpdatePage}
+            onSuccess={() => {
+              closeUpdatePage();
+              fetchList();
+            }}
+            notify={(msg, type) =>
+              showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
+            }
           />
-        </>
-      )}
+        ) : activePage === 'target' && selectedRecord && canUpdateTarget ? (
+          <GEMUpdateForm
+            record={selectedRecord}
+            category={listCategoryForTab(activeTab)}
+            categoryTitle={categoryTitle}
+            onSubmit={handleTargetUpdate}
+            onBack={closeUpdatePage}
+            onSuccess={() => {
+              closeUpdatePage();
+              fetchList();
+            }}
+            notify={(msg, type) =>
+              showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
+            }
+          />
+        ) : activePage === 'monthly' && selectedRecord ? (
+          <GEMMonthlyDataPage
+            record={selectedRecord}
+            category={listCategoryForTab(activeTab)}
+            categoryTitle={categoryTitle}
+            canEdit={canUpdateMonthly}
+            onBack={closeUpdatePage}
+            onSaved={() => {
+              closeUpdatePage();
+              fetchList();
+            }}
+            notify={(msg, type) =>
+              showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
+            }
+          />
+        ) : (
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+            <GEMDataListView
+              categoryTitle={categoryTitle}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              page={page}
+              pageSize={pageSize}
+              setPageSize={setPageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(n) => {
+                setPageSize(n);
+                setPage(1);
+              }}
+              pagination={pagination}
+              rowData={rows}
+              colDefs={colDefs}
+              loading={loading}
+              showAddButton={canAddForTab}
+              onOpenAddPage={openAddPage}
+              handleCopyData={handleCopyData}
+              handleExportExcel={handleExportExcel}
+              handleExportPdf={() => showToast('PDF export coming soon', '#0f417a')}
+              organisations={organisations}
+              filterYear={filterYear}
+              setFilterYear={setFilterYear}
+              filterOrg={filterOrg}
+              setFilterOrg={setFilterOrg}
+              viewMode={viewMode}
+            />
+          </div>
+        ))}
 
       {activeTab === 'report' && <GEMReportView showToast={showToast} />}
-
-      <GEMAddTargetModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSubmit={handleAddSubmit}
-        organisations={organisations}
-        categoryTitle={categoryTitle}
-        existingData={rows}
-      />
-
-      <GEMMonthlyDataModal
-        isOpen={isMonthlyModalOpen}
-        onClose={() => {
-          setIsMonthlyModalOpen(false);
-          setSelectedRecord(null);
-          fetchList();
-        }}
-        record={selectedRecord}
-        categoryType={listCategoryForTab(activeTab)}
-        showToast={showToast}
-      />
 
       {toastVisible && (
         <div

@@ -276,7 +276,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Goods', tab: 'GEM Procurements', targetSubTab: 'Goods', icon: ClipboardList },
             { label: 'Services', tab: 'GEM Procurements', targetSubTab: 'Services', icon: ClipboardList },
             { label: 'Works', tab: 'GEM Procurements', targetSubTab: 'Works', icon: ClipboardList },
-            { label: 'Reports', tab: 'GEM Procurements', targetSubTab: 'Reports', icon: FilePieChart },
+            ...(isOrgUser
+              ? []
+              : [{ label: 'Reports', tab: 'GEM Procurements', targetSubTab: 'Reports', icon: FilePieChart }]),
           ],
         }),
         m('CABINET_NOTES_MOPSW', {

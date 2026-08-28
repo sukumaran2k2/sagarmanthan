@@ -1,13 +1,12 @@
-export function calculateGemPercentage(actual, potential) {
-  const a = Number(actual) || 0;
-  const p = Number(potential) || 0;
-  if (p <= 0) return 0;
-  return Number(((a / p) * 100).toFixed(2));
+// Financial year starts in April, so April is elapsed month 1 and March is 12.
+export function getElapsedFinancialMonths(date = new Date()) {
+  const calendarMonth = date.getMonth() + 1;
+  return calendarMonth >= 4 ? calendarMonth - 3 : calendarMonth + 9;
 }
 
-export function eightMonthsProportionalTarget(potential) {
+export function proportionalTarget(potential, months = getElapsedFinancialMonths()) {
   const p = Number(potential) || 0;
-  return Number(((p / 12) * 8).toFixed(3));
+  return Number(((p / 12) * months).toFixed(2));
 }
 
 export function getGemRecordId(record, category) {
@@ -59,6 +58,14 @@ export function getGemPotential(record, category) {
   if (category === 'works') return Number(record?.works_procurement_potential) || 0;
   return Number(record?.total_procurement_potential) || 0;
 }
+
+export const GEM_FY_OPTIONS = [
+  '2026-2027',
+  '2025-2026',
+  '2024-2025',
+  '2023-2024',
+  '2022-2023',
+];
 
 export const GEM_CATEGORY_TABS = [
   { id: 'total', label: 'Total' },

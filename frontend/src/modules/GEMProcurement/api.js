@@ -150,18 +150,6 @@ export function fetchGemReport(year) {
   return api.get(`/gem-report/${year}`);
 }
 
-export function fetchGemGoodsReport() {
-  return api.get('/gem-goodsreport');
-}
-
-export function fetchGemServiceReport() {
-  return api.get('/gem-servicereport');
-}
-
-export function fetchGemWorksReport() {
-  return api.get('/gem-worksreport');
-}
-
 export function fetchOrganisationsDropdown() {
   return api.get('/mmt-dropdown/mmt_organisation');
 }

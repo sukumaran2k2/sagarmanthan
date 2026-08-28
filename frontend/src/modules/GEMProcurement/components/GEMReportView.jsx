@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   TrendingUp,
   Search,
@@ -24,29 +24,39 @@ export default function GEMReportView({ showToast }) {
   const [quickFilter, setQuickFilter] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(true);
 
+  const fetchReportData = useCallback(
+    async (fy) => {
+      setLoading(true);
+      try {
+        const res = await fetchGemReport(fy);
+        if (res.data && res.data.gemReport) {
+          setReportData(res.data.gemReport);
+        } else if (Array.isArray(res.data)) {
+          setReportData(res.data);
+        } else {
+          setReportData([]);
+        }
+      } catch (err) {
+        console.warn("GeM Report API error:", err.message);
+        showToast?.("❌ Failed to load GEM report", "#EF4444");
+        setReportData([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [showToast]
+  );
+
   useEffect(() => {
     fetchReportData(selectedYear);
-  }, [selectedYear]);
+  }, [fetchReportData, selectedYear]);
 
-  const fetchReportData = async (fy) => {
-    setLoading(true);
-    try {
-      const res = await fetchGemReport(fy);
-      if (res.data && res.data.gemReport) {
-        setReportData(res.data.gemReport);
-      } else if (Array.isArray(res.data)) {
-        setReportData(res.data);
-      } else {
-        setReportData([]);
-      }
-    } catch (err) {
-      console.warn("GeM Report API error:", err.message);
-      showToast?.("❌ Failed to load GEM report", "#EF4444");
-      setReportData([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const uniqueGroupList = useMemo(() => {
+    const groups = reportData
+      .map((r) => r.display_group)
+      .filter((name) => name && name.trim() !== "");
+    return Array.from(new Set(groups)).sort();
+  }, [reportData]);
 
   const uniqueOrgList = useMemo(() => {
     const orgs = reportData
@@ -82,10 +92,22 @@ export default function GEMReportView({ showToast }) {
     return result;
   }, [reportData, groupFilter, orgFilter, quickFilter]);
 
-  const startYear = selectedYear ? selectedYear.split("-")[0] : "2026";
-  const asOnDateStr = `30-06-${startYear}`;
-  const reportMonthStr = `June ${startYear}`;
-  const tableUptoDateStr = `(Upto 30/06/${startYear})`;
+  // Legacy report is always "as on" the last day of the previous calendar month,
+  // but stamped with the selected financial year's start year.
+  const { asOnDateStr, reportMonthStr, tableUptoDateStr } = useMemo(() => {
+    const startYear = selectedYear ? selectedYear.split("-")[0] : "";
+    const today = new Date();
+    const lastDayOfPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    const day = String(lastDayOfPrevMonth.getDate()).padStart(2, "0");
+    const month = String(lastDayOfPrevMonth.getMonth() + 1).padStart(2, "0");
+    const monthName = lastDayOfPrevMonth.toLocaleString("default", { month: "long" });
+
+    return {
+      asOnDateStr: `${day}-${month}-${startYear}`,
+      reportMonthStr: `${monthName} ${startYear}`,
+      tableUptoDateStr: `(Upto ${day}/${month}/${startYear})`,
+    };
+  }, [selectedYear]);
 
   let totalGoodsPlanned = 0, totalServicePlanned = 0, totalWorksPlanned = 0, totalGrandPlanned = 0;
   let totalGoodsGem = 0, totalServiceGem = 0, totalWorksGem = 0, totalGrandGem = 0, totalOutsideGem = 0;
@@ -94,12 +116,12 @@ export default function GEMReportView({ showToast }) {
     const gp = Number(r.goods_procurement_potential) || 0;
     const sp = Number(r.service_procurement_potential) || 0;
     const wp = Number(r.works_procurement_potential) || 0;
-    const planTot = Number(r.planned_procurement) || gp + sp + wp;
+    const planTot = Number(r.planned_procurement) || 0;
 
     const gg = Number(r.products) || 0;
     const sg = Number(r.services) || 0;
     const wg = Number(r.works) || 0;
-    const actTot = Number(r.grand_total) || gg + sg + wg;
+    const actTot = Number(r.grand_total) || 0;
     const out = Number(r.outside_gem) || 0;
 
     totalGoodsPlanned += gp;
@@ -150,7 +172,6 @@ export default function GEMReportView({ showToast }) {
 
   return (
     <div className="space-y-6 animate-fade-in select-none">
-      {/* ─ YP Style Header & Toolbar Banner (Warm Brown Gradient) ─ */}
       <div
         style={{
           background: "linear-gradient(to right, #fdfcfc, #f7f3f3)",
@@ -166,7 +187,6 @@ export default function GEMReportView({ showToast }) {
           boxShadow: "0 2px 10px rgba(0,0,0,0.02)",
         }}
       >
-        {/* Left: YP Style Title & Dates */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 300, textAlign: "left" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -186,9 +206,7 @@ export default function GEMReportView({ showToast }) {
           </div>
         </div>
 
-        {/* Right: Search, Copy, Export & Refresh Controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {/* Quick Search */}
           <div style={{ position: "relative", width: 220 }}>
             <Search size={14} color="#8c4242" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
             <input
@@ -254,7 +272,6 @@ export default function GEMReportView({ showToast }) {
         </div>
       </div>
 
-      {/* ─ Collapsible YP Warm Brown Filter Panel ─ */}
       <div style={{ border: "1px solid #e8d5c8", borderRadius: "16px", overflow: "hidden", background: "#fcf9f7" }}>
         <button
           type="button"
@@ -285,8 +302,7 @@ export default function GEMReportView({ showToast }) {
 
         {isFilterOpen && (
           <div style={{ padding: "16px", borderTop: "1px solid #e8d5c8", background: "#fff" }} className="animate-fade-in text-left space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Financial Year */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <label style={{ display: "block", fontSize: "11.5px", fontWeight: 800, color: "#4b2424", marginBottom: "6px" }}>
                   Financial Year
@@ -315,7 +331,6 @@ export default function GEMReportView({ showToast }) {
                 </select>
               </div>
 
-              {/* Organization Sector / Group */}
               <div>
                 <label style={{ display: "block", fontSize: "11.5px", fontWeight: 800, color: "#4b2424", marginBottom: "6px" }}>
                   Organization Sector
@@ -337,15 +352,14 @@ export default function GEMReportView({ showToast }) {
                   }}
                 >
                   <option value="ALL">Show All Sectors</option>
-                  <option value="Major Ports">Major Ports</option>
-                  <option value="Authorities">Authorities</option>
-                  <option value="Subordinate/Attached Offices">Subordinate / Attached Offices</option>
-                  <option value="Public Sector Undertakings">Public Sector Undertakings</option>
-                  <option value="Other Organizations">Other Organizations</option>
+                  {uniqueGroupList.map((group) => (
+                    <option key={group} value={group}>
+                      {group}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* Organisation */}
               <div>
                 <label style={{ display: "block", fontSize: "11.5px", fontWeight: 800, color: "#4b2424", marginBottom: "6px" }}>
                   Organisation
@@ -375,43 +389,8 @@ export default function GEMReportView({ showToast }) {
                 </select>
               </div>
 
-              {/* Keyword Search */}
-              <div>
-                <label style={{ display: "block", fontSize: "11.5px", fontWeight: 800, color: "#4b2424", marginBottom: "6px" }}>
-                  Keyword Search
-                </label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    type="text"
-                    placeholder="Search by name..."
-                    value={quickFilter}
-                    onChange={(e) => setQuickFilter(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px 30px 8px 12px",
-                      background: "#fcf9f7",
-                      border: "1px solid #d7c4b7",
-                      borderRadius: "10px",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      color: "#4b2424",
-                      outline: "none",
-                    }}
-                  />
-                  {quickFilter && (
-                    <button
-                      type="button"
-                      onClick={() => setQuickFilter("")}
-                      style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#8c4242", cursor: "pointer" }}
-                    >
-                      <X size={13} />
-                    </button>
-                  )}
-                </div>
-              </div>
             </div>
 
-            {/* Red Note */}
             <div style={{ fontSize: "11px", fontWeight: 700, color: "#c74a54", lineHeight: "1.5", paddingTop: "4px" }} className="flex items-center space-x-1.5">
               <Info size={14} className="flex-shrink-0" />
               <span>Note : The Grand Total under both Planned Procurement through GeM and Actual Procurement through GeM has been computed by aggregating the values reported under the Products, Services, and Works categories.</span>
@@ -443,7 +422,6 @@ export default function GEMReportView({ showToast }) {
         )}
       </div>
 
-      {/* ─ YP Warm Brown Styled GeM Procurement Table ─ */}
       <div style={{ background: "#fff", borderRadius: "16px", border: "1px solid #d7c4b7", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
         <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 260px)", minHeight: "400px", position: "relative" }}>
           <table id="gemReportTable" style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse" }}>
@@ -460,15 +438,15 @@ export default function GEMReportView({ showToast }) {
                 <th style={{ padding: "10px", border: "1px solid #5c2d2d", minWidth: "140px" }} rowSpan={2}>Procurement outside GeM</th>
               </tr>
               <tr style={{ background: "#5c2d2d", color: "#fff", textAlign: "center", fontWeight: 800 }}>
-                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>products</th>
-                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>services</th>
-                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>works</th>
-                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>grand total</th>
+                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>Products</th>
+                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>Services</th>
+                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>Works</th>
+                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>Grand Total</th>
 
-                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>products</th>
-                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>services</th>
-                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>works</th>
-                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>grand total</th>
+                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>Products</th>
+                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>Services</th>
+                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>Works</th>
+                <th style={{ padding: "8px", border: "1px solid #6e3939" }}>Grand Total</th>
               </tr>
             </thead>
             <tbody>
@@ -483,12 +461,12 @@ export default function GEMReportView({ showToast }) {
                 const gp = Number(row.goods_procurement_potential || 0);
                 const sp = Number(row.service_procurement_potential || 0);
                 const wp = Number(row.works_procurement_potential || 0);
-                const planTot = Number(row.planned_procurement || gp + sp + wp);
+                const planTot = Number(row.planned_procurement || 0);
 
                 const gg = Number(row.products || 0);
                 const sg = Number(row.services || 0);
                 const wg = Number(row.works || 0);
-                const actTot = Number(row.grand_total || gg + sg + wg);
+                const actTot = Number(row.grand_total || 0);
                 const out = Number(row.outside_gem || 0);
 
                 return (
@@ -522,7 +500,7 @@ export default function GEMReportView({ showToast }) {
             </tbody>
             <tfoot>
               <tr style={{ background: "#f5eeea", color: "#4b2424", fontWeight: 900, textAlign: "center", borderTop: "2px solid #4b2424" }}>
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7" }} colSpan={2}>grand total</td>
+                <td style={{ padding: "10px", border: "1px solid #d7c4b7" }} colSpan={2}>Grand Total</td>
                 <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalGoodsPlanned.toFixed(2)}</td>
                 <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalServicePlanned.toFixed(2)}</td>
                 <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalWorksPlanned.toFixed(2)}</td>

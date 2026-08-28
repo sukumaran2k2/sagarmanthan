@@ -1,6 +1,6 @@
 import { pool } from "../../db.js";
 import sql from "mssql";
-import { applyDataScope } from "../../middleware/dataScope.js";
+import { applyDataScope, getDataScope } from "../../middleware/dataScope.js";
 
 const MONTHS = [
   "january",
@@ -72,6 +72,27 @@ function parsePositiveInt(value, fallback, min = 1, max = Number.MAX_SAFE_INTEGE
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
+}
+
+// Writes carry the organisation in the body, so the read-side SQL scope is not
+// enough: reject payloads that target an organisation outside the user's scope.
+function isOrganisationInScope(req, organisationId) {
+  const { isWide, isOrganisation, organisationId: scopeOrgId } = getDataScope(req.user);
+  if (isWide) return true;
+  if (!isOrganisation) return false;
+  return Number(organisationId) === Number(scopeOrgId);
+}
+
+async function loadRecordOrganisationId(cfg, gemId) {
+  const conn = await pool;
+  const request = conn.request();
+  request.input("gemId", sql.Int, Number(gemId));
+  const result = await request.query(`
+    SELECT ${cfg.orgCol} AS organisationId
+    FROM ${cfg.table}
+    WHERE ${cfg.idCol} = @gemId
+  `);
+  return result.recordset.length ? result.recordset[0].organisationId : null;
 }
 
 function resolveUserId(req, fallback) {
@@ -225,6 +246,10 @@ async function addCategory(req, res, cfg) {
     return res.status(400).json({ error: "Missing required fields." });
   }
 
+  if (!isOrganisationInScope(req, organisationId)) {
+    return res.status(403).json({ error: "Organisation outside your data scope." });
+  }
+
   const conn = await pool;
   const request = conn.request();
   request.input("userId", sql.Int, userId);
@@ -287,6 +312,10 @@ async function updateCategory(req, res, cfg) {
     return res.status(400).json({ error: "Missing required fields." });
   }
 
+  if (!isOrganisationInScope(req, organisationId)) {
+    return res.status(403).json({ error: "Organisation outside your data scope." });
+  }
+
   const conn = await pool;
   const request = conn.request();
   request.input("userId", sql.Int, userId);
@@ -323,6 +352,10 @@ async function deleteCategory(req, res, cfg) {
   const organisationId = req.body.organisationId;
   if (!financialYear || !organisationId) {
     return res.status(400).json({ error: "Missing required fields." });
+  }
+
+  if (!isOrganisationInScope(req, organisationId)) {
+    return res.status(403).json({ error: "Organisation outside your data scope." });
   }
 
   const conn = await pool;
@@ -404,6 +437,14 @@ async function saveMonthly(req, res, cfg) {
   }
   if (!Number.isFinite(gemId) || gemId <= 0) {
     return res.status(400).json({ error: `Invalid ${cfg.idBodyKey}.` });
+  }
+
+  const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
+  if (recordOrgId == null) {
+    return res.status(404).json({ error: "GeM record not found." });
+  }
+  if (!isOrganisationInScope(req, recordOrgId)) {
+    return res.status(403).json({ error: "Record outside your data scope." });
   }
 
   const conn = await pool;
@@ -493,6 +534,10 @@ async function getMonthly(req, res, cfg, paramName) {
   if (!Number.isFinite(gemId) || gemId <= 0) {
     return res.status(400).json({ error: `Invalid ${paramName}.` });
   }
+  const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
+  if (recordOrgId != null && !isOrganisationInScope(req, recordOrgId)) {
+    return res.status(403).json({ error: "Record outside your data scope." });
+  }
   const conn = await pool;
   const request = conn.request();
   request.input("gemId", sql.Int, gemId);
@@ -511,6 +556,10 @@ async function getPotential(req, res, cfg, paramName) {
   const gemId = Number(req.params[paramName]);
   if (!Number.isFinite(gemId) || gemId <= 0) {
     return res.status(400).json({ error: `Invalid ${paramName}.` });
+  }
+  const recordOrgId = await loadRecordOrganisationId(cfg, gemId);
+  if (recordOrgId != null && !isOrganisationInScope(req, recordOrgId)) {
+    return res.status(403).json({ error: "Record outside your data scope." });
   }
   const conn = await pool;
   const request = conn.request();
