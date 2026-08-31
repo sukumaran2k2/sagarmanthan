@@ -17,7 +17,7 @@ import {
   getUserIdFromToken
 } from '../api';
 import { CSR_FOCUS_AREAS, CSR_STATUSES, FINANCIAL_YEARS } from '../utils/constants';
-import { getDataScopeCode, getSessionClaims } from '../../../utils/authSession';
+import { getDataScopeCode, getSessionClaims, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
 
 export default function DataList({
   isOrgUser: isOrgUserProp,
@@ -34,6 +34,9 @@ export default function DataList({
     const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
     return roleId === 6 || roleId === 7;
   }, [isOrgUserProp]);
+
+  const userOrgId = getSessionOrganisationId();
+  const userOrgName = getSessionOrganisationName();
 
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'pending' | 'completed'
   const [projects, setProjects] = useState([]);
@@ -87,28 +90,38 @@ export default function DataList({
     loadData();
   }, []);
 
+  // Strict organisation data scoping
+  const scopedProjects = useMemo(() => {
+    if (!isOrgUser) return projects;
+    return projects.filter(p => {
+      if (userOrgId && String(p.organisation_id) === String(userOrgId)) return true;
+      if (userOrgName && String(p.organisation_name).toLowerCase() === String(userOrgName).toLowerCase()) return true;
+      return !userOrgId && !userOrgName;
+    });
+  }, [projects, isOrgUser, userOrgId, userOrgName]);
+
   // Active filters count for badge
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (selectedOrg) count++;
+    if (!isOrgUser && selectedOrg) count++;
     if (selectedFY) count++;
     if (selectedFocus) count++;
     if (selectedStatus) count++;
     return count;
-  }, [selectedOrg, selectedFY, selectedFocus, selectedStatus]);
+  }, [isOrgUser, selectedOrg, selectedFY, selectedFocus, selectedStatus]);
 
   // Counts for Sub-Tabs
-  const allCount = projects.length;
-  const completedCount = projects.filter(p => p.project_status === 'Completed').length;
+  const allCount = scopedProjects.length;
+  const completedCount = scopedProjects.filter(p => p.project_status === 'Completed').length;
   const activeCount = allCount - completedCount;
 
   // Filtered dataset
   const filteredProjects = useMemo(() => {
-    return projects.filter(p => {
+    return scopedProjects.filter(p => {
       if (activeTab === 'completed' && p.project_status !== 'Completed') return false;
       if ((activeTab === 'active' || activeTab === 'pending') && p.project_status === 'Completed') return false;
 
-      if (selectedOrg && String(p.organisation_id) !== String(selectedOrg)) return false;
+      if (!isOrgUser && selectedOrg && String(p.organisation_id) !== String(selectedOrg)) return false;
       if (selectedFY && String(p.financial_year) !== String(selectedFY)) return false;
       if (selectedFocus && String(p.csr_focus) !== String(selectedFocus)) return false;
       if (selectedStatus && String(p.project_status) !== String(selectedStatus)) return false;
@@ -126,7 +139,7 @@ export default function DataList({
 
       return true;
     });
-  }, [projects, activeTab, selectedOrg, selectedFY, selectedFocus, selectedStatus, searchTerm]);
+  }, [scopedProjects, activeTab, isOrgUser, selectedOrg, selectedFY, selectedFocus, selectedStatus, searchTerm]);
 
   // Paginated data for Grid
   const paginatedProjects = useMemo(() => {
@@ -194,18 +207,25 @@ export default function DataList({
     }
   };
 
-  // Column definitions for AG Grid Table with Blue Header
+  // Column definitions for AG Grid Table with Blue Header matching user image
   const columnDefs = useMemo(() => [
     {
       headerName: "S.No",
       field: "sno",
       width: 70,
       minWidth: 60,
-      cellStyle: { textAlign: 'center', fontWeight: 700 },
-      valueGetter: (params) => (currentPage - 1) * pageSize + params.node.rowIndex + 1
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
+      valueGetter: (params) => (currentPage - 1) * pageSize + params.node.rowIndex + 1,
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-bold">
+          {params.value}
+        </div>
+      )
     },
     {
-      headerName: "Organisation",
+      headerName: "Organization Name",
       field: "organisation_name",
       minWidth: 200,
       flex: 2,
@@ -213,72 +233,100 @@ export default function DataList({
       valueGetter: (params) => params.data?.organisation_name || `Org ID: ${params.data?.organisation_id}`
     },
     {
-      headerName: "Project Name",
+      headerName: "Financial Year",
+      field: "financial_year",
+      width: 140,
+      minWidth: 120,
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-semibold">
+          {params.value || '-'}
+        </div>
+      )
+    },
+    {
+      headerName: "Name of the Project",
       field: "project_name",
-      minWidth: 220,
-      flex: 2,
+      minWidth: 280,
+      flex: 3,
       wrapText: true,
       autoHeight: true,
       cellClass: 'mopsw-wrap-cell',
       cellStyle: { fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.35' }
     },
     {
-      headerName: "FY",
-      field: "financial_year",
-      width: 110,
-      minWidth: 100,
-      cellStyle: { textAlign: 'center', fontWeight: 600 }
-    },
-    {
-      headerName: "Value (₹ Cr)",
+      headerName: "Project Value(Rs. In Lakhs)",
       field: "project_value",
-      width: 130,
-      minWidth: 110,
+      width: 175,
+      minWidth: 150,
       headerClass: 'text-center',
-      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#0f417a' },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#0f417a', justifyContent: 'center' },
+      valueFormatter: (params) => params.value != null && params.value !== '' ? Number(params.value).toLocaleString() : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-extrabold text-[#0f417a] dark:text-blue-400">
+          {params.value != null && params.value !== '' ? Number(params.value).toLocaleString() : '-'}
+        </div>
+      )
     },
     {
-      headerName: "Status",
+      headerName: "Project Status",
       field: "project_status",
-      width: 180,
-      minWidth: 160,
+      width: 200,
+      minWidth: 170,
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', justifyContent: 'center' },
       cellRenderer: (params) => {
         const status = params.value || 'Project yet to start';
-        let badgeClass = 'bg-amber-50 text-amber-800 border-amber-200';
-        if (status === 'Completed') badgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
-        else if (status === 'Approved by Board') badgeClass = 'bg-blue-50 text-blue-800 border-blue-200';
-        else if (status === 'Project Under implementation') badgeClass = 'bg-purple-50 text-purple-800 border-purple-200';
-
         return (
-          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}`}>
-            {status}
-          </span>
+          <div className="w-full flex items-center justify-center text-center">
+            <span className="font-semibold text-slate-700 dark:text-slate-200">
+              {status}
+            </span>
+          </div>
         );
       }
     },
     {
-      headerName: "Physical %",
-      field: "physical_progress",
-      width: 110,
-      minWidth: 100,
-      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#059669' },
-      valueFormatter: (params) => params.value != null ? `${params.value}%` : '-'
-    },
-    {
-      headerName: "Financial %",
-      field: "financial_progress",
-      width: 110,
-      minWidth: 100,
-      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#2563eb' },
-      valueFormatter: (params) => params.value != null ? `${params.value}%` : '-'
-    },
-    {
-      headerName: "Actions",
-      field: "actions",
+      headerName: "Completed On",
+      field: "completed_on",
       width: 140,
-      minWidth: 130,
+      minWidth: 120,
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', justifyContent: 'center' },
+      cellRenderer: (params) => {
+        const val = params.value;
+        const formatted = val ? String(val).split('T')[0] : '-';
+        return (
+          <div className="w-full flex items-center justify-center text-center text-slate-600 dark:text-slate-400">
+            {formatted}
+          </div>
+        );
+      }
+    },
+    {
+      headerName: "Remarks",
+      field: "remarks",
+      minWidth: 240,
+      flex: 2,
+      wrapText: true,
+      autoHeight: true,
+      cellClass: 'mopsw-wrap-cell',
+      cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.35', color: '#475569' },
+      cellRenderer: (params) => params.value || '-'
+    },
+    {
+      headerName: "Update",
+      field: "actions",
+      width: 120,
+      minWidth: 100,
       pinned: 'right',
+      headerClass: 'text-center',
+      cellClass: 'text-center',
       cellRenderer: (params) => {
         const p = params.data;
         if (!p) return null;
@@ -305,7 +353,7 @@ export default function DataList({
                 type="button"
                 onClick={() => onEdit(p)}
                 title="Edit Project"
-                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/50 rounded-lg transition cursor-pointer"
+                className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-2xs transition cursor-pointer flex items-center justify-center"
               >
                 <Edit className="h-3.5 w-3.5" />
               </button>
@@ -316,16 +364,16 @@ export default function DataList({
     }
   ], [currentPage, pageSize, onEdit, isOrgUser]);
 
-  // Export Columns
+  // Export Columns matching user's table format
   const exportColumns = useMemo(() => [
     { key: 'sno', label: 'S.No', render: (_, __, i) => i + 1 },
-    { key: 'organisation_name', label: 'Organisation' },
-    { key: 'project_name', label: 'Project Name' },
+    { key: 'organisation_name', label: 'Organization Name' },
     { key: 'financial_year', label: 'Financial Year' },
-    { key: 'project_value', label: 'Value (₹ Cr)' },
-    { key: 'project_status', label: 'Status' },
-    { key: 'physical_progress', label: 'Physical %' },
-    { key: 'financial_progress', label: 'Financial %' },
+    { key: 'project_name', label: 'Name of the Project' },
+    { key: 'project_value', label: 'Project Value(Rs. In Lakhs)', render: (v) => v != null && v !== '' ? Number(v).toLocaleString() : '-' },
+    { key: 'project_status', label: 'Project Status' },
+    { key: 'completed_on', label: 'Completed On', render: (v) => v ? String(v).split('T')[0] : '-' },
+    { key: 'remarks', label: 'Remarks' },
   ], []);
 
   return (

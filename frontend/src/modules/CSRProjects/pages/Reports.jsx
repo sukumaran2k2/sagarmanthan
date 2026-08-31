@@ -9,12 +9,25 @@ import {
 } from '../api';
 import { FINANCIAL_YEARS } from '../utils/constants';
 import { FilePieChart, Coins, ArrowLeft, Filter, ChevronDown, X, RotateCcw } from 'lucide-react';
+import { getDataScopeCode, getSessionClaims, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
 
 export default function Reports({
   initialReportType = 'project-report',
   onReportTypeChange,
   triggerNotification
 }) {
+  const isOrgUser = useMemo(() => {
+    const scope = String(getDataScopeCode() || '').toUpperCase();
+    if (scope === 'ORGANISATION') return true;
+    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
+    const claims = getSessionClaims();
+    const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
+    return roleId === 6 || roleId === 7;
+  }, []);
+
+  const userOrgId = getSessionOrganisationId();
+  const userOrgName = getSessionOrganisationName();
+
   // Sub-report selection: 'project-report' | 'expenditure-report'
   const [reportType, setReportType] = useState(initialReportType || 'project-report');
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -76,11 +89,11 @@ export default function Reports({
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState([]);
 
-  // Fetch organisations for the filter dropdown
+  // Load master organisations for dropdown filters
   useEffect(() => {
     fetchOrganisations()
       .then(res => setOrganisations(Array.isArray(res) ? res : []))
-      .catch(err => console.warn('Could not fetch organisations:', err.message));
+      .catch(() => setOrganisations([]));
   }, []);
 
   const currentView = projectsDrillDown[projectsDrillDown.length - 1];
@@ -123,13 +136,18 @@ export default function Reports({
     loadReportData();
   }, [loadReportData]);
 
-  // Client-side filtering
+  // Client-side filtering with strict organisation scoping for org users
   const filteredData = useMemo(() => {
     if (!reportData || reportData.length === 0) return [];
 
     return reportData.filter(row => {
-      // Organisation Filter
-      if (filterOrg !== 'all') {
+      // Organisation Scoping for Org Users
+      if (isOrgUser) {
+        const rowOrgId = String(row.organisation_id || row.organisationID || row['Organisation ID'] || row['organisationID'] || '');
+        const rowOrgName = String(row.organisation_name || row['Organisation Name'] || '').toLowerCase();
+        if (userOrgId && rowOrgId && rowOrgId !== String(userOrgId)) return false;
+        if (userOrgName && rowOrgName && rowOrgName !== userOrgName.toLowerCase()) return false;
+      } else if (filterOrg !== 'all') {
         const rowOrgId = String(row.organisation_id || row.organisationID || row['Organisation ID'] || row['organisationID'] || '');
         if (rowOrgId !== String(filterOrg)) return false;
       }
@@ -142,7 +160,7 @@ export default function Reports({
 
       return true;
     });
-  }, [reportData, filterOrg, filterFY]);
+  }, [reportData, isOrgUser, userOrgId, userOrgName, filterOrg, filterFY]);
 
   // Handle drilldown click on Organisation or Stage Counts
   const handleDrilldown = useCallback((orgId, orgName, stageName = '') => {

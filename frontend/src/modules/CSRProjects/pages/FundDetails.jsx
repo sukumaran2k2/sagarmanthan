@@ -15,7 +15,7 @@ import {
   getUserIdFromToken
 } from '../api';
 import { FINANCIAL_YEARS } from '../utils/constants';
-import { getDataScopeCode, getSessionClaims } from '../../../utils/authSession';
+import { getDataScopeCode, getSessionClaims, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
 
 export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotification }) {
   const isOrgUser = useMemo(() => {
@@ -27,6 +27,9 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
     return roleId === 6 || roleId === 7;
   }, [isOrgUserProp]);
+
+  const userOrgId = getSessionOrganisationId();
+  const userOrgName = getSessionOrganisationName();
 
   const [funds, setFunds] = useState([]);
   const [organisations, setOrganisations] = useState([]);
@@ -79,23 +82,33 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     loadFunds();
   }, []);
 
+  // Strict organisation scoping
+  const scopedFunds = useMemo(() => {
+    if (!isOrgUser) return funds;
+    return funds.filter(f => {
+      if (userOrgId && String(f.organisation_id) === String(userOrgId)) return true;
+      if (userOrgName && String(f.organisation_name).toLowerCase() === String(userOrgName).toLowerCase()) return true;
+      return !userOrgId && !userOrgName;
+    });
+  }, [funds, isOrgUser, userOrgId, userOrgName]);
+
   // Summary Metrics
   const totalAllotted = useMemo(() => {
-    return funds.reduce((acc, f) => acc + (Number(f.csr_fund_alloted_year) || 0), 0);
-  }, [funds]);
+    return scopedFunds.reduce((acc, f) => acc + (Number(f.csr_fund_alloted_year) || 0), 0);
+  }, [scopedFunds]);
 
   const totalExpenditure = useMemo(() => {
-    return funds.reduce((acc, f) => acc + (Number(f.project_expenditure) || 0), 0);
-  }, [funds]);
+    return scopedFunds.reduce((acc, f) => acc + (Number(f.project_expenditure) || 0), 0);
+  }, [scopedFunds]);
 
   const totalBalance = useMemo(() => {
-    return funds.reduce((acc, f) => acc + (Number(f.csr_fund_balance) || 0), 0);
-  }, [funds]);
+    return scopedFunds.reduce((acc, f) => acc + (Number(f.csr_fund_balance) || 0), 0);
+  }, [scopedFunds]);
 
   // Filtering
   const filteredFunds = useMemo(() => {
-    return funds.filter(f => {
-      if (selectedOrg && String(f.organisation_id) !== String(selectedOrg)) return false;
+    return scopedFunds.filter(f => {
+      if (!isOrgUser && selectedOrg && String(f.organisation_id) !== String(selectedOrg)) return false;
       if (selectedFY && String(f.financial_year) !== String(selectedFY)) return false;
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
@@ -105,7 +118,7 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       }
       return true;
     });
-  }, [funds, selectedOrg, selectedFY, searchTerm]);
+  }, [scopedFunds, isOrgUser, selectedOrg, selectedFY, searchTerm]);
 
   // Pagination
   const paginatedFunds = useMemo(() => {

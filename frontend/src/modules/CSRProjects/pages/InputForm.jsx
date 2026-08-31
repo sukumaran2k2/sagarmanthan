@@ -834,7 +834,7 @@ export default function InputForm({
       {/* TAB 2: ADD CSR FUND DETAILS (CONSULTANT APPOINTMENT STYLE) */}
       {/* ========================================================= */}
       {activeFormTab === 'fund' && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in max-w-4xl mx-auto">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in w-full">
           
           {/* Header Banner */}
           <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
@@ -856,7 +856,7 @@ export default function InputForm({
                 <span>Fund Allocation Details</span>
               </h4>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 
                 {/* 1. Financial Year */}
                 <div className="space-y-1.5">
