@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { PlusCircle, Layers, FileText, CheckCircle2 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import { useCabinetNotesPermissions } from './hooks/useCabinetNotesPermissions';
@@ -108,11 +109,11 @@ export default function CabinetNotesOther({
   const tabs = useMemo(() => {
     const items = [];
     if (permissions.canAdd) {
-      items.push({ id: 'add', label: 'Input Form' });
+      items.push({ id: 'add', label: 'Input Form', icon: PlusCircle });
     }
     items.push(
-      { id: 'list', label: 'Data List' },
-      { id: 'report', label: 'Reports' }
+      { id: 'list', label: 'Data List', icon: Layers },
+      { id: 'report', label: 'Reports', icon: FileText }
     );
     return items;
   }, [permissions.canAdd]);
@@ -175,12 +176,14 @@ export default function CabinetNotesOther({
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
       {toast && (
-        <div
-          className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm text-white shadow ${
-            toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'
-          }`}
-        >
-          {toast.message}
+        <div className="fixed top-6 right-6 z-55 flex items-center space-x-2.5 bg-slate-900 border border-slate-800 text-white px-4.5 py-3 rounded-xl shadow-2xl animate-fade-in">
+          <div className={`p-1 rounded-lg ${toast.type === 'error' ? 'bg-rose-500' : 'bg-emerald-500'}`}>
+            <CheckCircle2 className="h-4.5 w-4.5 text-white" />
+          </div>
+          <div>
+            <p className="text-xs font-bold font-display leading-tight">Notification</p>
+            <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{toast.message}</p>
+          </div>
         </div>
       )}
 

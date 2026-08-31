@@ -16,6 +16,7 @@ export default function DataList({
 }) {
   const [selectedMinistry, setSelectedMinistry] = useState('');
   const [selectedStage, setSelectedStage] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('table'); // table or chart
   const [gridApi, setGridApi] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -77,6 +78,7 @@ export default function DataList({
   const handleCategoryChange = (category) => {
     setActiveCategory(category);
     setSelectedStage('');
+    setSearchTerm('');
   };
 
   const checkIsCompleted = (item) => {
@@ -139,9 +141,18 @@ export default function DataList({
         ? stageText === selectedStage
         : true;
 
-      return matchesMinistry && matchesStage;
+      const q = searchTerm.toLowerCase().trim();
+      const matchesSearch = !q || [
+        item.subject,
+        item.ministry_name,
+        item.eoffice_file_number,
+        item.stage_name,
+        item.remarks
+      ].some(val => String(val || '').toLowerCase().includes(q));
+
+      return matchesMinistry && matchesStage && matchesSearch;
     });
-  }, [rowData, selectedMinistry, selectedStage, activeCategory]);
+  }, [rowData, selectedMinistry, selectedStage, activeCategory, searchTerm]);
 
   const chartData = useMemo(() => {
     const counts = {};
@@ -158,67 +169,66 @@ export default function DataList({
   // AG Grid Column Definitions with Filter enabled on EVERY column
   const columnDefs = useMemo(() => [
     {
-      headerName: 'S No',
+      field: 'sNo',
+      headerName: 'S.NO',
       valueGetter: 'node.rowIndex + 1',
-      width: 75,
-      minWidth: 65,
+      width: 95,
+      minWidth: 90,
       pinned: 'left',
       filter: true,
-      cellClass: 'text-center font-bold text-slate-500 font-mono text-xs flex items-center justify-center'
+      headerClass: 'text-center',
+      cellClass: 'text-center font-bold text-slate-600 dark:text-slate-400 font-mono text-xs'
     },
     {
       field: 'subject',
-      headerName: 'Subject',
+      headerName: 'SUBJECT',
+      pinned: 'left',
       minWidth: 220,
       flex: 2,
-      pinned: 'left',
       filter: 'agTextColumnFilter',
       cellStyle: { textAlign: 'left' },
-      cellClass: 'text-left font-semibold text-slate-800 dark:text-slate-200 whitespace-normal leading-normal py-2 border-r border-slate-150 dark:border-slate-800',
-      headerClass: 'border-r border-slate-150 dark:border-slate-800',
-      autoHeight: true,
+      cellClass: 'font-bold text-slate-800 dark:text-slate-200',
       hide: !visibleCols.subject
     },
     {
       field: 'ministry_name',
-      headerName: 'Name of the Ministry',
-      minWidth: 220,
-      flex: 1.5,
+      headerName: 'NAME OF THE MINISTRY',
+      minWidth: 200,
+      flex: 1.8,
       filter: 'agTextColumnFilter',
       valueGetter: (params) => cleanMinistryName(params.data?.ministry_name),
       cellStyle: { textAlign: 'left' },
-      cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+      cellClass: 'font-medium text-slate-700 dark:text-slate-350',
       hide: !visibleCols.ministry
     },
     {
       field: 'eoffice_file_number',
-      headerName: 'E-Office File No',
-      minWidth: 180,
-      flex: 1.2,
+      headerName: 'E-OFFICE FILE NO',
+      minWidth: 160,
+      flex: 1.3,
       filter: 'agTextColumnFilter',
       cellStyle: { textAlign: 'left' },
-      cellClass: 'text-slate-600 dark:text-slate-400 font-mono text-xs',
+      cellClass: 'font-mono text-xs text-slate-600 dark:text-slate-400',
       hide: !visibleCols.fileNumber
     },
     {
       field: 'stage_name',
-      headerName: 'Stage',
-      minWidth: 200,
+      headerName: 'STAGE',
+      minWidth: 180,
       flex: 1.5,
       filter: 'agTextColumnFilter',
-      cellClass: 'font-bold text-center flex items-center justify-center',
+      cellStyle: { textAlign: 'left' },
+      cellClass: 'font-semibold text-left',
       valueGetter: (params) => {
         return params.data?.stage_name || '-';
       },
       cellRenderer: (params) => {
         const rawVal = String(params.value || '').trim();
         const upperVal = rawVal.toUpperCase();
-        
         const isCompleted = upperVal.includes('REPLY FURNISHED');
         const color = isCompleted ? 'text-emerald-600 dark:text-emerald-500 font-bold' : 'text-[#0f417a] dark:text-blue-400 font-bold';
-        
         return (
-          <span className={`${color} text-[11px] uppercase tracking-wider font-extrabold whitespace-nowrap`}>
+          <span className={`${color} text-[11px] uppercase tracking-wider font-extrabold`}>
             {upperVal}
           </span>
         );
@@ -227,21 +237,22 @@ export default function DataList({
     },
     {
       field: 'remarks',
-      headerName: 'Remarks',
-      minWidth: 180,
+      headerName: 'REMARKS',
+      minWidth: 150,
       flex: 1.2,
       filter: 'agTextColumnFilter',
       valueGetter: (params) => params.data?.remarks || '-',
       cellStyle: { textAlign: 'left' },
-      cellClass: 'text-slate-600 dark:text-slate-400 text-xs',
+      cellClass: 'text-xs text-slate-600 dark:text-slate-400',
       hide: !visibleCols.remarks
     },
     {
       field: 'updated_date',
-      headerName: 'Last Updated Date',
-      minWidth: 160,
+      headerName: 'LAST UPDATED DATE',
+      minWidth: 130,
       flex: 1,
       filter: 'agTextColumnFilter',
+      headerClass: 'text-center',
       valueGetter: (params) => {
         const item = params.data;
         const rawDate = item.updated_date || item.updatedAt || item.updated_at;
@@ -254,19 +265,17 @@ export default function DataList({
           return String(rawDate).split('T')[0];
         }
       },
-      cellClass: 'text-center text-slate-600 dark:text-slate-400 font-mono text-xs flex items-center justify-center',
+      cellClass: 'text-center text-slate-600 dark:text-slate-400 font-mono text-xs',
       hide: !visibleCols.lastUpdatedDate
     },
     {
-      headerName: 'Actions',
+      headerName: 'ACTIONS',
       minWidth: 110,
-      flex: 0.5,
-      filter: false,
-      cellClass: 'text-center flex items-center justify-center',
+      headerClass: 'text-center',
       cellRenderer: (params) => {
         const note = params.data;
         return (
-          <div className="flex items-center justify-center space-x-1">
+          <div className="flex items-center justify-center w-full h-full space-x-1">
             {canEdit && (
               <button
                 onClick={() => onEdit(note)}
@@ -300,59 +309,71 @@ export default function DataList({
         if (triggerNotification) {
           triggerNotification(`Register data exported to Excel (CSV) successfully!`);
         }
+      } else {
+        alert("Grid is not ready for export yet.");
       }
     } else if (type === 'PDF') {
       if (triggerNotification) {
         triggerNotification(`Preparing PDF document...`);
       }
+
       const printWindow = window.open('', '_blank');
-      const title = 'Cabinet Notes Other Ministry Register';
+      const title = 'Cabinet Notes - Other Ministry Data List';
 
       let headersHtml = '';
       columnDefs.forEach(col => {
-        if (col.headerName && !col.hide && col.headerName !== 'Actions') {
-          headersHtml += `<th style="border:1px solid #0f417a; padding:10px 14px; text-align:left; background:#0f417a; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${col.headerName}</th>`;
+        if (col.headerName && col.headerName !== 'ACTIONS') {
+          headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${col.headerName}</th>`;
         }
       });
 
       let rowsHtml = '';
-      filteredData.forEach((row, i) => {
-        const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
-        rowsHtml += `<tr style="background:${bg}">`;
+      filteredData.forEach((row, rowIndex) => {
+        rowsHtml += '<tr>';
         columnDefs.forEach(col => {
-          if (col.headerName && !col.hide && col.headerName !== 'Actions') {
-            let val = '-';
-            if (col.field) val = row[col.field] || '-';
-            else if (col.valueGetter) val = typeof col.valueGetter === 'function' ? col.valueGetter({ data: row, node: { rowIndex: i } }) : row[col.field] || '-';
-            rowsHtml += `<td style="border:1px solid #cbd5e1; padding:8px 12px; font-size:11px; color:#334155;">${val}</td>`;
+          if (col.headerName && col.headerName !== 'ACTIONS') {
+            let val = '';
+            if (col.field === 'sNo' || col.headerName === 'S.NO') {
+              val = rowIndex + 1;
+            } else if (col.valueGetter && typeof col.valueGetter === 'function') {
+              val = col.valueGetter({ data: row, node: { rowIndex } });
+            } else {
+              val = row[col.field] !== undefined ? row[col.field] : '';
+            }
+            rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${val}</td>`;
           }
         });
-        rowsHtml += `</tr>`;
+        rowsHtml += '</tr>';
       });
 
       printWindow.document.write(`
-        <!DOCTYPE html>
         <html>
-        <head>
-          <title>${title}</title>
-          <style>
-            body { font-family: 'Inter', system-ui, sans-serif; padding: 24px; color: #334155; }
-            h2 { font-size: 18px; margin-bottom: 4px; color: #0f417a; }
-            p { font-size: 11px; color: #64748b; margin-bottom: 16px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          </style>
-        </head>
-        <body>
-          <h2>${title}</h2>
-          <p>Generated on ${new Date().toLocaleDateString('en-GB')} | Total Records: ${filteredData.length}</p>
-          <table>
-            <thead><tr>${headersHtml}</tr></thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-          <script>
-            window.onload = function() { window.print(); window.close(); };
-          </script>
-        </body>
+          <head>
+            <title>${title}</title>
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
+              h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
+              table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            </style>
+          </head>
+          <body>
+            <h1>${title}</h1>
+            <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
+            <table>
+              <thead>
+                <tr>${headersHtml}</tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              };
+            </script>
+          </body>
         </html>
       `);
       printWindow.document.close();
@@ -360,26 +381,26 @@ export default function DataList({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Sub-Tabs: Active Notes & Completed Notes matching CabinetNotesMOPSW */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-2 select-none">
+    <div className="space-y-4 animate-fade-in">
+      {/* Category Sub-tabs (Active Notes vs Completed Notes) */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 select-none px-1">
         <button
-          type="button"
           onClick={() => handleCategoryChange('active')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeCategory === 'active'
-            ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-            }`}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeCategory === 'active'
+              ? 'border-[#0f417a] text-[#0f417a] dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-slate-800 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
         >
           ACTIVE NOTES ({activeCount})
         </button>
         <button
-          type="button"
           onClick={() => handleCategoryChange('completed')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeCategory === 'completed'
-            ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-            }`}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeCategory === 'completed'
+              ? 'border-[#0f417a] text-[#0f417a] dark:border-blue-400 dark:text-blue-400 bg-blue-50/50 dark:bg-slate-800 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
         >
           COMPLETED NOTES ({completedCount})
         </button>
@@ -388,44 +409,66 @@ export default function DataList({
       {/* Main Container Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
 
-        {/* Filter Toolbar */}
+        {/* Filter Toolbar matching Consultant Appointment */}
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
           <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
             {/* Ministry Dropdown */}
-            <div className="w-56 relative">
+            <div className="relative">
               <select
                 value={selectedMinistry}
                 onChange={(e) => setSelectedMinistry(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+                className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[150px]"
               >
                 <option value="">Show all Ministries</option>
                 {ministryOptions.map(m => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             </div>
 
             {/* Stage Dropdown (Only visible in Active Notes tab) */}
             {activeCategory === 'active' && (
-              <div className="w-56 relative">
+              <div className="relative">
                 <select
                   value={selectedStage}
                   onChange={(e) => setSelectedStage(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+                  className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[140px]"
                 >
                   <option value="">Show all Stages</option>
                   {stageOptions.map(s => (
                     <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
             )}
 
+            {/* Keyword Search Input Box matching Consultant Appointment */}
+            <div className="relative min-w-[180px] max-w-xs flex-1">
+              <input
+                type="text"
+                placeholder="Search Subject, File No, Ministry..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full text-xs pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+              />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
             {/* Clear Button */}
-            {(selectedMinistry || selectedStage) && (
+            {(selectedMinistry || selectedStage || searchTerm) && (
               <button
-                onClick={() => { setSelectedMinistry(''); setSelectedStage(''); }}
-                className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
+                onClick={() => { setSelectedMinistry(''); setSelectedStage(''); setSearchTerm(''); }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
                 <span>Clear</span>

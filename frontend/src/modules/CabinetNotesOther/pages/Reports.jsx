@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ReportTable from '../../../components/ReportTable';
+import { Filter, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import {
   fetchCabinetMinistryReport,
   fetchDetailMinistryReport,
@@ -49,20 +50,22 @@ function formatReportMonth(date = new Date()) {
 }
 
 export default function Reports({ triggerNotification }) {
-  const [reportType, setReportType] = useState('pendency'); // 'pendency' | 'stagewise'
+  // Sub-tabs order: 1st Abstract & Detailed Report ('stagewise'), 2nd Pendency Report ('pendency')
+  const [reportType, setReportType] = useState('stagewise');
   const [drillDownPath, setDrillDownPath] = useState([
     {
       type: 'summary',
-      title: 'Report No.: 6.2 - Pendency (Abstract) - Cabinet Notes/Bills from other Ministry'
+      title: 'Report No.: 6.2 - Abstract - Cabinet Notes from Other Ministry'
     }
   ]);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [reportCols, setReportCols] = useState([]);
 
-  // Ministry dropdown state fetched from /mmt-dropdown/mmt_ministry
+  // Ministry dropdown filter state matching Capex style
   const [ministryList, setMinistryList] = useState([]);
   const [selectedMinistry, setSelectedMinistry] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(true);
 
   useEffect(() => {
     fetchMinistryList()
@@ -77,12 +80,13 @@ export default function Reports({ triggerNotification }) {
 
   const handleTabChange = (type) => {
     setReportType(type);
+    setSelectedMinistry('');
     setDrillDownPath([
       {
         type: 'summary',
-        title: type === 'pendency'
-          ? 'Report No.: 6.2 - Pendency (Abstract) - Cabinet Notes/Bills from other Ministry'
-          : 'Report No.: 6.2 - Abstract - Cabinet Notes from Other Ministry'
+        title: type === 'stagewise'
+          ? 'Report No.: 6.2 - Abstract - Cabinet Notes from Other Ministry'
+          : 'Report No.: 6.2 - Pendency (Abstract) - Cabinet Notes/Bills from other Ministry'
       }
     ]);
   };
@@ -149,39 +153,20 @@ export default function Reports({ triggerNotification }) {
           }
         }
       } else if (currentView.type === 'detail') {
-        let targetMinId = currentView.ministryId;
-        if (!targetMinId || targetMinId === 'all' || targetMinId === '0') {
-          const found = ministryList.find(m => cleanMinistryName(m.ministry_name || m.name) === cleanMinistryName(currentView.ministryName));
-          if (found) targetMinId = found.ministry_id || found.id;
-        }
-
-        if (targetMinId) {
+        if (reportType === 'stagewise') {
           try {
-            if (reportType === 'stagewise') {
-              const stageId = STAGE_MAP[currentView.stageKey] || 'all';
-              const res = await fetchDetailMinistryReport(targetMinId, stageId);
-              const rawRows = res.data?.rowData || (Array.isArray(res.data) ? res.data : []);
-              const cols = (res.data?.columnDefs && res.data.columnDefs.length > 0) ? res.data.columnDefs : buildColumnsFromData(rawRows);
-              const cleanedRows = rawRows.map(r => ({
-                ...r,
-                'Ministry Name': cleanMinistryName(r['Ministry Name'])
-              }));
-              setData(cleanedRows);
-              setReportCols(cols);
+            const stageCode = STAGE_MAP[currentView.stageKey] || currentView.stageKey || 'all';
+            const res = await fetchDetailMinistryReport(currentView.ministryId, stageCode);
+            const rawRows = res.data?.rowData || (Array.isArray(res.data) ? res.data : []);
+            const cleanedRows = rawRows.map(r => ({
+              ...r,
+              'Ministry Name': cleanMinistryName(r['Ministry Name'])
+            }));
+            setData(cleanedRows);
+            if (res.data?.columnDefs && res.data.columnDefs.length > 0) {
+              setReportCols(res.data.columnDefs);
             } else {
-              let pendencyCountParam = 25;
-              if (currentView.pendencyKey?.includes('31-60')) pendencyCountParam = 45;
-              else if (currentView.pendencyKey?.includes('More') || currentView.pendencyKey?.includes('61')) pendencyCountParam = 61;
-
-              const res = await fetchDetailMinistryPendencyReport(targetMinId, pendencyCountParam);
-              const rawRows = res.data?.rowData || (Array.isArray(res.data) ? res.data : []);
-              const cols = (res.data?.columnDefs && res.data.columnDefs.length > 0) ? res.data.columnDefs : buildColumnsFromData(rawRows);
-              const cleanedRows = rawRows.map(r => ({
-                ...r,
-                'Ministry Name': cleanMinistryName(r['Ministry Name'])
-              }));
-              setData(cleanedRows);
-              setReportCols(cols);
+              setReportCols(buildColumnsFromData(cleanedRows));
             }
           } catch (err) {
             console.warn("Backend detail endpoint error:", err);
@@ -189,24 +174,48 @@ export default function Reports({ triggerNotification }) {
             setReportCols([]);
           }
         } else {
-          setData([]);
-          setReportCols([]);
+          // Pendency Detail Report
+          try {
+            let countDateParam = '25';
+            const pKey = String(currentView.pendencyKey || '').toLowerCase();
+            if (pKey.includes('31-60') || pKey.includes('31 to 60')) {
+              countDateParam = '45';
+            } else if (pKey.includes('more than 60') || pKey.includes('61')) {
+              countDateParam = '61';
+            }
+
+            const res = await fetchDetailMinistryPendencyReport(currentView.ministryId, countDateParam);
+            const rawRows = res.data?.rowData || (Array.isArray(res.data) ? res.data : []);
+            const cleanedRows = rawRows.map(r => ({
+              ...r,
+              'Ministry Name': cleanMinistryName(r['Ministry Name'])
+            }));
+            setData(cleanedRows);
+            if (res.data?.columnDefs && res.data.columnDefs.length > 0) {
+              setReportCols(res.data.columnDefs);
+            } else {
+              setReportCols(buildColumnsFromData(cleanedRows));
+            }
+          } catch (err) {
+            console.warn("Backend pendency detail endpoint error:", err);
+            setData([]);
+            setReportCols([]);
+          }
         }
       }
-    } catch (err) {
-      console.error("Error loading report data:", err);
+    } catch (e) {
+      console.error("Fetch report error:", e);
       setData([]);
       setReportCols([]);
     } finally {
       setLoading(false);
     }
-  }, [currentView, reportType, ministryList]);
+  }, [currentView, reportType]);
 
   useEffect(() => {
     fetchReportData();
   }, [fetchReportData]);
 
-  // Column map renderers matching Parliamentary Issues burgundy style (#4b2424)
   const mapColumnRenderers = useCallback(
     (cols) =>
       cols.map((col) => {
@@ -266,8 +275,8 @@ export default function Reports({ triggerNotification }) {
             minWidth: col.minWidth || 280,
             cellStyle: { textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '12px' },
             cellRenderer: (p) => {
-              if (p.node.rowPinned === 'bottom' || p.value === 'Total') {
-                return <span className="font-extrabold text-[#4b2424] dark:text-[#eadede]">Total</span>;
+              if (p.node.rowPinned === 'bottom' || p.value === 'Total' || p.value === 'TOTAL (C)' || String(p.value).toUpperCase().startsWith('TOTAL')) {
+                return <span className="font-black text-[#4b2424] dark:text-[#eadede] tracking-wider uppercase">TOTAL (C)</span>;
               }
               return (
                 <span className="font-bold text-slate-800 dark:text-slate-200">
@@ -341,9 +350,9 @@ export default function Reports({ triggerNotification }) {
     };
 
     const serial = mapped.filter(isSerial);
-    let rest = mapped.filter((col) => !isSerial(col) && !isMinistryId(col));
+    const rest = mapped.filter((c) => !isSerial(c) && !isMinistryId(c));
 
-    if (reportType === 'pendency' && currentView.type === 'summary') {
+    if (currentView.type === 'summary' && reportType === 'pendency') {
       const orderMap = {
         'Name of the Ministry/Department Received from': 1,
         'Ministry Name': 1,
@@ -412,7 +421,7 @@ export default function Reports({ triggerNotification }) {
         key === 'Ministry Name' ||
         key === 'Ministry'
       ) {
-        totalRow[key] = 'Total';
+        totalRow[key] = 'TOTAL (C)';
       } else if (key === 'Ministry Id' || key === 'Ministry ID') {
         totalRow[key] = '';
       } else {
@@ -440,58 +449,101 @@ export default function Reports({ triggerNotification }) {
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Sub-tabs & Ministry Dropdown filter toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-1 mb-2 select-none px-1 overflow-x-auto">
-        <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={() => handleTabChange('pendency')}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-              reportType === 'pendency'
-                ? 'border-[#4b2424] text-[#4b2424] dark:border-[#eadede] dark:text-[#eadede] bg-[#f7f3f3] dark:bg-slate-800 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}
-          >
-            PENDENCY REPORT
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabChange('stagewise')}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-              reportType === 'stagewise'
-                ? 'border-[#4b2424] text-[#4b2424] dark:border-[#eadede] dark:text-[#eadede] bg-[#f7f3f3] dark:bg-slate-800 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}
-          >
-            ABSTRACT & DETAILED REPORT
-          </button>
-        </div>
-
-        {/* Ministry Dropdown Filter (Fetched from /mmt-dropdown/mmt_ministry) */}
-        {drillDownPath.length === 1 && (
-          <div className="flex items-center space-x-2 shrink-0 py-1">
-            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
-              Ministry:
-            </label>
-            <select
-              value={selectedMinistry}
-              onChange={(e) => setSelectedMinistry(e.target.value)}
-              className="text-xs font-semibold px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 outline-none focus:border-[#4b2424] cursor-pointer max-w-[260px] truncate"
-            >
-              <option value="">-- All Ministries --</option>
-              {ministryList.map((m) => {
-                const id = m.ministry_id || m.id;
-                const name = cleanMinistryName(m.ministry_name || m.name);
-                return (
-                  <option key={id || name} value={id || name}>
-                    {name}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-        )}
+      {/* Sub-tabs toolbar (1st ABSTRACT & DETAILED REPORT, 2nd PENDENCY REPORT) */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-3 select-none px-1 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => handleTabChange('stagewise')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            reportType === 'stagewise'
+              ? 'border-[#4b2424] text-[#4b2424] dark:border-[#eadede] dark:text-[#eadede] bg-[#f7f3f3] dark:bg-slate-800 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+          }`}
+        >
+          ABSTRACT & DETAILED REPORT
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange('pendency')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            reportType === 'pendency'
+              ? 'border-[#4b2424] text-[#4b2424] dark:border-[#eadede] dark:text-[#eadede] bg-[#f7f3f3] dark:bg-slate-800 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+          }`}
+        >
+          PENDENCY REPORT
+        </button>
       </div>
+
+      {/* Collapsible Filter Section (Capex Report Style) */}
+      {drillDownPath.length === 1 && (
+        <div className="border border-[#e8d5c8] rounded-xl overflow-hidden bg-[#fcf9f7] dark:bg-slate-900 dark:border-slate-800 shadow-sm">
+          {/* Toggle Header */}
+          <button
+            type="button"
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className="w-full px-4 py-3 bg-[#f5eeea] dark:bg-slate-800 hover:bg-[#ebdcd0] dark:hover:bg-slate-700 transition flex items-center justify-between text-xs font-extrabold text-[#4b2424] dark:text-[#eadede] cursor-pointer select-none"
+          >
+            <div className="flex items-center space-x-2">
+              <Filter size={15} className="text-[#4b2424] dark:text-[#eadede]" />
+              <span>Report Filters & Controls</span>
+              {selectedMinistry !== '' && (
+                <span className="px-2 py-0.5 bg-[#4b2424] text-white text-[10px] rounded-full font-bold">
+                  Active Filters
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-1">
+              <span className="text-[11px] text-[#6e3939] dark:text-slate-300 font-bold">
+                {isFilterOpen ? 'Collapse' : 'Expand Filters'}
+              </span>
+              {isFilterOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </div>
+          </button>
+
+          {/* Collapsible Filter Body */}
+          {isFilterOpen && (
+            <div className="p-4 space-y-4 border-t border-[#e8d5c8] dark:border-slate-800 bg-white dark:bg-slate-900 animate-fade-in text-left">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                {/* Ministry Dropdown Filter */}
+                <div className="min-w-[260px] flex-1 max-w-sm">
+                  <label className="block text-xs font-extrabold text-[#4b2424] dark:text-[#eadede] mb-1">
+                    Ministry
+                  </label>
+                  <select
+                    value={selectedMinistry}
+                    onChange={(e) => setSelectedMinistry(e.target.value)}
+                    className="w-full text-xs px-3 py-2 bg-[#fcf9f7] dark:bg-slate-800 border border-[#d7c4b7] dark:border-slate-700 rounded-xl font-bold text-[#4b2424] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#8c5757]/30 cursor-pointer truncate"
+                  >
+                    <option value="">-- All Ministries --</option>
+                    {ministryList.map((m) => {
+                      const id = m.ministry_id || m.id;
+                      const name = cleanMinistryName(m.ministry_name || m.name);
+                      return (
+                        <option key={id || name} value={id || name}>
+                          {name}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Reset Filters Button */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMinistry('')}
+                    className="px-3.5 py-2 bg-[#f5eeea] dark:bg-slate-800 hover:bg-[#ebdcd0] dark:hover:bg-slate-700 text-[#4b2424] dark:text-[#eadede] font-bold text-xs rounded-xl flex items-center space-x-1.5 transition cursor-pointer"
+                  >
+                    <RotateCcw size={14} />
+                    <span>Reset Filters</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Main Container Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
