@@ -13,10 +13,7 @@ import {
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { fetchCapexSummaryReport } from '../../api';
-import {
-  mapCapexSummaryReportRows,
-  getCapexReportAsOnMeta,
-} from '../../utils/capexUtils';
+import { getCapexReportAsOnMeta, mapCapexSummaryReportRows } from '../../utils/capexUtils';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -39,10 +36,7 @@ export default function CapexMinistrySummaryReport({ showToast }) {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState([]);
 
-  const { asOnDateStr, reportMonthStr } = useMemo(
-    () => getCapexReportAsOnMeta(selectedYear),
-    [selectedYear]
-  );
+  const reportMeta = useMemo(() => getCapexReportAsOnMeta(selectedYear), [selectedYear]);
 
   const fetchSummary = useCallback(async () => {
     setLoading(true);
@@ -172,12 +166,14 @@ export default function CapexMinistrySummaryReport({ showToast }) {
               style={{ color: BRAND_SOFT }}
             >
               <span>
-                As on date: <strong style={{ color: BRAND }}>{asOnDateStr}</strong>
+                As on date: <strong style={{ color: BRAND }}>{reportMeta.asOnDateStr}</strong>
               </span>
               <span style={{ color: '#eadede' }}>•</span>
               <span>
-                Report for the month — <strong style={{ color: BRAND }}>{reportMonthStr}</strong>
+                {reportMeta.reportPeriodLabel} —{' '}
+                <strong style={{ color: BRAND }}>{reportMeta.reportPeriodValue}</strong>
               </span>
+
             </div>
           </div>
         </div>
@@ -416,7 +412,7 @@ export default function CapexMinistrySummaryReport({ showToast }) {
           <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> &lt;50% Low
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> &gt;100% Above BE
+          <span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> &gt;100% Above BE
         </span>
       </div>
     </div>

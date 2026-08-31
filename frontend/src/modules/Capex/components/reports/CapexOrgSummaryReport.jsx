@@ -12,10 +12,7 @@ import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { fetchCapexList } from '../../api';
 import { getSessionOrganisationId } from '../../../../utils/authSession';
-import {
-  getCapexReportAsOnMeta,
-  getCapexStatusMeta,
-} from '../../utils/capexUtils';
+import { getCapexStatusMeta } from '../../utils/capexUtils';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -34,7 +31,7 @@ export default function CapexOrgSummaryReport({ showToast }) {
   const [isFilterOpen, setIsFilterOpen] = useState(true);
   const orgId = getSessionOrganisationId();
 
-  const asOnMeta = useMemo(() => getCapexReportAsOnMeta('2026-2027'), []);
+  const reportCoverageLabel = 'Data reflects all available entries for each financial year shown.';
 
   const fetchSummary = useCallback(async () => {
     if (!orgId) {
@@ -151,8 +148,7 @@ export default function CapexOrgSummaryReport({ showToast }) {
             </span>
             <span style={{ color: '#eadede' }}>•</span>
             <span>
-              As on date:{' '}
-              <strong style={{ color: BRAND }}>{asOnMeta.asOnDateStr}</strong>
+              <strong style={{ color: BRAND }}>Data Coverage:</strong> {reportCoverageLabel}
             </span>
           </div>
         </div>
