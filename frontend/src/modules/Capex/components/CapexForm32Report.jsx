@@ -344,7 +344,6 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
     shippingCategory.totals.totalGbsIebrPppSum +
     otherCategory.totals.totalGbsIebrPppSum;
   const grandTotalPct = grandTotalBE > 0 ? (grandTotalExp * 100) / grandTotalBE : 0;
-  const grandTotalStatusMeta = getCapexStatusMeta(grandTotalPct);
 
   const reportMeta = useMemo(() => getCapexReportAsOnMeta(selectedYear), [selectedYear]);
 
@@ -729,12 +728,8 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
                   <td className="p-2.5 border border-[#6b3535] text-right">{fmt(grandPppExp)}</td>
                   <td className="p-2.5 border border-[#6b3535] text-right">{fmt(grandPppPct)}</td>
                   <td className="p-2.5 border border-[#6b3535] text-right">{fmt(grandTotalExp)}</td>
-                  <td className="p-2.5 border border-[#6b3535] text-right">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded font-black ${grandTotalStatusMeta.bg} ${grandTotalStatusMeta.text}`}
-                    >
-                      {fmt(grandTotalPct)}
-                    </span>
+                  <td className="p-2.5 border border-[#6b3535] text-right underline">
+                    {fmt(grandTotalPct)}
                   </td>
                 </tr>
               ) : null}
