@@ -123,7 +123,7 @@ function bindListFilters(request, query = {}, cfg) {
 
   if (financialYear) {
     request.input("financialYear", sql.NVarChar(50), financialYear);
-    parts.push(` AND ${cfg.alias}.${cfg.fyCol} = @financialYear`);
+    parts.push(` AND CAST(${cfg.alias}.${cfg.fyCol} AS NVARCHAR(50)) = @financialYear`);
   }
   if (organisationId) {
     request.input("organisationId", sql.NVarChar(50), organisationId);
@@ -137,7 +137,7 @@ function bindListFilters(request, query = {}, cfg) {
     request.input("search", sql.NVarChar(255), `%${search}%`);
     parts.push(` AND (
       org.organisation_name LIKE @search
-      OR ${cfg.alias}.${cfg.fyCol} LIKE @search
+      OR CAST(${cfg.alias}.${cfg.fyCol} AS NVARCHAR(50)) LIKE @search
       OR CAST(${cfg.alias}.${cfg.potentialCol} AS NVARCHAR(50)) LIKE @search
     )`);
   }
@@ -273,7 +273,10 @@ async function addCategory(req, res, cfg) {
 
     await request.query(`
       INSERT INTO ${cfg.table} (
+        created_by,
+        created_date,
         updated_by,
+        updated_date,
         ${cfg.fyCol},
         ${cfg.orgCol},
         ${cfg.potentialCol},
@@ -281,6 +284,9 @@ async function addCategory(req, res, cfg) {
       )
       VALUES (
         @userId,
+        GETDATE(),
+        @userId,
+        GETDATE(),
         @financialYear,
         @organisationId,
         @potential,
@@ -479,8 +485,14 @@ async function saveMonthly(req, res, cfg) {
         reason_for_non_procurement_${month} = @reason${cap}`;
     }).join(",");
 
+    const setColsWithAudit = `${setCols}, updated_by = @userId, updated_date = GETDATE()`;
+
     const insertCols = [
       cfg.idCol,
+      "created_by",
+      "created_date",
+      "updated_by",
+      "updated_date",
       ...MONTHS.flatMap((month) => [
         `procurement_through_gem_${month}`,
         `procurement_outside_gem_${month}`,
@@ -490,6 +502,10 @@ async function saveMonthly(req, res, cfg) {
 
     const insertVals = [
       "@gemId",
+      "@userId",
+      "GETDATE()",
+      "@userId",
+      "GETDATE()",
       ...MONTHS.flatMap((month) => {
         const cap = monthCap(month);
         return [`@through${cap}`, `@outside${cap}`, `@reason${cap}`];
@@ -499,7 +515,7 @@ async function saveMonthly(req, res, cfg) {
     if (exists.recordset.length > 0) {
       await request.query(`
         UPDATE ${cfg.monthlyTable}
-        SET ${setCols}
+        SET ${setColsWithAudit}
         WHERE ${cfg.idCol} = @gemId
       `);
     } else {
@@ -681,7 +697,7 @@ async function getGemProcurementTotalData(req, res) {
     if (financialYear) {
       countRequest.input("financialYear", sql.NVarChar(50), financialYear);
       pageRequest.input("financialYear", sql.NVarChar(50), financialYear);
-      filterSql += " AND t.common_financial_year = @financialYear";
+      filterSql += " AND CAST(t.common_financial_year AS NVARCHAR(50)) = @financialYear";
     }
     if (organisationId) {
       countRequest.input("organisationId", sql.NVarChar(50), organisationId);
@@ -691,7 +707,7 @@ async function getGemProcurementTotalData(req, res) {
     if (search) {
       countRequest.input("search", sql.NVarChar(255), `%${search}%`);
       pageRequest.input("search", sql.NVarChar(255), `%${search}%`);
-      filterSql += " AND (org.organisation_name LIKE @search OR t.common_financial_year LIKE @search)";
+      filterSql += " AND (org.organisation_name LIKE @search OR CAST(t.common_financial_year AS NVARCHAR(50)) LIKE @search)";
     }
 
     pageRequest.input("offset", sql.Int, offset);

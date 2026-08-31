@@ -1,8 +1,24 @@
 import axios from 'axios';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 const api = axios.create({ baseURL: API_BASE });
+const LOCAL_FALLBACK_BASE = 'http://localhost:3000';
+
+function shouldRetryWithLocalFallback(error) {
+  const configured = String(API_BASE || '').toLowerCase();
+  const isNetworkError = error?.code === 'ERR_NETWORK' || error?.message === 'Network Error';
+  return isNetworkError && configured.includes('localhost:3001');
+}
+
+async function getWithLocalFallback(path, config = {}) {
+  try {
+    return await api.get(path, config);
+  } catch (error) {
+    if (!shouldRetryWithLocalFallback(error)) throw error;
+    return api.get(path, { ...config, baseURL: LOCAL_FALLBACK_BASE });
+  }
+}
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
@@ -105,7 +121,7 @@ const POTENTIAL_BODY_KEYS = {
 
 export function fetchGemList(category, params = {}, config = {}) {
   const path = LIST_PATHS[category] || LIST_PATHS.goods;
-  return api.get(path, { params: listParams(params), ...config });
+  return getWithLocalFallback(path, { params: listParams(params), ...config });
 }
 
 export function createGemTarget(category, payload) {
@@ -133,7 +149,7 @@ export function updateGemTarget(category, payload) {
 export function fetchGemMonthlyData(category, gemId) {
   const path = MONTHLY_PATHS[category];
   if (!path) throw new Error(`Unsupported category: ${category}`);
-  return api.get(`${path}/${gemId}`);
+  return getWithLocalFallback(`${path}/${gemId}`);
 }
 
 export function saveGemMonthlyData(category, gemId, monthlyPayload) {
@@ -147,11 +163,11 @@ export function saveGemMonthlyData(category, gemId, monthlyPayload) {
 }
 
 export function fetchGemReport(year) {
-  return api.get(`/gem-report/${year}`);
+  return getWithLocalFallback(`/gem-report/${year}`);
 }
 
 export function fetchOrganisationsDropdown() {
-  return api.get('/mmt-dropdown/mmt_organisation');
+  return getWithLocalFallback('/mmt-dropdown/mmt_organisation');
 }
 
 export default api;

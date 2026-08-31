@@ -569,7 +569,6 @@ async function getDropDownData(req, res) {
         res.json(result.recordset);
         // const result = await conn.query(`SELECT * FROM ${tid};`);
         // res.json(result.recordset);
-        console.log(result.recordset)
     }
     catch (err) {
         console.log(err);
