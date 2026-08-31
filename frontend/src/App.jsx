@@ -593,11 +593,11 @@ export default function App() {
             )}
 
             {activeTab === 'E Office' && (
-              <EOfficeView key={eOfficeKpi} initialKpi={eOfficeKpi} />
+              <EOfficeView key={eOfficeKpi} initialKpi={eOfficeKpi} triggerNotification={triggerNotification} />
             )}
 
             {activeTab === 'Attendance' && (
-              <AttendanceView />
+              <AttendanceView triggerNotification={triggerNotification} />
             )}
 
             {activeTab === 'CPGRAMS' && (

@@ -16,6 +16,7 @@ export default function AttendanceUploadView(props) {
         }}
         accentColor="#0f417a"
         themeClass="ag-theme-quartz"
+        sampleFileName="Attendance_Sample.xlsx"
       />
     </div>
   );

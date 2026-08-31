@@ -9,6 +9,7 @@ export default function EOfficeToolbar({
   subTab,
   setSubTab,
   showToast,
+  onDownloadSample,
 }) {
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
@@ -38,6 +39,17 @@ export default function EOfficeToolbar({
           </button>
           <button
             type="button"
+            onClick={() => setSubTab("files")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+              subTab === "files"
+                ? "bg-[#0f417a] text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            View Files
+          </button>
+          <button
+            type="button"
             onClick={() => setSubTab("data")}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
               subTab === "data"
@@ -45,7 +57,7 @@ export default function EOfficeToolbar({
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            View Data List
+            DataList
           </button>
           <button
             type="button"
@@ -58,25 +70,12 @@ export default function EOfficeToolbar({
           >
             Abstract Report
           </button>
-          <button
-            type="button"
-            onClick={() => setSubTab("files")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-              subTab === "files"
-                ? "bg-[#0f417a] text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            View Files
-          </button>
         </div>
 
         {/* User Manual Button */}
         <button
           type="button"
-          onClick={() =>
-            showToast("📥 Downloading user manual template...", "#3B82F6")
-          }
+          onClick={onDownloadSample}
           className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center space-x-1 cursor-pointer flex-shrink-0 select-none"
         >
           <span>User Manual</span>

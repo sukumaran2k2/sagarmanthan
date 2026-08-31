@@ -29,6 +29,7 @@ const upload = multer({
 });
 
 async function addFileDisposal(req, res) {
+    let transaction;
     try {
         
         const rawYear = req.body.Year || req.body.financialYear;
@@ -39,21 +40,22 @@ async function addFileDisposal(req, res) {
         const uniqueFileName = req.uniqueFileName;
 
         const conn = await pool;
-        const request = conn.request();
 
-        request.input("userID", sql.Int, userID);
-        request.input("month", sql.NVarChar, month);
-        request.input("Year", sql.Int, Year);
-        request.input("week", sql.Int, week);
-        request.input("uniqueFileName", sql.NVarChar, uniqueFileName);
-
-        const checkResult = await request.query(`
+        const checkRequest = conn.request();
+        checkRequest.input("month", sql.NVarChar, month);
+        checkRequest.input("Year", sql.Int, Year);
+        checkRequest.input("week", sql.Int, week);
+        const checkResult = await checkRequest.query(`
             SELECT COUNT(*) AS count 
             FROM tbl_file_disposal 
             WHERE Month = @month AND Year = @Year AND week = @week;
         `);
 
-        const storedFileID = await request.query(`
+        const maxIdRequest = conn.request();
+        maxIdRequest.input("month", sql.NVarChar, month);
+        maxIdRequest.input("Year", sql.Int, Year);
+        maxIdRequest.input("week", sql.Int, week);
+        const storedFileID = await maxIdRequest.query(`
             SELECT MAX(File_Id) AS File_Id 
             FROM tbl_file_disposal  
             WHERE Month = @month AND Year = @Year AND week = @week;
@@ -106,42 +108,91 @@ async function addFileDisposal(req, res) {
             return fallback;
         };
 
-        for (const row of trimmedData) {
-            const rawEmpId = getRowVal(row, ['Emp Id', 'EmpId', 'EMP ID', 'Emp_Id', 'S.No', 'id']);
-            const EmpId = String(rawEmpId || '').trim();
+        // Collect data rows (excluding Total/Summary rows) up front so the
+        // employee lookup/auto-register/insert steps below can be batched
+        // instead of doing one DB round-trip per row.
+        const dataRows = trimmedData
+            .map(row => {
+                const rawEmpId = getRowVal(row, ['Emp Id', 'EmpId', 'EMP ID', 'Emp_Id', 'S.No', 'id']);
+                const EmpId = String(rawEmpId || '').trim();
+                return { row, EmpId };
+            })
+            .filter(({ EmpId }) => EmpId && EmpId !== 'Total' && EmpId !== 'Summary' && EmpId !== '—');
 
-            if (EmpId && EmpId !== 'Total' && EmpId !== 'Summary' && EmpId !== '—') {
-                const employeeCheckResult = await conn.query(`
-                    SELECT COUNT(*) AS count 
-                    FROM mmt_employee_info 
-                    WHERE Emp_Id = '${EmpId}'
-                `);
+        const uniqueEmpRows = new Map();
+        dataRows.forEach(({ row, EmpId }) => {
+            if (!uniqueEmpRows.has(EmpId)) {
+                uniqueEmpRows.set(EmpId, {
+                    EmpName: String(getRowVal(row, ['Emp Name', 'EmpName', 'Employee Name', 'Name'], 'Employee ' + EmpId)),
+                    Designation: String(getRowVal(row, ['Designation', 'designation', 'Post'], 'Staff')),
+                });
+            }
+        });
+        const allEmpIds = [...uniqueEmpRows.keys()];
 
-                if (employeeCheckResult.recordset[0].count === 0) {
-                    try {
-                        const empName = String(getRowVal(row, ['Emp Name', 'EmpName', 'Employee Name', 'Name'], 'Employee ' + EmpId)).replace(/'/g, "''");
-                        const designation = String(getRowVal(row, ['Designation', 'designation', 'Post'], 'Staff')).replace(/'/g, "''");
-                        await conn.query(`
+        // From here on, employee auto-register, the file record, and the
+        // data rows all happen inside one transaction, so a failure partway
+        // through rolls everything back instead of leaving an orphaned file
+        // record with no data rows.
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
+
+        if (allEmpIds.length > 0) {
+            // Batch employee existence check: one query for all Emp Ids
+            // instead of one SELECT per row.
+            const checkExistingRequest = transaction.request();
+            const empIdParams = allEmpIds.map((id, i) => {
+                const paramName = `empId${i}`;
+                checkExistingRequest.input(paramName, sql.NVarChar, id);
+                return `@${paramName}`;
+            });
+            const existingResult = await checkExistingRequest.query(`
+                SELECT Emp_Id FROM mmt_employee_info WHERE Emp_Id IN (${empIdParams.join(', ')})
+            `);
+            const existingEmpIds = new Set(existingResult.recordset.map(r => String(r.Emp_Id)));
+            const missingEmpIds = allEmpIds.filter(id => !existingEmpIds.has(id));
+
+            if (missingEmpIds.length > 0) {
+                try {
+                    // Chunked parameterized multi-row INSERT instead of one
+                    // INSERT per missing employee.
+                    const CHUNK_SIZE = 500;
+                    for (let start = 0; start < missingEmpIds.length; start += CHUNK_SIZE) {
+                        const chunk = missingEmpIds.slice(start, start + CHUNK_SIZE);
+                        const insertRequest = transaction.request();
+                        const valueClauses = chunk.map((id, i) => {
+                            const info = uniqueEmpRows.get(id);
+                            insertRequest.input(`empId${i}`, sql.NVarChar(255), id);
+                            insertRequest.input(`empName${i}`, sql.NVarChar(255), info.EmpName);
+                            insertRequest.input(`designation${i}`, sql.NVarChar(255), info.Designation);
+                            return `(@empId${i}, @empName${i}, @designation${i}, 1)`;
+                        });
+                        await insertRequest.query(`
                             INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
-                            VALUES ('${EmpId}', '${empName}', '${designation}', 1)
+                            VALUES ${valueClauses.join(', ')}
                         `);
-                    } catch (autoErr) {
-                        console.warn("Auto register employee warning:", autoErr.message);
                     }
+                } catch (autoErr) {
+                    console.warn("Auto register employee warning:", autoErr.message);
                 }
             }
         }
 
         const currentDate = new Date();
         const formattedDate = currentDate.toISOString().slice(0, 19).replace('T', ' ');
-        request.input("formattedDate", formattedDate);
-        await request.query(`
+        const fileInsertRequest = transaction.request();
+        fileInsertRequest.input("uniqueFileName", sql.NVarChar, uniqueFileName);
+        fileInsertRequest.input("userID", sql.Int, userID);
+        fileInsertRequest.input("formattedDate", sql.DateTime, formattedDate);
+        await fileInsertRequest.query(`
             INSERT INTO tbl_eoffice_file_disposal_file 
             (File_name, uploaded_by, date_of_upload) 
             VALUES (@uniqueFileName, @userID, @formattedDate)
         `);
 
-        const fileIdQuery = await request.query(`
+        const fileIdLookupRequest = transaction.request();
+        fileIdLookupRequest.input("uniqueFileName", sql.NVarChar, uniqueFileName);
+        const fileIdQuery = await fileIdLookupRequest.query(`
             SELECT TOP (1) ID
             FROM tbl_eoffice_file_disposal_file
             WHERE File_name = @uniqueFileName
@@ -150,39 +201,49 @@ async function addFileDisposal(req, res) {
 
         const fileId = fileIdQuery.recordset[0].ID;
 
-        for (const row of trimmedData) {
-            const rawEmpId = getRowVal(row, ['Emp Id', 'EmpId', 'EMP ID', 'Emp_Id', 'S.No', 'id']);
-            const EmpId = String(rawEmpId || '').trim();
+        // Batch row insert: chunked parameterized multi-row INSERT instead
+        // of one INSERT round-trip per row.
+        const ROW_CHUNK_SIZE = 500;
+        for (let start = 0; start < dataRows.length; start += ROW_CHUNK_SIZE) {
+            const chunk = dataRows.slice(start, start + ROW_CHUNK_SIZE);
+            const rowInsertRequest = transaction.request();
+            const valueClauses = chunk.map(({ row, EmpId }, i) => {
+                const CountOfTransactions = parseInt(getRowVal(row, ['Count of Transactions', 'CountOfTransactions', 'Transactions', 'Transaction Count'], 0), 10) || 0;
+                const CountsOfFiles = parseInt(getRowVal(row, ['Counts of Files', 'Count of Files', 'CountsOfFiles', 'Files Count', 'File Count'], 0), 10) || 0;
+                const AverageResponseTime = String(getRowVal(row, ['Average Response Time', 'Avg. Response time', 'Avg Response Time', 'AverageResponseTime'], '00:00:00')).trim();
 
-            if (!EmpId || EmpId === 'Total' || EmpId === 'Summary') {
-                continue;
-            }
+                rowInsertRequest.input(`empId${i}`, sql.NVarChar, EmpId);
+                rowInsertRequest.input(`countTransactions${i}`, sql.Int, CountOfTransactions);
+                rowInsertRequest.input(`countFiles${i}`, sql.Int, CountsOfFiles);
+                rowInsertRequest.input(`avgResponseTime${i}`, sql.NVarChar, AverageResponseTime);
+                rowInsertRequest.input(`month${i}`, sql.NVarChar, month);
+                rowInsertRequest.input(`year${i}`, sql.Int, Year);
+                rowInsertRequest.input(`week${i}`, sql.Int, week);
+                rowInsertRequest.input(`fileId${i}`, sql.Int, fileId);
 
-            const CountOfTransactions = parseInt(getRowVal(row, ['Count of Transactions', 'CountOfTransactions', 'Transactions', 'Transaction Count'], 0), 10) || 0;
-            const CountsOfFiles = parseInt(getRowVal(row, ['Counts of Files', 'Count of Files', 'CountsOfFiles', 'Files Count', 'File Count'], 0), 10) || 0;
-            const AverageResponseTime = String(getRowVal(row, ['Average Response Time', 'Avg. Response time', 'Avg Response Time', 'AverageResponseTime'], '00:00:00')).trim();
+                return `(@empId${i}, @countTransactions${i}, @countFiles${i}, @avgResponseTime${i}, @year${i}, @month${i}, @week${i}, @fileId${i})`;
+            });
 
-            const rowRequest = conn.request();
-            rowRequest.input("Emp_Id", sql.NVarChar, EmpId);
-            rowRequest.input("CountOfTransactions", sql.Int, CountOfTransactions);
-            rowRequest.input("CountsOfFiles", sql.Int, CountsOfFiles);
-            rowRequest.input("AverageResponseTime", sql.NVarChar, AverageResponseTime);
-            rowRequest.input("month", sql.NVarChar, month);
-            rowRequest.input("Year", sql.Int, Year);
-            rowRequest.input("week", sql.Int, week);
-            rowRequest.input("fileId", sql.Int, fileId);
-
-            await rowRequest.query(`
+            await rowInsertRequest.query(`
                 INSERT INTO tbl_file_disposal 
                 ([Emp Id], [Count of Transactions], [Counts of Files], [Average Response Time], [Year], [Month], [week], [File_ID]) 
-                VALUES (@Emp_Id, @CountOfTransactions, @CountsOfFiles, @AverageResponseTime, @Year, @month, @week, @fileId)
+                VALUES ${valueClauses.join(', ')}
             `);
         }
+
+        await transaction.commit();
 
         res.status(200).json({
             message: "Data Stored Successfully",
         });
     } catch (err) {
+        if (transaction) {
+            try {
+                await transaction.rollback();
+            } catch (rollbackErr) {
+                console.error("Transaction rollback failed:", rollbackErr);
+            }
+        }
         deleteFile(req.file, req.uniqueFileName);
         console.error(err);
         res.status(500).json({ error: "Internal server error: " + err.message });
@@ -190,6 +251,7 @@ async function addFileDisposal(req, res) {
 }
 
 async function updateFileDisposal(req, res) {
+    let transaction;
     try {
         const conn = await pool;
         const request = conn.request();
@@ -211,16 +273,11 @@ async function updateFileDisposal(req, res) {
         //Removed 'Emp Name', 'Designation', 'Wing', 'Division', 
 
         const requiredHeaders = ['Emp Id', 'Count of Transactions', 'Counts of Files', 'Average Response Time'];
-        // const headers = Object.keys(data[0]);
-        // const headers = Object.keys(data[0]).map(header => header.trim());
 
         const headers = new Set();
         data.forEach(row => Object.keys(row).forEach(header => headers.add(header.trim())));
-        // Check for missing or mismatched headers
         const missingHeaders = requiredHeaders.filter(header => !headers.has(header));
 
-        // Check for missing headers
-        // const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
         if (missingHeaders.length > 0) {
             deleteFile(req.uniqueFileName);
             return res.status(400).json({ error: `Missing  or Mismatched headers: ${missingHeaders.join(', ')}` });
@@ -228,7 +285,6 @@ async function updateFileDisposal(req, res) {
 
         let rowIndex = 0;
 
-        // Trim all header names in data
         const trimmedData = data.map(row => {
             const trimmedRow = {};
             Object.keys(row).forEach(header => {
@@ -237,61 +293,36 @@ async function updateFileDisposal(req, res) {
             return trimmedRow;
         });
 
+        const empIds = new Set();
+        const duplicateEmpIds = [];
+        for (const row of trimmedData) {
+            const EmpId = row['Emp Id'];
+            if (empIds.has(EmpId)) {
+                duplicateEmpIds.push(EmpId);
+            } else {
+                empIds.add(EmpId);
+            }
+        }
+        if (duplicateEmpIds.length > 0) {
+            deleteFile(req.file, req.uniqueFileName);
+            return res.status(410).json({ error: `Duplicate/Empty Emp-Ids found ${duplicateEmpIds.join(', ')}` });
+        }
+
         for (const row of trimmedData) {
             rowIndex++;
-            // Destructure row object properties
             const {
                 'Emp Id': EmpId,
-                // 'Emp Name': EmpName,
-                // 'Designation': Designation,
-                // 'Wing': Wing,
-                // 'Division': Division,
                 'Count of Transactions': CountOfTransactions,
                 'Counts of Files': CountsOfFiles,
                 'Average Response Time': AverageResponseTime
             } = row;
 
-            //Validate duplication of EMP ID
-            const empIds = new Set();
-            const duplicateEmpIds = [];
-            for (const row of trimmedData) {
-                const EmpId = row['Emp Id'];
-                if (empIds.has(EmpId)) {
-                    duplicateEmpIds.push(EmpId);
-                } else {
-                    empIds.add(EmpId);
-                }
-            }
-    
-            if (duplicateEmpIds.length > 0) {
-                deleteFile(req.file, req.uniqueFileName);
-                return res.status(410).json({ error: `Duplicate/Empty Emp-Ids found ${duplicateEmpIds.join(', ')}` });
-            }
-
-            // Validate EmpId
             if (typeof EmpId !== 'string') {
                 deleteFile(req.uniqueFileName);
                 return res.status(403).json({ error: 'Invalid Emp Id format' });
             }
         
-            // if (!EmpName || typeof EmpName !== 'string') {
-            //     deleteFile(req.uniqueFileName);
-            //     return res.status(403).json({ error: 'Invalid Emp Name' });
-            // }
-            // if (!Wing || typeof Wing !== 'string') {
-            //     deleteFile(req.uniqueFileName);
-            //     return res.status(403).json({ error: 'Invalid Wing' });
-            // }
-            // if (!Division || typeof Division !== 'string') {
-            //     deleteFile(req.uniqueFileName);
-            //     return res.status(403).json({ error: 'Invalid Division' });
-            // }
-            // if (!Designation || typeof Designation !== 'string') {
-            //     deleteFile(req.uniqueFileName);
-            //     return res.status(403).json({ error: 'Invalid Designation' });
-            // }
             if (
-                // !Number.isInteger(EmpId)||
                 !Number.isInteger(CountOfTransactions) || 
                 !Number.isInteger(CountsOfFiles)
             ) {
@@ -301,89 +332,126 @@ async function updateFileDisposal(req, res) {
             
         }
 
-        for (const row of trimmedData) {
-            const EmpId = row['Emp Id'];
-            const employeeCheckResult = await conn.query(`
-                SELECT COUNT(*) AS count 
-                FROM mmt_employee_info 
-                WHERE Emp_Id = '${EmpId}'
+        // Batch employee existence check: one query for all Emp Ids in the
+        // file instead of one SELECT per row (previously up to N sequential
+        // round-trips for an N-row upload). Unlike File/Receipt Pendency,
+        // this KPI has no Total/Summary row concept, so every Emp Id in the
+        // file is checked -- matching the original per-row loop's behavior
+        // exactly.
+        const allUpdateEmpIds = [...empIds];
+        if (allUpdateEmpIds.length > 0) {
+            const checkExistingRequest = conn.request();
+            const empIdParams = allUpdateEmpIds.map((id, i) => {
+                const paramName = `empId${i}`;
+                checkExistingRequest.input(paramName, sql.NVarChar, String(id));
+                return `@${paramName}`;
+            });
+            const existingResult = await checkExistingRequest.query(`
+                SELECT Emp_Id FROM mmt_employee_info WHERE Emp_Id IN (${empIdParams.join(', ')})
             `);
+            const existingEmpIds = new Set(existingResult.recordset.map(r => String(r.Emp_Id)));
+            const missingEmpIds = allUpdateEmpIds.filter(id => !existingEmpIds.has(String(id)));
 
-            if (employeeCheckResult.recordset[0].count === 0) {
+            if (missingEmpIds.length > 0) {
                 deleteFile(req.uniqueFileName);
-                const EmpId = row['Emp Id']; 
-                return res.status(402).json({ error: `Employee ID '${EmpId}' not found in the employee table`, EmpId: EmpId });
+                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0] });
             }
         }
             
         const currentDate = new Date();
         const formattedDate = currentDate.toISOString().slice(0, 19).replace('T', ' ');
 
-        const fileName =  await request.query(`
+        const fileNameRequest = conn.request();
+        fileNameRequest.input("FileId", sql.Int, Number(FileId));
+        const fileName = await fileNameRequest.query(`
             SELECT File_name FROM tbl_eoffice_file_disposal_file
-            WHERE ID = '${FileId}';
+            WHERE ID = @FileId;
         `);
 
         const deleteFileName = fileName.recordset[0].File_name;
         deleteFile(deleteFileName);
 
-        await request.query(`
+        // From here on, deleting the old rows, updating the file record, and
+        // inserting the new rows all happen inside one transaction, so a
+        // failure partway through can't leave old rows deleted with no
+        // replacement, or the file record renamed with stale row data.
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
+
+        const deleteRequest = transaction.request();
+        deleteRequest.input("FileId", sql.Int, Number(FileId));
+        await deleteRequest.query(`
             DELETE FROM tbl_file_disposal
-            WHERE File_ID = '${FileId}';
+            WHERE File_ID = @FileId;
         `);
 
-        await request.query(`
+        const updateFileRequest = transaction.request();
+        updateFileRequest.input("fileName", sql.NVarChar, uniqueFileName);
+        updateFileRequest.input("userID", sql.Int, Number(userID));
+        updateFileRequest.input("uploadDate", sql.DateTime, formattedDate);
+        updateFileRequest.input("FileId", sql.Int, Number(FileId));
+        await updateFileRequest.query(`
             UPDATE tbl_eoffice_file_disposal_file
-            SET File_name = '${uniqueFileName}',
-            uploaded_by = ${userID},
-            date_of_upload = '${formattedDate}'
-            WHERE ID = ${FileId}; 
+            SET File_name = @fileName,
+            uploaded_by = @userID,
+            date_of_upload = @uploadDate
+            WHERE ID = @FileId; 
         `);
 
          // Retrieve the ID of the inserted record
-         const fileIdQuery = await conn.query(`
+         const fileIdLookupRequest = transaction.request();
+         fileIdLookupRequest.input("fileName", sql.NVarChar, uniqueFileName);
+         const fileIdQuery = await fileIdLookupRequest.query(`
             SELECT TOP (1) ID
             FROM tbl_eoffice_file_disposal_file
-            WHERE File_name = '${uniqueFileName}' 
+            WHERE File_name = @fileName 
             ORDER BY ID DESC
         `);
 
         const fileId = fileIdQuery.recordset[0].ID;
 
-        for (const row of trimmedData) {
-            //Removed 'Emp Name': EmpName, 'Designation': Designation, 'Wing': Wing, 'Division': Division, 
-            const { 'Emp Id': EmpId, 'Count of Transactions': CountOfTransactions, 'Counts of Files': CountsOfFiles, 'Average Response Time': AverageResponseTime } = row;
-        
-            const request = conn.request();
-        
-            request.input("Emp_Id", EmpId);
-            // request.input("Emp_Name", EmpName);
-            // request.input("Designation", Designation);
-            // request.input("Wing", Wing);
-            // request.input("Division", Division);
-            request.input("CountOfTransactions", CountOfTransactions);
-            request.input("CountsOfFiles", CountsOfFiles);
-            request.input("AverageResponseTime", AverageResponseTime);
-            request.input("month", month);
-            request.input("Year", Year);
-            request.input("week", week);
-            request.input("fileId", fileId);
-        
-            await request.query(`
+        // Batch row insert: chunked parameterized multi-row INSERT instead
+        // of one INSERT round-trip per row. No Total-row filtering here,
+        // matching this KPI's original per-row behavior.
+        const ROW_CHUNK_SIZE = 500;
+        for (let start = 0; start < trimmedData.length; start += ROW_CHUNK_SIZE) {
+            const chunk = trimmedData.slice(start, start + ROW_CHUNK_SIZE);
+            const rowInsertRequest = transaction.request();
+            const valueClauses = chunk.map((row, i) => {
+                const { 'Emp Id': EmpId, 'Count of Transactions': CountOfTransactions, 'Counts of Files': CountsOfFiles, 'Average Response Time': AverageResponseTime } = row;
+
+                rowInsertRequest.input(`empId${i}`, sql.NVarChar, String(EmpId));
+                rowInsertRequest.input(`countTransactions${i}`, sql.Int, CountOfTransactions ?? 0);
+                rowInsertRequest.input(`countFiles${i}`, sql.Int, CountsOfFiles ?? 0);
+                rowInsertRequest.input(`avgResponseTime${i}`, sql.NVarChar, String(AverageResponseTime ?? '00:00:00'));
+                rowInsertRequest.input(`month${i}`, sql.NVarChar, month);
+                rowInsertRequest.input(`year${i}`, sql.Int, Number(Year));
+                rowInsertRequest.input(`week${i}`, sql.Int, Number(week));
+                rowInsertRequest.input(`fileId${i}`, sql.Int, fileId);
+
+                return `(@empId${i}, @countTransactions${i}, @countFiles${i}, @avgResponseTime${i}, @year${i}, @month${i}, @week${i}, @fileId${i})`;
+            });
+
+            await rowInsertRequest.query(`
                 INSERT INTO tbl_file_disposal 
-                ([Emp Id],[Count of Transactions],[Counts of Files],[Average Response Time],[Year],[Month],[week],[File_ID]
-                    --[Emp Name],[Designation],[Wing],[Division]
-                ) 
-                VALUES (@Emp_Id, @CountOfTransactions,@CountsOfFiles, @AverageResponseTime , @Year, @month, @week,@fileId
-                    -- @Emp_Name, @Designation, @Wing, @Division
-                )
+                ([Emp Id], [Count of Transactions], [Counts of Files], [Average Response Time], [Year], [Month], [week], [File_ID]) 
+                VALUES ${valueClauses.join(', ')}
             `);
         }
+
+        await transaction.commit();
                       
         res.status(200).json({
             message: " Data Updated Successfully",
         });
     } catch (err) {
+        if (transaction) {
+            try {
+                await transaction.rollback();
+            } catch (rollbackErr) {
+                console.error("Transaction rollback failed:", rollbackErr);
+            }
+        }
         deleteFile(req.uniqueFileName);
         console.error(err);
         res.status(500).json({ error: "Internal server error" });

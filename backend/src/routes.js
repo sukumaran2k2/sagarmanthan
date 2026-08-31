@@ -394,8 +394,8 @@ router.get("/employee-attendance-file", empAttendanceTab.getEmployeeAttendance);
 router.get("/employee-attendance-sample", empAttendanceTab.agSample);
 
 router.get("/employee-attendance-view", empAttendanceTab.getEmpAttendance);
-router.post("/employee-attendance", empAttendanceTab.upload.single('file'), empAttendanceTab.createEmpAttendance);
-router.put("/attend-employee", empAttendanceTab.upload.single('file'), empAttendanceTab.updateEmpAttendance);
+router.post("/employee-attendance", empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
+router.put("/attend-employee", empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
 router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
 // router.get("/employee-attendance/download/:id", empAttendanceTab.downloadEmpAttendance);
 // router.delete("/employee-attendance/:id", empAttendanceTab.deleteEmpAttendance);
@@ -407,7 +407,7 @@ router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
 
 //attendance
 router.get("/attendance", attendanceTab.getAttendance);
-router.post("/attendance", attendanceTab.upload.single('file'), attendanceTab.createAttendance);
+router.post("/attendance", attendanceTab.uploadSingleFile, attendanceTab.createAttendance);
 router.get("/attendance/download/:id", attendanceTab.downloadAttendance);
 router.delete("/attendance/:id", attendanceTab.deleteAttendance);
 router.post("/attendance/storecsv/:id", attendanceTab.storeCsvData);
@@ -415,15 +415,7 @@ router.get("/attendance/downloadSampleDocument", attendanceTab.downloadSampleDoc
 
 //view Data - Attendance
 router.get("/excelData", excelDataTab.getExcelData);
-//attendance
-//check
-router.get("/employee-attendance-file", empAttendanceTab.getEmployeeAttendance);
-router.get("/employee-attendance-sample", empAttendanceTab.agSample);
 
-router.get("/employee-attendance-view", empAttendanceTab.getEmpAttendance);
-router.post("/employee-attendance", empAttendanceTab.upload.single('file'), empAttendanceTab.createEmpAttendance);
-router.put("/attend-employee", empAttendanceTab.upload.single('file'), empAttendanceTab.updateEmpAttendance);
-router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
 router.get("/attendance/user-manual", userManualMenu.attendanceManual);
 
 //cpgrams
@@ -664,6 +656,7 @@ router.get("/file-pendancy-all", eOfficeTab.getFilePendenceAll);
 router.get("/file-pendancy-check", eOfficeTab.getFilePendenceCheck);
 router.get("/file-pendancy-History", eOfficeTab.getFilePendencyHistory);
 router.get("/file-pendancy/download/:id", eOfficeTab.downloadFilePendancy);
+router.get("/file-pendancy/download-sample", eOfficeTab.downloadFilePendancySample);
 router.delete("/file-pendancy/delete/:id", eOfficeTab.deleteFilePendency);
 router.post("/file-pendancy-create", EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
 router.put("/file-pendancy-update", EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
@@ -677,6 +670,7 @@ router.get("/receipt-pendancy-all", eOfficeTab.getReceiptPendenceAll);
 router.get("/receipt-pendancy-check", eOfficeTab.getReceiptPendenceCheck);
 router.get("/receipt-pendancy-History", eOfficeTab.getReceiptPendencyHistory);
 router.get("/receipt-pendancy/download/:id", eOfficeTab.downloadReceiptPendency);
+router.get("/receipt-pendancy/download-sample", eOfficeTab.downloadReceiptPendencySample);
 router.delete("/receipt-pendancy/delete/:id", eOfficeTab.deleteReceiptPendency);
 router.post("/receipt-pendancy-create", EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.addReceiptPendancy);
 router.put("/receipt-pendancy-update", EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.updateReceiptPendancy);
@@ -690,6 +684,7 @@ router.get("/file-disposal-all", eOfficeTab.getFileDisposalAll);
 router.get("/file-disposal-check", eOfficeTab.getFileDisposalCheck);
 router.get("/file-disposal-History", eOfficeTab.getFileDisposalHistory);
 router.get("/file-disposal/download/:id", eOfficeTab.downloadFileDisposal);
+router.get("/file-disposal/download-sample", eOfficeTab.downloadFileDisposalSample);
 router.delete("/file-disposal/delete/:id", eOfficeTab.deleteFileDisposal);
 router.delete("/delete-employee/:empID", EofficeFileDisposalTab.deleteEmployee);
 router.post("/file-disposal-create", EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.addFileDisposal);
