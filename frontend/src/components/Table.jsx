@@ -38,6 +38,18 @@ const Table = forwardRef(({
     setPageSize(paginationPageSize);
   }, [paginationPageSize]);
 
+  useEffect(() => {
+    const api = gridApi || activeRef.current?.api;
+    if (api) {
+      const timer = setTimeout(() => {
+        try {
+          api.resetRowHeights();
+        } catch (_) {}
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [rowData, columnDefs, gridApi]);
+
   const onBtnExport = () => {
     const api = gridApi || activeRef.current?.api;
     if (api) {
@@ -48,12 +60,22 @@ const Table = forwardRef(({
   };
 
   const handleGridSizeChanged = (params) => {
+    if (params.api) {
+      try {
+        params.api.resetRowHeights();
+      } catch (_) {}
+    }
     if (onGridSizeChanged) {
       onGridSizeChanged(params);
     }
   };
 
   const handleFirstDataRendered = (params) => {
+    if (params.api) {
+      try {
+        params.api.resetRowHeights();
+      } catch (_) {}
+    }
     if (onFirstDataRendered) {
       onFirstDataRendered(params);
     }
@@ -66,6 +88,9 @@ const Table = forwardRef(({
       setTotalPages(params.api.paginationGetTotalPages());
       setTotalRows(params.api.paginationGetRowCount());
       setPageSize(params.api.paginationGetPageSize());
+      try {
+        params.api.resetRowHeights();
+      } catch (_) {}
     }
     if (onGridReady) {
       onGridReady(params);
@@ -167,10 +192,20 @@ const Table = forwardRef(({
         }
         .dark .${colorClass} .ag-row:hover {
           background-color: #1e293b !important;
-        }
         .dark .${colorClass} .ag-cell {
           color: #f8fafc !important;
           border-right-color: #1e293b !important;
+        }
+        .${colorClass} .ag-cell.mopsw-wrap-cell,
+        .${colorClass} .ag-cell.mopsw-wrap-cell .ag-cell-value,
+        .${colorClass} .ag-cell.mopsw-wrap-cell .ag-cell-wrapper,
+        .${colorClass} .ag-cell-wrap-text,
+        .${colorClass} .ag-cell-wrap-text .ag-cell-value,
+        .${colorClass} .ag-cell-wrap-text .ag-cell-wrapper {
+          white-space: normal !important;
+          word-break: break-word !important;
+          overflow-wrap: break-word !important;
+          line-height: 1.35 !important;
         }
         @keyframes indeterminateProgress {
           0% { transform: translateX(-100%) scaleX(0.2); }

@@ -40,6 +40,31 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
   const [selectedFY, setSelectedFY] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Column visibility checklist dropdown
+  const [colDropdownOpen, setColDropdownOpen] = useState(false);
+  const colDropdownRef = useRef(null);
+  const [visibleCols, setVisibleCols] = useState({
+    sno: true,
+    org: true,
+    financial_year: true,
+    net_profit: true,
+    csr_fund_alloted_year: true,
+    opening_balance_csr: true,
+    project_expenditure: true,
+    csr_fund_balance: true,
+    actions: true,
+  });
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
+        setColDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Pagination & Grid
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -214,21 +239,24 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       width: 70,
       minWidth: 60,
       cellStyle: { textAlign: 'center', fontWeight: 700 },
+      hide: !visibleCols.sno,
       valueGetter: (params) => (currentPage - 1) * pageSize + params.node.rowIndex + 1
     },
-    {
+    ...(!isOrgUser ? [{
       headerName: "Organisation",
       field: "organisation_name",
       minWidth: 220,
       flex: 2,
       cellStyle: { fontWeight: 700, color: '#0f417a' },
+      hide: !visibleCols.org,
       valueGetter: (params) => params.data?.organisation_name || `Org ID: ${params.data?.organisation_id}`
-    },
+    }] : []),
     {
       headerName: "Financial Year",
       field: "financial_year",
       width: 130,
       minWidth: 110,
+      hide: !visibleCols.financial_year,
       cellStyle: { textAlign: 'center', fontWeight: 600 }
     },
     {
@@ -236,6 +264,7 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       field: "net_profit",
       width: 140,
       minWidth: 120,
+      hide: !visibleCols.net_profit,
       cellStyle: { textAlign: 'right', fontWeight: 600 },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
     },
@@ -244,6 +273,7 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       field: "csr_fund_alloted_year",
       width: 160,
       minWidth: 130,
+      hide: !visibleCols.csr_fund_alloted_year,
       cellStyle: { textAlign: 'right', fontWeight: 800, color: '#0f417a' },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
     },
@@ -252,6 +282,7 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       field: "opening_balance_csr",
       width: 150,
       minWidth: 120,
+      hide: !visibleCols.opening_balance_csr,
       cellStyle: { textAlign: 'right', fontWeight: 600 },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
     },
@@ -260,6 +291,7 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       field: "project_expenditure",
       width: 150,
       minWidth: 120,
+      hide: !visibleCols.project_expenditure,
       cellStyle: { textAlign: 'right', fontWeight: 800, color: '#d97706' },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '0.00'
     },
@@ -268,6 +300,7 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       field: "csr_fund_balance",
       width: 160,
       minWidth: 130,
+      hide: !visibleCols.csr_fund_balance,
       cellStyle: { textAlign: 'right', fontWeight: 800, color: '#059669' },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
     },
@@ -277,6 +310,7 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       width: 100,
       minWidth: 90,
       pinned: 'right',
+      hide: !visibleCols.actions,
       cellRenderer: (params) => {
         const f = params.data;
         if (!f) return null;
@@ -294,19 +328,19 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
         );
       }
     }] : [])
-  ], [currentPage, pageSize, isOrgUser]);
+  ], [currentPage, pageSize, isOrgUser, visibleCols]);
 
   // Export Columns
   const exportColumns = useMemo(() => [
     { key: 'sno', label: 'S.No', render: (_, __, i) => i + 1 },
-    { key: 'organisation_name', label: 'Organisation' },
+    ...(!isOrgUser ? [{ key: 'organisation_name', label: 'Organisation' }] : []),
     { key: 'financial_year', label: 'Financial Year' },
     { key: 'net_profit', label: 'Net Profit (₹ Cr)' },
     { key: 'csr_fund_alloted_year', label: 'CSR Allotted (₹ Cr)' },
     { key: 'opening_balance_csr', label: 'Opening Bal (₹ Cr)' },
     { key: 'project_expenditure', label: 'Expenditure (₹ Cr)' },
     { key: 'csr_fund_balance', label: 'Balance (₹ Cr)' },
-  ], []);
+  ], [isOrgUser]);
 
   return (
     <div className="space-y-4 animate-fade-in text-slate-800 dark:text-slate-100">
@@ -454,6 +488,63 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
 
             <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
               Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{filteredFunds.length}</span>
+            </div>
+
+            {/* Column Visibility Dropdown */}
+            <div className="relative" ref={colDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setColDropdownOpen(!colDropdownOpen)}
+                className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800 shadow-xs"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {colDropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-60 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Toggle Columns</span>
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCols({
+                        sno: true,
+                        org: true,
+                        financial_year: true,
+                        net_profit: true,
+                        csr_fund_alloted_year: true,
+                        opening_balance_csr: true,
+                        project_expenditure: true,
+                        csr_fund_balance: true,
+                        actions: true,
+                      })}
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Show All
+                    </button>
+                  </div>
+                  {[
+                    { key: 'sno', label: 'S.No' },
+                    ...(!isOrgUser ? [{ key: 'org', label: 'Organisation' }] : []),
+                    { key: 'financial_year', label: 'Financial Year' },
+                    { key: 'net_profit', label: 'Net Profit (₹ Cr)' },
+                    { key: 'csr_fund_alloted_year', label: 'CSR Allotted (₹ Cr)' },
+                    { key: 'opening_balance_csr', label: 'Opening Balance (₹ Cr)' },
+                    { key: 'project_expenditure', label: 'Expenditure (₹ Cr)' },
+                    { key: 'csr_fund_balance', label: 'Fund Balance (₹ Cr)' },
+                    { key: 'actions', label: 'Actions' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[key]}
+                        onChange={() => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }))}
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             <CopyButton

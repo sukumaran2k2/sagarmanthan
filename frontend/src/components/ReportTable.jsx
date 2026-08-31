@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ChevronLeft, FileSpreadsheet, Download, Search, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
 import TablePagination from './TablePagination';
@@ -27,6 +27,7 @@ export default function ReportTable({
   toolbarExtra = null,
   filterPanel = null,
   autoHeaderHeight = false,
+  showColumnVisibility = true,
 }) {
   // Detail titles with "|" keep the full string in the eyebrow (legacy Form 8.2).
   // Summary titles use the segment before " - ".
@@ -37,8 +38,54 @@ export default function ReportTable({
       : String(title || '').split(/\s[-–—]\s/)[0] || title || 'Report');
   const gridRef = useRef(null);
   const dropdownRef = useRef(null);
+  const visibilityDropdownRef = useRef(null);
   const [quickFilter, setQuickFilter] = useState('');
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [visibilityDropdownOpen, setVisibilityDropdownOpen] = useState(false);
+  const [hiddenColKeys, setHiddenColKeys] = useState(new Set());
+
+  // Helper to extract leaf columns from columns tree (supporting grouped columns)
+  const leafColumns = useMemo(() => {
+    const extract = (cols) => {
+      const list = [];
+      (cols || []).forEach(col => {
+        if (col.children && Array.isArray(col.children) && col.children.length > 0) {
+          list.push(...extract(col.children));
+        } else {
+          const key = col.colId || col.field || col.headerName;
+          if (key) {
+            list.push({
+              key,
+              label: col.headerName || col.field || key,
+              pinned: col.pinned
+            });
+          }
+        }
+      });
+      return list;
+    };
+    return extract(columns);
+  }, [columns]);
+
+  // Compute effective columns applying hide flag
+  const effectiveColumns = useMemo(() => {
+    const applyVisibility = (cols) => {
+      return (cols || []).map(col => {
+        if (col.children && Array.isArray(col.children) && col.children.length > 0) {
+          return {
+            ...col,
+            children: applyVisibility(col.children)
+          };
+        }
+        const key = col.colId || col.field || col.headerName;
+        return {
+          ...col,
+          hide: hiddenColKeys.has(key)
+        };
+      });
+    };
+    return applyVisibility(columns);
+  }, [columns, hiddenColKeys]);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(0);
@@ -50,6 +97,9 @@ export default function ReportTable({
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setExportDropdownOpen(false);
+      }
+      if (visibilityDropdownRef.current && !visibilityDropdownRef.current.contains(event.target)) {
+        setVisibilityDropdownOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -69,7 +119,7 @@ export default function ReportTable({
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [columns, viewData, title]);
+  }, [effectiveColumns, viewData, title]);
 
   const handlePaginationChanged = (params) => {
     if (params.api) {
@@ -286,6 +336,62 @@ export default function ReportTable({
 
           {toolbarExtra}
 
+          {/* Column Visibility Dropdown */}
+          {showColumnVisibility && leafColumns.length > 0 && (
+            <div ref={visibilityDropdownRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setVisibilityDropdownOpen(!visibilityDropdownOpen)}
+                className={ghostBtnClass}
+              >
+                <span>Visibility</span>
+                <span className="text-[10px]">▾</span>
+              </button>
+
+              {visibilityDropdownOpen && (
+                <div className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-56 max-h-80 overflow-y-auto rounded-[10px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-2 flex flex-col space-y-0.5 animate-fade-in">
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Toggle Columns</span>
+                    <button
+                      type="button"
+                      onClick={() => setHiddenColKeys(new Set())}
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Show All
+                    </button>
+                  </div>
+                  {leafColumns.map(({ key, label }) => {
+                    const isVisible = !hiddenColKeys.has(key);
+                    return (
+                      <label
+                        key={key}
+                        className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isVisible}
+                          onChange={() => {
+                            setHiddenColKeys(prev => {
+                              const next = new Set(prev);
+                              if (next.has(key)) {
+                                next.delete(key);
+                              } else {
+                                next.add(key);
+                              }
+                              return next;
+                            });
+                          }}
+                          className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="truncate max-w-[200px]">{label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <button type="button" onClick={handleCopy} className={ghostBtnClass}>
             <Copy size={15} />
             <span>Copy</span>
@@ -381,7 +487,7 @@ export default function ReportTable({
             theme="legacy"
             rowData={viewData}
             pinnedBottomRowData={pinnedBottomRowData}
-            columnDefs={columns}
+            columnDefs={effectiveColumns}
             defaultColDef={defaultColDef}
             pagination={pagination}
             paginationPageSize={pageSize}

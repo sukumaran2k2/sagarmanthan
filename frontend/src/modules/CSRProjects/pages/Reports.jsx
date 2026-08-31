@@ -452,7 +452,12 @@ export default function Reports({
           wrapText: true,
           autoHeight: true,
           cellClass: 'mopsw-wrap-cell',
-          cellStyle: { fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.35' }
+          cellStyle: { fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.45' },
+          cellRenderer: (params) => (
+            <div className="w-full whitespace-normal break-words leading-relaxed py-1.5 font-semibold text-slate-800 dark:text-slate-100 text-left">
+              {params.value || '-'}
+            </div>
+          )
         },
         {
           headerName: "Project Received From",
@@ -719,7 +724,7 @@ export default function Reports({
         {reportType === 'project-report' ? (
           <div>
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-              Lead Organisation
+              Organization
             </label>
             <select
               value={filterOrg}
