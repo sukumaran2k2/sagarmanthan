@@ -12,7 +12,22 @@ export const MODULE_PAGES = {
   },
 
   CSR_PROJECTS: {
-    tabs: ['CSR Dashboard', 'CSR Fund Details', 'CSR Project List'],
+    tabs: [
+      'CSR Dashboard',
+      'CSR Fund Details',
+      'CSR Project List',
+      'CSR Input Form',
+      'CSR Reports',
+      'CSR Projects',
+    ],
+    uiTabs: [
+      'CSR Dashboard',
+      'CSR Fund Details',
+      'CSR Project List',
+      'CSR Input Form',
+      'CSR Reports',
+      'CSR Projects',
+    ],
   },
 
   CAPEX: {
@@ -73,18 +88,22 @@ export const MODULE_PAGES = {
 
   KPI_DGLL: {
     tabs: ['DGLL Input Form', 'DGLL Reports'],
+    uiTabs: ['DGLL Input Form', 'DGLL Reports'],
   },
 
   KPI_CSL: {
     tabs: ['CSL Input Form', 'CSL Reports'],
+    uiTabs: ['CSL Input Form', 'CSL Reports'],
   },
 
   KPI_IMU: {
     tabs: ['IMU Input Form', 'IMU Reports'],
+    uiTabs: ['IMU Input Form', 'IMU Reports'],
   },
 
   KPI_SCI: {
     tabs: ['SCI Input Form', 'SCI Reports'],
+    uiTabs: ['SCI Input Form', 'SCI Reports'],
   },
 
   KPI_CMEC: {
@@ -296,6 +315,29 @@ export const MODULE_PAGES = {
       'GMIS Data List',
       'GMIS Input Form',
       'GMIS Reports',
+    ],
+  },
+
+  ONE_VISION_ONE_DOCUMENT: {
+    tabs: [
+      'Drishti Portal',
+      'Drishti Portal (OVOD)',
+      'One Vision One Document',
+      'OVOD',
+      'Intervention List',
+      'OVOD Dashboard',
+      'OVOD Input Form',
+      'OVOD Data List',
+      'Data List',
+      'OVOD Reports',
+    ],
+    uiTabs: [
+      'Drishti Portal',
+      'Drishti Portal (OVOD)',
+      'One Vision One Document',
+      'OVOD',
+      'Intervention List',
+      'Data List',
     ],
   },
 

@@ -1,9 +1,24 @@
 import { useState, useMemo } from 'react';
 import { Scale } from 'lucide-react';
 import PageBanner from '../../components/PageBanner';
+import CopyButton from '../../components/CopyButton';
+import ExportDropdown from '../../components/ExportDropdown';
 import { ACTS_AND_RULES, WINGS } from './actsAndRulesData';
 
 const FILTERS = ['All', ...WINGS];
+
+// Flattens each entry's rules into a single plain-text cell so the table's
+// nested act/rule structure can be represented as flat TSV/CSV rows for
+// Copy and Excel export, matching how every other reworked module's
+// toolbar behaves.
+function ruleTextFor(entry) {
+  if (entry.ruleGroups) {
+    return entry.ruleGroups
+      .map((g) => `${g.heading}: ${g.rules.join('; ')}`)
+      .join(' | ');
+  }
+  return entry.rules.length ? entry.rules.join('; ') : '—';
+}
 
 function RuleList({ entry }) {
   if (entry.ruleGroups) {
@@ -32,24 +47,70 @@ export default function ActsAndRules() {
     [activeFilter]
   );
 
+  // Each row can have multiple Act/Rule entries stacked in one cell, so
+  // flatten to one output line per entry rather than per row for a cleaner
+  // Copy/Excel export.
+  const flatRows = useMemo(() => rows.flatMap((row) =>
+    row.entries.map((entry) => ({
+      sno: row.sno,
+      wing: row.wing,
+      act: entry.act,
+      rule: ruleTextFor(entry),
+    }))
+  ), [rows]);
+
+  const handleCopy = () => {
+    let tsv = ['S.No', 'Wing', 'Act', 'Rule'].join('\t') + '\n';
+    flatRows.forEach((r) => {
+      tsv += [r.sno, r.wing, r.act, r.rule].join('\t') + '\n';
+    });
+    navigator.clipboard.writeText(tsv);
+  };
+
+  const handleExport = (type) => {
+    if (type === 'Excel') {
+      const escapeCsv = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+      let csv = ['S.No', 'Wing', 'Act', 'Rule'].map(escapeCsv).join(',') + '\n';
+      flatRows.forEach((r) => {
+        csv += [r.sno, r.wing, r.act, r.rule].map(escapeCsv).join(',') + '\n';
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'acts_and_rules.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    } else if (type === 'PDF') {
+      window.print();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageBanner title="Acts & Rules" icon={Scale} />
 
-      <div className="flex flex-wrap gap-2">
-        {FILTERS.map((filter) => (
-          <button
-            key={filter}
-            onClick={() => setActiveFilter(filter)}
-            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition border ${
-              activeFilter === filter
-                ? 'bg-emerald-600 text-white border-emerald-600'
-                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            {filter}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {FILTERS.map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setActiveFilter(filter)}
+              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition border ${
+                activeFilter === filter
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <CopyButton onCopy={handleCopy} color="#0f417a" />
+          <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#0f417a" hoverColor="#1a5ba3" />
+        </div>
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-x-auto">

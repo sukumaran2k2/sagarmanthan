@@ -25,10 +25,26 @@ export const ROUTE_MAP = {
   'projects-dropRequests': 'projects/project/view-drop-request',
   'projects-reports': 'projects/project/reports',
 
+  // CSR Projects nested routes
+  'CSR Dashboard': 'projects/csr-projects/dashboard',
+  'CSR Fund Details': 'projects/csr-projects/fund-details',
+  'CSR Project List': 'projects/csr-projects/project-list',
+  'CSR Input Form': 'projects/csr-projects/input-form',
+  'CSR Reports': 'projects/csr-projects/reports',
+  'CSR Projects': 'projects/csr-projects/dashboard',
+
   // KPI nested routes
   'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
   'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
+  'DGLL Input Form': 'kpi/dgll',
+  'DGLL Reports': 'kpi/dgll',
+  'CSL Input Form': 'kpi/csl',
+  'CSL Reports': 'kpi/csl',
+  'IMU Input Form': 'kpi/imu',
+  'IMU Reports': 'kpi/imu',
+  'SCI Input Form': 'kpi/sci',
+  'SCI Reports': 'kpi/sci',
 
   // Governance nested routes
   'E Office': 'governance/e-office',
@@ -70,6 +86,11 @@ export const ROUTE_MAP = {
   'GMIS Data List': 'strategies/gmis-mou/data-list',
   'GMIS Input Form': 'strategies/gmis-mou/input-form',
   'GMIS Reports': 'strategies/gmis-mou/reports',
+  'Drishti Portal': 'strategies/drishti-portal/dashboard',
+  'Drishti Portal (OVOD)': 'strategies/drishti-portal/dashboard',
+  'One Vision One Document': 'strategies/drishti-portal/dashboard',
+  'OVOD': 'strategies/drishti-portal/dashboard',
+  'Intervention List': 'strategies/drishti-portal/intervention-list',
   'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
   'Blue Economy Policy': 'strategies/blue-economy-policy',
@@ -126,6 +147,15 @@ export const ROUTE_MAP = {
   'Consultant Data List': 'hr/consultant-appointment/data-list',
   'Consultant Reports': 'hr/consultant-appointment/reports',
 
+  // CSR Projects routes
+  'CSR Project': 'projects/csr-projects/dashboard',
+  'CSR Projects': 'projects/csr-projects/dashboard',
+  'CSR Dashboard': 'projects/csr-projects/dashboard',
+  'CSR Fund Details': 'projects/csr-projects/fund-details',
+  'CSR Project List': 'projects/csr-projects/project-list',
+  'CSR Input Form': 'projects/csr-projects/input-form',
+  'CSR Reports': 'projects/csr-projects/reports',
+
   // Finance / Capex routes
   'Capex': 'finance/capex/dashboard',
   'Capex Dashboard': 'finance/capex/dashboard',
@@ -139,16 +169,23 @@ export const getTabFromSlug = (slug) => {
   const cleanSlug = decodeURIComponent(slug).replace(/^\//, '').replace(/\/$/, '');
   if (!cleanSlug || cleanSlug === 'landing') return 'landing';
   
+  if (cleanSlug.startsWith('projects/csr-projects') || cleanSlug.startsWith('projects/csr-project')) return 'CSR Projects';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
+  if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
   if (cleanSlug.startsWith('governance/audit-paras')) return 'Audit Paras';
   if (cleanSlug.startsWith('governance/cabinet-notes-other-ministry')) return 'Cabinet Notes - Other Ministries';
   if (cleanSlug.startsWith('governance/cabinet-notes')) return 'Cabinet Notes - MoPSW';
   if (cleanSlug.startsWith('governance/parliamentary-issue')) return 'Parliamentary Issues';
+  if (cleanSlug.startsWith('kpi/major-ports')) return 'Major Ports Dashboard';
+  if (cleanSlug.startsWith('kpi/dgll')) return 'DGLL Input Form';
+  if (cleanSlug.startsWith('kpi/csl')) return 'CSL Input Form';
+  if (cleanSlug.startsWith('kpi/imu')) return 'IMU Input Form';
+  if (cleanSlug.startsWith('kpi/sci')) return 'SCI Input Form';
   if (cleanSlug.startsWith('governance/media-outreach')) return 'Media Outreach';
 
   // Exact match
@@ -236,6 +273,9 @@ const getBreadcrumbs = (tab) => {
 
   const gmisItems = ['GMIS & IMW MoUs', 'GMIS-MoU', 'GMIS Dashboard', 'GMIS Data List', 'GMIS Input Form', 'GMIS Reports'];
   if (gmisItems.includes(tab)) return ['Home', 'Long Term Strategies', 'GMIS & IMW MoUs', tab === 'GMIS & IMW MoUs' ? 'Dashboard' : tab];
+
+  const ovodItems = ['Drishti Portal', 'Drishti Portal (OVOD)', 'One Vision One Document', 'Intervention List'];
+  if (ovodItems.includes(tab)) return ['Home', 'Long Term Strategies', 'Drishti Portal (Ministry View)', tab === 'Drishti Portal' ? 'Dashboard' : tab];
 
   const visionItems = ['Vision 2047', 'Maritime India Summit', 'Blue Economy Policy'];
   if (visionItems.includes(tab)) return ['Home', 'Long Term Strategies', tab];

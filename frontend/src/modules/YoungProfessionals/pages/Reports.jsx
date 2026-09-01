@@ -805,8 +805,10 @@ export default function Reports({ triggerNotification }) {
         .yp-pro-grid .ag-cell {
           display: flex;
           align-items: center;
-          padding-left: 14px !important;
-          padding-right: 14px !important;
+          padding-left: 12px !important;
+          padding-right: 12px !important;
+          padding-top: 2px !important;
+          padding-bottom: 2px !important;
           border-right: 1px solid #D3D6D9 !important;
         }
 
@@ -817,8 +819,8 @@ export default function Reports({ triggerNotification }) {
           display: block !important;
           height: auto !important;
           min-height: 100% !important;
-          padding-top: 8px !important;
-          padding-bottom: 8px !important;
+          padding-top: 4px !important;
+          padding-bottom: 4px !important;
         }
         .yp-pro-grid .ag-cell-wrap-text .ag-cell-value,
         .yp-pro-grid .ag-cell-wrap-text .ag-cell-wrapper {
@@ -837,8 +839,8 @@ export default function Reports({ triggerNotification }) {
           display: block !important;
           height: auto !important;
           min-height: 100% !important;
-          padding-top: 8px !important;
-          padding-bottom: 8px !important;
+          padding-top: 4px !important;
+          padding-bottom: 4px !important;
           overflow: visible !important;
           text-overflow: clip !important;
         }

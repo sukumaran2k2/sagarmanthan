@@ -25,6 +25,7 @@ export default function ReportTable({
   totalLabel = 'Total',
   pinnedBottomRowData = undefined,
   toolbarExtra = null,
+  filterPanel = null,
   autoHeaderHeight = false,
 }) {
   // Detail titles with "|" keep the full string in the eyebrow (legacy Form 8.2).
@@ -54,6 +55,21 @@ export default function ReportTable({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Ensure full width auto-fit whenever columns, data, or drilldown view changes
+  useEffect(() => {
+    if (gridRef.current?.api) {
+      const timer = setTimeout(() => {
+        try {
+          gridRef.current.api.sizeColumnsToFit();
+          requestAnimationFrame(() => {
+            if (gridRef.current?.api) gridRef.current.api.resetRowHeights();
+          });
+        } catch (_) {}
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [columns, viewData, title]);
 
   const handlePaginationChanged = (params) => {
     if (params.api) {
@@ -322,6 +338,12 @@ export default function ReportTable({
         </div>
       </div>
 
+      {filterPanel && (
+        <div className="border-b border-slate-200 dark:border-slate-800 p-4 bg-slate-50/80 dark:bg-slate-900/60 animate-fade-in">
+          {filterPanel}
+        </div>
+      )}
+
       <div className={`relative ${loading ? 'min-h-[260px]' : ''}`}>
         {loading && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 space-y-4 bg-white/85 dark:bg-slate-900/85 backdrop-blur-[3px] animate-fade-in">
@@ -374,11 +396,21 @@ export default function ReportTable({
             onGridReady={(params) => {
               if (gridRef.current) gridRef.current.api = params.api;
               params.api.sizeColumnsToFit();
+              requestAnimationFrame(() => params.api.resetRowHeights());
+            }}
+            onFirstDataRendered={(params) => {
+              params.api.sizeColumnsToFit();
+              requestAnimationFrame(() => params.api.resetRowHeights());
+            }}
+            onGridSizeChanged={(params) => {
+              params.api.sizeColumnsToFit();
+            }}
+            onDisplayedColumnsChanged={(params) => {
+              params.api.sizeColumnsToFit();
             }}
             autoSizeStrategy={{
-              type: 'fitCellContents',
-              skipHeader: false,
-              scaleUpToFitGridWidth: true
+              type: 'fitGridWidth',
+              defaultMinWidth: 80
             }}
           />
         </div>
@@ -401,10 +433,11 @@ export default function ReportTable({
         __html: `
         .${themeClass}.ag-theme-quartz {
           --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
-          --ag-font-size: 13.5px;
+          --ag-font-size: 13px;
           --ag-border-color: #cbd5e1;
           --ag-row-border-color: #e2e8f0;
-          --ag-row-height: 52px;
+          --ag-row-height: 40px;
+          --ag-cell-horizontal-padding: 12px;
           --ag-active-color: var(--theme-primary-color);
           --ag-checkbox-checked-color: var(--theme-primary-color);
           --ag-input-focus-border-color: var(--theme-primary-color);
@@ -413,7 +446,7 @@ export default function ReportTable({
           --ag-control-panel-background-color: var(--theme-primary-color);
           --ag-side-button-background-color: var(--theme-primary-color);
           --ag-side-bar-panel-background-color: var(--theme-primary-color);
-          font-size: 13.5px;
+          font-size: 13px;
         }
 
         .${themeClass} .ag-side-bar,
@@ -456,41 +489,51 @@ export default function ReportTable({
         }
 
         .${themeClass} .ag-header {
-          background: var(--theme-primary-color) !important;
-          border-bottom: 2px solid var(--theme-primary-hover) !important;
+          background-color: var(--theme-primary-color) !important;
+          border-bottom: 2px solid rgba(0,0,0,0.08) !important;
         }
         .${themeClass} .ag-header-row {
-          background: transparent !important;
+          color: #ffffff !important;
+          font-weight: 800 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.5px !important;
+          font-size: 11.5px !important;
         }
         .${themeClass} .ag-header-cell {
-          color: #ffffff !important;
-          font-weight: 600 !important;
-          font-size: 11px !important;
-          text-transform: uppercase !important;
-          letter-spacing: 0.05em !important;
-          border-right: 1px solid var(--theme-primary-color) !important;
-          transition: background 0.15s !important;
-          padding-left: 14px !important;
-          padding-right: 14px !important;
+          border-right: 1px solid rgba(255,255,255,0.18) !important;
+          padding-left: 12px !important;
+          padding-right: 12px !important;
         }
-        .${themeClass} .ag-header-cell-label {
+        .${themeClass} .ag-header-cell:last-child {
+          border-right: none !important;
+        }
+        .${themeClass} .ag-header-cell-text {
+          color: #ffffff !important;
+          font-weight: 800 !important;
+          white-space: normal !important;
+          text-align: center !important;
+          line-height: 1.25 !important;
+        }
+        .${themeClass} .ag-header-cell .ag-header-cell-label {
           justify-content: center !important;
           text-align: center !important;
-          width: 100% !important;
         }
-        .${themeClass} .ag-header-cell:hover {
-          background: var(--theme-primary-hover) !important;
-        }
-        .${themeClass} .ag-header-cell-label .ag-header-cell-text {
+        .${themeClass} .ag-header-group-cell {
+          background-color: var(--theme-primary-color) !important;
           color: #ffffff !important;
+          font-weight: 800 !important;
+          border-right: 1px solid rgba(255,255,255,0.18) !important;
+          border-bottom: 1px solid rgba(255,255,255,0.18) !important;
+          text-align: center !important;
+          justify-content: center !important;
         }
-        .${themeClass} .ag-header-cell-wrap-text .ag-header-cell-text {
-          white-space: normal !important;
-          line-height: 1.25;
-          text-align: center;
-        }
-        .${themeClass} .ag-header-cell .ag-icon {
-          color: rgba(255, 255, 255, 0.7) !important;
+        .${themeClass} .ag-header-group-cell-label {
+          justify-content: center !important;
+          text-align: center !important;
+          color: #ffffff !important;
+          font-weight: 800 !important;
+          text-transform: uppercase !important;
+          font-size: 12px !important;
         }
         .${themeClass} .ag-header-cell .ag-sort-indicator-icon .ag-icon {
           color: #ffffff !important;
@@ -513,8 +556,10 @@ export default function ReportTable({
         .${themeClass} .ag-cell {
           display: flex;
           align-items: center;
-          padding-left: 14px !important;
-          padding-right: 14px !important;
+          padding-left: 12px !important;
+          padding-right: 12px !important;
+          padding-top: 2px !important;
+          padding-bottom: 2px !important;
           border-right: 1px solid #e2e8f0 !important;
         }
         .${themeClass} .ag-cell-wrap-text,
@@ -525,8 +570,8 @@ export default function ReportTable({
           display: block !important;
           height: auto !important;
           min-height: 100% !important;
-          padding-top: 8px !important;
-          padding-bottom: 8px !important;
+          padding-top: 4px !important;
+          padding-bottom: 4px !important;
           overflow: visible !important;
           text-overflow: clip !important;
         }
@@ -617,6 +662,30 @@ export default function ReportTable({
         .${themeClass} .ag-floating-bottom .ag-cell {
           font-weight: 800 !important;
           color: var(--theme-primary-color) !important;
+        }
+        .${themeClass} .ag-floating-bottom .ag-cell.text-center {
+          text-align: center !important;
+          justify-content: center !important;
+          display: flex !important;
+          align-items: center !important;
+        }
+
+        /* ── CENTER ALIGNMENT RULES FOR ALL NUMBERS ── */
+        .${themeClass} .ag-cell.text-center,
+        .${themeClass} .ag-cell-value.text-center,
+        .${themeClass} .text-center {
+          text-align: center !important;
+          justify-content: center !important;
+          display: flex !important;
+          align-items: center !important;
+        }
+        .${themeClass} .ag-header-cell.text-center .ag-header-cell-label,
+        .${themeClass} .ag-header-group-cell.text-center .ag-header-group-cell-label,
+        .${themeClass} .headercenter .ag-header-cell-label,
+        .${themeClass} .headercenter .ag-header-group-cell-label,
+        .${themeClass} .text-center .ag-header-cell-label {
+          justify-content: center !important;
+          text-align: center !important;
         }
 
         /* ── NO-DATA OVERLAY ── */

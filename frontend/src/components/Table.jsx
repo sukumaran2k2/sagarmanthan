@@ -15,6 +15,8 @@ const Table = forwardRef(({
   paginationPageSize = 10,
   enableExport = false,
   exportFileName = 'export',
+  exportLabel = 'Export CSV',
+  exportColor,
   defaultColDef = {},
   autoSizeStrategy,
   onGridSizeChanged,
@@ -47,13 +49,28 @@ const Table = forwardRef(({
     }
   };
 
+
   const handleGridSizeChanged = (params) => {
+    if (params?.api) {
+      try {
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
+    }
     if (onGridSizeChanged) {
       onGridSizeChanged(params);
     }
   };
 
   const handleFirstDataRendered = (params) => {
+    if (params?.api) {
+      try {
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
+    }
     if (onFirstDataRendered) {
       onFirstDataRendered(params);
     }
@@ -66,6 +83,11 @@ const Table = forwardRef(({
       setTotalPages(params.api.paginationGetTotalPages());
       setTotalRows(params.api.paginationGetRowCount());
       setPageSize(params.api.paginationGetPageSize());
+      try {
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onGridReady) {
       onGridReady(params);
@@ -127,6 +149,20 @@ const Table = forwardRef(({
     return columnDefs.map(processCol);
   }, [columnDefs]);
 
+  useEffect(() => {
+    const api = gridApi || activeRef.current?.api;
+    if (api) {
+      const timer = setTimeout(() => {
+        try {
+          api.sizeColumnsToFit();
+        } catch {
+          // ignore
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [processedColumnDefs, rowData, gridApi]);
+
   const activeAutoSizeStrategy = autoSizeStrategy !== undefined ? autoSizeStrategy : {
     type: 'fitGridWidth',
     defaultMinWidth: 100
@@ -135,7 +171,7 @@ const Table = forwardRef(({
   const colorClass = `custom-table-container-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
 
   return (
-    <div className="space-y-4 w-full relative">
+    <div className="space-y-2 w-full relative">
       <style>{`
         .${colorClass} .ag-header,
         .${colorClass} .ag-header-row,
@@ -187,10 +223,13 @@ const Table = forwardRef(({
         <div className="flex justify-end">
           <button
             onClick={onBtnExport}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-white font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+            style={exportColor ? { backgroundColor: exportColor } : undefined}
+            onMouseEnter={(e) => { if (exportColor) e.currentTarget.style.opacity = '0.9'; }}
+            onMouseLeave={(e) => { if (exportColor) e.currentTarget.style.opacity = '1'; }}
           >
             <FileSpreadsheet className="h-4 w-4" />
-            <span>Export CSV</span>
+            <span>{exportLabel}</span>
           </button>
         </div>
       )}

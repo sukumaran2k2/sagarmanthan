@@ -36,8 +36,6 @@ async function getCategoryReport(req, res) {
     } catch (err) {
       console.error(err.message);
       res.status(500).send('Internal Server Error');
-    } finally {
-      await sql.close();
     }
     
 }
@@ -80,8 +78,6 @@ async function getProgressReport(req, res) {
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Internal Server Error');
-  } finally {
-    await sql.close();
   }
   
 }
@@ -127,8 +123,6 @@ async function getPH3Report(req, res) {
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Internal Server Error');
-  } finally {
-    await sql.close();
   }
   
 }
@@ -174,8 +168,6 @@ async function getAgeReport(req, res) {
     } catch (err) {
       console.error(err.message);
       res.status(500).send('Internal Server Error');
-    } finally {
-      await sql.close();
     }
     
 }
@@ -344,8 +336,6 @@ async function getCPGRAMAgeHistory(req, res) {
           } catch (err) {
             console.error(err.message);
             res.status(500).send('Internal Server Error');
-          } finally {
-            await sql.close();
           }
       
     }
@@ -398,8 +388,6 @@ async function getCPGRAMAgeHistory(req, res) {
       } catch (err) {
         console.error(err.message);
         res.status(500).send('Internal Server Error');
-      } finally {
-        await sql.close();
       }
 
     }
@@ -455,8 +443,6 @@ async function getCPGRAMAgeHistory(req, res) {
       } catch (err) {
         console.error(err.message);
         res.status(500).send('Internal Server Error');
-      } finally {
-        await sql.close();
       }
     }
 
@@ -510,8 +496,6 @@ async function getCPGRAMAgeHistory(req, res) {
       } catch (err) {
         console.error(err.message);
         res.status(500).send('Internal Server Error');
-      } finally {
-        await sql.close();
       }
       
     }

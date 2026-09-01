@@ -1,19 +1,30 @@
-import React, { useState, useMemo } from "react";
-import { Search, Plus, Info, Filter, ChevronDown } from "lucide-react";
-import Table from "../../../components/Table";
-import CopyButton from "../../../components/CopyButton";
-import ExportDropdown from "../../../components/ExportDropdown";
+import React, { useState } from 'react';
+import { Search, Info, Filter, ChevronDown } from 'lucide-react';
+import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
+import CopyButton from '../../../components/CopyButton';
+import ExportDropdown from '../../../components/ExportDropdown';
+
+const FY_OPTIONS = [
+  '2026-2027',
+  '2025-2026',
+  '2024-2025',
+  '2023-2024',
+  '2022-2023',
+];
 
 export default function CapexDataListView({
   searchTerm,
   setSearchTerm,
-  pageSize,
+  page = 1,
+  pageSize = 10,
   setPageSize,
-  filteredData,
+  onPageChange,
+  onPageSizeChange,
+  pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
+  rowData = [],
   colDefs,
-  pinnedBottomRowData,
   loading,
-  onOpenAddModal,
   handleCopyData,
   handleExportExcel,
   handleExportPdf,
@@ -22,26 +33,25 @@ export default function CapexDataListView({
   setFilterYear,
   filterOrg,
   setFilterOrg,
-  viewMode = "ministry",
+  viewMode = 'ministry',
 }) {
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
 
+  const handleRowsChange = (n) => {
+    if (typeof onPageSizeChange === 'function') onPageSizeChange(n);
+    else setPageSize?.(n);
+  };
+
+  const selectedOrgLabel = (() => {
+    if (!filterOrg) return 'Port / Organisation Scoped View';
+    const found = organisations.find(
+      (o) => String(o.organisation_id || o.id) === String(filterOrg)
+    );
+    return found?.organisation_name || found?.name || filterOrg;
+  })();
+
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Top Bar: Add Data Button (Only visible for Ministry View) */}
-      {viewMode !== "org" && (
-        <div className="flex justify-end">
-          <button
-            onClick={onOpenAddModal}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center space-x-2 cursor-pointer"
-          >
-            <Plus size={15} />
-            <span>Add Data</span>
-          </button>
-        </div>
-      )}
-
-      {/* Collapsible Filter Panel */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
         <div
           onClick={() => setIsFilterCollapsed(!isFilterCollapsed)}
@@ -62,7 +72,7 @@ export default function CapexDataListView({
           <ChevronDown
             size={18}
             className={`text-slate-600 transition-transform duration-300 ${
-              isFilterCollapsed ? "-rotate-90" : "rotate-0"
+              isFilterCollapsed ? '-rotate-90' : 'rotate-0'
             }`}
           />
         </div>
@@ -70,7 +80,6 @@ export default function CapexDataListView({
         {!isFilterCollapsed && (
           <div className="p-4 border-t border-slate-200 space-y-3 animate-fade-in">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Financial Year Filter */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Financial Year
@@ -81,16 +90,15 @@ export default function CapexDataListView({
                   className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 cursor-pointer"
                 >
                   <option value="">Show All</option>
-                  <option value="2026-2027">2026-2027</option>
-                  <option value="2025-2026">2025-2026</option>
-                  <option value="2024-2025">2024-2025</option>
-                  <option value="2023-2024">2023-2024</option>
-                  <option value="2022-2023">2022-2023</option>
+                  {FY_OPTIONS.map((fy) => (
+                    <option key={fy} value={fy}>
+                      {fy}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* Organisation Filter (Visible for Ministry View or pre-selected) */}
-              {viewMode !== "org" ? (
+              {viewMode !== 'org' ? (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Organisation
@@ -102,7 +110,10 @@ export default function CapexDataListView({
                   >
                     <option value="">Show All</option>
                     {organisations.map((org) => (
-                      <option key={org.organisation_id || org.id} value={org.organisation_name || org.name}>
+                      <option
+                        key={org.organisation_id || org.id}
+                        value={String(org.organisation_id || org.id)}
+                      >
                         {org.organisation_name || org.name}
                       </option>
                     ))}
@@ -114,26 +125,31 @@ export default function CapexDataListView({
                     Organisation View Mode
                   </label>
                   <div className="w-full text-xs px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl font-bold text-slate-700">
-                    {filterOrg || "Port / Organisation Scoped View"}
+                    {selectedOrgLabel}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Note underneath filters */}
             <div className="text-xs text-slate-600 font-semibold italic flex items-center space-x-1.5 pt-1">
               <Info size={14} className="text-blue-600 flex-shrink-0" />
-              <span>Note : The planned/Target values are entered by the MoPSW Admin team.</span>
+              <span>
+                Note : The planned/Target values are entered by the MoPSW Admin team.
+              </span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Action Toolbar Header with CopyButton and ExportDropdown */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
         <div className="flex items-center space-x-3">
           <CopyButton onCopy={handleCopyData} color="#0f417a" />
-          <ExportDropdown onExportExcel={handleExportExcel} onExportPdf={handleExportPdf} color="#0f417a" hoverColor="#0b3260" />
+          <ExportDropdown
+            onExportExcel={handleExportExcel}
+            onExportPdf={handleExportPdf}
+            color="#0f417a"
+            hoverColor="#0b3260"
+          />
         </div>
 
         <div className="flex items-center space-x-3">
@@ -141,7 +157,7 @@ export default function CapexDataListView({
             <span>Show</span>
             <select
               value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
+              onChange={(e) => handleRowsChange(Number(e.target.value))}
               className="bg-transparent font-extrabold text-[#0f417a] focus:outline-none cursor-pointer"
             >
               <option value={10}>10</option>
@@ -165,17 +181,24 @@ export default function CapexDataListView({
         </div>
       </div>
 
-      {/* Main AG Grid Data Table */}
-      <div className="relative min-h-[380px] capex-grid">
+      <div className="relative min-h-[380px] capex-grid border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
         <Table
-          rowData={filteredData}
+          rowData={rowData}
           columnDefs={colDefs}
-          pinnedBottomRowData={pinnedBottomRowData}
-          pagination={true}
-          paginationPageSize={pageSize}
+          pagination={false}
           loading={loading}
-          color="#28408f"
+          color="#0f417a"
         />
+        {pagination.totalPages > 0 && (
+          <TablePagination
+            currentPage={Math.max(0, page - 1)}
+            totalPages={pagination.totalPages}
+            totalRows={pagination.total}
+            pageSize={pageSize}
+            onPageChange={(pageIndex) => onPageChange?.(pageIndex + 1)}
+            color="#0f417a"
+          />
+        )}
       </div>
     </div>
   );

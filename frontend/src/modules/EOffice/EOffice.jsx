@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
-import { Download, Trash2, FileSpreadsheet } from "lucide-react";
+import { Download, Trash2, FileSpreadsheet, AlertCircle } from "lucide-react";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
@@ -17,13 +17,14 @@ import EOfficeFilesHistoryView from "./components/EOfficeFilesHistoryView";
 import {
 formatTimeStr,
   validateEOfficeHeaders,
+  validateEOfficeRows,
   getKpiPrefix,
   getReportTitle,
 } from "./utils/eOfficeUtils";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-export default function EOfficeView({ initialKpi }) {
+export default function EOfficeView({ initialKpi, triggerNotification }) {
   const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
     const kpiParam = params.get("kpi") || params.get("category");
@@ -64,7 +65,7 @@ export default function EOfficeView({ initialKpi }) {
   const [year, setYear] = useState("2026");
   const [week, setWeek] = useState("Week 3");
   const [searchTerm, setSearchTerm] = useState("");
-  const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
+  const [isFilterCollapsed, setIsFilterCollapsed] = useState(true);
   const [pageSize, setPageSize] = useState(10);
 
   // Drill Down Detailed Report States
@@ -112,18 +113,36 @@ export default function EOfficeView({ initialKpi }) {
   // In-memory data cache
   const dataCache = useRef({});
 
-  // Toast notification state
-  const [toastMsg, setToastMsg] = useState("");
-  const [toastColor, setToastColor] = useState("#3B82F6");
-  const [toastVisible, setToastVisible] = useState(false);
-
+    // Routes through the app-wide Notification system (App.jsx's
+  // triggerNotification) instead of a separate local toast -- this module
+  // previously had its own solid-color pill toast because EOfficeView was
+  // never passed triggerNotification as a prop, unlike every other module.
+  // Keeping the showToast(msg, color) call signature here means none of the
+  // ~22 existing call sites below need to change.
+  const TOAST_COLOR_TYPE = {
+    '#10B981': 'success',
+    '#EF4444': 'error',
+    '#F59E0B': 'warning',
+  };
   const showToast = (msg, color = "#3B82F6") => {
-    setToastMsg(msg);
-    setToastColor(color);
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 3500);
+    const type = TOAST_COLOR_TYPE[color] || 'success';
+    // The old pill toast needed a leading emoji for visual context; the
+    // shared Notification component already conveys that via its icon, so
+    // strip it to match how the rest of the app calls triggerNotification.
+    const cleanMsg = msg.replace(/^(⚠️?|❌|✅|🗑️?|📈|📄|📋)\s*/u, '');
+    if (triggerNotification) {
+      triggerNotification(cleanMsg, type);
+    }
   };
 
+  // Styled confirm modal, replacing window.confirm() for the upload-replace
+  // and delete-file prompts so they match the app's visual language instead
+  // of the browser's native dialog.
+  const [confirmModal, setConfirmModal] = useState({ open: false, message: '', onConfirm: null });
+  const askConfirm = (message, onConfirm) => {
+    setConfirmModal({ open: true, message, onConfirm });
+  };
+  const closeConfirm = () => setConfirmModal({ open: false, message: '', onConfirm: null });
   // Per-category upload states map so each category (File Pendency, Receipt Pendency, File Disposal) preserves its own uploaded file preview & form selections when switching tabs
   const [categoryUploadStates, setCategoryUploadStates] = useState({
     "file-pendency": {
@@ -593,10 +612,12 @@ export default function EOfficeView({ initialKpi }) {
 
         const headerCheck = validateEOfficeHeaders(rows[0], activeKpi);
         if (!headerCheck.valid) {
-          const errText = `Invalid Template Header! Missing required column(s): ${headerCheck.missing.join(", ")}. Please use official E-Office Sample Template format.`;
           updateActiveUploadState({
             previewRows: [],
-            fileValidationError: errText,
+            fileValidationError: headerCheck.missing.map((field) => ({
+              field,
+              message: "Required column not found in the uploaded file. Please use the official E-Office Sample Template format.",
+            })),
           });
           showToast(`❌ Template Validation Failed: Missing ${headerCheck.missing.join(", ")}`, "#EF4444");
           return;
@@ -610,6 +631,17 @@ export default function EOfficeView({ initialKpi }) {
               (val) => val !== null && val !== undefined && String(val).trim() !== "",
             ),
         );
+
+        const rowIssues = validateEOfficeRows(validRows, activeKpi);
+        if (rowIssues.length > 0) {
+          updateActiveUploadState({
+            previewRows: [],
+            fileValidationError: rowIssues,
+          });
+          showToast(`❌ ${rowIssues.length} validation issue${rowIssues.length > 1 ? "s" : ""} found in file`, "#EF4444");
+          return;
+        }
+
         updateActiveUploadState({
           previewRows: validRows,
           fileValidationError: "",
@@ -627,31 +659,21 @@ export default function EOfficeView({ initialKpi }) {
     reader.readAsArrayBuffer(file);
   };
 
-  const handleUploadSubmit = (e) => {
-    e.preventDefault();
-    const { uploadFinancialYear, uploadMonth, uploadWeek, selectedFile, fileValidationError } = activeUploadState;
-    if (!uploadFinancialYear) { showToast("⚠ Please select Financial Year", "#F59E0B"); return; }
-    if (!uploadMonth) { showToast("⚠ Please select Month", "#F59E0B"); return; }
-    if (!uploadWeek) { showToast("⚠ Please select Week", "#F59E0B"); return; }
-    if (!selectedFile) { showToast("⚠ Please select an Excel file", "#F59E0B"); return; }
-    if (fileValidationError) { showToast(`❌ Cannot upload: ${fileValidationError}`, "#EF4444"); return; }
+    const executeEOfficeUpload = (prefix, formData, existingFileId, uploadMonth, uploadWeek) => {
+    const uploadRequest = existingFileId
+      ? (() => {
+          formData.append("fileId", existingFileId);
+          return axios.put(`${API_BASE_URL}/${prefix}-update`, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        })()
+      : axios.post(`${API_BASE_URL}/${prefix}-create`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
 
-    setUploading(true);
-    const prefix = getKpiPrefix(activeKpi);
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-    formData.append("Year", uploadFinancialYear);
-    formData.append("financialYear", uploadFinancialYear);
-    formData.append("month", uploadMonth);
-    formData.append("week", uploadWeek);
-    formData.append("userID", 1);
-
-    axios
-      .post(`${API_BASE_URL}/${prefix}-create`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
+    uploadRequest
       .then(() => {
-        showToast("✅ E-Office sheet uploaded and stored successfully", "#10B981");
+        showToast(existingFileId ? "✅ E-Office sheet updated successfully" : "✅ E-Office sheet uploaded and stored successfully", "#10B981");
         updateActiveUploadState({
           selectedFile: null,
           previewRows: [],
@@ -669,6 +691,78 @@ export default function EOfficeView({ initialKpi }) {
         showToast(err.response?.data?.error || "❌ File upload failed. Check spreadsheet format.", "#EF4444");
       })
       .finally(() => setUploading(false));
+  };
+
+  const handleUploadSubmit = (e) => {
+    e.preventDefault();
+    const { uploadFinancialYear, uploadMonth, uploadWeek, selectedFile, fileValidationError } = activeUploadState;
+    if (!uploadFinancialYear) { showToast("⚠ Please select Financial Year", "#F59E0B"); return; }
+    if (!uploadMonth) { showToast("⚠ Please select Month", "#F59E0B"); return; }
+    if (!uploadWeek) { showToast("⚠ Please select Week", "#F59E0B"); return; }
+    if (!selectedFile) { showToast("⚠ Please select an Excel file", "#F59E0B"); return; }
+    if (fileValidationError) {
+      const errMsg = Array.isArray(fileValidationError)
+        ? `${fileValidationError.length} validation issue${fileValidationError.length > 1 ? "s" : ""} in file`
+        : fileValidationError;
+      showToast(`❌ Cannot upload: ${errMsg}`, "#EF4444");
+      return;
+    }
+
+    const prefix = getKpiPrefix(activeKpi);
+    const buildFormData = () => {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("Year", uploadFinancialYear);
+      formData.append("financialYear", uploadFinancialYear);
+      formData.append("month", uploadMonth);
+      formData.append("week", uploadWeek);
+      formData.append("userID", 1);
+      return formData;
+    };
+
+    setUploading(true);
+
+    // Probe with a create attempt first. The backend returns 409 with a
+    // replaceFileID when a record already exists for this exact
+    // Year/Month/Week -- previously that error message was shown as a
+    // plain toast with no way to actually act on it, so duplicate uploads
+    // had no real path to succeed.
+    axios
+      .post(`${API_BASE_URL}/${prefix}-create`, buildFormData(), {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then(() => {
+        showToast("✅ E-Office sheet uploaded and stored successfully", "#10B981");
+        updateActiveUploadState({
+          selectedFile: null,
+          previewRows: [],
+          fileValidationError: "",
+          uploadFinancialYear: "",
+          uploadMonth: "",
+          uploadWeek: "",
+        });
+        dataCache.current = {};
+        fetchEOfficeData(activeKpi, uploadMonth, year, uploadWeek, true);
+        setSubTab("files");
+        setUploading(false);
+      })
+      .catch((err) => {
+        const replaceFileID = err.response?.data?.replaceFileID;
+        if (err.response?.status === 409 && replaceFileID) {
+          setUploading(false);
+          askConfirm(
+            `A file already exists for ${uploadMonth} ${uploadFinancialYear}, Week ${uploadWeek}. Uploading will replace all existing data for this period. Continue?`,
+            () => {
+              setUploading(true);
+              executeEOfficeUpload(prefix, buildFormData(), replaceFileID, uploadMonth, uploadWeek);
+            }
+          );
+          return;
+        }
+        console.error("Upload error:", err);
+        showToast(err.response?.data?.error || "❌ File upload failed. Check spreadsheet format.", "#EF4444");
+        setUploading(false);
+      });
   };
 
   const handleDownloadFile = (id, fileName) => {
@@ -690,20 +784,50 @@ export default function EOfficeView({ initialKpi }) {
       });
   };
 
-  const handleDeleteFile = (id) => {
-    if (!window.confirm("Deleting the file will also delete all records parsed from it. Continue?")) return;
+  // Downloads the sample template matching the currently active KPI's
+  // required columns (each KPI has genuinely different headers, confirmed
+  // against the backend's requiredHeaders checks -- so this always
+  // resolves to the correct file for whichever tab is open).
+  const handleDownloadSample = () => {
     const prefix = getKpiPrefix(activeKpi);
+    const sampleFileNames = {
+      "file-pendancy": "File_Pendency_Sample.xlsx",
+      "receipt-pendancy": "Receipt_Pendency_Sample.xlsx",
+      "file-disposal": "File_Disposal_Sample.xlsx",
+    };
+    const fileName = sampleFileNames[prefix] || "Sample_Template.xlsx";
     axios
-      .delete(`${API_BASE_URL}/${prefix}/delete/${id}`)
-      .then(() => {
-        showToast("🗑️ File record deleted successfully", "#10B981");
-        dataCache.current = {};
-        fetchEOfficeData(activeKpi, month, year, week, true);
+      .get(`${API_BASE_URL}/${prefix}/download-sample`, { responseType: "blob" })
+      .then((res) => {
+        const url = window.URL.createObjectURL(new Blob([res.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       })
       .catch((err) => {
-        console.error("Delete error:", err);
-        showToast("❌ Failed to delete record", "#EF4444");
+        console.error("Sample download error:", err);
+        showToast("❌ Failed to download sample template", "#EF4444");
       });
+  };
+
+    const handleDeleteFile = (id) => {
+    askConfirm("Deleting the file will also delete all records parsed from it. Continue?", () => {
+      const prefix = getKpiPrefix(activeKpi);
+      axios
+        .delete(`${API_BASE_URL}/${prefix}/delete/${id}`)
+        .then(() => {
+          showToast("🗑️ File record deleted successfully", "#10B981");
+          dataCache.current = {};
+          fetchEOfficeData(activeKpi, month, year, week, true);
+        })
+        .catch((err) => {
+          console.error("Delete error:", err);
+          showToast("❌ Failed to delete record", "#EF4444");
+        });
+    });
   };
 
   const handleExportExcel = () => {
@@ -820,13 +944,36 @@ export default function EOfficeView({ initialKpi }) {
         }
       `}</style>
 
-      {/* Toast Notification Popup */}
-      {toastVisible && (
-        <div
-          className="fixed top-5 right-5 z-50 px-4 py-3 rounded-xl text-white font-bold text-xs shadow-xl transition-all duration-300 flex items-center space-x-2 animate-bounce select-none"
-          style={{ backgroundColor: toastColor }}
-        >
-          <span>{toastMsg}</span>
+  
+
+
+      {/* Styled Confirm Modal (replaces window.confirm) */}
+      {confirmModal.open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full border-l-4 border-amber-400 p-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-sm font-semibold text-slate-700 leading-relaxed">{confirmModal.message}</p>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={closeConfirm}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const cb = confirmModal.onConfirm;
+                  closeConfirm();
+                  if (cb) cb();
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -857,6 +1004,7 @@ export default function EOfficeView({ initialKpi }) {
         subTab={subTab}
         setSubTab={handleSubTabSelect}
         showToast={showToast}
+        onDownloadSample={handleDownloadSample}
       />
 
       {/* Dynamic Sub-Tab Views */}
@@ -879,6 +1027,7 @@ export default function EOfficeView({ initialKpi }) {
             previewRows={activeUploadState.previewRows}
             setPreviewRows={(rows) => updateActiveUploadState({ previewRows: rows })}
             previewColDefs={previewColDefs}
+            onDownloadSample={handleDownloadSample}
           />
         )}
 

@@ -42,19 +42,11 @@ export function getAllowedModuleCodes() {
   return codes.map((c) => String(c).toUpperCase());
 }
 
-const MODULE_ALIASES = {
-  GMIS_MOU: ['GMIS_MOU', 'GMIS_IMW_MOU_TRACKING'],
-  GMIS_IMW_MOU_TRACKING: ['GMIS_MOU', 'GMIS_IMW_MOU_TRACKING'],
-  MIV_2030: ['MIV_2030', 'MIV2030'],
-  CABINET_NOTES_OTHER_MINISTRIES: ['CABINET_NOTES_OTHER_MINISTRIES', 'CABINET_NOTES_OTHER_MINISTRY'],
-};
-
 export function hasModuleAccess(moduleCode) {
   if (!moduleCode || isSuperAdmin()) return false;
   const upper = String(moduleCode).toUpperCase();
   const allowed = getAllowedModuleCodes();
-  const candidates = MODULE_ALIASES[upper] || [upper];
-  return candidates.some((c) => allowed.includes(c.toUpperCase()));
+  return allowed.includes(upper);
 }
 
 export function isSuperAdminTab(tab) {
