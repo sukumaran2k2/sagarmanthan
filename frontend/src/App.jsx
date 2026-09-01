@@ -13,6 +13,7 @@ const Projects = lazy(() => import('./modules/Projects/Projects'));
 const CSRProjectsView = lazy(() => import('./modules/CSRProjects/CSRProjects'));
 const GMISMOUView = lazy(() => import('./modules/GMISMOU/GMISMOU'));
 const MIV2030View = lazy(() => import('./modules/MIV2030/MIV2030'));
+const OVODView = lazy(() => import('./modules/OVOD/OVOD'));
 const CapexView = lazy(() => import('./modules/Capex/Capex'));
 const EOfficeView = lazy(() => import('./modules/EOffice/EOffice'));
 const AttendanceView = lazy(() => import('./modules/Attendance/Attendance'));
@@ -292,6 +293,11 @@ export default function App() {
 
             {/* Long Term Strategies - MIV 2030 */}
             <Route path="strategies/miv-2030/*" element={<MIV2030View triggerNotification={triggerNotification} />} />
+
+            {/* Long Term Strategies - Drishti Portal (OVOD) */}
+            <Route path="strategies/drishti-portal/*" element={<OVODView triggerNotification={triggerNotification} />} />
+            <Route path="strategies/ovod/*" element={<Navigate to="/strategies/drishti-portal/dashboard" replace />} />
+            <Route path="strategies/one-vision-one-document/*" element={<Navigate to="/strategies/drishti-portal/dashboard" replace />} />
 
             {/* Finance - Capex */}
             <Route path="finance/capex/*" element={<CapexView />} />

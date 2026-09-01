@@ -314,6 +314,29 @@ export const MODULE_PAGES = {
     ],
   },
 
+  ONE_VISION_ONE_DOCUMENT: {
+    tabs: [
+      'Drishti Portal',
+      'Drishti Portal (OVOD)',
+      'One Vision One Document',
+      'OVOD',
+      'Intervention List',
+      'OVOD Dashboard',
+      'OVOD Input Form',
+      'OVOD Data List',
+      'Data List',
+      'OVOD Reports',
+    ],
+    uiTabs: [
+      'Drishti Portal',
+      'Drishti Portal (OVOD)',
+      'One Vision One Document',
+      'OVOD',
+      'Intervention List',
+      'Data List',
+    ],
+  },
+
   KNOWLEDGE_REPOSITORY: {
     tabs: ['Research Papers', 'Policy Documents', 'Guidelines'],
   },

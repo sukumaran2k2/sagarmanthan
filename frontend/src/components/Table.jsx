@@ -47,13 +47,28 @@ const Table = forwardRef(({
     }
   };
 
+
   const handleGridSizeChanged = (params) => {
+    if (params?.api) {
+      try {
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
+    }
     if (onGridSizeChanged) {
       onGridSizeChanged(params);
     }
   };
 
   const handleFirstDataRendered = (params) => {
+    if (params?.api) {
+      try {
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
+    }
     if (onFirstDataRendered) {
       onFirstDataRendered(params);
     }
@@ -66,6 +81,11 @@ const Table = forwardRef(({
       setTotalPages(params.api.paginationGetTotalPages());
       setTotalRows(params.api.paginationGetRowCount());
       setPageSize(params.api.paginationGetPageSize());
+      try {
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onGridReady) {
       onGridReady(params);
@@ -126,6 +146,20 @@ const Table = forwardRef(({
     };
     return columnDefs.map(processCol);
   }, [columnDefs]);
+
+  useEffect(() => {
+    const api = gridApi || activeRef.current?.api;
+    if (api) {
+      const timer = setTimeout(() => {
+        try {
+          api.sizeColumnsToFit();
+        } catch {
+          // ignore
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [processedColumnDefs, rowData, gridApi]);
 
   const activeAutoSizeStrategy = autoSizeStrategy !== undefined ? autoSizeStrategy : {
     type: 'fitGridWidth',

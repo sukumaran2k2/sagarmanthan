@@ -95,3 +95,43 @@ export function getSessionWingId() {
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
+
+export function isOrganisationUser() {
+  const claims = getSessionClaims();
+  if (!claims || isSuperAdmin()) return false;
+
+  const scope = String(claims.dataScopeCode || '').toUpperCase();
+  if (scope === 'ORGANISATION') return true;
+  if (scope === 'MINISTRY' || scope === 'MASTER') return false;
+
+  const roleCode = String(claims.roleCode || '').toUpperCase();
+  if (roleCode.startsWith('ORG') || roleCode.includes('ORGANISATION') || roleCode.includes('ORGANIZATION')) return true;
+  if (roleCode.startsWith('MINISTRY') || roleCode === 'SUPERADMIN' || roleCode === 'VIEW_ONLY_ADMIN') return false;
+
+  const roleName = String(claims.roleName || claims.role || '').toLowerCase();
+  if (
+    roleName.includes('organisation') ||
+    roleName.includes('organization') ||
+    roleName.includes('senior officer') ||
+    roleName.includes('nodal officer')
+  ) {
+    return true;
+  }
+  if (roleName.includes('ministry') || roleName.includes('super admin') || roleName.includes('superadmin')) {
+    return false;
+  }
+
+  const roleId = Number(claims.roleId || claims.role_id || 0);
+  if (roleId === 6 || roleId === 7) return true;
+
+  const orgId = Number(claims.organisationId ?? claims.organisation_id ?? 0);
+  const orgName = String(claims.organisationName || claims.organisation_name || '').toLowerCase();
+  if (orgId > 0 && orgName && !orgName.includes('ministry') && orgName !== 'system') {
+    return true;
+  }
+
+  return false;
+}
+
+export const isOrgUser = isOrganisationUser;
+

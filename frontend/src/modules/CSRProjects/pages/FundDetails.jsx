@@ -15,17 +15,12 @@ import {
   getUserIdFromToken
 } from '../api';
 import { FINANCIAL_YEARS } from '../utils/constants';
-import { getDataScopeCode, getSessionClaims, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
+import { isOrganisationUser, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
 
 export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotification }) {
   const isOrgUser = useMemo(() => {
     if (typeof isOrgUserProp === 'boolean') return isOrgUserProp;
-    const scope = String(getDataScopeCode() || '').toUpperCase();
-    if (scope === 'ORGANISATION') return true;
-    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
-    const claims = getSessionClaims();
-    const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
-    return roleId === 6 || roleId === 7;
+    return isOrganisationUser();
   }, [isOrgUserProp]);
 
   const userOrgId = getSessionOrganisationId();
@@ -34,6 +29,31 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
   const [funds, setFunds] = useState([]);
   const [organisations, setOrganisations] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Column Visibility state
+  const [colDropdownOpen, setColDropdownOpen] = useState(false);
+  const colDropdownRef = useRef(null);
+  const [visibleCols, setVisibleCols] = useState({
+    sno: true,
+    org: true,
+    financial_year: true,
+    net_profit: true,
+    csr_fund_alloted_year: true,
+    opening_balance_csr: true,
+    project_expenditure: true,
+    csr_fund_balance: true,
+    actions: true,
+  });
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
+        setColDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Filters
   const [selectedOrg, setSelectedOrg] = useState('');
@@ -211,72 +231,134 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     {
       headerName: "S.No",
       field: "sno",
-      width: 70,
-      minWidth: 60,
-      cellStyle: { textAlign: 'center', fontWeight: 700 },
-      valueGetter: (params) => (currentPage - 1) * pageSize + params.node.rowIndex + 1
+      width: 75,
+      minWidth: 65,
+      flex: 0.6,
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
+      hide: !visibleCols.sno,
+      valueGetter: (params) => (currentPage - 1) * pageSize + params.node.rowIndex + 1,
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-bold">
+          {params.value}
+        </div>
+      )
     },
-    {
+    ...(!isOrgUser ? [{
       headerName: "Organisation",
       field: "organisation_name",
-      minWidth: 220,
-      flex: 2,
+      minWidth: 200,
+      flex: 2.2,
       cellStyle: { fontWeight: 700, color: '#0f417a' },
+      hide: !visibleCols.org,
       valueGetter: (params) => params.data?.organisation_name || `Org ID: ${params.data?.organisation_id}`
-    },
+    }] : []),
     {
       headerName: "Financial Year",
       field: "financial_year",
-      width: 130,
-      minWidth: 110,
-      cellStyle: { textAlign: 'center', fontWeight: 600 }
+      minWidth: 120,
+      flex: 1.2,
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
+      hide: !visibleCols.financial_year,
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-semibold">
+          {params.value || '-'}
+        </div>
+      )
     },
     {
       headerName: "Net Profit (₹ Cr)",
       field: "net_profit",
-      width: 140,
-      minWidth: 120,
-      cellStyle: { textAlign: 'right', fontWeight: 600 },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      minWidth: 130,
+      flex: 1.3,
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
+      hide: !visibleCols.net_profit,
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-semibold">
+          {params.value != null ? Number(params.value).toFixed(2) : '-'}
+        </div>
+      )
     },
     {
       headerName: "CSR Allotted (₹ Cr)",
       field: "csr_fund_alloted_year",
-      width: 160,
-      minWidth: 130,
-      cellStyle: { textAlign: 'right', fontWeight: 800, color: '#0f417a' },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      minWidth: 140,
+      flex: 1.4,
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#0f417a', justifyContent: 'center' },
+      hide: !visibleCols.csr_fund_alloted_year,
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-extrabold text-[#0f417a] dark:text-blue-400">
+          {params.value != null ? Number(params.value).toFixed(2) : '-'}
+        </div>
+      )
     },
     {
       headerName: "Opening Bal (₹ Cr)",
       field: "opening_balance_csr",
-      width: 150,
-      minWidth: 120,
-      cellStyle: { textAlign: 'right', fontWeight: 600 },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      minWidth: 140,
+      flex: 1.3,
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
+      hide: !visibleCols.opening_balance_csr,
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-semibold">
+          {params.value != null ? Number(params.value).toFixed(2) : '-'}
+        </div>
+      )
     },
     {
       headerName: "Expenditure (₹ Cr)",
       field: "project_expenditure",
-      width: 150,
-      minWidth: 120,
-      cellStyle: { textAlign: 'right', fontWeight: 800, color: '#d97706' },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '0.00'
+      minWidth: 140,
+      flex: 1.3,
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#d97706', justifyContent: 'center' },
+      hide: !visibleCols.project_expenditure,
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '0.00',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-extrabold text-amber-600">
+          {params.value != null ? Number(params.value).toFixed(2) : '0.00'}
+        </div>
+      )
     },
     {
       headerName: "Fund Balance (₹ Cr)",
       field: "csr_fund_balance",
-      width: 160,
-      minWidth: 130,
-      cellStyle: { textAlign: 'right', fontWeight: 800, color: '#059669' },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      minWidth: 140,
+      flex: 1.4,
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#059669', justifyContent: 'center' },
+      hide: !visibleCols.csr_fund_balance,
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-extrabold text-emerald-600">
+          {params.value != null ? Number(params.value).toFixed(2) : '-'}
+        </div>
+      )
     },
     ...(isOrgUser ? [{
       headerName: "Actions",
       field: "actions",
-      width: 100,
-      minWidth: 90,
+      width: 90,
+      minWidth: 80,
+      flex: 0.8,
       pinned: 'right',
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      hide: !visibleCols.actions,
       cellRenderer: (params) => {
         const f = params.data;
         if (!f) return null;
@@ -294,19 +376,19 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
         );
       }
     }] : [])
-  ], [currentPage, pageSize, isOrgUser]);
+  ], [currentPage, pageSize, isOrgUser, visibleCols]);
 
   // Export Columns
   const exportColumns = useMemo(() => [
     { key: 'sno', label: 'S.No', render: (_, __, i) => i + 1 },
-    { key: 'organisation_name', label: 'Organisation' },
+    ...(!isOrgUser ? [{ key: 'organisation_name', label: 'Organisation' }] : []),
     { key: 'financial_year', label: 'Financial Year' },
     { key: 'net_profit', label: 'Net Profit (₹ Cr)' },
     { key: 'csr_fund_alloted_year', label: 'CSR Allotted (₹ Cr)' },
     { key: 'opening_balance_csr', label: 'Opening Bal (₹ Cr)' },
     { key: 'project_expenditure', label: 'Expenditure (₹ Cr)' },
     { key: 'csr_fund_balance', label: 'Balance (₹ Cr)' },
-  ], []);
+  ], [isOrgUser]);
 
   return (
     <div className="space-y-4 animate-fade-in text-slate-800 dark:text-slate-100">
@@ -370,19 +452,21 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
           <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0 w-full">
             
             {/* Organisation Filter */}
-            <div className="relative min-w-[150px]">
-              <select
-                value={selectedOrg}
-                onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
-                className="appearance-none w-full text-xs pl-3 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <option value="">All Organisations</option>
-                {organisations.map((o) => (
-                  <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
+            {!isOrgUser && (
+              <div className="relative min-w-[150px]">
+                <select
+                  value={selectedOrg}
+                  onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
+                  className="appearance-none w-full text-xs pl-3 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">All Organisations</option>
+                  {organisations.map((o) => (
+                    <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            )}
 
             {/* Financial Year Filter */}
             <div className="relative min-w-[130px]">
@@ -454,6 +538,63 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
 
             <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
               Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{filteredFunds.length}</span>
+            </div>
+
+            {/* Column Visibility Dropdown */}
+            <div className="relative" ref={colDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setColDropdownOpen(!colDropdownOpen)}
+                className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800 shadow-xs"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {colDropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-60 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Toggle Columns</span>
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCols({
+                        sno: true,
+                        org: true,
+                        financial_year: true,
+                        net_profit: true,
+                        csr_fund_alloted_year: true,
+                        opening_balance_csr: true,
+                        project_expenditure: true,
+                        csr_fund_balance: true,
+                        actions: true,
+                      })}
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Show All
+                    </button>
+                  </div>
+                  {[
+                    { key: 'sno', label: 'S.No' },
+                    ...(!isOrgUser ? [{ key: 'org', label: 'Organisation' }] : []),
+                    { key: 'financial_year', label: 'Financial Year' },
+                    { key: 'net_profit', label: 'Net Profit (₹ Cr)' },
+                    { key: 'csr_fund_alloted_year', label: 'CSR Allotted (₹ Cr)' },
+                    { key: 'opening_balance_csr', label: 'Opening Balance (₹ Cr)' },
+                    { key: 'project_expenditure', label: 'Expenditure (₹ Cr)' },
+                    { key: 'csr_fund_balance', label: 'Fund Balance (₹ Cr)' },
+                    { key: 'actions', label: 'Actions' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[key]}
+                        onChange={() => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }))}
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             <CopyButton

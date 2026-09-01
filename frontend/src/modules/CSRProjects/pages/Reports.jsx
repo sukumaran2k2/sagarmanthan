@@ -9,21 +9,14 @@ import {
 } from '../api';
 import { FINANCIAL_YEARS } from '../utils/constants';
 import { FilePieChart, Coins, ArrowLeft, Filter, ChevronDown, X, RotateCcw } from 'lucide-react';
-import { getDataScopeCode, getSessionClaims, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
+import { isOrganisationUser, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
 
 export default function Reports({
   initialReportType = 'project-report',
   onReportTypeChange,
   triggerNotification
 }) {
-  const isOrgUser = useMemo(() => {
-    const scope = String(getDataScopeCode() || '').toUpperCase();
-    if (scope === 'ORGANISATION') return true;
-    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
-    const claims = getSessionClaims();
-    const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
-    return roleId === 6 || roleId === 7;
-  }, []);
+  const isOrgUser = useMemo(() => isOrganisationUser(), []);
 
   const userOrgId = getSessionOrganisationId();
   const userOrgName = getSessionOrganisationName();
@@ -200,7 +193,7 @@ export default function Reports({
             </div>
           )
         },
-        {
+        ...(!isOrgUser ? [{
           headerName: "Organisation Name",
           field: "Organisation Name",
           minWidth: 260,
@@ -220,7 +213,7 @@ export default function Reports({
               </button>
             );
           }
-        },
+        }] : []),
         {
           headerName: "Total Number of CSR Projects till date",
           field: "Total Number of CSR Projects till date",
@@ -424,20 +417,20 @@ export default function Reports({
     if (reportType === 'project-report' && currentView.type === 'detailed') {
       return [
         {
-          headerName: "S.No",
+          headerName: "S. No",
           field: "S No",
-          width: 75,
+          width: 80,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
           valueGetter: (params) => params.node.rowIndex + 1
         },
-        {
+        ...(!isOrgUser ? [{
           headerName: "Organisation Name",
           field: "Organisation Name",
           minWidth: 220,
           pinned: 'left',
           cellStyle: { fontWeight: 700, color: '#4b2424' }
-        },
+        }] : []),
         {
           headerName: "CSR Focus",
           field: "CSR Focus",
@@ -549,14 +542,14 @@ export default function Reports({
           </div>
         )
       },
-      {
+      ...(!isOrgUser ? [{
         headerName: "Organization Name",
         field: "Organisation Name",
         minWidth: 280,
         flex: 2,
         pinned: 'left',
         cellStyle: { fontWeight: 700, color: '#4b2424' }
-      },
+      }] : []),
       {
         headerName: "Financial Year",
         field: "Financial Year",
@@ -571,16 +564,16 @@ export default function Reports({
         )
       },
       {
-        headerName: "CSR fund Allotted for the year (Rs.In lakhs)",
+        headerName: "CSR Fund Allotted for the Year (Rs.In lakhs)",
         field: "CSR Fund Allotted Year",
         minWidth: 250,
         flex: 1.5,
         headerClass: "text-center",
         cellClass: "text-center",
-        cellStyle: { textAlign: 'center', fontWeight: 700, color: '#2563eb', justifyContent: 'center' },
+        cellStyle: { textAlign: 'center', fontWeight: 800, color: '#4b2424', justifyContent: 'center' },
         valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
         cellRenderer: (params) => (
-          <div className="w-full flex items-center justify-center text-center font-bold text-blue-600">
+          <div className="w-full flex items-center justify-center text-center font-extrabold text-[#4b2424]">
             {params.value != null ? Number(params.value).toFixed(2) : '-'}
           </div>
         )
@@ -616,7 +609,7 @@ export default function Reports({
         )
       }
     ];
-  }, [reportType, currentView.type, handleDrilldown]);
+  }, [reportType, currentView.type, handleDrilldown, isOrgUser]);
 
   // Pinned Bottom Totals matching user's screenshots
   const pinnedBottomRowData = useMemo(() => {
@@ -717,21 +710,23 @@ export default function Reports({
 
       <div className="max-w-md">
         {reportType === 'project-report' ? (
-          <div>
-            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-              Lead Organisation
-            </label>
-            <select
-              value={filterOrg}
-              onChange={e => setFilterOrg(e.target.value)}
-              className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500 focus:outline-none cursor-pointer"
-            >
-              <option value="all">--Show All Organisations-- ({organisations.length})</option>
-              {organisations.map(o => (
-                <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-              ))}
-            </select>
-          </div>
+          !isOrgUser ? (
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                Organization
+              </label>
+              <select
+                value={filterOrg}
+                onChange={e => setFilterOrg(e.target.value)}
+                className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500 focus:outline-none cursor-pointer"
+              >
+                <option value="all">--Show All Organisations-- ({organisations.length})</option>
+                {organisations.map(o => (
+                  <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
+                ))}
+              </select>
+            </div>
+          ) : null
         ) : (
           <div>
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
@@ -801,7 +796,7 @@ export default function Reports({
           </button>
         </div>
 
-        {reportType === 'project-report' && projectsDrillDown.length > 1 && (
+        {/* {reportType === 'project-report' && projectsDrillDown.length > 1 && (
           <button
             type="button"
             onClick={handleBack}
@@ -810,7 +805,7 @@ export default function Reports({
             <ArrowLeft className="h-3.5 w-3.5" />
             <span>Back to Abstract Report</span>
           </button>
-        )}
+        )} */}
       </div>
 
       {/* Main Report Table in Brown Theme with Filter Button in Toolbar Line */}

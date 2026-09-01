@@ -413,6 +413,19 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Reports', tab: 'GMIS & IMW MoUs', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
+        m('ONE_VISION_ONE_DOCUMENT', {
+          label: 'Drishti Portal (OVOD)',
+          icon: Globe,
+          tab: 'Drishti Portal',
+          targetTab: 'Drishti Portal',
+          subItems: [
+            { label: 'Dashboard', tab: 'Drishti Portal', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Intervention List', tab: 'Drishti Portal', targetSubTab: 'Interventions', icon: ClipboardList },
+            { label: 'Input Form', tab: 'Drishti Portal', targetSubTab: 'Input-Form', icon: FileEdit },
+            { label: 'Data List', tab: 'Drishti Portal', targetSubTab: 'Data-List', icon: Layers },
+            { label: 'Report', tab: 'Drishti Portal', targetSubTab: 'Report', icon: FilePieChart },
+          ]
+        }),
         m('AKV_2047', { label: 'Vision 2047', icon: Milestone }),
         m('MIV_2030', { label: 'Maritime India Summit', icon: Anchor }),
         m('AKV_2047', { label: 'Blue Economy Policy', icon: Globe }),

@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  Search, X, Plus, Edit, Eye, ChevronDown, 
-  Building2, Calendar, FileText, Image as ImageIcon,
-  Download, Filter, Layers, CheckCircle2, Clock, RotateCcw
-} from 'lucide-react';
+  Search, X, Edit, Eye, ChevronDown, 
+  FileText, Image as ImageIcon,
+  Download, Filter} from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import CopyButton from '../../../components/CopyButton';
@@ -17,7 +16,7 @@ import {
   getUserIdFromToken
 } from '../api';
 import { CSR_FOCUS_AREAS, CSR_STATUSES, FINANCIAL_YEARS } from '../utils/constants';
-import { getDataScopeCode, getSessionClaims, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
+import { isOrganisationUser, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
 
 export default function DataList({
   isOrgUser: isOrgUserProp,
@@ -27,12 +26,7 @@ export default function DataList({
 }) {
   const isOrgUser = useMemo(() => {
     if (typeof isOrgUserProp === 'boolean') return isOrgUserProp;
-    const scope = String(getDataScopeCode() || '').toUpperCase();
-    if (scope === 'ORGANISATION') return true;
-    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
-    const claims = getSessionClaims();
-    const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
-    return roleId === 6 || roleId === 7;
+    return isOrganisationUser();
   }, [isOrgUserProp]);
 
   const userOrgId = getSessionOrganisationId();
@@ -42,6 +36,31 @@ export default function DataList({
   const [projects, setProjects] = useState([]);
   const [organisations, setOrganisations] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Column Visibility state
+  const [colDropdownOpen, setColDropdownOpen] = useState(false);
+  const colDropdownRef = useRef(null);
+  const [visibleCols, setVisibleCols] = useState({
+    sno: true,
+    org: true,
+    financial_year: true,
+    project_name: true,
+    project_value: true,
+    project_status: true,
+    completed_on: true,
+    remarks: true,
+    actions: true,
+  });
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
+        setColDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Dedicated Collapsible Filter Panel Toggle State (matching GMIS DataList)
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -114,6 +133,27 @@ export default function DataList({
   const allCount = scopedProjects.length;
   const completedCount = scopedProjects.filter(p => p.project_status === 'Completed').length;
   const activeCount = allCount - completedCount;
+
+  // Filtered available statuses based on sub-tab
+  const availableStatuses = useMemo(() => {
+    if (activeTab === 'active' || activeTab === 'pending') {
+      return CSR_STATUSES.filter(s => s !== 'Completed');
+    }
+    if (activeTab === 'completed') {
+      return ['Completed'];
+    }
+    return CSR_STATUSES;
+  }, [activeTab]);
+
+  const handleTabSwitch = (tab) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+    if (tab === 'active' || tab === 'pending') {
+      if (selectedStatus === 'Completed') setSelectedStatus('');
+    } else if (tab === 'completed') {
+      if (selectedStatus && selectedStatus !== 'Completed') setSelectedStatus('');
+    }
+  };
 
   // Filtered dataset
   const filteredProjects = useMemo(() => {
@@ -212,11 +252,13 @@ export default function DataList({
     {
       headerName: "S.No",
       field: "sno",
-      width: 70,
-      minWidth: 60,
+      width: 75,
+      minWidth: 65,
+      flex: 0.6,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
+      hide: !visibleCols.sno,
       valueGetter: (params) => (currentPage - 1) * pageSize + params.node.rowIndex + 1,
       cellRenderer: (params) => (
         <div className="w-full flex items-center justify-center text-center font-bold">
@@ -224,22 +266,24 @@ export default function DataList({
         </div>
       )
     },
-    {
+    ...(!isOrgUser ? [{
       headerName: "Organization Name",
       field: "organisation_name",
       minWidth: 200,
-      flex: 2,
+      flex: 2.2,
       cellStyle: { fontWeight: 700, color: '#0f417a' },
+      hide: !visibleCols.org,
       valueGetter: (params) => params.data?.organisation_name || `Org ID: ${params.data?.organisation_id}`
-    },
+    }] : []),
     {
       headerName: "Financial Year",
       field: "financial_year",
-      width: 140,
       minWidth: 120,
+      flex: 1.1,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
+      hide: !visibleCols.financial_year,
       cellRenderer: (params) => (
         <div className="w-full flex items-center justify-center text-center font-semibold">
           {params.value || '-'}
@@ -249,21 +293,23 @@ export default function DataList({
     {
       headerName: "Name of the Project",
       field: "project_name",
-      minWidth: 280,
+      minWidth: 260,
       flex: 3,
       wrapText: true,
       autoHeight: true,
       cellClass: 'mopsw-wrap-cell',
-      cellStyle: { fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.35' }
+      cellStyle: { fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.35' },
+      hide: !visibleCols.project_name
     },
     {
-      headerName: "Project Value(Rs. In Lakhs)",
+      headerName: "Project Value (₹ Lakhs)",
       field: "project_value",
-      width: 175,
-      minWidth: 150,
+      minWidth: 140,
+      flex: 1.4,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 800, color: '#0f417a', justifyContent: 'center' },
+      hide: !visibleCols.project_value,
       valueFormatter: (params) => params.value != null && params.value !== '' ? Number(params.value).toLocaleString() : '-',
       cellRenderer: (params) => (
         <div className="w-full flex items-center justify-center text-center font-extrabold text-[#0f417a] dark:text-blue-400">
@@ -274,11 +320,12 @@ export default function DataList({
     {
       headerName: "Project Status",
       field: "project_status",
-      width: 200,
-      minWidth: 170,
+      minWidth: 160,
+      flex: 1.6,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', justifyContent: 'center' },
+      hide: !visibleCols.project_status,
       cellRenderer: (params) => {
         const status = params.value || 'Project yet to start';
         return (
@@ -293,11 +340,12 @@ export default function DataList({
     {
       headerName: "Completed On",
       field: "completed_on",
-      width: 140,
       minWidth: 120,
+      flex: 1.1,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', justifyContent: 'center' },
+      hide: !visibleCols.completed_on,
       cellRenderer: (params) => {
         const val = params.value;
         const formatted = val ? String(val).split('T')[0] : '-';
@@ -311,22 +359,25 @@ export default function DataList({
     {
       headerName: "Remarks",
       field: "remarks",
-      minWidth: 240,
+      minWidth: 200,
       flex: 2,
       wrapText: true,
       autoHeight: true,
       cellClass: 'mopsw-wrap-cell',
       cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.35', color: '#475569' },
+      hide: !visibleCols.remarks,
       cellRenderer: (params) => params.value || '-'
     },
     {
       headerName: "Update",
       field: "actions",
-      width: 120,
-      minWidth: 100,
+      width: 110,
+      minWidth: 90,
+      flex: 0.9,
       pinned: 'right',
       headerClass: 'text-center',
       cellClass: 'text-center',
+      hide: !visibleCols.actions,
       cellRenderer: (params) => {
         const p = params.data;
         if (!p) return null;
@@ -362,19 +413,19 @@ export default function DataList({
         );
       }
     }
-  ], [currentPage, pageSize, onEdit, isOrgUser]);
+  ], [currentPage, pageSize, onEdit, isOrgUser, visibleCols]);
 
   // Export Columns matching user's table format
   const exportColumns = useMemo(() => [
     { key: 'sno', label: 'S.No', render: (_, __, i) => i + 1 },
-    { key: 'organisation_name', label: 'Organization Name' },
+    ...(!isOrgUser ? [{ key: 'organisation_name', label: 'Organization Name' }] : []),
     { key: 'financial_year', label: 'Financial Year' },
     { key: 'project_name', label: 'Name of the Project' },
     { key: 'project_value', label: 'Project Value(Rs. In Lakhs)', render: (v) => v != null && v !== '' ? Number(v).toLocaleString() : '-' },
     { key: 'project_status', label: 'Project Status' },
     { key: 'completed_on', label: 'Completed On', render: (v) => v ? String(v).split('T')[0] : '-' },
     { key: 'remarks', label: 'Remarks' },
-  ], []);
+  ], [isOrgUser]);
 
   return (
     <div className="space-y-4 animate-fade-in text-slate-800 dark:text-slate-100">
@@ -382,7 +433,7 @@ export default function DataList({
       {/* Sub-Tabs Row matching CA / GMIS style */}
       <div className="flex border-b border-slate-200 dark:border-slate-800 space-x-1 select-none">
         <button
-          onClick={() => { setActiveTab('all'); setCurrentPage(1); }}
+          onClick={() => handleTabSwitch('all')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeTab === 'all'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -392,7 +443,7 @@ export default function DataList({
           ALL ({allCount})
         </button>
         <button
-          onClick={() => { setActiveTab('active'); setCurrentPage(1); }}
+          onClick={() => handleTabSwitch('active')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeTab === 'active' || activeTab === 'pending'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -402,7 +453,7 @@ export default function DataList({
           ACTIVE ({activeCount})
         </button>
         <button
-          onClick={() => { setActiveTab('completed'); setCurrentPage(1); }}
+          onClick={() => handleTabSwitch('completed')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeTab === 'completed'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -499,6 +550,63 @@ export default function DataList({
               Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{filteredProjects.length}</span>
             </div>
 
+            {/* Column Visibility Dropdown */}
+            <div className="relative" ref={colDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setColDropdownOpen(!colDropdownOpen)}
+                className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800 shadow-xs"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {colDropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-60 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Toggle Columns</span>
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCols({
+                        sno: true,
+                        org: true,
+                        financial_year: true,
+                        project_name: true,
+                        project_value: true,
+                        project_status: true,
+                        completed_on: true,
+                        remarks: true,
+                        actions: true,
+                      })}
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Show All
+                    </button>
+                  </div>
+                  {[
+                    { key: 'sno', label: 'S.No' },
+                    ...(!isOrgUser ? [{ key: 'org', label: 'Organization Name' }] : []),
+                    { key: 'financial_year', label: 'Financial Year' },
+                    { key: 'project_name', label: 'Name of the Project' },
+                    { key: 'project_value', label: 'Project Value (in Lakhs)' },
+                    { key: 'project_status', label: 'Project Status' },
+                    { key: 'completed_on', label: 'Completed On' },
+                    { key: 'remarks', label: 'Remarks' },
+                    { key: 'actions', label: 'Update / Actions' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[key]}
+                        onChange={() => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }))}
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Copy Button */}
             <CopyButton
               data={filteredProjects}
@@ -517,17 +625,6 @@ export default function DataList({
               hoverColor="#1e5ea8"
               triggerNotification={triggerNotification}
             />
-
-            {/* Add New Button */}
-            {isOrgUser && (
-              <button
-                onClick={onAddNew}
-                className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer select-none"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add CSR Project</span>
-              </button>
-            )}
           </div>
 
         </div>
@@ -557,23 +654,25 @@ export default function DataList({
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               
               {/* 1. Organisation Filter */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                  Lead Organisation
-                </label>
-                <select
-                  value={selectedOrg}
-                  onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
-                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
-                >
-                  <option value="">All Organisations ({organisations.length})</option>
-                  {organisations.map((org) => (
-                    <option key={org.organisation_id} value={org.organisation_id}>
-                      {org.organisation_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {!isOrgUser && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                    Organization
+                  </label>
+                  <select
+                    value={selectedOrg}
+                    onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
+                    className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                  >
+                    <option value="">All Organisations ({organisations.length})</option>
+                    {organisations.map((org) => (
+                      <option key={org.organisation_id} value={org.organisation_id}>
+                        {org.organisation_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* 2. Financial Year Filter */}
               <div>
@@ -620,7 +719,7 @@ export default function DataList({
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="">All Statuses</option>
-                  {CSR_STATUSES.map((st) => (
+                  {availableStatuses.map((st) => (
                     <option key={st} value={st}>{st}</option>
                   ))}
                 </select>

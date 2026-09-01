@@ -10,7 +10,7 @@ import FundDetails from './pages/FundDetails';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
-import { getDataScopeCode, getSessionClaims } from '../../utils/authSession';
+import { isOrganisationUser } from '../../utils/authSession';
 
 export default function CSRProjects({ triggerNotification }) {
   const location = useLocation();
@@ -20,14 +20,7 @@ export default function CSRProjects({ triggerNotification }) {
   const [reportType, setReportType] = useState('project-report'); // 'project-report' | 'expenditure-report'
   const [editData, setEditData] = useState(null);
 
-  const isOrgUser = useMemo(() => {
-    const scope = String(getDataScopeCode() || '').toUpperCase();
-    if (scope === 'ORGANISATION') return true;
-    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
-    const claims = getSessionClaims();
-    const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
-    return roleId === 6 || roleId === 7;
-  }, []);
+  const isOrgUser = useMemo(() => isOrganisationUser(), []);
 
   // Derive active tab from current pathname
   const currentTab = useMemo(() => {

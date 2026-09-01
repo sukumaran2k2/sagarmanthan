@@ -78,6 +78,11 @@ export const ROUTE_MAP = {
   'GMIS Data List': 'strategies/gmis-mou/data-list',
   'GMIS Input Form': 'strategies/gmis-mou/input-form',
   'GMIS Reports': 'strategies/gmis-mou/reports',
+  'Drishti Portal': 'strategies/drishti-portal/dashboard',
+  'Drishti Portal (OVOD)': 'strategies/drishti-portal/dashboard',
+  'One Vision One Document': 'strategies/drishti-portal/dashboard',
+  'OVOD': 'strategies/drishti-portal/dashboard',
+  'Intervention List': 'strategies/drishti-portal/intervention-list',
   'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
   'Blue Economy Policy': 'strategies/blue-economy-policy',
@@ -161,6 +166,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
+  if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
   if (cleanSlug.startsWith('governance/audit-paras')) return 'Audit Paras';
@@ -254,6 +260,9 @@ const getBreadcrumbs = (tab) => {
 
   const gmisItems = ['GMIS & IMW MoUs', 'GMIS-MoU', 'GMIS Dashboard', 'GMIS Data List', 'GMIS Input Form', 'GMIS Reports'];
   if (gmisItems.includes(tab)) return ['Home', 'Long Term Strategies', 'GMIS & IMW MoUs', tab === 'GMIS & IMW MoUs' ? 'Dashboard' : tab];
+
+  const ovodItems = ['Drishti Portal', 'Drishti Portal (OVOD)', 'One Vision One Document', 'Intervention List'];
+  if (ovodItems.includes(tab)) return ['Home', 'Long Term Strategies', 'Drishti Portal (Ministry View)', tab === 'Drishti Portal' ? 'Dashboard' : tab];
 
   const visionItems = ['Vision 2047', 'Maritime India Summit', 'Blue Economy Policy'];
   if (visionItems.includes(tab)) return ['Home', 'Long Term Strategies', tab];
