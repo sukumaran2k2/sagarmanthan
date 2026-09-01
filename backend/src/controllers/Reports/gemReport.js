@@ -1,12 +1,38 @@
 
 import { pool } from "../../db.js";
+import { applyDataScope, getDataScope } from "../../middleware/dataScope.js";
+
+function isOrganisationInScope(req, organisationId) {
+    const { isWide, isOrganisation, organisationId: scopeOrgId } = getDataScope(req.user);
+    if (isWide) return true;
+    if (!isOrganisation) return false;
+    return Number(organisationId) === Number(scopeOrgId);
+}
+
+async function loadRecordOrganisationId(table, idColumn, organisationColumn, idValue) {
+    const conn = await pool;
+    const request = conn.request();
+    request.input("idValue", idValue);
+    const result = await request.query(`
+        SELECT ${organisationColumn} AS organisation_id
+        FROM ${table}
+        WHERE ${idColumn} = @idValue
+    `);
+    return result.recordset.length ? result.recordset[0].organisation_id : null;
+}
 
 async function gemGoodsData (req, res) 
 {
     const conn = await pool;
+    const request = conn.request();
+    const { whereSql } = applyDataScope(request, req.user, {
+        strategy: "directOrgColumn",
+        alias: "gpg",
+        orgColumn: "goods_organisation_id",
+    });
     try 
     {
-        const result = await conn.query(`SELECT
+        const result = await request.query(`SELECT
         gpg.*,
         COALESCE(monthly.total_procurement_through_gem, 0) AS total_procurement_through_gem,
         COALESCE(monthly.total_procurement_outside_gem, 0) AS total_procurement_outside_gem
@@ -41,7 +67,8 @@ async function gemGoodsData (req, res)
                        ISNULL(procurement_outside_gem_december, 0)), 0) AS total_procurement_outside_gem
         FROM tbl_gem_procurement_goods_monthly
         GROUP BY goods_gem_id
-    ) AS monthly ON gpg.goods_gem_id = monthly.goods_gem_id   ;`);
+    ) AS monthly ON gpg.goods_gem_id = monthly.goods_gem_id
+    WHERE 1 = 1 ${whereSql};`);
         res.json(result.recordset);
     }
     catch(err) 
@@ -54,9 +81,15 @@ async function gemGoodsData (req, res)
 async function gemServiceData (req, res) 
 {
     const conn = await pool;
+    const request = conn.request();
+    const { whereSql } = applyDataScope(request, req.user, {
+        strategy: "directOrgColumn",
+        alias: "gps",
+        orgColumn: "service_organisation_id",
+    });
     try 
     {
-        const result = await conn.query(`   SELECT
+        const result = await request.query(`   SELECT
         gps.*,
         COALESCE(monthly.total_procurement_through_gem, 0) AS total_procurement_through_gem,
         COALESCE(monthly.total_procurement_outside_gem, 0) AS total_procurement_outside_gem
@@ -91,10 +124,8 @@ async function gemServiceData (req, res)
                        ISNULL(procurement_outside_gem_december, 0)), 0) AS total_procurement_outside_gem
         FROM tbl_gem_procurement_service_monthly
         GROUP BY service_gem_id
-    ) AS monthly ON gps.service_gem_id = monthly.service_gem_id 
-    
-
-    ;`);
+    ) AS monthly ON gps.service_gem_id = monthly.service_gem_id
+    WHERE 1 = 1 ${whereSql};`);
         res.json(result.recordset);
     }
     catch(err) 
@@ -107,9 +138,15 @@ async function gemServiceData (req, res)
 async function gemWorksData (req, res) 
 {
     const conn = await pool;
+    const request = conn.request();
+    const { whereSql } = applyDataScope(request, req.user, {
+        strategy: "directOrgColumn",
+        alias: "gpw",
+        orgColumn: "works_organisation_id",
+    });
     try 
     {
-        const result = await conn.query(` SELECT
+        const result = await request.query(` SELECT
         gpw.*,
         COALESCE(monthly.total_procurement_through_gem, 0) AS total_procurement_through_gem,
         COALESCE(monthly.total_procurement_outside_gem, 0) AS total_procurement_outside_gem
@@ -144,7 +181,8 @@ async function gemWorksData (req, res)
                        ISNULL(procurement_outside_gem_december, 0)), 0) AS total_procurement_outside_gem
         FROM tbl_gem_procurement_works_monthly
         GROUP BY works_gem_id
-    ) AS monthly ON gpw.works_gem_id = monthly.works_gem_id ;`);
+    ) AS monthly ON gpw.works_gem_id = monthly.works_gem_id
+    WHERE 1 = 1 ${whereSql};`);
         res.json(result.recordset);
     }
     catch(err) 
@@ -158,6 +196,13 @@ async function gemTotalMonthlyReport(req, res) {
     const goodsGemID = req.params.gemGoodsID;
     const gemGoodsFinYear = req.params.gemGoodsFinYear;
     const orgId = req.params.orgId;
+
+    if (!Number.isFinite(Number(orgId)) || Number(orgId) <= 0) {
+        return res.status(400).json({ error: "Invalid orgId." });
+    }
+    if (!isOrganisationInScope(req, orgId)) {
+        return res.status(403).json({ error: "Organisation outside your data scope." });
+    }
 
     const conn = await pool;
     const request = conn.request();
@@ -332,8 +377,6 @@ async function gemTotalMonthlyReport(req, res) {
 
         `);
 
-        //console.log(result);
-
         res.json(result.recordset);
     } catch (err) {
         console.error(err);
@@ -344,6 +387,19 @@ async function gemTotalMonthlyReport(req, res) {
 async function gemGoodsMonthlyReport(req, res) {
     const goodsGemID = req.params.goodsGemID;
 
+    const recordOrgId = await loadRecordOrganisationId(
+        "tbl_gem_procurement_goods",
+        "goods_gem_id",
+        "goods_organisation_id",
+        goodsGemID
+    );
+    if (recordOrgId == null) {
+        return res.status(404).json({ error: "GeM goods record not found." });
+    }
+    if (!isOrganisationInScope(req, recordOrgId)) {
+        return res.status(403).json({ error: "Record outside your data scope." });
+    }
+
     const conn = await pool;
     const request = conn.request();
     console.log('goodsgemID', goodsGemID);
@@ -352,8 +408,6 @@ async function gemGoodsMonthlyReport(req, res) {
         const result = await request.query(`
             SELECT * FROM tbl_gem_procurement_goods_monthly where goods_gem_id = @goodsGemID;
         `);
-
-        // console.log(result);
 
         res.json(result.recordset);
     } catch (err) {
@@ -365,6 +419,19 @@ async function gemGoodsMonthlyReport(req, res) {
 async function gemServiceMonthlyReport(req, res) {
     const serviceGemId = req.params.serviceGemID;
 
+    const recordOrgId = await loadRecordOrganisationId(
+        "tbl_gem_procurement_service",
+        "service_gem_id",
+        "service_organisation_id",
+        serviceGemId
+    );
+    if (recordOrgId == null) {
+        return res.status(404).json({ error: "GeM service record not found." });
+    }
+    if (!isOrganisationInScope(req, recordOrgId)) {
+        return res.status(403).json({ error: "Record outside your data scope." });
+    }
+
     const conn = await pool;
     const request = conn.request();
     console.log('serviceGemId', serviceGemId);
@@ -374,8 +441,6 @@ async function gemServiceMonthlyReport(req, res) {
         const result = await request.query(`
             SELECT * FROM tbl_gem_procurement_service_monthly where service_gem_id = @serviceGemId;
         `);
-
-        // console.log(result);
 
         res.json(result.recordset);
     } catch (err) {
@@ -387,6 +452,19 @@ async function gemServiceMonthlyReport(req, res) {
 async function gemWorkMonthlyReport(req, res) {
     const worksGemID = req.params.worksGemID;
 
+    const recordOrgId = await loadRecordOrganisationId(
+        "tbl_gem_procurement_works",
+        "works_gem_id",
+        "works_organisation_id",
+        worksGemID
+    );
+    if (recordOrgId == null) {
+        return res.status(404).json({ error: "GeM works record not found." });
+    }
+    if (!isOrganisationInScope(req, recordOrgId)) {
+        return res.status(403).json({ error: "Record outside your data scope." });
+    }
+
     const conn = await pool;
     const request = conn.request();
     console.log('worksGemID', worksGemID);
@@ -395,8 +473,6 @@ async function gemWorkMonthlyReport(req, res) {
         const result = await request.query(`
             SELECT * FROM tbl_gem_procurement_works_monthly where works_gem_id = @worksGemID;
         `);
-
-        // console.log(result);
 
         res.json(result.recordset);
     } catch (err) {
@@ -415,7 +491,6 @@ const GEM_MONTHS = [
 const monthlySum = (prefix) =>
     GEM_MONTHS.map((month) => `ISNULL(${prefix}_${month}, 0)`).join(" + ");
 
-// One CTE per category: annual target plus the 12 monthly columns rolled up per organisation.
 const categoryRollup = (alias, table, monthlyTable, idCol, orgCol, yearCol, targetCol) => `
         ${alias} AS (
             SELECT
@@ -444,6 +519,12 @@ async function getGemReport(req, res)
     const request = conn.request();
 
     request.input("selectedYear", selectedYear);
+
+    const { whereSql } = applyDataScope(request, req.user, {
+        strategy: "directOrgColumn",
+        alias: "o",
+        orgColumn: "organisation_id",
+    });
 
     try
     {
@@ -476,7 +557,7 @@ ${categoryRollup("works", "tbl_gem_procurement_works", "tbl_gem_procurement_work
         LEFT JOIN goods g ON g.organisation_id = o.organisation_id
         LEFT JOIN service s ON s.organisation_id = o.organisation_id
         LEFT JOIN works w ON w.organisation_id = o.organisation_id
-        WHERE o.gemreport_order IS NOT NULL
+        WHERE o.gemreport_order IS NOT NULL ${whereSql}
         ORDER BY o.gemreport_order;`);
 
     res.json({
@@ -490,7 +571,265 @@ ${categoryRollup("works", "tbl_gem_procurement_works", "tbl_gem_procurement_work
     }
 }
 
+function getIndianFinancialYearStart(date = new Date()) {
+    const month = date.getMonth();
+    const year = date.getFullYear();
+    return month >= 3 ? year : year - 1;
+}
 
+function buildYoYFinancialYears(fromStartYear = 2022, asOf = new Date()) {
+    const currentStart = getIndianFinancialYearStart(asOf);
+    const years = [];
+    for (let y = fromStartYear; y <= currentStart; y += 1) {
+        years.push(`${y}-${y + 1}`);
+    }
+    return years;
+}
 
+function pivotGemYoYRows(flatRows, financialYears) {
+    const byOrg = new Map();
 
-export default { gemGoodsData, gemTotalMonthlyReport, gemGoodsMonthlyReport, gemServiceMonthlyReport, gemWorkMonthlyReport, gemServiceData, gemWorksData, getGemReport };
+    (flatRows || []).forEach((row) => {
+        const key = String(row.organisation_id ?? row.organisation_name);
+        if (!byOrg.has(key)) {
+            const years = {};
+            financialYears.forEach((fy) => {
+                years[fy] = {
+                    planned_procurement: 0,
+                    through_gem: 0,
+                    outside_gem: 0,
+                    pct: 0,
+                };
+            });
+            byOrg.set(key, {
+                organisation_id: row.organisation_id,
+                organisation_name: row.organisation_name || "—",
+                display_group: row.display_group || "",
+                years,
+            });
+        }
+
+        const entry = byOrg.get(key);
+        const fy = row.financial_year;
+        if (fy && entry.years[fy]) {
+            entry.years[fy] = {
+                planned_procurement: Number(row.planned_procurement) || 0,
+                through_gem: Number(row.through_gem) || 0,
+                outside_gem: Number(row.outside_gem) || 0,
+                pct: Number(row.pct) || 0,
+            };
+        }
+    });
+
+    return Array.from(byOrg.values()).sort((a, b) =>
+        String(a.organisation_name).localeCompare(String(b.organisation_name), "en")
+    );
+}
+
+async function getGemSummaryReport(req, res) {
+    const selectedYear = req.params.selectedYear;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("selectedYear", selectedYear);
+
+    const { whereSql } = applyDataScope(request, req.user, {
+        strategy: "directOrgColumn",
+        alias: "o",
+        orgColumn: "organisation_id",
+    });
+
+    try {
+        const result = await request.query(`
+            WITH
+${categoryRollup("goods", "tbl_gem_procurement_goods", "tbl_gem_procurement_goods_monthly", "goods_gem_id", "goods_organisation_id", "goods_financial_year", "goods_procurement_potential")},
+${categoryRollup("service", "tbl_gem_procurement_service", "tbl_gem_procurement_service_monthly", "service_gem_id", "service_organisation_id", "service_financial_year", "service_procurement_potential")},
+${categoryRollup("works", "tbl_gem_procurement_works", "tbl_gem_procurement_works_monthly", "works_gem_id", "works_organisation_id", "works_financial_year", "works_procurement_potential")}
+            SELECT
+                o.organisation_id,
+                o.organisation_name,
+                CASE
+                    WHEN o.gemreport_order BETWEEN 2 AND 13 THEN 'Major Ports'
+                    WHEN o.gemreport_order BETWEEN 14 AND 15 THEN 'Authorities'
+                    WHEN o.gemreport_order BETWEEN 16 AND 18 THEN 'Subordinate/Attached Offices'
+                    WHEN o.gemreport_order BETWEEN 19 AND 25 THEN 'Public Sector Undertakings'
+                    WHEN o.gemreport_order >= 26 THEN 'Other Organizations'
+                    ELSE ''
+                END AS display_group,
+                (ISNULL(g.planned,0) + ISNULL(s.planned,0) + ISNULL(w.planned,0)) AS planned_procurement,
+                (ISNULL(g.through_gem,0) + ISNULL(s.through_gem,0) + ISNULL(w.through_gem,0)) AS through_gem,
+                (ISNULL(g.outside_gem,0) + ISNULL(s.outside_gem,0) + ISNULL(w.outside_gem,0)) AS outside_gem,
+                CASE
+                    WHEN (ISNULL(g.planned,0) + ISNULL(s.planned,0) + ISNULL(w.planned,0)) = 0 THEN 0
+                    ELSE ROUND(
+                        ((ISNULL(g.through_gem,0) + ISNULL(s.through_gem,0) + ISNULL(w.through_gem,0)) * 100.0)
+                        / (ISNULL(g.planned,0) + ISNULL(s.planned,0) + ISNULL(w.planned,0)),
+                        2
+                    )
+                END AS pct
+            FROM mmt_organisation o
+            LEFT JOIN goods g ON g.organisation_id = o.organisation_id
+            LEFT JOIN service s ON s.organisation_id = o.organisation_id
+            LEFT JOIN works w ON w.organisation_id = o.organisation_id
+            WHERE o.gemreport_order IS NOT NULL ${whereSql}
+            ORDER BY o.gemreport_order;
+        `);
+
+        res.json({
+            selectedYear,
+            data: result.recordset || [],
+        });
+    } catch (err) {
+        return res.status(500).json({
+            message: err.message,
+        });
+    }
+}
+
+async function getGemYoYReport(req, res) {
+    const financialYears = buildYoYFinancialYears();
+    if (!financialYears.length) {
+        return res.json({ financialYears: [], data: [] });
+    }
+
+    const conn = await pool;
+    const request = conn.request();
+
+    const fyParams = financialYears.map((fy, i) => {
+        const name = `fy${i}`;
+        request.input(name, fy);
+        return `@${name}`;
+    });
+
+    const { whereSql } = applyDataScope(request, req.user, {
+        strategy: "directOrgColumn",
+        alias: "o",
+        orgColumn: "organisation_id",
+    });
+
+    try {
+        const result = await request.query(`
+            WITH months_goods AS (
+                SELECT goods_gem_id,
+                    SUM(${monthlySum("procurement_through_gem")}) AS through_gem,
+                    SUM(${monthlySum("procurement_outside_gem")}) AS outside_gem
+                FROM tbl_gem_procurement_goods_monthly
+                GROUP BY goods_gem_id
+            ),
+            goods AS (
+                SELECT
+                    g.goods_organisation_id AS organisation_id,
+                    g.goods_financial_year AS financial_year,
+                    SUM(ISNULL(g.goods_procurement_potential,0)) AS planned,
+                    SUM(ISNULL(mg.through_gem,0)) AS through_gem,
+                    SUM(ISNULL(mg.outside_gem,0)) AS outside_gem
+                FROM tbl_gem_procurement_goods g
+                LEFT JOIN months_goods mg ON mg.goods_gem_id = g.goods_gem_id
+                WHERE g.goods_financial_year IN (${fyParams.join(", ")})
+                GROUP BY g.goods_organisation_id, g.goods_financial_year
+            ),
+            months_service AS (
+                SELECT service_gem_id,
+                    SUM(${monthlySum("procurement_through_gem")}) AS through_gem,
+                    SUM(${monthlySum("procurement_outside_gem")}) AS outside_gem
+                FROM tbl_gem_procurement_service_monthly
+                GROUP BY service_gem_id
+            ),
+            service AS (
+                SELECT
+                    s.service_organisation_id AS organisation_id,
+                    s.service_financial_year AS financial_year,
+                    SUM(ISNULL(s.service_procurement_potential,0)) AS planned,
+                    SUM(ISNULL(ms.through_gem,0)) AS through_gem,
+                    SUM(ISNULL(ms.outside_gem,0)) AS outside_gem
+                FROM tbl_gem_procurement_service s
+                LEFT JOIN months_service ms ON ms.service_gem_id = s.service_gem_id
+                WHERE s.service_financial_year IN (${fyParams.join(", ")})
+                GROUP BY s.service_organisation_id, s.service_financial_year
+            ),
+            months_works AS (
+                SELECT works_gem_id,
+                    SUM(${monthlySum("procurement_through_gem")}) AS through_gem,
+                    SUM(${monthlySum("procurement_outside_gem")}) AS outside_gem
+                FROM tbl_gem_procurement_works_monthly
+                GROUP BY works_gem_id
+            ),
+            works AS (
+                SELECT
+                    w.works_organisation_id AS organisation_id,
+                    w.works_financial_year AS financial_year,
+                    SUM(ISNULL(w.works_procurement_potential,0)) AS planned,
+                    SUM(ISNULL(mw.through_gem,0)) AS through_gem,
+                    SUM(ISNULL(mw.outside_gem,0)) AS outside_gem
+                FROM tbl_gem_procurement_works w
+                LEFT JOIN months_works mw ON mw.works_gem_id = w.works_gem_id
+                WHERE w.works_financial_year IN (${fyParams.join(", ")})
+                GROUP BY w.works_organisation_id, w.works_financial_year
+            ),
+            all_data AS (
+                SELECT organisation_id, financial_year, planned, through_gem, outside_gem FROM goods
+                UNION ALL
+                SELECT organisation_id, financial_year, planned, through_gem, outside_gem FROM service
+                UNION ALL
+                SELECT organisation_id, financial_year, planned, through_gem, outside_gem FROM works
+            ),
+            by_org_fy AS (
+                SELECT
+                    organisation_id,
+                    financial_year,
+                    SUM(ISNULL(planned,0)) AS planned_procurement,
+                    SUM(ISNULL(through_gem,0)) AS through_gem,
+                    SUM(ISNULL(outside_gem,0)) AS outside_gem
+                FROM all_data
+                GROUP BY organisation_id, financial_year
+            )
+            SELECT
+                o.organisation_id,
+                o.organisation_name,
+                CASE
+                    WHEN o.gemreport_order BETWEEN 2 AND 13 THEN 'Major Ports'
+                    WHEN o.gemreport_order BETWEEN 14 AND 15 THEN 'Authorities'
+                    WHEN o.gemreport_order BETWEEN 16 AND 18 THEN 'Subordinate/Attached Offices'
+                    WHEN o.gemreport_order BETWEEN 19 AND 25 THEN 'Public Sector Undertakings'
+                    WHEN o.gemreport_order >= 26 THEN 'Other Organizations'
+                    ELSE ''
+                END AS display_group,
+                d.financial_year,
+                ISNULL(d.planned_procurement, 0) AS planned_procurement,
+                ISNULL(d.through_gem, 0) AS through_gem,
+                ISNULL(d.outside_gem, 0) AS outside_gem,
+                CASE
+                    WHEN ISNULL(d.planned_procurement, 0) = 0 THEN 0
+                    ELSE ROUND((ISNULL(d.through_gem, 0) * 100.0) / ISNULL(d.planned_procurement, 0), 2)
+                END AS pct
+            FROM mmt_organisation o
+            LEFT JOIN by_org_fy d ON d.organisation_id = o.organisation_id
+            WHERE o.gemreport_order IS NOT NULL
+              AND d.financial_year IN (${fyParams.join(", ")})
+              ${whereSql}
+            ORDER BY o.gemreport_order, d.financial_year;
+        `);
+
+        res.json({
+            financialYears,
+            data: pivotGemYoYRows(result.recordset, financialYears),
+        });
+    } catch (err) {
+        return res.status(500).json({
+            message: err.message,
+        });
+    }
+}
+
+export default {
+    gemGoodsData,
+    gemTotalMonthlyReport,
+    gemGoodsMonthlyReport,
+    gemServiceMonthlyReport,
+    gemWorkMonthlyReport,
+    gemServiceData,
+    gemWorksData,
+    getGemReport,
+    getGemSummaryReport,
+    getGemYoYReport,
+};

@@ -166,6 +166,14 @@ export function fetchGemReport(year) {
   return getWithLocalFallback(`/gem-report/${year}`);
 }
 
+export function fetchGemSummaryReport(year) {
+  return getWithLocalFallback(`/gem-summary-report/${year}`);
+}
+
+export function fetchGemYoYReport() {
+  return getWithLocalFallback('/gem-yoy-report');
+}
+
 export function fetchOrganisationsDropdown() {
   return getWithLocalFallback('/mmt-dropdown/mmt_organisation');
 }

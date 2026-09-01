@@ -679,7 +679,7 @@ router.get("/get-goods-procurement/:goodsGemID", auth, requireModulePermission("
 router.get("/get-service-procurement/:serviceGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getServiceProcurementPotential);
 router.get("/get-works-procurement/:worksGemID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemProcurementTab.getWorksProcurementPotential);
 
-router.get("/get-organisation-names/:organisationID", financialParameterTab.getOrganisationName);
+router.get("/get-organisation-names/:organisationID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), financialParameterTab.getOrganisationName);
 // Vip
 router.get("/vip-reference", vipReferenceTab.getVipReference);
 router.post("/vip-reference", vipReferenceTab.createVipReference);
@@ -1528,6 +1528,8 @@ router.get("/gem-works-monthlyreport/:worksGemID", auth, requireModulePermission
 router.get("/gem-servicereport", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.gemServiceData);
 router.get("/gem-worksreport", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.gemWorksData);
 router.get("/gem-report/:selectedYear", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.getGemReport);
+router.get("/gem-summary-report/:selectedYear", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.getGemSummaryReport);
+router.get("/gem-yoy-report", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.getGemYoYReport);
 // MIV
 router.post("/mivdetailed-report/", mivReportTab.mivDetailedData);
 router.post("/miv-theme-detailed-report/", mivReportTab.mivThemeDetailedData); //MIV THEME WISE REPORT

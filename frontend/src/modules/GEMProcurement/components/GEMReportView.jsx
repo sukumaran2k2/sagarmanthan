@@ -15,7 +15,7 @@ import ExportDropdown from "../../../components/ExportDropdown";
 import * as XLSX from "xlsx";
 import { fetchGemReport } from "../api";
 
-export default function GEMReportView({ showToast }) {
+export default function GEMReportView({ showToast, viewMode = 'ministry' }) {
   const [selectedYear, setSelectedYear] = useState("2026-2027");
   const [groupFilter, setGroupFilter] = useState("ALL");
   const [orgFilter, setOrgFilter] = useState("ALL");
@@ -48,7 +48,10 @@ export default function GEMReportView({ showToast }) {
   );
 
   useEffect(() => {
-    fetchReportData(selectedYear);
+    const timer = setTimeout(() => {
+      fetchReportData(selectedYear);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchReportData, selectedYear]);
 
   const uniqueGroupList = useMemo(() => {
@@ -92,8 +95,6 @@ export default function GEMReportView({ showToast }) {
     return result;
   }, [reportData, groupFilter, orgFilter, quickFilter]);
 
-  // Legacy report is always "as on" the last day of the previous calendar month,
-  // but stamped with the selected financial year's start year.
   const { asOnDateStr, reportMonthStr, tableUptoDateStr } = useMemo(() => {
     const startYear = selectedYear ? selectedYear.split("-")[0] : "";
     const today = new Date();
@@ -167,7 +168,6 @@ export default function GEMReportView({ showToast }) {
     setQuickFilter("");
   };
 
-  let currentGroup = null;
   let serialNo = 1;
 
   return (
@@ -331,63 +331,67 @@ export default function GEMReportView({ showToast }) {
                 </select>
               </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: "11.5px", fontWeight: 800, color: "#4b2424", marginBottom: "6px" }}>
-                  Organization Sector
-                </label>
-                <select
-                  value={groupFilter}
-                  onChange={(e) => setGroupFilter(e.target.value)}
-                  style={{
-                    width: "100%",
-                    fontSize: "12px",
-                    padding: "8px 12px",
-                    background: "#fcf9f7",
-                    border: "1px solid #d7c4b7",
-                    borderRadius: "10px",
-                    fontWeight: 700,
-                    color: "#4b2424",
-                    outline: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  <option value="ALL">Show All Sectors</option>
-                  {uniqueGroupList.map((group) => (
-                    <option key={group} value={group}>
-                      {group}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {viewMode !== 'org' && (
+                <>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 800, color: "#4b2424", marginBottom: "6px" }}>
+                      Organization Sector
+                    </label>
+                    <select
+                      value={groupFilter}
+                      onChange={(e) => setGroupFilter(e.target.value)}
+                      style={{
+                        width: "100%",
+                        fontSize: "12px",
+                        padding: "8px 12px",
+                        background: "#fcf9f7",
+                        border: "1px solid #d7c4b7",
+                        borderRadius: "10px",
+                        fontWeight: 700,
+                        color: "#4b2424",
+                        outline: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <option value="ALL">Show All Sectors</option>
+                      {uniqueGroupList.map((group) => (
+                        <option key={group} value={group}>
+                          {group}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: "11.5px", fontWeight: 800, color: "#4b2424", marginBottom: "6px" }}>
-                  Organisation
-                </label>
-                <select
-                  value={orgFilter}
-                  onChange={(e) => setOrgFilter(e.target.value)}
-                  style={{
-                    width: "100%",
-                    fontSize: "12px",
-                    padding: "8px 12px",
-                    background: "#fcf9f7",
-                    border: "1px solid #d7c4b7",
-                    borderRadius: "10px",
-                    fontWeight: 700,
-                    color: "#4b2424",
-                    outline: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  <option value="ALL">Show All Organisations</option>
-                  {uniqueOrgList.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 800, color: "#4b2424", marginBottom: "6px" }}>
+                      Organisation
+                    </label>
+                    <select
+                      value={orgFilter}
+                      onChange={(e) => setOrgFilter(e.target.value)}
+                      style={{
+                        width: "100%",
+                        fontSize: "12px",
+                        padding: "8px 12px",
+                        background: "#fcf9f7",
+                        border: "1px solid #d7c4b7",
+                        borderRadius: "10px",
+                        fontWeight: 700,
+                        color: "#4b2424",
+                        outline: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <option value="ALL">Show All Organisations</option>
+                      {uniqueOrgList.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
 
             </div>
 
@@ -424,6 +428,23 @@ export default function GEMReportView({ showToast }) {
 
       <div style={{ background: "#fff", borderRadius: "16px", border: "1px solid #d7c4b7", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
         <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 260px)", minHeight: "400px", position: "relative" }}>
+          {loading && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: "rgba(255,255,255,0.8)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 40,
+              }}
+            >
+              <span style={{ fontSize: "12px", fontWeight: 800, color: "#4b2424" }}>
+                Loading report...
+              </span>
+            </div>
+          )}
           <table id="gemReportTable" style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse" }}>
             <thead style={{ position: "sticky", top: 0, zIndex: 30, background: "#4b2424", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
               <tr style={{ background: "#4b2424", color: "#fff", textAlign: "center", fontWeight: 800 }}>
@@ -452,11 +473,8 @@ export default function GEMReportView({ showToast }) {
             <tbody>
               {filteredData.map((row, idx) => {
                 const groupName = row.display_group;
-                let showGroupHeader = false;
-                if (groupName && groupName !== currentGroup) {
-                  currentGroup = groupName;
-                  showGroupHeader = true;
-                }
+                const prevGroupName = idx > 0 ? filteredData[idx - 1]?.display_group : null;
+                const showGroupHeader = Boolean(groupName && groupName !== prevGroupName);
 
                 const gp = Number(row.goods_procurement_potential || 0);
                 const sp = Number(row.service_procurement_potential || 0);
@@ -498,22 +516,24 @@ export default function GEMReportView({ showToast }) {
                 );
               })}
             </tbody>
-            <tfoot>
-              <tr style={{ background: "#f5eeea", color: "#4b2424", fontWeight: 900, textAlign: "center", borderTop: "2px solid #4b2424" }}>
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7" }} colSpan={2}>Grand Total</td>
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalGoodsPlanned.toFixed(2)}</td>
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalServicePlanned.toFixed(2)}</td>
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalWorksPlanned.toFixed(2)}</td>
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7", fontSize: "13px" }}>{totalGrandPlanned.toFixed(2)}</td>
+            {viewMode !== 'org' && (
+              <tfoot>
+                <tr style={{ background: "#f5eeea", color: "#4b2424", fontWeight: 900, textAlign: "center", borderTop: "2px solid #4b2424" }}>
+                  <td style={{ padding: "10px", border: "1px solid #d7c4b7" }} colSpan={2}>Grand Total</td>
+                  <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalGoodsPlanned.toFixed(2)}</td>
+                  <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalServicePlanned.toFixed(2)}</td>
+                  <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalWorksPlanned.toFixed(2)}</td>
+                  <td style={{ padding: "10px", border: "1px solid #d7c4b7", fontSize: "13px" }}>{totalGrandPlanned.toFixed(2)}</td>
 
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalGoodsGem.toFixed(2)}</td>
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalServiceGem.toFixed(2)}</td>
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalWorksGem.toFixed(2)}</td>
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7", fontSize: "13px" }}>{totalGrandGem.toFixed(2)}</td>
+                  <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalGoodsGem.toFixed(2)}</td>
+                  <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalServiceGem.toFixed(2)}</td>
+                  <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalWorksGem.toFixed(2)}</td>
+                  <td style={{ padding: "10px", border: "1px solid #d7c4b7", fontSize: "13px" }}>{totalGrandGem.toFixed(2)}</td>
 
-                <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalOutsideGem.toFixed(2)}</td>
-              </tr>
-            </tfoot>
+                  <td style={{ padding: "10px", border: "1px solid #d7c4b7" }}>{totalOutsideGem.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

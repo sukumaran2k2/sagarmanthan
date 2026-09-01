@@ -9,7 +9,7 @@ import GEMDataListView from './components/GEMDataListView';
 import GEMInputForm from './pages/InputForm';
 import GEMUpdateForm from './pages/UpdateForm';
 import GEMMonthlyDataPage from './pages/MonthlyDataPage';
-import GEMReportView from './components/GEMReportView';
+import GEMReports from './pages/Reports';
 import { useGemPermissions } from './hooks/useGemPermissions';
 import {
   fetchGemList,
@@ -59,7 +59,6 @@ export default function GEMProcurementView({
 }) {
   const permissions = useGemPermissions();
   const viewMode = permissions.viewMode;
-  // Planned targets are ministry-owned; organisation users only report actuals.
   const canManageTargets = Boolean(
     !permissions.isViewOnlyAdmin && viewMode !== 'org'
   );
@@ -148,7 +147,6 @@ export default function GEMProcurementView({
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Never leave a form open once the tab or the user's rights no longer allow it.
   useEffect(() => {
     if (activePage === 'add' && !canAddForTab) setActivePage(null);
     if (activePage === 'target' && !canUpdateTarget) setActivePage(null);
@@ -269,22 +267,15 @@ export default function GEMProcurementView({
       ? 'Total'
       : activeTab.charAt(0).toUpperCase() + activeTab.slice(1);
 
-  // The consolidated report spans every organisation, so it stays ministry-only.
   const visibleTabs = useMemo(
     () =>
-      GEM_CATEGORY_TABS.filter((t) => t.id !== 'report' || viewMode !== 'org').map(
-        (t) => ({
-          id: t.id,
-          label: t.label,
-          icon: t.id === 'report' ? Calendar : undefined,
-        })
-      ),
-    [viewMode]
+      GEM_CATEGORY_TABS.map((t) => ({
+        id: t.id,
+        label: t.label,
+        icon: t.id === 'report' ? Calendar : undefined,
+      })),
+    []
   );
-
-  useEffect(() => {
-    if (activeTab === 'report' && viewMode === 'org') setActiveTab('total');
-  }, [activeTab, viewMode]);
 
   const colDefs = useMemo(() => {
     const canUpdate = canUpdateMonthly;
@@ -613,7 +604,7 @@ export default function GEMProcurementView({
           </div>
         ))}
 
-      {activeTab === 'report' && <GEMReportView showToast={showToast} />}
+      {activeTab === 'report' && <GEMReports showToast={showToast} viewMode={viewMode} />}
 
       {toastVisible && (
         <div
