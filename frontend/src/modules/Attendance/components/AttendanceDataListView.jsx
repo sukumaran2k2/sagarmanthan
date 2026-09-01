@@ -1,5 +1,5 @@
-import React from 'react';
-import { Search, AlertCircle, RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, AlertCircle, RefreshCw, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import Table from '../../../components/Table';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
@@ -11,9 +11,12 @@ export default function AttendanceDataListView({
   setDataFilterMonth,
   dataFilterYear,
   setDataFilterYear,
+  dataFilterWeek,
+  setDataFilterWeek,
   availableWings,
   availableMonths,
   availableYears,
+  availableWeeks,
   handleCopyData,
   handleExportExcel,
   handleExportPdf,
@@ -28,62 +31,117 @@ export default function AttendanceDataListView({
   employeeColDefs,
   pinnedBottomRowData,
 }) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilterCount = [dataFilterWing, dataFilterMonth, dataFilterYear, dataFilterWeek].filter(v => v && v !== 'All').length;
+
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-      {/* Top Filter Bar for View Data List */}
-      <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 transition-all shadow-xs">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Filter By Wing
-            </label>
-            <select
-              value={dataFilterWing}
-              onChange={(e) => setDataFilterWing(e.target.value)}
-              className="w-full text-xs px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-100 cursor-pointer shadow-2xs"
-            >
-              <option value="All">All Wings ({availableWings.length - 1})</option>
-              {availableWings.filter(w => w !== 'All').map(w => (
-                <option key={w} value={w}>{w}</option>
-              ))}
-            </select>
+      {/* Top Filter Bar for View Data List (collapsible) */}
+      <div className="bg-slate-50/70 border border-slate-200 rounded-2xl transition-all shadow-xs overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(prev => !prev)}
+          className="w-full flex items-center justify-between px-4 py-3.5 cursor-pointer hover:bg-slate-100/60 transition"
+        >
+          <div className="flex items-center gap-2.5">
+            <Filter className="h-4 w-4 text-slate-500" />
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
+                {activeFilterCount} active
+              </span>
+            )}
           </div>
+          {filtersOpen ? (
+            <ChevronUp className="h-4 w-4 text-slate-500" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-slate-500" />
+          )}
+        </button>
 
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Filter By Month
-            </label>
-            <select
-              value={dataFilterMonth}
-              onChange={(e) => setDataFilterMonth(e.target.value)}
-              className="w-full text-xs px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-100 cursor-pointer shadow-2xs"
-            >
-              <option value="All">All Months</option>
-              {availableMonths.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
+        {filtersOpen && (
+          <div className="px-4 pb-4 animate-fade-in">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Filter By Wing
+                </label>
+                <select
+                  value={dataFilterWing}
+                  onChange={(e) => setDataFilterWing(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-100 cursor-pointer shadow-2xs"
+                >
+                  <option value="All">All Wings ({availableWings.length - 1})</option>
+                  {availableWings.filter(w => w !== 'All').map(w => (
+                    <option key={w} value={w}>{w}</option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Filter By Year
-            </label>
-            <select
-              value={dataFilterYear}
-              onChange={(e) => setDataFilterYear(e.target.value)}
-              className="w-full text-xs px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-100 cursor-pointer shadow-2xs"
-            >
-              <option value="All">All Years</option>
-              {availableYears.map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Filter By Month
+                </label>
+                <select
+                  value={dataFilterMonth}
+                  onChange={(e) => setDataFilterMonth(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-100 cursor-pointer shadow-2xs"
+                >
+                  <option value="All">All Months</option>
+                  {availableMonths.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Filter By Week
+                </label>
+                <select
+                  value={dataFilterWeek}
+                  onChange={(e) => setDataFilterWeek(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-100 cursor-pointer shadow-2xs"
+                >
+                  <option value="All">All Weeks</option>
+                  {availableWeeks.filter(w => w !== 'All').map(w => (
+                    <option key={w} value={w}>Week {w}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Filter By Year
+                </label>
+                <select
+                  value={dataFilterYear}
+                  onChange={(e) => setDataFilterYear(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-100 cursor-pointer shadow-2xs"
+                >
+                  <option value="All">All Years</option>
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="relative max-w-xs w-full">
+          <input
+            type="text"
+            placeholder="Search raw data..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full text-xs pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-100 transition font-medium"
+          />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+        </div>
+
         <div className="flex items-center space-x-3">
           <CopyButton onCopy={handleCopyData} color="#0f417a" hoverBg="#f1f5f9" />
           <ExportDropdown onExportExcel={handleExportExcel} onExportPdf={handleExportPdf} color="#0f417a" hoverColor="#0c3361" />
@@ -102,17 +160,6 @@ export default function AttendanceDataListView({
             </select>
             <span>entries</span>
           </div>
-        </div>
-
-        <div className="relative max-w-xs w-full">
-          <input
-            type="text"
-            placeholder="Search raw data..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full text-xs pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-100 transition font-medium"
-          />
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
         </div>
       </div>
 

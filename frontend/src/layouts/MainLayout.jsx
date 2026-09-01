@@ -37,6 +37,14 @@ export const ROUTE_MAP = {
   'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
   'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
+  'DGLL Input Form': 'kpi/dgll',
+  'DGLL Reports': 'kpi/dgll',
+  'CSL Input Form': 'kpi/csl',
+  'CSL Reports': 'kpi/csl',
+  'IMU Input Form': 'kpi/imu',
+  'IMU Reports': 'kpi/imu',
+  'SCI Input Form': 'kpi/sci',
+  'SCI Reports': 'kpi/sci',
 
   // Governance nested routes
   'E Office': 'governance/e-office',
@@ -173,6 +181,11 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('governance/cabinet-notes-other-ministry')) return 'Cabinet Notes - Other Ministries';
   if (cleanSlug.startsWith('governance/cabinet-notes')) return 'Cabinet Notes - MoPSW';
   if (cleanSlug.startsWith('governance/parliamentary-issue')) return 'Parliamentary Issues';
+  if (cleanSlug.startsWith('kpi/major-ports')) return 'Major Ports Dashboard';
+  if (cleanSlug.startsWith('kpi/dgll')) return 'DGLL Input Form';
+  if (cleanSlug.startsWith('kpi/csl')) return 'CSL Input Form';
+  if (cleanSlug.startsWith('kpi/imu')) return 'IMU Input Form';
+  if (cleanSlug.startsWith('kpi/sci')) return 'SCI Input Form';
   if (cleanSlug.startsWith('governance/media-outreach')) return 'Media Outreach';
 
   // Exact match

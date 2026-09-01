@@ -128,207 +128,49 @@ async function updateLightsHousedata(req,res){
     }
 }
 
-async function addHydrographicSurvey(req, res) 
-{   
+async function deleteLightHouseMaster(req, res) {
+    const lightsHouseId = req.params.lights_house_id;
+    const userID = req.params.userID;
 
-    const financialYear = req.body.financialYear;
-    const hydrographicSurveys = req.body.hydrographicSurveys;
-    const navigationalCharts = req.body.navigationalCharts;
-    const userID = req.body.userID;
-    
-   
-    console.log(userID,"userID")
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const hourPart = String(now.getHours()).padStart(2, '0');
+    const minutePart = String(now.getMinutes()).padStart(2, '0');
+    const secondPart = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+    const logFolder = `./delete_log/Light_House_Master`;
+    const logFileName = `${logFolder}/deleted_LightHouseMaster_log_${timestamp}.txt`;
 
     const conn = await pool;
     const request = conn.request();
-    request.input("financialYear", financialYear);
-    request.input("hydrographicSurveys", hydrographicSurveys);
-    request.input("navigationalCharts", navigationalCharts);
+    request.input("lightsHouseId", lightsHouseId);
     request.input("userID", userID);
-  
-    const result = await request.query(`
-        INSERT INTO tbl_hydrographic_surveys (financial_year,number_of_hydrograpic_surveys,number_of_navigation_chart,created_by)
-        OUTPUT INSERTED.hydrographic_id
-        VALUES (@financialYear, @hydrographicSurveys, @navigationalCharts,@userID)
-    `);
-
-    const insertedYPId = result.recordset[0].hydrographic_id;
-    res.status(201).json({ insertedYPId });
-
-} 
-
-async function getHydrographicsurvey(req, res) 
-{
     try {
-        const conn = await pool;
-        const request = conn.request();
+        const dataToDelete = await request.query(`SELECT * FROM tbl_light_house_master WHERE lights_house_id = @lightsHouseId;`);
+        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
 
-        const result = await request.query(`
-            SELECT * FROM tbl_hydrographic_surveys;
-        `);
+        const result = await request.query(`DELETE FROM tbl_light_house_master WHERE lights_house_id = @lightsHouseId;`);
 
-        res.json(result.recordset);
-    } catch (err) {
-        console.error("Error fetching hydrographic surveys:", err);
-        res.sendStatus(500);
-    }
-}
+        if (result.rowsAffected[0] > 0) {
+            const logMessage = `User '${userID}' deleted Light House Master data with Data ID '${lightsHouseId}'. Deleted Data: ${dataJSON}\n`;
 
-async function getUpdatehydrographicdata(req, res) 
-{
+            fs.mkdirSync(logFolder, { recursive: true });
+            fs.appendFile(logFileName, logMessage, (err) => {
+                if (err) {
+                    console.error('Error writing to delete_logs.txt:', err);
+                }
+            });
 
-    const HydrographicId = req.params.HydrographicId;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("HydrographicId", HydrographicId);
-
-    try {
-        const result = await request.query(`
-            SELECT 
-                *
-            FROM 
-                tbl_hydrographic_surveys
-                WHERE hydrographic_id  = @HydrographicId
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-};
-
-    
-async function updateHydrographicSurveyData(req,res){
-    // const HydrographicId = req.params.HydrographicId;
-    const data = req.body;
-    console.log("data",data);
-    
-    const updateFinancialYear = req.body.updateFinancialYear;
-    const updateHydrographicData = req.body.updateHydrographicData;
-    const updateNavigationalCharts = req.body.updateNavigationalCharts;
-    const HydrographicIdOrg = req.body.HydrographicIdOrg;
-
-    const userID = req.body.userID;
-
-
-    const conn = await pool;
-    const request = conn.request();
-    // request.input('HydrographicId',HydrographicId);
-    request.input('updateFinancialYear', updateFinancialYear);
-    request.input('updateHydrographicData', updateHydrographicData);
-    request.input('updateNavigationalCharts', updateNavigationalCharts);
-    request.input("userID", userID);
-    request.input("HydrographicIdOrg", HydrographicIdOrg);
-
-    
-
-    try {
-        const result = await request.query(`UPDATE tbl_hydrographic_surveys SET financial_year = @updateFinancialYear, number_of_hydrograpic_surveys = @updateHydrographicData,
-        number_of_navigation_chart = @updateNavigationalCharts, updated_by = @userID,updated_date = getDate() WHERE hydrographic_id  = @HydrographicIdOrg`);
-        return res.sendStatus(200);
+            return res.sendStatus(201);
+        } else {
+            return res.status(404).send("Data not found");
+        }
     }
     catch (err) {
         console.log(err);
         return res.sendStatus(500);
     }
 }
-
-
-async function addVesselAccidents(req, res) {
-    const financialYear = req.body.financialYear;
-    const vesselAccidents = req.body.vesselAccidents;
-    const userID = req.body.userID;
-    console.log(userID,"user")
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("financialYear", financialYear);
-    request.input("vesselAccidents", vesselAccidents);
-    request.input("userID", userID);
-
-    const result = await request.query(`
-        INSERT INTO tbl_vessel_accidents (financial_year,number_of_vessel_accidents,created_by)
-        OUTPUT INSERTED.vessel_id
-        VALUES (@financialYear, @vesselAccidents,@userID)
-    `);
-
-    const insertedYPId = result.recordset[0].vessel_id;
-    res.status(201).json({ insertedYPId });
-
-} 
-
-async function getVesselAccidents(req, res) 
-{
-    try {
-        const conn = await pool;
-        const request = conn.request();
-
-        const result = await request.query(`
-            SELECT * FROM tbl_vessel_accidents;
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.error("Error fetching Vessel Accidents:", err);
-        res.sendStatus(500);
-    }
-}
-   
-async function getUpdateVesselAccidentsdata(req, res) 
-{    
-    const VesselId = req.params.VesselId;
-    const conn = await pool;
-    const request = conn.request();
-    request.input("VesselId", VesselId);
-
-    try {
-        const result = await request.query(`
-            SELECT 
-                *
-            FROM 
-                tbl_vessel_accidents
-                WHERE vessel_id  = @VesselId
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-};
-
-async function updateVesselData(req,res)
-{        
-    const data = req.body;
-    console.log("data",data);
-    
-    const updateVesselFinancialYear = req.body.updateVesselFinancialYear;
-    const updateVesselAccidentsdata = req.body.updateVesselAccidentsdata;
-    const  VesselIdOrg = req.body. VesselIdOrg;
-
-    const userID = req.body.userID;
-
-
-    const conn = await pool;
-    const request = conn.request();
-    // request.input('HydrographicId',HydrographicId);
-    request.input('updateVesselFinancialYear', updateVesselFinancialYear);
-    request.input('updateVesselAccidentsdata', updateVesselAccidentsdata);
-    request.input("userID", userID);
-    request.input("VesselIdOrg",  VesselIdOrg);
-
-    try {
-        const result = await request.query(`UPDATE tbl_vessel_accidents SET financial_year = @updateVesselFinancialYear, number_of_vessel_accidents = @updateVesselAccidentsdata,updated_by = @userID,updated_date = getDate() WHERE vessel_id  = @VesselIdOrg`);
-        return res.sendStatus(200);
-    }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
-    }
-}
-
-
 
 async function addVtmsIntegration(req, res) {
     const { financialYear, vtmsIntegration, userID } = req.body;
@@ -440,6 +282,50 @@ async function updateVtmsData(req,res){
     }
 }
 
+async function deleteVtmsIntegration(req, res) {
+    const vtmsId = req.params.vtms_id;
+    const userID = req.params.userID;
+
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const hourPart = String(now.getHours()).padStart(2, '0');
+    const minutePart = String(now.getMinutes()).padStart(2, '0');
+    const secondPart = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+    const logFolder = `./delete_log/VTMS_Integration`;
+    const logFileName = `${logFolder}/deleted_VtmsIntegration_log_${timestamp}.txt`;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("vtmsId", vtmsId);
+    request.input("userID", userID);
+    try {
+        const dataToDelete = await request.query(`SELECT * FROM tbl_vtms_integration WHERE vtms_id = @vtmsId;`);
+        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+        const result = await request.query(`DELETE FROM tbl_vtms_integration WHERE vtms_id = @vtmsId;`);
+
+        if (result.rowsAffected[0] > 0) {
+            const logMessage = `User '${userID}' deleted VTMS Integration data with Data ID '${vtmsId}'. Deleted Data: ${dataJSON}\n`;
+
+            fs.mkdirSync(logFolder, { recursive: true });
+            fs.appendFile(logFileName, logMessage, (err) => {
+                if (err) {
+                    console.error('Error writing to delete_logs.txt:', err);
+                }
+            });
+
+            return res.sendStatus(201);
+        } else {
+            return res.status(404).send("Data not found");
+        }
+    }
+    catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
 
 async function addNaisUptime(req, res) {
     const { financialYear, naisAvailability, userID } = req.body;
@@ -544,6 +430,50 @@ async function addNaisUptime(req, res) {
             try {
                 const result = await request.query(`UPDATE tbl_nais_uptime SET financial_year = @updatenaisfinancialYear, availability_of_nais = @updateNaisUptime,updated_by = @userID,updated_date = getDate() WHERE nais_id  = @NaisIdOrg`);
                 return res.sendStatus(200);
+            }
+            catch (err) {
+                console.log(err);
+                return res.sendStatus(500);
+            }
+        }
+
+        async function deleteNaisUptime(req, res) {
+            const naisId = req.params.nais_id;
+            const userID = req.params.userID;
+
+            const now = new Date();
+            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+            const hourPart = String(now.getHours()).padStart(2, '0');
+            const minutePart = String(now.getMinutes()).padStart(2, '0');
+            const secondPart = String(now.getSeconds()).padStart(2, '0');
+            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+            const logFolder = `./delete_log/NAIS_Uptime`;
+            const logFileName = `${logFolder}/deleted_NaisUptime_log_${timestamp}.txt`;
+
+            const conn = await pool;
+            const request = conn.request();
+            request.input("naisId", naisId);
+            request.input("userID", userID);
+            try {
+                const dataToDelete = await request.query(`SELECT * FROM tbl_nais_uptime WHERE nais_id = @naisId;`);
+                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+                const result = await request.query(`DELETE FROM tbl_nais_uptime WHERE nais_id = @naisId;`);
+
+                if (result.rowsAffected[0] > 0) {
+                    const logMessage = `User '${userID}' deleted NAIS Uptime data with Data ID '${naisId}'. Deleted Data: ${dataJSON}\n`;
+
+                    fs.mkdirSync(logFolder, { recursive: true });
+                    fs.appendFile(logFileName, logMessage, (err) => {
+                        if (err) {
+                            console.error('Error writing to delete_logs.txt:', err);
+                        }
+                    });
+
+                    return res.sendStatus(201);
+                } else {
+                    return res.status(404).send("Data not found");
+                }
             }
             catch (err) {
                 console.log(err);
@@ -664,6 +594,51 @@ async function addNaisUptime(req, res) {
                 return res.sendStatus(500);
             }
         }
+
+        async function deleteNaisIntegration(req, res) {
+            const naisIntegrationId = req.params.nais_integration_id;
+            const userID = req.params.userID;
+
+            const now = new Date();
+            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+            const hourPart = String(now.getHours()).padStart(2, '0');
+            const minutePart = String(now.getMinutes()).padStart(2, '0');
+            const secondPart = String(now.getSeconds()).padStart(2, '0');
+            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+            const logFolder = `./delete_log/NAIS_Integration`;
+            const logFileName = `${logFolder}/deleted_NaisIntegration_log_${timestamp}.txt`;
+
+            const conn = await pool;
+            const request = conn.request();
+            request.input("naisIntegrationId", naisIntegrationId);
+            request.input("userID", userID);
+            try {
+                const dataToDelete = await request.query(`SELECT * FROM tbl_nais_integration WHERE nais_integration_id = @naisIntegrationId;`);
+                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+                const result = await request.query(`DELETE FROM tbl_nais_integration WHERE nais_integration_id = @naisIntegrationId;`);
+
+                if (result.rowsAffected[0] > 0) {
+                    const logMessage = `User '${userID}' deleted NAIS Integration data with Data ID '${naisIntegrationId}'. Deleted Data: ${dataJSON}\n`;
+
+                    fs.mkdirSync(logFolder, { recursive: true });
+                    fs.appendFile(logFileName, logMessage, (err) => {
+                        if (err) {
+                            console.error('Error writing to delete_logs.txt:', err);
+                        }
+                    });
+
+                    return res.sendStatus(201);
+                } else {
+                    return res.status(404).send("Data not found");
+                }
+            }
+            catch (err) {
+                console.log(err);
+                return res.sendStatus(500);
+            }
+        }
+
         async function addTouristDestinations(req, res) {
             const {financialYears, lighthouseDeveloped, annualTourist, userID} = req.body;
             console.log("response", financialYears);
@@ -887,6 +862,94 @@ async function addNaisUptime(req, res) {
         }
        }
 
+       async function deleteTouristDestination(req, res) {
+            const touristDestinationId = req.params.tourist_destination_id;
+            const userID = req.params.userID;
+
+            const now = new Date();
+            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+            const hourPart = String(now.getHours()).padStart(2, '0');
+            const minutePart = String(now.getMinutes()).padStart(2, '0');
+            const secondPart = String(now.getSeconds()).padStart(2, '0');
+            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+            const logFolder = `./delete_log/Tourist_Destinations`;
+            const logFileName = `${logFolder}/deleted_TouristDestination_log_${timestamp}.txt`;
+
+            const conn = await pool;
+            const request = conn.request();
+            request.input("touristDestinationId", touristDestinationId);
+            request.input("userID", userID);
+            try {
+                const dataToDelete = await request.query(`SELECT * FROM tbl_kpi_dgll_3_5_1 WHERE tourist_destination_id = @touristDestinationId;`);
+                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+                const result = await request.query(`DELETE FROM tbl_kpi_dgll_3_5_1 WHERE tourist_destination_id = @touristDestinationId;`);
+
+                if (result.rowsAffected[0] > 0) {
+                    const logMessage = `User '${userID}' deleted Tourist Destination data with Data ID '${touristDestinationId}'. Deleted Data: ${dataJSON}\n`;
+
+                    fs.mkdirSync(logFolder, { recursive: true });
+                    fs.appendFile(logFileName, logMessage, (err) => {
+                        if (err) {
+                            console.error('Error writing to delete_logs.txt:', err);
+                        }
+                    });
+
+                    return res.sendStatus(201);
+                } else {
+                    return res.status(404).send("Data not found");
+                }
+            }
+            catch (err) {
+                console.log(err);
+                return res.sendStatus(500);
+            }
+       }
+
+       async function deleteTargetDetail(req, res) {
+            const targetId = req.params.tourist_destination_target_id;
+            const userID = req.params.userID;
+
+            const now = new Date();
+            const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+            const hourPart = String(now.getHours()).padStart(2, '0');
+            const minutePart = String(now.getMinutes()).padStart(2, '0');
+            const secondPart = String(now.getSeconds()).padStart(2, '0');
+            const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+            const logFolder = `./delete_log/Target_Details`;
+            const logFileName = `${logFolder}/deleted_TargetDetail_log_${timestamp}.txt`;
+
+            const conn = await pool;
+            const request = conn.request();
+            request.input("targetId", targetId);
+            request.input("userID", userID);
+            try {
+                const dataToDelete = await request.query(`SELECT * FROM tbl_kpi_dgll_3_5_2 WHERE tourist_destination_target_id = @targetId;`);
+                const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+                const result = await request.query(`DELETE FROM tbl_kpi_dgll_3_5_2 WHERE tourist_destination_target_id = @targetId;`);
+
+                if (result.rowsAffected[0] > 0) {
+                    const logMessage = `User '${userID}' deleted Target Detail data with Data ID '${targetId}'. Deleted Data: ${dataJSON}\n`;
+
+                    fs.mkdirSync(logFolder, { recursive: true });
+                    fs.appendFile(logFileName, logMessage, (err) => {
+                        if (err) {
+                            console.error('Error writing to delete_logs.txt:', err);
+                        }
+                    });
+
+                    return res.sendStatus(201);
+                } else {
+                    return res.status(404).send("Data not found");
+                }
+            }
+            catch (err) {
+                console.log(err);
+                return res.sendStatus(500);
+            }
+       }
+
 
 
        async function checkFinancialYear(req, res) {
@@ -905,10 +968,11 @@ async function addNaisUptime(req, res) {
             `);
         
             if (result.recordset[0].count > 0) {
-                // If data already exists, return a 400 response with an error message
+                // If data already exists, return a 205 response
                 res.sendStatus(205);
-            } 
-        
+            } else {
+                res.sendStatus(200);
+            }
         } catch (err) {
             console.log(err);
             return res.status(500).json({ message: "An error occurred while checking the data."});
@@ -934,10 +998,11 @@ async function addNaisUptime(req, res) {
 
         if(result.recordset[0].count > 0) {
             res.sendStatus(205);
-        } 
-
+        } else {
+            res.sendStatus(200);
+        }
         } catch(error){
-            console.log(err);
+            console.log(error);
             return res.status(500).json({ message: "An error occurred while checking the data."});
         }
     }
@@ -1048,11 +1113,55 @@ async function getFinancialPerformanceDataByID(req,res) {
         }
 }
 
-export default {addLightsHouseMaster,getLightHouseMaster,getUpdatelightHouseData,updateLightsHousedata,addHydrographicSurvey,
-    getHydrographicsurvey,getUpdatehydrographicdata,updateHydrographicSurveyData,addVesselAccidents,getVesselAccidents,
-    getUpdateVesselAccidentsdata,updateVesselData,addVtmsIntegration,getVtmsIntegration,getUpdateVtmsdata,updateVtmsData,
-    addNaisUptime,getnaisList,getUpdateNaisdata,updateNaisData,addNAISIntegration,getnaisIntegrationList,
-    getUpdateNaisIntegrationdata, updateNaisIntegrationData, addTouristDestinations, getTouristDestinations, addTargetDetails, 
+async function deleteFinancialPerformance(req, res) {
+    const financialId = req.params.financial_id;
+    const userID = req.params.userID;
+
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const hourPart = String(now.getHours()).padStart(2, '0');
+    const minutePart = String(now.getMinutes()).padStart(2, '0');
+    const secondPart = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+    const logFolder = `./delete_log/Financial_Performance`;
+    const logFileName = `${logFolder}/deleted_FinancialPerformance_log_${timestamp}.txt`;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("financialId", financialId);
+    request.input("userID", userID);
+    try {
+        const dataToDelete = await request.query(`SELECT * FROM tbl_dgll_k_3_6 WHERE financial_id = @financialId;`);
+        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+        const result = await request.query(`DELETE FROM tbl_dgll_k_3_6 WHERE financial_id = @financialId;`);
+
+        if (result.rowsAffected[0] > 0) {
+            const logMessage = `User '${userID}' deleted Financial Performance data with Data ID '${financialId}'. Deleted Data: ${dataJSON}\n`;
+
+            fs.mkdirSync(logFolder, { recursive: true });
+            fs.appendFile(logFileName, logMessage, (err) => {
+                if (err) {
+                    console.error('Error writing to delete_logs.txt:', err);
+                }
+            });
+
+            return res.sendStatus(201);
+        } else {
+            return res.status(404).send("Data not found");
+        }
+    }
+    catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
+export default {addLightsHouseMaster,getLightHouseMaster,getUpdatelightHouseData,updateLightsHousedata,deleteLightHouseMaster,
+    addVtmsIntegration,getVtmsIntegration,getUpdateVtmsdata,updateVtmsData,deleteVtmsIntegration,
+    addNaisUptime,getnaisList,getUpdateNaisdata,updateNaisData,deleteNaisUptime,addNAISIntegration,getnaisIntegrationList,
+    getUpdateNaisIntegrationdata, updateNaisIntegrationData, deleteNaisIntegration, addTouristDestinations, getTouristDestinations, addTargetDetails, 
     getTargetDetails, getByIdTouristDestinations, UpdateTouristDestinations,getByIdTargetDestinations, updateTargetDestinationData, 
-    checkFinancialYear, checkYear,submitFinancialPerformance,getFinancialPerfomanceData,getFinancialPerformanceDataByID
+    deleteTouristDestination, deleteTargetDetail,
+    checkFinancialYear, checkYear,submitFinancialPerformance,getFinancialPerfomanceData,getFinancialPerformanceDataByID,deleteFinancialPerformance
 };

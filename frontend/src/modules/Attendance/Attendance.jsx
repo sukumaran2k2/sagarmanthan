@@ -29,11 +29,12 @@ import {
   formatTimeStr,
   calculateWorkingHoursDifference,
   validateAttendanceHeaders,
+  validateAttendanceRows,
 } from './utils/attendanceUtils';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
-export default function AttendanceView() {
+export default function AttendanceView({ triggerNotification }) {
   const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
     const subTabParam = params.get('subtab') || params.get('tab');
@@ -75,6 +76,24 @@ export default function AttendanceView() {
   const [employeeRows, setEmployeeRows] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // The most recently uploaded file's data, identified by the highest
+  // File_Id present in employeeRows itself. filesList intentionally isn't
+  // used for this: it's fetched from a different table (tbl_attendance)
+  // than employeeRows (tbl_employee_attendance, linked to
+  // tbl_emp_attendance_file), so the two have no shared ID space -- an
+  // earlier version of this cross-referenced them and always resolved to
+  // no match. File_Id is an auto-incrementing key, so its max value here
+  // reliably identifies the latest upload's rows.
+  const latestFileId = useMemo(() => {
+    if (!employeeRows || employeeRows.length === 0) return null;
+    let maxId = null;
+    employeeRows.forEach(r => {
+      const fid = Number(r.File_Id ?? r.File_ID ?? r.file_id);
+      if (!isNaN(fid) && (maxId === null || fid > maxId)) maxId = fid;
+    });
+    return maxId;
+  }, [employeeRows]);
+
   // Upload states & file data preview
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewRows, setPreviewRows] = useState([]);
@@ -84,15 +103,22 @@ export default function AttendanceView() {
   const [uploadMonth, setUploadMonth] = useState('');
   const [uploadWeek, setUploadWeek] = useState('');
 
-  // Toast notification states
-  const [toastMsg, setToastMsg] = useState('');
-  const [toastColor, setToastColor] = useState('#3B82F6');
-  const [toastVisible, setToastVisible] = useState(false);
+ 
+
+  // Styled confirm modal, replacing window.confirm() for the upload-replace
+  // and delete-file prompts so they match the app's visual language instead
+  // of the browser's native dialog.
+  const [confirmModal, setConfirmModal] = useState({ open: false, message: '', onConfirm: null });
+  const askConfirm = (message, onConfirm) => {
+    setConfirmModal({ open: true, message, onConfirm });
+  };
+  const closeConfirm = () => setConfirmModal({ open: false, message: '', onConfirm: null });
 
   // View Data tab filter states
   const [dataFilterWing, setDataFilterWing] = useState('All');
   const [dataFilterMonth, setDataFilterMonth] = useState('All');
   const [dataFilterYear, setDataFilterYear] = useState('All');
+  const [dataFilterWeek, setDataFilterWeek] = useState('All');
 
   // ---- ABSTRACT REPORT TAB STATE ----
   const [reportData, setReportData] = useState([]);
@@ -115,11 +141,26 @@ export default function AttendanceView() {
   // In-memory data cache
   const attendanceCache = useRef({});
 
+    // Routes through the app-wide Notification system (App.jsx's
+  // triggerNotification) instead of a separate local toast -- this module
+  // previously had its own solid-color pill toast because AttendanceView
+  // was never passed triggerNotification as a prop, unlike every other
+  // module. Keeping the showToast(msg, color) call signature here means
+  // none of the ~20 existing call sites below need to change.
+  const TOAST_COLOR_TYPE = {
+    '#10B981': 'success',
+    '#EF4444': 'error',
+    '#F59E0B': 'warning',
+  };
   const showToast = (msg, color = '#3B82F6') => {
-    setToastMsg(msg);
-    setToastColor(color);
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 2400);
+    const type = TOAST_COLOR_TYPE[color] || 'success';
+    // The old pill toast needed a leading emoji for visual context; the
+    // shared Notification component already conveys that via its icon, so
+    // strip it to match how the rest of the app calls triggerNotification.
+    const cleanMsg = msg.replace(/^(⚠️?|❌|✅|🗑️?|📈|📄|📋)\s*/u, '');
+    if (triggerNotification) {
+      triggerNotification(cleanMsg, type);
+    }
   };
 
   // ---- FETCH FROM DATABASE WITH IN-MEMORY CACHING ----
@@ -399,8 +440,19 @@ export default function AttendanceView() {
     return ['All', ...Array.from(years)];
   }, [employeeRows]);
 
+  const availableWeeks = useMemo(() => {
+    const weeks = new Set(employeeRows.map(r => r.week ?? r.Week).filter(v => v !== undefined && v !== null && v !== '').map(String));
+    return ['All', ...Array.from(weeks).sort((a, b) => Number(a) - Number(b))];
+  }, [employeeRows]);
+
   const filteredEmployeeRows = useMemo(() => {
-    let result = employeeRows;
+    const anyFilterActive = dataFilterWing !== 'All' || dataFilterMonth !== 'All' || dataFilterYear !== 'All' || dataFilterWeek !== 'All';
+
+    // Default view: only the most recently uploaded file's rows. Once any
+    // filter is set, search across the full historical dataset instead.
+    let result = (!anyFilterActive && latestFileId !== null)
+      ? employeeRows.filter(r => Number(r.File_Id ?? r.File_ID ?? r.file_id) === latestFileId)
+      : employeeRows;
 
     if (dataFilterWing !== 'All') {
       result = result.filter(r => r.Wing === dataFilterWing || r.wing_name === dataFilterWing);
@@ -411,6 +463,9 @@ export default function AttendanceView() {
     if (dataFilterYear !== 'All') {
       result = result.filter(r => String(r.Year) === String(dataFilterYear));
     }
+    if (dataFilterWeek !== 'All') {
+      result = result.filter(r => String(r.week ?? r.Week) === String(dataFilterWeek));
+    }
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter(row => 
@@ -419,22 +474,26 @@ export default function AttendanceView() {
     }
 
     return result;
-  }, [employeeRows, dataFilterWing, dataFilterMonth, dataFilterYear, searchTerm]);
+  }, [employeeRows, latestFileId, dataFilterWing, dataFilterMonth, dataFilterYear, dataFilterWeek, searchTerm]);
 
   const totalEmployeesStat = useMemo(() => {
     if (subTab === 'report' && reportData.length > 0) {
       const totalRow = reportData.find(r => r.Wing === 'Total');
+      const wingRows = reportData.filter(r => r.Wing && r.Wing !== 'Total');
+      const wingsCount = wingRows.length;
+      const wingLabel = wingsCount ? `Across ${wingsCount} wing${wingsCount > 1 ? 's' : ''}` : 'This period';
+
       if (totalRow && totalRow['Total Monitored Employees']) {
-        return totalRow['Total Monitored Employees'];
+        return { empCount: totalRow['Total Monitored Employees'], wingCount: wingLabel };
       }
       const sum = reportData.reduce((acc, r) => acc + (Number(r['Total Monitored Employees']) || 0), 0);
-      if (sum > 0) return sum;
+      if (sum > 0) return { empCount: sum, wingCount: wingLabel };
     }
-    const empIds = new Set(employeeRows.map(r => r.EmpId || r['Emp Id']).filter(Boolean));
-    const empCount = empIds.size > 0 ? empIds.size : employeeRows.length;
-    const wingsCount = new Set(employeeRows.map(r => r.Wing).filter(Boolean)).size;
-    return { empCount, wingCount: wingsCount ? `Across ${wingsCount} wings` : 'Across all wings' };
-  }, [subTab, reportData, employeeRows]);
+    const empIds = new Set(filteredEmployeeRows.map(r => r.EmpId || r['Emp Id']).filter(Boolean));
+    const empCount = empIds.size > 0 ? empIds.size : filteredEmployeeRows.length;
+    const wingsCount = new Set(filteredEmployeeRows.map(r => r.Wing).filter(Boolean)).size;
+    return { empCount, wingCount: wingsCount ? `Across ${wingsCount} wing${wingsCount > 1 ? 's' : ''}` : 'From latest upload' };
+  }, [subTab, reportData, filteredEmployeeRows]);
 
   const avgWorkingHoursFormatted = useMemo(() => {
     if (subTab === 'report' && reportData.length > 0) {
@@ -443,10 +502,10 @@ export default function AttendanceView() {
         return formatTimeStr(totalRow['Avg Working Hours (HH:MM:SS)']);
       }
     }
-    if (employeeRows.length === 0) return '08:15:00';
+    if (filteredEmployeeRows.length === 0) return '08:15:00';
     let totalSec = 0;
     let count = 0;
-    employeeRows.forEach(r => {
+    filteredEmployeeRows.forEach(r => {
       const inTime = r.InTimeAvg || r['In Time Avg'] || r.InTime || r.in_time || r['In Time'];
       const outTime = r.OutTimeAvg || r['Out Time Avg'] || r.OutTime || r.out_time || r['Out Time'];
       const rawWorkHours = r.WorkingHours || r['Working Hours'] || r.working_hours;
@@ -466,7 +525,23 @@ export default function AttendanceView() {
     const m = String(Math.floor((avgSec % 3600) / 60)).padStart(2, '0');
     const s = String(avgSec % 60).padStart(2, '0');
     return `${h}:${m}:${s}`;
-  }, [subTab, reportData, employeeRows]);
+  }, [subTab, reportData, filteredEmployeeRows]);
+
+  const earlyCheckoutRate = useMemo(() => {
+    if (filteredEmployeeRows.length === 0) return '0%';
+    let earlyCount = 0;
+    let validCount = 0;
+    filteredEmployeeRows.forEach(r => {
+      const outTime = formatTimeStr(r.OutTimeAvg || r['Out Time Avg']);
+      if (outTime && outTime.includes(':')) {
+        validCount++;
+        const [h, m] = outTime.split(':').map(Number);
+        if (h < 17 || (h === 17 && m <= 30)) earlyCount++;
+      }
+    });
+    if (validCount === 0) return '0%';
+    return `${Math.round((earlyCount / validCount) * 100)}%`;
+  }, [filteredEmployeeRows]);
 
   const punctualArrivalRate = useMemo(() => {
     if (subTab === 'report' && reportData.length > 0) {
@@ -477,10 +552,10 @@ export default function AttendanceView() {
         if (totalMon > 0) return `${Math.round((before930 / totalMon) * 100)}%`;
       }
     }
-    if (employeeRows.length === 0) return '92.4%';
+    if (filteredEmployeeRows.length === 0) return '92.4%';
     let onTimeCount = 0;
     let validCount = 0;
-    employeeRows.forEach(r => {
+    filteredEmployeeRows.forEach(r => {
       const inTime = formatTimeStr(r.InTimeAvg || r['In Time Avg']);
       if (inTime && inTime.includes(':')) {
         validCount++;
@@ -490,7 +565,7 @@ export default function AttendanceView() {
     });
     if (validCount === 0) return '92.4%';
     return `${Math.round((onTimeCount / validCount) * 100)}%`;
-  }, [subTab, reportData, employeeRows]);
+  }, [subTab, reportData, filteredEmployeeRows]);
 
   const pinnedBottomRowData = useMemo(() => {
     if (subTab === 'report') {
@@ -511,7 +586,7 @@ export default function AttendanceView() {
     }];
   }, [subTab, reportData, filteredEmployeeRows, avgWorkingHoursFormatted]);
 
-  const showKpiCards = subTab !== 'upload' && reportViewMode !== 'detail';
+  const showKpiCards = (subTab === 'report' || subTab === 'data') && reportViewMode !== 'detail';
 
   const reportColDefs = useMemo(() => {
     if (!reportData || reportData.length === 0) return [];
@@ -829,13 +904,24 @@ export default function AttendanceView() {
         const headerCheck = validateAttendanceHeaders(rows[0]);
         if (!headerCheck.valid) {
           setPreviewRows([]);
-          const errText = `Invalid Template Header! Missing required column(s): ${headerCheck.missing.join(', ')}. Please use official Attendance_Sample.xlsx format.`;
-          setFileValidationError(errText);
+          setFileValidationError(headerCheck.missing.map(field => ({
+            field,
+            message: 'Required column not found in the uploaded file. Please use the official Attendance_Sample.xlsx format.',
+          })));
           showToast(`❌ Template Validation Failed: Missing ${headerCheck.missing.join(', ')}`, '#EF4444');
           return;
         }
 
         const validRows = rows.filter(r => r && Object.keys(r).length > 0 && (r['Emp Id'] || r['EmpId'] || r['Emp Name'] || r['EmpName']));
+
+        const rowIssues = validateAttendanceRows(validRows);
+        if (rowIssues.length > 0) {
+          setPreviewRows([]);
+          setFileValidationError(rowIssues);
+          showToast(`❌ ${rowIssues.length} validation issue${rowIssues.length > 1 ? 's' : ''} found in file`, '#EF4444');
+          return;
+        }
+
         setPreviewRows(validRows);
         showToast(`✅ Template Validated! Loaded ${validRows.length} rows preview`, '#10B981');
       } catch (err) {
@@ -870,19 +956,7 @@ export default function AttendanceView() {
     setSubTab('data');
   };
 
-  const handleUploadSubmit = (e) => {
-    e.preventDefault();
-    if (!uploadFinancialYear) { showToast('⚠ Please select Financial Year', '#F59E0B'); return; }
-    if (!uploadMonth) { showToast('⚠ Please select Month', '#F59E0B'); return; }
-    if (!uploadWeek) { showToast('⚠ Please select Week', '#F59E0B'); return; }
-    if (!selectedFile) { showToast('⚠ Please select an Excel file', '#F59E0B'); return; }
-    if (fileValidationError) { showToast(`❌ Cannot upload: ${fileValidationError}`, '#EF4444'); return; }
-
-    setUploading(true);
-    const yearVal = uploadFinancialYear.split('-')[0] || '2026';
-    const monthVal = uploadMonth;
-    const weekVal = uploadWeek;
-
+  const executeAttendanceUpload = (existingFileId, monthVal, yearVal, weekVal) => {
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('financialYear', yearVal);
@@ -890,15 +964,33 @@ export default function AttendanceView() {
     formData.append('week', weekVal);
     formData.append('userID', 1);
 
-    axios.post(`${API_BASE_URL}/employee-attendance`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    const uploadRequest = existingFileId
+        ? (() => {
+            formData.append('fileId', existingFileId);
+            return axios.put(`${API_BASE_URL}/attend-employee`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+        })()
+        : axios.post(`${API_BASE_URL}/employee-attendance`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+    uploadRequest
     .then(res => {
-      showToast('✅ Attendance sheet uploaded and stored successfully', '#10B981');
+      showToast(existingFileId ? '✅ Attendance sheet updated successfully' : '✅ Attendance sheet uploaded and stored successfully', '#10B981');
       finishUploadSuccess(monthVal, yearVal, weekVal);
     })
     .catch(err => {
-      console.warn("Primary endpoint /employee-attendance returned:", err.response?.status, err.response?.data);
+      console.warn("Primary endpoint returned:", err.response?.status, err.response?.data);
+      if (existingFileId) {
+        // No legacy fallback exists for the update path -- surface the
+        // error directly instead of silently retrying against the create
+        // endpoint, which would produce a duplicate File_Id.
+        const errMsg = err.response?.data?.error || '❌ File update failed.';
+        setFileValidationError(errMsg);
+        showToast(errMsg, '#EF4444');
+        return;
+      }
       // Fallback to standard /attendance upload & storecsv endpoints
       const fallbackFormData = new FormData();
       fallbackFormData.append('file', selectedFile);
@@ -926,6 +1018,49 @@ export default function AttendanceView() {
     .finally(() => setUploading(false));
   };
 
+  const handleUploadSubmit = (e) => {
+    e.preventDefault();
+    if (!uploadFinancialYear) { showToast('⚠ Please select Financial Year', '#F59E0B'); return; }
+    if (!uploadMonth) { showToast('⚠ Please select Month', '#F59E0B'); return; }
+    if (!uploadWeek) { showToast('⚠ Please select Week', '#F59E0B'); return; }
+    if (!selectedFile) { showToast('⚠ Please select an Excel file', '#F59E0B'); return; }
+    if (fileValidationError) {
+      const errMsg = Array.isArray(fileValidationError)
+        ? `${fileValidationError.length} validation issue${fileValidationError.length > 1 ? 's' : ''} in file`
+        : fileValidationError;
+      showToast(`❌ Cannot upload: ${errMsg}`, '#EF4444');
+      return;
+    }
+
+    const yearVal = uploadFinancialYear.split('-')[0] || '2026';
+    const monthVal = uploadMonth;
+    const weekVal = uploadWeek;
+
+    // If a file already exists for this exact Year/Month/Week, route this
+    // upload through the update endpoint (which replaces that file's rows)
+    // instead of always creating a brand-new File_Id for the same period.
+    const existingMatch = employeeRows.find(r =>
+        String(r.Year) === String(yearVal) &&
+        r.Month === monthVal &&
+        String(r.week) === String(weekVal)
+    );
+    const existingFileId = existingMatch ? existingMatch.File_Id : null;
+
+    if (existingFileId) {
+        askConfirm(
+            `A file already exists for ${monthVal} ${yearVal}, Week ${weekVal}. Uploading will replace all existing attendance data for this period. Continue?`,
+            () => {
+                setUploading(true);
+                executeAttendanceUpload(existingFileId, monthVal, yearVal, weekVal);
+            }
+        );
+        return;
+    }
+
+    setUploading(true);
+    executeAttendanceUpload(existingFileId, monthVal, yearVal, weekVal);
+  };
+
   const handleDownloadFile = (id, fileName) => {
     axios.get(`${API_BASE_URL}/attendance/download/${id}`, { responseType: 'blob' })
       .then(res => {
@@ -943,18 +1078,19 @@ export default function AttendanceView() {
       });
   };
 
-  const handleDeleteFile = (id) => {
-    if (!window.confirm("Deleting the file will also delete all attendance records parsed from it. Continue?")) return;
-    axios.delete(`${API_BASE_URL}/attendance/${id}`)
-      .then(() => {
-        showToast('🗑️ File record deleted successfully', '#10B981');
-        attendanceCache.current = {};
-        fetchFilesAndData(true);
-      })
-      .catch(err => {
-        console.error("Delete error:", err);
-        showToast('❌ Failed to delete record', '#EF4444');
-      });
+    const handleDeleteFile = (id) => {
+    askConfirm("Deleting the file will also delete all attendance records parsed from it. Continue?", () => {
+      axios.delete(`${API_BASE_URL}/attendance/${id}`)
+        .then(() => {
+          showToast('🗑️ File record deleted successfully', '#10B981');
+          attendanceCache.current = {};
+          fetchFilesAndData(true);
+        })
+        .catch(err => {
+          console.error("Delete error:", err);
+          showToast('❌ Failed to delete record', '#EF4444');
+        });
+    });
   };
 
   const handleDownloadSample = () => {
@@ -1077,13 +1213,36 @@ export default function AttendanceView() {
         }
       `}</style>
 
-      {/* Toast Notification Popup */}
-      {toastVisible && (
-        <div 
-          className="fixed top-5 right-5 z-50 px-4 py-3 rounded-xl text-white font-bold text-xs shadow-xl transition-all duration-300 flex items-center space-x-2 animate-bounce select-none"
-          style={{ backgroundColor: toastColor }}
-        >
-          <span>{toastMsg}</span>
+      
+
+
+      {/* Styled Confirm Modal (replaces window.confirm) */}
+      {confirmModal.open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full border-l-4 border-amber-400 p-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-sm font-semibold text-slate-700 leading-relaxed">{confirmModal.message}</p>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={closeConfirm}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const cb = confirmModal.onConfirm;
+                  closeConfirm();
+                  if (cb) cb();
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1098,7 +1257,7 @@ export default function AttendanceView() {
           </p>
         </div>
 
-        {/* Sub-tabs (Upload > View Data List > Report View > View Files) & User Manual */}
+        {/* Sub-tabs (Upload > View Files > DataList > Report) & User Manual */}
         <div className="flex flex-wrap items-center gap-3 justify-end">
           <div className="flex items-center space-x-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200/80 select-none">
             <button
@@ -1115,6 +1274,18 @@ export default function AttendanceView() {
 
             <button
               type="button"
+              onClick={() => setSubTab('files')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                subTab === 'files'
+                  ? 'bg-[#0f417a] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              View Files
+            </button>
+
+            <button
+              type="button"
               onClick={() => setSubTab('data')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
                 subTab === 'data'
@@ -1122,7 +1293,7 @@ export default function AttendanceView() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              View Data List
+              DataList
             </button>
 
             <button
@@ -1134,19 +1305,7 @@ export default function AttendanceView() {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Report View
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSubTab('files')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-                subTab === 'files'
-                  ? 'bg-[#0f417a] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              View Files
+              Report
             </button>
           </div>
 
@@ -1165,8 +1324,9 @@ export default function AttendanceView() {
       {showKpiCards && (
         <AttendanceKpiHeader
           totalEmployeesStat={totalEmployeesStat}
-          punctualArrivalRate={punctualArrivalRate}
           avgWorkingHoursFormatted={avgWorkingHoursFormatted}
+          punctualArrivalRate={punctualArrivalRate}
+          earlyCheckoutRate={earlyCheckoutRate}
         />
       )}
 
@@ -1190,6 +1350,7 @@ export default function AttendanceView() {
             previewRows={previewRows}
             setPreviewRows={setPreviewRows}
             previewColDefs={previewColDefs}
+            onDownloadSample={handleDownloadSample}
           />
         )}
 
@@ -1201,9 +1362,12 @@ export default function AttendanceView() {
             setDataFilterMonth={setDataFilterMonth}
             dataFilterYear={dataFilterYear}
             setDataFilterYear={setDataFilterYear}
+            dataFilterWeek={dataFilterWeek}
+            setDataFilterWeek={setDataFilterWeek}
             availableWings={availableWings}
             availableMonths={availableMonths}
             availableYears={availableYears}
+            availableWeeks={availableWeeks}
             handleCopyData={handleCopyData}
             handleExportExcel={handleExportExcel}
             handleExportPdf={handleExportPdf}

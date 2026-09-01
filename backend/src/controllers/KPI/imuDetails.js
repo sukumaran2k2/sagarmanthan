@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import fs from 'fs';
 
 async function createStudentEnrollment(req,res) {
     const {studentId,financialYear,noOfStdCapacity,noOfStdEnrolled,studentsAdmission,studentsonRoll,studentsFinalyear,studentsPassed,noOfStdPlaced,percentagePlacement,userID} = req.body;
@@ -110,6 +111,50 @@ async function getStudentEnrollmentByID(req,res) {
     }
 }
 
+async function deleteStudentEnrollment(req, res) {
+    const studentId = req.params.student_id;
+    const userID = req.params.userID;
+
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const hourPart = String(now.getHours()).padStart(2, '0');
+    const minutePart = String(now.getMinutes()).padStart(2, '0');
+    const secondPart = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+    const logFolder = `./delete_log/IMU_Student_Enrollment`;
+    const logFileName = `${logFolder}/deleted_StudentEnrollment_log_${timestamp}.txt`;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("studentId", studentId);
+    request.input("userID", userID);
+    try {
+        const dataToDelete = await request.query(`SELECT * FROM tbl_imu_k_5_1 WHERE student_id = @studentId;`);
+        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+        const result = await request.query(`DELETE FROM tbl_imu_k_5_1 WHERE student_id = @studentId;`);
+
+        if (result.rowsAffected[0] > 0) {
+            const logMessage = `User '${userID}' deleted Student Enrollment data with Data ID '${studentId}'. Deleted Data: ${dataJSON}\n`;
+
+            fs.mkdirSync(logFolder, { recursive: true });
+            fs.appendFile(logFileName, logMessage, (err) => {
+                if (err) {
+                    console.error('Error writing to delete_logs.txt:', err);
+                }
+            });
+
+            return res.sendStatus(201);
+        } else {
+            return res.status(404).send("Data not found");
+        }
+    }
+    catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
 async function createimunewCourseUpgradation(req, res) {
     const { courseId, financialYear, noOfCourseOffered, noOfCourseUpgraded, userID } = req.body;
 
@@ -198,6 +243,50 @@ async function getimuNewCourseUpgradationByID(req,res) {
     } catch (error) {
         console.log("error",error)
         return res.status(500).json({ message: 'Internal Server Error'});
+    }
+}
+
+async function deleteNewCourseUpgradation(req, res) {
+    const courseId = req.params.course_id;
+    const userID = req.params.userID;
+
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const hourPart = String(now.getHours()).padStart(2, '0');
+    const minutePart = String(now.getMinutes()).padStart(2, '0');
+    const secondPart = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+    const logFolder = `./delete_log/IMU_New_Course_Upgradation`;
+    const logFileName = `${logFolder}/deleted_NewCourseUpgradation_log_${timestamp}.txt`;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("courseId", courseId);
+    request.input("userID", userID);
+    try {
+        const dataToDelete = await request.query(`SELECT * FROM tbl_imu_k_5_2 WHERE course_id = @courseId;`);
+        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+        const result = await request.query(`DELETE FROM tbl_imu_k_5_2 WHERE course_id = @courseId;`);
+
+        if (result.rowsAffected[0] > 0) {
+            const logMessage = `User '${userID}' deleted New Course Upgradation data with Data ID '${courseId}'. Deleted Data: ${dataJSON}\n`;
+
+            fs.mkdirSync(logFolder, { recursive: true });
+            fs.appendFile(logFileName, logMessage, (err) => {
+                if (err) {
+                    console.error('Error writing to delete_logs.txt:', err);
+                }
+            });
+
+            return res.sendStatus(201);
+        } else {
+            return res.status(404).send("Data not found");
+        }
+    }
+    catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
     }
 }
 
@@ -337,6 +426,51 @@ async function getimuFacilities(req,res) {
             return res.sendStatus(500);
         }
         }
+
+async function deleteFacilities(req, res) {
+    const facilitiesId = req.params.facilities_id;
+    const userID = req.params.userID;
+
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const hourPart = String(now.getHours()).padStart(2, '0');
+    const minutePart = String(now.getMinutes()).padStart(2, '0');
+    const secondPart = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+    const logFolder = `./delete_log/IMU_Facilities`;
+    const logFileName = `${logFolder}/deleted_Facilities_log_${timestamp}.txt`;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("facilitiesId", facilitiesId);
+    request.input("userID", userID);
+    try {
+        const dataToDelete = await request.query(`SELECT * FROM tbl_imu_k_5_3 WHERE facilities_id = @facilitiesId;`);
+        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+        const result = await request.query(`DELETE FROM tbl_imu_k_5_3 WHERE facilities_id = @facilitiesId;`);
+
+        if (result.rowsAffected[0] > 0) {
+            const logMessage = `User '${userID}' deleted Facilities data with Data ID '${facilitiesId}'. Deleted Data: ${dataJSON}\n`;
+
+            fs.mkdirSync(logFolder, { recursive: true });
+            fs.appendFile(logFileName, logMessage, (err) => {
+                if (err) {
+                    console.error('Error writing to delete_logs.txt:', err);
+                }
+            });
+
+            return res.sendStatus(201);
+        } else {
+            return res.status(404).send("Data not found");
+        }
+    }
+    catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
 async function createimuPartnership(req,res) {
 
         const {partnershipId,financialYear,academicMoUsDomestic,academicMoUsInternational,industryMoUsDomestic,industryMoUsInternational,userID} = req.body
@@ -425,6 +559,50 @@ async function getimuPartnershipByID(req,res) {
     } catch (error) {
         console.log("error",error)
         return res.status(500).json({ message: 'Internal Server Error'});
+    }
+}
+
+async function deletePartnership(req, res) {
+    const partnershipId = req.params.partnership_id;
+    const userID = req.params.userID;
+
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const hourPart = String(now.getHours()).padStart(2, '0');
+    const minutePart = String(now.getMinutes()).padStart(2, '0');
+    const secondPart = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+    const logFolder = `./delete_log/IMU_Partnership`;
+    const logFileName = `${logFolder}/deleted_Partnership_log_${timestamp}.txt`;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("partnershipId", partnershipId);
+    request.input("userID", userID);
+    try {
+        const dataToDelete = await request.query(`SELECT * FROM tbl_imu_k_5_4 WHERE partnership_id = @partnershipId;`);
+        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+        const result = await request.query(`DELETE FROM tbl_imu_k_5_4 WHERE partnership_id = @partnershipId;`);
+
+        if (result.rowsAffected[0] > 0) {
+            const logMessage = `User '${userID}' deleted Partnership data with Data ID '${partnershipId}'. Deleted Data: ${dataJSON}\n`;
+
+            fs.mkdirSync(logFolder, { recursive: true });
+            fs.appendFile(logFileName, logMessage, (err) => {
+                if (err) {
+                    console.error('Error writing to delete_logs.txt:', err);
+                }
+            });
+
+            return res.sendStatus(201);
+        } else {
+            return res.status(404).send("Data not found");
+        }
+    }
+    catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
     }
 }
 
@@ -524,6 +702,50 @@ async function getImuResearchByID(req,res) {
     } catch (error) {
         console.log("error",error)
         return res.status(500).json({ message: 'Internal Server Error'});
+    }
+}
+
+async function deleteResearch(req, res) {
+    const researchId = req.params.research_id;
+    const userID = req.params.userID;
+
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const hourPart = String(now.getHours()).padStart(2, '0');
+    const minutePart = String(now.getMinutes()).padStart(2, '0');
+    const secondPart = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+    const logFolder = `./delete_log/IMU_Research`;
+    const logFileName = `${logFolder}/deleted_Research_log_${timestamp}.txt`;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("researchId", researchId);
+    request.input("userID", userID);
+    try {
+        const dataToDelete = await request.query(`SELECT * FROM tbl_imu_k_5_5 WHERE research_id = @researchId;`);
+        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+        const result = await request.query(`DELETE FROM tbl_imu_k_5_5 WHERE research_id = @researchId;`);
+
+        if (result.rowsAffected[0] > 0) {
+            const logMessage = `User '${userID}' deleted Research data with Data ID '${researchId}'. Deleted Data: ${dataJSON}\n`;
+
+            fs.mkdirSync(logFolder, { recursive: true });
+            fs.appendFile(logFileName, logMessage, (err) => {
+                if (err) {
+                    console.error('Error writing to delete_logs.txt:', err);
+                }
+            });
+
+            return res.sendStatus(201);
+        } else {
+            return res.status(404).send("Data not found");
+        }
+    }
+    catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
     }
 }
 
@@ -762,6 +984,50 @@ async function getimuResearchYear(req,res) {
         }
         }
 
+    async function deleteFinalYearPassPercentage(req, res) {
+        const studentId = req.params.student_id;
+        const userID = req.params.userID;
+
+        const now = new Date();
+        const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+        const hourPart = String(now.getHours()).padStart(2, '0');
+        const minutePart = String(now.getMinutes()).padStart(2, '0');
+        const secondPart = String(now.getSeconds()).padStart(2, '0');
+        const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
+        const logFolder = `./delete_log/IMU_Final_Year_Pass_Percentage`;
+        const logFileName = `${logFolder}/deleted_FinalYearPassPercentage_log_${timestamp}.txt`;
+
+        const conn = await pool;
+        const request = conn.request();
+        request.input("studentId", studentId);
+        request.input("userID", userID);
+        try {
+            const dataToDelete = await request.query(`SELECT * FROM tbl_imu_k_5_1_1 WHERE id = @studentId;`);
+            const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
+
+            const result = await request.query(`DELETE FROM tbl_imu_k_5_1_1 WHERE id = @studentId;`);
+
+            if (result.rowsAffected[0] > 0) {
+                const logMessage = `User '${userID}' deleted Final Year Pass Percentage data with Data ID '${studentId}'. Deleted Data: ${dataJSON}\n`;
+
+                fs.mkdirSync(logFolder, { recursive: true });
+                fs.appendFile(logFileName, logMessage, (err) => {
+                    if (err) {
+                        console.error('Error writing to delete_logs.txt:', err);
+                    }
+                });
+
+                return res.sendStatus(201);
+            } else {
+                return res.status(404).send("Data not found");
+            }
+        }
+        catch (err) {
+            console.log(err);
+            return res.sendStatus(500);
+        }
+    }
+
     async function checkProgramalreadyExists(req,res) {
     try {
    
@@ -784,5 +1050,5 @@ async function getimuResearchYear(req,res) {
     }
 }
 
-export default {createStudentEnrollment,getStudentEnrollment,getStudentEnrollmentByID,createimunewCourseUpgradation,getimuNewCourseUpgradation,getimuNewCourseUpgradationByID,createimuFacilities,getimuFacilities,getimuFacilitiesByID,
-    createimuPartnership,getimuPartnership,getimuPartnershipByID,createImuResearch,getImuResearch,getImuResearchByID,getStudentEnrollmentYear,getimuNewCourseUpgradationYear,getimuFacilitiesYear,getimuPartnershipYear,getimuResearchYear,createimuFinalYearpassPercentage,getStudentfinalYearPercentage,getUpdateFinalyearPercentagedata,checkProgramalreadyExists}
+export default {createStudentEnrollment,getStudentEnrollment,getStudentEnrollmentByID,deleteStudentEnrollment,createimunewCourseUpgradation,getimuNewCourseUpgradation,getimuNewCourseUpgradationByID,deleteNewCourseUpgradation,createimuFacilities,getimuFacilities,getimuFacilitiesByID,deleteFacilities,
+    createimuPartnership,getimuPartnership,getimuPartnershipByID,deletePartnership,createImuResearch,getImuResearch,getImuResearchByID,deleteResearch,getStudentEnrollmentYear,getimuNewCourseUpgradationYear,getimuFacilitiesYear,getimuPartnershipYear,getimuResearchYear,createimuFinalYearpassPercentage,getStudentfinalYearPercentage,getUpdateFinalyearPercentagedata,deleteFinalYearPassPercentage,checkProgramalreadyExists}

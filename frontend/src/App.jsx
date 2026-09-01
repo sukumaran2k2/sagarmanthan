@@ -31,6 +31,10 @@ const MediaOutreachView = lazy(() => import('./modules/MediaOutreach/MediaOutrea
 const BillsPreConstitutionsView = lazy(() => import('./modules/BillsPreConstitutions/BillsPreConstitutions'));
 const ActsAndRulesView = lazy(() => import('./modules/ActsAndRules/ActsAndRules'));
 const GEMProcurementView = lazy(() => import('./modules/GEMProcurement/GEMProcurement'));
+const KPIDGLLView = lazy(() => import('./modules/KPIDGLL/KPIDGLL'));
+const CSLView = lazy(() => import('./modules/CSL/CSL'));
+const IMUView = lazy(() => import('./modules/IMU/IMU'));
+const SCIView = lazy(() => import('./modules/SCI/SCI'));
 const UserMatrix = lazy(() => import('./modules/UserManagement/UserMatrix'));
 const ContactUs = lazy(() => import('./modules/Contact/Contact'));
 
@@ -143,7 +147,6 @@ const INITIAL_PROJECTS = [
     financialProgress: '0',
   },
 ];
-
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -288,6 +291,12 @@ export default function App() {
             <Route path="kpi/major-ports/major-ports-input-form" element={<PortsInputFormView />} />
             <Route path="kpi/major-ports/major-ports-reports" element={<PortsReportsView />} />
 
+            {/* KPI - DGLL, CSL, IMU, SCI */}
+            <Route path="kpi/dgll/*" element={<KPIDGLLView triggerNotification={triggerNotification} />} />
+            <Route path="kpi/csl/*" element={<CSLView triggerNotification={triggerNotification} />} />
+            <Route path="kpi/imu/*" element={<IMUView triggerNotification={triggerNotification} />} />
+            <Route path="kpi/sci/*" element={<SCIView triggerNotification={triggerNotification} />} />
+
             {/* Long Term Strategies - GMIS MoU */}
             <Route path="strategies/gmis-mou/*" element={<GMISMOUView triggerNotification={triggerNotification} />} />
 
@@ -317,7 +326,8 @@ export default function App() {
 
             {/* Legal Routes */}
             <Route path="legal/courtcases" element={<ActsAndRulesView />} />
-            <Route path="legal/acts-rules" element={<BillsPreConstitutionsView triggerNotification={triggerNotification} />} />
+            <Route path="legal/acts-rules/*" element={<BillsPreConstitutionsView triggerNotification={triggerNotification} />} />
+            <Route path="legal/acts-and-rules" element={<ActsAndRulesView />} />
 
             {/* HR Routes */}
             <Route path="hr/hr-management/*" element={<HRDashboardView />} />
