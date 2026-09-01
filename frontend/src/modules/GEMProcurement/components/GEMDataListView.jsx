@@ -54,7 +54,7 @@ export default function GEMDataListView({
             className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center space-x-2 cursor-pointer"
           >
             <Plus size={15} />
-            <span>Add {categoryTitle} Data</span>
+            <span>Add Planned Procurement</span>
           </button>
         </div>
       )}
@@ -132,7 +132,7 @@ export default function GEMDataListView({
             <div className="text-xs text-slate-600 font-semibold italic flex items-center space-x-1.5 pt-1">
               <Info size={14} className="text-blue-600 flex-shrink-0" />
               <span>
-                Note : The planned/Target values are entered by the MoPSW Admin team.
+                Note: Planned target values are entered by the MoPSW Admin team.
               </span>
             </div>
           </div>

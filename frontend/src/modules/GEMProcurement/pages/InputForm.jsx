@@ -95,10 +95,10 @@ export default function GEMInputForm({
         plannedPotential: parseFloat(plannedPotential) || 0,
       });
       resetForm();
-      notify?.(`${categoryTitle} target submitted successfully.`, 'success');
+      notify?.(`${categoryTitle} planned procurement added successfully.`, 'success');
       onSuccess?.();
     } catch (err) {
-      notify?.(err.message || 'Failed to submit target data.', 'error');
+      notify?.(err.message || 'Failed to save planned procurement data.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -109,7 +109,7 @@ export default function GEMInputForm({
       <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider font-display">
-            Add {categoryTitle} Data
+            Add Planned Procurement
           </h3>
           <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">
             Ministry of Ports, Shipping and Waterways
@@ -121,7 +121,7 @@ export default function GEMInputForm({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <div className={sectionCardClass}>
             <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-wide border-b border-slate-200 pb-2 mb-4">
-              Target Information
+              Basic Information
             </h3>
 
             <div className="space-y-4">
@@ -144,7 +144,7 @@ export default function GEMInputForm({
 
               <div className="space-y-1.5">
                 <label className={labelClass}>
-                  Organisation<span className="text-red-500">*</span>
+                  Organisation (Actual)<span className="text-red-500">*</span>
                 </label>
                 <select
                   className={selectClass}
@@ -173,7 +173,7 @@ export default function GEMInputForm({
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className={labelClass}>
-                  {categoryTitle} - Planned Total Procurement
+                  {categoryTitle} - Planned Procurement Target
                   <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -223,7 +223,7 @@ export default function GEMInputForm({
                 : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg'
             }`}
           >
-            {submitting ? 'Saving...' : `Save ${categoryTitle} Target`}
+            {submitting ? 'Saving...' : 'Save Planned Procurement'}
           </button>
         </div>
       </form>

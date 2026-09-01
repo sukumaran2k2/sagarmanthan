@@ -384,10 +384,10 @@ export default function GEMProcurementView({
 
     if (canUpdate && activeTab !== 'total') {
       allDefs.push({
-        headerName: 'Update',
-        flex: 1,
-        minWidth: 110,
-        maxWidth: 120,
+        headerName: viewMode === 'org' ? 'Update Monthly' : 'Update Planned',
+        flex: 1.15,
+        minWidth: 145,
+        maxWidth: 155,
         pinned: 'right',
         lockPinned: true,
         suppressMovable: true,
@@ -404,11 +404,8 @@ export default function GEMProcurementView({
                 type="button"
                 onClick={() => (isMinistry ? openTargetPage(row) : openMonthlyPage(row))}
                 className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
-                title={
-                  isMinistry
-                    ? 'Update Planned Total Procurement'
-                    : 'Update monthly procurement'
-                }
+                title={isMinistry ? 'Update Planned Procurement' : 'Update Monthly Data'}
+                aria-label={isMinistry ? 'Update Planned Procurement' : 'Update Monthly Data'}
               >
                 <Edit className="h-4 w-4" />
               </button>

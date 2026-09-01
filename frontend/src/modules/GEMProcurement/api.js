@@ -11,13 +11,38 @@ function shouldRetryWithLocalFallback(error) {
   return isNetworkError && configured.includes('localhost:3001');
 }
 
-async function getWithLocalFallback(path, config = {}) {
+async function requestWithLocalFallback(method, path, dataOrConfig, maybeConfig) {
   try {
-    return await api.get(path, config);
+    if (method === 'get') return await api.get(path, dataOrConfig || {});
+    if (method === 'post') return await api.post(path, dataOrConfig, maybeConfig || {});
+    if (method === 'put') return await api.put(path, dataOrConfig, maybeConfig || {});
+    return await api.request({ method, url: path, ...(maybeConfig || {}) });
   } catch (error) {
     if (!shouldRetryWithLocalFallback(error)) throw error;
-    return api.get(path, { ...config, baseURL: LOCAL_FALLBACK_BASE });
+
+    if (method === 'get') {
+      return api.get(path, { ...(dataOrConfig || {}), baseURL: LOCAL_FALLBACK_BASE });
+    }
+    if (method === 'post') {
+      return api.post(path, dataOrConfig, { ...(maybeConfig || {}), baseURL: LOCAL_FALLBACK_BASE });
+    }
+    if (method === 'put') {
+      return api.put(path, dataOrConfig, { ...(maybeConfig || {}), baseURL: LOCAL_FALLBACK_BASE });
+    }
+    return api.request({ method, url: path, baseURL: LOCAL_FALLBACK_BASE, ...(maybeConfig || {}) });
   }
+}
+
+async function getWithLocalFallback(path, config = {}) {
+  return requestWithLocalFallback('get', path, config);
+}
+
+async function postWithLocalFallback(path, data, config = {}) {
+  return requestWithLocalFallback('post', path, data, config);
+}
+
+async function putWithLocalFallback(path, data, config = {}) {
+  return requestWithLocalFallback('put', path, data, config);
 }
 
 api.interceptors.request.use((config) => {
@@ -128,7 +153,7 @@ export function createGemTarget(category, payload) {
   const path = CREATE_PATHS[category];
   if (!path) throw new Error(`Unsupported category: ${category}`);
   const potentialKey = POTENTIAL_BODY_KEYS[category];
-  return api.post(path, {
+  return postWithLocalFallback(path, {
     financialYear: payload.financialYear,
     organisationId: payload.organisationId,
     [potentialKey]: payload.plannedPotential ?? payload[potentialKey],
@@ -139,7 +164,7 @@ export function updateGemTarget(category, payload) {
   const path = UPDATE_PATHS[category];
   if (!path) throw new Error(`Unsupported category: ${category}`);
   const potentialKey = POTENTIAL_BODY_KEYS[category];
-  return api.put(path, {
+  return putWithLocalFallback(path, {
     financialYear: payload.financialYear,
     organisationId: payload.organisationId,
     [potentialKey]: payload.plannedPotential ?? payload[potentialKey],
@@ -156,7 +181,7 @@ export function saveGemMonthlyData(category, gemId, monthlyPayload) {
   const path = MONTHLY_PATHS[category];
   const idKey = MONTHLY_ID_KEYS[category];
   if (!path || !idKey) throw new Error(`Unsupported category: ${category}`);
-  return api.post(path, {
+  return postWithLocalFallback(path, {
     [idKey]: gemId,
     ...monthlyPayload,
   });

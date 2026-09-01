@@ -32,8 +32,8 @@ function outsideSumSql(alias = "m") {
 const CATEGORIES = {
   goods: {
     key: "goods",
-    table: "tbl_gem_procurement_goods",
-    monthlyTable: "tbl_gem_procurement_goods_monthly",
+    table: "[dbo].[tbl_gem_procurement_goods]",
+    monthlyTable: "[dbo].[tbl_gem_procurement_goods_monthly]",
     idCol: "goods_gem_id",
     orgCol: "goods_organisation_id",
     fyCol: "goods_financial_year",
@@ -44,8 +44,8 @@ const CATEGORIES = {
   },
   service: {
     key: "service",
-    table: "tbl_gem_procurement_service",
-    monthlyTable: "tbl_gem_procurement_service_monthly",
+    table: "[dbo].[tbl_gem_procurement_service]",
+    monthlyTable: "[dbo].[tbl_gem_procurement_service_monthly]",
     idCol: "service_gem_id",
     orgCol: "service_organisation_id",
     fyCol: "service_financial_year",
@@ -56,8 +56,8 @@ const CATEGORIES = {
   },
   works: {
     key: "works",
-    table: "tbl_gem_procurement_works",
-    monthlyTable: "tbl_gem_procurement_works_monthly",
+    table: "[dbo].[tbl_gem_procurement_works]",
+    monthlyTable: "[dbo].[tbl_gem_procurement_works_monthly]",
     idCol: "works_gem_id",
     orgCol: "works_organisation_id",
     fyCol: "works_financial_year",
@@ -74,8 +74,6 @@ function parsePositiveInt(value, fallback, min = 1, max = Number.MAX_SAFE_INTEGE
   return Math.min(max, Math.max(min, n));
 }
 
-// Writes carry the organisation in the body, so the read-side SQL scope is not
-// enough: reject payloads that target an organisation outside the user's scope.
 function isOrganisationInScope(req, organisationId) {
   const { isWide, isOrganisation, organisationId: scopeOrgId } = getDataScope(req.user);
   if (isWide) return true;
@@ -99,6 +97,39 @@ function resolveUserId(req, fallback) {
   const raw = req.user?.userId ?? req.user?.user_id ?? fallback;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+const TABLE_COLUMNS_CACHE = new Map();
+
+function parseSchemaAndTable(tableRef) {
+  const cleaned = String(tableRef || "").replace(/\[/g, "").replace(/\]/g, "").trim();
+  const parts = cleaned.split(".").filter(Boolean);
+  if (parts.length >= 2) {
+    return { schema: parts[parts.length - 2], table: parts[parts.length - 1] };
+  }
+  return { schema: "dbo", table: parts[0] || "" };
+}
+
+async function getTableColumns(tableRef) {
+  const { schema, table } = parseSchemaAndTable(tableRef);
+  const cacheKey = `${schema}.${table}`.toLowerCase();
+  const cached = TABLE_COLUMNS_CACHE.get(cacheKey);
+  if (cached) return cached;
+
+  const conn = await pool;
+  const request = conn.request();
+  request.input("tableSchema", sql.NVarChar(128), schema);
+  request.input("tableName", sql.NVarChar(255), table);
+  const result = await request.query(`
+    SELECT LOWER(COLUMN_NAME) AS column_name
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = @tableSchema
+      AND TABLE_NAME = @tableName
+  `);
+
+  const cols = new Set((result.recordset || []).map((r) => String(r.column_name || "").toLowerCase()));
+  TABLE_COLUMNS_CACHE.set(cacheKey, cols);
+  return cols;
 }
 
 function monthlyTotalsCte(cfg) {
@@ -477,40 +508,52 @@ async function saveMonthly(req, res, cfg) {
       WHERE ${cfg.idCol} = @gemId
     `);
 
-    const setCols = MONTHS.map((month) => {
+    const monthlyColumns = await getTableColumns(cfg.monthlyTable);
+    const parentColumns = await getTableColumns(cfg.table);
+
+    const setParts = MONTHS.flatMap((month) => {
       const cap = monthCap(month);
-      return `
-        procurement_through_gem_${month} = @through${cap},
-        procurement_outside_gem_${month} = @outside${cap},
-        reason_for_non_procurement_${month} = @reason${cap}`;
-    }).join(",");
+      return [
+        `procurement_through_gem_${month} = @through${cap}`,
+        `procurement_outside_gem_${month} = @outside${cap}`,
+        `reason_for_non_procurement_${month} = @reason${cap}`,
+      ];
+    });
 
-    const setColsWithAudit = `${setCols}, updated_by = @userId, updated_date = GETDATE()`;
+    if (monthlyColumns.has("updated_by")) setParts.push("updated_by = @userId");
+    if (monthlyColumns.has("updated_date")) setParts.push("updated_date = GETDATE()");
 
-    const insertCols = [
-      cfg.idCol,
-      "created_by",
-      "created_date",
-      "updated_by",
-      "updated_date",
-      ...MONTHS.flatMap((month) => [
-        `procurement_through_gem_${month}`,
-        `procurement_outside_gem_${month}`,
-        `reason_for_non_procurement_${month}`,
-      ]),
-    ].join(", ");
+    const setColsWithAudit = setParts.join(",\n        ");
 
-    const insertVals = [
-      "@gemId",
-      "@userId",
-      "GETDATE()",
-      "@userId",
-      "GETDATE()",
-      ...MONTHS.flatMap((month) => {
-        const cap = monthCap(month);
-        return [`@through${cap}`, `@outside${cap}`, `@reason${cap}`];
-      }),
-    ].join(", ");
+    const insertCols = [cfg.idCol];
+    const insertVals = ["@gemId"];
+
+    if (monthlyColumns.has("created_by")) {
+      insertCols.push("created_by");
+      insertVals.push("@userId");
+    }
+    if (monthlyColumns.has("created_date")) {
+      insertCols.push("created_date");
+      insertVals.push("GETDATE()");
+    }
+    if (monthlyColumns.has("updated_by")) {
+      insertCols.push("updated_by");
+      insertVals.push("@userId");
+    }
+    if (monthlyColumns.has("updated_date")) {
+      insertCols.push("updated_date");
+      insertVals.push("GETDATE()");
+    }
+
+    for (const month of MONTHS) {
+      const cap = monthCap(month);
+      insertCols.push(`procurement_through_gem_${month}`);
+      insertCols.push(`procurement_outside_gem_${month}`);
+      insertCols.push(`reason_for_non_procurement_${month}`);
+      insertVals.push(`@through${cap}`);
+      insertVals.push(`@outside${cap}`);
+      insertVals.push(`@reason${cap}`);
+    }
 
     if (exists.recordset.length > 0) {
       await request.query(`
@@ -520,19 +563,25 @@ async function saveMonthly(req, res, cfg) {
       `);
     } else {
       await request.query(`
-        INSERT INTO ${cfg.monthlyTable} (${insertCols})
-        VALUES (${insertVals})
+        INSERT INTO ${cfg.monthlyTable} (${insertCols.join(", ")})
+        VALUES (${insertVals.join(", ")})
       `);
     }
 
-    const touch = transaction.request();
-    touch.input("gemId", sql.Int, gemId);
-    touch.input("userId", sql.Int, userId);
-    await touch.query(`
-      UPDATE ${cfg.table}
-      SET updated_by = @userId, updated_date = GETDATE()
-      WHERE ${cfg.idCol} = @gemId
-    `);
+    const parentSetParts = [];
+    if (parentColumns.has("updated_by")) parentSetParts.push("updated_by = @userId");
+    if (parentColumns.has("updated_date")) parentSetParts.push("updated_date = GETDATE()");
+
+    if (parentSetParts.length > 0) {
+      const touch = transaction.request();
+      touch.input("gemId", sql.Int, gemId);
+      touch.input("userId", sql.Int, userId);
+      await touch.query(`
+        UPDATE ${cfg.table}
+        SET ${parentSetParts.join(", ")}
+        WHERE ${cfg.idCol} = @gemId
+      `);
+    }
 
     await transaction.commit();
     return res.sendStatus(201);

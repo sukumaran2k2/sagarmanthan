@@ -52,7 +52,7 @@ export default function GEMUpdateForm({
         organisationId: getGemOrganisationId(record),
         plannedPotential: parseFloat(plannedPotential) || 0,
       });
-      notify?.(`${categoryTitle} planned procurement updated successfully.`, 'success');
+      notify?.(`${categoryTitle} target updated successfully.`, 'success');
       onSuccess?.();
     } catch (err) {
       notify?.(err.message || 'Failed to update planned procurement.', 'error');
@@ -74,7 +74,7 @@ export default function GEMUpdateForm({
       <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider font-display">
-            Update Planned Total Procurement
+            Update Target
           </h3>
           <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">
             GeM Procurement — {categoryTitle}
@@ -86,7 +86,7 @@ export default function GEMUpdateForm({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <div className={sectionCardClass}>
             <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-wide border-b border-slate-200 pb-2 mb-4">
-              Target Information
+              Basic Information
             </h3>
 
             <div className="space-y-4">
@@ -102,7 +102,7 @@ export default function GEMUpdateForm({
               </div>
 
               <div className="space-y-1.5">
-                <label className={labelClass}>Organisation</label>
+                <label className={labelClass}>Organisation (Actual)</label>
                 <input
                   type="text"
                   readOnly
@@ -122,7 +122,7 @@ export default function GEMUpdateForm({
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className={labelClass}>
-                  {categoryTitle} - Planned Total Procurement
+                  {categoryTitle} - Planned Procurement Target
                   <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -172,7 +172,7 @@ export default function GEMUpdateForm({
                 : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg'
             }`}
           >
-            {submitting ? 'Updating...' : 'Update Planned Procurement'}
+            {submitting ? 'Updating...' : 'Update Target'}
           </button>
         </div>
       </form>

@@ -14,6 +14,7 @@ import CopyButton from "../../../components/CopyButton";
 import ExportDropdown from "../../../components/ExportDropdown";
 import * as XLSX from "xlsx";
 import { fetchGemReport } from "../api";
+import { getGemReportAsOnMeta } from "../utils/gemUtils";
 
 export default function GEMReportView({ showToast, viewMode = 'ministry' }) {
   const [selectedYear, setSelectedYear] = useState("2026-2027");
@@ -95,20 +96,7 @@ export default function GEMReportView({ showToast, viewMode = 'ministry' }) {
     return result;
   }, [reportData, groupFilter, orgFilter, quickFilter]);
 
-  const { asOnDateStr, reportMonthStr, tableUptoDateStr } = useMemo(() => {
-    const startYear = selectedYear ? selectedYear.split("-")[0] : "";
-    const today = new Date();
-    const lastDayOfPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-    const day = String(lastDayOfPrevMonth.getDate()).padStart(2, "0");
-    const month = String(lastDayOfPrevMonth.getMonth() + 1).padStart(2, "0");
-    const monthName = lastDayOfPrevMonth.toLocaleString("default", { month: "long" });
-
-    return {
-      asOnDateStr: `${day}-${month}-${startYear}`,
-      reportMonthStr: `${monthName} ${startYear}`,
-      tableUptoDateStr: `(Upto ${day}/${month}/${startYear})`,
-    };
-  }, [selectedYear]);
+  const reportMeta = useMemo(() => getGemReportAsOnMeta(selectedYear), [selectedYear]);
 
   let totalGoodsPlanned = 0, totalServicePlanned = 0, totalWorksPlanned = 0, totalGrandPlanned = 0;
   let totalGoodsGem = 0, totalServiceGem = 0, totalWorksGem = 0, totalGrandGem = 0, totalOutsideGem = 0;
@@ -199,9 +187,9 @@ export default function GEMReportView({ showToast, viewMode = 'ministry' }) {
               GeM Procurement Report ({selectedYear})
             </h3>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 12, fontWeight: 600, color: "#8c4242" }}>
-              <span>As on date: <strong style={{ color: "#4b2424" }}>{asOnDateStr}</strong></span>
+              <span>As on date: <strong style={{ color: "#4b2424" }}>{reportMeta.asOnDateStr}</strong></span>
               <span style={{ color: "#eadede" }}>•</span>
-              <span>Report for the month — <strong style={{ color: "#4b2424" }}>{reportMonthStr}</strong></span>
+              <span>{reportMeta.reportPeriodLabel} — <strong style={{ color: "#4b2424" }}>{reportMeta.reportPeriodValue}</strong></span>
             </div>
           </div>
         </div>
@@ -454,7 +442,7 @@ export default function GEMReportView({ showToast, viewMode = 'ministry' }) {
                   Planned Procurement through GeM {selectedYear}
                 </th>
                 <th style={{ padding: "10px", border: "1px solid #5c2d2d" }} colSpan={4}>
-                  Actual Procurement through GeM {tableUptoDateStr}
+                  Actual Procurement through GeM {reportMeta.tableUptoDateStr}
                 </th>
                 <th style={{ padding: "10px", border: "1px solid #5c2d2d", minWidth: "140px" }} rowSpan={2}>Procurement outside GeM</th>
               </tr>
@@ -474,7 +462,7 @@ export default function GEMReportView({ showToast, viewMode = 'ministry' }) {
               {filteredData.map((row, idx) => {
                 const groupName = row.display_group;
                 const prevGroupName = idx > 0 ? filteredData[idx - 1]?.display_group : null;
-                const showGroupHeader = Boolean(groupName && groupName !== prevGroupName);
+                const showGroupHeader = viewMode !== 'org' && Boolean(groupName && groupName !== prevGroupName);
 
                 const gp = Number(row.goods_procurement_potential || 0);
                 const sp = Number(row.service_procurement_potential || 0);

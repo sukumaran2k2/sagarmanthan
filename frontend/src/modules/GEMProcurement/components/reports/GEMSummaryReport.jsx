@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { RefreshCw, Search, X } from 'lucide-react';
+import { RefreshCw, Search, X, TrendingUp } from 'lucide-react';
 import CopyButton from '../../../../components/CopyButton';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import { fetchGemSummaryReport } from '../../api';
+import { getGemReportAsOnMeta } from '../../utils/gemUtils';
 
 const FY_OPTIONS = ['2026-2027', '2025-2026', '2024-2025', '2023-2024', '2022-2023'];
 
@@ -14,6 +15,8 @@ export default function GEMSummaryReport({ showToast, viewMode = 'ministry' }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [quickFilter, setQuickFilter] = useState('');
+
+  const reportMeta = useMemo(() => getGemReportAsOnMeta(selectedYear), [selectedYear]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -102,6 +105,31 @@ export default function GEMSummaryReport({ showToast, viewMode = 'ministry' }) {
 
   return (
     <div className="space-y-4">
+      <div className="relative flex flex-wrap items-center justify-between gap-4 px-[26px] py-5 border border-[#eadede] rounded-2xl bg-gradient-to-r from-[#fdfcfc] to-[#f7f3f3] shadow-sm">
+        <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp size={14} style={{ color: '#8c4242' }} strokeWidth={2.5} />
+              <span className="text-[10.5px] uppercase tracking-[0.12em] font-extrabold" style={{ color: '#8c4242' }}>
+                GeM Procurement Module
+              </span>
+            </div>
+            <h3 className="m-0 text-xl font-bold tracking-wide" style={{ color: '#4b2424' }}>
+              Summary Report — Yearly GeM Review ({selectedYear})
+            </h3>
+            <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold" style={{ color: '#8c4242' }}>
+              <span>
+                As on date: <strong style={{ color: '#4b2424' }}>{reportMeta.asOnDateStr}</strong>
+              </span>
+              <span style={{ color: '#eadede' }}>•</span>
+              <span>
+                {reportMeta.reportPeriodLabel} — <strong style={{ color: '#4b2424' }}>{reportMeta.reportPeriodValue}</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 justify-between">
         <div className="flex items-center gap-2">
           <select

@@ -67,8 +67,8 @@ cron.schedule('0 1 * * *', async () => {
 
 app.use(router);
 
-const port = process.env.PORT;
-app.listen(port, () => console.log("Sagarmanthan Backend started successfully"));
+const port = Number(process.env.PORT) || 3001;
+app.listen(port, () => console.log(`Sagarmanthan Backend started successfully on port ${port}`));
 
 // chatbot email
 app.use(bodyParser.json());

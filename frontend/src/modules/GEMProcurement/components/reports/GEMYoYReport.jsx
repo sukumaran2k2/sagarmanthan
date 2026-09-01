@@ -1,9 +1,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { RefreshCw, Search, X } from 'lucide-react';
+import { RefreshCw, Search, X, TrendingUp } from 'lucide-react';
 import CopyButton from '../../../../components/CopyButton';
 import ExportDropdown from '../../../../components/ExportDropdown';
 import { fetchGemYoYReport } from '../../api';
+import { getCurrentFinancialYear, getGemReportAsOnMeta } from '../../utils/gemUtils';
 
 const fmt = (n) => (Number.isFinite(Number(n)) ? Number(n).toFixed(2) : '0.00');
 
@@ -12,6 +13,11 @@ export default function GEMYoYReport({ showToast }) {
   const [rows, setRows] = useState([]);
   const [quickFilter, setQuickFilter] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const reportMeta = useMemo(
+    () => getGemReportAsOnMeta(getCurrentFinancialYear()),
+    []
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,6 +125,31 @@ export default function GEMYoYReport({ showToast }) {
 
   return (
     <div className="space-y-4">
+      <div className="relative flex flex-wrap items-center justify-between gap-4 px-[26px] py-5 border border-[#eadede] rounded-2xl bg-gradient-to-r from-[#fdfcfc] to-[#f7f3f3] shadow-sm">
+        <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp size={14} style={{ color: '#8c4242' }} strokeWidth={2.5} />
+              <span className="text-[10.5px] uppercase tracking-[0.12em] font-extrabold" style={{ color: '#8c4242' }}>
+                GeM Procurement Module
+              </span>
+            </div>
+            <h3 className="m-0 text-xl font-bold tracking-wide" style={{ color: '#4b2424' }}>
+              Year-on-Year Report — GeM Procurement Review
+            </h3>
+            <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold" style={{ color: '#8c4242' }}>
+              <span>
+                As on date: <strong style={{ color: '#4b2424' }}>{reportMeta.asOnDateStr}</strong>
+              </span>
+              <span style={{ color: '#eadede' }}>•</span>
+              <span>
+                {reportMeta.reportPeriodLabel} — <strong style={{ color: '#4b2424' }}>{reportMeta.reportPeriodValue}</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex justify-between flex-wrap gap-2">
         <div className="text-xs font-semibold text-slate-600">
           Year-on-Year organisation performance (Planned vs Through GeM vs Outside GeM)

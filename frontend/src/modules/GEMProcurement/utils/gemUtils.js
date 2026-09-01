@@ -1,4 +1,3 @@
-// Financial year starts in April, so April is elapsed month 1 and March is 12.
 export function getElapsedFinancialMonths(date = new Date()) {
   const calendarMonth = date.getMonth() + 1;
   return calendarMonth >= 4 ? calendarMonth - 3 : calendarMonth + 9;
@@ -66,6 +65,76 @@ export const GEM_FY_OPTIONS = [
   '2023-2024',
   '2022-2023',
 ];
+
+export function getCurrentFinancialYear(asOf = new Date()) {
+  const date = asOf instanceof Date ? asOf : new Date(asOf);
+  const year = date.getFullYear();
+  const startYear = date.getMonth() >= 3 ? year : year - 1;
+  return `${startYear}-${startYear + 1}`;
+}
+
+function parseFinancialYear(financialYear) {
+  const [startRaw, endRaw] = String(financialYear || '').split('-');
+  const startYear = Number(startRaw);
+  const endYear = Number(endRaw);
+
+  if (Number.isFinite(startYear) && Number.isFinite(endYear)) {
+    return { startYear, endYear };
+  }
+  if (Number.isFinite(startYear)) {
+    return { startYear, endYear: startYear + 1 };
+  }
+
+  const currentYear = new Date().getFullYear();
+  return { startYear: currentYear, endYear: currentYear + 1 };
+}
+
+function formatDateDDMMYYYY(dateInput, separator = '-') {
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}${separator}${month}${separator}${year}`;
+}
+
+export function getGemReportAsOnMeta(financialYear) {
+  const currentFinancialYear = getCurrentFinancialYear();
+  const resolvedFinancialYear = financialYear || currentFinancialYear;
+  const isCurrentFinancialYear = resolvedFinancialYear === currentFinancialYear;
+
+  if (isCurrentFinancialYear) {
+    const today = new Date();
+    const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDayOfPrevMonth = new Date(firstDayOfCurrentMonth - 1);
+    const monthName = lastDayOfPrevMonth.toLocaleString('en-IN', { month: 'long' });
+    const { startYear } = parseFinancialYear(resolvedFinancialYear);
+
+    return {
+      isCurrentFinancialYear,
+      financialYearLabel: resolvedFinancialYear,
+      asOnDate: formatDateDDMMYYYY(lastDayOfPrevMonth, '/'),
+      asOnDateStr: formatDateDDMMYYYY(lastDayOfPrevMonth, '-'),
+      reportPeriodLabel: 'Report for the month',
+      reportPeriodValue: `${monthName} ${startYear}`,
+      tableUptoDateStr: `(Upto ${formatDateDDMMYYYY(lastDayOfPrevMonth, '/')})`,
+    };
+  }
+
+  const { endYear } = parseFinancialYear(resolvedFinancialYear);
+  const financialYearEndDate = new Date(endYear, 2, 31);
+
+  return {
+    isCurrentFinancialYear,
+    financialYearLabel: resolvedFinancialYear,
+    asOnDate: formatDateDDMMYYYY(financialYearEndDate, '/'),
+    asOnDateStr: formatDateDDMMYYYY(financialYearEndDate, '-'),
+    reportPeriodLabel: 'Report for the Financial Year',
+    reportPeriodValue: resolvedFinancialYear,
+    tableUptoDateStr: `(Upto ${formatDateDDMMYYYY(financialYearEndDate, '/')})`,
+  };
+}
 
 export const GEM_CATEGORY_TABS = [
   { id: 'total', label: 'Total' },
