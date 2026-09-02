@@ -8,7 +8,7 @@ import * as am5exporting from '@amcharts/amcharts5/plugins/exporting';
 // already knows how to rasterize itself correctly (fonts, gradients, etc.)
 // amCharts5's exporting plugin does not support SVG output, only PNG/JPG --
 // confirmed against its type definitions -- so this menu is PNG/JPG/Copy only.
-export default function ChartExportMenu({ chartRoot, fileName = 'chart' }) {
+export default function ChartExportMenu({ chartRoot, fileName = 'chart', color = '#0f417a' }) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef(null);
@@ -85,7 +85,7 @@ export default function ChartExportMenu({ chartRoot, fileName = 'chart' }) {
             onClick={() => handleDownload('png')}
             className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left"
           >
-            <Download className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+            <Download className="h-4 w-4" style={{ color }} />
             <span>Download as PNG</span>
           </button>
           <button
@@ -93,7 +93,7 @@ export default function ChartExportMenu({ chartRoot, fileName = 'chart' }) {
             onClick={() => handleDownload('jpg')}
             className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left"
           >
-            <Download className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+            <Download className="h-4 w-4" style={{ color }} />
             <span>Download as JPG</span>
           </button>
           <button
@@ -101,7 +101,7 @@ export default function ChartExportMenu({ chartRoot, fileName = 'chart' }) {
             onClick={handleCopy}
             className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left border-t border-slate-100 dark:border-slate-800"
           >
-            {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />}
+            {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" style={{ color }} />}
             <span>{copied ? 'Copied!' : 'Copy image to clipboard'}</span>
           </button>
         </div>

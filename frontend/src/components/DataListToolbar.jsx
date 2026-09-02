@@ -141,16 +141,11 @@ export default function DataListToolbar({
 
         {totalRows !== undefined && (
           <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-            Total Rows: {totalRows}
+            Total: {totalRows}
           </div>
         )}
 
-        {onCopy && <CopyButton onCopy={onCopy} color="#0f417a" hoverBg="#f1f5f9" />}
-        {(onExportExcel || onExportPdf) && (
-          <ExportDropdown onExportExcel={onExportExcel} onExportPdf={onExportPdf} color="#0f417a" hoverColor="#1d5594" />
-        )}
-
-        {visibleCols && (
+                {visibleCols && (
           <div className="relative" ref={colDropdownRef}>
             <button
               onClick={() => setDropdownOpen((v) => !v)}
@@ -172,9 +167,14 @@ export default function DataListToolbar({
                     <span>{columnLabels[col] || col}</span>
                   </label>
                 ))}
-              </div>
+                           </div>
             )}
           </div>
+        )}
+
+        {onCopy && <CopyButton onCopy={onCopy} color="#0f417a" hoverBg="#f1f5f9" />}
+        {(onExportExcel || onExportPdf) && (
+          <ExportDropdown onExportExcel={onExportExcel} onExportPdf={onExportPdf} color="#0f417a" hoverColor="#1d5594" />
         )}
       </div>
     </div>

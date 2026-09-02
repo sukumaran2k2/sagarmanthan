@@ -502,7 +502,7 @@ export default function DataList({
                 </div>
 
                 <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                  Total Rows: {loading ? '...' : filteredData.length}
+                  Total: {loading ? '...' : filteredData.length}
                 </div>
 
                 <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />

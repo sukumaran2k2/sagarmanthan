@@ -239,7 +239,7 @@ export default function DataList({
 
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-            Total Rows: {loading ? '...' : totalEntries}
+            Total: {loading ? '...' : totalEntries}
           </div>
           <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
           <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#0f417a" hoverColor="#1d5594" />

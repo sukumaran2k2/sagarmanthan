@@ -102,9 +102,8 @@ export default function CSLView({ activeTab, triggerNotification }) {
     }
   };
 
-  useEffect(() => {
+    useEffect(() => {
     setEditData(null);
-    setActiveSubTab('list');
     fetchData();
   }, [activeSection]);
 
@@ -247,7 +246,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm mt-2">
+      <div className={(activeSubTab === 'report' || activeSubTab === 'add') ? 'mt-2' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm mt-2'}>
         {!currentSection.ready ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Construction className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
