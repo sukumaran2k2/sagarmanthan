@@ -414,7 +414,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Reports', tab: 'GMIS & IMW MoUs', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
-        m('ONE_VISION_ONE_DOCUMENT', {
+        m('DRISHTI_PORTAL', {
           label: 'Drishti Portal (OVOD)',
           icon: Globe,
           tab: 'Drishti Portal',
