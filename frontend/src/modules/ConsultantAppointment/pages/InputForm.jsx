@@ -916,25 +916,30 @@ export default function InputForm({
         </div>
 
         {/* Footer Actions */}
-        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-3">
-          <button
-            type="submit"
-            disabled={isFormDisabled}
-            className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white shadow-sm transition-all flex items-center gap-2 ${
-              isFormDisabled
-                ? "bg-slate-400 cursor-not-allowed opacity-50"
-                : "bg-emerald-600 hover:bg-emerald-700 hover:shadow cursor-pointer active:scale-95"
-            }`}
-          >
-            {submitting ? "Saving..." : isEdit ? "Update" : "Submit"}
-          </button>
-          <button
-            type="button"
-            onClick={onBack}
-            className="px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 hover:shadow transition-all cursor-pointer active:scale-95"
-          >
-            Exit
-          </button>
+        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
+          <div className="flex items-center space-x-3">
+            <button
+              type="submit"
+              disabled={isFormDisabled}
+              className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white shadow-sm transition-all flex items-center gap-2 ${
+                isFormDisabled
+                  ? "bg-slate-400 cursor-not-allowed opacity-50"
+                  : "bg-emerald-600 hover:bg-emerald-700 hover:shadow cursor-pointer active:scale-95"
+              }`}
+            >
+              {submitting ? "Saving..." : isEdit ? "Update" : "Submit"}
+            </button>
+            <button
+              type="button"
+              onClick={onBack}
+              className="px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 hover:shadow transition-all cursor-pointer active:scale-95"
+            >
+              Exit
+            </button>
+          </div>
         </div>
       </form>
     </div>

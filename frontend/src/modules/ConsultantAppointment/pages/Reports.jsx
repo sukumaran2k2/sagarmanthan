@@ -255,7 +255,7 @@ export default function Reports({ wings = [], triggerNotification }) {
         themeClass="yp-pro-grid"
         brandColor="#4b2424"
         brandColorHover="#6b3535"
-        accentColor="#f7f3f3"
+        accentColor="#f3f7f5ff"
         oddRowColor="#f8faf6"
         totalLabel="Total Rows"
       />

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Table from '../../../components/Table';
-import { Search, X, Edit, Trash2, ChevronDown, Users } from 'lucide-react';
+import { Search, X, Edit, Trash2, ChevronDown, Users, Filter, Plus } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import CandidateDrilldownView from './CandidateDrilldownView';
@@ -142,12 +142,15 @@ export default function DataList({
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'completed'
   const [selectedStage, setSelectedStage] = useState(''); // stage filter for pending tab
   const [drilldownAppointment, setDrilldownAppointment] = useState(null);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   // Reset stage filter when switching tabs
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab !== 'pending') setSelectedStage('');
   };
+
+  const activeFiltersCount = (selectedWing ? 1 : 0) + (selectedDivision ? 1 : 0) + (selectedStage ? 1 : 0);
 
   // Column visibility states
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -519,151 +522,219 @@ export default function DataList({
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 dark:bg-slate-950 dark:border-slate-800">
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
-        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-          <div className="relative">
-            <select
-              value={selectedWing}
-              onChange={(e) => handleWingChange(e.target.value)}
-              className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[120px]"
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 dark:bg-slate-950 dark:border-slate-800">
+
+        {/* Search, Filters and Actions Toolbar matching YP format */}
+        <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
+          
+          {/* 1. Left: Dedicated Filter Button + Reset */}
+          <div className="flex items-center gap-2.5 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel(prev => !prev)}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
+                showFilterPanel || activeFiltersCount > 0
+                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
+              }`}
             >
-              <option value="">All Wings</option>
-              {wingOptions.map((w) => (
-                <option key={w.value} value={w.value}>{w.label}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          </div>
+              <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+              <span>Filter</span>
+              {activeFiltersCount > 0 && (
+                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFiltersCount}
+                </span>
+              )}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+            </button>
 
-          <div className="relative">
-            <select
-              value={selectedDivision}
-              onChange={(e) => handleDivisionChange(e.target.value)}
-              className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[130px]"
-            >
-              <option value="">All Divisions</option>
-              {divisionOptions.map((d) => (
-                <option key={d.value} value={d.value}>{d.label}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          </div>
-
-          {/* Stage filter — only on Pending tab */}
-          {activeTab === 'pending' && (
-            <div className="relative">
-              <select
-                value={selectedStage}
-                onChange={(e) => setSelectedStage(e.target.value)}
-                className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[160px]"
-              >
-                <option value="">All Stages</option>
-                {PENDING_STAGES.map(stage => (
-                  <option key={stage} value={stage}>{stage}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
-          )}
-
-          <div className="relative min-w-[160px] max-w-xs flex-1">
-            <input
-              type="text"
-              placeholder="Search Wing, Division or Status..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full text-xs pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
-            />
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            {searchTerm && (
+            {activeFiltersCount > 0 && (
               <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setSelectedWing('');
+                  setSelectedDivision('');
+                  setSelectedStage('');
+                  setCurrentPage(1);
+                  triggerNotification?.('Filters have been reset', 'info');
+                }}
+                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
-                <X className="h-3.5 w-3.5" />
+                Reset
               </button>
             )}
           </div>
 
-          {(selectedWing || selectedDivision || searchTerm) && (
-            <button
-              onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSearchTerm(''); setCurrentPage(1); }}
-              className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition cursor-pointer"
-            >
-              <X className="h-3 w-3" />
-              Clear filters
-            </button>
-          )}
+          {/* 2. Middle Spacer */}
+          <div className="hidden lg:block flex-1" />
+
+          {/* 3. Right: Search Input + Row Count + Total + Visibility + Copy + Export + Add */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
+            
+            {/* Search Input */}
+            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search Wing, Division or Status..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Rows Limit Select Dropdown */}
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+
+            {/* Total Count Badge */}
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              Total: {totalCount}
+            </div>
+
+            {/* Column Visibility Dropdown */}
+            <div className="relative" ref={colDropdownRef}>
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {dropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-48 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  {Object.keys(visibleCols).map(col => (
+                    <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[col]}
+                        onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{col === 'appointmentType' ? 'Appointment Type' : col === 'numResources' ? 'Num Resources' : col === 'lastUpdated' ? 'Last Updated' : col}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Copy Button */}
+            <CopyButton
+              onCopy={() => handleExport('Copy')}
+              color="#0f417a"
+              hoverBg="#f1f5f9"
+            />
+
+            {/* Export Dropdown */}
+            <ExportDropdown
+              onExportExcel={() => handleExport('Excel')}
+              onExportPdf={() => handleExport('PDF')}
+              color="#0f417a"
+              hoverColor="#1e5ea8"
+            />
+
+            {/* Optional Add Button */}
+            {canAdd && onAddClick && (
+              <button
+                onClick={onAddClick}
+                className="px-3 py-1.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add</span>
+              </button>
+            )}
+
+          </div>
         </div>
 
-        <div className="flex items-center space-x-2 flex-shrink-0">
-          {/* Rows Limit Select Dropdown */}
-          <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="bg-transparent border-none text-xs font-bold text-slate-755 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-          </div>
+        {/* Collapsible Filter Panel matching YP / GMIS style */}
+        {showFilterPanel && (
+          <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
+            {/* Wing Selector */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Wing
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedWing}
+                  onChange={(e) => handleWingChange(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">All Wings</option>
+                  {wingOptions.map((w) => (
+                    <option key={w.value} value={w.value}>{w.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
 
-          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-            Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{totalCount}</span>
-          </div>
+            {/* Division Selector */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Division
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedDivision}
+                  onChange={(e) => handleDivisionChange(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">All Divisions</option>
+                  {divisionOptions.map((d) => (
+                    <option key={d.value} value={d.value}>{d.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
 
-          <CopyButton
-            onCopy={() => handleExport('Copy')}
-            color="#0f417a"
-            hoverBg="#f1f5f9"
-          />
-
-          <div className="relative" ref={colDropdownRef}>
-            <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              <span>Visibility</span>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-            </button>
-            {dropdownOpen && (
-              <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
-                {Object.keys(visibleCols).map(col => (
-                  <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={visibleCols[col]}
-                      onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
-                      className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                    <span>{col === 'appointmentType' ? 'Appointment Type' : col === 'numResources' ? 'Num Resources' : col === 'lastUpdated' ? 'Last Updated' : col}</span>
-                  </label>
-                ))}
+            {/* Stage Selector (Pending tab) */}
+            {activeTab === 'pending' && (
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Stage
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedStage}
+                    onChange={(e) => setSelectedStage(e.target.value)}
+                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  >
+                    <option value="">All Stages</option>
+                    {PENDING_STAGES.map(stage => (
+                      <option key={stage} value={stage}>{stage}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                </div>
               </div>
             )}
           </div>
-
-          <CopyButton
-            onCopy={() => handleExport('Copy')}
-            color="#0f417a"
-            hoverBg="#f1f5f9"
-          />
-          <ExportDropdown
-            onExportExcel={() => handleExport('Excel')}
-            onExportPdf={() => handleExport('PDF')}
-            color="#0f417a"
-            hoverColor="#1e5ea8"
-          />
-        </div>
-      </div>
+        )}
 
       <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
         <Table
