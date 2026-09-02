@@ -3,7 +3,8 @@ import {
   Building2, Calendar, FileText, Upload, Plus, Trash2, 
   Image as ImageIcon, Heart, Coins, ListTodo, AlertCircle, 
   CheckCircle2, X, ChevronDown, Save, ArrowLeft, Layers, 
-  TrendingUp, IndianRupee, HelpCircle, Eye
+  TrendingUp, IndianRupee, HelpCircle, Eye, ArrowRight, Check,
+  Clock, Users, CheckCircle
 } from 'lucide-react';
 import { 
   createCsrProject, 
@@ -18,6 +19,37 @@ import {
 } from '../api';
 import { CSR_FOCUS_AREAS, CSR_STATUSES, FINANCIAL_YEARS } from '../utils/constants';
 
+const CSR_STAGES = [
+  {
+    id: 'general',
+    number: '01',
+    title: 'General Details',
+    subtitle: 'Project & Scope',
+    icon: Layers,
+  },
+  {
+    id: 'outcomes',
+    number: '02',
+    title: 'Impact & Outcomes',
+    subtitle: 'Beneficiaries & Remarks',
+    icon: Heart,
+  },
+  {
+    id: 'status',
+    number: '03',
+    title: 'Status & Progress',
+    subtitle: 'Timelines & %',
+    icon: Clock,
+  },
+  {
+    id: 'expenditure',
+    number: '04',
+    title: 'Expenditure & Media',
+    subtitle: 'Cost & Documents',
+    icon: IndianRupee,
+  },
+];
+
 export default function InputForm({
   editData = null,
   initialFormType = 'project',
@@ -28,6 +60,7 @@ export default function InputForm({
 }) {
   // Sub-tab state: 'project' | 'fund'
   const [activeFormTab, setActiveFormTab] = useState(initialFormType || 'project');
+  const [activeSection, setActiveSection] = useState('general');
 
   useEffect(() => {
     if (initialFormType) {
@@ -76,8 +109,6 @@ export default function InputForm({
   const [existingGallery, setExistingGallery] = useState([]);
 
   const [projectErrors, setProjectErrors] = useState({});
-  const [projectTouched, setProjectTouched] = useState({});
-  const [projectFormSubmitted, setProjectFormSubmitted] = useState(false);
 
   // File Inputs Ref
   const docInputRef = useRef(null);
@@ -92,7 +123,6 @@ export default function InputForm({
   const [fundOpeningBalance, setFundOpeningBalance] = useState('');
   const [fundAllotted, setFundAllotted] = useState('');
   const [fundErrors, setFundErrors] = useState({});
-  const [fundTouched, setFundTouched] = useState({});
   const [fundFormSubmitted, setFundFormSubmitted] = useState(false);
   const [submittingFund, setSubmittingFund] = useState(false);
 
@@ -157,6 +187,148 @@ export default function InputForm({
   }, [editData]);
 
   // ==========================================
+  // STAGE VALIDITY & PROGRESS TRACKING
+  // ==========================================
+  const isGeneralValid = Boolean(
+    projectName.trim() &&
+    projectReceivedFrom.trim() &&
+    projectValue !== '' &&
+    !isNaN(Number(projectValue)) &&
+    Number(projectValue) >= 0 &&
+    financialYear &&
+    csrFocus
+  );
+
+  const isOutcomesValid = Boolean(
+    isGeneralValid &&
+    impactOutcome.trim() &&
+    targetBeneficiaries.trim()
+  );
+
+  const isStatusValid = Boolean(
+    isGeneralValid &&
+    isOutcomesValid &&
+    projectStatus &&
+    (!commencedOn || !completedOn || completedOn >= commencedOn)
+  );
+
+  const isExpenditureValid = Boolean(
+    isGeneralValid &&
+    isOutcomesValid &&
+    isStatusValid &&
+    (expenditures.some(e => e.cost !== '' && !isNaN(Number(e.cost))) || !!docFileName || galleryFiles.length > 0 || existingGallery.length > 0)
+  );
+
+  const stageProgress = {
+    general: isGeneralValid,
+    outcomes: isOutcomesValid,
+    status: isStatusValid,
+    expenditure: isExpenditureValid,
+  };
+
+  const clearFieldError = (field) => {
+    if (projectErrors[field]) {
+      setProjectErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  // Stage 1: General Details Validator
+  const validateGeneralStage = () => {
+    const errs = {};
+    if (!projectName.trim()) {
+      errs.projectName = 'Name of the Project is required.';
+    }
+    if (!projectReceivedFrom.trim()) {
+      errs.projectReceivedFrom = 'Project received from is required.';
+    }
+    if (projectValue === '' || isNaN(Number(projectValue)) || Number(projectValue) < 0) {
+      errs.projectValue = 'Valid Project Value (Rs. in Lakhs) is required.';
+    }
+    if (Object.keys(errs).length > 0) {
+      setProjectErrors(prev => ({ ...prev, ...errs }));
+      triggerNotification?.("Please fill all mandatory fields (*) in Stage 1 before proceeding.", "warning");
+      return false;
+    }
+    return true;
+  };
+
+  // Stage 2: Outcomes Validator
+  const validateOutcomesStage = () => {
+    const errs = {};
+    if (!impactOutcome.trim()) {
+      errs.impactOutcome = 'Impact / Possible Outcome is required.';
+    }
+    if (!targetBeneficiaries.trim()) {
+      errs.targetBeneficiaries = 'Target Beneficiaries is required.';
+    }
+    if (Object.keys(errs).length > 0) {
+      setProjectErrors(prev => ({ ...prev, ...errs }));
+      triggerNotification?.("Please fill all mandatory fields (*) in Stage 2 before proceeding.", "warning");
+      return false;
+    }
+    return true;
+  };
+
+  // Stage 3: Status Validator
+  const validateStatusStage = () => {
+    const errs = {};
+    if (commencedOn && completedOn && completedOn < commencedOn) {
+      errs.completedOn = 'Completed date cannot be earlier than Commenced date.';
+    }
+    if (Object.keys(errs).length > 0) {
+      setProjectErrors(prev => ({ ...prev, ...errs }));
+      triggerNotification?.("Completed date cannot be earlier than Commenced date in Stage 3.", "warning");
+      return false;
+    }
+    return true;
+  };
+
+  // Stage Navigation Controller with Strict Sequential Validation
+  const handleNavigateToStage = (targetStageId) => {
+    if (targetStageId === activeSection) return;
+
+    const stageOrder = ['general', 'outcomes', 'status', 'expenditure'];
+    const currentIndex = stageOrder.indexOf(activeSection);
+    const targetIndex = stageOrder.indexOf(targetStageId);
+
+    // If moving backwards to a previous stage, allow freely
+    if (targetIndex <= currentIndex) {
+      setActiveSection(targetStageId);
+      return;
+    }
+
+    // Moving forward to Stage 2, 3, or 4 -> Stage 1 must be valid
+    if (targetIndex >= 1) {
+      if (!validateGeneralStage()) {
+        setActiveSection('general');
+        return;
+      }
+    }
+
+    // Moving forward to Stage 3 or 4 -> Stage 2 must also be valid
+    if (targetIndex >= 2) {
+      if (!validateOutcomesStage()) {
+        setActiveSection('outcomes');
+        return;
+      }
+    }
+
+    // Moving forward to Stage 4 -> Stage 3 must also be valid
+    if (targetIndex >= 3) {
+      if (!validateStatusStage()) {
+        setActiveSection('status');
+        return;
+      }
+    }
+
+    setActiveSection(targetStageId);
+  };
+
+  // ==========================================
   // FORM 1: EXPENDITURE ROW HANDLERS
   // ==========================================
   const handleAddExpenditureRow = () => {
@@ -180,28 +352,20 @@ export default function InputForm({
   // ==========================================
   // FORM 1: PROJECT SUBMISSION
   // ==========================================
-  const validateProjectForm = () => {
-    const errs = {};
-    if (!projectName.trim()) errs.projectName = 'Name of the Project is required.';
-    if (!projectReceivedFrom.trim()) errs.projectReceivedFrom = 'Project received from is required.';
-    if (!impactOutcome.trim()) errs.impactOutcome = 'Impact / Possible Outcome is required.';
-    if (!targetBeneficiaries.trim()) errs.targetBeneficiaries = 'Target Beneficiaries is required.';
-    if (projectValue === '' || isNaN(Number(projectValue)) || Number(projectValue) < 0) {
-      errs.projectValue = 'Valid Project Value (Rs. in Lakhs) is required.';
-    }
-    if (commencedOn && completedOn && completedOn < commencedOn) {
-      errs.completedOn = 'Completed date cannot be earlier than Commenced date.';
-    }
-    setProjectErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
   const handleProjectSubmit = async (e) => {
-    e.preventDefault();
-    setProjectFormSubmitted(true);
+    if (e) e.preventDefault();
 
-    if (!validateProjectForm()) {
-      triggerNotification?.("Please fill in all mandatory fields correctly.", "warning");
+    // Comprehensive sequential validation before submission
+    if (!validateGeneralStage()) {
+      setActiveSection('general');
+      return;
+    }
+    if (!validateOutcomesStage()) {
+      setActiveSection('outcomes');
+      return;
+    }
+    if (!validateStatusStage()) {
+      setActiveSection('status');
       return;
     }
 
@@ -338,7 +502,7 @@ export default function InputForm({
   return (
     <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
       
-      {/* Sub-Tabs Row matching MIV module tabs style */}
+      {/* Sub-Tabs Row */}
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 select-none">
         <div className="flex space-x-1">
           <button
@@ -368,462 +532,694 @@ export default function InputForm({
           </button>
         </div>
 
-        <button
+        {/* <button
           type="button"
           onClick={onBack}
           className="flex items-center space-x-1.5 text-xs font-bold text-slate-600 hover:text-[#0f417a] dark:text-slate-400 dark:hover:text-blue-400 px-3 py-1.5 mb-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           <span>Back to List</span>
-        </button>
+        </button> */}
       </div>
 
       {/* ========================================================= */}
-      {/* TAB 1: ADD / UPDATE CSR PROJECT (CONSULTANT APPOINTMENT STYLE) */}
+      {/* TAB 1: ADD / UPDATE CSR PROJECT (STAGE-WISE MULTI-STEP) */}
       {/* ========================================================= */}
       {activeFormTab === 'project' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
           
-          {/* Header Banner */}
-          <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-wider font-display">
-                {isEditProject ? "Update CSR Project" : "Add CSR Project"}
-              </h3>
-              <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">
-                Ministry of Ports, Shipping and Waterways
-              </p>
+          {/* Header Banner with Stage-Wise Stepper */}
+          <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-5 text-white border-b border-[#0a2d55]/20">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+              
+              {/* Left Title */}
+              <div className="lg:col-span-3">
+                <h3 className="text-sm font-black uppercase tracking-wider font-display">
+                  {isEditProject ? "Update CSR Project" : "Add CSR Project"}
+                </h3>
+                <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">
+                  Ministry of Ports, Shipping and Waterways
+                </p>
+              </div>
+
+              {/* Center Stepper Progress Bar */}
+              <div className="lg:col-span-7">
+                <div className="relative w-full max-w-xl mx-auto py-1">
+                  
+                  {/* Background Track Line */}
+                  <div className="absolute top-[14px] md:top-[16px] left-[12%] right-[12%] h-1.5 bg-white/20 rounded-full -translate-y-1/2 z-0" />
+                  
+                  {/* Filled Progress Line */}
+                  <div 
+                    className="absolute top-[14px] md:top-[16px] left-[12%] h-1.5 bg-emerald-400 rounded-full -translate-y-1/2 z-0 transition-all duration-500 ease-out"
+                    style={{
+                      width: `${(CSR_STAGES.findIndex(s => s.id === activeSection) / (CSR_STAGES.length - 1)) * 76}%`
+                    }}
+                  />
+
+                  {/* Step Nodes Grid */}
+                  <div className="relative z-10 w-full grid grid-cols-4 items-start">
+                    {CSR_STAGES.map((stage, idx) => {
+                      const isActive = activeSection === stage.id;
+                      const isCompleted = Boolean(stageProgress[stage.id]);
+
+                      return (
+                        <div
+                          key={stage.id}
+                          onClick={() => handleNavigateToStage(stage.id)}
+                          className="flex flex-col items-center text-center cursor-pointer group px-1"
+                        >
+                          {/* Circular Number Node */}
+                          <div
+                            className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-black text-xs transition-all duration-300 shadow-md ${
+                              isCompleted && !isActive
+                                ? 'bg-emerald-500 text-white shadow-emerald-900/30 hover:bg-emerald-400 hover:scale-105'
+                                : isActive
+                                ? 'bg-white text-[#0f417a] ring-4 ring-emerald-400/60 scale-110 shadow-lg'
+                                : 'bg-white/15 text-white/60 border border-white/20 backdrop-blur-md hover:bg-white/25 hover:text-white'
+                            }`}
+                          >
+                            {isCompleted && !isActive ? (
+                              <Check className="h-3.5 w-3.5 stroke-[3]" />
+                            ) : (
+                              idx + 1
+                            )}
+                          </div>
+
+                          {/* Step Label */}
+                          <div className="mt-1.5 flex flex-col items-center">
+                            <span className={`text-[10px] md:text-[11px] font-bold tracking-tight leading-tight transition-colors truncate max-w-[85px] sm:max-w-none ${
+                              isActive
+                                ? 'text-white font-black drop-shadow-sm'
+                                : isCompleted
+                                ? 'text-emerald-200 font-semibold'
+                                : 'text-blue-100/60 font-medium'
+                            }`}>
+                              {stage.title}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Stage Indicator Pill */}
+              <div className="lg:col-span-2 hidden lg:flex justify-end items-center">
+                <span className="text-[11px] font-black px-3 py-1 rounded-full bg-white/15 border border-white/20 text-white font-mono tracking-wider shadow-xs">
+                  Stage {CSR_STAGES.findIndex(s => s.id === activeSection) + 1} of 4
+                </span>
+              </div>
+
             </div>
           </div>
 
           <form onSubmit={handleProjectSubmit} className="p-6 space-y-6">
             
-            {/* Section 1: Project Information */}
-            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-              <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                <FileText className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                <span>Project Information</span>
-              </h4>
+            {/* ========================================================= */}
+            {/* STAGE 1: GENERAL DETAILS */}
+            {/* ========================================================= */}
+            {activeSection === 'general' && (
+              <div className="space-y-5 animate-fade-in">
+                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+                    <span>General Project Details</span>
+                  </h4>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* CSR Focus Area */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    CSR Focus/Project Area <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={csrFocus}
-                      onChange={(e) => setCsrFocus(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                    >
-                      {CSR_FOCUS_AREAS.map(f => (
-                        <option key={f.id} value={f.id}>{f.label}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    {/* Organisation (if applicable) */}
+                    {organisations.length > 1 && (
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                          Organisation <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={organisationId}
+                            onChange={(e) => setOrganisationId(e.target.value)}
+                            className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                          >
+                            {organisations.map(o => (
+                              <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CSR Focus Area */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        CSR Focus/Project Area <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={csrFocus}
+                          onChange={(e) => setCsrFocus(e.target.value)}
+                          className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                        >
+                          {CSR_FOCUS_AREAS.map(f => (
+                            <option key={f.id} value={f.id}>{f.label}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                      </div>
+                    </div>
+
+                    {/* Name of the Project */}
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Name of the Project <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Enter project name"
+                        value={projectName}
+                        onChange={(e) => {
+                          setProjectName(e.target.value);
+                          clearFieldError('projectName');
+                        }}
+                        className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                          projectErrors.projectName ? 'border-red-500 bg-red-50/20 ring-1 ring-red-500/30' : 'border-slate-250 dark:border-slate-800'
+                        }`}
+                      />
+                      {projectErrors.projectName && (
+                        <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.projectName}</p>
+                      )}
+                    </div>
+
+                    {/* Project Received From */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Project received from <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Enter project received from"
+                        value={projectReceivedFrom}
+                        onChange={(e) => {
+                          setProjectReceivedFrom(e.target.value);
+                          clearFieldError('projectReceivedFrom');
+                        }}
+                        className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                          projectErrors.projectReceivedFrom ? 'border-red-500 bg-red-50/20 ring-1 ring-red-500/30' : 'border-slate-250 dark:border-slate-800'
+                        }`}
+                      />
+                      {projectErrors.projectReceivedFrom && (
+                        <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.projectReceivedFrom}</p>
+                      )}
+                    </div>
+
+                    {/* Project Value */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Project Value (Rs. In Lakhs) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={projectValue}
+                        onChange={(e) => {
+                          setProjectValue(e.target.value);
+                          clearFieldError('projectValue');
+                        }}
+                        className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                          projectErrors.projectValue ? 'border-red-500 bg-red-50/20 ring-1 ring-red-500/30' : 'border-slate-250 dark:border-slate-800'
+                        }`}
+                      />
+                      {projectErrors.projectValue && (
+                        <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.projectValue}</p>
+                      )}
+                    </div>
+
+                    {/* Financial Year */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Financial Year <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={financialYear}
+                          onChange={(e) => setFinancialYear(e.target.value)}
+                          className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                        >
+                          {FINANCIAL_YEARS.map(fy => (
+                            <option key={fy} value={fy}>{fy}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                      </div>
+                    </div>
+
                   </div>
                 </div>
 
-                {/* Name of the Project */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Name of the Project <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Enter project name"
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
-                      projectFormSubmitted && projectErrors.projectName ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
-                    }`}
-                  />
-                  {projectFormSubmitted && projectErrors.projectName && (
-                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.projectName}</p>
-                  )}
+                {/* Footer Navigation */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-xs text-rose-500 font-bold italic">
+                    * Asterisks marked with red are mandatory fields
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleNavigateToStage('outcomes')}
+                    className="flex items-center space-x-2 px-6 py-2.5 text-xs font-bold text-white bg-[#0f417a] hover:bg-blue-800 rounded-xl shadow-xs transition cursor-pointer"
+                  >
+                    <span>Proceed to Outcomes</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
                 </div>
-
-                {/* Project Received From */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Project received from <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Enter project received from"
-                    value={projectReceivedFrom}
-                    onChange={(e) => setProjectReceivedFrom(e.target.value)}
-                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
-                      projectFormSubmitted && projectErrors.projectReceivedFrom ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
-                    }`}
-                  />
-                  {projectFormSubmitted && projectErrors.projectReceivedFrom && (
-                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.projectReceivedFrom}</p>
-                  )}
-                </div>
-
-                {/* Project Value */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Project Value(Rs. In Lakhs) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={projectValue}
-                    onChange={(e) => setProjectValue(e.target.value)}
-                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
-                      projectFormSubmitted && projectErrors.projectValue ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
-                    }`}
-                  />
-                  {projectFormSubmitted && projectErrors.projectValue && (
-                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.projectValue}</p>
-                  )}
-                </div>
-
-                {/* Impact / Outcome */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Impact/ Possible Outcome of the Project <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Enter impact / outcome"
-                    value={impactOutcome}
-                    onChange={(e) => setImpactOutcome(e.target.value)}
-                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
-                      projectFormSubmitted && projectErrors.impactOutcome ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
-                    }`}
-                  />
-                  {projectFormSubmitted && projectErrors.impactOutcome && (
-                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.impactOutcome}</p>
-                  )}
-                </div>
-
-                {/* Target Beneficiaries */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Target Beneficiaries <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Enter target beneficiaries"
-                    value={targetBeneficiaries}
-                    onChange={(e) => setTargetBeneficiaries(e.target.value)}
-                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
-                      projectFormSubmitted && projectErrors.targetBeneficiaries ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
-                    }`}
-                  />
-                  {projectFormSubmitted && projectErrors.targetBeneficiaries && (
-                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.targetBeneficiaries}</p>
-                  )}
-                </div>
-
-                {/* Project Status */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Project Status <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={projectStatus}
-                      onChange={(e) => setProjectStatus(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                    >
-                      {CSR_STATUSES.map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  </div>
-                </div>
-
-                {/* Financial Year */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Financial Year <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={financialYear}
-                      onChange={(e) => setFinancialYear(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                    >
-                      {FINANCIAL_YEARS.map(fy => (
-                        <option key={fy} value={fy}>{fy}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  </div>
-                </div>
-
-                {/* Commenced On */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Commenced On
-                  </label>
-                  <input
-                    type="date"
-                    value={commencedOn}
-                    onChange={(e) => setCommencedOn(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
-                  />
-                </div>
-
-                {/* Completed On */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Completed On
-                  </label>
-                  <input
-                    type="date"
-                    value={completedOn}
-                    onChange={(e) => setCompletedOn(e.target.value)}
-                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
-                      projectFormSubmitted && projectErrors.completedOn ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
-                    }`}
-                  />
-                  {projectFormSubmitted && projectErrors.completedOn && (
-                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.completedOn}</p>
-                  )}
-                </div>
-
-                {/* Physical Progress */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Physical Progress (in %)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    placeholder="0"
-                    value={physicalProgress}
-                    onChange={(e) => setPhysicalProgress(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
-                  />
-                </div>
-
-                {/* Financial Progress */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Financial Progress (in %)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    placeholder="0"
-                    value={financialProgress}
-                    onChange={(e) => setFinancialProgress(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
-                  />
-                </div>
-
-                {/* Remarks of the Project */}
-                <div className="md:col-span-2 space-y-1.5">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Remarks of the Project
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="Enter remarks..."
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 resize-none"
-                  />
-                </div>
-
               </div>
-            </div>
+            )}
 
-            {/* Section 2: Expenditure Breakdown */}
-            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-              <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                <IndianRupee className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                <span>Expenditure</span>
-              </h4>
+            {/* ========================================================= */}
+            {/* STAGE 2: IMPACT & OUTCOMES */}
+            {/* ========================================================= */}
+            {activeSection === 'outcomes' && (
+              <div className="space-y-5 animate-fade-in">
+                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+                    <Heart className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+                    <span>Impact, Beneficiaries & Remarks</span>
+                  </h4>
 
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs bg-white dark:bg-slate-900">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-[#0f417a] text-white select-none">
-                    <tr>
-                      <th className="py-2.5 px-4 font-bold w-16 text-center">S No</th>
-                      <th className="py-2.5 px-4 font-bold">Financial Year</th>
-                      <th className="py-2.5 px-4 font-bold">Expenditure (in lakhs)</th>
-                      <th className="py-2.5 px-4 font-bold w-16 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {expenditures.map((exp, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition">
-                        <td className="py-2.5 px-4 text-center font-bold text-slate-500 dark:text-slate-400">
-                          {idx + 1}
-                        </td>
-                        <td className="py-2 px-4">
-                          <div className="relative max-w-xs">
-                            <select
-                              value={exp.year}
-                              onChange={(e) => handleExpenditureChange(idx, 'year', e.target.value)}
-                              className="appearance-none w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                            >
-                              {FINANCIAL_YEARS.map(fy => (
-                                <option key={fy} value={fy}>{fy}</option>
-                              ))}
-                            </select>
-                            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                          </div>
-                        </td>
-                        <td className="py-2 px-4">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            value={exp.cost}
-                            onChange={(e) => handleExpenditureChange(idx, 'cost', e.target.value)}
-                            className="w-full max-w-sm text-xs p-2 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
-                          />
-                        </td>
-                        <td className="py-2 px-4 text-center">
-                          {idx === 0 ? (
-                            <button
-                              type="button"
-                              onClick={handleAddExpenditureRow}
-                              title="Add more expenditure row"
-                              className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 rounded-lg transition cursor-pointer"
-                            >
-                              <Plus className="h-4 w-4" />
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveExpenditureRow(idx)}
-                              title="Remove row"
-                              className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg transition cursor-pointer"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  <div className="space-y-4">
+                    
+                    {/* Impact / Outcome */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Impact/ Possible Outcome of the Project <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        placeholder="Enter impact / outcome of the project..."
+                        value={impactOutcome}
+                        onChange={(e) => {
+                          setImpactOutcome(e.target.value);
+                          clearFieldError('impactOutcome');
+                        }}
+                        className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                          projectErrors.impactOutcome ? 'border-red-500 bg-red-50/20 ring-1 ring-red-500/30' : 'border-slate-250 dark:border-slate-800'
+                        }`}
+                      />
+                      {projectErrors.impactOutcome && (
+                        <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.impactOutcome}</p>
+                      )}
+                    </div>
 
-            {/* Section 3: Media Uploads */}
-            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-              <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                <Upload className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                <span>Media & Documents</span>
-              </h4>
+                    {/* Target Beneficiaries */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Target Beneficiaries <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Enter target beneficiaries..."
+                        value={targetBeneficiaries}
+                        onChange={(e) => {
+                          setTargetBeneficiaries(e.target.value);
+                          clearFieldError('targetBeneficiaries');
+                        }}
+                        className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                          projectErrors.targetBeneficiaries ? 'border-red-500 bg-red-50/20 ring-1 ring-red-500/30' : 'border-slate-250 dark:border-slate-800'
+                        }`}
+                      />
+                      {projectErrors.targetBeneficiaries && (
+                        <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.targetBeneficiaries}</p>
+                      )}
+                    </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* 1. Project Completion Documentation */}
-                <div className="space-y-2">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Project Completion Documentation
-                  </label>
-                  <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">
-                    NOTE: Only PDF files can be uploaded. File Size: Max. 20 MB.
-                  </p>
+                    {/* Remarks of the Project */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Remarks of the Project
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Enter remarks..."
+                        value={remarks}
+                        onChange={(e) => setRemarks(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 resize-none"
+                      />
+                    </div>
 
-                  <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-xl shadow-xs">
-                    <input
-                      type="file"
-                      ref={docInputRef}
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          setDocFile(e.target.files[0]);
-                          setDocFileName(e.target.files[0].name);
-                        }
-                      }}
-                    />
+                  </div>
+                </div>
+
+                {/* Footer Navigation */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-xs text-rose-500 font-bold italic">
+                    * Asterisks marked with red are mandatory fields
+                  </span>
+                  <div className="flex items-center space-x-2">
                     <button
                       type="button"
-                      onClick={() => docInputRef.current?.click()}
-                      className="px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white text-xs font-bold rounded-lg transition cursor-pointer shadow-xs"
+                      onClick={() => setActiveSection('general')}
+                      className="px-4 py-2 text-xs font-bold text-slate-700 bg-white dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 transition cursor-pointer"
                     >
-                      Upload
+                      Back
                     </button>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs font-medium">
-                      {docFileName || docFile?.name || "Drag & Drop Files"}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateToStage('status')}
+                      className="flex items-center space-x-2 px-6 py-2.5 text-xs font-bold text-white bg-[#0f417a] hover:bg-blue-800 rounded-xl shadow-xs transition cursor-pointer"
+                    >
+                      <span>Proceed to Status</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* STAGE 3: STATUS & PROGRESS */}
+            {/* ========================================================= */}
+            {activeSection === 'status' && (
+              <div className="space-y-5 animate-fade-in">
+                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+                    <span>Status & Progress Details</span>
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    {/* Project Status */}
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Project Status <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={projectStatus}
+                          onChange={(e) => setProjectStatus(e.target.value)}
+                          className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                        >
+                          {CSR_STATUSES.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                      </div>
+                    </div>
+
+                    {/* Commenced On */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Commenced On
+                      </label>
+                      <input
+                        type="date"
+                        value={commencedOn}
+                        onChange={(e) => setCommencedOn(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
+                      />
+                    </div>
+
+                    {/* Completed On */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Completed On
+                      </label>
+                      <input
+                        type="date"
+                        value={completedOn}
+                        onChange={(e) => {
+                          setCompletedOn(e.target.value);
+                          clearFieldError('completedOn');
+                        }}
+                        className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                          projectErrors.completedOn ? 'border-red-500 bg-red-50/20 ring-1 ring-red-500/30' : 'border-slate-250 dark:border-slate-800'
+                        }`}
+                      />
+                      {projectErrors.completedOn && (
+                        <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.completedOn}</p>
+                      )}
+                    </div>
+
+                    {/* Physical Progress */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Physical Progress (in %)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        placeholder="0"
+                        value={physicalProgress}
+                        onChange={(e) => setPhysicalProgress(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
+                      />
+                    </div>
+
+                    {/* Financial Progress */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Financial Progress (in %)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        placeholder="0"
+                        value={financialProgress}
+                        onChange={(e) => setFinancialProgress(e.target.value)}
+                        className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
+                      />
+                    </div>
+
                   </div>
                 </div>
 
-                {/* 2. Gallery (Photos and Videos) */}
-                <div className="space-y-2">
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Gallery (Photos and Videos)
-                  </label>
-                  <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">
-                    NOTE: Multiple images can be uploaded.
-                  </p>
-
-                  <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-xl shadow-xs">
-                    <input
-                      type="file"
-                      ref={galleryInputRef}
-                      multiple
-                      accept="image/*,video/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files) {
-                          setGalleryFiles(Array.from(e.target.files));
-                        }
-                      }}
-                    />
+                {/* Footer Navigation */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-xs text-rose-500 font-bold italic">
+                    * Asterisks marked with red are mandatory fields
+                  </span>
+                  <div className="flex items-center space-x-2">
                     <button
                       type="button"
-                      onClick={() => galleryInputRef.current?.click()}
-                      className="px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white text-xs font-bold rounded-lg transition cursor-pointer shadow-xs"
+                      onClick={() => setActiveSection('outcomes')}
+                      className="px-4 py-2 text-xs font-bold text-slate-700 bg-white dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 transition cursor-pointer"
                     >
-                      Upload
+                      Back
                     </button>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs font-medium">
-                      {galleryFiles.length > 0
-                        ? `${galleryFiles.length} file(s) selected`
-                        : existingGallery.length > 0
-                        ? `${existingGallery.length} file(s) available`
-                        : "Drag & Drop Files"}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateToStage('expenditure')}
+                      className="flex items-center space-x-2 px-6 py-2.5 text-xs font-bold text-white bg-[#0f417a] hover:bg-blue-800 rounded-xl shadow-xs transition cursor-pointer"
+                    >
+                      <span>Proceed to Expenditure</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* STAGE 4: EXPENDITURE & MEDIA UPLOADS */}
+            {/* ========================================================= */}
+            {activeSection === 'expenditure' && (
+              <div className="space-y-5 animate-fade-in">
+                
+                {/* Section 1: Multi-Year Expenditure Breakdown */}
+                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+                    <IndianRupee className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+                    <span>Yearly Expenditure Breakdown</span>
+                  </h4>
+
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs bg-white dark:bg-slate-900">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-[#0f417a] text-white select-none">
+                        <tr>
+                          <th className="py-2.5 px-4 font-bold w-16 text-center">S No</th>
+                          <th className="py-2.5 px-4 font-bold">Financial Year</th>
+                          <th className="py-2.5 px-4 font-bold">Expenditure (in lakhs)</th>
+                          <th className="py-2.5 px-4 font-bold w-16 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {expenditures.map((exp, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition">
+                            <td className="py-2.5 px-4 text-center font-bold text-slate-500 dark:text-slate-400">
+                              {idx + 1}
+                            </td>
+                            <td className="py-2 px-4">
+                              <div className="relative max-w-xs">
+                                <select
+                                  value={exp.year}
+                                  onChange={(e) => handleExpenditureChange(idx, 'year', e.target.value)}
+                                  className="appearance-none w-full text-xs p-2 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                                >
+                                  {FINANCIAL_YEARS.map(fy => (
+                                    <option key={fy} value={fy}>{fy}</option>
+                                  ))}
+                                </select>
+                                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                              </div>
+                            </td>
+                            <td className="py-2 px-4">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={exp.cost}
+                                onChange={(e) => handleExpenditureChange(idx, 'cost', e.target.value)}
+                                className="w-full max-w-sm text-xs p-2 bg-slate-50 dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
+                              />
+                            </td>
+                            <td className="py-2 px-4 text-center">
+                              {idx === 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={handleAddExpenditureRow}
+                                  title="Add more expenditure row"
+                                  className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 rounded-lg transition cursor-pointer"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveExpenditureRow(idx)}
+                                  title="Remove row"
+                                  className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg transition cursor-pointer"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Section 2: Media & Documents Uploads */}
+                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
+                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+                    <Upload className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+                    <span>Media & Documents</span>
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    {/* 1. Project Completion Documentation */}
+                    <div className="space-y-2">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Project Completion Documentation
+                      </label>
+                      <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">
+                        NOTE: Only PDF files can be uploaded. File Size: Max. 20 MB.
+                      </p>
+
+                      <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-xl shadow-xs">
+                        <input
+                          type="file"
+                          ref={docInputRef}
+                          accept="application/pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setDocFile(e.target.files[0]);
+                              setDocFileName(e.target.files[0].name);
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => docInputRef.current?.click()}
+                          className="px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white text-xs font-bold rounded-lg transition cursor-pointer shadow-xs"
+                        >
+                          Upload
+                        </button>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs font-medium">
+                          {docFileName || docFile?.name || "Drag & Drop Files"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 2. Gallery (Photos and Videos) */}
+                    <div className="space-y-2">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Gallery (Photos and Videos)
+                      </label>
+                      <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider">
+                        NOTE: Multiple images can be uploaded.
+                      </p>
+
+                      <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-xl shadow-xs">
+                        <input
+                          type="file"
+                          ref={galleryInputRef}
+                          multiple
+                          accept="image/*,video/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files) {
+                              setGalleryFiles(Array.from(e.target.files));
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => galleryInputRef.current?.click()}
+                          className="px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white text-xs font-bold rounded-lg transition cursor-pointer shadow-xs"
+                        >
+                          Upload
+                        </button>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-xs font-medium">
+                          {galleryFiles.length > 0
+                            ? `${galleryFiles.length} file(s) selected`
+                            : existingGallery.length > 0
+                            ? `${existingGallery.length} file(s) available`
+                            : "Drag & Drop Files"}
+                        </span>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Footer Navigation & Final Submission */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-xs text-rose-500 font-bold italic">
+                    * Asterisks marked with red are mandatory fields
+                  </span>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection('status')}
+                      className="px-4 py-2 text-xs font-bold text-slate-700 bg-white dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingProject}
+                      className="flex items-center space-x-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
+                    >
+                      <Save className="h-4 w-4" />
+                      <span>{submittingProject ? "Submitting..." : isEditProject ? "Update Project" : "Submit Project"}</span>
+                    </button>
                   </div>
                 </div>
 
               </div>
-            </div>
-
-            {/* Bottom Actions: Submit (Green) & Exit (Red) */}
-            <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-              <button
-                type="submit"
-                disabled={submittingProject}
-                className="flex items-center space-x-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" />
-                <span>{submittingProject ? "Submitting..." : "Submit"}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={onBack}
-                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
-              >
-                Exit
-              </button>
-            </div>
+            )}
 
           </form>
 
@@ -831,7 +1227,7 @@ export default function InputForm({
       )}
 
       {/* ========================================================= */}
-      {/* TAB 2: ADD CSR FUND DETAILS (CONSULTANT APPOINTMENT STYLE) */}
+      {/* TAB 2: ADD CSR FUND DETAILS */}
       {/* ========================================================= */}
       {activeFormTab === 'fund' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in w-full">
@@ -842,7 +1238,7 @@ export default function InputForm({
               <h3 className="text-sm font-black uppercase tracking-wider font-display">
                 Add CSR Fund Details
               </h3>
-              <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">
+              <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">
                 Ministry of Ports, Shipping and Waterways
               </p>
             </div>
@@ -938,30 +1334,31 @@ export default function InputForm({
                 </div>
 
               </div>
-
-              <p className="text-[10px] text-slate-400 italic pt-1">
-                Fields marked with * are mandatory
-              </p>
             </div>
 
-            {/* Bottom Actions: Submit (Green) & Exit (Red) */}
-            <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-              <button
-                type="submit"
-                disabled={submittingFund}
-                className="flex items-center space-x-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" />
-                <span>{submittingFund ? "Saving..." : "Submit"}</span>
-              </button>
+            {/* Bottom Actions: Mandatory notice, Submit (Green) & Exit (Red) */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+              <span className="text-xs text-rose-500 font-bold italic">
+                * Asterisks marked with red are mandatory fields
+              </span>
+              <div className="flex items-center space-x-3">
+                <button
+                  type="submit"
+                  disabled={submittingFund}
+                  className="flex items-center space-x-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{submittingFund ? "Saving..." : "Submit Fund"}</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={onBack}
-                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
-              >
-                Exit
-              </button>
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
+                >
+                  Exit
+                </button>
+              </div>
             </div>
 
           </form>
