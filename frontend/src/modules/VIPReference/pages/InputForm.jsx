@@ -980,9 +980,9 @@ export default function InputForm({
 
         {/* Footer Submit Actions */}
         <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            Fields marked with <span className="text-rose-500 font-bold">*</span> are mandatory.
-          </div>
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
 
           <div className="flex items-center space-x-3">
             <button

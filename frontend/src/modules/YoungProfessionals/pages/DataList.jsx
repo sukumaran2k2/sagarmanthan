@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
-import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown, Loader2 } from 'lucide-react';
+import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown, Filter, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import api, { fetchYoungProfessionals, relieveYoungProfessional } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
@@ -32,6 +32,7 @@ export default function DataList({
   const [selectedDivision, setSelectedDivision] = useState('');
   const [activeStatusTab, setActiveStatusTab] = useState('active'); // 'active' | 'relieved'
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   // Relieve Modal
   const [relieveModalOpen, setRelieveModalOpen] = useState(false);
@@ -76,6 +77,8 @@ export default function DataList({
     setActiveStatusTab(status);
     setCurrentPage(1);
   };
+
+  const activeFiltersCount = (selectedWing ? 1 : 0) + (selectedDivision ? 1 : 0);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -343,7 +346,10 @@ export default function DataList({
       {
         field: 'sNo',
         headerName: 'S.No',
-        minWidth: 95,
+        minWidth: 80,
+        maxWidth: 80,
+        pinned: 'left',
+        suppressSizeToFit: true,
         cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center',
         headerClass: 'text-center'
       },
@@ -352,42 +358,67 @@ export default function DataList({
         headerName: 'Name',
         flex: 1.5,
         minWidth: 160,
-        cellClass: 'font-bold text-slate-800 dark:text-slate-200',
-        hide: !visibleCols.name
+        pinned: 'left',
+        hide: !visibleCols.name,
+        cellRenderer: (params) => {
+          const val = params.value || '-';
+          return (
+            <div className="flex items-center space-x-2">
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{val}</span>
+            </div>
+          );
+        }
       },
       {
         field: 'role',
         headerName: 'Role',
         flex: 1.2,
-        minWidth: 130,
-        cellClass: 'text-slate-700 dark:text-slate-350 font-semibold',
-        hide: !visibleCols.role
+        minWidth: 140,
+        hide: !visibleCols.role,
+        cellRenderer: (params) => {
+          return (
+            <span className="text-slate-600 dark:text-slate-300 font-medium">{params.value || '-'}</span>
+          );
+        }
       },
       {
         field: 'wing',
         headerName: 'Wing',
         flex: 1.2,
-        minWidth: 130,
-        cellClass: 'text-slate-600 dark:text-slate-400 font-medium',
-        hide: !visibleCols.wing
+        minWidth: 140,
+        hide: !visibleCols.wing,
+        cellRenderer: (params) => {
+          return (
+            <span className="text-slate-600 dark:text-slate-300">{params.value || '-'}</span>
+          );
+        }
       },
       {
         field: 'division',
         headerName: 'Division',
         flex: 1.2,
-        minWidth: 130,
-        cellClass: 'text-slate-655 dark:text-slate-400 font-medium',
-        hide: !visibleCols.division
+        minWidth: 140,
+        hide: !visibleCols.division,
+        cellRenderer: (params) => {
+          return (
+            <span className="text-slate-600 dark:text-slate-300">{params.value || '-'}</span>
+          );
+        }
       },
       {
         field: 'is_active',
         headerName: 'Status',
-        minWidth: 120,
+        width: 120,
         hide: !visibleCols.status,
         cellRenderer: (params) => {
           const isActive = params.value === 1 || params.value === true;
           return (
-            <span className={`text-xs font-black uppercase ${isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
+              isActive
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400'
+                : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-400'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isActive ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
               {isActive ? 'Active' : 'Relieved'}
             </span>
           );
@@ -397,29 +428,27 @@ export default function DataList({
         headerName: 'Action',
         width: 110,
         pinned: 'right',
-        lockPinned: true,
-        suppressMovable: true,
-        headerClass: 'text-center',
-        cellClass: 'text-center',
         cellRenderer: (params) => {
-          const yp = params.data;
-          const isActive = yp?.is_active === 1 || yp?.is_active === true;
+          const item = params.data;
+          if (!item) return null;
+          const isActive = item.is_active === 1 || item.is_active === true;
+
           return (
-            <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
+            <div className="flex items-center space-x-1.5 h-full py-1">
               {canEdit && (
                 <button
-                  onClick={() => onEdit(yp)}
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
-                  title="Update"
+                  onClick={() => onEdit(item)}
+                  title="Edit Young Professional"
+                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
                 >
                   <Edit className="h-4 w-4" />
                 </button>
               )}
-              {isActive && (
+              {canRemove && isActive && (
                 <button
-                  onClick={() => handleOpenRelieve(yp)}
-                  className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
-                  title="Relieve"
+                  onClick={() => handleOpenRelieve(item)}
+                  title="Relieve Young Professional"
+                  className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
                 >
                   <UserMinus className="h-4 w-4" />
                 </button>
@@ -429,315 +458,403 @@ export default function DataList({
         }
       }
     ];
-  }, [onEdit, visibleCols, canEdit]);
+  }, [onEdit, visibleCols, canEdit, canRemove]);
 
   return (
-    <div className="space-y-6 animate-fade-in relative">
-      {/* Category selector tabs */}
+    <div className="space-y-4 animate-fade-in relative">
+      {/* Category selector tabs (Sub-tabs) */}
       <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
         <button
           onClick={() => handleStatusTabChange('active')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeStatusTab === 'active'
-            ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-            }`}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeStatusTab === 'active'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
         >
           ACTIVE YPS ({activeYpCount})
         </button>
         <button
           onClick={() => handleStatusTabChange('relieved')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeStatusTab === 'relieved'
-            ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-            }`}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeStatusTab === 'relieved'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
         >
           RELIEVED YPS ({relievedYpCount})
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 dark:bg-slate-950 dark:border-slate-800">
+      {/* Main Table Card Container matching GMIS style */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 dark:bg-slate-950 dark:border-slate-800">
 
-      {/* Title & View Switcher Row with Search + Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
-
-        {/* Left cluster: Search + Wing filter + Division filter */}
-        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-          {/* Wing dropdown filter */}
-          <div className="relative">
-            <select
-              value={selectedWing}
-              onChange={(e) => handleWingChange(e.target.value)}
-              className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[120px]"
+        {/* Search, Filters and Actions Toolbar matching GMIS format */}
+        <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
+          
+          {/* 1. Left: Dedicated Filter Button + Reset */}
+          <div className="flex items-center gap-2.5 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel(prev => !prev)}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
+                showFilterPanel || activeFiltersCount > 0
+                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
+              }`}
             >
-              <option value="">All Wings</option>
-              {wingOptions.map((w) => (
-                <option key={w.value} value={w.value}>{w.label}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          </div>
+              <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+              <span>Filter</span>
+              {activeFiltersCount > 0 && (
+                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFiltersCount}
+                </span>
+              )}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* Division dropdown filter */}
-          <div className="relative">
-            <select
-              value={selectedDivision}
-              onChange={(e) => handleDivisionChange(e.target.value)}
-              className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[130px]"
-            >
-              <option value="">All Divisions</option>
-              {divisionOptions.map((d) => (
-                <option key={d.value} value={d.value}>{d.label}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          </div>
-
-          {/* Search input */}
-          <div className="relative min-w-[160px] max-w-xs flex-1">
-            <input
-              type="text"
-              placeholder="Search YP details..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full text-xs pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
-            />
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            {searchTerm && (
+            {activeFiltersCount > 0 && (
               <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setSelectedWing('');
+                  setSelectedDivision('');
+                  setCurrentPage(1);
+                  triggerNotification?.('Filters have been reset', 'info');
+                }}
+                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
-                <X className="h-3.5 w-3.5" />
+                Reset
               </button>
             )}
           </div>
 
-          {/* Clear filters pill */}
-          {(selectedWing || selectedDivision || searchTerm) && (
-            <button
-              onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSearchTerm(''); setCurrentPage(1); }}
-              className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition cursor-pointer"
-            >
-              <X className="h-3 w-3" />
-              Clear filters
-            </button>
-          )}
-        </div>
+          {/* 2. Middle Spacer */}
+          <div className="hidden lg:block flex-1" />
 
-        {/* Right cluster: Export + Column visibility + View toggle */}
-        <div className="flex items-center space-x-2 flex-shrink-0">
-          {viewMode === 'table' && (
-            <>
-              {/* Rows Limit Select Dropdown */}
-              <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="bg-transparent border-none text-xs font-bold text-slate-755 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+          {/* 3. Right: Search Input + Row Count + Total + Visibility + Copy + Export + View Toggle */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
+            
+            {/* Search Input */}
+            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search YP details..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
-                  <option value="10">10</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
-              </div>
-
-              <div className="text-xs font-bold text-slate-555 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                Total: {totalCount}
-              </div>
-              <CopyButton
-                onCopy={() => handleExport('Copy')}
-                color="#0f417a"
-                hoverBg="#f1f5f9"
-              />
-              <ExportDropdown
-                onExportExcel={() => handleExport('Excel')}
-                onExportPdf={() => handleExport('PDF')}
-                color="#0f417a"
-                hoverColor="#1d5594"
-              />
-            </>
-          )}
-
-          {/* Column Visibility Dropdown */}
-          {viewMode === 'table' && (
-            <div className="relative" ref={colDropdownRef}>
-              <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                <span>Visibility</span>
-                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-              </button>
-              {dropdownOpen && (
-                <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
-                  {Object.keys(visibleCols).map(col => (
-                    <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={visibleCols[col]}
-                        onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
-                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      />
-                      <span>{col === 'status' ? 'Status' : col}</span>
-                    </label>
-                  ))}
-                </div>
+                  <X className="h-3.5 w-3.5" />
+                </button>
               )}
             </div>
-          )}
 
-          {/* Toggle Switch Button Pair */}
-          <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50 dark:bg-slate-900 dark:border-slate-800">
-            <button
-              onClick={() => setViewMode('chart')}
-              className={`p-1.5 rounded transition cursor-pointer ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
-              title="Chart View"
-            >
-              <BarChart3 className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded transition cursor-pointer ${viewMode === 'table' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
-              title="Table View"
-            >
-              <List className="h-4 w-4" />
-            </button>
+            {viewMode === 'table' && (
+              <>
+                {/* Rows Limit Select Dropdown */}
+                <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+                  >
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </div>
+
+                {/* Total Count Badge */}
+                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                  Total: {totalCount}
+                </div>
+
+                {/* Column Visibility Dropdown */}
+                <div className="relative" ref={colDropdownRef}>
+                  <button
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <span>Visibility</span>
+                    <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                  </button>
+                  {dropdownOpen && (
+                    <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                      {Object.keys(visibleCols).map(col => (
+                        <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={visibleCols[col]}
+                            onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                            className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span>{col === 'status' ? 'Status' : col}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Copy Button */}
+                <CopyButton
+                  onCopy={() => handleExport('Copy')}
+                  color="#0f417a"
+                  hoverBg="#f1f5f9"
+                />
+
+                {/* Export Dropdown */}
+                <ExportDropdown
+                  onExportExcel={() => handleExport('Excel')}
+                  onExportPdf={() => handleExport('PDF')}
+                  color="#0f417a"
+                  hoverColor="#1d5594"
+                />
+              </>
+            )}
+
+            {/* Toggle Switch Button Pair */}
+            <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50 dark:bg-slate-900 dark:border-slate-800">
+              <button
+                onClick={() => setViewMode('chart')}
+                className={`p-1.5 rounded transition cursor-pointer ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
+                title="Chart View"
+              >
+                <BarChart3 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-1.5 rounded transition cursor-pointer ${viewMode === 'table' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
+                title="Table View"
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+
           </div>
         </div>
+
+        {/* Collapsible Filter Panel matching GMIS style */}
+        {showFilterPanel && (
+          <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
+            {/* Wing Selector */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Wing
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedWing}
+                  onChange={(e) => handleWingChange(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">All Wings</option>
+                  {wingOptions.map((w) => (
+                    <option key={w.value} value={w.value}>{w.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
+
+            {/* Division Selector */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Division
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedDivision}
+                  onChange={(e) => handleDivisionChange(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">All Divisions</option>
+                  {divisionOptions.map((d) => (
+                    <option key={d.value} value={d.value}>{d.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewMode === 'table' ? (
+          <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+            <Table
+              rowData={data}
+              columnDefs={columnDefs}
+              loading={loading}
+              pagination={false}
+              enableExport={false}
+              onGridReady={(params) => setGridApi(params.api)}
+              defaultColDef={{
+                minWidth: 90,
+                filter: false,
+                sortable: true,
+                resizable: true
+              }}
+            />
+            
+            {/* Server-Side Pagination Bar */}
+            <TablePagination
+              currentPage={currentPage - 1}
+              totalPages={totalPages}
+              totalRows={totalCount}
+              pageSize={pageSize}
+              onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
+              onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              color="#0f417a"
+            />
+
+            <style dangerouslySetInnerHTML={{
+              __html: `
+              .ag-theme-quartz.rounded-xl,
+              .ag-theme-quartz.rounded-2xl {
+                border-radius: 16px !important;
+              }
+              .ag-theme-quartz .ag-root-wrapper {
+                border-radius: 16px 16px 0 0 !important;
+              }
+              .ag-theme-quartz .ag-header {
+                background-color: #0f417a !important;
+                border-bottom: 2px solid #0a2d55 !important;
+              }
+              .ag-theme-quartz .ag-header-cell {
+                color: #ffffff !important;
+                font-weight: 700 !important;
+                text-transform: uppercase !important;
+                font-size: 11px !important;
+                letter-spacing: 0.05em !important;
+              }
+              .ag-theme-quartz .ag-header-cell .ag-icon {
+                color: #ffffff !important;
+              }
+              .ag-theme-quartz .ag-header-cell-label {
+                color: #ffffff !important;
+              }
+              .ag-theme-quartz .ag-row {
+                font-size: 13px !important;
+                border-bottom: 1px solid #f1f5f9 !important;
+              }
+              .ag-theme-quartz .ag-row-hover {
+                background-color: #f8fafc !important;
+              }
+              .dark .ag-theme-quartz .ag-row-hover {
+                background-color: #1e293b !important;
+              }
+              `
+            }} />
+          </div>
+        ) : (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 dark:bg-slate-900 dark:border-slate-800">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4">
+              Young Professionals Distribution by Wing ({activeStatusTab === 'active' ? 'Active' : 'Relieved'})
+            </h4>
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="In Position" fill="#0f417a" radius={[4, 4, 0, 0]}>
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
       </div>
 
-      {viewMode === 'table' ? (
-        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
-          <Table
-            rowData={data}
-            columnDefs={columnDefs}
-            loading={loading}
-            pagination={false}
-            enableExport={false}
-            onGridReady={(params) => setGridApi(params.api)}
-            defaultColDef={{
-              minWidth: 90,
-              filter: false,
-              sortable: true,
-              resizable: true
-            }}
-          />
-          
-          {/* Server-Side Pagination Bar */}
-          <TablePagination
-            currentPage={currentPage - 1}
-            totalPages={totalPages}
-            totalRows={totalCount}
-            pageSize={pageSize}
-            onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
-            onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            color="#0f417a"
-          />
-
-          <style dangerouslySetInnerHTML={{
-            __html: `
-            .ag-theme-quartz.rounded-xl,
-            .ag-theme-quartz.rounded-2xl {
-              border-radius: 16px !important;
-            }
-            .ag-theme-quartz .ag-root-wrapper {
-              border-radius: 16px 16px 0 0 !important;
-            }
-          `}} />
-        </div>
-      ) : (
-        <div className="w-full h-[350px] p-4 flex items-center justify-center bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm dark:bg-slate-900/50 dark:border-slate-800">
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                <XAxis dataKey="name" stroke="#64748b" fontSize={11} fontWeight={600} />
-                <YAxis stroke="#64748b" fontSize={11} fontWeight={600} />
-                <Tooltip cursor={{ fill: 'rgba(15, 65, 122, 0.05)' }} />
-                <Legend verticalAlign="top" height={36} />
-                <Bar dataKey="In Position" fill="#0f417a" radius={[6, 6, 0, 0]}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-sm font-semibold text-slate-500">No data available for chart representation.</p>
-          )}
-        </div>
-      )}
-
-      {/* Relieve Modal */}
+      {/* Relieve Modal Dialog */}
       {relieveModalOpen && selectedYp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up dark:bg-slate-900">
-            <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-rose-700 text-white">
-              <h3 className="text-sm font-black font-display uppercase tracking-wider">Relieve Young Professional</h3>
-              <button onClick={() => setRelieveModalOpen(false)} className="text-rose-200 hover:text-white transition cursor-pointer">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-scale-up">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg dark:bg-rose-950/40 dark:text-rose-400">
+                  <UserMinus className="h-5 w-5" />
+                </div>
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">Relieve Candidate</h3>
+              </div>
+              <button
+                onClick={() => setRelieveModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition cursor-pointer"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleRelieveSubmit} className="p-6 space-y-5">
+            <form onSubmit={handleRelieveSubmit} className="mt-4 space-y-4">
               <div>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Name</p>
-                <p className="text-sm font-black text-slate-900 dark:text-slate-100 mt-0.5">{selectedYp.name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  You are about to relieve <strong className="text-slate-700 dark:text-slate-200">{selectedYp.name}</strong> from the organization.
+                </p>
               </div>
 
               <div>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Role</p>
-                <p className="text-xs font-semibold text-slate-655 dark:text-slate-400 mt-0.5">{selectedYp.role} ({selectedYp.wing} - {selectedYp.division})</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Last Working Date <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Last Working Date <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="date"
+                  required
                   value={lastWorkingDate}
                   onChange={(e) => setLastWorkingDate(e.target.value)}
-                  required
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 font-semibold"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Remarks</label>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Remarks / Reason
+                </label>
                 <textarea
+                  rows="3"
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
-                  rows={3}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-medium text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
-                  placeholder="Reason for relieving, remarks..."
-                />
+                  placeholder="Enter remarks for relieving..."
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                ></textarea>
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setRelieveModalOpen(false)}
-                  className="px-4.5 py-2 border border-slate-250 dark:border-slate-700 text-slate-655 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl dark:text-slate-400 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingRelieve}
-                  className="px-5.5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+                  className="px-4 py-2 text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50 flex items-center space-x-1.5"
                 >
-                  {submittingRelieve ? 'Submitting...' : 'Relieve Candidate'}
+                  {submittingRelieve && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  <span>Relieve Candidate</span>
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-      </div>
+
     </div>
   );
 }

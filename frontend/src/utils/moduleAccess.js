@@ -46,6 +46,11 @@ export function hasModuleAccess(moduleCode) {
   if (!moduleCode || isSuperAdmin()) return false;
   const upper = String(moduleCode).toUpperCase();
   const allowed = getAllowedModuleCodes();
+
+  if (upper === 'DRISHTI_PORTAL' || upper === 'ONE_VISION_ONE_DOCUMENT' || upper === 'OVOD') {
+    return allowed.includes('DRISHTI_PORTAL') || allowed.includes('ONE_VISION_ONE_DOCUMENT') || allowed.includes('OVOD');
+  }
+
   return allowed.includes(upper);
 }
 
