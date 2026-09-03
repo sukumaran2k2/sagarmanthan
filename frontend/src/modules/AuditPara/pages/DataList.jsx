@@ -168,7 +168,14 @@ export default function DataList({
       cellClass: 'text-slate-550 flex items-center py-2 border-r border-slate-100 font-medium',
       valueFormatter: (params) => params.value || '--'
     }] : []),
-    ...(visibleCols.lastUpdated ? [{ headerName: 'Last Updated Date', field: 'lastUpdated', minWidth: 155, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium' }] : []),
+    ...(visibleCols.lastUpdated ? [{ headerName: 'Last Updated Date', field: 'lastUpdated', minWidth: 155, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium',
+      valueFormatter: (params) => {
+        if (!params.value) return '—';
+        const d = new Date(params.value);
+        if (isNaN(d.getTime())) return params.value;
+        return d.toISOString().split('T')[0];
+      },
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
       cellClass: 'text-center flex items-center justify-center gap-1',

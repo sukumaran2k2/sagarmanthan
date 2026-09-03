@@ -396,13 +396,14 @@ async function addFilePendancy(req, res) {
                 rowInsertRequest.input(`year${i}`, sql.Int, Year);
                 rowInsertRequest.input(`week${i}`, sql.Int, week);
                 rowInsertRequest.input(`fileId${i}`, sql.Int, fileId);
+                rowInsertRequest.input(`createdBy${i}`, sql.Int, userID);
 
-                return `(@empId${i}, @zeroToThree${i}, @fourToSix${i}, @sevenToFifteen${i}, @sixteenToThirty${i}, @moreThanThirty${i}, @totalPendency${i}, @year${i}, @month${i}, @week${i}, @fileId${i})`;
+                return `(@empId${i}, @zeroToThree${i}, @fourToSix${i}, @sevenToFifteen${i}, @sixteenToThirty${i}, @moreThanThirty${i}, @totalPendency${i}, @year${i}, @month${i}, @week${i}, @fileId${i}, @createdBy${i}, GETDATE())`;
             });
 
             await rowInsertRequest.query(`
                 INSERT INTO tbl_file_pendancy 
-                ([Emp_Id], [0-3Days], [4-6Days], [7-15Days], [16-30Days], [>30days], [Total Pendency], [Year], [Month], [week], [File_ID]) 
+                ([Emp_Id], [0-3Days], [4-6Days], [7-15Days], [16-30Days], [>30days], [Total Pendency], [Year], [Month], [week], [File_ID], [created_by], [created_date]) 
                 VALUES ${valueClauses.join(', ')}
             `);
         }
@@ -619,13 +620,14 @@ async function updateFilePendancy(req, res) {
                 rowInsertRequest.input(`year${i}`, sql.Int, Number(Year));
                 rowInsertRequest.input(`week${i}`, sql.Int, Number(week));
                 rowInsertRequest.input(`fileId${i}`, sql.Int, fileId);
+                rowInsertRequest.input(`createdBy${i}`, sql.Int, Number(userID));
 
-                return `(@empId${i}, @zeroToThree${i}, @fourToSix${i}, @sevenToFifteen${i}, @sixteenToThirty${i}, @moreThanThirty${i}, @totalPendency${i}, @year${i}, @month${i}, @week${i}, @fileId${i})`;
+                return `(@empId${i}, @zeroToThree${i}, @fourToSix${i}, @sevenToFifteen${i}, @sixteenToThirty${i}, @moreThanThirty${i}, @totalPendency${i}, @year${i}, @month${i}, @week${i}, @fileId${i}, @createdBy${i}, GETDATE())`;
             });
 
             await rowInsertRequest.query(`
                 INSERT INTO tbl_file_pendancy 
-                ([Emp_Id], [0-3Days], [4-6Days], [7-15Days], [16-30Days], [>30days], [Total Pendency], [Year], [Month], [week], [File_ID]) 
+                ([Emp_Id], [0-3Days], [4-6Days], [7-15Days], [16-30Days], [>30days], [Total Pendency], [Year], [Month], [week], [File_ID], [created_by], [created_date]) 
                 VALUES ${valueClauses.join(', ')}
             `);
         }

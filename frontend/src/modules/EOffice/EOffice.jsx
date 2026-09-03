@@ -543,6 +543,12 @@ export default function EOfficeView({ initialKpi, triggerNotification }) {
           params.data.date_of_upload ||
           params.data.Date_of_Upload ||
           "—",
+        valueFormatter: (params) => {
+          if (!params.value || params.value === "—") return "—";
+          const d = new Date(params.value);
+          if (isNaN(d.getTime())) return params.value;
+          return d.toISOString().split("T")[0];
+        },
       },
       {
         headerName: "Actions",

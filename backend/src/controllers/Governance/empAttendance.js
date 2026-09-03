@@ -329,13 +329,14 @@ async function createEmpAttendance(req, res) {
                 attendanceInsertRequest.input(`year${i}`, sql.Int, Number(financialYear));
                 attendanceInsertRequest.input(`week${i}`, sql.Int, Number(week));
                 attendanceInsertRequest.input(`fileId${i}`, sql.Int, fileId);
+                attendanceInsertRequest.input(`createdBy${i}`, sql.Int, Number(userID) || null);
 
-                return `(@empId${i}, @daysMarked${i}, @inTimeAvg${i}, @outTimeAvg${i}, @avgWorkingHours${i}, @month${i}, @year${i}, @week${i}, @fileId${i})`;
+                return `(@empId${i}, @daysMarked${i}, @inTimeAvg${i}, @outTimeAvg${i}, @avgWorkingHours${i}, @month${i}, @year${i}, @week${i}, @fileId${i}, @createdBy${i}, GETDATE())`;
             });
 
             await attendanceInsertRequest.query(`
                 INSERT INTO tbl_employee_attendance
-                (Emp_Id, No_of_days_Attendance_Marked, In_Time_Avg, Out_Time_Avg, Average_Working_Hours, Month, Year, week, File_Id)
+                (Emp_Id, No_of_days_Attendance_Marked, In_Time_Avg, Out_Time_Avg, Average_Working_Hours, Month, Year, week, File_Id, created_by, created_date)
                 VALUES ${valueClauses.join(', ')}
             `);
         }
@@ -544,13 +545,14 @@ async function updateEmpAttendance(req, res) {
                 attendanceInsertRequest.input(`year${i}`, sql.Int, Number(financialYear));
                 attendanceInsertRequest.input(`week${i}`, sql.Int, Number(week));
                 attendanceInsertRequest.input(`fileId${i}`, sql.Int, Number(FileId));
+                attendanceInsertRequest.input(`createdBy${i}`, sql.Int, Number(userID) || null);
 
-                return `(@empId${i}, @daysMarked${i}, @inTimeAvg${i}, @outTimeAvg${i}, @avgWorkingHours${i}, @month${i}, @year${i}, @week${i}, @fileId${i})`;
+                return `(@empId${i}, @daysMarked${i}, @inTimeAvg${i}, @outTimeAvg${i}, @avgWorkingHours${i}, @month${i}, @year${i}, @week${i}, @fileId${i}, @createdBy${i}, GETDATE())`;
             });
 
             await attendanceInsertRequest.query(`
                 INSERT INTO tbl_employee_attendance
-                (Emp_Id, No_of_days_Attendance_Marked, In_Time_Avg, Out_Time_Avg, Average_Working_Hours, Month, Year, week, File_Id)
+                (Emp_Id, No_of_days_Attendance_Marked, In_Time_Avg, Out_Time_Avg, Average_Working_Hours, Month, Year, week, File_Id, created_by, created_date)
                 VALUES ${valueClauses.join(', ')}
             `);
         }

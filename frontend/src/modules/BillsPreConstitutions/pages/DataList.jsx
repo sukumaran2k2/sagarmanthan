@@ -505,18 +505,8 @@ export default function DataList({
                   Total: {loading ? '...' : filteredData.length}
                 </div>
 
-                <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
-                <ExportDropdown
-                  onExportExcel={() => handleExport('Excel')}
-                  onExportPdf={() => handleExport('PDF')}
-                  color="#0f417a"
-                  hoverColor="#1e5ea8"
-                />
-              </>
-            )}
-
-            {/* Column Visibility Dropdown */}
-            {viewMode === 'table' && (
+                {/* Column Visibility Dropdown */}
+                {viewMode === 'table' && (
               <div className="relative" ref={colDropdownRef}>
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -541,6 +531,16 @@ export default function DataList({
                   </div>
                 )}
               </div>
+            )}
+
+                <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
+                <ExportDropdown
+                  onExportExcel={() => handleExport('Excel')}
+                  onExportPdf={() => handleExport('PDF')}
+                  color="#0f417a"
+                  hoverColor="#1e5ea8"
+                />
+              </>
             )}
 
             {/* Toggle View -- hidden for now, kept for potential future use

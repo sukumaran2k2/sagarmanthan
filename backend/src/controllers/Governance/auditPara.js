@@ -80,12 +80,12 @@ async function createAuditPara (req, res)
         const result = await request.query(`INSERT INTO tbl_audit_para (para_number, subject, wing, division, category, 
             received_at_ministry, date_of_receipt, comments_sought, comments_sought_date, comments_rec, comments_rec_date,
             under_clarification, comments_furnished, comments_furnished_date, cag_accepted, cag_accepted_date, disposed,
-            disposed_date, remarks, stage_id, created_by)
+            disposed_date, remarks, stage_id, created_by, created_date)
             OUTPUT INSERTED.audit_para_id
             VALUES (@auditParaNumber, @subject, @wing, @division, @category, @yetSentForComment, 
             @yetSentForCommentDate, @commentSoughtOrg, @commentSoughtOrgDate, @commentReceived, @commentReceivedDate, @underClarification,
             @commentFurnished, @commentFurnishedDate, @cagAccepted, @cagAcceptedDate, @disposed,
-            @disposedDate, @remarks, @selectedStage, @userID)`);            
+            @disposedDate, @remarks, @selectedStage, @userID, GETDATE())`);            
             
             const audit_para_id = result.recordset[0].audit_para_id;    
             

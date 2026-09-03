@@ -169,17 +169,17 @@ export default function NewCourseUpgradationReports() {
   return (
     <div className="rounded-2xl shadow-lg">
       <div className="rounded-2xl overflow-hidden">
-      <div className="relative flex flex-wrap items-center justify-between gap-4 px-6 py-6 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 border-b border-slate-200 dark:border-slate-800 rounded-t-2xl">
+      <div className="relative flex flex-wrap items-center justify-between gap-4 px-6 py-6 bg-gradient-to-r from-[#fdfcfc] to-slate-50 dark:from-slate-900 dark:to-slate-800 border-b border-slate-200 dark:border-slate-800 rounded-t-2xl">
         <div className="flex-1 min-w-[300px]">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp size={14} className="text-[#8c4242] dark:text-blue-400" strokeWidth={2.5} />
             <span className="text-[10.5px] font-black text-[#8c4242] dark:text-blue-400 uppercase tracking-widest">IMU - New Course Upgradation Report</span>
           </div>
-          <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight">{title}</h3>
+          <h3 className="text-xl font-bold text-[#4b2424] dark:text-blue-400 tracking-wide">{title}</h3>
           <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
-            <span>As on date: <strong className="text-slate-800 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></span>
+            <span>As on date: <strong className="text-[#4b2424] dark:text-blue-400">{new Date().toISOString().split('T')[0]}</strong></span>
             <span className="text-slate-300 dark:text-slate-700">•</span>
-            <span>Report for the month — <strong className="text-slate-800 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</strong></span>
+            <span>Report for the month — <strong className="text-[#4b2424] dark:text-blue-400">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</strong></span>
           </div>
         </div>
         <div className="flex items-center justify-end gap-2.5 flex-wrap">
@@ -229,7 +229,7 @@ export default function NewCourseUpgradationReports() {
       {error ? (
         <div className="p-8 text-center text-sm font-semibold text-red-500 dark:text-red-400">{error}</div>
       ) : viewMode === 'chart' ? (
-        <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+        <div className="p-8 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
           <div ref={chartDivRef} style={{ width: '100%', height: '400px' }} />
         </div>
       ) : (

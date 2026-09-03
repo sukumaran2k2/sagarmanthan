@@ -28,9 +28,9 @@ async function addVesselAvailabiltydata(req, res) {
 
         const insertResult = await request.query(`
             INSERT INTO tbl_sci_vessel_availability 
-            (financial_year, total_no_of_own_operated, ship_utilization, created_by)
+            (financial_year, total_no_of_own_operated, ship_utilization, created_by, created_date)
             OUTPUT INSERTED.sci_vessel_id
-            VALUES (@scifinancialYear, @operatedShips, @shipUtilization, @userID)
+            VALUES (@scifinancialYear, @operatedShips, @shipUtilization, @userID, GETDATE())
         `);
 
         res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_vessel_id });
@@ -186,9 +186,9 @@ async function addscitimeVoyageydata(req, res) {
 
         const insertResult = await request.query(`
             INSERT INTO tbl_sci_time_voyage_bulk 
-            (financial_year, total_bulk_carriers_fleet, total_bulk_carriers_time_charter,total_bulk_carriers_voyage_charter,total_revenue_bulk_carriers,average_earnings_bulk_carriers,created_by)
+            (financial_year, total_bulk_carriers_fleet, total_bulk_carriers_time_charter,total_bulk_carriers_voyage_charter,total_revenue_bulk_carriers,average_earnings_bulk_carriers,created_by, created_date)
             OUTPUT INSERTED.sci_time_voyage_bulk_id
-            VALUES (@financialYear, @bulkCarriers, @timeCharter,@voyageCharter,@revenue,@earnings, @userID)
+            VALUES (@financialYear, @bulkCarriers, @timeCharter,@voyageCharter,@revenue,@earnings, @userID, GETDATE())
         `);
 
         res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_time_voyage_bulk_id });
@@ -341,9 +341,9 @@ async function updatescitimeVoyageBulkData(req,res){
     
             const insertResult = await request.query(`
                 INSERT INTO tbl_sci_time_voyage_tanker 
-                (financial_year, total_no_of_tankers_in_fleet, total_no_days_on_time_charter,total_no_days_on_voyage_charter,total_revenue_tankers,average_earnings_tankers,created_by)
+                (financial_year, total_no_of_tankers_in_fleet, total_no_days_on_time_charter,total_no_days_on_voyage_charter,total_revenue_tankers,average_earnings_tankers,created_by, created_date)
                 OUTPUT INSERTED.sci_time_voyage_tanker_id
-                VALUES (@financialYear, @totalTankersFleet, @daysTimeCharter,@daysVoyageCharter,@totalRevenue,@averageEarnings, @userID)
+                VALUES (@financialYear, @totalTankersFleet, @daysTimeCharter,@daysVoyageCharter,@totalRevenue,@averageEarnings, @userID, GETDATE())
             `);
     
             res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_time_voyage_tanker_id });
@@ -502,9 +502,9 @@ async function deleteTimeVoyageTanker(req, res) {
 
             const insertResult = await request.query(`
                 INSERT INTO tbl_sci_time_voyage_offshore 
-                (financial_year, total_no_of_offshore_in_fleet, total_no_days_on_offshore_time_charter,total_no_days_on_offshore_voyage_charter,total_revenue_offshore,average_earnings_offshore,created_by)
+                (financial_year, total_no_of_offshore_in_fleet, total_no_days_on_offshore_time_charter,total_no_days_on_offshore_voyage_charter,total_revenue_offshore,average_earnings_offshore,created_by, created_date)
                 OUTPUT INSERTED.sci_time_voyage_offshore_id
-                VALUES (@financialYear, @offshoreFleet, @timeCharter,@voyageCharter,@revenue,@average, @userID)
+                VALUES (@financialYear, @offshoreFleet, @timeCharter,@voyageCharter,@revenue,@average, @userID, GETDATE())
             `);
 
             res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_time_voyage_offshore_id});
@@ -660,9 +660,9 @@ async function deleteTimeVoyageTanker(req, res) {
 
             const insertResult = await request.query(`
                 INSERT INTO tbl_sci_vessel_availability_linear 
-                (financial_year, total_no_of_linear_vessels_in_fleet, total_revenue_of_linear_vessels,average_earnings_linear_vessels_perday,created_by)
+                (financial_year, total_no_of_linear_vessels_in_fleet, total_revenue_of_linear_vessels,average_earnings_linear_vessels_perday,created_by, created_date)
                 OUTPUT INSERTED.sci_vessel_availability_bulk_id
-                VALUES (@financialYear, @totallinearfleet, @totalrevenue,@averageEarnings,@userID)
+                VALUES (@financialYear, @totallinearfleet, @totalrevenue,@averageEarnings,@userID, GETDATE())
             `);
 
             res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_vessel_availability_bulk_id});
@@ -812,9 +812,9 @@ async function deleteTimeVoyageTanker(req, res) {
 
             const insertResult = await request.query(`
                 INSERT INTO tbl_sci_vessel_procurement
-                (financial_year, total_no_of_new_built_ships_procured, value_of_new_built_ships_procured, created_by)
+                (financial_year, total_no_of_new_built_ships_procured, value_of_new_built_ships_procured, created_by, created_date)
                 OUTPUT INSERTED.sci_procurement_id
-                VALUES (@financialYear, @newBuiltships, @valueOfnewbuiltShips, @userID)
+                VALUES (@financialYear, @newBuiltships, @valueOfnewbuiltShips, @userID, GETDATE())
             `);
 
             res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_procurement_id });
@@ -962,9 +962,9 @@ async function deleteTimeVoyageTanker(req, res) {
 
             const insertResult = await request.query(`
                 INSERT INTO tbl_sci_secondhand_vessel_procurement
-                (financial_year, total_no_of_secondhand_ships_procured, average_age_of_secondhand_ships_procured,gross_value_of_secondhand_ships_procured, created_by)
+                (financial_year, total_no_of_secondhand_ships_procured, average_age_of_secondhand_ships_procured,gross_value_of_secondhand_ships_procured, created_by, created_date)
                 OUTPUT INSERTED.sci_secondhand_procurement_id
-                VALUES (@financialYear, @noofSecondhandships, @averageageofSecondhandships,@grossvalueOfsecondhandships, @userID)
+                VALUES (@financialYear, @noofSecondhandships, @averageageofSecondhandships,@grossvalueOfsecondhandships, @userID, GETDATE())
             `);
 
             res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_secondhand_procurement_id });
@@ -1115,9 +1115,9 @@ async function deleteTimeVoyageTanker(req, res) {
 
             const insertResult = await request.query(`
                 INSERT INTO tbl_sci_ship_dry_docking 
-                (financial_year, total_dry_docking_scheduled, total_dry_docking_completed, created_by)
+                (financial_year, total_dry_docking_scheduled, total_dry_docking_completed, created_by, created_date)
                 OUTPUT INSERTED.sci_ship_dry_docking_id
-                VALUES (@financialYear, @dryDockingscheduled, @dryDockingscompleted, @userID)
+                VALUES (@financialYear, @dryDockingscheduled, @dryDockingscompleted, @userID, GETDATE())
             `);
 
             res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_ship_dry_docking_id });
@@ -1263,9 +1263,9 @@ async function deleteTimeVoyageTanker(req, res) {
 
             const insertResult = await request.query(`
                 INSERT INTO tbl_sci_repair_and_maintanace 
-                (financial_year, total_repair_and_maintanace_cost, total_operational_revenue,percentage_repair_and_maintanace_cost, created_by)
+                (financial_year, total_repair_and_maintanace_cost, total_operational_revenue,percentage_repair_and_maintanace_cost, created_by, created_date)
                 OUTPUT INSERTED.sci_repair_and_maintanace_id
-                VALUES (@financialYear, @repairCosts, @operationalRevenue,@repairPercentage, @userID)
+                VALUES (@financialYear, @repairCosts, @operationalRevenue,@repairPercentage, @userID, GETDATE())
             `);
 
             res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_repair_and_maintanace_id });
@@ -1414,9 +1414,9 @@ async function deleteTimeVoyageTanker(req, res) {
 
             const insertResult = await request.query(`
                 INSERT INTO tbl_sci_sale_and_recycling_oldvessels
-                (financial_year, no_of_old_vessels_sold, value_of_sale_proceeds,avg_age_of_old_vessels_sold, created_by)
+                (financial_year, no_of_old_vessels_sold, value_of_sale_proceeds,avg_age_of_old_vessels_sold, created_by, created_date)
                 OUTPUT INSERTED.sci_sale_recycling_id
-                VALUES (@financialYear, @noOfoldvessels, @valueOfsale,@averageAge, @userID)
+                VALUES (@financialYear, @noOfoldvessels, @valueOfsale,@averageAge, @userID, GETDATE())
             `);
 
             res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_sale_recycling_id });
@@ -1562,9 +1562,9 @@ async function deleteTimeVoyageTanker(req, res) {
 
             const insertResult = await request.query(`
                 INSERT INTO tbl_sci_sale_and_recycling_oldvessels_green_recycling
-                (financial_year, no_of_old_vessels_sold_for_recycling, value_of_recycled_vessels,adherence_green_recycling, created_by)
+                (financial_year, no_of_old_vessels_sold_for_recycling, value_of_recycled_vessels,adherence_green_recycling, created_by, created_date)
                 OUTPUT INSERTED.sci_sale_green_recycling_id
-                VALUES (@financialYear, @vesselssold, @valueofVessels,@adherencetoGreenrecycling, @userID)
+                VALUES (@financialYear, @vesselssold, @valueofVessels,@adherencetoGreenrecycling, @userID, GETDATE())
             `);
 
             res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_sale_green_recycling_id });
@@ -1758,9 +1758,9 @@ async function addmanningofOwnedships(req, res) {
 
         const insertResult = await request.query(`
             INSERT INTO tbl_sci_manning_of_owned_ships
-            (financial_year, no_of_old_vessels_audited_compliance, no_of_ships_fully_complaint_stwc_and_mlc, compliance, created_by)
+            (financial_year, no_of_old_vessels_audited_compliance, no_of_ships_fully_complaint_stwc_and_mlc, compliance, created_by, created_date)
             OUTPUT INSERTED.sci_manning_id
-            VALUES (@financialYear, @noofVesselsaudited, @noofShipsfullycomplaint, @compliance, @userID)
+            VALUES (@financialYear, @noofVesselsaudited, @noofShipsfullycomplaint, @compliance, @userID, GETDATE())
         `);
 
         res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_manning_id });
@@ -1917,9 +1917,9 @@ async function addmanningofOwnedships(req, res) {
     
             const insertResult = await request.query(`
                 INSERT INTO tbl_sci_ship_management_business
-                (financial_year, no_of_ships_managed_by_sci, total_management_cost,revenue_from_managing_ships,cost_to_revenue_ratio, created_by)
+                (financial_year, no_of_ships_managed_by_sci, total_management_cost,revenue_from_managing_ships,cost_to_revenue_ratio, created_by, created_date)
                 OUTPUT INSERTED.sci_ship_management_id
-                VALUES (@financialYear, @noofShipsManaged, @totalManagementcost,@revenue,@costtoRevenueratio, @userID)
+                VALUES (@financialYear, @noofShipsManaged, @totalManagementcost,@revenue,@costtoRevenueratio, @userID, GETDATE())
             `);
     
             res.status(201).json({ insertedYPId: insertResult.recordset[0].sci_ship_management_id });
