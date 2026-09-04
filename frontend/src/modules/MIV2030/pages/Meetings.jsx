@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  Users, Plus, Calendar, FileText, Download, Trash2, 
-  Building2, Search, X, Upload, CheckCircle2, Eye, RefreshCw, Layers, ArrowLeft 
+  Users, Calendar, FileText, Download, Trash2, 
+  Building2, Search, X, Upload, CheckCircle2, Eye, RefreshCw, Layers, ArrowLeft, Filter, ChevronDown 
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import Loader from '../../../components/Loader';
@@ -23,6 +23,20 @@ export default function MIVMeetings({ triggerNotification }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState('');
   const [pageSize, setPageSize] = useState(10);
+
+  // Dedicated Filter Panel Toggle State
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const activeFiltersCount = selectedOrgFilter ? 1 : 0;
+
+  // Column visibility checklist
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const colDropdownRef = useRef(null);
+  const [visibleCols, setVisibleCols] = useState({
+    sNo: true,
+    org: true,
+    count: true,
+    actions: true,
+  });
 
   // History / Logs Modal State
   const [selectedOrgForLogs, setSelectedOrgForLogs] = useState(null);
@@ -54,6 +68,17 @@ export default function MIVMeetings({ triggerNotification }) {
     fetchOrganisations()
       .then(res => setOrganisations(res.data || []))
       .catch(err => console.error("Error loading organisations:", err));
+  }, []);
+
+  // Close visibility dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleOpenLogs = (org) => {
@@ -204,7 +229,8 @@ export default function MIVMeetings({ triggerNotification }) {
       width: 80,
       pinned: 'left',
       cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center font-bold',
-      headerClass: 'text-center'
+      headerClass: 'text-center',
+      hide: !visibleCols.sNo,
     },
     {
       headerName: 'Organisation Name',
@@ -213,6 +239,7 @@ export default function MIVMeetings({ triggerNotification }) {
       minWidth: 260,
       pinned: 'left',
       cellClass: 'font-bold text-slate-800 dark:text-slate-200',
+      hide: !visibleCols.org,
     },
     {
       headerName: 'Total MVIC Meetings Conducted',
@@ -221,6 +248,7 @@ export default function MIVMeetings({ triggerNotification }) {
       minWidth: 200,
       cellClass: 'text-center',
       headerClass: 'text-center',
+      hide: !visibleCols.count,
       cellRenderer: (params) => (
         <span className="font-black text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950 px-3 py-1 rounded-lg border border-blue-200 dark:border-blue-800 text-xs shadow-sm">
           {params.value || 0}
@@ -234,6 +262,7 @@ export default function MIVMeetings({ triggerNotification }) {
       pinned: 'right',
       cellClass: 'text-center',
       headerClass: 'text-center',
+      hide: !visibleCols.actions,
       cellRenderer: (params) => (
         <button
           onClick={() => handleOpenLogs(params.data)}
@@ -247,7 +276,7 @@ export default function MIVMeetings({ triggerNotification }) {
       sortable: false,
       filter: false,
     },
-  ], []);
+  ], [visibleCols]);
 
   // AG Grid Column definitions for in-place History Table
   const historyColumnDefs = useMemo(() => [
@@ -475,16 +504,55 @@ export default function MIVMeetings({ triggerNotification }) {
             {/* Toolbar Row with Search + Filter + Actions */}
             <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
               
-              <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0 w-full lg:w-auto">
+              {/* 1. Dedicated Filter Button */}
+              <div className="flex items-center gap-2.5 w-full lg:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowFilterPanel(prev => !prev)}
+                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
+                    showFilterPanel || activeFiltersCount > 0
+                      ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+                  <span>Filter</span>
+                  {activeFiltersCount > 0 && (
+                    <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+                </button>
+
+                {activeFiltersCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedOrgFilter('');
+                      triggerNotification?.('Filters have been reset', 'info');
+                    }}
+                    className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              {/* 2. Space */}
+              <div className="hidden lg:block flex-1" />
+
+              {/* 3. Search Bar, 4. Row Count Selector, 5. Total Badge, 6. Visibility, 7. Copy, 8. Export */}
+              <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
                 {/* Search Input */}
-                <div className="relative min-w-[220px] flex-1 sm:flex-initial">
+                <div className="relative min-w-[200px] flex-1 sm:flex-initial">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Search organisation..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#0f417a]/30 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200 shadow-sm"
+                    className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
                   />
                   {searchTerm && (
                     <button
@@ -496,35 +564,60 @@ export default function MIVMeetings({ triggerNotification }) {
                   )}
                 </div>
 
-                {/* Organisation dropdown filter */}
-                <div className="relative min-w-[200px]">
+                {/* Rows Limit Select Dropdown */}
+                <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
                   <select
-                    value={selectedOrgFilter}
-                    onChange={(e) => setSelectedOrgFilter(e.target.value)}
-                    className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#0f417a]/30 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer shadow-sm"
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
                   >
-                    <option value="">All Organisations ({orgOptions.length})</option>
-                    {orgOptions.map((org) => (
-                      <option key={org.id} value={org.id}>{org.name}</option>
-                    ))}
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
                   </select>
                 </div>
 
-                {(selectedOrgFilter || searchTerm) && (
-                  <button
-                    onClick={() => {
-                      setSelectedOrgFilter('');
-                      setSearchTerm('');
-                    }}
-                    className="px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg font-bold transition cursor-pointer"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
+                {/* Total Count Badge */}
+                <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+                  Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{meetingSummary.length}</span>
+                </div>
 
-              {/* Action Toolbar */}
-              <div className="flex items-center space-x-2 self-end lg:self-auto">
+                {/* Visibility checklist */}
+                <div className="relative" ref={colDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <span>Visibility</span>
+                    <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                  </button>
+                  {dropdownOpen && (
+                    <div className="absolute right-0 mt-1.5 w-56 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1">Toggle Columns</span>
+                      {Object.keys(visibleCols).map(col => (
+                        <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={visibleCols[col]}
+                            onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                            className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span>
+                            {col === 'sNo' ? 'S.No' :
+                             col === 'org' ? 'Organisation Name' :
+                             col === 'count' ? 'Total Meetings Conducted' :
+                             col === 'actions' ? 'History & Logs' : col}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Copy Button */}
                 <CopyButton
                   data={exportData.rows}
                   headers={exportData.headers}
@@ -533,6 +626,7 @@ export default function MIVMeetings({ triggerNotification }) {
                   className="!rounded-xl !py-2 !px-3.5 shadow-sm"
                 />
 
+                {/* Export Dropdown */}
                 <ExportDropdown
                   headers={exportData.headers}
                   rows={exportData.rows}
@@ -541,20 +635,53 @@ export default function MIVMeetings({ triggerNotification }) {
                   triggerNotification={triggerNotification}
                   color="#0f417a"
                 />
-
-                <button
-                  onClick={() => {
-                    setOrgId(selectedOrgFilter || '');
-                    setShowAddModal(true);
-                  }}
-                  className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-[#0f417a] hover:from-blue-700 hover:to-[#0a2e56] text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer whitespace-nowrap"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add MVIC Meeting</span>
-                </button>
               </div>
 
             </div>
+
+            {/* Collapsible Filter Panel */}
+            {showFilterPanel && (
+              <div className="bg-slate-50/90 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 animate-fade-in space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Filter className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                      Filter Meeting Records
+                    </span>
+                  </div>
+                  {activeFiltersCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedOrgFilter('');
+                        triggerNotification?.('Filters have been reset', 'info');
+                      }}
+                      className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center space-x-1 cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      <span>Reset All Filters</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {/* Lead Organisation Filter */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">Lead Organisation</label>
+                    <select
+                      value={selectedOrgFilter}
+                      onChange={(e) => setSelectedOrgFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                    >
+                      <option value="">All Organisations ({orgOptions.length})</option>
+                      {orgOptions.map((org) => (
+                        <option key={org.id} value={org.id}>{org.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Data Table */}
             <Table

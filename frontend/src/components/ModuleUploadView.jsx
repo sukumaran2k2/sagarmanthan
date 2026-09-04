@@ -1,6 +1,7 @@
 import React from "react";
-import { Upload, FileSpreadsheet, AlertCircle, FileCheck, ChevronDown } from "lucide-react";
+import { Upload, FileSpreadsheet, AlertCircle, FileCheck, ChevronDown, Download } from "lucide-react";
 import Table from "./Table";
+import CopyButton from "./CopyButton";
 
 /**
  * Reusable Global Spreadsheet Upload & Preview Component
@@ -23,7 +24,46 @@ export default function ModuleUploadView({
   previewColDefs,
   accentColor = "#0f417a",
   themeClass = "eoffice-blue-grid",
+  onDownloadSample,
+  sampleFileName = "Sample Template",
 }) {
+  // Builds one plain-text summary shared by both Copy and Download, so a
+  // person can paste the exact list of unmet conditions into an email or
+  // notes while fixing their spreadsheet.
+  const buildValidationErrorText = () => {
+    if (!fileValidationError) return '';
+    const fileLabel = selectedFile ? selectedFile.name : 'Uploaded file';
+    const lines = [`Validation issues for: ${fileLabel}`, ''];
+    if (Array.isArray(fileValidationError)) {
+      fileValidationError.forEach((issue, idx) => {
+        lines.push(`${idx + 1}. ${issue.field}: ${issue.message}`);
+      });
+    } else {
+      lines.push(fileValidationError);
+    }
+    return lines.join('\n');
+  };
+
+  const handleCopyValidationErrors = () => {
+    const text = buildValidationErrorText();
+    if (text) navigator.clipboard.writeText(text);
+  };
+
+  const handleDownloadValidationErrors = () => {
+    const text = buildValidationErrorText();
+    if (!text) return;
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const fileLabel = (selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, '') : 'upload');
+    link.download = `${fileLabel}_validation_errors.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <form onSubmit={handleUploadSubmit} className="space-y-6 w-full">
@@ -129,6 +169,17 @@ export default function ModuleUploadView({
               </label>
             </div>
 
+            {onDownloadSample && (
+              <button
+                type="button"
+                onClick={onDownloadSample}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-[#0f417a] hover:bg-blue-50/60 hover:border-blue-200 transition-all cursor-pointer flex-shrink-0"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Download Template</span>
+              </button>
+            )}
+
             <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto sm:ml-auto">
               <button
                 type="button"
@@ -162,13 +213,40 @@ export default function ModuleUploadView({
           {fileValidationError && (
             <div className="mt-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold flex items-start gap-2.5 animate-fade-in shadow-xs">
               <AlertCircle className="h-4 w-4 text-rose-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <div className="font-extrabold uppercase tracking-wide text-rose-800">
-                  Template Validation Failed
+              <div className="flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="font-extrabold uppercase tracking-wide text-rose-800">
+                    {Array.isArray(fileValidationError)
+                      ? `Validation Failed -- ${fileValidationError.length} condition${fileValidationError.length > 1 ? 's' : ''} not met`
+                      : 'Template Validation Failed'}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <CopyButton onCopy={handleCopyValidationErrors} color="#be123c" hoverBg="#fff1f2" />
+                    <button
+                      type="button"
+                      onClick={handleDownloadValidationErrors}
+                      style={{ color: '#be123c', borderColor: '#be123c33' }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-semibold cursor-pointer bg-transparent hover:bg-rose-100/60 transition-all"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Download</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="text-[11px] font-semibold text-rose-600 mt-0.5">
-                  {fileValidationError}
-                </div>
+                {Array.isArray(fileValidationError) ? (
+                  <ul className="mt-1.5 space-y-1">
+                    {fileValidationError.map((issue, idx) => (
+                      <li key={idx} className="text-[11px] font-semibold text-rose-600 flex gap-1.5">
+                        <span className="text-rose-400">&bull;</span>
+                        <span><span className="font-extrabold text-rose-700">{issue.field}:</span> {issue.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-[11px] font-semibold text-rose-600 mt-0.5">
+                    {fileValidationError}
+                  </div>
+                )}
               </div>
             </div>
           )}

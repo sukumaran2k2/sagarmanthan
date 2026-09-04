@@ -21,17 +21,50 @@ const storage = multer.diskStorage({
     },
 });
 
+// Server-side gate to match the frontend's Excel-only validation -- checks
+// both extension and MIME type, since either alone can be spoofed by a
+// client bypassing the UI (e.g. posting directly to the endpoint).
+const ALLOWED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
+const ALLOWED_MIME_TYPES = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'application/vnd.ms-excel', // .xls
+    'text/csv',
+    'application/csv',
+];
+
+function excelFileFilter(req, file, callback) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const mimeOk = ALLOWED_MIME_TYPES.includes(file.mimetype);
+    const extOk = ALLOWED_EXTENSIONS.includes(ext);
+    if (extOk && mimeOk) {
+        return callback(null, true);
+    }
+    return callback(new Error('Only Excel (.xlsx, .xls) or CSV files are allowed.'));
+}
+
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 10000000 }  
+    limits: { fileSize: 10000000 },
+    fileFilter: excelFileFilter,
 });
+
+// Wraps upload.single('file') so a fileFilter/size rejection returns a
+// clean 400 JSON response instead of falling through unhandled -- there's
+// no global multer/Express error handler elsewhere in this app.
+function uploadSingleFile(req, res, next) {
+    upload.single('file')(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message || 'File upload failed.' });
+        }
+        next();
+    });
+}
 
 async function getAttendance(req, res) {
     const conn = await pool;
 
     try {
         const result = await conn.query(`SELECT * from tbl_attendance;`);
-        console.log('result',result);
         res.json(result.recordset);
     } catch (err) {
         console.log(err);
@@ -113,10 +146,15 @@ const __dirname = path.dirname(__filename);
 
 async function downloadAttendance(req, res) {
     try {
-        const id = req.params.id;
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id)) {
+            return res.status(400).send({ message: "Invalid id" });
+        }
         const conn = await pool;
-        
-        const result = await conn.query(`SELECT file_name FROM tbl_attendance WHERE id = ${id}`);
+        const request = conn.request();
+        request.input("id", sql.Int, id);
+
+        const result = await request.query(`SELECT file_name FROM tbl_attendance WHERE id = @id`);
         if (!result.recordset || result.recordset.length === 0) {
             return res.status(404).send({ message: "Record not found" });
         }
@@ -136,7 +174,9 @@ async function downloadAttendance(req, res) {
             // Fallback: Query parsed employee records from exceldata table for this file_id and return generated Excel file
             let rows = [];
             try {
-                const dataResult = await conn.query(`SELECT EmpId, Wing, Division, EmpName, Designation, AttendanceMarked, WorkingHours, InTimeAvg, OutTimeAvg, Month, Year FROM exceldata WHERE file_id = ${id}`);
+                const dataRequest = conn.request();
+                dataRequest.input("id", sql.Int, id);
+                const dataResult = await dataRequest.query(`SELECT EmpId, Wing, Division, EmpName, Designation, AttendanceMarked, WorkingHours, InTimeAvg, OutTimeAvg, Month, Year FROM exceldata WHERE file_id = @id`);
                 rows = dataResult.recordset || [];
                 if (rows.length === 0) {
                     const fallbackResult = await conn.query(`SELECT TOP 100 EmpId, Wing, Division, EmpName, Designation, AttendanceMarked, WorkingHours, InTimeAvg, OutTimeAvg, Month, Year FROM exceldata`);
@@ -187,13 +227,20 @@ async function downloadAttendance(req, res) {
 async function deleteAttendance(req, res) {
     try {
         const id = Number(req.params.id);
+        if (!Number.isInteger(id)) {
+            return res.status(400).send({ message: "Invalid id" });
+        }
         const conn = await pool;
         
         // 1. Fetch file record from tbl_attendance
-        const checkResult = await conn.query(`SELECT id, file_name FROM tbl_attendance WHERE id = ${id}`);
+        const checkRequest = conn.request();
+        checkRequest.input("id", sql.Int, id);
+        const checkResult = await checkRequest.query(`SELECT id, file_name FROM tbl_attendance WHERE id = @id`);
         if (!checkResult.recordset || checkResult.recordset.length === 0) {
             // Cleanup any orphan data rows in exceldata if present
-            await conn.query(`DELETE FROM exceldata WHERE file_id = ${id}`);
+            const cleanupRequest = conn.request();
+            cleanupRequest.input("id", sql.Int, id);
+            await cleanupRequest.query(`DELETE FROM exceldata WHERE file_id = @id`);
             return res.status(200).send({ message: 'Record deleted or already clean' });
         }
 
@@ -212,8 +259,13 @@ async function deleteAttendance(req, res) {
         }
         
         // 3. Delete record from tbl_attendance and exceldata
-        await conn.query(`DELETE FROM tbl_attendance WHERE id = ${id}`);
-        await conn.query(`DELETE FROM exceldata WHERE file_id = ${id}`);
+        const deleteRequest1 = conn.request();
+        deleteRequest1.input("id", sql.Int, id);
+        await deleteRequest1.query(`DELETE FROM tbl_attendance WHERE id = @id`);
+
+        const deleteRequest2 = conn.request();
+        deleteRequest2.input("id", sql.Int, id);
+        await deleteRequest2.query(`DELETE FROM exceldata WHERE file_id = @id`);
 
         res.status(200).send({ message: 'File and data deleted successfully' });
     } catch (err) {
@@ -261,18 +313,23 @@ function getRowVal(row, keys, fallback = '') {
 }
 
 async function storeCsvData(req, res) {
-    const { id } = req.params;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+        return res.status(400).json({ error: "Invalid id" });
+    }
     const conn = await pool;
     console.log("Processing spreadsheet upload for file ID:", id);
     
     try {
-        const result = await conn.query(`SELECT file_name FROM tbl_attendance WHERE id = ${id}`);
+        const lookupRequest = conn.request();
+        lookupRequest.input("id", sql.Int, id);
+        const result = await lookupRequest.query(`SELECT file_name FROM tbl_attendance WHERE id = @id`);
         if (!result.recordset || result.recordset.length === 0) {
             return res.status(404).json({ error: "Attendance file record not found" });
         }
         const fileName = result.recordset[0].file_name;
         const filePath = `./fileuploads/attendance/${fileName}`;
-        const fileId = Number(id);
+        const fileId = id;
 
         const workbook = xlsx.readFile(filePath);
         const sheetName = workbook.SheetNames[0];
@@ -280,7 +337,9 @@ async function storeCsvData(req, res) {
         const data = xlsx.utils.sheet_to_json(sheet);
 
         if (!data || data.length === 0) {
-            await conn.query(`DELETE FROM tbl_attendance WHERE id = ${fileId}`);
+            const cleanupRequest = conn.request();
+            cleanupRequest.input("id", sql.Int, fileId);
+            await cleanupRequest.query(`DELETE FROM tbl_attendance WHERE id = @id`);
             if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (e) {} }
             return res.status(400).json({ error: "Uploaded spreadsheet is empty" });
         }
@@ -291,7 +350,9 @@ async function storeCsvData(req, res) {
         const hasEmpName = firstRowKeys.some(k => k.includes('empname') || k.includes('emp name') || k.includes('employee name') || k.includes('name'));
 
         if (!hasEmpId || !hasEmpName) {
-            await conn.query(`DELETE FROM tbl_attendance WHERE id = ${fileId}`);
+            const cleanupRequest2 = conn.request();
+            cleanupRequest2.input("id", sql.Int, fileId);
+            await cleanupRequest2.query(`DELETE FROM tbl_attendance WHERE id = @id`);
             if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (e) {} }
             return res.status(400).json({ error: "Invalid template header structure. Please upload an Excel file matching Attendance_Sample.xlsx template format." });
         }
@@ -385,5 +446,5 @@ async function downloadSampleDocument(req, res) {
 
 
 const attendanceTab = { getAttendance, createAttendance, downloadAttendance, 
-    deleteAttendance, upload, storeCsvData, downloadSampleDocument };
+    deleteAttendance, upload, uploadSingleFile, storeCsvData, downloadSampleDocument };
 export default attendanceTab;

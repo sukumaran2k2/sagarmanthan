@@ -24,10 +24,44 @@ const storage = multer.diskStorage({
     },
 });
 
+// Server-side gate to match the frontend's Excel-only validation -- checks
+// both extension and MIME type, since either alone can be spoofed by a
+// client bypassing the UI (e.g. posting directly to the endpoint).
+const ALLOWED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
+const ALLOWED_MIME_TYPES = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'application/vnd.ms-excel', // .xls
+    'text/csv',
+    'application/csv',
+];
+
+function excelFileFilter(req, file, callback) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const mimeOk = ALLOWED_MIME_TYPES.includes(file.mimetype);
+    const extOk = ALLOWED_EXTENSIONS.includes(ext);
+    if (extOk && mimeOk) {
+        return callback(null, true);
+    }
+    return callback(new Error('Only Excel (.xlsx, .xls) or CSV files are allowed.'));
+}
+
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 10000000 }  
+    limits: { fileSize: 10000000 },
+    fileFilter: excelFileFilter,
 });
+
+// Wraps upload.single('file') so a fileFilter/size rejection returns a
+// clean 400 JSON response instead of falling through unhandled -- there's
+// no global multer/Express error handler elsewhere in this app.
+function uploadSingleFile(req, res, next) {
+    upload.single('file')(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message || 'File upload failed.' });
+        }
+        next();
+    });
+}
 
 
 async function getEmpAttendance(req, res) {
@@ -43,6 +77,7 @@ async function getEmpAttendance(req, res) {
         tbl_employee_attendance.Average_Working_Hours,
         tbl_employee_attendance.Month,
         tbl_employee_attendance.Year,
+        tbl_employee_attendance.week,
         tbl_employee_attendance.File_Id,
         mmt_employee_info.Emp_Name,
         mmt_employee_info.Designation,
@@ -65,6 +100,7 @@ async function getEmpAttendance(req, res) {
 
 
 async function createEmpAttendance(req, res) {
+    let transaction;
     try {
         const conn = await pool;
         const request = conn.request();
@@ -75,16 +111,24 @@ async function createEmpAttendance(req, res) {
         const week = req.body.week;
         const uniqueFileName = req.uniqueFileName;
 
-        const checkResult = await conn.query(`
+        const checkRequest = conn.request();
+        checkRequest.input("month", sql.NVarChar, month);
+        checkRequest.input("financialYear", sql.NVarChar, financialYear);
+        checkRequest.input("week", sql.Int, week);
+        const checkResult = await checkRequest.query(`
             SELECT COUNT(*) AS count 
             FROM tbl_employee_attendance 
-            WHERE Month = '${month}' AND Year = ${financialYear} AND week = ${week};
+            WHERE Month = @month AND Year = @financialYear AND week = @week;
         `);
 
-        const storedFileID = await conn.query(`
+        const maxIdRequest = conn.request();
+        maxIdRequest.input("month", sql.NVarChar, month);
+        maxIdRequest.input("financialYear", sql.NVarChar, financialYear);
+        maxIdRequest.input("week", sql.Int, week);
+        const storedFileID = await maxIdRequest.query(`
             SELECT MAX(File_Id) AS File_Id 
             FROM tbl_employee_attendance  
-            WHERE Month = '${month}' AND Year = ${financialYear}  AND week = ${week};
+            WHERE Month = @month AND Year = @financialYear AND week = @week;
         `);
         const replaceFileID = storedFileID.recordset[0].File_Id;
 
@@ -137,28 +181,30 @@ async function createEmpAttendance(req, res) {
             return trimmedRow;
         });
 
+        // Duplicate-EmpId check runs once over the whole dataset, not once
+        // per row -- previously this was nested inside the row loop below
+        // and re-scanned all rows on every iteration (O(n^2) for no reason,
+        // since the result is identical regardless of which row triggered it).
+        const empIds = new Set();
+        const duplicateEmpIds = [];
+        for (const row of trimmedData) {
+            const EmpId = row['Emp Id'];
+            if (empIds.has(EmpId)) {
+                duplicateEmpIds.push(EmpId);
+            } else {
+                empIds.add(EmpId);
+            }
+        }
+        if (duplicateEmpIds.length > 0) {
+            deleteFile(req.file, req.uniqueFileName);
+            return res.status(410).json({ error: `Duplicate/Empty EmpIds found ${duplicateEmpIds.join(', ')}` });
+        }
+
         // Process each row in trimmedData
         for (const row of trimmedData) {
             rowIndex++;
             const { 'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
 
-            //Validate duplication of EMP ID
-            const empIds = new Set();
-            const duplicateEmpIds = [];
-            for (const row of trimmedData) {
-                const EmpId = row['Emp Id'];
-                if (empIds.has(EmpId)) {
-                    duplicateEmpIds.push(EmpId);
-                } else {
-                    empIds.add(EmpId);
-                }
-            }
-    
-            if (duplicateEmpIds.length > 0) {
-                deleteFile(req.file, req.uniqueFileName);
-                return res.status(410).json({ error: `Duplicate/Empty EmpIds found ${duplicateEmpIds.join(', ')}` });
-            }
-    
             const empIdNum = Number(EmpId);
             if (EmpId === undefined || EmpId === null || isNaN(empIdNum)) {
                 deleteFile(req.file, req.uniqueFileName);
@@ -178,46 +224,62 @@ async function createEmpAttendance(req, res) {
             }
         }
 
-        // for (const row of data) {
-        //     rowIndex++;
-        //     const { 'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
-        
-        //     if (!Number.isInteger(EmpId)) {
-        //         deleteFile(req.file, req.uniqueFileName);
-        //         return res.status(403).json({ error: 'Invalid Emp Id format' });
-        //     }
-        
-        //     if (!Number.isInteger(AttendanceMarked) ) {
-        //         deleteFile(req.file, req.uniqueFileName);
-        //         return res.status(403).json({ error: 'Invalid No. of days Attendance Marked' });
-        //     }
-        
-        //     const timeRegex = /^\d{2}:\d{2}:\d{2}$/ ;
-        //     console.log(formatTime(InTimeAvg),formatTime(OutTimeAvg),formatTime(WorkingHours));
-        //     if (!timeRegex.test(formatTime(InTimeAvg)) || !timeRegex.test(formatTime(OutTimeAvg)) || !timeRegex.test(formatTime(WorkingHours))) {
-        //         deleteFile(req.file, req.uniqueFileName);
-        //         return res.status(403).json({ error: 'Invalid time format', row: rowIndex });
-        //     }
-        
-        // }
-
+        // Batch employee existence check: one query for all Emp Ids in the
+        // file instead of one SELECT per row (previously up to N sequential
+        // round-trips for an N-row upload).
+        const uniqueEmpRows = new Map(); // EmpId -> { EmpName, Designation }
         for (const row of trimmedData) {
-            const EmpId = row['Emp Id'];
-            const EmpName = row['Emp Name'] || row.EmpName || row['EMP Name'] || 'Employee ' + EmpId;
-            const Designation = row.Designation || 'Staff';
+            const EmpId = String(row['Emp Id']);
+            if (!uniqueEmpRows.has(EmpId)) {
+                uniqueEmpRows.set(EmpId, {
+                    EmpName: row['Emp Name'] || row.EmpName || row['EMP Name'] || 'Employee ' + EmpId,
+                    Designation: row.Designation || 'Staff',
+                });
+            }
+        }
+        const allEmpIds = [...uniqueEmpRows.keys()];
 
-            const employeeCheckResult = await conn.query(`
-                SELECT COUNT(*) AS count 
-                FROM mmt_employee_info 
-                WHERE Emp_Id = '${EmpId}'
+        // From here on, every insert (employee auto-register, file record,
+        // attendance rows) happens inside one transaction, so a failure
+        // partway through rolls everything back instead of leaving an
+        // orphaned file record with no attendance rows (as happened when
+        // the bulk-insert type mismatch was failing after the file record
+        // had already been committed separately).
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
+
+        if (allEmpIds.length > 0) {
+            const checkExistingRequest = transaction.request();
+            const empIdParams = allEmpIds.map((id, i) => {
+                const paramName = `empId${i}`;
+                checkExistingRequest.input(paramName, sql.NVarChar, id);
+                return `@${paramName}`;
+            });
+            const existingResult = await checkExistingRequest.query(`
+                SELECT Emp_Id FROM mmt_employee_info WHERE Emp_Id IN (${empIdParams.join(', ')})
             `);
+            const existingEmpIds = new Set(existingResult.recordset.map(r => String(r.Emp_Id)));
+            const missingEmpIds = allEmpIds.filter(id => !existingEmpIds.has(id));
 
-            if (employeeCheckResult.recordset[0].count === 0) {
+            if (missingEmpIds.length > 0) {
                 try {
-                    await conn.query(`
-                        INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
-                        VALUES ('${EmpId}', '${String(EmpName).replace(/'/g, "''")}', '${String(Designation).replace(/'/g, "''")}', 1)
-                    `);
+                    const CHUNK_SIZE = 500;
+                    for (let start = 0; start < missingEmpIds.length; start += CHUNK_SIZE) {
+                        const chunk = missingEmpIds.slice(start, start + CHUNK_SIZE);
+                        const insertRequest = transaction.request();
+                        const valueClauses = chunk.map((id, i) => {
+                            const info = uniqueEmpRows.get(id);
+                            insertRequest.input(`empId${i}`, sql.NVarChar(255), id);
+                            insertRequest.input(`empName${i}`, sql.NVarChar(255), String(info.EmpName));
+                            insertRequest.input(`designation${i}`, sql.NVarChar(255), String(info.Designation));
+                            insertRequest.input(`orgId${i}`, sql.Int, 1);
+                            return `(@empId${i}, @empName${i}, @designation${i}, @orgId${i})`;
+                        });
+                        await insertRequest.query(`
+                            INSERT INTO mmt_employee_info (Emp_Id, Emp_Name, Designation, organization_id)
+                            VALUES ${valueClauses.join(', ')}
+                        `);
+                    }
                 } catch (autoRegErr) {
                     console.warn("Auto-register employee info notice:", autoRegErr.message);
                 }
@@ -225,76 +287,72 @@ async function createEmpAttendance(req, res) {
         }
         const currentDate = new Date();
         const formattedDate = currentDate.toISOString().slice(0, 19).replace('T', ' ');
-        await request.query(`
+        const fileInsertRequest = transaction.request();
+        fileInsertRequest.input("fileName", sql.NVarChar, uniqueFileName);
+        fileInsertRequest.input("userID", sql.NVarChar, userID);
+        fileInsertRequest.input("uploadDate", sql.DateTime, formattedDate);
+        await fileInsertRequest.query(`
             INSERT INTO tbl_emp_attendance_file 
             (file_name, uploaded_by ,date_of_upload ) 
-            VALUES ('${uniqueFileName}', ${userID},'${formattedDate}')
+            VALUES (@fileName, @userID, @uploadDate)
         `);
 
         // Retrieve the ID of the inserted record
-        const fileIdQuery = await conn.query(`
+        const fileIdLookupRequest = transaction.request();
+        fileIdLookupRequest.input("fileName", sql.NVarChar, uniqueFileName);
+        const fileIdQuery = await fileIdLookupRequest.query(`
             SELECT TOP (1) ID
             FROM tbl_emp_attendance_file
-            WHERE file_name = '${uniqueFileName}' 
+            WHERE file_name = @fileName 
             ORDER BY ID DESC
         `);
 
         const fileId = fileIdQuery.recordset[0].ID;
 
-        for (const row of trimmedData) {
-            const {'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
+        const ATTENDANCE_CHUNK_SIZE = 500;
+        for (let start = 0; start < trimmedData.length; start += ATTENDANCE_CHUNK_SIZE) {
+            const chunk = trimmedData.slice(start, start + ATTENDANCE_CHUNK_SIZE);
+            const attendanceInsertRequest = transaction.request();
+            const valueClauses = chunk.map((row, i) => {
+                const {'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
 
-            const request = conn.request();
+                const formattedWorkingHours = formatTime(WorkingHours);
+                const formattedInTimeAvg = formatTime(InTimeAvg);
+                const formattedOutTimeAvg = formatTime(OutTimeAvg);
 
-            const formattedWorkingHours = formatTime(WorkingHours);
-            const formattedInTimeAvg = formatTime(InTimeAvg);
-            const formattedOutTimeAvg = formatTime(OutTimeAvg);
+                attendanceInsertRequest.input(`empId${i}`, sql.NVarChar(sql.MAX), String(EmpId));
+                attendanceInsertRequest.input(`daysMarked${i}`, sql.Int, Number(AttendanceMarked) || 0);
+                attendanceInsertRequest.input(`inTimeAvg${i}`, sql.VarChar(20), formattedInTimeAvg);
+                attendanceInsertRequest.input(`outTimeAvg${i}`, sql.VarChar(20), formattedOutTimeAvg);
+                attendanceInsertRequest.input(`avgWorkingHours${i}`, sql.VarChar(20), formattedWorkingHours);
+                attendanceInsertRequest.input(`month${i}`, sql.NVarChar(20), month);
+                attendanceInsertRequest.input(`year${i}`, sql.Int, Number(financialYear));
+                attendanceInsertRequest.input(`week${i}`, sql.Int, Number(week));
+                attendanceInsertRequest.input(`fileId${i}`, sql.Int, fileId);
 
-            request.input("EmpId", EmpId);
-            request.input("AttendanceMarked", AttendanceMarked);
-            request.input("month", month);
-            request.input("financialYear", financialYear);
-            request.input("week", week);
-            request.input("formattedInTimeAvg", formattedInTimeAvg);
-            request.input("formattedOutTimeAvg", formattedOutTimeAvg);
-            request.input("formattedWorkingHours", formattedWorkingHours);
-            request.input("fileId", fileId);
+                return `(@empId${i}, @daysMarked${i}, @inTimeAvg${i}, @outTimeAvg${i}, @avgWorkingHours${i}, @month${i}, @year${i}, @week${i}, @fileId${i})`;
+            });
 
-            await request.query(`
-                INSERT INTO tbl_employee_attendance 
-                (Emp_Id, No_of_days_Attendance_Marked, In_Time_Avg, Out_Time_Avg, Average_Working_Hours, Month, Year, week, File_Id) 
-                VALUES (@EmpId, @AttendanceMarked, @formattedInTimeAvg, @formattedOutTimeAvg, @formattedWorkingHours, @month, @financialYear, @week, @fileId)
+            await attendanceInsertRequest.query(`
+                INSERT INTO tbl_employee_attendance
+                (Emp_Id, No_of_days_Attendance_Marked, In_Time_Avg, Out_Time_Avg, Average_Working_Hours, Month, Year, week, File_Id)
+                VALUES ${valueClauses.join(', ')}
             `);
         }
-        // for (const row of data) {
-        //     const {'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
 
-        //     const request = conn.request();
+        await transaction.commit();
 
-        //     const formattedWorkingHours = formatTime(WorkingHours);
-        //     const formattedInTimeAvg = formatTime(InTimeAvg);
-        //     const formattedOutTimeAvg = formatTime(OutTimeAvg);
-
-        //     request.input("EmpId", EmpId);
-        //     request.input("AttendanceMarked", AttendanceMarked);
-        //     request.input("month", month);
-        //     request.input("financialYear", financialYear);
-
-        //     request.input("formattedInTimeAvg", formattedInTimeAvg);
-        //     request.input("formattedOutTimeAvg", formattedOutTimeAvg);
-        //     request.input("formattedWorkingHours", formattedWorkingHours);
-        //     request.input("fileId", fileId);
-
-        //     await request.query(`
-        //         INSERT INTO tbl_employee_attendance 
-        //         (Emp_Id, No_of_days_Attendance_Marked, In_Time_Avg, Out_Time_Avg, Average_Working_Hours, Month, Year, File_Id) 
-        //         VALUES (@EmpId, @AttendanceMarked, @formattedInTimeAvg, @formattedOutTimeAvg, @formattedWorkingHours, @month, @financialYear, @fileId)
-        //     `);
-        // }
         res.status(200).json({
             message: "Attendance record created successfully",
         });
     } catch (err) {
+        if (transaction) {
+            try {
+                await transaction.rollback();
+            } catch (rollbackErr) {
+                console.error("Transaction rollback failed:", rollbackErr);
+            }
+        }
         deleteFile(req.uniqueFileName);
         console.error(err);
         res.status(500).json({ error: "Internal server error" });
@@ -302,6 +360,7 @@ async function createEmpAttendance(req, res) {
 }
 
 async function updateEmpAttendance(req, res) {
+    let transaction;
     try {
         const conn = await pool;
         const request = conn.request();
@@ -346,35 +405,46 @@ async function updateEmpAttendance(req, res) {
             return trimmedRow;
         });
 
+        // Duplicate-EmpId check runs once over the whole dataset (previously
+        // nested inside the row loop below, re-scanning all rows on every
+        // iteration for an identical result each time).
+        const empIds = new Set();
+        const duplicateEmpIds = [];
+        for (const row of trimmedData) {
+            const EmpId = row['Emp Id'];
+            if (empIds.has(EmpId)) {
+                duplicateEmpIds.push(EmpId);
+            } else {
+                empIds.add(EmpId);
+            }
+        }
+        if (duplicateEmpIds.length > 0) {
+            deleteFile(req.file, req.uniqueFileName);
+            return res.status(410).json({ error: `Duplicate/Empty Emp-Ids found ${duplicateEmpIds.join(', ')}` });
+        }
+
         for (const row of trimmedData) {
             rowIndex++;
             const { 'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
-        
-            //Validate duplication of EMP ID
-            const empIds = new Set();
-            const duplicateEmpIds = [];
-            for (const row of trimmedData) {
-                const EmpId = row['Emp Id'];
-                if (empIds.has(EmpId)) {
-                    duplicateEmpIds.push(EmpId);
-                } else {
-                    empIds.add(EmpId);
-                }
-            }
-    
-            if (duplicateEmpIds.length > 0) {
-                deleteFile(req.file, req.uniqueFileName);
-                return res.status(410).json({ error: `Duplicate/Empty Emp-Ids found ${duplicateEmpIds.join(', ')}` });
-            }
-    
-            // Validate EmpId
-            if (typeof EmpId !== 'string') {
+
+            // Validate EmpId. Excel numeric-looking cells parse as JS
+            // numbers (not strings) unless the cell is explicitly
+            // Text-formatted, so this checks numeric validity rather than
+            // JS type -- matching createEmpAttendance's check, which this
+            // function previously contradicted (it required typeof
+            // 'string', silently rejecting perfectly valid numeric Emp Ids
+            // that createEmpAttendance would have accepted).
+            const empIdNum = Number(EmpId);
+            if (EmpId === undefined || EmpId === null || isNaN(empIdNum)) {
                 deleteFile(req.uniqueFileName);
-                return res.status(403).json({ error: 'Invalid Emp Id format', row: (rowIndex+1) });
+                return res.status(403).json({ error: 'Invalid Emp Id format (must be numeric)', row: (rowIndex+1) });
             }
         
-            // Validate No. of days Attendance Marked            
-            if (!Number.isInteger(AttendanceMarked) ) {
+            // Validate No. of days Attendance Marked. parseInt handles both
+            // numeric-string and number forms; Number.isInteger (the old
+            // check here) rejected numeric strings outright.
+            const markedInt = parseInt(AttendanceMarked, 10);
+            if (isNaN(markedInt)) {
                 deleteFile(req.uniqueFileName);
                 return res.status(403).json({ error: 'Invalid No. of days Attendance Marked', row: (rowIndex+1)   });
             }
@@ -388,100 +458,116 @@ async function updateEmpAttendance(req, res) {
         
         }
 
-        for (const row of trimmedData) {
-            const EmpId = row['Emp Id'];
-            const employeeCheckResult = await conn.query(`
-                SELECT COUNT(*) AS count 
-                FROM mmt_employee_info 
-                WHERE Emp_Id = '${EmpId}'
+        // Batch employee existence check: one query for all Emp Ids in the
+        // file instead of one SELECT per row (previously up to N sequential
+        // round-trips for an N-row upload).
+        const allUpdateEmpIds = [...empIds];
+        if (allUpdateEmpIds.length > 0) {
+            const checkExistingRequest = conn.request();
+            const empIdParams = allUpdateEmpIds.map((id, i) => {
+                const paramName = `empId${i}`;
+                checkExistingRequest.input(paramName, sql.NVarChar, String(id));
+                return `@${paramName}`;
+            });
+            const existingResult = await checkExistingRequest.query(`
+                SELECT Emp_Id FROM mmt_employee_info WHERE Emp_Id IN (${empIdParams.join(', ')})
             `);
+            const existingEmpIds = new Set(existingResult.recordset.map(r => String(r.Emp_Id)));
+            const missingEmpIds = allUpdateEmpIds.filter(id => !existingEmpIds.has(String(id)));
 
-            if (employeeCheckResult.recordset[0].count === 0) {
+            if (missingEmpIds.length > 0) {
                 deleteFile(req.uniqueFileName);
-                const EmpId = row['Emp Id']; 
-                return res.status(402).json({ error: `Employee ID '${EmpId}' not found in the employee table`, EmpId: EmpId });
+                return res.status(402).json({ error: `Employee ID(s) not found in the employee table: ${missingEmpIds.join(', ')}`, EmpId: missingEmpIds[0] });
             }
         }
-        
+
         const currentDate = new Date();
         const formattedDate = currentDate.toISOString().slice(0, 19).replace('T', ' ');
 
-        const fileName =  await request.query(`
+        const fileNameRequest = conn.request();
+        fileNameRequest.input("FileId", sql.Int, Number(FileId));
+        const fileName = await fileNameRequest.query(`
             SELECT file_name FROM tbl_emp_attendance_file
-            WHERE id = '${FileId}';
+            WHERE id = @FileId;
         `);
 
         const deleteFileName = fileName.recordset[0].file_name;
         deleteFile(deleteFileName);
 
+        // From here on, deleting the old attendance rows, updating the file
+        // record, and inserting the new rows all happen inside one
+        // transaction -- a failure partway through would otherwise be able
+        // to leave the old rows deleted with no replacement, or the file
+        // record renamed with stale/missing row data.
+        transaction = new sql.Transaction(conn);
+        await transaction.begin();
 
-        await request.query(`
+        const deleteAttendanceRequest = transaction.request();
+        deleteAttendanceRequest.input("FileId", sql.Int, Number(FileId));
+        await deleteAttendanceRequest.query(`
             DELETE FROM tbl_employee_attendance
-            WHERE File_Id = '${FileId}';
+            WHERE File_Id = @FileId;
         `);
 
-        await request.query(`
+        const updateFileRequest = transaction.request();
+        updateFileRequest.input("fileName", sql.NVarChar, uniqueFileName);
+        updateFileRequest.input("userID", sql.NVarChar, userID);
+        updateFileRequest.input("uploadDate", sql.DateTime, formattedDate);
+        updateFileRequest.input("FileId", sql.Int, Number(FileId));
+        await updateFileRequest.query(`
             UPDATE tbl_emp_attendance_file
-            SET file_name = '${uniqueFileName}',
-            uploaded_by = ${userID},
-            date_of_upload = '${formattedDate}'
-            WHERE id = ${FileId}; 
+            SET file_name = @fileName,
+            uploaded_by = @userID,
+            date_of_upload = @uploadDate
+            WHERE id = @FileId; 
         `);
 
-        for (const row of trimmedData) {
-            const {'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
+        // Batch row insert: chunked parameterized multi-row INSERT instead
+        // of one INSERT round-trip per row.
+        const UPDATE_CHUNK_SIZE = 500;
+        for (let start = 0; start < trimmedData.length; start += UPDATE_CHUNK_SIZE) {
+            const chunk = trimmedData.slice(start, start + UPDATE_CHUNK_SIZE);
+            const attendanceInsertRequest = transaction.request();
+            const valueClauses = chunk.map((row, i) => {
+                const {'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
 
-            const request = conn.request();
+                const formattedWorkingHours = formatTime(WorkingHours);
+                const formattedInTimeAvg = formatTime(InTimeAvg);
+                const formattedOutTimeAvg = formatTime(OutTimeAvg);
 
-            const formattedWorkingHours = formatTime(WorkingHours);
-            const formattedInTimeAvg = formatTime(InTimeAvg);
-            const formattedOutTimeAvg = formatTime(OutTimeAvg);
+                attendanceInsertRequest.input(`empId${i}`, sql.NVarChar(sql.MAX), String(EmpId));
+                attendanceInsertRequest.input(`daysMarked${i}`, sql.Int, Number(AttendanceMarked) || 0);
+                attendanceInsertRequest.input(`inTimeAvg${i}`, sql.VarChar(20), formattedInTimeAvg);
+                attendanceInsertRequest.input(`outTimeAvg${i}`, sql.VarChar(20), formattedOutTimeAvg);
+                attendanceInsertRequest.input(`avgWorkingHours${i}`, sql.VarChar(20), formattedWorkingHours);
+                attendanceInsertRequest.input(`month${i}`, sql.NVarChar(20), month);
+                attendanceInsertRequest.input(`year${i}`, sql.Int, Number(financialYear));
+                attendanceInsertRequest.input(`week${i}`, sql.Int, Number(week));
+                attendanceInsertRequest.input(`fileId${i}`, sql.Int, Number(FileId));
 
-            request.input("EmpId", EmpId);
-            request.input("AttendanceMarked", AttendanceMarked);
-            request.input("month", month);
-            request.input("financialYear", financialYear);
-            request.input("week", week);
-            request.input("formattedInTimeAvg", formattedInTimeAvg);
-            request.input("formattedOutTimeAvg", formattedOutTimeAvg);
-            request.input("formattedWorkingHours", formattedWorkingHours);
-            request.input("FileId", FileId);
+                return `(@empId${i}, @daysMarked${i}, @inTimeAvg${i}, @outTimeAvg${i}, @avgWorkingHours${i}, @month${i}, @year${i}, @week${i}, @fileId${i})`;
+            });
 
-            await request.query(`
-                INSERT INTO tbl_employee_attendance 
-                (Emp_Id, No_of_days_Attendance_Marked, In_Time_Avg, Out_Time_Avg, Average_Working_Hours, Month, Year, week, File_Id) 
-                VALUES (@EmpId, @AttendanceMarked, @formattedInTimeAvg, @formattedOutTimeAvg, @formattedWorkingHours, @month, @financialYear, @week, @FileId)
+            await attendanceInsertRequest.query(`
+                INSERT INTO tbl_employee_attendance
+                (Emp_Id, No_of_days_Attendance_Marked, In_Time_Avg, Out_Time_Avg, Average_Working_Hours, Month, Year, week, File_Id)
+                VALUES ${valueClauses.join(', ')}
             `);
         }
-        // for (const row of data) {
-        //     const {'Emp Id': EmpId, 'No. of days Attendance Marked': AttendanceMarked, 'In Time Avg': InTimeAvg, 'Out Time Avg': OutTimeAvg, 'Average Working Hours': WorkingHours } = row;
 
-        //     const request = conn.request();
+        await transaction.commit();
 
-        //     const formattedWorkingHours = formatTime(WorkingHours);
-        //     const formattedInTimeAvg = formatTime(InTimeAvg);
-        //     const formattedOutTimeAvg = formatTime(OutTimeAvg);
-
-        //     request.input("EmpId", EmpId);
-        //     request.input("AttendanceMarked", AttendanceMarked);
-        //     request.input("month", month);
-        //     request.input("financialYear", financialYear);
-
-        //     request.input("formattedInTimeAvg", formattedInTimeAvg);
-        //     request.input("formattedOutTimeAvg", formattedOutTimeAvg);
-        //     request.input("formattedWorkingHours", formattedWorkingHours);
-        //     request.input("FileId", FileId);
-
-        //     await request.query(`
-        //         INSERT INTO tbl_employee_attendance 
-        //         (Emp_Id, No_of_days_Attendance_Marked, In_Time_Avg, Out_Time_Avg, Average_Working_Hours, Month, Year, File_Id) 
-        //         VALUES (@EmpId, @AttendanceMarked, @formattedInTimeAvg, @formattedOutTimeAvg, @formattedWorkingHours, @month, @financialYear, @FileId)
-        //     `);
-        // }
         res.status(200).json({
             message: "Attendance record created successfully",
         });
     } catch (err) {
+        if (transaction) {
+            try {
+                await transaction.rollback();
+            } catch (rollbackErr) {
+                console.error("Transaction rollback failed:", rollbackErr);
+            }
+        }
         deleteFile(req.uniqueFileName);
         console.error(err);
         res.status(500).json({ error: "Internal server error" });
@@ -682,6 +768,6 @@ async function agSample(req, res) {
   
 
 
-const empAttendanceTab = { createEmpAttendance, upload, addEmpDataAttendance,
+const empAttendanceTab = { createEmpAttendance, upload, uploadSingleFile, addEmpDataAttendance,
     getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample };
 export default empAttendanceTab;

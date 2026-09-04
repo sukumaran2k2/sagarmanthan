@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { 
-  Plus, Edit, Eye, Search, X, List, BarChart3, Building2, ChevronDown 
+  Edit, Eye, Search, X, List, BarChart3, Building2, ChevronDown, Filter 
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import Table from '../../../components/Table';
@@ -40,10 +40,22 @@ export default function MIVDataList({
   const [organisations, setOrganisations] = useState([]);
   const [gridApi, setGridApi] = useState(null);
 
+  // Dedicated Filter Panel Toggle State
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // Active filters count
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedOrg) count++;
+    if (selectedCategory) count++;
+    return count;
+  }, [selectedOrg, selectedCategory]);
+
   // Column visibility checklist
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
   const [visibleCols, setVisibleCols] = useState({
+    sNo: true,
     org: true,
     name: true,
     cost: true,
@@ -168,7 +180,8 @@ export default function MIVDataList({
       width: 75,
       pinned: 'left',
       cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center font-bold',
-      headerClass: 'text-center'
+      headerClass: 'text-center',
+      hide: !visibleCols.sNo
     },
     {
       headerName: 'Organisation Name',
@@ -457,62 +470,64 @@ export default function MIVDataList({
   return (
     <div className="space-y-6 animate-fade-in relative">
       
-      {/* Category / Status Tabs matching YP and CA style */}
-      <div className="flex flex-wrap items-center justify-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
-        <button
-          onClick={() => handleStatusTabChange('all')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeStatusTab === 'all'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-          }`}
-        >
-          ALL INITIATIVES ({counts.all})
-        </button>
-        
-        <button
-          onClick={() => handleStatusTabChange('yet_to_start')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeStatusTab === 'yet_to_start'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-          }`}
-        >
-          YET TO START ({counts.yetToStart})
-        </button>
+      {/* Category / Status Tabs matching CSR / YP / CA style (Left Aligned) */}
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 select-none overflow-x-auto scrollbar-none mb-4">
+        <div className="flex space-x-1">
+          <button
+            onClick={() => handleStatusTabChange('all')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeStatusTab === 'all'
+                ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            ALL INITIATIVES ({counts.all})
+          </button>
+          
+          <button
+            onClick={() => handleStatusTabChange('yet_to_start')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeStatusTab === 'yet_to_start'
+                ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            YET TO START ({counts.yetToStart})
+          </button>
 
-        <button
-          onClick={() => handleStatusTabChange('under_implementation')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeStatusTab === 'under_implementation'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-          }`}
-        >
-          UNDER IMPLEMENTATION ({counts.ui})
-        </button>
+          <button
+            onClick={() => handleStatusTabChange('under_implementation')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeStatusTab === 'under_implementation'
+                ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            UNDER IMPLEMENTATION ({counts.ui})
+          </button>
 
-        <button
-          onClick={() => handleStatusTabChange('completed')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeStatusTab === 'completed'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-          }`}
-        >
-          COMPLETED ({counts.completed})
-        </button>
+          <button
+            onClick={() => handleStatusTabChange('completed')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeStatusTab === 'completed'
+                ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            COMPLETED ({counts.completed})
+          </button>
 
-        <button
-          onClick={() => handleStatusTabChange('dropped')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeStatusTab === 'dropped'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-          }`}
-        >
-          DROPPED ({counts.dropped})
-        </button>
+          <button
+            onClick={() => handleStatusTabChange('dropped')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeStatusTab === 'dropped'
+                ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            DROPPED ({counts.dropped})
+          </button>
+        </div>
       </div>
 
       {/* Main Card Container */}
@@ -521,46 +536,37 @@ export default function MIVDataList({
         {/* Search, Filters and Actions Toolbar */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           
-          {/* 1. Filters */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-            {/* Organisation dropdown filter */}
-            <div className="relative min-w-[180px]">
-              <select
-                value={selectedOrg}
-                onChange={(e) => handleOrgChange(e.target.value)}
-                className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <option value="">All Organisations ({organisations.length})</option>
-                {organisations.map((org, i) => (
-                  <option key={i} value={org.organisation_name || org}>{org.organisation_name || org}</option>
-                ))}
-              </select>
-            </div>
+          {/* 1. Dedicated Filter Button */}
+          <div className="flex items-center gap-2.5 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel(prev => !prev)}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
+                showFilterPanel || activeFiltersCount > 0
+                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+              <span>Filter</span>
+              {activeFiltersCount > 0 && (
+                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFiltersCount}
+                </span>
+              )}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+            </button>
 
-            {/* Category dropdown filter */}
-            <div className="relative min-w-[150px]">
-              <select
-                value={selectedCategory}
-                onChange={(e) => handleCategoryChange(e.target.value)}
-                className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer capitalize"
-              >
-                <option value="">All Categories</option>
-                {CATEGORIES.map((cat, i) => (
-                  <option key={i} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-
-            {(selectedOrg || selectedCategory || searchTerm) && (
+            {activeFiltersCount > 0 && (
               <button
+                type="button"
                 onClick={() => {
                   setSelectedOrg('');
                   setSelectedCategory('');
-                  setSearchTerm('');
                   setCurrentPage(1);
                   triggerNotification?.('Filters have been reset', 'info');
                 }}
-                className="px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg font-bold transition cursor-pointer"
+                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
                 Reset
               </button>
@@ -570,7 +576,7 @@ export default function MIVDataList({
           {/* 2. Space */}
           <div className="hidden lg:block flex-1" />
 
-          {/* 3. Search Bar, 4. Row Count Selector, 5. Copy, 6. Export, 7. Add Button */}
+          {/* 3. Search Bar, 4. Row Count Selector, 5. Total Badge, 6. View Mode Toggle, 7. Visibility, 8. Copy, 9. Export */}
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
             
             {/* Search Input */}
@@ -611,9 +617,15 @@ export default function MIVDataList({
               </select>
             </div>
 
+            {/* Total Count Badge */}
+            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+              Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{totalCount}</span>
+            </div>
+
             {/* View Mode Toggle */}
             <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
               <button
+                type="button"
                 onClick={() => setViewMode('table')}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   viewMode === 'table'
@@ -625,6 +637,7 @@ export default function MIVDataList({
                 <span>Table</span>
               </button>
               <button
+                type="button"
                 onClick={() => setViewMode('visualisation')}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   viewMode === 'visualisation'
@@ -640,6 +653,7 @@ export default function MIVDataList({
             {/* Visibility checklist */}
             <div className="relative" ref={colDropdownRef}>
               <button
+                type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
               >
@@ -647,7 +661,8 @@ export default function MIVDataList({
                 <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
               </button>
               {dropdownOpen && (
-                <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                <div className="absolute right-0 mt-1.5 w-56 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1">Toggle Columns</span>
                   {Object.keys(visibleCols).map(col => (
                     <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
                       <input
@@ -656,7 +671,16 @@ export default function MIVDataList({
                         onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
                         className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
-                      <span>{col}</span>
+                      <span>
+                        {col === 'sNo' ? 'S.No' :
+                         col === 'org' ? 'Organisation Name' :
+                         col === 'name' ? 'Activity / Initiative Name' :
+                         col === 'cost' ? 'Total Cost (₹ Cr)' :
+                         col === 'category' ? 'Category' :
+                         col === 'progress' ? 'Progress' :
+                         col === 'status' ? 'Status' :
+                         col === 'updatedDate' ? 'Updated Date' : col}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -679,18 +703,69 @@ export default function MIVDataList({
               triggerNotification={triggerNotification}
             />
 
-            {/* Add Initiative CTA */}
-            {onAddNew && (
-              <button
-                onClick={onAddNew}
-                className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-[#0f417a] hover:from-blue-700 hover:to-[#0a2e56] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer whitespace-nowrap"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Initiative</span>
-              </button>
-            )}
           </div>
         </div>
+
+        {/* Collapsible Filter Panel */}
+        {showFilterPanel && (
+          <div className="bg-slate-50/90 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 animate-fade-in space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Filter className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                  Filter Initiatives
+                </span>
+              </div>
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedOrg('');
+                    setSelectedCategory('');
+                    setCurrentPage(1);
+                    triggerNotification?.('Filters have been reset', 'info');
+                  }}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center space-x-1 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Reset All Filters</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {/* 1. Organisation Filter */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">Lead Organisation</label>
+                <select
+                  value={selectedOrg}
+                  onChange={(e) => handleOrgChange(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">All Organisations ({organisations.length})</option>
+                  {organisations.map((org, i) => (
+                    <option key={i} value={org.organisation_name || org}>{org.organisation_name || org}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Category Filter */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">Category</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer capitalize"
+                >
+                  <option value="">All Categories</option>
+                  {CATEGORIES.map((cat, i) => (
+                    <option key={i} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* View Mode Content */}
         {viewMode === 'table' ? (
@@ -802,7 +877,7 @@ export default function MIVDataList({
               </div>
 
               <div className="text-xs text-slate-500 dark:text-slate-400 italic bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                Click on <strong>Table</strong> view to inspect line-by-line milestones, project documents, or click <strong>Add Initiative</strong> to register new deliverables.
+                Click on <strong>Table</strong> view to inspect line-by-line milestones, project documents, and progress tracking.
               </div>
             </div>
 

@@ -116,6 +116,137 @@ export function validateEOfficeHeaders(firstRow, activeKpi = "file-pendency") {
   return { valid: missing.length === 0, missing };
 }
 
+// Finds the actual column key in a row object that matches one of the
+// canonical field names, since uploaded sheets can use varying header text.
+function findKey(row, candidates) {
+  const rowKeys = Object.keys(row);
+  for (const candidate of candidates) {
+    const match = rowKeys.find(k => k.trim() === candidate);
+    if (match) return match;
+  }
+  const normCandidate = candidates[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+  return rowKeys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '').includes(normCandidate));
+}
+
+function isValidInteger(val) {
+  if (val === null || val === undefined || val === '') return false;
+  const n = Number(val);
+  return Number.isInteger(n);
+}
+
+const summarizeRows = (rowNums, max = 8) => {
+  if (rowNums.length <= max) return rowNums.join(', ');
+  return `${rowNums.slice(0, max).join(', ')} and ${rowNums.length - max} more`;
+};
+
+// Row-level validation mirroring the backend's confirmed, active rules per
+// KPI type (checked directly against eOfficeFilePendancy.js,
+// eOfficeReceiptPendancy.js, and eOfficeFileDisposal.js):
+//  - file-pendency / receipt-pendency: 6 numeric pendency-day columns must
+//    all be integers; a row whose Emp Id is exactly "Total" is exempt
+//    (both KPIs expect a trailing summary row).
+//  - file-disposal: 2 numeric columns (Count of Transactions, Counts of
+//    Files) must be integers. Confirmed the backend for this KPI has no
+//    "Total" row exception at all, unlike the other two -- so none is
+//    applied here either, to stay accurate to what the server will
+//    actually accept.
+//  - All three: duplicate Emp Ids are rejected.
+// Returns every distinct failing condition found, not just the first.
+export function validateEOfficeRows(rows, activeKpi = 'file-pendency') {
+  const issues = [];
+  if (!rows || rows.length === 0) return issues;
+
+  const empIdKey = findKey(rows[0], ['Emp Id', 'EmpId', 'Emp_Id']);
+
+  const seenEmpIds = new Map();
+  const duplicateEmpIds = new Set();
+  const invalidEmpIdRows = [];
+
+  if (activeKpi === 'file-disposal') {
+    const transKey = findKey(rows[0], ['Count of Transactions', 'CountOfTransactions']);
+    const filesKey = findKey(rows[0], ['Counts of Files', 'CountsOfFiles']);
+    const invalidTransRows = [];
+    const invalidFilesRows = [];
+
+    rows.forEach((row, idx) => {
+      const rowNum = idx + 2;
+      const empIdRaw = empIdKey ? row[empIdKey] : undefined;
+      const empIdStr = String(empIdRaw ?? '').trim();
+
+      if (!empIdStr || typeof empIdRaw !== 'string') {
+        invalidEmpIdRows.push(rowNum);
+      } else if (seenEmpIds.has(empIdStr)) {
+        duplicateEmpIds.add(empIdStr);
+      } else {
+        seenEmpIds.set(empIdStr, rowNum);
+      }
+
+      if (!isValidInteger(transKey ? row[transKey] : undefined)) invalidTransRows.push(rowNum);
+      if (!isValidInteger(filesKey ? row[filesKey] : undefined)) invalidFilesRows.push(rowNum);
+    });
+
+    if (invalidEmpIdRows.length > 0) {
+      issues.push({ field: 'Emp Id', message: `Must be text, not a number. Invalid in row(s): ${summarizeRows(invalidEmpIdRows)}.` });
+    }
+    if (duplicateEmpIds.size > 0) {
+      issues.push({ field: 'Emp Id (duplicates)', message: `Duplicate Emp Id(s) found: ${summarizeRows([...duplicateEmpIds])}. Each Emp Id must appear only once.` });
+    }
+    if (invalidTransRows.length > 0) {
+      issues.push({ field: 'Count of Transactions', message: `Must be a whole number. Invalid in row(s): ${summarizeRows(invalidTransRows)}.` });
+    }
+    if (invalidFilesRows.length > 0) {
+      issues.push({ field: 'Counts of Files', message: `Must be a whole number. Invalid in row(s): ${summarizeRows(invalidFilesRows)}.` });
+    }
+    return issues;
+  }
+
+  // file-pendency / receipt-pendency: 6 numeric pendency-day columns
+  const cols = [
+    { key: findKey(rows[0], ['0 - 3 Days', '0-3 Days']), label: '0 - 3 Days' },
+    { key: findKey(rows[0], ['4 - 6 Days', '4-6 Days']), label: '4 - 6 Days' },
+    { key: findKey(rows[0], ['7 - 15 Days', '7-15 Days']), label: '7 - 15 Days' },
+    { key: findKey(rows[0], ['16 - 30 Days', '16-30 Days']), label: '16 - 30 Days' },
+    { key: findKey(rows[0], ['> 30 days', '>30 days']), label: '> 30 days' },
+    { key: findKey(rows[0], ['Total Pendency']), label: 'Total Pendency' },
+  ];
+  const invalidByCol = cols.map(() => []);
+
+  rows.forEach((row, idx) => {
+    const rowNum = idx + 2;
+    const empIdRaw = empIdKey ? row[empIdKey] : undefined;
+    const empIdStr = String(empIdRaw ?? '').trim();
+    const isTotalRow = empIdStr === 'Total';
+
+    if (!isTotalRow) {
+      if (!empIdStr || typeof empIdRaw !== 'string') {
+        invalidEmpIdRows.push(rowNum);
+      } else if (seenEmpIds.has(empIdStr)) {
+        duplicateEmpIds.add(empIdStr);
+      } else {
+        seenEmpIds.set(empIdStr, rowNum);
+      }
+
+      cols.forEach((col, i) => {
+        if (!isValidInteger(col.key ? row[col.key] : undefined)) invalidByCol[i].push(rowNum);
+      });
+    }
+  });
+
+  if (invalidEmpIdRows.length > 0) {
+    issues.push({ field: 'Emp Id', message: `Must be text, not a number. Invalid in row(s): ${summarizeRows(invalidEmpIdRows)}.` });
+  }
+  if (duplicateEmpIds.size > 0) {
+    issues.push({ field: 'Emp Id (duplicates)', message: `Duplicate Emp Id(s) found: ${summarizeRows([...duplicateEmpIds])}. Each Emp Id must appear only once (the "Total" summary row is exempt).` });
+  }
+  cols.forEach((col, i) => {
+    if (invalidByCol[i].length > 0) {
+      issues.push({ field: col.label, message: `Must be a whole number. Invalid in row(s): ${summarizeRows(invalidByCol[i])}.` });
+    }
+  });
+
+  return issues;
+}
+
 export function getKpiPrefix(kpi) {
   switch (kpi) {
     case "file-pendency":

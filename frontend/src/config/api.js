@@ -6,3 +6,6 @@ export const AI_QUERY_API_BASE = import.meta.env.VITE_AI_QUERY_API_URL || 'https
 export const AI_MODULE_QUERY_ENDPOINT = `${AI_QUERY_API_BASE}/api/module-query`;
 
 export default API_BASE_URL;
+
+
+

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Search, X, Edit, BarChart3, List, ChevronDown } from 'lucide-react';
+import { Search, X, Edit, BarChart3, List, ChevronDown, Filter } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
@@ -61,12 +61,15 @@ export default function DataList({
   }, [searchQuery]);
 
   const [activeCategory, setActiveCategory] = useState('active'); // 'active' | 'disposed'
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   useEffect(() => {
     if (activeCategory === 'disposed') {
       setSelectedStage('All');
     }
   }, [activeCategory]);
+
+  const activeFiltersCount = (selectedWing !== 'All' ? 1 : 0) + (selectedDivision !== 'All' ? 1 : 0) + (selectedStage !== 'All' ? 1 : 0);
 
   // Column visibility checklist
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -116,6 +119,14 @@ export default function DataList({
             5: r.reply_furnished_date ? new Date(r.reply_furnished_date).toISOString().split('T')[0] : '',
             6: r.disposed_date ? new Date(r.disposed_date).toISOString().split('T')[0] : ''
           };
+          const remarksByStage = {
+          1: r.vip_received_ministry_remark || '',
+          2: r.vip_submitted_for_approval_remark || '',
+          3: r.vip_comments_sought_remark || '',
+          4: r.vip_comments_received_remark || '',
+          5: r.vip_reply_furnished_remark || '',
+          6: r.vip_disposed_remark || ''
+        };
           return {
             sNo: idx + 1,
             id: r.vip_reference_id,
@@ -129,6 +140,7 @@ export default function DataList({
             deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
             stageSteps: steps,
             statusDates: dates,
+            statusRemarks: remarksByStage,
             lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
           };
         });
@@ -157,11 +169,13 @@ export default function DataList({
 
   // Dynamically filter divisions based on selected wing
   const filteredDivisions = useMemo(() => {
-    if (selectedWing === 'All') return localDivisions;
-    const selectedWingObj = localWings.find(w => w.wing_name === selectedWing);
+    if (selectedWing === 'All') return divisions.map(d => d.division_name);
+    const selectedWingObj = wings.find(w => w.wing_name === selectedWing);
     if (!selectedWingObj) return [];
-    return localDivisions.filter(d => String(d.wing_id) === String(selectedWingObj.wing_id));
-  }, [selectedWing, localWings, localDivisions]);
+    return divisions
+      .filter(d => d.wing_id === selectedWingObj.wing_id)
+      .map(d => d.division_name);
+  }, [selectedWing, wings, divisions]);
 
   // Instant client-side filtering based on Wing, Division, Status / Stage, Category, and Search
   const filteredData = useMemo(() => {
@@ -352,16 +366,18 @@ export default function DataList({
     {
       headerName: 'S.No',
       valueGetter: 'node.rowIndex + 1',
-      width: 70,
-      minWidth: 70,
+      width: 80,
+      minWidth: 80,
       maxWidth: 80,
+      pinned: 'left',
+      suppressSizeToFit: true,
       cellClass: 'text-center flex items-center justify-center font-bold text-slate-700 dark:text-slate-200 font-mono border-r border-slate-100 dark:border-slate-800'
     },
     {
       headerName: 'Subject of VIP Reference',
       field: 'subject',
-      flex: 2,
-      minWidth: 260,
+      width: 480,
+      minWidth: 420,
       wrapText: true,
       autoHeight: true,
       cellClass: 'font-semibold text-slate-800 dark:text-slate-100 flex items-center py-2.5 border-r border-slate-100 dark:border-slate-800 whitespace-normal leading-relaxed',
@@ -370,31 +386,37 @@ export default function DataList({
     {
       headerName: 'E-Office File No',
       field: 'eofficeFile',
-      width: 150,
-      minWidth: 140,
+      width: 200,
+      minWidth: 180,
       cellClass: 'text-center flex items-center justify-center font-mono font-bold text-blue-700 dark:text-blue-400 border-r border-slate-100 dark:border-slate-800'
     },
     {
       headerName: 'Wing',
       field: 'wing',
-      width: 140,
-      minWidth: 130,
+      width: 190,
+      minWidth: 160,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-center flex items-center justify-center font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800',
       hide: !visibleCols.wing
     },
     {
       headerName: 'Division',
       field: 'division',
-      width: 150,
-      minWidth: 140,
+      width: 210,
+      minWidth: 180,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-center flex items-center justify-center font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800',
       hide: !visibleCols.division
     },
     {
       headerName: 'Current Stage',
       field: 'stageSteps',
-      width: 180,
-      minWidth: 170,
+      width: 240,
+      minWidth: 200,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-center flex items-center justify-center font-bold border-r border-slate-100 dark:border-slate-800',
       hide: !visibleCols.stage,
       cellRenderer: (params) => {
@@ -407,16 +429,16 @@ export default function DataList({
     {
       headerName: 'Reference Letter Number',
       field: 'refNumber',
-      width: 190,
-      minWidth: 180,
+      width: 230,
+      minWidth: 190,
       cellClass: 'text-center flex items-center justify-center border-r border-slate-100 dark:border-slate-800 font-medium',
       hide: !visibleCols.refNumber
     },
     {
       headerName: 'Received From',
       field: 'receivedFrom',
-      width: 200,
-      minWidth: 180,
+      width: 260,
+      minWidth: 220,
       wrapText: true,
       autoHeight: true,
       cellClass: 'text-slate-600 dark:text-slate-300 flex items-center py-2 border-r border-slate-100 dark:border-slate-800 font-semibold whitespace-normal',
@@ -425,8 +447,8 @@ export default function DataList({
     {
       headerName: 'Remarks',
       field: 'remarks',
-      width: 200,
-      minWidth: 180,
+      width: 380,
+      minWidth: 320,
       wrapText: true,
       autoHeight: true,
       cellClass: 'text-slate-500 dark:text-slate-400 flex items-center py-2 border-r border-slate-100 dark:border-slate-800 font-medium whitespace-normal',
@@ -436,8 +458,8 @@ export default function DataList({
     {
       headerName: 'Deadline',
       field: 'deadline',
-      width: 130,
-      minWidth: 120,
+      width: 150,
+      minWidth: 130,
       cellClass: 'text-center flex items-center justify-center border-r border-slate-100 dark:border-slate-800 font-medium',
       hide: !visibleCols.deadline,
       valueFormatter: (params) => params.value || '--'
@@ -445,16 +467,16 @@ export default function DataList({
     {
       headerName: 'Last Updated Date',
       field: 'lastUpdated',
-      width: 150,
-      minWidth: 140,
+      width: 170,
+      minWidth: 150,
       cellClass: 'text-center flex items-center justify-center border-r border-slate-100 dark:border-slate-800 font-medium',
       hide: !visibleCols.lastUpdated
     },
     {
       headerName: 'Action',
       field: 'id',
-      width: 80,
-      minWidth: 80,
+      width: 90,
+      minWidth: 90,
       pinned: 'right',
       cellClass: 'text-center flex items-center justify-center',
       cellRenderer: (params) => (
@@ -500,91 +522,33 @@ export default function DataList({
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
 
-        {/* Search & Actions Row with Wing, Division, Status & Search Filters */}
+        {/* Search & Actions Row matching YP / GMIS format */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-
-          {/* Left Cluster: Wing, Division, Status & Search Filters */}
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 w-full lg:w-auto">
-            
-            {/* Wing Filter */}
-            <div className="relative">
-              <select
-                value={selectedWing}
-                onChange={(e) => {
-                  setSelectedWing(e.target.value);
-                  setSelectedDivision('All');
-                }}
-                className="appearance-none text-xs pl-3 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer min-w-[130px]"
-              >
-                <option value="All">All Wings</option>
-                {localWings.map(w => (
-                  <option key={w.wing_id || w.wing_name} value={w.wing_name}>
-                    {w.wing_name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
-
-            {/* Division Filter */}
-            <div className="relative">
-              <select
-                value={selectedDivision}
-                onChange={(e) => setSelectedDivision(e.target.value)}
-                className="appearance-none text-xs pl-3 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer min-w-[130px]"
-              >
-                <option value="All">All Divisions</option>
-                {filteredDivisions.map(d => (
-                  <option key={d.division_id || d.division_name || d} value={d.division_name || d}>
-                    {d.division_name || d}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
-
-            {/* Status / Stage Filter */}
-            <div className="relative">
-              <select
-                value={selectedStage}
-                onChange={(e) => setSelectedStage(e.target.value)}
-                className="appearance-none text-xs pl-3 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer min-w-[130px]"
-              >
-                <option value="All">All Statuses</option>
-                {Object.values(STAGE_STEPS)
-                  .filter(stage => activeCategory === 'disposed' ? stage === 'Disposed' : stage !== 'Disposed')
-                  .map(stage => (
-                    <option key={stage} value={stage}>{stage}</option>
-                  ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
-
-            {/* Search Input */}
-            <div className="relative min-w-[160px] max-w-xs flex-1">
-              <input
-                type="text"
-                placeholder="Search Subject / File..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full text-xs pl-8 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
-              />
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+          
+          {/* 1. Left: Dedicated Filter Button + Reset */}
+          <div className="flex items-center gap-2.5 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel(prev => !prev)}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
+                showFilterPanel || activeFiltersCount > 0
+                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+              <span>Filter</span>
+              {activeFiltersCount > 0 && (
+                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFiltersCount}
+                </span>
               )}
-            </div>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+            </button>
 
-            {/* Clear Filters Button */}
-            {hasActiveFilters && (
+            {activeFiltersCount > 0 && (
               <button
                 type="button"
                 onClick={() => {
@@ -592,18 +556,42 @@ export default function DataList({
                   setSelectedDivision('All');
                   setSelectedStage('All');
                   setSearchQuery('');
+                  triggerNotification?.('Filters have been reset', 'info');
                 }}
-                className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2.5 py-2 rounded-lg border border-rose-200 hover:bg-rose-50 transition cursor-pointer"
+                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
-                <X className="h-3 w-3" />
-                <span>Clear filters</span>
+                Reset
               </button>
             )}
           </div>
 
-          {/* Right Cluster: Rows Select + Total Badge + Copy + Visibility + Export + Chart/Table Toggle */}
-          <div className="flex flex-wrap items-center gap-2 flex-shrink-0 w-full lg:w-auto justify-end">
+          {/* 2. Middle Spacer */}
+          <div className="hidden lg:block flex-1" />
+
+          {/* 3. Right: Search Input + Row Count + Total + Visibility + Copy + Export + View Toggle */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
             
+            {/* Search Input */}
+            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search Subject / File..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
             {/* Rows Limit Select Dropdown */}
             <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
@@ -620,23 +608,16 @@ export default function DataList({
             </div>
 
             {/* Total Count Badge */}
-            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
-              Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{filteredData.length}</span>
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              Total: {filteredData.length}
             </div>
 
-            {/* Copy Button */}
-            <CopyButton
-              onCopy={() => handleExport('Copy')}
-              color="#0f417a"
-              hoverBg="#f1f5f9"
-            />
-
-            {/* Visibility Checklist */}
+            {/* Column Visibility Dropdown */}
             <div className="relative" ref={colDropdownRef}>
               <button
                 type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <span>Visibility</span>
                 <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
@@ -657,6 +638,13 @@ export default function DataList({
                 </div>
               )}
             </div>
+
+            {/* Copy Button */}
+            <CopyButton
+              onCopy={() => handleExport('Copy')}
+              color="#0f417a"
+              hoverBg="#f1f5f9"
+            />
 
             {/* Export Dropdown */}
             <ExportDropdown
@@ -685,8 +673,83 @@ export default function DataList({
                 <BarChart3 className="h-4 w-4" />
               </button>
             </div>
+
           </div>
         </div>
+
+        {/* Collapsible Filter Panel matching YP / GMIS style */}
+        {showFilterPanel && (
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
+            {/* Wing Selector */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Wing
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedWing}
+                  onChange={(e) => {
+                    setSelectedWing(e.target.value);
+                    setSelectedDivision('All');
+                  }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="All">All Wings</option>
+                  {localWings.map(w => (
+                    <option key={w.wing_id || w.wing_name} value={w.wing_name}>
+                      {w.wing_name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
+
+            {/* Division Selector */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Division
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedDivision}
+                  onChange={(e) => setSelectedDivision(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="All">All Divisions</option>
+                  {filteredDivisions.map(d => (
+                    <option key={d.division_id || d.division_name || d} value={d.division_name || d}>
+                      {d.division_name || d}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
+
+            {/* Status / Stage Filter */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Status / Stage
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedStage}
+                  onChange={(e) => setSelectedStage(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="All">All Statuses</option>
+                  {Object.values(STAGE_STEPS)
+                    .filter(stage => activeCategory === 'disposed' ? stage === 'Disposed' : stage !== 'Disposed')
+                    .map(stage => (
+                      <option key={stage} value={stage}>{stage}</option>
+                    ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* View Mode: Table vs Chart */}
         {viewMode === 'table' ? (

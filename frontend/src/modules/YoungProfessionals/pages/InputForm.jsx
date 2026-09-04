@@ -594,25 +594,30 @@ export default function InputForm({
           )}
         </div>
 
-        <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={onBack}
-            className="px-4.5 py-2.5 border border-slate-250 dark:border-slate-800 text-slate-655 dark:text-slate-400 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer"
-          >
-            Discard
-          </button>
-          <button
-            type="submit"
-            disabled={isFormDisabled}
-            className={`px-5.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              isFormDisabled
-                ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-550 cursor-not-allowed border border-slate-200 dark:border-slate-700'
-                : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg dark:bg-[#0f417a] dark:hover:bg-[#0a2d55]'
-            }`}
-          >
-            {isEdit ? (submitting ? 'Updating...' : 'Update Young Professional') : (submitting ? 'Saving...' : 'Save Young Professional')}
-          </button>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 border-t border-slate-100 dark:border-slate-800">
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="px-4.5 py-2.5 border border-slate-250 dark:border-slate-800 text-slate-655 dark:text-slate-400 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer"
+            >
+              Discard
+            </button>
+            <button
+              type="submit"
+              disabled={isFormDisabled}
+              className={`px-5.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                isFormDisabled
+                  ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-550 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                  : 'bg-[#0f417a] hover:bg-[#1a5ba3] text-white shadow-md shadow-blue-900/10 hover:shadow-lg dark:bg-[#0f417a] dark:hover:bg-[#0a2d55]'
+              }`}
+            >
+              {isEdit ? (submitting ? 'Updating...' : 'Update Young Professional') : (submitting ? 'Saving...' : 'Save Young Professional')}
+            </button>
+          </div>
         </div>
       </form>
     </div>

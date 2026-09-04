@@ -9,6 +9,7 @@ import {
   TAB_USER_LIST,
 } from '../utils/moduleAccess';
 import { canCreateModule } from '../utils/modulePermissions';
+import { getDataScopeCode } from '../utils/authSession';
 import {
   Home,
   Briefcase,
@@ -54,6 +55,7 @@ import {
   Menu,
   Target,
   BarChart3,
+  PlusCircle,
   X
 } from 'lucide-react';
 
@@ -82,6 +84,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const [expandedMenus, setExpandedMenus] = useState({});
 
   const isOrgUser = useMemo(() => {
+    const scope = String(getDataScopeCode() || '').toUpperCase();
+    if (scope === 'ORGANISATION') return true;
+    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
     const roleId = getLoggedInUserRole();
     return roleId === 6 || roleId === 7;
   }, []);
@@ -90,6 +95,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateCabinetMopsw = canCreateModule('CABINET_NOTES_MOPSW');
   const canCreateConsultant = canCreateModule('CONSULTANT_APPOINTMENT');
   const canCreateYp = canCreateModule('YOUNG_PROFESSIONAL');
+  const canCreateCapex = canCreateModule('CAPEX');
 
   const accessKey = (() => {
     try {
@@ -97,9 +103,9 @@ export default function Tabs({ activeTab, setActiveTab }) {
       if (!t) return '';
       const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       const codes = payload?.allowedModuleCodes;
-      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}`;
+      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
     } catch {
-      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}`;
+      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}|ypCreate:${canCreateYp ? 1 : 0}|cxCreate:${canCreateCapex ? 1 : 0}`;
     }
   })();
 
@@ -130,26 +136,31 @@ export default function Tabs({ activeTab, setActiveTab }) {
         {
           title: 'CSR Project',
           icon: Heart,
-          items: [
-            m('CSR_PROJECTS', { label: 'CSR Dashboard', icon: LayoutDashboard }),
-            m('CSR_PROJECTS', { label: 'CSR Fund Details', icon: Coins }),
-            m('CSR_PROJECTS', { label: 'CSR Project List', icon: ListTodo }),
-            m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Reports', icon: FilePieChart }),
-          ]
+          items: isOrgUser
+            ? [
+                m('CSR_PROJECTS', { label: 'CSR Dashboard', tab: 'CSR Dashboard', icon: LayoutDashboard }),
+                m('CSR_PROJECTS', { label: 'CSR Fund Details', tab: 'CSR Fund Details', icon: Coins }),
+                m('CSR_PROJECTS', { label: 'CSR Project List', tab: 'CSR Project List', icon: ListTodo }),
+                m('CSR_PROJECTS', { label: 'Input Form', tab: 'CSR Input Form', icon: PlusCircle }),
+                m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Reports', icon: FilePieChart }),
+              ]
+            : [
+                m('CSR_PROJECTS', { label: 'CSR Dashboard', tab: 'CSR Dashboard', icon: LayoutDashboard }),
+                m('CSR_PROJECTS', { label: 'CSR Fund Details', tab: 'CSR Fund Details', icon: Coins }),
+                m('CSR_PROJECTS', { label: 'CSR Project List', tab: 'CSR Project List', icon: ListTodo }),
+                m('CSR_PROJECTS', { label: 'Reports', tab: 'CSR Reports', icon: FilePieChart }),
+              ],
         },
         {
           title: 'Capex',
           icon: Coins,
-          items: isOrgUser
-            ? [
-                m('CAPEX', { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex' }),
-                m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex' }),
-              ]
-            : [
-                m('CAPEX', { label: 'Capex Dashboard', icon: LayoutDashboard, tab: 'Capex' }),
-                m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex' }),
-                m('CAPEX', { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex' }),
-              ]
+          items: [
+            m('CAPEX', { label: 'Capex Datalist', icon: ClipboardList, tab: 'Capex Datalist' }),
+            ...(canCreateCapex && !isOrgUser
+              ? [m('CAPEX', { label: 'Capex Input Form', icon: FileEdit, tab: 'Capex Input Form' })]
+              : []),
+            m('CAPEX', { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex Reports' }),
+          ],
         },
         {
           title: 'Expenditure',
@@ -362,6 +373,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
         m('BILLS_PRE_CONSTITUTION', {
           label: 'Bills/PreConstitutions Act', icon: BookMarked,
           targetTab: 'Bills/PreConstitutions Act',
+          clickableHeader: true,
           subItems: [
             { label: 'Data List', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Data List', icon: ClipboardList },
             { label: 'Input Form', tab: 'Bills/PreConstitutions Act', targetSubTab: 'Input Form', icon: FileEdit },
@@ -383,12 +395,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Target,
           targetTab: 'MIV 2030',
           subItems: [
-            { label: 'Dashboard', tab: 'MIV 2030', targetSubTab: 'Dashboard', icon: LayoutDashboard },
-            { label: 'Data List', tab: 'MIV 2030', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'MIV 2030', targetSubTab: 'Input Form', icon: FileEdit },
-            { label: 'MIV Meetings', tab: 'MIV 2030', targetSubTab: 'MIV Meetings', icon: Users },
-            { label: 'Organisation Report', tab: 'MIV 2030', targetSubTab: 'Organisation Report', icon: FilePieChart },
-            { label: 'Theme Report', tab: 'MIV 2030', targetSubTab: 'Theme Report', icon: BarChart3 },
+            { label: 'Dashboard', tab: 'MIV Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Data List', tab: 'MIV Data List', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'MIV Input Form', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'MIV Meetings', tab: 'MIV Meetings', targetSubTab: 'MIV Meetings', icon: Users },
+            { label: 'Report', tab: 'MIV Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
         m('GMIS_IMW_MOU_TRACKING', {
@@ -400,6 +411,19 @@ export default function Tabs({ activeTab, setActiveTab }) {
             { label: 'Data List', tab: 'GMIS & IMW MoUs', targetSubTab: 'Data List', icon: ClipboardList },
             { label: 'Input Form', tab: 'GMIS & IMW MoUs', targetSubTab: 'Input Form', icon: FileEdit },
             { label: 'Reports', tab: 'GMIS & IMW MoUs', targetSubTab: 'Reports', icon: FilePieChart },
+          ]
+        }),
+        m('DRISHTI_PORTAL', {
+          label: 'Drishti Portal (OVOD)',
+          icon: Globe,
+          tab: 'Drishti Portal',
+          targetTab: 'Drishti Portal',
+          subItems: [
+            { label: 'Dashboard', tab: 'Drishti Portal', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Intervention List', tab: 'Drishti Portal', targetSubTab: 'Interventions', icon: ClipboardList },
+            { label: 'Input Form', tab: 'Drishti Portal', targetSubTab: 'Input-Form', icon: FileEdit },
+            { label: 'Data List', tab: 'Drishti Portal', targetSubTab: 'Data-List', icon: Layers },
+            { label: 'Report', tab: 'Drishti Portal', targetSubTab: 'Report', icon: FilePieChart },
           ]
         }),
         m('AKV_2047', { label: 'Vision 2047', icon: Milestone }),
@@ -481,7 +505,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       ],
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp]
+    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex]
   );
 
   const handleItemClick = (tabOrLabel) => {
@@ -671,9 +695,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                 </button>
                                 {/* Flyout sub-panel on hover */}
                                 <div className="absolute left-full top-0 ml-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl p-3 z-[60] transition-all duration-200 origin-left scale-95 opacity-0 invisible group-hover/flyout:scale-100 group-hover/flyout:opacity-100 group-hover/flyout:visible space-y-1">
-                                  <h5 className="text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2">
-                                    {item.label}
-                                  </h5>
+                                  {item.clickableHeader ? (
+                                    <button
+                                      onClick={() => { handleItemClick(item.tab ?? item.label); setIsOpen(false); }}
+                                      className="w-full text-left text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2 hover:text-blue-600 dark:hover:text-blue-300 transition-colors cursor-pointer"
+                                    >
+                                      {item.label}
+                                    </button>
+                                  ) : (
+                                    <h5 className="text-[10px] font-extrabold text-[#0f417a] dark:text-blue-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 pb-1.5 mb-2">
+                                      {item.label}
+                                    </h5>
+                                  )}
                                   {item.subItems.map((sub, sIdx) => {
                                     const SubIcon = sub.icon;
                                     return (
@@ -711,14 +744,14 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                               sub.targetSubTab
                                             );
                                             window.dispatchEvent(
-                                                new CustomEvent('cabinet-notes-mopsw-subtab', {
-                                                  detail: sub.targetSubTab,
-                                                })
-                                              );
-                                            }
-                                            if (
-                                              sub.targetSubTab &&
-                                              (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
+                                              new CustomEvent('cabinet-notes-mopsw-subtab', {
+                                                detail: sub.targetSubTab,
+                                              })
+                                            );
+                                          }
+                                          if (
+                                            sub.targetSubTab &&
+                                            (mainTab === 'MIV 2030' || mainTab === 'MIV2030')
                                           ) {
                                             sessionStorage.setItem(
                                               'miv2030InitTab',
@@ -740,6 +773,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                             );
                                             window.dispatchEvent(
                                               new CustomEvent('gmis-mou-subtab', {
+                                                detail: sub.targetSubTab,
+                                              })
+                                            );
+                                          }
+                                          if (
+                                            sub.targetSubTab &&
+                                            mainTab === 'Bills/PreConstitutions Act'
+                                          ) {
+                                            sessionStorage.setItem(
+                                              'billsPreConstitutionsInitTab',
+                                              sub.targetSubTab
+                                            );
+                                            window.dispatchEvent(
+                                              new CustomEvent('bills-preconstitutions-subtab', {
                                                 detail: sub.targetSubTab,
                                               })
                                             );
@@ -1048,6 +1095,20 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                                 );
                                                 window.dispatchEvent(
                                                   new CustomEvent('miv2030-subtab', {
+                                                    detail: sub.targetSubTab,
+                                                  })
+                                                );
+                                              }
+                                              if (
+                                                sub.targetSubTab &&
+                                                mainTab === 'Bills/PreConstitutions Act'
+                                              ) {
+                                                sessionStorage.setItem(
+                                                  'billsPreConstitutionsInitTab',
+                                                  sub.targetSubTab
+                                                );
+                                                window.dispatchEvent(
+                                                  new CustomEvent('bills-preconstitutions-subtab', {
                                                     detail: sub.targetSubTab,
                                                   })
                                                 );

@@ -9,7 +9,7 @@ import { getCurrentUserId } from '../../../utils/authSession';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import MIVDetailModal from '../components/MIVDetailModal';
-import { fetchThemeWiseMIVAbstractReport, fetchThemeWiseMIVDetailedReport } from '../api';
+import { getThemeWiseMIVPerformanceReport} from '../api';
 
 export default function MIVThemeReport({ triggerNotification }) {
   const [loading, setLoading] = useState(true);
@@ -34,7 +34,7 @@ export default function MIVThemeReport({ triggerNotification }) {
     setLoading(true);
     const userId = getCurrentUserId() || 1;
 
-    fetchThemeWiseMIVAbstractReport(userId)
+    getThemeWiseMIVPerformanceReport(userId)
       .then(res => {
         const rows = Array.isArray(res.data) ? res.data : (res.data?.rowData || []);
         setReportData(rows);
@@ -242,7 +242,7 @@ export default function MIVThemeReport({ triggerNotification }) {
               data={exportData.rows}
               headers={exportData.headers}
               onSuccess={() => triggerNotification?.("Theme Report copied to clipboard!")}
-              color="#0f417a"
+              color="#4b2424"
               className="!rounded-xl !py-2 !px-3.5 shadow-sm"
             />
 
@@ -252,7 +252,7 @@ export default function MIVThemeReport({ triggerNotification }) {
               fileName={`Form_2A_Theme_Report_${todayDateStr}`}
               title="Form No.: 2A - Theme Wise (Abstract) - Status of Maritime India Vision 2030"
               triggerNotification={triggerNotification}
-              color="#0f417a"
+              color="#4b2424"
             />
 
             <button
@@ -269,28 +269,28 @@ export default function MIVThemeReport({ triggerNotification }) {
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-inner">
           <table className="w-full text-center text-xs border-collapse select-text">
             
-            <thead className="bg-[#0f417a] text-white uppercase text-[11px] font-extrabold tracking-tight">
+            <thead className="bg-[#4b2424] text-white uppercase text-[11px] font-extrabold tracking-tight">
               {/* Row 1 */}
               <tr className="border-b border-blue-900/40 divide-x divide-blue-800/40">
                 <th rowSpan={2} className="py-3 px-2 text-center" style={{ width: '5%' }}>Theme ID</th>
                 <th rowSpan={2} className="py-3 px-3 text-left" style={{ width: '18%' }}>Theme Name</th>
                 <th rowSpan={2} className="py-3 px-2 text-center" style={{ width: '8%' }}>Total Initiatives</th>
                 <th rowSpan={2} className="py-3 px-2 text-center" style={{ width: '8%' }}>Total Cost (in Cr.)</th>
-                <th colSpan={2} className="py-2.5 px-3 text-center bg-[#0c3666]">Status as on 1st April 2023</th>
-                <th colSpan={6} className="py-2.5 px-3 text-center bg-[#092b52]">Status as on {todayDateStr}</th>
+                <th colSpan={2} className="py-2.5 px-3 text-center bg-[#4b2424]">Status as on 1st April 2023</th>
+                <th colSpan={6} className="py-2.5 px-3 text-center bg-[#4b2424]">Status as on {todayDateStr}</th>
               </tr>
 
               {/* Row 2 */}
               <tr className="border-b border-blue-900/40 divide-x divide-blue-800/40 text-[10px] font-bold">
-                <th className="py-2 px-2 bg-[#0c3666]/90" style={{ width: '7%' }}>Number of Initiatives Under Implementation</th>
-                <th className="py-2 px-2 bg-[#0c3666]/90" style={{ width: '7%' }}>Number of Initiatives Completed</th>
+                <th className="py-2 px-2 bg-[#4b2424]/90" style={{ width: '7%' }}>Number of Initiatives Under Implementation</th>
+                <th className="py-2 px-2 bg-[#4b2424]/90" style={{ width: '7%' }}>Number of Initiatives Completed</th>
 
-                <th className="py-2 px-2 bg-[#092b52]/90" style={{ width: '8%' }}>No. of Initiative To Be Completed</th>
-                <th className="py-2 px-2 bg-[#092b52]/90" style={{ width: '8%' }}>Current Under Implementation (On Time)</th>
-                <th className="py-2 px-2 bg-[#092b52]/90" style={{ width: '8%' }}>Current Under Implementation (Delayed)</th>
-                <th className="py-2 px-2 bg-[#092b52]/90" style={{ width: '7%' }}>Number of Initiatives Completed</th>
-                <th className="py-2 px-2 bg-[#092b52]/90" style={{ width: '7%' }}>Number of Initiatives Yet to be Started</th>
-                <th className="py-2 px-2 bg-[#092b52]/90" style={{ width: '7%' }}>Number of Initiatives Dropped</th>
+                <th className="py-2 px-2 bg-[#4b2424]/90" style={{ width: '8%' }}>No. of Initiative To Be Completed</th>
+                <th className="py-2 px-2 bg-[#4b2424]/90" style={{ width: '8%' }}>Current Under Implementation (On Time)</th>
+                <th className="py-2 px-2 bg-[#4b2424]/90" style={{ width: '8%' }}>Current Under Implementation (Delayed)</th>
+                <th className="py-2 px-2 bg-[#4b2424]/90" style={{ width: '7%' }}>Number of Initiatives Completed</th>
+                <th className="py-2 px-2 bg-[#4b2424]/90" style={{ width: '7%' }}>Number of Initiatives Yet to be Started</th>
+                <th className="py-2 px-2 bg-[#4b2424]/90" style={{ width: '7%' }}>Number of Initiatives Dropped</th>
               </tr>
             </thead>
 
