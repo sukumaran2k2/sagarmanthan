@@ -131,11 +131,6 @@ export function fetchOrganisations() {
   return api.get('/mmt-dropdown/mmt_organisation');
 }
 
-// Reports
-export function fetchMIVAbstractReport(userId) {
-  return api.get(`/mivabstract-report/${userId}`);
-}
-
 export function fetchMIVDetailedReport(payload) {
   return api.post('/mivdetailed-report/', payload);
 }
@@ -144,12 +139,40 @@ export function fetchThemeValues() {
   return api.get('/get-mmt-Theme-Values/');
 }
 
-export function fetchThemeWiseMIVAbstractReport(userId) {
+export function fetchThemeWiseMIVDetailedReport(payload) {
+  return api.post('/mivdetailed-report/', payload);
+}
+
+// Report 1.1
+// Organisation-wise Performance Ranking
+export function getMIVOrgWisePerformanceReport(userId) {
+  return api.get(`/miv-org-wise-performance-report/${userId}`);
+}
+
+// Report 1.2
+// Theme-wise Performance Ranking
+export function getThemeWiseMIVPerformanceReport(userId) {
   return api.get(`/themewise-mivabstract-report/${userId}`);
 }
 
-export function fetchThemeWiseMIVDetailedReport(payload) {
-  return api.post('/miv-theme-detailed-report/', payload);
+// Report 1.3
+// Category-wise Performance Ranking
+export function getCategoryWiseMIVPerformanceReport(userId) {
+  return api.get(
+    `/category-wise-miv-performance-report/${userId}`
+  );
+}
+
+// Report 1.4
+// Summary - Delayed / Overdue Initiatives
+export function getSummaryReportOverdueInitiatives(userId) {
+  return api.get(`/get-summary-report-overdue-initiatives/${userId}`);
+}
+
+// Report 1.5
+// Detailed - Delayed / Overdue Initiatives
+export function detailedReportDelayedOverdueInitiatives(userId) {
+  return api.get(`/detailed-report-delayed-overdue-initiatives/${userId}`);
 }
 
 export default api;

@@ -1528,11 +1528,16 @@ router.get("/gem-report/:selectedYear",gemReportTab.getGemReport);
 // MIV
 router.post("/mivdetailed-report/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.mivDetailedData);
 router.post("/miv-theme-detailed-report/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.mivThemeDetailedData); //MIV THEME WISE REPORT
-router.get("/mivabstract-report/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.mivAbstractData);
 router.get("/miv-document/download/:filename", mivReportTab.downloadDocument);
 //Theme Wise MIV Report:
 router.get("/get-mmt-Theme-Values/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getmmtThemeValues);
-router.get("/themewise-mivabstract-report/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.themeWiseMivAbstractData);
+
+router.get("/miv-org-wise-performance-report/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getMIVOrgWisePerformanceReport);
+router.get("/themewise-mivabstract-report/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getThemeWiseMIVPerformanceReport);
+router.get("/category-wise-miv-performance-report/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getCategoryWiseMIVPerformanceReport);
+router.get("/get-summary-report-overdue-initiatives/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getSummaryReportOverdueInitiatives);
+router.get("/detailed-report-delayed-overdue-initiatives/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.detailedReportDelayedOverdueInitiatives);
+
 //Delete Minuintes of meeting
 router.delete("/meeting/delete/:id", auth, requireModulePermission("MIV_2030", "delete"), mivReportTab.deleteMeeting);
 
