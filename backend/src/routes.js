@@ -12,6 +12,7 @@ import userTable from "./controllers/UserManagement/createUser.js";
 import orgModulePermission from "./controllers/RBAC/orgModulePermission.js";
 import userModuleCrud from "./controllers/RBAC/userModuleCrud.js";
 import { getOrgModulePermissionLog, getUserModuleCrudLog } from "./controllers/RBAC/rbacAudit.js";
+import * as sagarbotPermissionTab from "./controllers/RBAC/sagarbotPermission.js";
 
 
 import terminalImageUploaderTab from "./controllers/MasterManagement/terminalImageUploader.js";
@@ -2714,6 +2715,13 @@ router.get('/rbac/user-module-crud', userModuleCrud.getUserModuleCrud);
 router.put('/rbac/user-module-crud', auth, userModuleCrud.saveUserModuleCrud);
 router.get('/rbac/org-module-permission-log', getOrgModulePermissionLog);
 router.get('/rbac/user-module-crud-log', getUserModuleCrudLog);
+
+// SagarBot AI Copilot Permissions (Super Admin CRUD)
+router.get('/rbac/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
+router.put('/rbac/sagarbot-permissions', auth, sagarbotPermissionTab.updateSagarbotPermissions);
+router.post('/rbac/sagarbot-permissions/reset', auth, sagarbotPermissionTab.resetSagarbotPermissions);
+router.get('/api/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
+router.put('/api/sagarbot-permissions', sagarbotPermissionTab.updateSagarbotPermissions);
 
 router.get("/project-proposal", getProjectProposal);
 router.get("/project-clearance", getProjectClearance);

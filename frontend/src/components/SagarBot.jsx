@@ -5,7 +5,7 @@ import {
   Search,  ThumbsUp, ThumbsDown, ArrowRight,
   BarChart3, FileSpreadsheet, CheckCircle2, Download, Copy
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { useAICopilot } from '../context/AICopilotContext';
 import { AI_MODULE_QUERY_ENDPOINT } from '../config/api';
@@ -190,17 +190,21 @@ export function SagarBotLogo({ className = "w-6 h-6", glowing = true }) {
 
 export default function SagarBot() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { 
     isOpen, 
     setIsOpen, 
     isReportMode, 
     activeReport, 
     pendingPrompt, 
-    setPendingPrompt 
+    setPendingPrompt,
+    isCopilotEnabledForRoute
   } = useAICopilot();
 
+  const isCopilotEnabled = isCopilotEnabledForRoute ? isCopilotEnabledForRoute(location.pathname, activeReport?.moduleName) : true;
+
   const [isMinimized, setIsMinimized] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'table_preview'
   const [previewReport, setPreviewReport] = useState(null);
   const [tableSearch, setTableSearch] = useState('');
@@ -607,6 +611,10 @@ export default function SagarBot() {
       );
     });
   };
+
+  if (!isCopilotEnabled) {
+    return null;
+  }
 
   return (
     <>
@@ -1059,9 +1067,7 @@ export default function SagarBot() {
           className={`fixed z-50 transition-all duration-300 shadow-[0_25px_60px_-15px_rgba(11,37,69,0.5)] rounded-[26px] overflow-hidden border border-slate-200 dark:border-cyan-500/20 bg-white dark:bg-[#07172c] text-slate-800 dark:text-slate-100 flex flex-col font-sans backdrop-blur-xl ${
             isMinimized 
               ? 'bottom-6 right-6 w-84 h-15 rounded-2xl shadow-xl' 
-              : isExpanded
-                ? 'bottom-4 right-4 w-[95vw] sm:w-[880px] lg:w-[1040px] h-[86vh] max-h-[840px]'
-                : 'bottom-6 right-6 w-[94vw] sm:w-[440px] h-[600px] max-h-[92vh]'
+              : 'bottom-4 right-4 w-[95vw] sm:w-[880px] lg:w-[1040px] h-[86vh] max-h-[840px]'
           }`}
         >
           
@@ -1101,18 +1107,6 @@ export default function SagarBot() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setIsExpanded(prev => !prev);
-                  if (isExpanded) setActiveTab('chat');
-                }}
-                title={isExpanded ? "Collapse" : "Expand Full View"}
-                className="p-1.5 hover:bg-white/15 rounded-full transition cursor-pointer hidden sm:block text-white/80 hover:text-white"
-              >
-                {isExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setIsMinimized(prev => !prev)}
                 title={isMinimized ? "Restore" : "Minimize"}
                 className="p-1.5 hover:bg-white/15 rounded-full transition cursor-pointer text-white/80 hover:text-white"
@@ -1122,7 +1116,10 @@ export default function SagarBot() {
 
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsMinimized(false);
+                }}
                 title="Close"
                 className="p-1.5 hover:bg-rose-500/80 rounded-full transition cursor-pointer text-white/80 hover:text-white"
               >
