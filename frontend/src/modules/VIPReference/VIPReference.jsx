@@ -79,6 +79,7 @@ export default function VIPReference({ triggerNotification }) {
       .catch(err => console.error("Error fetching VIP References:", err));
   };
 
+
   useEffect(() => {
     fetchData();
   }, [location.pathname]);

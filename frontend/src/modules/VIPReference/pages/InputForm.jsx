@@ -12,6 +12,16 @@ const SCHEMA_LIMITS = {
   remarks: { maxWords: 250, maxChars: 2000 }
 };
 
+const addDays = (dateStr, days) => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  const yyyy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 export default function InputForm({
   editData = null,
   wings = [],
@@ -90,17 +100,92 @@ export default function InputForm({
     }
   });
 
-  useEffect(() => {
-    let initSubject = '';
-    let initEofficeFile = '';
-    let initWing = '';
-    let initDivision = '';
-    let initRefNumber = '';
-    let initReceivedFrom = '';
-    let initRemarks = '';
-    let initDeadline = '';
-    let initStages = {
-      1: { date: '', remark: '' },
+ useEffect(() => {
+  let initSubject = '';
+  let initEofficeFile = '';
+  let initWing = '';
+  let initDivision = '';
+  let initRefNumber = '';
+  let initReceivedFrom = '';
+  let initRemarks = '';
+  let initDeadline = '';
+
+  let initStages = {
+    1: { date: '', remark: '' },
+    2: { date: '', remark: '' },
+    3: { date: '', remark: '' },
+    4: { date: '', remark: '' },
+    5: { date: '', remark: '' },
+    6: { date: '', remark: '' }
+  };
+
+  if (editData) {
+
+    initSubject = editData.subject || '';
+    initEofficeFile = editData.eofficeFile || '';
+    initRefNumber = editData.refNumber || '';
+    initReceivedFrom = editData.receivedFrom || '';
+    initRemarks = editData.remarks || '';
+    initDeadline = editData.deadline || '';
+
+    const matchedWing = wings.find(
+      w =>
+        String(w.wing_id) === String(editData.wing) ||
+        String(w.wing_name).trim().toLowerCase() ===
+          String(editData.wing).trim().toLowerCase()
+    );
+
+    if (matchedWing) {
+      initWing = String(matchedWing.wing_id);
+    }
+
+    const matchedDivision = divisions.find(
+      d =>
+        String(d.division_id) === String(editData.division) ||
+        String(d.division_name).trim().toLowerCase() ===
+          String(editData.division).trim().toLowerCase()
+    );
+
+    if (matchedDivision) {
+      initDivision = String(matchedDivision.division_id);
+    }
+
+    initStages = {
+      1: {
+        date: editData.statusDates?.[1] || '',
+        remark: editData.statusRemarks?.[1] || ''
+      },
+      2: {
+        date: editData.statusDates?.[2] || '',
+        remark: editData.statusRemarks?.[2] || ''
+      },
+      3: {
+        date: editData.statusDates?.[3] || '',
+        remark: editData.statusRemarks?.[3] || ''
+      },
+      4: {
+        date: editData.statusDates?.[4] || '',
+        remark: editData.statusRemarks?.[4] || ''
+      },
+      5: {
+        date: editData.statusDates?.[5] || '',
+        remark: editData.statusRemarks?.[5] || ''
+      },
+      6: {
+        date: editData.statusDates?.[6] || '',
+        remark: editData.statusRemarks?.[6] || ''
+      }
+    };
+  } else {
+
+    initWing = '';
+   initDivision = '';
+
+    initStages = {
+      1: {
+        date: new Date().toISOString().split('T')[0],
+        remark: ''
+      },
       2: { date: '', remark: '' },
       3: { date: '', remark: '' },
       4: { date: '', remark: '' },
@@ -108,97 +193,93 @@ export default function InputForm({
       6: { date: '', remark: '' }
     };
 
-    if (editData) {
-      initSubject = editData.subject || '';
-      initEofficeFile = editData.eofficeFile || '';
-      initWing = editData.wing || '';
-      initDivision = editData.division || '';
-      initRefNumber = editData.refNumber || '';
-      initReceivedFrom = editData.receivedFrom || '';
-      initRemarks = editData.remarks || '';
-      initDeadline = editData.deadline || '';
+    // Deadline = Stage 1 + 15 days
+    const d = new Date();
+    d.setDate(d.getDate() + 15);
+    initDeadline = d.toISOString().split('T')[0];
+  }
 
-      initStages = {
-        1: { date: editData.statusDates?.[1] || '', remark: '' },
-        2: { date: editData.statusDates?.[2] || '', remark: '' },
-        3: { date: editData.statusDates?.[3] || '', remark: '' },
-        4: { date: editData.statusDates?.[4] || '', remark: '' },
-        5: { date: editData.statusDates?.[5] || '', remark: '' },
-        6: { date: editData.statusDates?.[6] || '', remark: '' }
-      };
-    } else {
-      const defaultWing = wings[0]?.wing_name || '';
-      initWing = defaultWing;
-      initStages = {
-        1: { date: new Date().toISOString().split('T')[0], remark: '' },
-        2: { date: '', remark: '' },
-        3: { date: '', remark: '' },
-        4: { date: '', remark: '' },
-        5: { date: '', remark: '' },
-        6: { date: '', remark: '' }
-      };
-      // Set default deadline 15 days from today
-      const d = new Date();
-      d.setDate(d.getDate() + 15);
-      initDeadline = d.toISOString().split('T')[0];
-    }
+  setSubject(initSubject);
+  setEofficeFile(initEofficeFile);
+  setWing(initWing);
+  setDivision(initDivision);
+  setRefNumber(initRefNumber);
+  setReceivedFrom(initReceivedFrom);
+  setRemarks(initRemarks);
+  setDeadline(initDeadline);
+  setStages(initStages);
 
-    setSubject(initSubject);
-    setEofficeFile(initEofficeFile);
-    setWing(initWing);
-    setDivision(initDivision);
-    setRefNumber(initRefNumber);
-    setReceivedFrom(initReceivedFrom);
-    setRemarks(initRemarks);
-    setDeadline(initDeadline);
-    setStages(initStages);
+  setInitialValues({
+    subject: initSubject,
+    eofficeFile: initEofficeFile,
+    wing: initWing,
+    division: initDivision,
+    refNumber: initRefNumber,
+    receivedFrom: initReceivedFrom,
+    remarks: initRemarks,
+    deadline: initDeadline,
+    stages: initStages
+  });
 
-    setInitialValues({
-      subject: initSubject,
-      eofficeFile: initEofficeFile,
-      wing: initWing,
-      division: initDivision,
-      refNumber: initRefNumber,
-      receivedFrom: initReceivedFrom,
-      remarks: initRemarks,
-      deadline: initDeadline,
-      stages: initStages
-    });
+  setTouched({
+    subject: false,
+    eofficeFile: false,
+    wing: false,
+    division: false,
+    refNumber: false,
+    receivedFrom: false,
+    remarks: false,
+    stage1: false
+  });
 
-    setTouched({
-      subject: false,
-      eofficeFile: false,
-      wing: false,
-      division: false,
-      refNumber: false,
-      receivedFrom: false,
-      remarks: false,
-      stage1: false
-    });
-    setFormSubmitted(false);
-  }, [editData, wings]);
+  setFormSubmitted(false);
 
-  // Filter divisions dynamically based on selected Wing
-  const filteredDivisions = useMemo(() => {
-    if (!wing) return [];
-    const selectedWingObj = wings.find(w => w.wing_name === wing || String(w.wing_id) === String(wing));
-    if (!selectedWingObj) return [];
-    return divisions.filter(d => String(d.wing_id) === String(selectedWingObj.wing_id));
-  }, [wing, wings, divisions]);
+}, [editData, wings, divisions]);
+
+    const filteredDivisions = useMemo(() => {
+      if (!wing) {
+        return [];
+      }
+
+      return divisions.filter(
+        d => String(d.wing_id) === String(wing)
+      );
+
+    }, [wing, divisions]);
 
   useEffect(() => {
-    if (filteredDivisions.length > 0) {
-      const exists = filteredDivisions.some(d => d.division_name === division || String(d.division_id) === String(division));
-      if (!exists && !editData) {
-        setDivision(filteredDivisions[0].division_name);
-      }
-    } else {
-      setDivision('');
-    }
-  }, [filteredDivisions, editData]);
+  if (!wing) {
+    setDivision('');
+    return;
+  }
+
+  if (filteredDivisions.length === 0) {
+    setDivision('');
+    return;
+  }
+
+  const divisionExists = filteredDivisions.some(
+    d => String(d.division_id) === String(division)
+  );
+
+  if (!divisionExists) {
+    setDivision('');
+  }
+
+}, [wing, filteredDivisions]);
+
+  const handleWingChange = (e) => {
+    const selectedWingId = e.target.value;
+
+    setWing(selectedWingId);
+
+    // Clear division immediately.
+    setDivision('');
+  };
+
 
   // Track if any field was changed (for edit mode enabling)
-  const isDirty = useMemo(() => {
+    const isDirty = useMemo(() => {
     if (subject !== initialValues.subject) return true;
     if (eofficeFile !== initialValues.eofficeFile) return true;
     if (wing !== initialValues.wing) return true;
@@ -209,11 +290,35 @@ export default function InputForm({
     if (deadline !== initialValues.deadline) return true;
 
     for (let i = 1; i <= 6; i++) {
-      if (stages[i].date !== initialValues.stages[i].date) return true;
-      if (stages[i].remark !== initialValues.stages[i].remark) return true;
+      if (
+        stages[i].date !==
+        initialValues.stages[i].date
+      ) {
+        return true;
+      }
+
+      if (
+        stages[i].remark !==
+        initialValues.stages[i].remark
+      ) {
+        return true;
+      }
     }
+
     return false;
-  }, [subject, eofficeFile, wing, division, refNumber, receivedFrom, remarks, deadline, stages, initialValues]);
+
+  }, [
+    subject,
+    eofficeFile,
+    wing,
+    division,
+    refNumber,
+    receivedFrom,
+    remarks,
+    deadline,
+    stages,
+    initialValues
+  ]);
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -324,9 +429,7 @@ export default function InputForm({
       };
 
       if (num === 1 && field === 'date' && val) {
-        const d = new Date(val);
-        d.setDate(d.getDate() + 15);
-        setDeadline(d.toISOString().split('T')[0]);
+        setDeadline(addDays(val, 15));
       }
 
       // Cascade clear later stages if an earlier stage is cleared
@@ -373,11 +476,8 @@ export default function InputForm({
 
     setSubmitting(true);
 
-    // Resolve integer foreign keys matching schema: wing (int), division (int)
-    const wingObj = wings.find(w => w.wing_name === wing || String(w.wing_id) === String(wing)) || { wing_id: 1 };
-    const divisionObj = divisions.find(d => d.division_name === division || String(d.division_id) === String(division)) || { division_id: 1 };
-    const wingId = Number(wingObj.wing_id) || 1;
-    const divisionId = Number(divisionObj.division_id) || 1;
+    const wingId = Number(wing);
+    const divisionId = Number(division);
 
     let selectedStage = 1;
     for (let i = 1; i <= 6; i++) {
@@ -390,16 +490,33 @@ export default function InputForm({
     const payload = {
       vipSubject: subject.trim(),
       eofficeFileNumber: eofficeFile.trim(),
-      wing: wingId, // int
-      division: divisionId, // int
+      wing: wingId,
+      division: divisionId,
       referenceLetterNumber: refNumber.trim(),
       receivedFrom: receivedFrom.trim(),
-      vipReceivedMinistryDate: stages[1].date || null, // date
-      vipSubmittedForApprovalDate: stages[2].date || null, // date
-      vipCommentsSoughtDate: stages[3].date || null, // date
-      vipCommentsReceivedDate: stages[4].date || null, // date
-      vipReplyFurnishedDate: stages[5].date || null, // date
-      vipDisposedDate: stages[6].date || null, // date
+      // Stage 1
+      vipReceivedMinistryDate: stages[1].date || '',
+      vipReceivedMinistryRemark: stages[1].remark || '',
+
+      // Stage 2
+      vipSubmittedForApprovalDate: stages[2].date || '',
+      vipSubmittedForApprovalRemark: stages[2].remark || '',
+
+      // Stage 3
+      vipCommentsSoughtDate: stages[3].date || '',
+      vipCommentsSoughtRemark: stages[3].remark || '',
+
+      // Stage 4
+      vipCommentsReceivedDate: stages[4].date || '',
+      vipCommentsReceivedRemark: stages[4].remark || '',
+
+      // Stage 5
+      vipReplyFurnishedDate: stages[5].date || '',
+      vipReplyFurnishedRemark: stages[5].remark || '',
+
+      // Stage 6
+      vipDisposedDate: stages[6].date || '',
+      vipDisposedRemark: stages[6].remark || '',
       vipRemarks: remarks.trim(),
       selectedStage: Number(selectedStage), // int
       deadline: deadline || null, // date
@@ -435,7 +552,7 @@ export default function InputForm({
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider font-display flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            <span>{isEdit ? 'UPDATE VIP REFERENCE LETTER' : 'REGISTER NEW VIP LETTER'}</span>
+            <span>{isEdit ? 'UPDATE VIP REFERENCE' : 'REGISTER NEW VIP REFERENCE'}</span>
           </h3>
           <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
         </div>
@@ -534,62 +651,119 @@ export default function InputForm({
             </div>
 
             {/* Wing & Division Row (int foreign keys) */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Wing Field */}
+                <div className="grid grid-cols-2 gap-4">
+
+              {/* WING */}
               <div className="space-y-1.5">
+
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Wing <span className="text-rose-500">*</span>
+
+                  Wing
+                  <span className="text-rose-500">*</span>
+
                 </label>
+
                 <select
                   value={wing}
-                  onChange={e => setWing(e.target.value)}
-                  onBlur={() => handleBlur('wing')}
+                  onChange={handleWingChange}
+                  onBlur={() =>
+                    handleBlur('wing')
+                  }
                   className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 cursor-pointer transition-all ${
                     shouldShowError('wing')
                       ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
                       : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
                   }`}
                 >
-                  <option value="">--Select Wing--</option>
+
+                  <option value="">
+                    --Select Wing--
+                  </option>
+
                   {wings.map(w => (
-                    <option key={w.wing_id || w.wing_name} value={w.wing_name}>{w.wing_name}</option>
+
+                    <option
+                      key={w.wing_id}
+                      value={String(w.wing_id)}
+                    >
+                      {w.wing_name}
+                    </option>
+
                   ))}
+
                 </select>
+
                 {shouldShowError('wing') && (
                   <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+
                     <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
-                    <span>{validationErrors.wing}</span>
+
+                    <span>
+                      {validationErrors.wing}
+                    </span>
+
                   </p>
                 )}
+
               </div>
 
-              {/* Division Field */}
+              {/* DIVISION */}
               <div className="space-y-1.5">
+
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Division <span className="text-rose-500">*</span>
+
+                  Division
+                  <span className="text-rose-500">*</span>
+
                 </label>
+
                 <select
                   value={division}
-                  onChange={e => setDivision(e.target.value)}
-                  onBlur={() => handleBlur('division')}
+                  onChange={e =>
+                    setDivision(e.target.value)
+                  }
+                  onBlur={() =>
+                    handleBlur('division')
+                  }
+                  disabled={!wing}
                   className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 cursor-pointer transition-all ${
                     shouldShowError('division')
                       ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20 dark:border-rose-500'
                       : 'border-slate-200 focus:border-[#0f417a] dark:border-slate-800'
                   }`}
                 >
-                  <option value="">--Select Division--</option>
+
+                  <option value="">
+                    --Select Division--
+                  </option>
+
                   {filteredDivisions.map(d => (
-                    <option key={d.division_id || d.division_name} value={d.division_name}>{d.division_name}</option>
+
+                    <option
+                      key={d.division_id}
+                      value={String(d.division_id)}
+                    >
+                      {d.division_name}
+                    </option>
+
                   ))}
+
                 </select>
+
                 {shouldShowError('division') && (
                   <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+
                     <AlertCircle className="h-3 w-3 inline flex-shrink-0" />
-                    <span>{validationErrors.division}</span>
+
+                    <span>
+                      {validationErrors.division}
+                    </span>
+
                   </p>
                 )}
+
               </div>
+
             </div>
 
             {/* Reference Letter Number (nvarchar(256)) */}
