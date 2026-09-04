@@ -1527,19 +1527,6 @@ async function csrExpenditureReport(req,res) {
             
         ];
         return res.json({ columnDefs, rowData });
-                field: "Project Expenditure",
-                width:250,
-                cellStyle: { textAlign: 'center' },
-            },
-            {
-                headerName: "CSR Fund Balance (Rs.In lakhs)",
-                field: "CSR Fund Balance",
-                width:400,
-                cellStyle: { textAlign: 'center' },
-            },
-            
-        ];
-        res.json({ columnDefs, rowData })
         
     } catch (error) {
         console.log(error);

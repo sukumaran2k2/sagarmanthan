@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ChevronLeft, FileSpreadsheet, Download, Search, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
 import TablePagination from './TablePagination';
+import { useAICopilot } from '../context/AICopilotContext';
 
 export default function ReportTable({
   title,
@@ -27,6 +28,8 @@ export default function ReportTable({
   toolbarExtra = null,
   autoHeaderHeight = false,
 }) {
+  const { registerReport, clearReport } = useAICopilot();
+
   // Detail titles with "|" keep the full string in the eyebrow (legacy Form 8.2).
   // Summary titles use the segment before " - ".
   const eyebrowText =
@@ -44,6 +47,23 @@ export default function ReportTable({
   const [totalPages, setTotalPages] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
   const [pageSize, setPageSize] = useState(15);
+
+  useEffect(() => {
+    if (title && (viewData.length > 0 || rawData.length > 0)) {
+      registerReport({
+        reportTitle: title,
+        eyebrow: eyebrowText,
+        columns: columns,
+        data: viewData.length > 0 ? viewData : rawData,
+        rowCount: viewData.length || rawData.length,
+        pinnedBottom: pinnedBottomRowData,
+        autoOpen: true
+      });
+    }
+    return () => {
+      clearReport();
+    };
+  }, [title, viewData, rawData, columns, registerReport, clearReport, eyebrowText, pinnedBottomRowData]);
 
   useEffect(() => {
     function handleClickOutside(event) {

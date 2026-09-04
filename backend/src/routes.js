@@ -2745,8 +2745,8 @@ router.get('/get-FormBuilder-Report/:data', formBuilderInputTab.getFormBuilderRe
 router.get('/get-form-builder-status/:data/:code', formBuilderInputTab.getFormBuilderSatus); //req //get created forms
 router.get('/get-form-builder-user-wise-data/:data/:userID', formBuilderInputTab.getFormBuilderUserWiseData); //req //get created forms
 router.get('/get-user-edit-Form-Data/:userID/:currentPage', formBuilderInputTab.getUserEditFormData); //not required //get created forms data for only one data retrival for one form
-router.post('/edit-FormBuilder-data', formBuilderInputTab.editFormBuilderData); //req generic Create 
-router.post('/clone-FormBuilder', formBuilderInputTab.cloneMmtFormBuilder); //req generic clone 
-
+// AI Report Copilot (OpenAI / Vercel AI SDK)
+import reportCopilotTab from "./controllers/ai/reportCopilot.js";
+router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
 
 export default router;

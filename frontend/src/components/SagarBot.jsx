@@ -1,10 +1,15 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import  { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
-  Bot, MessageSquare, X, Minus, Maximize2, Minimize2, Send, 
-  RotateCcw, Sparkles, ChevronRight, Compass, HelpCircle, 
-  Search, ExternalLink, ThumbsUp, ThumbsDown, ArrowRight, CornerDownLeft
+ MessageSquare, X, Minus, Maximize2, Minimize2, Send, 
+  RotateCcw, Sparkles, 
+  Search,  ThumbsUp, ThumbsDown, ArrowRight,
+  BarChart3, FileSpreadsheet, CheckCircle2, Download, Copy
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
+import { useAICopilot } from '../context/AICopilotContext';
+import { AI_MODULE_QUERY_ENDPOINT } from '../config/api';
+import { MOCK_AI_RESPONSES } from '../config/mockAiResponses';
 
 // Comprehensive Sagarmanthan Knowledge Base
 const KNOWLEDGE_BASE = [
@@ -130,28 +135,88 @@ const KNOWLEDGE_BASE = [
 ];
 
 const QUICK_TOPICS = [
+  { label: '🚢 Chennai Port Ongoing Projects', query: 'Show all ongoing projects for Chennai port' },
+  { label: '📋 Consultant Appointments Details', query: 'List out all the consultant appointment with their important details' },
   { label: '🚢 CSR Projects & Fund', query: 'What is CSR Projects Module?' },
   { label: '📈 MIV 2030 Vision', query: 'What is Maritime India Vision 2030?' },
   { label: '🏛️ VIP Reference 6 Stages', query: 'What are the 6 stages in VIP Reference?' },
   { label: '🌐 GMIS & IMW MoUs', query: 'How does GMIS MoU tracking work?' },
-  { label: '📊 How to Export Reports', query: 'How do I export reports to Excel or PDF?' },
 ];
+
+// SagarBot Mascot Emblem SVG Logo Component
+export function SagarBotLogo({ className = "w-6 h-6", glowing = true }) {
+  return (
+    <div className={`relative flex items-center justify-center shrink-0 ${glowing ? 'filter drop-shadow-[0_0_8px_rgba(56,189,248,0.7)]' : ''}`}>
+      <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Antenna */}
+        <circle cx="24" cy="4" r="2.8" fill="#38bdf8" />
+        <circle cx="24" cy="4" r="1.3" fill="#ffffff" />
+        <line x1="24" y1="6.8" x2="24" y2="10.5" stroke="#0284c7" strokeWidth="2.2" strokeLinecap="round" />
+        
+        {/* Ear bolts */}
+        <rect x="5" y="19" width="3.5" height="8" rx="1.5" fill="#0b2545" stroke="#38bdf8" strokeWidth="1" />
+        <rect x="39.5" y="19" width="3.5" height="8" rx="1.5" fill="#0b2545" stroke="#38bdf8" strokeWidth="1" />
+        
+        {/* Main Helmet Frame */}
+        <rect x="7" y="10" width="34" height="28" rx="9" fill="url(#sagarLogoHelmetGrad)" stroke="#38bdf8" strokeWidth="2" />
+        
+        {/* Dark Visor Screen */}
+        <rect x="11" y="15" width="26" height="17" rx="6" fill="#060f1e" stroke="#0284c7" strokeWidth="1.2" />
+        
+        {/* Glowing Cyan Eyes */}
+        <circle cx="18" cy="23" r="3.2" fill="#38bdf8" />
+        <circle cx="18" cy="22.2" r="1.3" fill="#ffffff" />
+        
+        <circle cx="30" cy="23" r="3.2" fill="#38bdf8" />
+        <circle cx="30" cy="22.2" r="1.3" fill="#ffffff" />
+        
+        {/* Friendly Smile */}
+        <path d="M21 28 Q24 30.5 27 28" stroke="#38bdf8" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+        
+        {/* Neck base */}
+        <rect x="20" y="38" width="8" height="4" rx="1" fill="#0284c7" />
+
+        <defs>
+          <linearGradient id="sagarLogoHelmetGrad" x1="7" y1="10" x2="41" y2="38" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#ffffff" />
+            <stop offset="0.4" stopColor="#e0f2fe" />
+            <stop offset="1" stopColor="#0284c7" />
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+  );
+}
 
 export default function SagarBot() {
   const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(false);
+  const { 
+    isOpen, 
+    setIsOpen, 
+    isReportMode, 
+    activeReport, 
+    pendingPrompt, 
+    setPendingPrompt 
+  } = useAICopilot();
+
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'table_preview'
+  const [previewReport, setPreviewReport] = useState(null);
+  const [tableSearch, setTableSearch] = useState('');
   
   const [inputQuery, setInputQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [feedbackGiven, setFeedbackGiven] = useState({});
 
+  // Active display report (either custom dynamic report or module active report)
+  const activeDisplayReport = previewReport || activeReport;
+
   const [messages, setMessages] = useState([
     {
       id: 'welcome-msg',
       sender: 'bot',
-      text: `👋 **Hai! I am SagarBot**, your intelligent AI assistant for the **Sagarmanthan** portal.\n\nHow can I help you today? You can ask me anything about **CSR Projects**, **MIV 2030**, **GMIS MoUs**, **VIP References**, or **Exporting Reports**.`,
+      text: `👋 **Hai! I am SagarBot**, your intelligent AI Assistant for **Sagarmanthan**.\n\nI can analyze **Reports**, summarize **Key Metrics**, and answer any questions across all modules.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       suggestions: QUICK_TOPICS
     }
@@ -159,6 +224,84 @@ export default function SagarBot() {
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Dynamic Report Suggestions
+  const reportSuggestions = useMemo(() => {
+    if (!isReportMode || !activeReport) return [];
+    return [
+      { label: '💡 Summarize Key Stats', query: `Summarize key insights and figures for ${activeReport.reportTitle || 'this report'}` },
+      { label: '📈 Highest & Lowest Breakdown', query: `Highlight the highest and lowest counts in ${activeReport.reportTitle || 'this report'}` },
+      { label: '⚠️ Check Zero or Missing Data', query: `Check for zero entries or anomalies in ${activeReport.reportTitle || 'this report'}` },
+      { label: '📋 Explain Column Metrics', query: `Explain the columns and data structure in ${activeReport.reportTitle || 'this report'}` }
+    ];
+  }, [isReportMode, activeReport]);
+
+  // Handle opening table preview in expanded mode
+  const handleOpenTablePreview = useCallback((reportToPreview = null) => {
+    if (reportToPreview) {
+      setPreviewReport(reportToPreview);
+    } else if (activeReport) {
+      setPreviewReport(activeReport);
+    }
+    setIsExpanded(true);
+    setIsMinimized(false);
+    setActiveTab('table_preview');
+  }, [activeReport]);
+
+  // Handle exporting table data as Excel (.xlsx) or CSV (.csv)
+  const handleDownloadTableData = useCallback((format = 'xlsx', customReport = null) => {
+    const target = customReport || activeDisplayReport;
+    if (!target || !Array.isArray(target.data) || target.data.length === 0) {
+      alert('No data available to download in this report.');
+      return;
+    }
+
+    try {
+      const title = target.reportTitle || `${target.moduleName || 'Dynamic'}_Report`;
+      const cleanTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const fileName = `${cleanTitle}_${timestamp}`;
+
+      // Map rows with clean headers if columns are defined
+      const exportData = target.data.map(row => {
+        if (!target.columns || target.columns.length === 0) return row;
+        const cleanRow = {};
+        target.columns.forEach(col => {
+          const header = col.headerName || col.field;
+          const val = row[col.field] !== undefined ? row[col.field] : (row[col.headerName] !== undefined ? row[col.headerName] : '');
+          cleanRow[header] = val;
+        });
+        return cleanRow;
+      });
+
+      if (format === 'csv') {
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', `${fileName}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sagarmanthan_Data");
+        XLSX.writeFile(wb, `${fileName}.xlsx`);
+      }
+    } catch (err) {
+      console.error('Failed to export table data:', err);
+    }
+  }, [activeDisplayReport]);
+
+  // Handle pending external prompts
+  useEffect(() => {
+    if (pendingPrompt) {
+      handleSend(pendingPrompt);
+      setPendingPrompt(null);
+    }
+  }, [pendingPrompt, setPendingPrompt]);
 
   // Auto-scroll to bottom of chat
   const scrollToBottom = () => {
@@ -215,7 +358,54 @@ export default function SagarBot() {
     };
   };
 
-  const handleSend = (queryToSend) => {
+  // Detect module context dynamically
+  const detectModuleName = (queryText = '') => {
+    // 1. Explicit keyword override in question if user asks about a different specific module
+    const cleanQ = (queryText || '').toLowerCase();
+    if (cleanQ.includes('young professional') || cleanQ.includes('yp candidate') || cleanQ.includes('yp report') || cleanQ.includes('yp list')) {
+      return 'Young Professionals';
+    }
+    if (cleanQ.includes('consultant')) return 'Consultant Appointments';
+    if (cleanQ.includes('csr') || cleanQ.includes('corporate social')) return 'CSR Projects';
+    if (cleanQ.includes('land')) return 'Land Management';
+    if (cleanQ.includes('miv') || cleanQ.includes('vision 2030')) return 'Maritime India Vision 2030';
+    if (cleanQ.includes('vip')) return 'VIP Reference';
+    if (cleanQ.includes('gmis') || cleanQ.includes('mou')) return 'GMIS MoU';
+
+    // 2. Active registered report context (from useAICopilot on report pages)
+    if (activeReport?.moduleName) return activeReport.moduleName;
+    if (activeReport?.reportTitle) {
+      const title = activeReport.reportTitle.toLowerCase();
+      if (title.includes('young professional') || title.includes('yp')) return 'Young Professionals';
+      if (title.includes('consultant')) return 'Consultant Appointments';
+      if (title.includes('csr')) return 'CSR Projects';
+      if (title.includes('land')) return 'Land Management';
+      if (title.includes('miv')) return 'Maritime India Vision 2030';
+      if (title.includes('vip')) return 'VIP Reference';
+      if (title.includes('gmis') || title.includes('mou')) return 'GMIS MoU';
+      return activeReport.reportTitle;
+    }
+
+    // 3. Current URL route path matching
+    const fullLoc = (window.location.pathname + ' ' + window.location.hash).toLowerCase();
+    if (fullLoc.includes('young-professional') || fullLoc.includes('youngprofessional') || fullLoc.includes('/yp') || fullLoc.includes('young_professionals')) {
+      return 'Young Professionals';
+    }
+    if (fullLoc.includes('consultant')) return 'Consultant Appointments';
+    if (fullLoc.includes('csr')) return 'CSR Projects';
+    if (fullLoc.includes('land')) return 'Land Management';
+    if (fullLoc.includes('miv') || fullLoc.includes('vision')) return 'Maritime India Vision 2030';
+    if (fullLoc.includes('vip')) return 'VIP Reference';
+    if (fullLoc.includes('gmis') || fullLoc.includes('mou')) return 'GMIS MoU';
+    if (fullLoc.includes('attendance')) return 'Attendance';
+    if (fullLoc.includes('capex')) return 'Capex';
+    if (fullLoc.includes('eoffice')) return 'EOffice';
+    if (fullLoc.includes('gem')) return 'GeM Procurement';
+    if (fullLoc.includes('project')) return 'Projects';
+    return 'Projects';
+  };
+
+  const handleSend = async (queryToSend) => {
     const text = (queryToSend || inputQuery).trim();
     if (!text) return;
 
@@ -230,20 +420,129 @@ export default function SagarBot() {
     setInputQuery('');
     setIsTyping(true);
 
+    const botMsgId = `bot-${Date.now()}`;
+    const targetModule = detectModuleName(text);
+    const cleanLowerText = text.toLowerCase().trim();
+
+    // 1. Send LIVE POST Request to AI Module Query API Endpoint
+    try {
+      console.log(`[SagarBot] Dispatching POST to: ${AI_MODULE_QUERY_ENDPOINT} for module: "${targetModule}"`);
+      const response = await fetch(AI_MODULE_QUERY_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({
+          user_question: text,
+          module_name: targetModule
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result && (result.summary || result.data || result.status === 'success')) {
+          const hasData = Array.isArray(result.data) && result.data.length > 0;
+          
+          let dynamicCols = [];
+          if (hasData) {
+            dynamicCols = Object.keys(result.data[0]).map(key => ({
+              field: key,
+              headerName: key.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+            }));
+          }
+
+          const moduleTitle = result.module_name || targetModule;
+          const dynamicReportObj = hasData ? {
+            reportTitle: `${moduleTitle} Report`,
+            moduleName: moduleTitle,
+            tableName: result.table_name || 'tbl_chatbot_query',
+            sqlQuery: result.sql_query,
+            rowCount: result.row_count || result.data.length,
+            executionTimeMs: result.execution_time_ms,
+            columns: dynamicCols,
+            data: result.data
+          } : null;
+
+          const botMsg = {
+            id: botMsgId,
+            sender: 'bot',
+            text: result.summary || `Found ${result.row_count || 0} records for your query in **${moduleTitle}**.`,
+            dynamicReport: dynamicReportObj,
+            suggestions: isReportMode ? reportSuggestions : QUICK_TOPICS,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+
+          setMessages(prev => [...prev, botMsg]);
+          setIsTyping(false);
+          return;
+        }
+      }
+    } catch (apiErr) {
+      console.warn('[SagarBot] Live AI API unreachable or error:', apiErr.message);
+    }
+
+    // 2. Fallback to Constant Mock Responses if live API is offline
+    const matchedFixture = MOCK_AI_RESPONSES.find(item => 
+      item.triggers.some(trig => cleanLowerText.includes(trig) || trig.includes(cleanLowerText))
+    );
+
+    if (matchedFixture) {
+      setTimeout(() => {
+        const result = matchedFixture.response;
+        const hasData = Array.isArray(result.data) && result.data.length > 0;
+        
+        let dynamicCols = [];
+        if (hasData) {
+          dynamicCols = Object.keys(result.data[0]).map(key => ({
+            field: key,
+            headerName: key.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+          }));
+        }
+
+        const moduleTitle = result.module_name || targetModule;
+        const dynamicReportObj = hasData ? {
+          reportTitle: `${moduleTitle} Report`,
+          moduleName: moduleTitle,
+          tableName: result.table_name || 'tbl_chatbot_query',
+          sqlQuery: result.sql_query,
+          rowCount: result.row_count || result.data.length,
+          executionTimeMs: result.execution_time_ms,
+          columns: dynamicCols,
+          data: result.data
+        } : null;
+
+        const botMsg = {
+          id: botMsgId,
+          sender: 'bot',
+          text: result.summary,
+          dynamicReport: dynamicReportObj,
+          suggestions: isReportMode ? reportSuggestions : QUICK_TOPICS,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        setMessages(prev => [...prev, botMsg]);
+        setIsTyping(false);
+      }, 350);
+      return;
+    }
+
+    // 3. Local Knowledge Base Fallback
     setTimeout(() => {
       const answerObj = findAnswer(text);
       const botMsg = {
-        id: `bot-${Date.now()}`,
+        id: botMsgId,
         sender: 'bot',
         text: answerObj.text,
         link: answerObj.link,
         linkLabel: answerObj.linkLabel,
-        suggestions: answerObj.suggestions,
+        suggestions: isReportMode ? reportSuggestions : answerObj.suggestions,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, botMsg]);
       setIsTyping(false);
-    }, 450);
+    }, 350);
   };
 
   const handleResetChat = () => {
@@ -757,52 +1056,57 @@ export default function SagarBot() {
       {/* Main Chatbot Window */}
       {isOpen && (
         <div 
-          className={`fixed z-50 transition-all duration-300 shadow-2xl rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col ${
+          className={`fixed z-50 transition-all duration-300 shadow-[0_25px_60px_-15px_rgba(11,37,69,0.5)] rounded-[26px] overflow-hidden border border-slate-200 dark:border-cyan-500/20 bg-white dark:bg-[#07172c] text-slate-800 dark:text-slate-100 flex flex-col font-sans backdrop-blur-xl ${
             isMinimized 
-              ? 'bottom-6 right-6 w-80 h-14' 
+              ? 'bottom-6 right-6 w-84 h-15 rounded-2xl shadow-xl' 
               : isExpanded
-                ? 'bottom-4 right-4 w-[92vw] sm:w-[600px] h-[85vh] max-h-[780px]'
-                : 'bottom-6 right-6 w-[92vw] sm:w-[400px] h-[560px] max-h-[90vh]'
+                ? 'bottom-4 right-4 w-[95vw] sm:w-[880px] lg:w-[1040px] h-[86vh] max-h-[840px]'
+                : 'bottom-6 right-6 w-[94vw] sm:w-[440px] h-[600px] max-h-[92vh]'
           }`}
         >
           
-          {/* Header Bar */}
-          <div className="bg-gradient-to-r from-[#0f417a] via-[#1e3a8a] to-[#0284c7] px-4 py-3 text-white flex items-center justify-between select-none shadow-md shrink-0">
+          {/* ── NAVY BLUE HEADER BAR ── */}
+          <div className="bg-gradient-to-r from-[#0b2545] via-[#0f417a] to-[#0284c7] border-b border-cyan-500/30 px-4 py-3 text-white flex items-center justify-between select-none shrink-0 shadow-md">
             <div className="flex items-center space-x-2.5">
               
-              {/* Mini Full Bot Avatar in Header */}
-              <div className="w-8 h-8 rounded-full bg-slate-950 border border-cyan-300 p-0.5 flex items-center justify-center relative shadow-sm">
-                <Bot className="h-4 w-4 text-cyan-400" />
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-slate-950" />
+              {/* SagarBot Mascot Emblem Avatar */}
+              <div className="w-8 h-8 rounded-full bg-[#030d1a] border border-cyan-400/60 flex items-center justify-center relative shadow-sm">
+                <SagarBotLogo className="w-5 h-5" glowing={true} />
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-slate-950 animate-pulse" />
               </div>
 
               <div>
-                <div className="flex items-center space-x-1.5">
-                  <h3 className="text-xs font-black tracking-wider uppercase">SagarBot</h3>
-                  <span className="text-[9px] bg-cyan-400/20 text-cyan-200 font-bold px-1.5 py-0.2 rounded border border-cyan-400/30">
-                    AI
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-xs font-black tracking-wide text-white">
+                    SagarBot AI
+                  </h3>
+                  <span className="inline-flex items-center space-x-1 text-[9.5px] bg-white/15 text-cyan-200 font-bold px-2 py-0.5 rounded-full border border-cyan-300/30">
+                    <span>MoPSW Copilot</span>
                   </span>
                 </div>
-                <p className="text-[10px] text-blue-200 font-medium">Sagarmanthan Assistant</p>
+                <p className="text-[10px] text-blue-200 font-medium">Sagarmanthan Intelligence</p>
               </div>
             </div>
 
             {/* Header Control Buttons */}
-            <div className="flex items-center space-x-1 text-white/80">
+            <div className="flex items-center space-x-1.5 text-white/80">
               <button
                 type="button"
                 onClick={handleResetChat}
-                title="Restart Chat"
-                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                title="Restart Conversation"
+                className="p-1.5 hover:bg-white/15 rounded-full transition cursor-pointer text-white/80 hover:text-white"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
               </button>
 
               <button
                 type="button"
-                onClick={() => setIsExpanded(prev => !prev)}
-                title={isExpanded ? "Collapse" : "Expand"}
-                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer hidden sm:block"
+                onClick={() => {
+                  setIsExpanded(prev => !prev);
+                  if (isExpanded) setActiveTab('chat');
+                }}
+                title={isExpanded ? "Collapse" : "Expand Full View"}
+                className="p-1.5 hover:bg-white/15 rounded-full transition cursor-pointer hidden sm:block text-white/80 hover:text-white"
               >
                 {isExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
               </button>
@@ -811,7 +1115,7 @@ export default function SagarBot() {
                 type="button"
                 onClick={() => setIsMinimized(prev => !prev)}
                 title={isMinimized ? "Restore" : "Minimize"}
-                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                className="p-1.5 hover:bg-white/15 rounded-full transition cursor-pointer text-white/80 hover:text-white"
               >
                 <Minus className="h-3.5 w-3.5" />
               </button>
@@ -820,167 +1124,423 @@ export default function SagarBot() {
                 type="button"
                 onClick={() => setIsOpen(false)}
                 title="Close"
-                className="p-1.5 hover:text-white hover:bg-rose-500/80 rounded-lg transition cursor-pointer"
+                className="p-1.5 hover:bg-rose-500/80 rounded-full transition cursor-pointer text-white/80 hover:text-white"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
           </div>
 
-          {/* Chat Content Body (when not minimized) */}
+          {/* ── REPORT CONTEXT CAPSULE (NAVY THEME) ── */}
+          {isReportMode && activeReport && (
+            <div className="mx-3.5 mt-2.5 p-2 px-3.5 rounded-2xl bg-gradient-to-r from-blue-900/40 via-[#0f417a]/30 to-blue-900/40 dark:from-[#0b2545] dark:to-[#091a32] border border-blue-300/40 dark:border-cyan-500/30 flex items-center justify-between text-xs shrink-0 shadow-2xs">
+              <div className="flex items-center space-x-2 truncate">
+                <BarChart3 className="h-3.5 w-3.5 text-[#0f417a] dark:text-cyan-400 shrink-0" />
+                <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate">
+                  {activeReport.reportTitle || 'Active Report'}
+                </span>
+              </div>
+              <span className="text-[10px] bg-blue-100 dark:bg-cyan-950/60 text-[#0f417a] dark:text-cyan-300 font-bold px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-cyan-500/30 shrink-0">
+                {activeReport.rowCount || 0} Rows
+              </span>
+            </div>
+          )}
+
+          {/* Chat Content Body vs Table Preview Body (when not minimized) */}
           {!isMinimized && (
             <>
-              {/* Message Stream */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/60 dark:bg-slate-900/40 text-slate-800 dark:text-slate-100">
-                {messages.map((msg) => (
-                  <div 
-                    key={msg.id}
-                    className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} animate-fade-in`}
-                  >
-                    
-                    {/* Message Bubble Container */}
-                    <div className="flex items-start space-x-2 max-w-[88%]">
-                      
-                      {msg.sender === 'bot' && (
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#0f417a] to-cyan-500 flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold shadow-xs mt-0.5">
-                          <Bot className="h-3.5 w-3.5" />
-                        </div>
-                      )}
-
-                      <div 
-                        className={`rounded-2xl p-3 shadow-xs ${
-                          msg.sender === 'user'
-                            ? 'bg-[#0f417a] text-white rounded-tr-xs'
-                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-xs'
-                        }`}
-                      >
-                        {/* Formatted Text Content */}
-                        {renderFormattedText(msg.text)}
-
-                        {/* Direct Link Action Button if attached */}
-                        {msg.link && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                            <button
-                              type="button"
-                              onClick={() => handleLinkClick(msg.link)}
-                              className="inline-flex items-center space-x-1.5 text-xs font-bold text-[#0f417a] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/60 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-blue-800 transition cursor-pointer"
-                            >
-                              <span>{msg.linkLabel || 'Navigate to Module'}</span>
-                              <ArrowRight className="h-3 w-3" />
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Helpful Feedback for bot answers */}
-                        {msg.sender === 'bot' && msg.id !== 'welcome-msg' && (
-                          <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400">
-                            <span>Was this helpful?</span>
-                            <div className="flex items-center space-x-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleFeedback(msg.id, true)}
-                                className={`p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition ${feedbackGiven[msg.id] === true ? 'text-emerald-600 font-bold' : ''}`}
-                              >
-                                <ThumbsUp className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFeedback(msg.id, false)}
-                                className={`p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition ${feedbackGiven[msg.id] === false ? 'text-rose-600 font-bold' : ''}`}
-                              >
-                                <ThumbsDown className="h-3 w-3" />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                    </div>
-
-                    <span className="text-[9px] text-slate-400 mt-1 px-1">
-                      {msg.timestamp}
-                    </span>
-
-                    {/* Quick Suggestion Topic Pills */}
-                    {msg.suggestions && msg.suggestions.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5 max-w-full">
-                        {msg.suggestions.map((topic, tIdx) => (
-                          <button
-                            key={tIdx}
-                            type="button"
-                            onClick={() => handleSend(topic.query)}
-                            className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 border border-slate-200 dark:border-slate-700 hover:border-blue-300 rounded-xl px-2.5 py-1 transition cursor-pointer shadow-2xs text-left"
-                          >
-                            {topic.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                  </div>
-                ))}
-
-                {/* Typing Animation Bubble */}
-                {isTyping && (
-                  <div className="flex items-center space-x-2 animate-fade-in">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#0f417a] to-cyan-500 flex items-center justify-center text-white text-[10px]">
-                      <Bot className="h-3.5 w-3.5" />
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl rounded-tl-xs px-3.5 py-2.5 flex items-center space-x-1 shadow-xs">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" />
-                      <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce [animation-delay:0.2s]" />
-                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.4s]" />
-                    </div>
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Input Footer Bar */}
-              <div className="p-3 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800">
-                <form 
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSend();
-                  }}
-                  className="flex items-center space-x-2"
-                >
-                  <div className="relative flex-1">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={inputQuery}
-                      onChange={(e) => setInputQuery(e.target.value)}
-                      placeholder="Ask SagarBot (e.g. CSR, MIV, VIP, Reports)..."
-                      className="w-full pl-3.5 pr-8 py-2 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-100 placeholder-slate-400 font-medium"
-                    />
-                    {inputQuery && (
+              {activeTab === 'table_preview' && activeDisplayReport ? (
+                /* ── FULL INTERACTIVE REPORT TABLE PREVIEW IN EXPANDED CHATBOT (NAVY THEME) ── */
+                <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#07172c] p-4 space-y-3">
+                  
+                  {/* Table Preview Toolbar */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap bg-white dark:bg-[#0b2545] p-3 rounded-2xl border border-slate-200 dark:border-cyan-500/20 shadow-xs">
+                    <div className="flex items-center space-x-2.5">
                       <button
                         type="button"
-                        onClick={() => setInputQuery('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        onClick={() => setActiveTab('chat')}
+                        className="px-2.5 py-1.5 rounded-xl bg-blue-50 dark:bg-cyan-950/80 hover:bg-blue-100 dark:hover:bg-cyan-900/80 text-[#0f417a] dark:text-cyan-300 border border-blue-200 dark:border-cyan-500/30 text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-2xs"
+                        title="Return to Chat Conversation"
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        <span>← Back to Chat</span>
                       </button>
-                    )}
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                          {activeDisplayReport.reportTitle || `${activeDisplayReport.moduleName} Report`}
+                        </h4>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                          {activeDisplayReport.tableName ? `Table: ${activeDisplayReport.tableName}` : 'Live dataset synchronized with Sagarmanthan database'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Quick Search, Download & AI Prompt */}
+                    <div className="flex items-center space-x-2">
+                      <div className="relative w-40 sm:w-56">
+                        <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={tableSearch}
+                          onChange={(e) => setTableSearch(e.target.value)}
+                          placeholder="Search rows..."
+                          className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-100 dark:bg-[#07172c] border border-slate-200 dark:border-cyan-500/30 rounded-xl text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/30"
+                        />
+                        {tableSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setTableSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Download Buttons */}
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadTableData('xlsx', activeDisplayReport)}
+                        className="flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
+                        title="Download as Excel (.xlsx)"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>Excel</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadTableData('csv', activeDisplayReport)}
+                        className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-100 dark:bg-cyan-950/80 hover:bg-blue-200 dark:hover:bg-cyan-900/80 text-[#0f417a] dark:text-cyan-300 border border-blue-200 dark:border-cyan-500/30 text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
+                        title="Download as CSV"
+                      >
+                        <span>CSV</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('chat');
+                          handleSend(`Provide an executive analysis and key findings from this ${activeDisplayReport.moduleName || 'dataset'} report.`);
+                        }}
+                        className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-gradient-to-r from-[#0f417a] via-[#0284c7] to-cyan-500 hover:opacity-95 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-md"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-cyan-200" />
+                        <span>Analyze Report</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={!inputQuery.trim()}
-                    className="p-2 bg-[#0f417a] hover:bg-blue-800 disabled:opacity-40 text-white rounded-xl transition cursor-pointer flex-shrink-0 shadow-xs"
-                  >
-                    <Send className="h-4 w-4" />
-                  </button>
-                </form>
+                  {/* Table Grid Container */}
+                  <div className="flex-1 overflow-auto rounded-2xl border border-slate-200 dark:border-cyan-500/20 bg-white dark:bg-[#0b2545] shadow-sm">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="bg-[#0f417a] text-white sticky top-0 z-10 font-bold uppercase tracking-wider text-[10.5px] border-b border-blue-900/50">
+                        <tr>
+                          {(activeDisplayReport.columns || []).map((col, cIdx) => (
+                            <th 
+                              key={cIdx} 
+                              className="px-4 py-3 border-r border-blue-800/50 whitespace-nowrap last:border-r-0"
+                            >
+                              {col.headerName || col.field}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-medium">
+                        {(Array.isArray(activeDisplayReport.data) ? activeDisplayReport.data : [])
+                          .filter(row => {
+                            if (!tableSearch) return true;
+                            return Object.values(row).some(v => 
+                              String(v).toLowerCase().includes(tableSearch.toLowerCase())
+                            );
+                          })
+                          .map((row, rIdx) => (
+                            <tr 
+                              key={rIdx} 
+                              className={`transition hover:bg-blue-50/50 dark:hover:bg-cyan-950/30 ${
+                                rIdx % 2 === 1 ? 'bg-slate-50/50 dark:bg-[#07172c]/60' : 'bg-white dark:bg-[#0b2545]'
+                              }`}
+                            >
+                              {(activeDisplayReport.columns || []).map((col, cIdx) => {
+                                const val = row[col.field] !== undefined ? row[col.field] : (row[col.headerName] !== undefined ? row[col.headerName] : '—');
+                                return (
+                                  <td 
+                                    key={cIdx} 
+                                    className="px-4 py-2.5 border-r border-slate-100 dark:border-white/5 whitespace-nowrap text-slate-700 dark:text-slate-300 last:border-r-0"
+                                  >
+                                    {String(val || '—')}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-                <div className="mt-1 text-center">
-                  <span className="text-[9px] text-slate-400 font-semibold">
-                    Powered by Sagarmanthan Intelligent Knowledge Engine
-                  </span>
+                  {/* Footer status */}
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-1">
+                    <span>Showing {activeDisplayReport.rowCount || (Array.isArray(activeDisplayReport.data) ? activeDisplayReport.data.length : 0)} total records</span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('chat')}
+                      className="text-[#0f417a] dark:text-cyan-400 font-bold hover:underline cursor-pointer flex items-center space-x-1"
+                    >
+                      <MessageSquare className="h-3 w-3" />
+                      <span>Back to Chat</span>
+                    </button>
+                  </div>
+
                 </div>
-              </div>
+              ) : (
+                /* ── NAVY THEMED CHAT STREAM VIEW ── */
+                <>
+                  {/* Message Stream */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-5 text-slate-800 dark:text-slate-100">
+                    {messages.map((msg) => (
+                      <div 
+                        key={msg.id}
+                        className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} animate-fade-in`}
+                      >
+                        
+                        {/* Message Bubble Container */}
+                        <div className={`flex items-start space-x-3 ${msg.sender === 'user' ? 'max-w-[85%]' : 'max-w-full w-full'}`}>
+                          
+                          {/* Bot Avatar: SagarBot Mascot Logo */}
+                          {msg.sender === 'bot' && (
+                            <div className="w-7 h-7 rounded-full bg-[#0b2545] border border-cyan-400/50 flex-shrink-0 flex items-center justify-center mt-0.5 shadow-2xs">
+                              <SagarBotLogo className="w-4.5 h-4.5" glowing={false} />
+                            </div>
+                          )}
+
+                          <div 
+                            className={`flex-1 ${
+                              msg.sender === 'user'
+                                ? 'bg-gradient-to-r from-[#0f417a] to-[#0284c7] text-white rounded-[22px] px-4 py-2.5 shadow-sm font-medium text-xs leading-relaxed'
+                                : 'bg-transparent text-slate-800 dark:text-slate-100 text-xs'
+                            }`}
+                          >
+                            {/* Formatted Text Content */}
+                            <div className="leading-relaxed">
+                              {renderFormattedText(msg.text)}
+                            </div>
+
+                            {/* ── DYNAMIC AI GENERATED REPORT CARD (From Module Query API) ── */}
+                            {msg.dynamicReport && (
+                              <div className="mt-3.5 p-3.5 bg-slate-50 dark:bg-[#0b2545] rounded-2xl border border-slate-200 dark:border-cyan-500/30 space-y-3 shadow-xs animate-fade-in">
+                                
+                                {/* Dynamic Header: Module Name + Report */}
+                                <div className="flex items-center justify-between gap-2 flex-wrap text-slate-800 dark:text-slate-200 border-b border-slate-200/80 dark:border-cyan-500/20 pb-2.5">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-cyan-950 text-[#0f417a] dark:text-cyan-400">
+                                      <FileSpreadsheet className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                      <h4 className="text-xs font-black text-slate-900 dark:text-white tracking-wide">
+                                        {msg.dynamicReport.moduleName} Report
+                                      </h4>
+                                      <span className="text-[9.5px] text-cyan-600 dark:text-cyan-300 font-bold flex items-center space-x-1">
+                                        <Sparkles className="h-2.5 w-2.5 inline" />
+                                        <span>AI Generated Dynamic Report</span>
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center space-x-1.5">
+                                    <span className="text-[10px] bg-blue-100 dark:bg-cyan-950 text-[#0f417a] dark:text-cyan-300 px-2 py-0.5 rounded-full font-mono font-bold border border-blue-200 dark:border-cyan-500/40">
+                                      {msg.dynamicReport.rowCount || 0} Records
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Miniature Data Table Preview with Dynamic Headers */}
+                                {Array.isArray(msg.dynamicReport.data) && msg.dynamicReport.data.length > 0 && (
+                                  <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-cyan-500/20 text-[10.5px] bg-white dark:bg-[#07172c]">
+                                    <table className="w-full text-left">
+                                      <thead className="bg-[#0f417a] text-white font-bold border-b border-blue-900/50">
+                                        <tr>
+                                          {(msg.dynamicReport.columns || []).slice(0, 4).map((c, cIdx) => (
+                                            <th key={cIdx} className="px-3 py-2 whitespace-nowrap">{c.headerName}</th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                                        {msg.dynamicReport.data.slice(0, 3).map((r, rIdx) => (
+                                          <tr key={rIdx} className="hover:bg-slate-50 dark:hover:bg-cyan-950/40">
+                                            {(msg.dynamicReport.columns || []).slice(0, 4).map((c, cIdx) => (
+                                              <td key={cIdx} className="px-3 py-2 whitespace-nowrap text-slate-700 dark:text-slate-300">
+                                                {String(r[c.field] !== undefined ? r[c.field] : (r[c.headerName] || '—')).substring(0, 24)}
+                                              </td>
+                                            ))}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+
+                                {/* Action Buttons: Expand & Download */}
+                                <div className="flex items-center gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenTablePreview(msg.dynamicReport)}
+                                    className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 bg-gradient-to-r from-[#0f417a] via-[#0284c7] to-cyan-500 hover:opacity-95 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
+                                  >
+                                    <Maximize2 className="h-3.5 w-3.5 text-cyan-200" />
+                                    <span>Expand Table View</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadTableData('xlsx', msg.dynamicReport)}
+                                    title="Download Excel Spreadsheet (.xlsx)"
+                                    className="flex items-center justify-center space-x-1.5 py-2 px-3 bg-white dark:bg-[#07172c] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/40 font-bold text-xs rounded-xl shadow-2xs transition cursor-pointer"
+                                  >
+                                    <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    <span>Download Excel</span>
+                                  </button>
+                                </div>
+
+                              </div>
+                            )}
+
+                            {/* Direct Link Action Button if attached */}
+                            {msg.link && (
+                              <div className="mt-2.5 pt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleLinkClick(msg.link)}
+                                  className="inline-flex items-center space-x-1.5 text-xs font-bold text-[#0f417a] dark:text-cyan-300 bg-blue-50 dark:bg-cyan-950/40 hover:bg-blue-100 dark:hover:bg-cyan-900/60 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-cyan-500/30 transition cursor-pointer"
+                                >
+                                  <span>{msg.linkLabel || 'Navigate to Module'}</span>
+                                  <ArrowRight className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Action Footer for Bot Responses */}
+                            {msg.sender === 'bot' && msg.id !== 'welcome-msg' && (
+                              <div className="mt-3 flex items-center justify-between text-[10.5px] text-slate-400 border-t border-slate-100 dark:border-white/5 pt-2">
+                                <span className="text-[9.5px] text-slate-400">{msg.timestamp}</span>
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(msg.text);
+                                      setFeedbackGiven(prev => ({ ...prev, [`${msg.id}-copied`]: true }));
+                                      setTimeout(() => setFeedbackGiven(prev => ({ ...prev, [`${msg.id}-copied`]: false })), 1500);
+                                    }}
+                                    className="p-1 hover:bg-slate-100 dark:hover:bg-white/10 rounded-md transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                    title="Copy response"
+                                  >
+                                    {feedbackGiven[`${msg.id}-copied`] ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFeedback(msg.id, true)}
+                                    className={`p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 transition ${feedbackGiven[msg.id] === true ? 'text-emerald-500 font-bold' : 'text-slate-500 dark:text-slate-400'}`}
+                                    title="Good response"
+                                  >
+                                    <ThumbsUp className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFeedback(msg.id, false)}
+                                    className={`p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 transition ${feedbackGiven[msg.id] === false ? 'text-rose-500 font-bold' : 'text-slate-500 dark:text-slate-400'}`}
+                                    title="Bad response"
+                                  >
+                                    <ThumbsDown className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                          </div>
+
+                        </div>
+
+                        {/* Navy Themed Quick Suggestion Chips */}
+                        {msg.suggestions && msg.suggestions.length > 0 && (
+                          <div className="mt-2.5 ml-10 flex flex-wrap gap-1.5 max-w-full">
+                            {msg.suggestions.map((topic, tIdx) => (
+                              <button
+                                key={tIdx}
+                                type="button"
+                                onClick={() => handleSend(topic.query)}
+                                className="text-[11px] font-semibold text-[#0f417a] dark:text-cyan-300 bg-blue-50/70 hover:bg-blue-100 dark:bg-[#0b2545] dark:hover:bg-[#0f3563] border border-blue-200 dark:border-cyan-500/30 hover:border-cyan-400 rounded-2xl px-3 py-1.5 transition cursor-pointer shadow-2xs text-left"
+                              >
+                                {topic.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                      </div>
+                    ))}
+
+                    {/* Oceanic Glowing Typing Animation */}
+                    {isTyping && (
+                      <div className="flex items-center space-x-3 animate-fade-in ml-1">
+                        <div className="w-7 h-7 rounded-full bg-[#0b2545] border border-cyan-400/50 flex items-center justify-center">
+                          <SagarBotLogo className="w-4.5 h-4.5 animate-bounce" glowing={true} />
+                        </div>
+                        <div className="flex items-center space-x-1.5 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                          <span className="bg-gradient-to-r from-[#0f417a] via-[#0284c7] to-cyan-500 bg-clip-text text-transparent font-bold">
+                            SagarBot is analyzing...
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div ref={messagesEndRef} />
+                  </div>
+
+                  {/* ── FLOATING NAVY INPUT DOCK ── */}
+                  <div className="p-3.5 pt-1 bg-transparent">
+                    <form 
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSend();
+                      }}
+                      className="relative rounded-[28px] bg-slate-100 dark:bg-[#0b2545] border border-slate-200 dark:border-cyan-500/30 focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-400/20 transition-all duration-200 shadow-md px-3.5 py-1.5 flex items-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4 text-cyan-500 shrink-0 animate-pulse ml-1" />
+                      
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={inputQuery}
+                        onChange={(e) => setInputQuery(e.target.value)}
+                        placeholder="Ask SagarBot anything about this report or ministry data..."
+                        className="w-full bg-transparent border-none outline-none text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400 font-medium"
+                      />
+
+                      {inputQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setInputQuery('')}
+                          className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={!inputQuery.trim()}
+                        className="p-2 bg-gradient-to-tr from-[#0f417a] via-[#0284c7] to-cyan-500 hover:opacity-95 disabled:opacity-30 text-white rounded-full transition cursor-pointer flex-shrink-0 shadow-md active:scale-95"
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </button>
+                    </form>
+
+                    <div className="mt-1 text-center">
+                      <span className="text-[9.5px] text-slate-400 font-medium">
+                        ✨ SagarBot AI can make mistakes. Verify important report findings.
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
 

@@ -7,12 +7,14 @@ import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { API_BASE_URL } from '../../../config/api';
+import { useAICopilot } from '../../../context/AICopilotContext';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 const initials = n => n ? n.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() : '';
 
 export default function Reports({ triggerNotification }) {
+  const { registerReport, clearReport } = useAICopilot();
   const gridRef = useRef(null);
   const [reportView, setReportView] = useState('all');
 
@@ -515,6 +517,24 @@ export default function Reports({ triggerNotification }) {
     resizable: true,
     cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
   }), []);
+
+  useEffect(() => {
+    if (aggregatedData && aggregatedData.length > 0) {
+      registerReport({
+        moduleName: 'Young Professionals',
+        reportTitle: currentView.title,
+        activeView: currentView.type === 'summary' ? `Summary (${reportView})` : 'Drilldown List',
+        columns: columns,
+        data: aggregatedData,
+        rowCount: aggregatedData.length,
+        pinnedBottom: pinnedBottomRowData,
+        autoOpen: true
+      });
+    }
+    return () => {
+      clearReport();
+    };
+  }, [aggregatedData, currentView, columns, reportView, registerReport, clearReport, pinnedBottomRowData]);
 
   /* ── JSX ───────────────────────────────────────────────────── */
   return (
