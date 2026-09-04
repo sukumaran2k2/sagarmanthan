@@ -1,84 +1,73 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
+import RestrictedAccess from '../../components/RestrictedAccess';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
+import { useYpPermissions } from './hooks/useYpPermissions';
+import { fetchWings, fetchDivisions } from './api';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+export default function YoungProfessionalsView({
+  triggerNotification
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const permissions = useYpPermissions();
+  const { canAdd, canEdit, canRemove, canView } = permissions;
 
-function authHeaders() {
-  const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
-  const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
-  const [loading, setLoading] = useState(false);
-  const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
 
-  const tabs = [
-    { id: 'add', label: 'Input Form' },
-    { id: 'list', label: 'Data List' },
-    { id: 'report', label: 'Report' }
-  ];
+  // Dynamically render internal sub-tabs based on permissions
+  const tabs = useMemo(() => {
+    const list = [];
+    if (canAdd) list.push({ id: 'input-form', label: 'Input Form' });
+    if (canView) list.push({ id: 'list-view', label: 'Data List' });
+    if (canView) list.push({ id: 'report', label: 'Report' });
+    return list;
+  }, [canAdd, canView]);
+
+  const currentTab = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'input-form';
+    if (path.includes('/report')) return 'report';
+    return 'list-view';
+  }, [location.pathname]);
 
   useEffect(() => {
-    if (activeSubTabProp === 'Input Form' || activeSubTabProp === 'YP Input Form') {
-      setActiveSubTab('add');
-    } else if (activeSubTabProp === 'Report' || activeSubTabProp === 'YP Report') {
-      setActiveSubTab('report');
-    } else if (activeSubTabProp === 'Data List' || activeSubTabProp === 'YP Data List' || activeSubTabProp === 'Young Professionals') {
-      setActiveSubTab('list');
-    }
-  }, [activeSubTabProp]);
-
-  useEffect(() => {
-    const headers = authHeaders();
-    axios.get(`${API}/mmt-dropdown/mmt_wings`, { headers })
+    fetchWings()
       .then(res => setWings(res.data || []))
       .catch(err => console.error("Error loading wings:", err));
 
-    axios.get(`${API}/mmt-dropdown/mmt_division`, { headers })
+    fetchDivisions()
       .then(res => setDivisions(res.data || []))
       .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
-  const fetchData = () => {
-    setLoading(true);
-    axios.get(`${API}/young-professional`, { headers: authHeaders() })
-      .then(res => {
-        setRowData(res.data || []);
-      })
-      .catch(err => console.error("Error loading YP data list:", err))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const handleEdit = (yp) => {
     setEditData(yp);
+    navigate('/hr/young-professionals/input-form', { state: { item: yp } });
   };
 
   const handleSuccess = () => {
     setEditData(null);
-    fetchData();
-    setActiveSubTab('list');
+    navigate('/hr/young-professionals/list-view');
   };
 
   const handleBack = () => {
     setEditData(null);
-    setActiveSubTab('list');
+    navigate('/hr/young-professionals/list-view');
   };
+
+  // Render RestrictedAccess component if user has no permissions at all
+  if (!canAdd && !canView && !canEdit) {
+    return <RestrictedAccess moduleName="Young Professionals" />;
+  }
 
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      {/* Header Row similar to Cabinet Notes Other Ministry */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
@@ -91,20 +80,31 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeSubTab}
+          currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'add') {
-              setEditData(null);
-            }
-            setActiveSubTab(tabId);
+            if (tabId !== 'input-form') setEditData(null);
+            if (tabId === 'input-form') navigate('/hr/young-professionals/input-form');
+            else if (tabId === 'report') navigate('/hr/young-professionals/report');
+            else navigate('/hr/young-professionals/list-view');
           }}
         />
       </div>
 
-      {/* Dynamic Tab Render Area */}
       <div className="space-y-8">
-        {activeSubTab === 'list' && (
-          editData ? (
+        <Routes>
+          <Route path="list-view" element={
+            <DataList
+              onEdit={handleEdit}
+              triggerNotification={triggerNotification}
+              wings={wings}
+              divisions={divisions}
+              canEdit={canEdit}
+              canAdd={canAdd}
+              canRemove={canRemove}
+            />
+          } />
+
+          <Route path="input-form" element={
             <InputForm
               wings={wings}
               divisions={divisions}
@@ -112,36 +112,22 @@ export default function YoungProfessionalsView({ activeSubTab: activeSubTabProp,
               onSuccess={handleSuccess}
               triggerNotification={triggerNotification}
               editData={editData}
+              canEdit={canEdit}
+              canAdd={canAdd}
             />
-          ) : (
-            <DataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onRefresh={fetchData}
-              triggerNotification={triggerNotification}
+          } />
+
+          <Route path="report" element={
+            <Reports
               wings={wings}
               divisions={divisions}
+              triggerNotification={triggerNotification}
             />
-          )
-        )}
+          } />
 
-        {activeSubTab === 'add' && (
-          <InputForm
-            wings={wings}
-            divisions={divisions}
-            onBack={handleBack}
-            onSuccess={handleSuccess}
-            triggerNotification={triggerNotification}
-            editData={null}
-          />
-        )}
-
-        {activeSubTab === 'report' && (
-          <Reports
-            triggerNotification={triggerNotification}
-          />
-        )}
+          <Route index element={<Navigate to={canView ? "list-view" : "input-form"} replace />} />
+          <Route path="*" element={<Navigate to={canView ? "list-view" : "input-form"} replace />} />
+        </Routes>
       </div>
     </div>
   );

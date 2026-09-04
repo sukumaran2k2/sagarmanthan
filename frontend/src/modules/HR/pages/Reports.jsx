@@ -3,6 +3,7 @@ import axios from 'axios';
 import { FilePieChart, Search, ChevronLeft, Database } from 'lucide-react';
 import PageBanner from '../../../components/PageBanner';
 import Table from '../../../components/Table'; // Reusable Table component
+import { API_BASE_URL } from '../../../config/api';
 
 const REPORT_LIST = [
   // Major Ports
@@ -78,7 +79,7 @@ const ReportDataDrillDown = ({ report, onBack }) => {
     setDetailedError(null);
     setDetailedTitle(`Detailed View: ${params.colDef.headerName} for ${params.data.organisation_name || 'Organization'}`);
 
-    axios.get(`http://localhost:3000${detailEndpoint}`)
+    axios.get(`${API_BASE_URL}${detailEndpoint}`)
       .then(res => {
         const dData = res.data?.value || res.data?.data || (Array.isArray(res.data) ? res.data : []);
         setDetailedData(dData);
@@ -128,7 +129,7 @@ const ReportDataDrillDown = ({ report, onBack }) => {
     else if (report.code === 'H-3.1') endpoint = '/get-contract-details-report/0/0';
     else if (report.code === 'H-4.1') endpoint = '/get-training-details-report/0/0';
 
-    axios.get(`http://localhost:3000${endpoint}`)
+    axios.get(`${API_BASE_URL}${endpoint}`)
       .then(res => {
         // Handle variations in response format safely (including when backend returns { columnDefs, rowData })
         const fetchedData = res.data?.rowData || res.data?.value || res.data?.data || (Array.isArray(res.data) ? res.data : []);

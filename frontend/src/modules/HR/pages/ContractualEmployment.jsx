@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Search, UserPlus, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import PageBanner from '../../../components/PageBanner';
 import Table from '../../../components/Table';
+import { API_BASE_URL } from '../../../config/api';
 
 export default function ContractualEmployment() {
   const [staff, setStaff] = useState([]);
@@ -12,7 +13,7 @@ export default function ContractualEmployment() {
 
   useEffect(() => {
     setLoading(true);
-    axios.get("http://localhost:3000/get-all-contractual-data/1")
+    axios.get(`${API_BASE_URL}/get-all-contractual-data/1`)
       .then(res => {
         setStaff(res.data.value || res.data || []);
       })

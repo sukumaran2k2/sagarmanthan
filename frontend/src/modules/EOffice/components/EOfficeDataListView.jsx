@@ -22,6 +22,17 @@ export default function EOfficeDataListView({
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="relative max-w-xs w-full">
+          <input
+            type="text"
+            placeholder="Search employee data..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full text-xs pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 transition font-medium"
+          />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+        </div>
+
         <div className="flex items-center space-x-3">
           <CopyButton
             onCopy={handleCopyData}
@@ -48,17 +59,6 @@ export default function EOfficeDataListView({
             </select>
             <span>entries</span>
           </div>
-        </div>
-
-        <div className="relative max-w-xs w-full">
-          <input
-            type="text"
-            placeholder="Search employee data..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full text-xs pl-8 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 transition font-medium"
-          />
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
         </div>
       </div>
 

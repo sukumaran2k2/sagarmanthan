@@ -1,48 +1,47 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
+import { fetchWings, fetchDivisions, fetchVIPReferences } from './api';
 
-export default function VIPReference({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
-  const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'report' | 'add'
+export default function VIPReference({ triggerNotification }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [vipReferences, setVipReferences] = useState([]);
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [editData, setEditData] = useState(null);
 
   const tabs = [
-    { id: 'add', label: 'Input Form' },
-    { id: 'list', label: 'Data List' },
-    { id: 'report', label: 'Report' }
+    { id: 'input-form', label: 'Input Form' },
+    { id: 'data-list', label: 'Data List' },
+    { id: 'reports', label: 'Report' }
   ];
 
-  useEffect(() => {
-    if (activeSubTabProp === 'Input Form') {
-      setActiveSubTab('add');
-    } else if (activeSubTabProp === 'Reports' || activeSubTabProp === 'Report') {
-      setActiveSubTab('report');
-    } else if (activeSubTabProp === 'Data List') {
-      setActiveSubTab('list');
-    }
-  }, [activeSubTabProp]);
+  const currentTab = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'input-form';
+    if (path.includes('/reports') || path.includes('/report')) return 'reports';
+    return 'data-list';
+  }, [location.pathname]);
 
-  // Fetch wings and divisions on mount
+  // Fetch wings and divisions on mount using centralized API service
   useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_wings")
+    fetchWings()
       .then(res => setWings(res.data || []))
       .catch(err => console.error("Error loading wings:", err));
 
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_division")
+    fetchDivisions()
       .then(res => setDivisions(res.data || []))
       .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
   const fetchData = () => {
-    axios.get("http://localhost:3000/vip-reference")
+    fetchVIPReferences()
       .then(res => {
-        // Handle paginated or list format
         const dataArray = Array.isArray(res.data) ? res.data : (res.data.data || []);
         const mapped = dataArray.map(r => {
           const steps = {
@@ -63,110 +62,98 @@ export default function VIPReference({ activeSubTab: activeSubTabProp, setActive
           };
           return {
             id: r.vip_reference_id,
+            vipName: r.name_of_vip || '',
+            vipType: r.vip_type || '',
+            vipDesignation: r.vip_designation || '',
             subject: r.subject || '',
-            eofficeFile: r.eoffice_file_number || '',
             wing: r.wing_name || '',
             division: r.division_name || '',
-            refNumber: r.ref_letter_num || '',
-            receivedFrom: r.received_from || '',
-            remarks: r.remarks || '',
-            deadline: r.deadline ? new Date(r.deadline).toISOString().split('T')[0] : '',
             statusSteps: steps,
             statusDates: dates,
+            remarks: r.remarks || '',
             lastUpdated: r.updated_date ? new Date(r.updated_date).toISOString().split('T')[0] : ''
           };
         });
         setVipReferences(mapped);
       })
-      .catch(err => console.error("Error loading VIP references:", err));
+      .catch(err => console.error("Error fetching VIP References:", err));
   };
+
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [location.pathname]);
 
-  const handleEdit = (refData) => {
-    setEditData(refData);
-  };
-
-  const handleSuccess = () => {
-    setEditData(null);
-    fetchData();
-    setActiveSubTab('list');
+  const handleEdit = (row) => {
+    setEditData(row);
+    navigate('/governance/vip-reference/input-form', { state: { item: row } });
   };
 
   const handleBack = () => {
     setEditData(null);
-    setActiveSubTab('list');
+    navigate('/governance/vip-reference/data-list');
   };
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-      
-      {/* Header Row */}
+    <div className="space-y-6 animate-fade-in text-slate-800">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
-            VIP Reference
+            VIP References
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
-            Manage VIP Reference letters, comments sought from organisations, and track processing workflow status.
+            Track and manage VIP communications, queries, and action status across departments.
           </p>
         </div>
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeSubTab}
+          currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'add') {
-              setEditData(null);
-            }
-            setActiveSubTab(tabId);
+            if (tabId !== 'input-form') setEditData(null);
+            if (tabId === 'input-form') navigate('/governance/vip-reference/input-form');
+            else if (tabId === 'reports') navigate('/governance/vip-reference/reports');
+            else navigate('/governance/vip-reference/data-list');
           }}
         />
       </div>
 
-      {/* Dynamic Tab Render Area */}
-      <div className="space-y-8">
-        {activeSubTab === 'list' && (
-          editData ? (
-            <InputForm
-              wings={wings}
-              divisions={divisions}
-              onBack={handleBack}
-              onSuccess={handleSuccess}
-              triggerNotification={triggerNotification}
-              editData={editData}
-            />
-          ) : (
-            <DataList
-              wings={wings}
-              divisions={divisions}
-              onEdit={handleEdit}
-              onAddClick={() => setActiveSubTab('add')}
-              triggerNotification={triggerNotification}
-            />
-          )
-        )}
-
-        {activeSubTab === 'add' && (
-          <InputForm
+      <Routes>
+        <Route path="data-list" element={
+          <DataList
             wings={wings}
             divisions={divisions}
-            onBack={handleBack}
-            onSuccess={handleSuccess}
+            vipReferences={vipReferences}
+            onEdit={handleEdit}
+            fetchData={fetchData}
             triggerNotification={triggerNotification}
-            editData={null}
           />
-        )}
+        } />
 
-        {activeSubTab === 'report' && (
+        <Route path="input-form" element={
+          <InputForm
+            onBack={handleBack}
+            editData={editData}
+            fetchData={fetchData}
+            wings={wings}
+            divisions={divisions}
+            triggerNotification={triggerNotification}
+          />
+        } />
+
+        <Route path="reports" element={
           <Reports
             vipReferences={vipReferences}
+            wings={wings}
+            divisions={divisions}
+            fetchData={fetchData}
             triggerNotification={triggerNotification}
           />
-        )}
-      </div>
+        } />
+
+        <Route index element={<Navigate to="data-list" replace />} />
+        <Route path="*" element={<Navigate to="data-list" replace />} />
+      </Routes>
     </div>
   );
 }

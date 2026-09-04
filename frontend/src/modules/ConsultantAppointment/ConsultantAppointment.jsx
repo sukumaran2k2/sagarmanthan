@@ -1,99 +1,38 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { useConsultantPermissions } from './hooks/useConsultantPermissions';
-import { fetchConsultantAppointments, fetchWings, fetchDivisions } from './api';
+import { fetchWings, fetchDivisions, deleteConsultantAppointment } from './api';
+import { getCurrentUserId } from '../../utils/authSession';
 
-const STAGES = [
-  { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
-  { key: 'tenderPublished', label: 'Tender Published' },
-  { key: 'preBidQueries', label: 'Pre-bid Queries Responded' },
-  { key: 'bidReceived', label: 'Bid Received' },
-  { key: 'techBidFinalized', label: 'Technical Bid Finalized' },
-  { key: 'finBidFinalized', label: 'Financial Bid Finalized' },
-  { key: 'workOrderIssued', label: 'Work Order Issued' },
-  { key: 'contractSigned', label: 'Contract Signed' },
-];
-
-const toBool = (val) => val === 'Yes' || val === 1 || val === true;
-const formatDate = (d) => (d ? new Date(d).toISOString().split('T')[0] : '');
-
-function parseAppointmentRow(b) {
-  const stages = {
-    adminApproval: toBool(b.admin_approval_for_nkg_consultant),
-    adminApprovalDate: formatDate(b.admin_approval_for_nkg_consultant_date),
-    tenderPublished: toBool(b.tender_published),
-    tenderPublishedDate: formatDate(b.tender_published_date),
-    preBidQueries: toBool(b.pre_bid_queries_responded),
-    preBidQueriesDate: formatDate(b.pre_bid_queries_responded_date),
-    bidReceived: toBool(b.bid_received),
-    bidReceivedDate: formatDate(b.bid_received_date),
-    techBidFinalized: toBool(b.technical_bid_finalized),
-    techBidFinalizedDate: formatDate(b.technical_bid_finalized_date),
-    finBidFinalized: toBool(b.financial_bid_finalized),
-    finBidFinalizedDate: formatDate(b.financial_bid_finalized_date),
-    workOrderIssued: toBool(b.work_order_issued),
-    workOrderIssuedDate: formatDate(b.work_order_issued_date),
-    contractSigned: toBool(b.contract_signed),
-    contractSignedDate: formatDate(b.contract_signed_date),
-  };
-
-  return {
-    id: b.consultant_appointment_id,
-    wing_id: b.wing,
-    division_id: b.division,
-    wing: b.wing_name || 'Unknown',
-    division: b.division_name || 'Unknown',
-    appointmentType: b.appointment_type || 'Full Time',
-    numResources: b.number_of_resources || 1,
-    status: getStatusFromStages(stages),
-    stages,
-  }; 
-}
-
-const getStatusFromStages = (stages) => {
-  for (let i = STAGES.length - 1; i >= 0; i--) {
-    if (stages[STAGES[i].key]) {
-      return STAGES[i].label;
-    }
-  }
-  return 'Initiated';
-};
-
-export default function ConsultantAppointmentView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
+export default function ConsultantAppointmentView({ triggerNotification }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const permissions = useConsultantPermissions();
-  const { canAdd, canEdit, canRemove, canView, isViewOnlyAdmin } = permissions;
+  const { canAdd, canEdit, canRemove, canView } = permissions;
 
-  const [activeSubTab, setActiveSubTab] = useState(canAdd ? 'add' : (canView ? 'list' : 'add'));
-  const [loading, setLoading] = useState(false);
-  const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
   const [wings, setWings] = useState([]);
   const [divisions, setDivisions] = useState([]);
 
   const tabs = useMemo(() => {
     const list = [];
-    if (canAdd) list.push({ id: 'add', label: 'Input Form' });
-    if (canView) list.push({ id: 'list', label: 'Data List' });
-    if (canView) list.push({ id: 'report', label: 'Report' });
+    if (canAdd) list.push({ id: 'input-form', label: 'Input Form' });
+    if (canView) list.push({ id: 'data-list', label: 'Data List' });
+    if (canView) list.push({ id: 'reports', label: 'Report' });
     return list;
   }, [canAdd, canView]);
 
-  useEffect(() => {
-    if (activeSubTabProp === 'Consultant Input Form') {
-      if (canAdd) setActiveSubTab('add');
-      else if (canView) setActiveSubTab('list');
-    } else if (activeSubTabProp === 'Consultant Reports') {
-      if (canView) setActiveSubTab('report');
-      else if (canAdd) setActiveSubTab('add');
-    } else if (activeSubTabProp === 'Consultant Data List') {
-      if (canView) setActiveSubTab('list');
-      else if (canAdd) setActiveSubTab('add');
-    }
-  }, [activeSubTabProp, canAdd, canView]);
+  const currentTab = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'input-form';
+    if (path.includes('/reports') || path.includes('/report')) return 'reports';
+    return 'data-list';
+  }, [location.pathname]);
 
   useEffect(() => {
     fetchWings()
@@ -105,38 +44,36 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
       .catch(err => console.error("Error loading divisions:", err));
   }, []);
 
-  const fetchData = () => {
-    setLoading(true);
-    fetchConsultantAppointments()
-      .then(res => {
-        setRowData(res.data.map(parseAppointmentRow));
-      })
-      .catch(err => console.error("Error loading CA data list:", err))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const handleEdit = (ca) => {
     setEditData(ca);
+    navigate('/hr/consultant-appointment/input-form', { state: { item: ca } });
   };
 
   const handleSuccess = () => {
     setEditData(null);
-    fetchData();
-    setActiveSubTab('list');
-    if (setActiveSubTabProp) {
-      setActiveSubTabProp('Consultant Data List');
-    }
+    navigate('/hr/consultant-appointment/data-list');
   };
 
   const handleBack = () => {
     setEditData(null);
-    setActiveSubTab('list');
-    if (setActiveSubTabProp) {
-      setActiveSubTabProp('Consultant Data List');
+    navigate('/hr/consultant-appointment/data-list');
+  };
+
+  const handleDelete = async (ca) => {
+    if (!window.confirm(`Are you sure you want to delete this Consultant Appointment record (${ca.wing} / ${ca.division})? This will also remove associated candidate records and documents.`)) {
+      return;
+    }
+    const userId = getCurrentUserId() || 1;
+    try {
+      await deleteConsultantAppointment(ca.id, userId);
+      if (triggerNotification) {
+        triggerNotification("Consultant Appointment and associated candidates deleted successfully.", "success");
+      }
+    } catch (err) {
+      console.error("Error deleting consultant appointment:", err);
+      if (triggerNotification) {
+        triggerNotification("Failed to delete Consultant Appointment.", "error");
+      }
     }
   };
 
@@ -158,24 +95,33 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeSubTab}
+          currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'add') {
-              setEditData(null);
-            }
-            setActiveSubTab(tabId);
-            if (setActiveSubTabProp) {
-              if (tabId === 'add') setActiveSubTabProp('Consultant Input Form');
-              else if (tabId === 'report') setActiveSubTabProp('Consultant Reports');
-              else if (tabId === 'list') setActiveSubTabProp('Consultant Data List');
-            }
+            if (tabId !== 'input-form') setEditData(null);
+            if (tabId === 'input-form') navigate('/hr/consultant-appointment/input-form');
+            else if (tabId === 'reports') navigate('/hr/consultant-appointment/reports');
+            else navigate('/hr/consultant-appointment/data-list');
           }}
         />
       </div>
 
       <div className="space-y-8">
-        {activeSubTab === 'list' && (
-          editData ? (
+        <Routes>
+          <Route path="data-list" element={
+            <DataList
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onAddClick={() => navigate('/hr/consultant-appointment/input-form')}
+              triggerNotification={triggerNotification}
+              wings={wings}
+              divisions={divisions}
+              canEdit={canEdit}
+              canAdd={canAdd}
+              canRemove={canRemove}
+            />
+          } />
+
+          <Route path="input-form" element={
             <InputForm
               wings={wings}
               divisions={divisions}
@@ -184,44 +130,18 @@ export default function ConsultantAppointmentView({ activeSubTab: activeSubTabPr
               triggerNotification={triggerNotification}
               editData={editData}
             />
-          ) : (
-            <DataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onAddClick={() => {
-                setActiveSubTab('add');
-                if (setActiveSubTabProp) {
-                  setActiveSubTabProp('Consultant Input Form');
-                }
-              }}
-              triggerNotification={triggerNotification}
+          } />
+
+          <Route path="reports" element={
+            <Reports
               wings={wings}
-              divisions={divisions}
-              canEdit={canEdit}
-              canAdd={canAdd}
-              canRemove={canRemove}
+              triggerNotification={triggerNotification}
             />
-          )
-        )}
+          } />
 
-        {activeSubTab === 'add' && (
-          <InputForm
-            wings={wings}
-            divisions={divisions}
-            onBack={handleBack}
-            onSuccess={handleSuccess}
-            triggerNotification={triggerNotification}
-            editData={null}
-          />
-        )}
-
-        {activeSubTab === 'report' && (
-          <Reports
-            wings={wings}
-            triggerNotification={triggerNotification}
-          />
-        )}
+          <Route index element={<Navigate to={canView ? "data-list" : "input-form"} replace />} />
+          <Route path="*" element={<Navigate to={canView ? "data-list" : "input-form"} replace />} />
+        </Routes>
       </div>
     </div>
   );

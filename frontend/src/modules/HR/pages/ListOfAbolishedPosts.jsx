@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Search, UserX, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import PageBanner from '../../../components/PageBanner';
 import Table from '../../../components/Table';
+import { API_BASE_URL } from '../../../config/api';
 
 export default function ListOfAbolishedPosts() {
   const [posts, setPosts] = useState([]);
@@ -14,7 +15,7 @@ export default function ListOfAbolishedPosts() {
 
   // Load organisations list
   useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_organisation")
+    axios.get(`${API_BASE_URL}/mmt-dropdown/mmt_organisation`)
       .then(res => setOrganisations(res.data || []))
       .catch(err => console.error("Error loading organisations:", err));
   }, []);
@@ -23,7 +24,7 @@ export default function ListOfAbolishedPosts() {
   useEffect(() => {
     if (!selectedOrg) return;
     setLoading(true);
-    axios.get(`http://localhost:3000/get-abolised-vacant-posts-details/${selectedOrg}`)
+    axios.get(`${API_BASE_URL}/get-abolised-vacant-posts-details/${selectedOrg}`)
       .then(res => {
         setPosts(res.data.value || res.data || []);
       })

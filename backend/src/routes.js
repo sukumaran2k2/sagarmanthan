@@ -12,6 +12,7 @@ import userTable from "./controllers/UserManagement/createUser.js";
 import orgModulePermission from "./controllers/RBAC/orgModulePermission.js";
 import userModuleCrud from "./controllers/RBAC/userModuleCrud.js";
 import { getOrgModulePermissionLog, getUserModuleCrudLog } from "./controllers/RBAC/rbacAudit.js";
+import * as sagarbotPermissionTab from "./controllers/RBAC/sagarbotPermission.js";
 
 
 import terminalImageUploaderTab from "./controllers/MasterManagement/terminalImageUploader.js";
@@ -285,7 +286,7 @@ router.post("/mikr-logout", auth, mikrLogout);
 
 // MMT
 router.get("/mmt/:tid", masterTable.getMmt);
-router.get("/mmt-dropdown/:tid", auth, masterTable.getDropDownData);
+router.get("/mmt-dropdown/:tid", masterTable.getDropDownData);
 router.get("/mmt-dependecy-dropdown/:tid", masterTable.getFilterDependecyDropDown);
 
 router.post("/mmt", masterTable.createMmt);
@@ -293,7 +294,7 @@ router.put("/mmt", masterTable.updateMmt);
 router.put("/mmt-status", masterTable.toggleStatusMmt);
 // router.delete("/mmt", masterTable.deleteMmt);
 
-router.get("/allvalue-dropdown/:tid", auth, masterTable.getDropDownAllValues);
+router.get("/allvalue-dropdown/:tid", masterTable.getDropDownAllValues);
 
 //Terminal/Jetty image uploader
 router.post("/terminal-image-uploader", terminalImageUploaderTab.upload.single('imageFile'), terminalImageUploaderTab.terminalImageUploader);
@@ -320,20 +321,19 @@ router.get("/dashboard-data-entry-status", dashboardController.getDashboardDataE
 router.get("/get-court-cases-dashboard-status", dashboardController.getDashboardCourtCaseStatus);
 
 //Capex
-router.post('/capex', capexController.addCapex);
-router.get('/capex/:userID', capexController.getCapexData);
-router.get('/data-entry-capex', capexController.getCapexDataEntry);
-router.get('/capex-monthly-data/:capexID', capexController.getCapexMonthlyData);
-router.get('/get-capex/:capexID', capexController.getCapexExpediture);
-router.post('/capex-edit', capexController.editCapexExpediture);
-router.post('/capex-monthly-data', capexController.addCapexMonthlyData);
-// router.get('/capex-fin-chart/:finYear', capexController.getCapexDashboardData);
-// router.get('/capex-port-chart/:orgId', capexController.getCapexPortDashboardData);
-router.get("/get-capex-dashboard/:clusterID/:financialYear", capexController.getCapexDashboard);
-router.get("/get-capex-dashboard-bar-graph/:clusterID/:financialYear", capexController.getCapexDashboardBarGraph);
-router.get("/get-capex-dashboard-org/:financialYear/:organisationID", capexController.getCapexDashboardorg);
-router.get("/get-capex-org-wise-table/:organisationID/:financialYear", capexController.getfinancialYearDataOrgwise);
-router.get("/get-capex-dashboard-bar-graph-org/:organisationID", capexController.getCapexDashboardBarGraphorg);
+router.post('/capex', auth, requireModulePermission("CAPEX", "create"), capexController.addCapex);
+router.get('/capex', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexData);
+router.get('/capex/:userID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexData);
+router.get('/data-entry-capex', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDataEntry);
+router.get('/capex-monthly-data/:capexID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexMonthlyData);
+router.get('/get-capex/:capexID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexExpediture);
+router.post('/capex-edit', auth, requireModulePermission("CAPEX", "update"), capexController.editCapexExpediture);
+router.post('/capex-monthly-data', auth, requireModulePermission("CAPEX", "update"), capexController.addCapexMonthlyData);
+router.get("/get-capex-dashboard/:clusterID/:financialYear", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboard);
+router.get("/get-capex-dashboard-bar-graph/:clusterID/:financialYear", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboardBarGraph);
+router.get("/get-capex-dashboard-org/:financialYear/:organisationID", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboardorg);
+router.get("/get-capex-org-wise-table/:organisationID/:financialYear", auth, requireModulePermission("CAPEX", "read"), capexController.getfinancialYearDataOrgwise);
+router.get("/get-capex-dashboard-bar-graph-org/:organisationID", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboardBarGraphorg);
 
 // ExpenditureOutlay
 router.get('/get-main-scheme-dropdown', expenditureController.getMainSchemeDropdown);
@@ -394,8 +394,8 @@ router.get("/employee-attendance-file", empAttendanceTab.getEmployeeAttendance);
 router.get("/employee-attendance-sample", empAttendanceTab.agSample);
 
 router.get("/employee-attendance-view", empAttendanceTab.getEmpAttendance);
-router.post("/employee-attendance", empAttendanceTab.upload.single('file'), empAttendanceTab.createEmpAttendance);
-router.put("/attend-employee", empAttendanceTab.upload.single('file'), empAttendanceTab.updateEmpAttendance);
+router.post("/employee-attendance", empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
+router.put("/attend-employee", empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
 router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
 // router.get("/employee-attendance/download/:id", empAttendanceTab.downloadEmpAttendance);
 // router.delete("/employee-attendance/:id", empAttendanceTab.deleteEmpAttendance);
@@ -407,7 +407,7 @@ router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
 
 //attendance
 router.get("/attendance", attendanceTab.getAttendance);
-router.post("/attendance", attendanceTab.upload.single('file'), attendanceTab.createAttendance);
+router.post("/attendance", attendanceTab.uploadSingleFile, attendanceTab.createAttendance);
 router.get("/attendance/download/:id", attendanceTab.downloadAttendance);
 router.delete("/attendance/:id", attendanceTab.deleteAttendance);
 router.post("/attendance/storecsv/:id", attendanceTab.storeCsvData);
@@ -415,15 +415,7 @@ router.get("/attendance/downloadSampleDocument", attendanceTab.downloadSampleDoc
 
 //view Data - Attendance
 router.get("/excelData", excelDataTab.getExcelData);
-//attendance
-//check
-router.get("/employee-attendance-file", empAttendanceTab.getEmployeeAttendance);
-router.get("/employee-attendance-sample", empAttendanceTab.agSample);
 
-router.get("/employee-attendance-view", empAttendanceTab.getEmpAttendance);
-router.post("/employee-attendance", empAttendanceTab.upload.single('file'), empAttendanceTab.createEmpAttendance);
-router.put("/attend-employee", empAttendanceTab.upload.single('file'), empAttendanceTab.updateEmpAttendance);
-router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
 router.get("/attendance/user-manual", userManualMenu.attendanceManual);
 
 //cpgrams
@@ -726,6 +718,7 @@ router.get("/file-pendancy-all", eOfficeTab.getFilePendenceAll);
 router.get("/file-pendancy-check", eOfficeTab.getFilePendenceCheck);
 router.get("/file-pendancy-History", eOfficeTab.getFilePendencyHistory);
 router.get("/file-pendancy/download/:id", eOfficeTab.downloadFilePendancy);
+router.get("/file-pendancy/download-sample", eOfficeTab.downloadFilePendancySample);
 router.delete("/file-pendancy/delete/:id", eOfficeTab.deleteFilePendency);
 router.post("/file-pendancy-create", EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.addFilePendancy);
 router.put("/file-pendancy-update", EofficeFilePendancyTab.upload.single('file'), EofficeFilePendancyTab.updateFilePendancy);
@@ -739,6 +732,7 @@ router.get("/receipt-pendancy-all", eOfficeTab.getReceiptPendenceAll);
 router.get("/receipt-pendancy-check", eOfficeTab.getReceiptPendenceCheck);
 router.get("/receipt-pendancy-History", eOfficeTab.getReceiptPendencyHistory);
 router.get("/receipt-pendancy/download/:id", eOfficeTab.downloadReceiptPendency);
+router.get("/receipt-pendancy/download-sample", eOfficeTab.downloadReceiptPendencySample);
 router.delete("/receipt-pendancy/delete/:id", eOfficeTab.deleteReceiptPendency);
 router.post("/receipt-pendancy-create", EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.addReceiptPendancy);
 router.put("/receipt-pendancy-update", EofficeReceiptPendancyTab.upload.single('file'), EofficeReceiptPendancyTab.updateReceiptPendancy);
@@ -752,6 +746,7 @@ router.get("/file-disposal-all", eOfficeTab.getFileDisposalAll);
 router.get("/file-disposal-check", eOfficeTab.getFileDisposalCheck);
 router.get("/file-disposal-History", eOfficeTab.getFileDisposalHistory);
 router.get("/file-disposal/download/:id", eOfficeTab.downloadFileDisposal);
+router.get("/file-disposal/download-sample", eOfficeTab.downloadFileDisposalSample);
 router.delete("/file-disposal/delete/:id", eOfficeTab.deleteFileDisposal);
 router.delete("/delete-employee/:empID", EofficeFileDisposalTab.deleteEmployee);
 router.post("/file-disposal-create", EofficeFileDisposalTab.upload.single('file'), EofficeFileDisposalTab.addFileDisposal);
@@ -1062,44 +1057,48 @@ router.post("/update-subproject", addNewProjectTab.updateSubProject);
 
 
 //young professionals
-router.get("/young-professional", youngProfessionalsTab.getYoungProfessional);
-router.post("/young-professional", youngProfessionalsTab.createYoungProfessional);
-router.put("/young-professional/:youngProfessionalId", youngProfessionalsTab.updateYoungProfessional);
-router.delete("/delete-young-professional/:youngProfessionalId", youngProfessionalsTab.deleteYoungProfessionalData);
-router.get("/get-young-professional-wing-data/:wingId/:divisionId", youngProfessionalsTab.getYoungProfessionalWingData);
-router.post("/upload-yp-document/:candidateId", youngProfessionalsTab.uploadYPDocument);
+router.get("/young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getYoungProfessional);
+router.post("/young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "create"), youngProfessionalsTab.createYoungProfessional);
+router.put("/young-professional/:youngProfessionalId", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.updateYoungProfessional);
+router.delete("/delete-young-professional/:youngProfessionalId", auth, requireModulePermission("YOUNG_PROFESSIONAL", "delete"), youngProfessionalsTab.deleteYoungProfessionalData);
+router.get("/get-young-professional-wing-data/:wingId/:divisionId", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getYoungProfessionalWingData);
+router.post("/upload-yp-document/:candidateId", auth, requireAnyModulePermission("YOUNG_PROFESSIONAL", ["create", "update"]), youngProfessionalsTab.uploadYPDocument);
 router.get("/download-yp-document", youngProfessionalsTab.ypFileDownload);
 
 
 //candidate detail young professional
-router.post("/candidate-detail", youngProfessionalsTab.addCandidateDetail);
-router.put("/candidate-detail", youngProfessionalsTab.updateCandidateDetail);
-router.delete("/yp-candidate-all-data/:youngProfessionalId/:userID", youngProfessionalsTab.deleteYpCandidateData);
+router.post("/candidate-detail", auth, requireModulePermission("YOUNG_PROFESSIONAL", "create"), youngProfessionalsTab.addCandidateDetail);
+router.put("/candidate-detail", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.updateCandidateDetail);
+router.delete("/yp-candidate-all-data/:youngProfessionalId/:userID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "delete"), youngProfessionalsTab.deleteYpCandidateData);
 
-router.put("/candidate-uploader", candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUpdater);
-router.post("/candidate-uploader", candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUploader);
-router.get("/candidate-detail/:youngProfessionalId", youngProfessionalsTab.getCandidateDetail);
-router.get("/candidate-detail-document/:candidate_id", youngProfessionalsTab.getCandidateDetailDocument);
+router.put("/candidate-uploader", auth, requireAnyModulePermission("YOUNG_PROFESSIONAL", ["create", "update"]), candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUpdater);
+router.post("/candidate-uploader", auth, requireAnyModulePermission("YOUNG_PROFESSIONAL", ["create", "update"]), candidateDocumentTab.upload.single('file'), candidateDocumentTab.candidateDocumentUploader);
+router.get("/candidate-detail/:youngProfessionalId", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getCandidateDetail);
+router.get("/candidate-detail-document/:candidate_id", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getCandidateDetailDocument);
 
 
-router.put( "/relieve-young-professional",youngProfessionalsTab.relieveYoungProfessional);
+router.put("/relieve-young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "update"), youngProfessionalsTab.relieveYoungProfessional);
 //consultant appointment
-router.get("/consultant-appointment", consultantAppointmentTab.getConsultantAppointment);
-router.post("/consultant-appointment", consultantAppointmentTab.createConsultantAppointment);
-router.put("/consultant-appointment", consultantAppointmentTab.updateConsultantAppointment);
-router.post("/consultant-appointment-stage", consultantAppointmentTab.createConsultantAppointmentStage);
-router.get("/edit-consultant-appointment/:consultantAppointmentID", consultantAppointmentTab.getUpdateConsultantAppointmentData);
-router.get("/get-candidate-id/:consultantAppointmentID", consultantAppointmentTab.getCandidateID);
+router.get("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getConsultantAppointment);
+router.post("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointment);
+router.put("/consultant-appointment", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "update"), consultantAppointmentTab.updateConsultantAppointment);
+router.post("/consultant-appointment-stage", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.createConsultantAppointmentStage);
+router.get("/edit-consultant-appointment/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getUpdateConsultantAppointmentData);
+router.get("/get-candidate-id/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateID);
 
 //candidate detail consultant appointment
-router.post("/ca-candidate-detail", consultantAppointmentTab.addCandidateDetail);
-router.post("/ca-candidate-uploader", candidateCaDocumentTab.upload.single('file'), candidateCaDocumentTab.candidateDocumentUploader);
-router.get("/ca-candidate-detail/:Id", consultantAppointmentTab.getCandidateDetail);
-router.get("/ca-candidate-detail-document/:Id", consultantAppointmentTab.getCandidateDetailDocument);
-router.post("/add-consultant-id", consultantAppointmentTab.addConsultantID);
+router.post("/ca-candidate-detail", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.addCandidateDetail);
+router.put("/ca-candidate-detail", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "update"), consultantAppointmentTab.updateCandidateDetail);
+router.post("/ca-candidate-uploader", auth, requireAnyModulePermission("CONSULTANT_APPOINTMENT", ["create", "update"]), candidateCaDocumentTab.upload.single('file'), candidateCaDocumentTab.candidateDocumentUploader);
+router.get("/ca-candidate-detail/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetail);
+router.get("/ca-candidate-detail-document/:Id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidateDetailDocument);
+router.get("/get-ca-candidates/:consultantAppointmentID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultantAppointmentTab.getCandidatesByConsultantAppointmentId);
+router.get("/ca-candidate-document-download/:fileName", candidateCaDocumentTab.downloadCandidateDocument);
+router.post("/add-consultant-id", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "create"), consultantAppointmentTab.addConsultantID);
 
 //delete consultant appoinment and candidate details
-router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID", consultantAppointmentTab.deleteCACandidateData);
+router.delete("/consultant-candidate-all-data/:consultant_appointment_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateData);
+router.delete("/ca-candidate-single/:candidate_id/:userID", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "delete"), consultantAppointmentTab.deleteCACandidateSingle);
 
 //HR
 router.post("/hr-department", hrDepartmentTab.createHrDepartment);
@@ -1477,16 +1476,16 @@ router.get("/auditparadivision-report/:wingID/", aditParaReportTab.auditParaDivi
 router.get("/getauditpara-wingwise/:wingID/:auditParaStage", aditParaReportTab.getDetailAuditParaWingWise);
 router.get("/getauditpara-divisionwise/:divisionID/:auditParaStage", aditParaReportTab.getDetailAuditParaDivisionWise);
 
-router.get("/yp-report", ypReportTab.getYoungProfessionalReport);
-router.get("/ypdivision-report/:ypID/:wingID/", ypReportTab.ypDivisionWiseReport);
-router.get("/wingwise-ypcandidate/:ypID/:wingID", ypReportTab.getYpWingWiseCandidate);
-router.get("/divisionwise-ypcandidate/:ypID/:divisionID", ypReportTab.getYpDivisionWiseCandidate);
-router.get("/yp-wing-wise-report/:ypID/:wingID", ypReportTab.getYpWingWiseReport);
+router.get("/yp-report", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYoungProfessionalReport);
+router.get("/ypdivision-report/:ypID/:wingID/", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.ypDivisionWiseReport);
+router.get("/wingwise-ypcandidate/:ypID/:wingID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYpWingWiseCandidate);
+router.get("/divisionwise-ypcandidate/:ypID/:divisionID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYpDivisionWiseCandidate);
+router.get("/yp-wing-wise-report/:ypID/:wingID", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), ypReportTab.getYpWingWiseReport);
 
-router.get("/consultantapp-report", consultAppReportTab.getconsulAppReport);
-router.get("/cadivision-report/:wingID/", consultAppReportTab.caDivisionWiseReport);
-router.get("/wingwise-cacandidate/:wingID/", consultAppReportTab.getCaWingWiseCandidateReport);
-router.get("/divisionwise-cacandidate/:divisionID/", consultAppReportTab.getCaDivisionWiseCandidateReport);
+router.get("/consultantapp-report", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.getconsulAppReport);
+router.get("/cadivision-report/:wingID/", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.caDivisionWiseReport);
+router.get("/wingwise-cacandidate/:wingID/", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.getCaWingWiseCandidateReport);
+router.get("/divisionwise-cacandidate/:divisionID/", auth, requireModulePermission("CONSULTANT_APPOINTMENT", "read"), consultAppReportTab.getCaDivisionWiseCandidateReport);
 
 // Vip Reference 
 router.get("/vipwingwise-report", vipReportTab.vipWingWiseReport);
@@ -1528,15 +1527,20 @@ router.get("/gem-servicereport", gemReportTab.gemServiceData);
 router.get("/gem-worksreport", gemReportTab.gemWorksData);
 router.get("/gem-report/:selectedYear",gemReportTab.getGemReport);
 // MIV
-router.post("/mivdetailed-report/", mivReportTab.mivDetailedData);
-router.post("/miv-theme-detailed-report/", mivReportTab.mivThemeDetailedData); //MIV THEME WISE REPORT
-router.get("/mivabstract-report/:userID", mivReportTab.mivAbstractData);
+router.post("/mivdetailed-report/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.mivDetailedData);
+router.post("/miv-theme-detailed-report/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.mivThemeDetailedData); //MIV THEME WISE REPORT
 router.get("/miv-document/download/:filename", mivReportTab.downloadDocument);
 //Theme Wise MIV Report:
-router.get("/get-mmt-Theme-Values/", mivReportTab.getmmtThemeValues);
-router.get("/themewise-mivabstract-report/:userID", mivReportTab.themeWiseMivAbstractData);
+router.get("/get-mmt-Theme-Values/", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getmmtThemeValues);
+
+router.get("/miv-org-wise-performance-report/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getMIVOrgWisePerformanceReport);
+router.get("/themewise-mivabstract-report/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getThemeWiseMIVPerformanceReport);
+router.get("/category-wise-miv-performance-report/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getCategoryWiseMIVPerformanceReport);
+router.get("/get-summary-report-overdue-initiatives/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.getSummaryReportOverdueInitiatives);
+router.get("/detailed-report-delayed-overdue-initiatives/:userID", auth, requireModulePermission("MIV_2030", "read"), mivReportTab.detailedReportDelayedOverdueInitiatives);
+
 //Delete Minuintes of meeting
-router.delete("/meeting/delete/:id", mivReportTab.deleteMeeting);
+router.delete("/meeting/delete/:id", auth, requireModulePermission("MIV_2030", "delete"), mivReportTab.deleteMeeting);
 
 // HR
 router.get("/hrdetailed-abstarct-report/:organisationId/:classId", hrReportTab.hrDetailedAbstarctReport);
@@ -1560,7 +1564,9 @@ router.get("/hrfifth-report-other-org/:roleID/:organisationID",hrReportInputTab.
 router.get("/hr-report-input-list/:userID", hrReportInputTab. getHrreportInputformList);
 
 // Capex report 
-router.get("/capex-report/:selectedYear", capexReportTab.capexReportData);
+router.get("/capex-report/:selectedYear", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexReportData);
+router.get("/capex-summary-report/:selectedYear", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexSummaryReportData);
+router.get("/capex-yoy-report", auth, requireModulePermission("CAPEX", "read"), capexReportTab.capexYoYReportData);
 router.get("/hrfirst-report/:orgCatDrop/:orgDrop/:financialDrop", hrReportTab.hrFirstReport);
 router.get("/hrsecond-report/:orgCatDrop/:orgDrop", hrReportTab.hrSecondReport);
 router.get("/hrfourth-report/:orgCatDrop/:orgDrop/:classDrop", hrReportTab.hrFourthReport);
@@ -2191,21 +2197,25 @@ router.post("/light-house-master", dgllTab.addLightsHouseMaster);
 router.get("/light-house-list/:userID", dgllTab.getLightHouseMaster);
 router.get("/update-light-house-list/:lightHouseId", dgllTab.getUpdatelightHouseData);
 router.put('/Light-House-edit',dgllTab.updateLightsHousedata);
+router.delete("/light-house-master/:lights_house_id/:userID", dgllTab.deleteLightHouseMaster);
 
 router.post("/vtms-Integration",dgllTab.addVtmsIntegration);
 router.get("/vtms-list/:userID", dgllTab.getVtmsIntegration);
 router.get("/update-Vtms-data/:VtmsId", dgllTab.getUpdateVtmsdata);
 router.put('/vtms-edit',dgllTab.updateVtmsData);
+router.delete("/vtms-integration/:vtms_id/:userID", dgllTab.deleteVtmsIntegration);
 
 router.post("/nais-uptime",dgllTab.addNaisUptime);
 router.get("/nais-list/:userID", dgllTab.getnaisList);
 router.get("/update-nais-data/:NaisId", dgllTab.getUpdateNaisdata);
 router.put('/nais-edit',dgllTab.updateNaisData);
+router.delete("/nais-uptime/:nais_id/:userID", dgllTab.deleteNaisUptime);
 
 router.post("/nais-integration",dgllTab.addNAISIntegration);
 router.get("/nais-integration-list/:userID", dgllTab.getnaisIntegrationList);
 router.get("/update-nais-integration-data/:NaisIntegrationId", dgllTab.getUpdateNaisIntegrationdata);
 router.put('/nais-integration-edit',dgllTab.updateNaisIntegrationData);
+router.delete("/nais-integration/:nais_integration_id/:userID", dgllTab.deleteNaisIntegration);
 
 router.get("/get-vtms-integration-report",dgllReportTab.getVTMSIntegrationReport);
 router.get("/get-nais-uptime-report",dgllReportTab.getNAISUptimeReport);
@@ -2216,6 +2226,7 @@ router.post("/lighthose-tourist-destination", dgllTab.addTouristDestinations);
 router.get("/lighthouse-tourist-destination/:userID", dgllTab.getTouristDestinations );
 router.get('/update-lighthouse-tourist-destination/:TouristDestinationsId', dgllTab.getByIdTouristDestinations);
 router.put('/edit-lighthouse-tourist-destination' , dgllTab.UpdateTouristDestinations);
+router.delete("/lighthouse-tourist-destination/:tourist_destination_id/:userID", dgllTab.deleteTouristDestination);
 router.get('/get-lighthouse-tourist-destination-report', dgllReportTab.getLighthouseTouristDestinationReport);
 router.get("/get-dgll-financial-performance-report",dgllReportTab.getFinancialPerformanceReport)
 
@@ -2225,42 +2236,50 @@ router.post('/target-Details-lighthouse',dgllTab.addTargetDetails);
 router.get('/target-Details-lighthouse/:userID', dgllTab.getTargetDetails);
 router.get('/update-target-Details-destination/:TouristDestinationsId', dgllTab.getByIdTargetDestinations);
 router.put('/edit-target-Details-lighthouse', dgllTab.updateTargetDestinationData);
+router.delete("/target-Details-lighthouse/:tourist_destination_target_id/:userID", dgllTab.deleteTargetDetail);
 router.get("/check-targetYears/:year", dgllTab.checkYear);
 
 router.post("/dgll-submit-financial-performance",dgllTab.submitFinancialPerformance);
 router.get("/get-dgll-financial-performance",dgllTab.getFinancialPerfomanceData);
 router.get("/get-dgll-financial-performance/:financialId",dgllTab.getFinancialPerformanceDataByID)
+router.delete("/dgll-financial-performance/:financial_id/:userID", dgllTab.deleteFinancialPerformance);
 
 // CSL
 router.post("/vessels-built",cslTab. addVesselsBuilt);
 router.get("/vessel-list/:userID", cslTab. getVesselBuiltList);
 router.get("/update-CSL-vessel-built/:CslVesselId", cslTab.getUpdateVesselBuiltdata);
 router.put('/csl-vessel-Built-edit',cslTab.updatecslVesselBuiltData);
+router.delete("/csl-vessels-built/:csl_vessel_id/:userID", cslTab.deleteVesselsBuilt);
 
 router.post("/csl-ship-building",cslTab.addShipBuildingOrders);
 router.get("/shipbuilding-list/:userID", cslTab.getshipbildingList);
 router.get("/update-CSL-ship-built/:CslshipbuildingId", cslTab.getUpdateshipBuildingdata);
 router.put('/csl-ship-Built-edit',cslTab.updatecslShipbuildingData);
+router.delete("/csl-ship-building/:csl_shipbuilding_id/:userID", cslTab.deleteShipBuildingOrders);
 
 router.post("/csl-ship-delivery",cslTab.addShipdelivery);
 router.get("/shipdelivery-list/:userID", cslTab.getdeliveryList);
 router.get("/update-CSL-delivery-data/:CslshipdeliveryId",cslTab. getUpdateshipdeliverydata);
 router.put('/csl-ship-delivery-edit',cslTab.updatecslShipdeliveryData);
+router.delete("/csl-ship-delivery/:csl_shipdelivery_id/:userID", cslTab.deleteShipDeliveryPerformance);
 
 router.post("/csl-capacity-utilization",cslTab.addcapacityUtilization);
 router.get("/capacityUtilization-list/:userID", cslTab.getcapacityUtilizationList);
 router.get("/update-CSL-capcity-utilization-data/:CslcapacityUtilizationId",cslTab.getUpdatecapacityUtilizationdata);
 router.put('/csl-capacity-utilization-edit',cslTab.updatecslCapacityutilizationgData);
+router.delete("/csl-capacity-utilization/:csl_capacity_utilization_id/:userID", cslTab.deleteCapacityUtilization);
 
 router.post("/csl-fabrication-steels",cslTab. addfabricationofsteels);
 router.get("/fabrication-list/:userID", cslTab. getfabricationList);
 router.get("/update-CSL-fabrication-data/:CslfabricationId",cslTab.getUpdatefabricationofsteeldata);
 router.put('/csl-fabrication-edit',cslTab.updatecslFabricationupdateData);
+router.delete("/csl-fabrication-steels/:csl_fabrication_id/:userID", cslTab.deleteFabricationOfSteels);
 
 router.post("/csl-ships-repaired",cslTab. addShipRepaired);
 router.get("/ships-reapired-list/:userID", cslTab. getshipRepairedList);
 router.get("/update-ships-reapired-data/:CslreapiredId",cslTab.getUpdateshiptrapireddata);
 router.put('/csl-repaired-edit',cslTab.updatecslshipData);
+router.delete("/csl-ships-repaired/:csl_ships_reapired_id/:userID", cslTab.deleteShipRepaired);
 
 // CSL Report
 router.get('/get-csl-year-wise-report',CslreportTab.CslYearWiseReport);
@@ -2275,18 +2294,21 @@ router.post("/add-vessel-avail-ability",sciTabList.addVesselAvailabiltydata);
 router.get("/sci-Vessel-list/:userID", sciTabList.getsciVesselList);
 router.get("/update-sci-vessel-data/:SciVesselId", sciTabList.getUpdatesciVesseldata);
 router.put('/sci-vessel-built-edit',sciTabList.updatesciVesselData);
+router.delete("/delete-sci-vessel-availability/:sci_vessel_id/:userID", sciTabList.deleteVesselAvailabilityOwnShips);
 
 
 router.post("/add-sci-time-voyage",sciTabList.addscitimeVoyageydata);
 router.get("/sci-time-voyage-bulk-list/:userID", sciTabList.getscitimeVoyageList);
 router.get("/update-sci-time-voyage-data/:ScitimeVoyageBuiklId", sciTabList.getUpdatescitimeVoyageBulkdata);
 router.put('/sci-time-voyage-bulk-edit',sciTabList.updatescitimeVoyageBulkData);
+router.delete("/delete-sci-time-voyage-bulk/:sci_time_voyage_bulk_id/:userID", sciTabList.deleteTimeVoyageBulk);
 
 
 router.post("/add-sci-time-voyage-tanker",sciTabList.addscitimeVoyagetankers);
 router.get("/sci-time-voyage-tanker-list/:userID", sciTabList.getscitimeList);
 router.get("/update-sci-time-voyage-tanker-data/:ScitimeVoyageTankerlId", sciTabList.getUpdatesciVessetankerldata);
 router.put('/sci-time-voyage-tanker-edit',sciTabList.updateTimeVoyagetankerData);
+router.delete("/delete-sci-time-voyage-tanker/:sci_time_voyage_tanker_id/:userID", sciTabList.deleteTimeVoyageTanker);
 
 
 
@@ -2294,54 +2316,64 @@ router.post("/add-sci-time-voyage-offshore",sciTabList.addscitimeVoyageoffshore)
 router.get("/sci-time-voyage-offshore-list/:userID", sciTabList.getscioffshoreList);
 router.get("/update-sci-time-voyage-offshore-data/:ScitimeVoyageoffshorelId", sciTabList.getUpdatesciVesseoffshoreldata);
 router.put('/sci-time-voyage-offshore-edit',sciTabList.updateTimeVoyageoffshoreData);
+router.delete("/delete-sci-time-voyage-offshore/:sci_time_voyage_offshore_id/:userID", sciTabList.deleteTimeVoyageOffshore);
 
 
 router.post("/add-sci-vessel-availability-linear",sciTabList.addscilinearVesselavailability);
 router.get("/sci-linear-vessel-list/:userID", sciTabList.getscilinearvesselList);
 router.get("/update-sci-linear-vessel-data/:SciLinearvesselId", sciTabList.getUpdatescilinearvesseldata);
 router.put('/sci-linear-vessel-edit',sciTabList.updatescilinearvesselAvailabilityData);
+router.delete("/delete-sci-vessel-availability-linear/:sci_vessel_availability_bulk_id/:userID", sciTabList.deleteVesselAvailabilityLiner);
 
 router.post("/add-sci-vessel-procurement",sciTabList.addvesselprocurementdata);
 router.get("/sci-vessel-procurement-list/:userID", sciTabList.getsciprocurementList);
 router.get("/update-sci-vessel-procurement-data/:SciProcurementId", sciTabList.getUpdatesciVesselprocurementdata);
 router.put('/sci-vessel-procurement-edit',sciTabList.submitVesselProcurementdata);
+router.delete("/delete-sci-vessel-procurement/:sci_procurement_id/:userID", sciTabList.deleteVesselProcurement);
 
 
 router.post("/add-sci-vessel-procurement-secondhand",sciTabList.addSecondhandvesselprocurementdata);
 router.get("/sci-secondhand-vessel-procurement-list/:userID", sciTabList.getsecondhandsciprocurementList);
 router.get("/update-sci-secondhand-vessel-procurement-data/:ScisecondhandProcurementId", sciTabList.getUpdatescisecondhandVesselprocurementdata);
 router.put('/sci-secondhand-vessel-procurement-edit',sciTabList.updatesecondhandVesselProcurementdata);
+router.delete("/delete-sci-secondhand-vessel-procurement/:sci_secondhand_procurement_id/:userID", sciTabList.deleteSecondhandVesselProcurement);
 
 router.post("/add-sci-ship-dry-docking",sciTabList.addshipDrydocking);
 router.get("/sci-ship-dry-dock-list/:userID", sciTabList.getShipdrydockList);
 router.get("/update-sci-ship-dry-docking-data/:SciDrydockId", sciTabList.getUpdateshipdrydockdata);
 router.put('/sci-dry-docking-edit',sciTabList.updatesciDrydockingtData);
+router.delete("/delete-sci-ship-dry-docking/:sci_ship_dry_docking_id/:userID", sciTabList.deleteShipDryDocking);
 
 router.post("/add-sci-ship-repair-maintanace",sciTabList.addshipRepaiandMaintanace);
 router.get("/sci-ship-repair-list/:userID", sciTabList.getShiprepairandMaintanaceList);
 router.get("/update-sci-ship-repair-maintanace-data/:ScirepairandMaintanaceId", sciTabList.getUpdateshiprepairandMaintanacedata);
 router.put('/sci-repair-maintance-edit',sciTabList.updaterepairandMaintanceData);
+router.delete("/delete-sci-ship-repair-maintanace/:sci_repair_and_maintanace_id/:userID", sciTabList.deleteRepairAndMaintenance);
 
 router.post("/add-sci-sale-recycling-oldvessels",sciTabList.addsaleandRecycling);
 router.get("/sci-sale-and-recycling-list/:userID", sciTabList.getSaleandrecyclingList);
 router.get("/update-sci-sale-recycling-data/:ScisaleRecyclingId", sciTabList.getUpdatescisaleandRecyclingdata);
 router.put('/sci-sale-recycling-edit',sciTabList.updatesaleandRecyclingData);
+router.delete("/delete-sci-sale-recycling-oldvessels/:sci_sale_recycling_id/:userID", sciTabList.deleteSaleAndRecycling);
 
 
 router.post("/add-sci-sale-recycling-oldvessels-green-recycling",sciTabList.addsaleandRecyclingofgreenRecycling);
 router.get("/sci-sale-and-green-recycling-list/:userID", sciTabList.getSaleandGreenrecyclingList);
 router.get("/update-sci-sale-recycling-green-data/:ScisaleGreenrecyclingId", sciTabList.getUpdatescisaleandGreenrecyclingdata);
 router.put('/sci-sale-greenrecycling-edit',sciTabList.updatesaleandGreenrecyclingData);
+router.delete("/delete-sci-sale-recycling-oldvessels-green-recycling/:sci_sale_green_recycling_id/:userID", sciTabList.deleteGreenRecycling);
 
 router.post("/add-sci-manning-of-owned-ships",sciTabList.addmanningofOwnedships);
 router.get("/sci-manning-list/:userID", sciTabList.getscimanningdataList);
 router.get("/update-sci-manning-of-old-ships-data/:ScimanningId", sciTabList.getUpdatescimanningodOwnedshipsdata);
 router.put('/sci-manning-of-ownedships-edit',sciTabList.updatemanningofOwnedshipsData);
+router.delete("/delete-sci-manning-of-owned-ships/:sci_manning_id/:userID", sciTabList.deleteManningOfOwnedShips);
 
 router.post("/add-sci-ship-management-business",sciTabList.addshipManagementBusiness);
 router.get("/sci-ship-management-list/:userID", sciTabList.getshipmanagementList);
 router.get("/update-sci-ship-management-data/:ScishipmanagementId",sciTabList.getUpdatescishipManagementdata);
 router.put('/sci-ship-management-business',sciTabList.updateshipManagementbusinessData);
+router.delete("/delete-sci-ship-management-business/:sci_ship_management_id/:userID", sciTabList.deleteShipManagementBusiness);
 
 //sci report
 router.get('/kpi-sci-6-1-1-report',sciReportTab.getsciVesselAvailabilityReport);
@@ -2364,26 +2396,31 @@ router.get('/get-sci-ship-management-business-report',sciReportTab.getsciShipman
 router.post("/add-imu-k-5-1",imuTab.createStudentEnrollment);
 router.get("/get-imu-k-5-1",imuTab.getStudentEnrollment);
 router.get("/get-imu-k-5-1/:studentId",imuTab.getStudentEnrollmentByID);
+router.delete("/delete-imu-k-5-1/:student_id/:userID", imuTab.deleteStudentEnrollment);
 router.get("/get-imu-k-5-1-year",imuTab.getStudentEnrollmentYear);
 
 router.post("/add-imu-k-5-2",imuTab.createimunewCourseUpgradation);
 router.get("/get-imu-k-5-2/:courseId",imuTab.getimuNewCourseUpgradationByID);
+router.delete("/delete-imu-k-5-2/:course_id/:userID", imuTab.deleteNewCourseUpgradation);
 router.get("/get-imu-k-5-2",imuTab.getimuNewCourseUpgradation);
 router.get("/get-imu-k-5-2-year",imuTab.getimuNewCourseUpgradationYear);
 
 router.post("/add-imu-k-5-3",imuTab.createimuFacilities);
 router.get("/get-imu-k-5-3",imuTab.getimuFacilities);
 router.get("/get-imu-k-5-3/:facilitiesId",imuTab.getimuFacilitiesByID);
+router.delete("/delete-imu-k-5-3/:facilities_id/:userID", imuTab.deleteFacilities);
 router.get("/get-imu-k-5-3-year",imuTab.getimuFacilitiesYear);
 
 router.post("/add-imu-k-5-4",imuTab.createimuPartnership);
 router.get("/get-imu-k-5-4",imuTab.getimuPartnership);
 router.get("/get-imu-k-5-4/:partnershipId",imuTab.getimuPartnershipByID);
+router.delete("/delete-imu-k-5-4/:partnership_id/:userID", imuTab.deletePartnership);
 router.get("/get-imu-k-5-4-year",imuTab.getimuPartnershipYear);
 
 router.post("/add-imu-k-5-5",imuTab.createImuResearch);
 router.get("/get-imu-k-5-5",imuTab.getImuResearch);
 router.get("/get-imu-k-5-5/:researchId",imuTab.getImuResearchByID);
+router.delete("/delete-imu-k-5-5/:research_id/:userID", imuTab.deleteResearch);
 router.get("/get-imu-k-5-5-year",imuTab.getimuResearchYear);
 
 router.get("/get-imu-k-5-1-report",imuReportTab.getStudentEnrollmentReport);
@@ -2395,6 +2432,7 @@ router.get("/get-imu-k-5-5-report",imuReportTab.getResearchInnovationsReport)
 router.post("/add-imu-k-5-1-1",imuTab.createimuFinalYearpassPercentage);
 router.get("/get-student-perecntage-list/:userID",imuTab.getStudentfinalYearPercentage);
 router.get("/update-student-perecntage-data/:studentId",imuTab.getUpdateFinalyearPercentagedata);
+router.delete("/delete-imu-k-5-1-1/:student_id/:userID", imuTab.deleteFinalYearPassPercentage);
 router.get("/get-imu-k-5-1-1-program",imuTab.checkProgramalreadyExists)
 
 // Report
@@ -2403,29 +2441,34 @@ router.get("/get-imu-k-5-1-1-report",imuReportTab.getfinalYearpassPercentageRepo
 
 //Long Term Strategies
 //MIV data
-router.get('/miv-meetingsdata', MIVTab.getMIVMeeting);
-router.get('/mopsw-initiative-data', MIVTab.getInitiativeMopswData);
-router.get('/get-initiative-name/:initiativeID', MIVTab.getInitiativeName);
-router.get('/get-target-date/:initiativeID', MIVTab.getInitiativeTargetDate);
-router.get('/meetinglogs-mopsw/:organisationId', MIVTab.getLogMeetingMopsw);
+router.get('/miv-meetingsdata', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVMeeting);
+router.get('/mopsw-initiative-data', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getInitiativeMopswData);
+router.get('/miv-new-initiatives', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getNewInitiatives);
+router.get('/get-initiative-name/:initiativeID', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getInitiativeName);
+router.get('/get-target-date/:initiativeID', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getInitiativeTargetDate);
+router.get('/meetinglogs-mopsw/:organisationId', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getLogMeetingMopsw);
 
-router.get('/get-miv-dashboard', MIVTab.getMIVDashboard);
-router.get('/get-miv-activity-status-wise', MIVTab.getMIVactivityStatusWise);
-router.get('/get-miv-activity-current-status-port-wise', MIVTab.getMIVactivityCurrentStatusPortWise);
-router.get('/get-miv-category-count-wise', MIVTab.getMIVCategoryCountWise);
-router.get("/detailed-stage-wise-miv-data", MIVTab.detailedMivDashboard);
-router.get("/get-miv-category-details", MIVTab.getMivCategoryDetails);
-router.get("/get-details-miv-activity-status-wise", MIVTab.getDetailsMivActivityStatusWise);
+router.get('/get-miv-dashboard', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVDashboard);
+router.get('/get-miv-activity-status-wise', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVactivityStatusWise);
+router.get('/get-miv-activity-current-status-port-wise', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVactivityCurrentStatusPortWise);
+router.get('/get-miv-category-count-wise', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVCategoryCountWise);
+router.get("/detailed-stage-wise-miv-data", auth, requireModulePermission("MIV_2030", "read"), MIVTab.detailedMivDashboard);
+router.get("/get-miv-category-details", auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMivCategoryDetails);
+router.get("/get-details-miv-activity-status-wise", auth, requireModulePermission("MIV_2030", "read"), MIVTab.getDetailsMivActivityStatusWise);
 
-router.get('/miv-data', MIVTab.getMIVData);
-router.post('/miv-data', MIVTab.createMIVData);
-router.get("/miv-datas/:ID", MIVTab.getUpdateMIV);
-router.post('/miv-data/upload-files', MIVTab.uploadFiles);
-router.put('/miv-data/:id', MIVTab.editMIVData);
-router.get('/meeting', MIVTab.getMeeting);
-router.post("/meeting", MIVTab.uploadMeeting.single('file'), MIVTab.createMeeting);
+router.get('/miv-data', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVData);
+router.post('/miv-data', auth, requireModulePermission("MIV_2030", "create"), MIVTab.createMIVData);
+router.get('/miv', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMIVData);
+router.post('/miv', auth, requireModulePermission("MIV_2030", "create"), MIVTab.createMIVData);
+router.get("/miv-datas/:ID", auth, requireModulePermission("MIV_2030", "read"), MIVTab.getUpdateMIV);
+router.get("/miv/:ID", auth, requireModulePermission("MIV_2030", "read"), MIVTab.getUpdateMIV);
+router.post('/miv-data/upload-files', auth, requireAnyModulePermission("MIV_2030", ["create", "update"]), MIVTab.uploadFiles);
+router.put('/miv-data/:id', auth, requireModulePermission("MIV_2030", "update"), MIVTab.editMIVData);
+router.put('/miv/:id', auth, requireModulePermission("MIV_2030", "update"), MIVTab.editMIVData);
+router.get('/meeting', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getMeeting);
+router.post("/meeting", auth, requireModulePermission("MIV_2030", "create"), MIVTab.uploadMeeting.single('file'), MIVTab.createMeeting);
 router.get("/meeting/download/:id", MIVTab.downloadMeeting);
-router.get('/meeting-no', MIVTab.getNoOfMeetings);
+router.get('/meeting-no', auth, requireModulePermission("MIV_2030", "read"), MIVTab.getNoOfMeetings);
 
 router.post("/mom-of-psw-meeting", momOfPswMeetingsTab.createMOM);
 router.post("/mom-of-psw-meeting-edit", momOfPswMeetingsTab.createMOMedit);
@@ -2513,41 +2556,42 @@ router.get("/update-cruise-shipping-data/:CruiseShippingId", cruisePortsTab.getU
 router.put('/update-cruise-data-edit',cruisePortsTab.updateCruiseshippingData);
 
 
-//GMIS-MoU
-router.get('/get-mou-category-names', gmisMouTab.getMouCategory);
-router.post('/submit-gmis-mou-data', gmisMouTab.submitGmisMouData);
-router.post("/gmisdocumentUploader", gmisMouTab.upload.single('file'),gmisMouTab.addNewgmisFileupload);
-router.get('/get-gmis-mou-data/:roleId/:organisationId', gmisMouTab.getGmisMouData);
-router.get('/get-gmis-mou-chart-data', gmisMouTab.getGmisMouChartData);
-router.put('/update-gmis-mou-data', gmisMouTab.updateGmisMouData);
-router.get('/get-gmis-mou-data-by-id/:mouID', gmisMouTab.getGmisMouDataByID);
+// GMIS & IMW MoU Tracking
+router.get('/get-gmis-mou-paginated', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouPaginated);
+router.get('/get-mou-category-names', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouCategory);
+router.post('/submit-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.submitGmisMouData);
+router.post("/gmisdocumentUploader", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.upload.single('file'), gmisMouTab.addNewgmisFileupload);
+router.get('/get-gmis-mou-data/:roleId/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouData);
+router.get('/get-gmis-mou-chart-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouChartData);
+router.put('/update-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.updateGmisMouData);
+router.get('/get-gmis-mou-data-by-id/:mouID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByID);
 router.get("/download-gmismou-pdf-document", gmisMouTab.gmisPdfFileDownload);
-router.delete("/delete-gmisfile", gmisMouTab.gmisfileDelete)
-router.get('/get-organisation-wise-count-amount', gmisMouTab.getOrganisationWiseCountAmount);
-router.get('/get-status-wise-count', gmisMouTab.getStatusWiseCountAmount);
-router.get('/get-org-wise-status-count/:organisationId/:financialYear/:greaterThan100Cr', gmisMouTab.getOrganisationWiseStatusCount);
-router.get('/get-mou-data-by-organisation-and-status/:organisation/:status', gmisMouTab.getGmisMouDataByOrganisationAndStatus);
-router.get('/get-org-wise-status-count-orgview/:organisationID', gmisMouTab.getOrganisationWiseStatusCountorgView);
-router.post("/add-revised-financial-progress-date", gmisMouTab.addRevisedfinancialprogressdate);
-router.post("/add-revised-physical-progress-date", gmisMouTab.addRevisedphysicalprogressdate);
-router.get("/get-revised-financial-progress-date/:mouID", gmisMouTab.getRevisedfinancialprogressdate);
-router.get("/get-revised-physical-progress-date/:mouID", gmisMouTab.getRevisedphysicalprogressdate);
+router.delete("/delete-gmisfile", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "delete"), gmisMouTab.gmisfileDelete);
+router.get('/get-organisation-wise-count-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmount);
+router.get('/get-status-wise-count', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getStatusWiseCountAmount);
+router.get('/get-org-wise-status-count/:organisationId/:financialYear/:greaterThan100Cr', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCount);
+router.get('/get-mou-data-by-organisation-and-status/:organisation/:status', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByOrganisationAndStatus);
+router.get('/get-org-wise-status-count-orgview/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCountorgView);
+router.post("/add-revised-financial-progress-date", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.addRevisedfinancialprogressdate);
+router.post("/add-revised-physical-progress-date", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.addRevisedphysicalprogressdate);
+router.get("/get-revised-financial-progress-date/:mouID", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getRevisedfinancialprogressdate);
+router.get("/get-revised-physical-progress-date/:mouID", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getRevisedphysicalprogressdate);
 
-router.get("/get-mou-stage-details-org/:roleId/:organisationID",gmisMouTab.getGmisMouStageDetails_org);
-router.get("/get-mou-stage-details/:organisationId/:financialYear/:greaterThan100Cr",gmisMouTab.getGmisMouStageDetails);
-router.get('/get-yearwise-gmis-data',gmisMouTab.getYearWisegmisData);
-router.get('/get-gmis-drilldown-data',gmisMouTab.getGmisDrilldownData);
-router.get('/get-gismou-second-party', gmisMouTab.getGmisMouSecondParty);
-router.get('/get-gismou-vibhas-navic-cell', gmisMouTab.getGmisMouVibhasNavicCell);
-router.get('/get-gismou-category-name', gmisMouTab.getGmisMouCategoryName);
-router.get('/get-gismou-present-status', gmisMouTab.getGmisMouPresentStatus);
+router.get("/get-mou-stage-details-org/:roleId/:organisationID", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails_org);
+router.get("/get-mou-stage-details/:organisationId/:financialYear/:greaterThan100Cr", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails);
+router.get('/get-yearwise-gmis-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getYearWisegmisData);
+router.get('/get-gmis-drilldown-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisDrilldownData);
+router.get('/get-gismou-second-party', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouSecondParty);
+router.get('/get-gismou-vibhas-navic-cell', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouVibhasNavicCell);
+router.get('/get-gismou-category-name', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouCategoryName);
+router.get('/get-gismou-present-status', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouPresentStatus);
 
-router.get('/get-organisation-wise-count-amount-status', gmisMouTab.getOrganisationWiseCountAmountStatus);
-router.get('/get-mou-total-count-amount', gmisMouTab.getMouTotalCountAmount);
-router.get('/get-mou-categories', gmisMouTab.getMouCategories);
-router.get('/get-total-mou-amount',gmisMouTab.getTotalMouAndAmountCategoryWise),
-router.get('/get-total-mou-amount-yearwise',gmisMouTab.getTotalMouAndAmountyearWise),
-router.get('/get-mou-org-order', gmisMouTab.getOrgWiseMouOrder);
+router.get('/get-organisation-wise-count-amount-status', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatus);
+router.get('/get-mou-total-count-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouTotalCountAmount);
+router.get('/get-mou-categories', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouCategories);
+router.get('/get-total-mou-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountCategoryWise);
+router.get('/get-total-mou-amount-yearwise', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountyearWise);
+router.get('/get-mou-org-order', auth, requireModulePermission("GMIS_MOU", "read"), gmisMouTab.getOrgWiseMouOrder);
 router.get('/get-organisation-wise-count-amount-status-orgview/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView);
 router.get('/get-organisation-wise-count-amount-status-orgview_2021/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2021);
 router.get('/get-organisation-wise-count-amount-status-orgview_2023/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2023);
@@ -2672,6 +2716,13 @@ router.put('/rbac/user-module-crud', auth, userModuleCrud.saveUserModuleCrud);
 router.get('/rbac/org-module-permission-log', getOrgModulePermissionLog);
 router.get('/rbac/user-module-crud-log', getUserModuleCrudLog);
 
+// SagarBot AI Copilot Permissions (Super Admin CRUD)
+router.get('/rbac/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
+router.put('/rbac/sagarbot-permissions', auth, sagarbotPermissionTab.updateSagarbotPermissions);
+router.post('/rbac/sagarbot-permissions/reset', auth, sagarbotPermissionTab.resetSagarbotPermissions);
+router.get('/api/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
+router.put('/api/sagarbot-permissions', sagarbotPermissionTab.updateSagarbotPermissions);
+
 router.get("/project-proposal", getProjectProposal);
 router.get("/project-clearance", getProjectClearance);
 router.get("/traffic-kpi-targets", getKpiTrafficTarget);
@@ -2735,8 +2786,8 @@ router.get('/get-FormBuilder-Report/:data', formBuilderInputTab.getFormBuilderRe
 router.get('/get-form-builder-status/:data/:code', formBuilderInputTab.getFormBuilderSatus); //req //get created forms
 router.get('/get-form-builder-user-wise-data/:data/:userID', formBuilderInputTab.getFormBuilderUserWiseData); //req //get created forms
 router.get('/get-user-edit-Form-Data/:userID/:currentPage', formBuilderInputTab.getUserEditFormData); //not required //get created forms data for only one data retrival for one form
-router.post('/edit-FormBuilder-data', formBuilderInputTab.editFormBuilderData); //req generic Create 
-router.post('/clone-FormBuilder', formBuilderInputTab.cloneMmtFormBuilder); //req generic clone 
-
+// AI Report Copilot (OpenAI / Vercel AI SDK)
+import reportCopilotTab from "./controllers/ai/reportCopilot.js";
+router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
 
 export default router;

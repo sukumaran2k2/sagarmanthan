@@ -6,101 +6,135 @@ import { createReadStream } from 'fs';
 import fs from 'fs';
 // import mssql from "mssql";
 
-async function mivAbstractData(req, res) {
+async function getMIVOrgWisePerformanceReport(req, res) {
     try {
         const conn = await pool;
-        const request = conn.request();
-        const userID = req.params.userID;
 
-        const userResult = await request.query(` SELECT role_id, organisation_id FROM tbl_user
-            WHERE user_id = ${userID}
-        `);
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        let result, countResult, iniCountResult, totalCostResult;
-        // console.log(role_id);
-        if (role_id === 1 || role_id === 2 || role_id === 3 || role_id === 4 || role_id === 5 || role_id === 8) {
-            result = await request.query(`
-                SELECT tbl_initiative.organisation_id, mmt_organisation.organisation_name, initiative_id,
-                initiative_name, total_cost, category, source_of_funding, status_on, status_current, 
-                physical_progress, reasons_for_drop, reasons_for_delay, start_date, completion_date, actual_date, latestImage
-                FROM tbl_initiative 
-                INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_initiative.organisation_id                
-            ;`);
-
-            countResult = await request.query(`
-                SELECT count(meeting_document_id) as meeting_document_id,
-                tbl_meeting_document.organisation_id, mmt_organisation.organisation_name
-                FROM tbl_meeting_document 
-                INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_meeting_document.organisation_id
-                Group By tbl_meeting_document.organisation_id, mmt_organisation.organisation_name
-            ;`);
-
-            iniCountResult = await request.query(`
-                SELECT count(initiative_id) as initiative_id,
-                tbl_initiative.organisation_id, mmt_organisation.organisation_name
-                FROM tbl_initiative 
-                INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_initiative.organisation_id
-                Group By tbl_initiative.organisation_id, mmt_organisation.organisation_name
-            ;`);
-
-            totalCostResult = await request.query(`
-                SELECT tbl_initiative.organisation_id, mmt_organisation.organisation_name, 
-                sum(total_cost) as total_cost
-                FROM tbl_initiative 
-                INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_initiative.organisation_id
-                Group By tbl_initiative.organisation_id, mmt_organisation.organisation_name
-            ;`);
-        } else {
-            result = await request.query(`
-                SELECT tbl_initiative.organisation_id, mmt_organisation.organisation_name, initiative_id,
-                initiative_name, total_cost, category, source_of_funding, status_on, status_current, 
-                physical_progress, reasons_for_drop, reasons_for_delay, start_date, completion_date, actual_date, latestImage
-                FROM tbl_initiative 
-                INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_initiative.organisation_id
-                WHERE tbl_initiative.organisation_id = ${organisation_id}
-            ;`);
-
-            countResult = await request.query(`
-                SELECT count(meeting_document_id) as meeting_document_id,
-                tbl_meeting_document.organisation_id, mmt_organisation.organisation_name
-                FROM tbl_meeting_document 
-                INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_meeting_document.organisation_id
-                WHERE tbl_meeting_document.organisation_id = ${organisation_id}
-                Group By tbl_meeting_document.organisation_id, mmt_organisation.organisation_name
-            ;`);
-
-            iniCountResult = await request.query(`
-                SELECT count(initiative_id) as initiative_id,
-                tbl_initiative.organisation_id, mmt_organisation.organisation_name
-                FROM tbl_initiative 
-                INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_initiative.organisation_id
-                WHERE tbl_initiative.organisation_id = ${organisation_id}
-                Group By tbl_initiative.organisation_id, mmt_organisation.organisation_name
-            ;`);
-
-            totalCostResult = await request.query(`
-                SELECT tbl_initiative.organisation_id, mmt_organisation.organisation_name, 
-                round(sum(total_cost), 2) as total_cost
-                FROM tbl_initiative 
-                INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_initiative.organisation_id
-                WHERE tbl_initiative.organisation_id = ${organisation_id}
-                Group By tbl_initiative.organisation_id, mmt_organisation.organisation_name
-            ;`);
+        const userID = Number(req.params.userID);
+        console.log("iser",userID)
+        if (!userID) {
+            return res.status(400).json({ message: "Invalid userID"});
         }
 
-        const response = {
-            rows: result.recordset,
-            count: countResult.recordset,
-            initiative: iniCountResult.recordset,
-            totalCost: totalCostResult.recordset
-        };
+        const userRequest = conn.request();
+        userRequest.input("userID", userID);
 
-        res.json(response);
+        const userResult = await userRequest.query(`
+            SELECT role_id, organisation_id FROM tbl_user
+            WHERE user_id = @userID
+        `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        const { role_id, organisation_id } = userResult.recordset[0];
+        const allOrganisationRoles = [1, 2, 3, 4, 5, 8];
+
+        let result;
+        if (allOrganisationRoles.includes(Number(role_id))) {
+
+            const request = conn.request();
+            result = await request.query(`
+                SELECT
+                    mmt.organisation_id AS OrganisationID,
+                    mmt.organisation_name AS Organisation,
+                    COUNT(ini.initiative_id) AS [Total Initiatives],
+                    SUM( ISNULL(ini.total_cost, 0)  ) AS [Total Investment (Cr.)],
+                    SUM(
+                        CASE
+                            WHEN ini.status_current = 'Completed'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Completed],
+                    SUM(
+                        CASE
+                            WHEN ini.status_current = 'Under Implementation - On Time'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [In Progress - On Time],
+                    SUM(
+                        CASE
+                            WHEN ini.status_current = 'Under Implementation - Delayed'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [In Progress - Delayed],
+                    SUM(
+                        CASE
+                            WHEN ini.status_current = 'Yet to be Started'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Not Started]
+
+                FROM tbl_initiative ini
+                LEFT JOIN mmt_organisation mmt ON ini.organisation_id = mmt.organisation_id
+                GROUP BY
+                    mmt.organisation_id,
+                    mmt.organisation_name
+
+                ORDER BY
+                    [Total Initiatives] DESC;
+            `);
+        } else {
+
+            const request = conn.request();
+            request.input( "organisation_id", organisation_id );
+
+            result = await request.query(`
+                SELECT
+                    mmt.organisation_id AS OrganisationID,
+                    mmt.organisation_name AS Organisation,
+                    COUNT(ini.initiative_id) AS [Total Initiatives],
+                    SUM(
+                        ISNULL(ini.total_cost, 0)
+                    ) AS [Total Investment (Cr.)],
+                    SUM(
+                        CASE
+                            WHEN ini.status_current = 'Completed'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Completed],
+                    SUM(
+                        CASE
+                            WHEN ini.status_current = 'Under Implementation - On Time'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [In Progress - On Time],
+                    SUM(
+                        CASE
+                            WHEN ini.status_current = 'Under Implementation - Delayed'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [In Progress - Delayed],
+                    SUM(
+                        CASE
+                            WHEN ini.status_current = 'Yet to be Started'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Not Started]
+
+                FROM tbl_initiative ini
+                LEFT JOIN mmt_organisation mmt ON ini.organisation_id = mmt.organisation_id
+                WHERE mmt.organisation_id = @organisation_id
+                GROUP BY
+                    mmt.organisation_id,
+                    mmt.organisation_name
+                ORDER BY
+                    [Total Initiatives] DESC;
+            `);
+        }
+
+        return res.json({ rows: result.recordset });
     } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        console.error( "Error in getMIVOrgWisePerformanceReport:", err );
+        return res.status(500).json({ message: "Internal server error" });
     }
 }
 
@@ -121,358 +155,126 @@ async function getmmtThemeValues(req,res){
 }
 
 //AG GRID THEME WISE CODE
-async function themeWiseMivAbstractData(req, res) {
+async function getThemeWiseMIVPerformanceReport(req, res) {
     // console.log("function worked!");
     try {
         const conn = await pool;
         const request = conn.request();
         const userID = req.params.userID;
 
-        const userResult = await request.query(` SELECT role_id, organisation_id FROM tbl_user
-            WHERE user_id = ${userID}
+         const userRequest = conn.request();
+        userRequest.input("userID", userID);
+
+        const userResult = await userRequest.query(`
+            SELECT role_id, organisation_id FROM tbl_user
+            WHERE user_id = @userID
         `);
 
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
         const { role_id, organisation_id } = userResult.recordset[0];
-
-        const organisationId = organisation_id; 
-        request.input("organisationId", organisationId);
+        const allOrganisationRoles = [1, 2, 3, 4, 5, 8];
 
         let result;
 
-        if (role_id === 1 || role_id === 2 || role_id === 3 || role_id === 4 || role_id === 5 || role_id === 8) {
+        if (allOrganisationRoles.includes(Number(role_id))) {
+
+            const request = conn.request();
             result = await request.query(`
-                WITH DistinctCategories AS (
-                    SELECT DISTINCT mmt_theme_initiative.theme_initiative_id, tbl_initiative.category
-                    FROM sagarmanthan_revamp.dbo.tbl_initiative
-                    JOIN sagarmanthan_revamp.dbo.mmt_theme_initiative ON tbl_initiative.theme_initiative = mmt_theme_initiative.theme_initiative_id
-                ), InitiativeData AS (
-                    SELECT
-                        mmt_theme_initiative.initiative_name AS 'Theme Name',
-                        mmt_theme_initiative.theme_initiative_id AS 'Theme ID',
-                        (
-                            SELECT STRING_AGG(DC.category, ', ')
-                            FROM DistinctCategories DC
-                            WHERE DC.theme_initiative_id = mmt_theme_initiative.theme_initiative_id
-                        ) AS Category,
-                        --SUM(CASE WHEN tbl_initiative.status_current IN ('Under Implementation', 'Delayed') THEN 1 ELSE 0 END) AS Number_of_Initiatives_Under_Implementation_Current,
-                        SUM(CASE WHEN tbl_initiative.status_current = 'Completed' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Completed,
-                        SUM(CASE WHEN tbl_initiative.status_on = 'Under Implementation - On Time' OR tbl_initiative.status_on = 'Under Implementation - Delayed' OR tbl_initiative.status_on = 'Yet to be Started' THEN 1 ELSE 0 END) AS To_be_Completed,
-                        SUM(CASE WHEN tbl_initiative.status_current = 'Under Implementation - On Time' THEN 1 ELSE 0 END) AS Current_Under_Implementation_On_Time_Current,
-                        SUM(CASE WHEN tbl_initiative.status_current = 'Under Implementation - Delayed' THEN 1 ELSE 0 END) AS Current_Under_Implementation_Delayed_Current,
-                        SUM(CASE WHEN tbl_initiative.status_current = 'Yet to be Started' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Yet_to_be_Started_Current,
-                        SUM(CASE WHEN tbl_initiative.status_current = 'Dropped' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Dropped_Current,
-                        SUM(CASE WHEN tbl_initiative.status_on IN ('Under Implementation', 'Delayed') THEN 1 ELSE 0 END) AS Number_of_Initiatives_Under_Implementation_On,
-                        SUM(CASE WHEN tbl_initiative.status_on = 'Completed' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Completed_On,
-                        SUM(CASE WHEN tbl_initiative.status_on = 'Under Implementation - On Time' OR tbl_initiative.status_on = 'Under Implementation - Delayed' THEN 1 ELSE 0 END) AS Current_Under_Implementation_On,
-                        SUM(CASE WHEN tbl_initiative.status_on = 'Yet to be Started' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Yet_to_be_Started_On,
-                        SUM(CASE WHEN tbl_initiative.status_on = 'Dropped' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Dropped_On,
-                        COUNT(tbl_initiative.theme_initiative) AS Total_Number_of_Initiatives_Current,
-                        SUM(tbl_initiative.total_cost) AS Total_Cost_of_Initiatives_Current,
-                        COUNT(CASE WHEN tbl_initiative.status_on IS NOT NULL THEN tbl_initiative.theme_initiative END) AS Total_Number_of_Initiatives_On,
-                        SUM(CASE WHEN tbl_initiative.status_on IS NOT NULL THEN tbl_initiative.total_cost ELSE 0 END) AS Total_Cost_of_Initiatives_On
-                    FROM
-                        sagarmanthan_revamp.dbo.mmt_theme_initiative
-                    LEFT JOIN
-                        sagarmanthan_revamp.dbo.tbl_initiative ON mmt_theme_initiative.theme_initiative_id = tbl_initiative.theme_initiative
-                    GROUP BY
-                        mmt_theme_initiative.theme_initiative_id, mmt_theme_initiative.initiative_name
-                )
-                SELECT
-                    ID.[Theme ID] AS 'InitiativeId',
-                    ID.[Theme Name] AS 'InitiativeName',
-                    ID.Category AS 'TotalInitiativeCategory',
-                    ID.Total_Number_of_Initiatives_Current AS 'TotalIniCount',
-                    ID.Total_Cost_of_Initiatives_Current AS 'TotalInitiativeCost',
-                    ID.Current_Under_Implementation_On AS 'NoOfInitiativeUI',
-                    ID.Number_of_Initiatives_Completed_On AS 'Completed',
-                    ID.To_be_Completed AS 'NoOfInitiativeToBeCompleted',
-                    ID.Current_Under_Implementation_On_Time_Current AS 'CurrentUnderImplementationOnTime',
-                    ID.Current_Under_Implementation_Delayed_Current AS 'CurrentUnderImplementationDelayed',
-                    ID.Number_of_Initiatives_Completed AS 'CurrentCompleted',
-                    ID.Number_of_Initiatives_Yet_to_be_Started_Current AS 'CurrentYetToBeStarted',
-                    ID.Number_of_Initiatives_Dropped_Current AS 'CurrentDropped'
-                FROM
-                    InitiativeData ID;            
+                select mti.initiative_name,
+
+COUNT(ini.initiative_id) AS [Total Initiatives],
+    SUM(ISNULL(ini.total_cost, 0)) AS [Total Investment (Cr.)],
+    SUM(
+        CASE
+            WHEN ini.status_current = 'Completed'
+            THEN 1
+            ELSE 0
+        END
+    ) AS [Completed],
+    SUM(
+        CASE
+            WHEN ini.status_current = 'Under Implementation - On Time'
+            THEN 1
+            ELSE 0
+        END
+    ) AS [In Progress - On Time],
+    SUM(
+        CASE
+            WHEN ini.status_current = 'Under Implementation - Delayed'
+            THEN 1
+            ELSE 0
+        END
+    ) AS [In Progress - Delayed],
+    SUM(
+        CASE
+            WHEN ini.status_current = 'Yet to be Started'
+            THEN 1
+            ELSE 0
+        END
+    ) AS [Not Started]
+
+
+from tbl_initiative ini
+LEFT JOIN mmt_theme_initiative mti ON ini.theme_Initiative = mti.theme_initiative_id
+GROUP BY 
+	mti.initiative_name 
             `);
 
         } else {
+            const request = conn.request();
+            request.input( "organisation_id", organisation_id );
             result = await request.query(`
-            WITH DistinctCategories AS (
-                SELECT DISTINCT mmt_theme_initiative.theme_initiative_id, tbl_initiative.category
-                FROM sagarmanthan_revamp.dbo.tbl_initiative
-                JOIN sagarmanthan_revamp.dbo.mmt_theme_initiative ON tbl_initiative.theme_initiative = mmt_theme_initiative.theme_initiative_id
-            ), InitiativeData AS (
-                SELECT
-                    mmt_theme_initiative.initiative_name AS 'Theme Name',
-                    mmt_theme_initiative.theme_initiative_id AS 'Theme ID',
-                    (
-                        SELECT STRING_AGG(DC.category, ', ')
-                        FROM DistinctCategories DC
-                        WHERE DC.theme_initiative_id = mmt_theme_initiative.theme_initiative_id
-                    ) AS Category,
-                    --SUM(CASE WHEN tbl_initiative.status_current IN ('Under Implementation', 'Delayed') THEN 1 ELSE 0 END) AS Number_of_Initiatives_Under_Implementation_Current,
-                    SUM(CASE WHEN tbl_initiative.status_current = 'Completed' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Completed,
-                    SUM(CASE WHEN tbl_initiative.status_on = 'Under Implementation - On Time' OR tbl_initiative.status_on = 'Under Implementation - Delayed' OR tbl_initiative.status_on = 'Yet to be Started' THEN 1 ELSE 0 END) AS To_be_Completed,
-                    SUM(CASE WHEN tbl_initiative.status_current = 'Under Implementation - On Time' THEN 1 ELSE 0 END) AS Current_Under_Implementation_On_Time_Current,
-                    SUM(CASE WHEN tbl_initiative.status_current = 'Under Implementation - Delayed' THEN 1 ELSE 0 END) AS Current_Under_Implementation_Delayed_Current,
-                    SUM(CASE WHEN tbl_initiative.status_current = 'Yet to be Started' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Yet_to_be_Started_Current,
-                    SUM(CASE WHEN tbl_initiative.status_current = 'Dropped' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Dropped_Current,
-                    SUM(CASE WHEN tbl_initiative.status_on IN ('Under Implementation', 'Delayed') THEN 1 ELSE 0 END) AS Number_of_Initiatives_Under_Implementation_On,
-                    SUM(CASE WHEN tbl_initiative.status_on = 'Completed' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Completed_On,
-                    SUM(CASE WHEN tbl_initiative.status_on = 'Under Implementation - On Time' OR tbl_initiative.status_on = 'Under Implementation - Delayed' THEN 1 ELSE 0 END) AS Current_Under_Implementation_On,
-                    SUM(CASE WHEN tbl_initiative.status_on = 'Yet to be Started' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Yet_to_be_Started_On,
-                    SUM(CASE WHEN tbl_initiative.status_on = 'Dropped' THEN 1 ELSE 0 END) AS Number_of_Initiatives_Dropped_On,
-                    COUNT(tbl_initiative.theme_initiative) AS Total_Number_of_Initiatives_Current,
-                    SUM(tbl_initiative.total_cost) AS Total_Cost_of_Initiatives_Current,
-                    COUNT(CASE WHEN tbl_initiative.status_on IS NOT NULL THEN tbl_initiative.theme_initiative END) AS Total_Number_of_Initiatives_On,
-                    SUM(CASE WHEN tbl_initiative.status_on IS NOT NULL THEN tbl_initiative.total_cost ELSE 0 END) AS Total_Cost_of_Initiatives_On
-                FROM
-                    sagarmanthan_revamp.dbo.mmt_theme_initiative
-                LEFT JOIN
-                    sagarmanthan_revamp.dbo.tbl_initiative ON mmt_theme_initiative.theme_initiative_id = tbl_initiative.theme_initiative
-                WHERE
-                    tbl_initiative.organisation_id = @organisationId 
-                GROUP BY
-                    mmt_theme_initiative.theme_initiative_id, mmt_theme_initiative.initiative_name
-            )
-            SELECT
-                ID.[Theme ID] AS 'InitiativeId',
-                ID.[Theme Name] AS 'InitiativeName',
-                ID.Category AS 'TotalInitiativeCategory',
-                ID.Total_Number_of_Initiatives_Current AS 'TotalIniCount',
-                ID.Total_Cost_of_Initiatives_Current AS 'TotalInitiativeCost',
-                ID.Current_Under_Implementation_On AS 'NoOfInitiativeUI',
-                ID.Number_of_Initiatives_Completed_On AS 'Completed',
-                ID.To_be_Completed AS 'NoOfInitiativeToBeCompleted',
-                ID.Current_Under_Implementation_On_Time_Current AS 'CurrentUnderImplementationOnTime',
-                ID.Current_Under_Implementation_Delayed_Current AS 'CurrentUnderImplementationDelayed',
-                ID.Number_of_Initiatives_Completed AS 'CurrentCompleted',
-                ID.Number_of_Initiatives_Yet_to_be_Started_Current AS 'CurrentYetToBeStarted',
-                ID.Number_of_Initiatives_Dropped_Current AS 'CurrentDropped'
-            FROM
-                InitiativeData ID;           
+            select mti.initiative_name,
+
+COUNT(ini.initiative_id) AS [Total Initiatives],
+    SUM(ISNULL(ini.total_cost, 0)) AS [Total Investment (Cr.)],
+    SUM(
+        CASE
+            WHEN ini.status_current = 'Completed'
+            THEN 1
+            ELSE 0
+        END
+    ) AS [Completed],
+    SUM(
+        CASE
+            WHEN ini.status_current = 'Under Implementation - On Time'
+            THEN 1
+            ELSE 0
+        END
+    ) AS [In Progress - On Time],
+    SUM(
+        CASE
+            WHEN ini.status_current = 'Under Implementation - Delayed'
+            THEN 1
+            ELSE 0
+        END
+    ) AS [In Progress - Delayed],
+    SUM(
+        CASE
+            WHEN ini.status_current = 'Yet to be Started'
+            THEN 1
+            ELSE 0
+        END
+    ) AS [Not Started]
+
+
+from tbl_initiative ini
+LEFT JOIN mmt_theme_initiative mti ON ini.theme_Initiative = mti.theme_initiative_id
+WHERE ini.organisation_id = @organisation_id
+GROUP BY 
+	mti.initiative_name   
             `);
 
         }
 
-        const rowData = result.recordset;  
-
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
-        }
-
-        const currentDate = new Date();
-        // Format the date as "dd-mm-yyyy"
-        const formattedDate = currentDate.toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-        });
-
-        let columnDefs = [
-            { headerName: 'Theme Name', field: 'InitiativeName', },
-            { headerName: 'Organisation/Wing ID', field: 'OrganisationID', },
-            { headerName: 'Theme ID', field: 'InitiativeId', },
-            { headerName: 'Category', field: 'TotalInitiativeCategory', },
-            { headerName: 'Total Number of Initiatives', field: 'TotalIniCount', },
-            { headerName: 'Total Cost of Initiatives (In.Cr)', field: 'TotalInitiativeCost',
-            valueFormatter: params => {
-                if (typeof params.value === 'number') {
-                return params.value.toFixed(2);
-                } else {
-                return params.value;
-                }
-            } },
-            {
-                headerName: 'Status as on 1st April 2023',
-                headerClass : "headercenter",
-                children: [
-                    { headerName: 'Number of Initiatives Under Implementation', field: 'NoOfInitiativeUI', },
-                    { headerName: 'Number of Initiatives Completed', field: 'Completed', },
-                ]
-            },
-            {
-                headerName: `Status as on ${formattedDate}`,
-                headerClass : "headercenter",
-                children: [
-                { headerName: 'No. of Initiative To Be Completed', field: 'NoOfInitiativeToBeCompleted', },
-                {
-                    headerName: 'Number of Initiatives Under Implementation',
-                    headerClass : "headercenter",
-                    children: [
-                        { 
-                            headerName: 'Current Under Implementation On Time', 
-                            field: 'CurrentUnderImplementationOnTime', 
-                            width:250
-                        },
-                        { 
-                            headerName: 'Current Under Implementation Delayed', 
-                            field: 'CurrentUnderImplementationDelayed', 
-                            width:250
-                        }
-                    ]
-                },{ headerName: 'Number of Initiatives Completed', field: 'CurrentCompleted', },
-                { headerName: 'Number of Initiatives Yet to be Started', field: 'CurrentYetToBeStarted', },
-                { headerName: 'Number of Initiatives Dropped', field: 'CurrentDropped', },
-                ]
-            },];
-
-        res.json({ columnDefs, rowData });
+       return res.json({ rows: result.recordset });
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);
     }
 }
-
-//Normal data table code 
-// async function themeWiseMivAbstractData(req, res) {
-//     // console.log("function worked!");
-//     try {
-//         const conn = await pool;
-//         const request = conn.request();
-//         const userID = req.params.userID;
-
-//         const userResult = await request.query(` SELECT role_id, organisation_id FROM tbl_user
-//             WHERE user_id = ${userID}
-//         `);
-
-//         const { role_id, organisation_id } = userResult.recordset[0];
-
-//         let result, themeInitiativeResult, categoryResult;
-
-//         if (role_id === 1 || role_id === 2 || role_id === 3 || role_id === 4 ||role_id === 6) {
-//             // console.log('if query worked');
-//             result = await request.query(`
-//                 SELECT 
-//                     mti.theme_initiative_id, 
-//                     mti.initiative_name AS theme_Name,
-//                     ti.total_cost,
-//                     ti.status_on,
-//                     ti.status_current,
-//                     ti.organisation_id,
-//                     ti.initiative_name,
-//                     mo.organisation_name
-//                 FROM 
-//                     mmt_theme_initiative mti
-//                 LEFT JOIN 
-//                     tbl_initiative ti ON mti.theme_initiative_id = ti.theme_Initiative
-//                 LEFT JOIN 
-//                     mmt_organisation mo ON mo.organisation_id = ti.organisation_id
-//                 ORDER BY 
-//                     mti.theme_initiative_id
-//             `);
-
-//             themeInitiativeResult = await request.query(`
-//                 SELECT 
-//                     mti.theme_initiative_id,
-//                     mti.initiative_name,
-//                     COUNT(ti.theme_initiative) AS total_theme_initiative_count,
-//                     SUM(ti.total_cost) AS total_cost
-//                 FROM 
-//                     mmt_theme_initiative mti
-//                 LEFT JOIN 
-//                     tbl_initiative ti ON mti.theme_initiative_id = ti.theme_initiative
-//                 GROUP BY 
-//                     mti.theme_initiative_id, mti.initiative_name
-//             ;`);
-
-//             categoryResult = await request.query(`
-//                 SELECT 
-//                 mti.theme_initiative_id,
-//                 mti.initiative_name AS theme_Name,
-//                 STRING_AGG(ti.category, ', ') AS categories
-//             FROM 
-//                 mmt_theme_initiative mti
-//             LEFT JOIN 
-//                 tbl_initiative ti ON mti.theme_initiative_id = ti.theme_Initiative
-//             GROUP BY 
-//                 mti.theme_initiative_id, mti.initiative_name
-//             ;`);
-
-//         } else {
-
-//             // console.log('else query worked');
-//             result = await request.query(`
-//                 SELECT
-//                     initiative_id,
-//                     theme_Initiative AS initiative_name,
-//                     SUM(total_cost) AS total_cost,
-//                     mmt_organisation.organisation_id,
-//                     mmt_organisation.organisation_name,
-//                     status_on,
-//                     status_current
-//                 FROM
-//                     tbl_initiative
-//                 INNER JOIN
-//                     mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id
-//                 WHERE
-//                     tbl_initiative.organisation_id = ${organisation_id}
-//                 GROUP BY
-//                     initiative_id, theme_Initiative, mmt_organisation.organisation_id, mmt_organisation.organisation_name, status_on, status_current
-//             ;`);
-
-//             themeInitiativeResult = await request.query(`
-//                 SELECT 
-//                     mti.theme_initiative_id,
-//                     mti.initiative_name,
-//                     COUNT(ti.theme_initiative) AS total_theme_initiative_count
-//                 FROM 
-//                     mmt_theme_initiative mti
-//                 LEFT JOIN 
-//                     tbl_initiative ti ON mti.theme_initiative_id = ti.theme_initiative
-//                 GROUP BY 
-//                     mti.theme_initiative_id, mti.initiative_name
-//                 WHERE tbl_initiative.organisation_id = ${organisation_id}
-//             ;`);
-//             categoryResult = await request.query(`
-//                 SELECT 
-//                 mti.theme_initiative_id,
-//                 mti.initiative_name,
-//                 STRING_AGG(ti.category, ', ') AS categories
-//             FROM 
-//                 mmt_theme_initiative mti
-//             LEFT JOIN 
-//                 tbl_initiative ti ON mti.theme_initiative_id = ti.theme_Initiative
-//             GROUP BY 
-//                 mti.theme_initiative_id, mti.initiative_name
-//             WHERE tbl_initiative.organisation_id = ${organisation_id}
-//             ;`);
-//         }
-
-//         const response = {
-//             rows: result.recordset,
-//             themeinitiative: themeInitiativeResult.recordset,
-//             category: categoryResult.recordset
-//         };
-
-//         res.json(response);
-//     } catch (err) {
-//         console.log(err);
-//         return res.sendStatus(500);
-//     }
-// }
-
-// SELECT tbl_initiative.source_of_funding,
-// 	 stuff(
-//                    (SELECT
-//                         ', ' + mmt_source_of_funding.source_of_funding_name  --use this if you want quotes around the names:  ', ''' + p2.name+''''
-//                         FROM  mmt_source_of_funding
-//                         WHERE mmt_source_of_funding.source_of_funding_id=tbl_initiative.source_of_funding
-                      
-//                         FOR XML PATH('') 
-//                    )
-//                    ,1,2, ''
-//                ) AS Names,
-
-
-// status_on, status_current, physical_progress, reasons_for_drop, reasons_for_delay,
-// start_date, completion_date, actual_date, latestImage
-// FROM tbl_initiative 
-// INNER JOIN mmt_organisation on mmt_organisation.organisation_id = tbl_initiative.organisation_id
-// LEFT JOIN mmt_source_of_funding on mmt_source_of_funding.source_of_funding_id = tbl_initiative.source_of_funding
-        
-// WHERE (tbl_initiative.organisation_id = 12)
-
 
 async function mivDetailedData (req, res) 
 {  
@@ -1156,4 +958,594 @@ async function deleteMeeting(req, res) {
     }
 }
 
-export default { mivDetailedData, mivThemeDetailedData, mivAbstractData, downloadDocument, themeWiseMivAbstractData , getmmtThemeValues, deleteMeeting};
+async function getCategoryWiseMIVPerformanceReport(req,res) {
+    try {
+        const conn = await pool;
+        const request = conn.request();
+        const userID = req.params.userID;
+
+         const userRequest = conn.request();
+        userRequest.input("userID", userID);
+
+        const userResult = await userRequest.query(`
+            SELECT role_id, organisation_id FROM tbl_user
+            WHERE user_id = @userID
+        `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        const { role_id, organisation_id } = userResult.recordset[0];
+        const allOrganisationRoles = [1, 2, 3, 4, 5, 8];
+
+        let result;
+
+        if (allOrganisationRoles.includes(Number(role_id))) {
+
+            const request = conn.request();
+            result = await request.query(`
+            select ini.category,
+
+            COUNT(ini.initiative_id) AS [Total Initiatives],
+                SUM(ISNULL(ini.total_cost, 0)) AS [Total Investment (Cr.)],
+                SUM(
+                    CASE
+                        WHEN ini.status_current = 'Completed'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Completed],
+                SUM(
+                    CASE
+                        WHEN ini.status_current = 'Under Implementation - On Time'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [In Progress - On Time],
+                SUM(
+                    CASE
+                        WHEN ini.status_current = 'Under Implementation - Delayed'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [In Progress - Delayed],
+                SUM(
+                    CASE
+                        WHEN ini.status_current = 'Yet to be Started'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Not Started]
+
+
+            from tbl_initiative ini
+            GROUP BY 
+                ini.category
+            `);
+
+        } else {
+            const request = conn.request();
+            request.input( "organisation_id", organisation_id );
+            result = await request.query(`
+            select ini.category,
+
+            COUNT(ini.initiative_id) AS [Total Initiatives],
+                SUM(ISNULL(ini.total_cost, 0)) AS [Total Investment (Cr.)],
+                SUM(
+                    CASE
+                        WHEN ini.status_current = 'Completed'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Completed],
+                SUM(
+                    CASE
+                        WHEN ini.status_current = 'Under Implementation - On Time'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [In Progress - On Time],
+                SUM(
+                    CASE
+                        WHEN ini.status_current = 'Under Implementation - Delayed'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [In Progress - Delayed],
+                SUM(
+                    CASE
+                        WHEN ini.status_current = 'Yet to be Started'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Not Started]
+
+
+            from tbl_initiative ini
+            WHERE ini.organisation_id = @organisation_id
+            GROUP BY 
+                ini.category
+            `);
+
+        }
+
+       return res.json({ rows: result.recordset });
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
+const ALL_ORGANISATION_ROLES = [1, 2, 3, 4, 5, 8];
+
+
+// ============================================================
+// REPORT 1.4
+// SUMMARY REPORT - DELAYED / OVERDUE INITIATIVES
+// ============================================================
+
+async function getSummaryReportOverdueInitiatives(req, res) {
+    try {
+        const conn = await pool;
+
+        const userID = Number(req.params.userID);
+
+        // ------------------------------------------------------
+        // Validate userID
+        // ------------------------------------------------------
+
+        if (!Number.isInteger(userID) || userID <= 0) {
+            return res.status(400).json({
+                message: "Invalid userID"
+            });
+        }
+
+        // ------------------------------------------------------
+        // Get user role + organisation
+        // ------------------------------------------------------
+
+        const userRequest = conn.request();
+
+        userRequest.input("userID", userID);
+
+        const userResult = await userRequest.query(`
+            SELECT
+                role_id,
+                organisation_id
+            FROM tbl_user
+            WHERE user_id = @userID
+        `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const {
+            role_id,
+            organisation_id
+        } = userResult.recordset[0];
+
+        const userRoleId = Number(role_id);
+        const userOrganisationId = Number(organisation_id);
+
+        const canViewAllOrganisations =
+            ALL_ORGANISATION_ROLES.includes(userRoleId);
+
+        // ------------------------------------------------------
+        // Organisation validation
+        // ------------------------------------------------------
+
+        if (
+            !canViewAllOrganisations &&
+            (!Number.isInteger(userOrganisationId) ||
+                userOrganisationId <= 0)
+        ) {
+            return res.status(403).json({
+                message: "User is not mapped to an organisation"
+            });
+        }
+
+        // ------------------------------------------------------
+        // Query
+        // ------------------------------------------------------
+
+        const request = conn.request();
+
+        if (!canViewAllOrganisations) {
+            request.input(
+                "organisation_id",
+                userOrganisationId
+            );
+        }
+
+        /*
+         * IMPORTANT
+         *
+         * We calculate overdue days using:
+         *
+         * actual_date -> today
+         *
+         * This is the same logic used by Report 1.5.
+         */
+
+        const organisationFilter = canViewAllOrganisations
+            ? ""
+            : `
+                AND ini.organisation_id = @organisation_id
+            `;
+
+        const result = await request.query(`
+            WITH InitiativeDelay AS (
+                SELECT
+                    ini.initiative_id,
+
+                    ini.organisation_id,
+
+                    mmt.organisation_name,
+
+                    ini.actual_date,
+
+                    ISNULL(
+                        ini.total_cost,
+                        0
+                    ) AS total_cost,
+
+                    DATEDIFF(
+                        DAY,
+                        ini.actual_date,
+                        CAST(GETDATE() AS DATE)
+                    ) AS delay_days
+
+                FROM tbl_initiative ini
+
+                INNER JOIN mmt_organisation mmt
+                    ON ini.organisation_id =
+                       mmt.organisation_id
+
+                WHERE
+                    ini.actual_date IS NOT NULL
+
+                    ${organisationFilter}
+            )
+
+            SELECT
+                organisation_id,
+
+                organisation_name,
+
+                /*
+                 * Total delayed initiatives
+                 */
+                COUNT(
+                    CASE
+                        WHEN delay_days > 0
+                        THEN 1
+                    END
+                ) AS total_delayed_initiatives,
+
+                /*
+                 * Delayed < 6 Months
+                 */
+                COUNT(
+                    CASE
+                        WHEN delay_days > 0
+                         AND delay_days < 180
+                        THEN 1
+                    END
+                ) AS delayed_less_than_6_months,
+
+                /*
+                 * Delayed 6-12 Months
+                 */
+                COUNT(
+                    CASE
+                        WHEN delay_days >= 180
+                         AND delay_days < 365
+                        THEN 1
+                    END
+                ) AS delayed_6_12_months,
+
+                /*
+                 * Severely Delayed > 1 Year
+                 */
+                COUNT(
+                    CASE
+                        WHEN delay_days >= 365
+                        THEN 1
+                    END
+                ) AS severely_delayed_more_than_1_year,
+
+                /*
+                 * Total cost of delayed initiatives
+                 */
+                SUM(
+                    CASE
+                        WHEN delay_days > 0
+                        THEN total_cost
+                        ELSE 0
+                    END
+                ) AS total_cost
+
+            FROM InitiativeDelay
+
+            /*
+             * Only organisations having
+             * at least one delayed initiative
+             */
+            GROUP BY
+                organisation_id,
+                organisation_name
+
+            HAVING
+                COUNT(
+                    CASE
+                        WHEN delay_days > 0
+                        THEN 1
+                    END
+                ) > 0
+
+            ORDER BY
+                organisation_name;
+        `);
+
+        // ------------------------------------------------------
+        // Response
+        // ------------------------------------------------------
+
+        return res.status(200).json({
+            rows: result.recordset
+        });
+
+    } catch (err) {
+
+        console.error(
+            "getSummaryReportOverdueInitiatives Error:",
+            err
+        );
+
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+}
+
+
+// ============================================================
+// REPORT 1.5
+// DETAILED REPORT - DELAYED / OVERDUE INITIATIVES
+// ============================================================
+
+async function detailedReportDelayedOverdueInitiatives(req, res) {
+    try {
+        const conn = await pool;
+
+        const userID = Number(req.params.userID);
+
+        // ------------------------------------------------------
+        // Validate userID
+        // ------------------------------------------------------
+
+        if (!Number.isInteger(userID) || userID <= 0) {
+            return res.status(400).json({
+                message: "Invalid userID"
+            });
+        }
+
+        // ------------------------------------------------------
+        // Get user role + organisation
+        // ------------------------------------------------------
+
+        const userRequest = conn.request();
+
+        userRequest.input("userID", userID);
+
+        const userResult = await userRequest.query(`
+            SELECT
+                role_id,
+                organisation_id
+            FROM tbl_user
+            WHERE user_id = @userID
+        `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const {
+            role_id,
+            organisation_id
+        } = userResult.recordset[0];
+
+        const userRoleId = Number(role_id);
+        const userOrganisationId = Number(organisation_id);
+
+        const canViewAllOrganisations =
+            ALL_ORGANISATION_ROLES.includes(userRoleId);
+
+        // ------------------------------------------------------
+        // Organisation validation
+        // ------------------------------------------------------
+
+        if (
+            !canViewAllOrganisations &&
+            (!Number.isInteger(userOrganisationId) ||
+                userOrganisationId <= 0)
+        ) {
+            return res.status(403).json({
+                message: "User is not mapped to an organisation"
+            });
+        }
+
+        // ------------------------------------------------------
+        // Request
+        // ------------------------------------------------------
+
+        const request = conn.request();
+
+        if (!canViewAllOrganisations) {
+            request.input(
+                "organisation_id",
+                userOrganisationId
+            );
+        }
+
+        // ------------------------------------------------------
+        // Organisation filter
+        // ------------------------------------------------------
+
+        const organisationFilter = canViewAllOrganisations
+            ? ""
+            : `
+                AND ini.organisation_id = @organisation_id
+            `;
+
+        // ------------------------------------------------------
+        // Detailed query
+        // ------------------------------------------------------
+
+        const result = await request.query(`
+            SELECT
+
+                ROW_NUMBER() OVER (
+                    ORDER BY
+                        mmt.organisation_name,
+                        ini.actual_date,
+                        ini.initiative_id
+                ) AS sno,
+
+                /*
+                 * Organisation
+                 */
+                mmt.organisation_name
+                    AS organisation_name,
+
+                /*
+                 * Initiative
+                 */
+                ini.initiative_id
+                    AS initiative_id,
+
+                ini.initiative_name
+                    AS initiative_name,
+
+                /*
+                 * Category
+                 */
+                ini.category
+                    AS category,
+
+                /*
+                 * Cost
+                 */
+                ISNULL(
+                    ini.total_cost,
+                    0
+                ) AS total_cost,
+
+                /*
+                 * Expected / Actual completion date
+                 */
+                ini.actual_date
+                    AS expected_actual_completion_date,
+
+                /*
+                 * Days overdue
+                 */
+                DATEDIFF(
+                    DAY,
+                    ini.actual_date,
+                    CAST(GETDATE() AS DATE)
+                ) AS days_overdue,
+
+                /*
+                 * Reason for delay
+                 */
+                ISNULL(
+                    ini.reasons_for_delay,
+                    '-'
+                ) AS reason_for_delay,
+
+                /*
+                 * Severity
+                 */
+                CASE
+
+                    WHEN DATEDIFF(
+                        DAY,
+                        ini.actual_date,
+                        CAST(GETDATE() AS DATE)
+                    ) < 180
+                    THEN 'Delayed < 6 Months'
+
+                    WHEN DATEDIFF(
+                        DAY,
+                        ini.actual_date,
+                        CAST(GETDATE() AS DATE)
+                    ) < 365
+                    THEN 'Delayed 6-12 Months'
+
+                    ELSE
+                        'Severely Delayed > 1 Year'
+
+                END AS severity_status
+
+            FROM tbl_initiative ini
+
+            INNER JOIN mmt_organisation mmt
+                ON ini.organisation_id =
+                   mmt.organisation_id
+
+            WHERE
+
+                /*
+                 * Completion / expected date exists
+                 */
+                ini.actual_date IS NOT NULL
+
+                /*
+                 * Only overdue initiatives
+                 */
+                AND ini.actual_date <
+                    CAST(GETDATE() AS DATE)
+
+                /*
+                 * Organisation restriction
+                 */
+                ${organisationFilter}
+
+            ORDER BY
+                mmt.organisation_name,
+                ini.actual_date,
+                ini.initiative_id;
+        `);
+
+        // ------------------------------------------------------
+        // Response
+        // ------------------------------------------------------
+
+        return res.status(200).json({
+            rows: result.recordset
+        });
+
+    } catch (err) {
+
+        console.error(
+            "detailedReportDelayedOverdueInitiatives Error:",
+            err
+        );
+
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+}
+
+export default { mivDetailedData, mivThemeDetailedData, downloadDocument,  getmmtThemeValues, deleteMeeting,
+   getMIVOrgWisePerformanceReport,getThemeWiseMIVPerformanceReport, getCategoryWiseMIVPerformanceReport,getSummaryReportOverdueInitiatives,detailedReportDelayedOverdueInitiatives
+};

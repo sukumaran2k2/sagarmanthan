@@ -62,6 +62,20 @@ body {
   animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* AG Grid custom styling to match dashboard theme */
 .ag-theme-quartz {
   --ag-header-background-color: #0f417a !important;
@@ -106,14 +120,31 @@ body {
 }
 
 .ag-cell {
-  text-align: center !important;
+  text-align: center;
 }
 
-.ag-cell,
-.ag-cell * {
-  white-space: nowrap !important;
-  text-overflow: ellipsis !important;
-  overflow: hidden !important;
+.ag-cell:not(.ag-cell-wrap-text):not(.mopsw-wrap-cell):not(.yp-wrap-cell):not(.wrap-text),
+.ag-cell:not(.ag-cell-wrap-text):not(.mopsw-wrap-cell):not(.yp-wrap-cell):not(.wrap-text) .ag-cell-value {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* Allow text wrapping when wrap classes are specified */
+.ag-cell.ag-cell-wrap-text,
+.ag-cell.mopsw-wrap-cell,
+.ag-cell.yp-wrap-cell,
+.ag-cell.wrap-text,
+.ag-cell.ag-cell-wrap-text *,
+.ag-cell.mopsw-wrap-cell *,
+.ag-cell.yp-wrap-cell *,
+.ag-cell.wrap-text * {
+  white-space: normal !important;
+  text-overflow: unset !important;
+  overflow: visible !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.5 !important;
 }
 
 /* Style filter and sort icons on header to be white */
@@ -285,4 +316,15 @@ body {
   .ag-theme-quartz .ag-paging-button:has(.ag-icon-last) {
     display: none !important;
   }
+}
+
+/* AG Grid's theme CSS forces `.ag-cell, .ag-cell *` to white-space: nowrap via !important,
+   which silently defeats any per-column wrapText/autoHeight config (and any inline cellStyle
+   or custom cellRenderer, since the rule also targets all descendants). Override it with our
+   own higher-specificity !important, scoped to cells that explicitly opted into wrapping via
+   the `ag-cell-wrap-text` class AG Grid applies when a column sets wrapText: true. */
+.ag-theme-quartz .ag-cell.ag-cell-wrap-text,
+.ag-theme-quartz .ag-cell.ag-cell-wrap-text * {
+  white-space: normal !important;
+  word-break: break-word !important;
 }

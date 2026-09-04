@@ -19,6 +19,7 @@ import {
   Compass,
   ChevronDown
 } from 'lucide-react';
+import { API_BASE_URL } from '../../config/api';
 
 const PUBLIC_KEY_PEM = (import.meta.env.VITE_RSA_PUBLIC_KEY || "").replace(/\\n/g, "\n");
 
@@ -114,7 +115,7 @@ export default function ProfileView({ triggerNotification }) {
     console.log("DEBUG_PROFILE: Decoded payload:", decoded);
     if (!decoded || !decoded.email) return;
 
-    axios.get('http://localhost:3000/userlist')
+    axios.get(`${API_BASE_URL}/userlist`)
       .then(res => {
         const users = res.data || [];
         console.log("DEBUG_PROFILE: Loaded userlist:", users);
@@ -162,7 +163,7 @@ export default function ProfileView({ triggerNotification }) {
     e.preventDefault();
     if (!rawUser) return;
 
-    axios.put('http://localhost:3000/edit-user-profile', {
+    axios.put(`${API_BASE_URL}/edit-user-profile`, {
       userID: rawUser.user_id,
       title: profile.title,
       name: profile.fullName,
@@ -209,7 +210,7 @@ export default function ProfileView({ triggerNotification }) {
       return;
     }
 
-    axios.put('http://localhost:3000/edit-password', {
+    axios.put(`${API_BASE_URL}/edit-password`, {
       userID: rawUser.user_id,
       email: rawUser.email,
       loginUser: rawUser.name,

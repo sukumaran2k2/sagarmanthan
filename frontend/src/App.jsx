@@ -1,47 +1,45 @@
-import { useState, useEffect } from 'react';
-import Header from './components/Header';
-import Tabs from './components/Tabs';
-import Projects from './modules/Projects/Projects';
-
+import React, { useState, Suspense, lazy } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import MainLayout, { ROUTE_MAP, getTabFromSlug } from './layouts/MainLayout';
 import LoginView from './modules/Login/Login';
-import LandingView from './modules/Landing/Landing';
-import { PortsDashboardView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
-import EOfficeView from './modules/EOffice/EOffice';
-import AttendanceView from './modules/Attendance/Attendance';
-import CPGRAMSView from './modules/CPGRAMS/CPGRAMS';
-import HRDashboardView from './modules/HR/HR';
-import ProfileView from './modules/Profile/Profile';
-
-import CabinetNotes from './modules/CabinetNotesMOPSW/CabinetNotesMOPSW';
-import CabinetNotesOther from './modules/CabinetNotesOther/CabinetNotesOther';
-import UserMatrix from './modules/UserManagement/UserMatrix';
-import {
-  canAccessTab,
-  normalizeTab,
-  usesOwnPageHeader,
-  isSuperAdminTab,
-  TAB_USER_MODULE_PERMISSION,
-  TAB_USER_LIST,
-} from './utils/moduleAccess';
-import { hasImplementedUi } from './config/moduleRegistry';
-import RestrictedAccess from './components/RestrictedAccess';
-import ParliamentaryIssues from './modules/ParliamentaryIssues/ParliamentaryIssues';
-import AuditParaView from './modules/AuditPara/AuditPara';
-import VIPReferenceView from './modules/VIPReference/VIPReference';
-import BillsPreConstitutionsView from './modules/BillsPreConstitutions/BillsPreConstitutions';
-import ActsAndRulesView from './modules/ActsAndRules/ActsAndRules';
-import YoungProfessionalsView from './modules/YoungProfessionals/YoungProfessionals';
-import ConsultantAppointmentView from './modules/ConsultantAppointment/ConsultantAppointment';
-import MediaOutreachView from './modules/MediaOutreach/MediaOutreach';
-import CapexView from './modules/Capex/Capex';
-import GEMProcurementView from './modules/GEMProcurement/GEMProcurement';
-import Footer from './components/Footer';
-import { Sparkles, Home, Activity } from 'lucide-react';
 import Loader from './components/Loader';
-import NetworkCheckView from './components/NetworkCheckView';
-import Notification from './components/Notification';
-import ContactUs from './modules/Contact/Contact';
+import { Activity, Sparkles } from 'lucide-react';
+import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
 
+// Lazy-loaded feature modules for code splitting and instant initial page load
+const LandingView = lazy(() => import('./modules/Landing/Landing'));
+const DashboardView = lazy(() => import('./modules/Dashboard/Dashboard'));
+const Projects = lazy(() => import('./modules/Projects/Projects'));
+const CSRProjectsView = lazy(() => import('./modules/CSRProjects/CSRProjects'));
+const GMISMOUView = lazy(() => import('./modules/GMISMOU/GMISMOU'));
+const MIV2030View = lazy(() => import('./modules/MIV2030/MIV2030'));
+const OVODView = lazy(() => import('./modules/OVOD/OVOD'));
+const CapexView = lazy(() => import('./modules/Capex/Capex'));
+const EOfficeView = lazy(() => import('./modules/EOffice/EOffice'));
+const AttendanceView = lazy(() => import('./modules/Attendance/Attendance'));
+const CPGRAMSView = lazy(() => import('./modules/CPGRAMS/CPGRAMS'));
+const CabinetNotes = lazy(() => import('./modules/CabinetNotesMOPSW/CabinetNotesMOPSW'));
+const CabinetNotesOther = lazy(() => import('./modules/CabinetNotesOther/CabinetNotesOther'));
+const ParliamentaryIssues = lazy(() => import('./modules/ParliamentaryIssues/ParliamentaryIssues'));
+const HRDashboardView = lazy(() => import('./modules/HR/HR'));
+const YoungProfessionalsView = lazy(() => import('./modules/YoungProfessionals/YoungProfessionals'));
+const ConsultantAppointmentView = lazy(() => import('./modules/ConsultantAppointment/ConsultantAppointment'));
+const ProfileView = lazy(() => import('./modules/Profile/Profile'));
+const AuditParaView = lazy(() => import('./modules/AuditPara/AuditPara'));
+const VIPReferenceView = lazy(() => import('./modules/VIPReference/VIPReference'));
+const MediaOutreachView = lazy(() => import('./modules/MediaOutreach/MediaOutreach'));
+const BillsPreConstitutionsView = lazy(() => import('./modules/BillsPreConstitutions/BillsPreConstitutions'));
+const ActsAndRulesView = lazy(() => import('./modules/ActsAndRules/ActsAndRules'));
+const GEMProcurementView = lazy(() => import('./modules/GEMProcurement/GEMProcurement'));
+const KPIDGLLView = lazy(() => import('./modules/KPIDGLL/KPIDGLL'));
+const CSLView = lazy(() => import('./modules/CSL/CSL'));
+const IMUView = lazy(() => import('./modules/IMU/IMU'));
+const SCIView = lazy(() => import('./modules/SCI/SCI'));
+const UserMatrix = lazy(() => import('./modules/UserManagement/UserMatrix'));
+const ContactUs = lazy(() => import('./modules/Contact/Contact'));
+
+// Major Ports Components
+import { PortsDashboardView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
 
 const INITIAL_PROJECTS = [
   {
@@ -55,85 +53,85 @@ const INITIAL_PROJECTS = [
     stage: 'Under Implementation',
     category: 'Digital Infrastructure',
     physicalProgress: '68',
-    financialProgress: '54',
+    financialProgress: '60',
   },
   {
     id: 2,
     projectId: 'PR1371',
     subProjectId: '-',
-    projectName: 'Deepening & widening of common portion of main channel of mumbai harbour & anchorages by JNPA',
+    projectName: 'Capacity Enhancement of Outer Harbour at Visakhapatnam Port Authority',
     subProjectName: '-',
-    cost: '5.00',
-    agency: 'Jawaharlal Nehru Port Authority',
-    stage: 'Under Implementation',
-    category: 'Dredging Projects',
-    physicalProgress: '85',
-    financialProgress: '70',
+    cost: '142.50',
+    agency: 'Visakhapatnam Port Authority',
+    stage: 'In Progress',
+    category: 'Port Infrastructure',
+    physicalProgress: '45',
+    financialProgress: '38',
   },
   {
     id: 3,
     projectId: 'PR1370',
     subProjectId: '-',
-    projectName: 'Coal Berth 4',
+    projectName: 'Construction of Multipurpose Cargo Berth at Deendayal Port Authority',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '12',
-    financialProgress: '0',
+    cost: '210.00',
+    agency: 'Deendayal Port Authority',
+    stage: 'Under Tendering',
+    category: 'Berth Modernization',
+    physicalProgress: '15',
+    financialProgress: '10',
   },
   {
     id: 4,
     projectId: 'PR1369',
     subProjectId: '-',
-    projectName: 'Coal Berth 3',
+    projectName: 'Development of Riverine Jetty on National Waterway-1 at Varanasi',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '10',
-    financialProgress: '0',
+    cost: '34.80',
+    agency: 'Inland Waterways Authority of India',
+    stage: 'Under Implementation',
+    category: 'Inland Waterways',
+    physicalProgress: '82',
+    financialProgress: '75',
   },
   {
     id: 5,
     projectId: 'PR1368',
     subProjectId: '-',
-    projectName: 'Coal Berth 1 & 2',
+    projectName: 'Procurement of High-Powered Tug for Marine Operations at Paradip Port',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '15',
-    financialProgress: '5',
+    cost: '48.00',
+    agency: 'Paradip Port Authority',
+    stage: 'Completed',
+    category: 'Vessel Acquisition',
+    physicalProgress: '100',
+    financialProgress: '100',
   },
   {
     id: 6,
     projectId: 'PR1367',
     subProjectId: '-',
-    projectName: 'Replacement of FLP-WP LED light fitting with poles & allied works at PirPau',
+    projectName: 'Installation of VTMS and Radar Integration along Gujarat Coastline',
     subProjectName: '-',
-    cost: '7.75',
-    agency: 'Mumbai Port Authority',
-    stage: 'Under Tendering',
-    category: 'Green Initiatives',
-    physicalProgress: '0',
-    financialProgress: '0',
+    cost: '72.30',
+    agency: 'Directorate General of Lighthouses and Lightships',
+    stage: 'In Progress',
+    category: 'Coastal Surveillance',
+    physicalProgress: '54',
+    financialProgress: '50',
   },
   {
     id: 7,
     projectId: 'PR1366',
     subProjectId: '-',
-    projectName: 'DRY-DOCKING/REPAIRS of SCI PANNA',
+    projectName: 'Green Hydrogen Bunkering Facility Pilot at VO Chidambaranar Port',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Shipping Corporation of India',
-    stage: 'Project Initiated',
-    category: 'Shipyard Development',
-    physicalProgress: '5',
-    financialProgress: '0',
+    cost: '89.40',
+    agency: 'V.O. Chidambaranar Port Authority',
+    stage: 'Under Detailed Study',
+    category: 'Green Maritime',
+    physicalProgress: '20',
+    financialProgress: '12',
   },
   {
     id: 8,
@@ -150,505 +148,253 @@ const INITIAL_PROJECTS = [
   },
 ];
 
-const getBreadcrumbs = (tab) => {
-  if (tab === 'landing') return ['Home'];
-  if (tab === 'Ports Reports') return ['KPI - Major Ports - (Output Reports)'];
-
-  if (tab === 'projects-list') return ['Home', 'Projects', 'Project', 'Project List'];
-  if (tab === 'projects-less5cr') return ['Home', 'Projects', 'Project', 'Projects Less Than 5 Cr'];
-  if (tab === 'projects-lumpsum') return ['Home', 'Projects', 'Project', 'Lumpsum - IWAI'];
-  if (tab === 'projects-dropRequests') return ['Home', 'Projects', 'Project', 'View Drop Request'];
-  if (tab === 'projects-reports') return ['Home', 'Projects', 'Project', 'Reports'];
-
-  // Dynamic lookup for other tabs
-  const kpiItems = {
-    'Major Ports Dashboard': ['KPI', 'Major Ports'],
-    'Major Ports Input Form': ['KPI', 'Major Ports'],
-    'Major Ports Reports': ['KPI', 'Major Ports'],
-    'MMD Master': ['KPI', 'DSG'],
-    'DSG Input Form': ['KPI', 'DSG'],
-    'DSG Reports': ['KPI', 'DSG'],
-    'IWAI Master': ['KPI', 'IWAI'],
-    'National Waterways': ['KPI', 'IWAI'],
-    'Terminal/Jetties': ['KPI', 'IWAI'],
-    'Digital Portals': ['KPI', 'IWAI'],
-    'DGLL Input Form': ['KPI', 'DGLL'],
-    'DGLL Reports': ['KPI', 'DGLL'],
-    'CSL Input Form': ['KPI', 'CSL'],
-    'CSL Reports': ['KPI', 'CSL'],
-    'IMU Input Form': ['KPI', 'IMU'],
-    'IMU Reports': ['KPI', 'IMU'],
-    'SCI Input Form': ['KPI', 'SCI'],
-    'SCI Reports': ['KPI', 'SCI'],
-    'CMEC Input Form': ['KPI', 'CMEC'],
-    'CMEC Reports': ['KPI', 'CMEC'],
-  };
-  if (kpiItems[tab]) return ['Home', ...kpiItems[tab], tab];
-
-  const hrItems = {
-    'HR Dashboard': ['HR & Institutional', 'HR Management'],
-    'Employee Database': ['HR & Institutional', 'HR Management'],
-    'List of Abolished Ports': ['HR & Institutional', 'HR Management'],
-    'Contractual Employment': ['HR & Institutional', 'HR Management'],
-    'Training Details': ['HR & Institutional', 'HR Management'],
-    'HR Reports': ['HR & Institutional', 'HR Management'],
-    'Data List': ['HR & Institutional', 'Young Professionals'],
-    'Input Form': ['HR & Institutional', 'Young Professionals'],
-    'Report': ['HR & Institutional', 'Young Professionals'],
-    'Consultant Input Form': ['HR & Institutional', 'Consultant Appointment'],
-    'Consultant Data List': ['HR & Institutional', 'Consultant Appointment'],
-    'Consultant Reports': ['HR & Institutional', 'Consultant Appointment'],
-  };
-  if (hrItems[tab]) return ['Home', ...hrItems[tab], tab];
-
-  const governanceItems = [
-    'Attendance', 'CPGRAMS', 'Cabinet Notes - Other Ministries', 'E Office',
-    'Parliamentary Issues', 'GEM Procurements', 'Cabinet Notes - MoPSW',
-    'VIP Reference', 'Media Outreach', 'Audit Paras',
-    'Inter State & Inter Ministerial', 'Foreign Visit', 'Cruise Shipping',
-    'Flagged Ships / FOB Basis', 'MOM Of PSW Meetings', 'Review Items'
-  ];
-  if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
-  if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
-
-  const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
-  if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
-
-  const visionItems = ['Vision 2047', 'Maritime India Summit', 'Blue Economy Policy'];
-  if (visionItems.includes(tab)) return ['Home', 'Long Term Strategies', tab];
-
-  const knowledgeItems = ['Research Papers', 'Policy Documents', 'Guidelines'];
-  if (knowledgeItems.includes(tab)) return ['Home', 'Knowledge Repository', tab];
-
-  const formBuilderItems = ['Create Dynamic Form', 'View Submissions'];
-  if (formBuilderItems.includes(tab)) return ['Home', 'Form Builder', tab];
-
-  const trackerItems = ['Project Milestones', 'Delay Analysis'];
-  if (trackerItems.includes(tab)) return ['Home', 'MoPSW Tracker', tab];
-
-  const meetingItems = ['Meeting Schedule', 'Minutes of Meeting', 'Action Taken Report'];
-  if (meetingItems.includes(tab)) return ['Home', 'Senior Officers Meeting', tab];
-
-  const contactItems = ['Ministry Contacts', 'Helpdesk Support'];
-  if (contactItems.includes(tab)) return ['Home', 'Contact Us', tab];
-
-  return ['Home', tab];
-};
-
-const ROUTE_MAP = {
-  'landing': 'landing',
-  'profile': 'profile',
-
-  'projects-list': 'projects/project/project-list',
-  'projects-less5cr': 'projects/project/projects-less-than-5-cr',
-  'projects-lumpsum': 'projects/project/lumpsum-iwai',
-  'projects-dropRequests': 'projects/project/view-drop-request',
-  'projects-reports': 'projects/project/reports',
-
-  // KPI nested routes
-  'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
-  'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
-  'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
-
-  // Governance nested routes
-  'E Office': 'governance/e-office',
-  'Attendance': 'governance/attendance',
-  'CPGRAMS': 'governance/cpgrams',
-  'Cabinet Notes - MoPSW': 'governance/cabinet-notes',
-  'Cabinet Notes - Other Ministries': 'governance/cabinet-notes-other-ministry',
-  'VIP Reference': 'governance/vip-reference',
-  'Media Outreach': 'governance/media-outreach',
-  'Parliamentary Issue': 'governance/parliamentary-issue',
-
-  // Legal nested routes
-  'Courtcases': 'legal/courtcases',
-  'Bills/PreConstitutions Act': 'legal/acts-rules',
-  'Acts & Rules': 'legal/acts-rules',
-
-  // Strategies nested routes
-  'Vision 2047': 'strategies/vision-2047',
-  'Maritime India Summit': 'strategies/maritime-india-summit',
-  'Blue Economy Policy': 'strategies/blue-economy-policy',
-
-  // Knowledge nested routes
-  'Research Papers': 'knowledge/research-papers',
-  'Policy Documents': 'knowledge/policy-documents',
-  'Guidelines': 'knowledge/guidelines',
-
-  // Form Builder nested routes
-  'Create Dynamic Form': 'formBuilder/create-dynamic-form',
-  'View Submissions': 'formBuilder/view-submissions',
-
-  // Tracker nested routes
-  'Project Milestones': 'tracker/project-milestones',
-  'Delay Analysis': 'tracker/delay-analysis',
-
-  // Meetings nested routes
-  'Meeting Schedule': 'meeting/meeting-schedule',
-  'Minutes of Meeting': 'meeting/minutes-of-meeting',
-  'Action Taken Report': 'meeting/action-taken-report',
-
-  // Contacts nested routes
-  'Ministry Contacts': 'contact/ministry-contacts',
-  'Helpdesk Support': 'contact/helpdesk-support',
-
-  // SUPERADMIN
-  [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission',
-  [TAB_USER_LIST]: 'admin/user-list',
-
-  // HR nested routes
-  'HR Dashboard': 'hr/hr-management/hr-dashboard',
-  'Employee Database': 'hr/hr-management/employee-database',
-  'List of Abolished Ports': 'hr/hr-management/abolished-ports',
-  'List of Abolished Posts': 'hr/hr-management/abolished-posts',
-  'Contractual Employment': 'hr/hr-management/contractual-employment',
-  'Training Details': 'hr/hr-management/training-details',
-  'HR Reports': 'hr/hr-management/hr-reports',
-
-  // Young Professionals routes
-  'Data List': 'hr/young-professionals/list-view',
-  'Input Form': 'hr/young-professionals/input-form',
-  'Report': 'hr/young-professionals/report',
-
-  // Consultant routes
-  'Consultant Input Form': 'hr/consultant-appointment/input-form',
-  'Consultant Data List': 'hr/consultant-appointment/data-list',
-  'Consultant Reports': 'hr/consultant-appointment/reports',
-};
-
-const getTabFromSlug = (slug) => {
-  const cleanSlug = decodeURIComponent(slug).replace(/^\//, '').replace(/\/$/, '');
-  if (cleanSlug === 'projects/project/project-dashboard') {
-    return 'projects-list';
-  }
-  const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);
-  return normalizeTab(entry ? entry[0] : cleanSlug);
-};
-
 export default function App() {
-  const [projects] = useState(INITIAL_PROJECTS);
-  const [activeTab, setActiveTab] = useState(() => {
-    const path = window.location.pathname;
-    return path && path !== '/' ? getTabFromSlug(path) : 'landing';
-  });
-  const [notification, setNotification] = useState(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [projects, setProjects] = useState(INITIAL_PROJECTS);
+  const [toasts, setToasts] = useState([]);
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return !!localStorage.getItem('accessToken');
   });
-  const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
-  const [isTabLoading, setIsTabLoading] = useState(false);
   const [showNetworkCheck, setShowNetworkCheck] = useState(false);
   const [isManualNetworkCheck, setIsManualNetworkCheck] = useState(false);
+  const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
 
-  useEffect(() => {
-    if (isLoggedIn) {
-      let isMounted = true;
-
-      // Start loading process deferred to avoid synchronous cascade render warnings
-      Promise.resolve().then(() => {
-        if (isMounted) {
-          setIsTabLoading(true);
-        }
-      });
-
-      const simulateDataFetch = async () => {
-        try {
-          // Instantly resolve to remove simulated delay
-          await new Promise((resolve) => setTimeout(resolve, 0));
-        } catch (error) {
-          console.error("Telemetry fetch error:", error);
-        } finally {
-          // End loading process
-          if (isMounted) {
-            setIsTabLoading(false);
-          }
-        }
-      };
-
-      simulateDataFetch();
-
-      return () => {
-        isMounted = false;
-      };
-    }
-  }, [activeTab, isLoggedIn]);
-
-  // Sync pathname changes from browser back/forward history buttons to activeTab state
-  useEffect(() => {
-    const handlePopState = () => {
-      const path = window.location.pathname;
-      if (path && path !== '/') {
-        setActiveTab(getTabFromSlug(path));
-      } else {
-        setActiveTab('landing');
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  // Sync activeTab changes back to browser path
-  useEffect(() => {
-    if (isLoggedIn) {
-      const slug = ROUTE_MAP[activeTab] || activeTab;
-      const currentPath = window.location.pathname.replace(/^\//, '');
-      if (currentPath !== slug) {
-        window.history.pushState(null, '', `/${slug}`);
-      }
-    }
-  }, [activeTab, isLoggedIn]);
-
-
-
-  // Notification Trigger
-  const triggerNotification = (message) => {
-    setNotification(message);
+  const triggerNotification = (message, type = 'success', title = '') => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type, title }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4300);
   };
 
-  useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => {
-        setNotification(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [notification]);
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
-  const goToTab = (tab) => setActiveTab(normalizeTab(tab));
+  const handleAddProject = (newProject) => {
+    setProjects([newProject, ...projects]);
+    triggerNotification(`Project ${newProject.projectId} successfully created.`);
+  };
+
+  const handleAddSubProject = (newSubProject) => {
+    setProjects(prev => [newSubProject, ...prev]);
+    triggerNotification(`Sub-project ${newSubProject.subProjectId} successfully created.`);
+  };
 
   const handleLoginSuccess = () => {
     setIsLoggedIn(true);
     setIsManualNetworkCheck(false);
     setShowNetworkCheck(true);
+    navigate('/');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    setIsLoggedIn(false);
   };
 
   if (!isLoggedIn) {
     return <LoginView onLogin={handleLoginSuccess} />;
   }
 
-  const tabAllowed = canAccessTab(activeTab);
-
-
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
-      {showNetworkCheck && (
-        <NetworkCheckView
-          isManual={isManualNetworkCheck}
-          onContinue={() => setShowNetworkCheck(false)}
-          onCancel={() => {
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-            setIsLoggedIn(false);
-            setShowNetworkCheck(false);
-          }}
-        />
-      )}
-
-      {/* Toast Notification Alert Banner */}
-      <Notification message={notification} />
-
-      {/* Government Portal Header */}
-      <Header
-        onLogout={() => {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          setIsLoggedIn(false);
-        }}
-        onProfileClick={() => goToTab('profile')}
-        onUserManagementClick={() => goToTab(TAB_USER_MODULE_PERMISSION)}
-      />
-
-      {/* Tab Navigation Menu */}
-      <Tabs
-        activeTab={activeTab}
-        setActiveTab={goToTab}
-        projectCount={projects.length}
-      />
-
-      {/* Main Content Viewport */}
-      <main className="flex-grow w-full max-w-full px-4 sm:px-6 lg:px-8 pb-12">
-        {!usesOwnPageHeader(activeTab) && tabAllowed && (
-          <div className="flex items-center space-x-2 text-slate-400 text-xs font-semibold px-2 mb-6 mt-3 animate-fade-in select-none bg-white py-2.5 px-4 rounded-xl border border-slate-200 shadow-sm w-fit">
-            <Home className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => goToTab('landing')} />
-            {getBreadcrumbs(activeTab).slice(1).map((crumb, idx, arr) => (
-              <div key={idx} className="flex items-center space-x-2">
-                <span className="text-slate-350">/</span>
-                <span className={idx === arr.length - 1 ? "text-blue-800 font-bold" : "text-slate-550"}>
-                  {crumb}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {isTabLoading ? (
-          <div className="py-12 animate-fade-in">
-            <Loader message={`Fetching telemetry and compiling active panels for ${activeTab}...`} fullPage={false} />
-          </div>
-        ) : !tabAllowed ? (
-          <RestrictedAccess
-            moduleName={activeTab}
-            onGoHome={() => goToTab('landing')}
-          />
-        ) : (
-          <>
-            {activeTab === 'landing' && (
-              <LandingView
+    <>
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <Loader message="Loading Sagarmanthan portal telemetry..." fullPage={true} />
+        </div>
+      }>
+        <Routes>
+          {/* Main Layout Shell */}
+          <Route 
+            path="/" 
+            element={
+              <MainLayout
+                onLogout={handleLogout}
+                toasts={toasts}
+                removeToast={removeToast}
+                showNetworkCheck={showNetworkCheck}
+                isManualNetworkCheck={isManualNetworkCheck}
+                setShowNetworkCheck={setShowNetworkCheck}
+                setIsLoggedIn={setIsLoggedIn}
+                projectCount={projects.length}
+              />
+            }
+          >
+            {/* Landing Route */}
+            <Route index element={
+              <LandingView 
                 onNavigate={(tab, subKpi) => {
                   if (subKpi) setEOfficeKpi(subKpi);
-                  goToTab(tab);
-                }}
+                  const norm = normalizeTab(tab);
+                  const slug = ROUTE_MAP[norm] !== undefined ? ROUTE_MAP[norm] : norm;
+                  navigate(slug === 'landing' || slug === '' ? '/' : `/${slug}`);
+                }} 
               />
-            )}
+            } />
+            <Route path="landing" element={<Navigate to="/" replace />} />
 
+            {/* Profile */}
+            <Route path="profile" element={<ProfileView triggerNotification={triggerNotification} />} />
 
-            {activeTab === 'projects-list' && (
+            {/* Projects Routes */}
+            <Route path="projects/project/project-dashboard" element={<DashboardView projects={projects} />} />
+            <Route path="projects/project/project-list" element={
               <Projects
-                activeSubTab={activeTab}
-                onGoHome={() => goToTab('landing')}
+                onGoHome={() => navigate('/')}
                 triggerNotification={triggerNotification}
               />
-            )}
-
-            {activeTab === 'Major Ports Dashboard' && (
-              <PortsDashboardView />
-            )}
-
-            {['Capex', 'capex', 'Capex Dashboard', 'Capex Datalist', 'Capex Input Form', 'Estimate Values', 'Capex Reports'].includes(activeTab) && (
-              <CapexView />
-            )}
-
-            {activeTab === 'Major Ports Input Form' && (
-              <PortsInputFormView />
-            )}
-
-            {activeTab === 'Major Ports Reports' && (
-              <PortsReportsView />
-            )}
-
-            {activeTab === 'E Office' && (
-              <EOfficeView key={eOfficeKpi} initialKpi={eOfficeKpi} />
-            )}
-
-            {activeTab === 'Attendance' && (
-              <AttendanceView />
-            )}
-
-            {activeTab === 'CPGRAMS' && (
-              <CPGRAMSView />
-            )}
-
-            {['Cabinet Notes - MoPSW', 'Cabinet Notes-MoPSW'].includes(activeTab) && (
-              <CabinetNotes
-                activeSubTab={activeTab}
-                onGoHome={() => goToTab('landing')}
+            } />
+            <Route path="projects/project/projects-less-than-5-cr" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
                 triggerNotification={triggerNotification}
               />
-            )}
-
-            {['Cabinet Notes - Other Ministries', 'Cabinet Notes-Other Ministry'].includes(activeTab) && (
-              <CabinetNotesOther activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
-            )}
-
-            {activeTab === 'Parliamentary Issue' && (
-              <ParliamentaryIssues
-                activeSubTab={activeTab}
-                onGoHome={() => goToTab('landing')}
+            } />
+            <Route path="projects/project/lumpsum-iwai" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
                 triggerNotification={triggerNotification}
               />
-            )}
+            } />
+            <Route path="projects/project/view-drop-request" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project/reports" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
 
-            {['HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Contractual Employment', 'Training Details', 'HR Reports'].includes(activeTab) && (
-              <HRDashboardView activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
-            )}
+            {/* CSR Projects Routes */}
+            <Route path="projects/csr-projects/*" element={<CSRProjectsView triggerNotification={triggerNotification} />} />
+            <Route path="projects/csr-project/*" element={<Navigate to="/projects/csr-projects/dashboard" replace />} />
 
-            {activeTab === 'profile' && (
-              <ProfileView triggerNotification={triggerNotification} />
-            )}
+            {/* KPI - Major Ports */}
+            <Route path="kpi/major-ports/major-ports-dashboard" element={<PortsDashboardView />} />
+            <Route path="kpi/major-ports/major-ports-input-form" element={<PortsInputFormView />} />
+            <Route path="kpi/major-ports/major-ports-reports" element={<PortsReportsView />} />
 
+            {/* KPI - DGLL, CSL, IMU, SCI */}
+            <Route path="kpi/dgll/*" element={<KPIDGLLView triggerNotification={triggerNotification} />} />
+            <Route path="kpi/csl/*" element={<CSLView triggerNotification={triggerNotification} />} />
+            <Route path="kpi/imu/*" element={<IMUView triggerNotification={triggerNotification} />} />
+            <Route path="kpi/sci/*" element={<SCIView triggerNotification={triggerNotification} />} />
 
-            {activeTab === 'Audit Paras' && (
-              <AuditParaView />
-            )}
+            {/* Long Term Strategies - GMIS MoU */}
+            <Route path="strategies/gmis-mou/*" element={<GMISMOUView triggerNotification={triggerNotification} />} />
 
-            {['VIP Reference', 'VIP Reference - Data List', 'VIP Reference - Input Form', 'VIP Reference - Reports'].includes(activeTab) && (
-              <VIPReferenceView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
-            )}
+            {/* Long Term Strategies - MIV 2030 */}
+            <Route path="strategies/miv-2030/*" element={<MIV2030View triggerNotification={triggerNotification} />} />
 
-            {activeTab === 'Media Outreach' && (
-              <MediaOutreachView triggerNotification={triggerNotification} />
-            )}
+            {/* Long Term Strategies - Drishti Portal (OVOD) */}
+            <Route path="strategies/drishti-portal/*" element={<OVODView triggerNotification={triggerNotification} />} />
+            <Route path="strategies/ovod/*" element={<Navigate to="/strategies/drishti-portal/dashboard" replace />} />
+            <Route path="strategies/one-vision-one-document/*" element={<Navigate to="/strategies/drishti-portal/dashboard" replace />} />
 
-            {activeTab === 'Bills/PreConstitutions Act' && (
-              <BillsPreConstitutionsView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
-            )}
+            {/* Finance - Capex */}
+            <Route path="finance/capex/*" element={<CapexView />} />
 
-            {activeTab === 'Acts & Rules' && (
-              <ActsAndRulesView />
-            )}
+            {/* Governance Routes */}
+            <Route path="governance/e-office/*" element={<EOfficeView initialKpi={eOfficeKpi} />} />
+            <Route path="governance/attendance/*" element={<AttendanceView />} />
+            <Route path="governance/cpgrams" element={<CPGRAMSView />} />
+            <Route path="governance/cabinet-notes/*" element={<CabinetNotes triggerNotification={triggerNotification} />} />
+            <Route path="governance/cabinet-notes-other-ministry/*" element={<CabinetNotesOther />} />
+            <Route path="governance/vip-reference/*" element={<VIPReferenceView triggerNotification={triggerNotification} />} />
+            <Route path="governance/media-outreach/*" element={<MediaOutreachView triggerNotification={triggerNotification} />} />
+            <Route path="governance/parliamentary-issue/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
+            <Route path="governance/parliamentary-issues/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
+            <Route path="governance/audit-paras/*" element={<AuditParaView triggerNotification={triggerNotification} />} />
+            <Route path="governance/gem-procurements" element={<GEMProcurementView />} />
 
-            {['Young Professionals', 'YP Data List', 'YP Input Form', 'YP Report'].includes(activeTab) && (
-              <YoungProfessionalsView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
-            )}
+            {/* Legal Routes */}
+            <Route path="legal/courtcases" element={<ActsAndRulesView />} />
+            <Route path="legal/acts-rules/*" element={<BillsPreConstitutionsView triggerNotification={triggerNotification} />} />
+            <Route path="legal/acts-and-rules" element={<ActsAndRulesView />} />
 
-            {['Consultant Input Form', 'Consultant Data List', 'Consultant Reports'].includes(activeTab) && (
-              <ConsultantAppointmentView activeSubTab={activeTab} setActiveSubTab={setActiveTab} triggerNotification={triggerNotification} />
-            )}
+            {/* HR Routes */}
+            <Route path="hr/hr-management/*" element={<HRDashboardView />} />
+            <Route path="hr/young-professionals/*" element={<YoungProfessionalsView triggerNotification={triggerNotification} />} />
+            <Route path="hr/consultant-appointment/*" element={<ConsultantAppointmentView triggerNotification={triggerNotification} />} />
 
-            {activeTab === TAB_USER_MODULE_PERMISSION && (
-              <UserMatrix mode="permissions" onGoHome={() => goToTab('landing')} />
-            )}
+            {/* Admin Routes */}
+            <Route path="admin/user-module-permission" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-list" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
 
-            {activeTab === TAB_USER_LIST && (
-              <UserMatrix mode="userlist" onGoHome={() => goToTab('landing')} />
-            )}
+            {/* Contact */}
+            <Route path="contact" element={<ContactUs />} />
+            <Route path="contact/*" element={<ContactUs />} />
 
-            {['Ministry Contacts', 'Helpdesk Support'].includes(activeTab) && (
-              <ContactUs />
-            )}
-
-            {['GEM Procurements', 'GEM Procurement', 'GEM', 'gem'].includes(activeTab) && (
-              <GEMProcurementView />
-            )}
-
-            {/* Placeholder / Empty State for other inactive government menu views */}
-            {!isSuperAdminTab(activeTab) && !hasImplementedUi(activeTab) && (
+            {/* Fallback / In-Progress Module Placeholder */}
+            <Route path="*" element={
               <div className="flex flex-col items-center justify-center py-20 px-4 text-center animate-fade-in bg-white rounded-2xl border border-slate-200 shadow-sm mt-6 max-w-3xl mx-auto">
                 <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 shadow-inner">
                   <Sparkles className="h-7 w-7 text-blue-600" />
                 </div>
-                <h3 className="text-sm font-bold text-slate-800 font-display">SAGARMANTHAN - {activeTab}</h3>
+                <h3 className="text-sm font-bold text-slate-800 font-display">SAGARMANTHAN - Active Panel</h3>
                 <p className="text-xs text-slate-500 max-w-md mt-1 leading-relaxed">
-                  This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
+                  This module is currently processing real-time telemetry from the Ministry databases.
                 </p>
                 <button
-                  onClick={() => goToTab('projects-list')}
+                  onClick={() => navigate('/')}
                   className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
                 >
-                  Back to Dashboard
+                  Back to Home
                 </button>
               </div>
-            )}
-          </>
-        )}
-      </main>
+            } />
+          </Route>
+        </Routes>
+      </Suspense>
 
-      {/* Floating Network Check summoned FAB */}
-      <button
-        onClick={() => {
-          setIsManualNetworkCheck(true);
-          setShowNetworkCheck(true);
-        }}
-        className="fixed bottom-6 right-6 z-40 p-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-full shadow-lg cursor-pointer transition-all hover:shadow-blue-500/20 group flex items-center justify-center"
-        title="Check Network Speed & Compatibility"
-        aria-label="Network Check"
-      >
-        <Activity className="h-6 w-6" />
-      </button>
+      {/* Floating Network Check FAB (Positioned at bottom-6 below SagarBot) */}
+      <div className="fixed bottom-6 right-6 z-40 flex items-center space-x-3 select-none">
+        <div 
+          onClick={() => {
+            setIsManualNetworkCheck(true);
+            setShowNetworkCheck(true);
+          }}
+          className="hidden sm:flex items-center space-x-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-2 rounded-2xl shadow-xl hover:shadow-2xl transition cursor-pointer group"
+        >
+          <Activity className="h-4 w-4 text-blue-600 animate-pulse" />
+          <div className="flex flex-col text-left">
+            <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 group-hover:underline">
+              Network Tester
+            </span>
+            <span className="text-[9px] text-slate-400 font-semibold">
+              Speed & Latency
+            </span>
+          </div>
+        </div>
 
-      {/* Government Footer */}
-      <Footer />
-    </div>
+        <button
+          onClick={() => {
+            setIsManualNetworkCheck(true);
+            setShowNetworkCheck(true);
+          }}
+          className="w-14 h-14 bg-gradient-to-tr from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 active:scale-95 text-white rounded-full shadow-2xl cursor-pointer transition-all hover:shadow-blue-500/30 flex items-center justify-center ring-4 ring-blue-500/20 hover:ring-blue-500/40"
+          title="Check Network Speed & Compatibility"
+          aria-label="Network Check"
+        >
+          <Activity className="h-6 w-6" />
+        </button>
+      </div>
+    </>
   );
 }

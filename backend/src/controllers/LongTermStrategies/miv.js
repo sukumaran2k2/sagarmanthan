@@ -393,21 +393,150 @@ async function createMeeting(req, res) {
 
 
 
-//-------------------------------------------------- miv data --------------------------------------------------
+//-------------------------------------------------- miv data (Server-Side Pagination, Filtering & Search) --------------------------------------------------
 async function getMIVData(req, res) {
     const conn = await pool;
+    const request = conn.request();
+
+    const {
+        page,
+        limit,
+        search,
+        organisation,
+        organisationId,
+        category,
+        status,
+        all
+    } = req.query;
+
+    const isFetchAll = all === 'true' || limit === 'all' || (!page && !limit && !search && !organisation && !organisationId && !category && !status);
+    const pageNum = parseInt(page) || 1;
+    const pageSize = parseInt(limit) || 10;
+    const offset = (pageNum - 1) * pageSize;
+
+    let baseWhereClauses = [];
+
+    // Search filter
+    if (search && search.trim() !== '') {
+        request.input('searchTerm', `%${search.trim()}%`);
+        baseWhereClauses.push(`(
+            tbl_initiative.initiative_id LIKE @searchTerm OR 
+            tbl_initiative.initiative_name LIKE @searchTerm OR 
+            tbl_initiative.project_detail LIKE @searchTerm OR 
+            tbl_initiative.category LIKE @searchTerm OR 
+            mmt_organisation.organisation_name LIKE @searchTerm
+        )`);
+    }
+
+    // Organisation filter
+    const orgParam = organisationId || organisation;
+    if (orgParam && orgParam !== 'All' && orgParam !== 'all' && orgParam !== '') {
+        if (!isNaN(orgParam)) {
+            request.input('orgId', parseInt(orgParam));
+            baseWhereClauses.push(`tbl_initiative.organisation_id = @orgId`);
+        } else {
+            request.input('orgName', orgParam.trim());
+            baseWhereClauses.push(`mmt_organisation.organisation_name = @orgName`);
+        }
+    }
+
+    // Category filter
+    if (category && category !== 'All' && category !== 'all' && category !== '') {
+        request.input('categoryFilter', category.trim());
+        baseWhereClauses.push(`tbl_initiative.category = @categoryFilter`);
+    }
+
+    // Status filter
+    let filteredWhereClauses = [...baseWhereClauses];
+    if (status && status !== 'All' && status !== 'all' && status !== '') {
+        const lowerStatus = status.toLowerCase();
+        if (lowerStatus === 'under_implementation' || lowerStatus === 'under implementation') {
+            filteredWhereClauses.push(`(LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%under implementation%')`);
+        } else if (lowerStatus === 'completed') {
+            filteredWhereClauses.push(`(LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%completed%')`);
+        } else if (lowerStatus === 'yet_to_start' || lowerStatus === 'yet to be started' || lowerStatus === 'yet to start') {
+            filteredWhereClauses.push(`(LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%yet to be started%' OR LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%yet to start%')`);
+        } else if (lowerStatus === 'dropped') {
+            filteredWhereClauses.push(`(LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%dropped%')`);
+        }
+    }
+
+    const filteredWhereSql = filteredWhereClauses.length > 0 ? `WHERE ${filteredWhereClauses.join(' AND ')}` : '';
+    const baseWhereSql = baseWhereClauses.length > 0 ? `WHERE ${baseWhereClauses.join(' AND ')}` : '';
 
     try {
-        const result = await conn.query(`SELECT ID, initiative_id, initiative_name, total_cost, project_detail,
-        category, outcomes, source_of_funding, status_on, status_current, physical_progress, reasons_for_drop, 
-        reasons_for_delay, start_date, completion_date, actual_date, updated_date, tbl_initiative.organisation_id,
-        organisation_name   
-        FROM tbl_initiative
-        INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id
-        ;`);
-        res.json(result.recordset);
+        if (isFetchAll) {
+            const result = await request.query(`
+                SELECT 
+                    ID, initiative_id, initiative_name, total_cost, project_detail,
+                    category, outcomes, source_of_funding, status_on, status_current, physical_progress, reasons_for_drop, 
+                    reasons_for_delay, start_date, completion_date, actual_date, updated_date, tbl_initiative.organisation_id,
+                    organisation_name   
+                FROM tbl_initiative
+                INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id
+                ${filteredWhereSql}
+                ORDER BY ID DESC;
+            `);
+            return res.json(result.recordset);
+        }
+
+        request.input('offset', offset);
+        request.input('pageSize', pageSize);
+
+        // Fetch counts for status tabs based on current search & org filters
+        const countQuery = `
+            SELECT 
+                COUNT(*) AS total_count,
+                SUM(CASE WHEN LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%under implementation%' THEN 1 ELSE 0 END) AS ui_count,
+                SUM(CASE WHEN LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%completed%' THEN 1 ELSE 0 END) AS completed_count,
+                SUM(CASE WHEN LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%yet to be started%' OR LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%yet to start%' THEN 1 ELSE 0 END) AS yet_to_start_count,
+                SUM(CASE WHEN LOWER(ISNULL(tbl_initiative.status_current, tbl_initiative.status_on)) LIKE '%dropped%' THEN 1 ELSE 0 END) AS dropped_count
+            FROM tbl_initiative
+            INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id
+            ${baseWhereSql}
+        `;
+        const countResult = await request.query(countQuery);
+        const countRow = countResult.recordset[0] || {};
+        const counts = {
+            all: countRow.total_count || 0,
+            ui: countRow.ui_count || 0,
+            completed: countRow.completed_count || 0,
+            yetToStart: countRow.yet_to_start_count || 0,
+            dropped: countRow.dropped_count || 0
+        };
+
+        // Query paginated rows with filtered total count
+        const query = `
+            SELECT 
+                ID, initiative_id, initiative_name, total_cost, project_detail,
+                category, outcomes, source_of_funding, status_on, status_current, physical_progress, reasons_for_drop, 
+                reasons_for_delay, start_date, completion_date, actual_date, updated_date, tbl_initiative.organisation_id,
+                organisation_name,
+                COUNT(*) OVER() AS total_count
+            FROM tbl_initiative
+            INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_initiative.organisation_id
+            ${filteredWhereSql}
+            ORDER BY ID DESC
+            OFFSET @offset ROWS
+            FETCH NEXT @pageSize ROWS ONLY;
+        `;
+
+        const result = await request.query(query);
+        const rows = result.recordset || [];
+        const total = rows.length > 0 ? rows[0].total_count : 0;
+
+        res.json({
+            data: rows,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: pageSize,
+                totalPages: Math.ceil(total / pageSize) || 1,
+                counts
+            }
+        });
     } catch (err) {
-        console.error(err);
+        console.error("Error fetching MIV data:", err);
         return res.sendStatus(500);
     }
 }
@@ -469,11 +598,12 @@ async function editMIVData(req, res) {
             OutcomesRemarks
         } = req.body;
 
+        const recordId = req.params.id || ID || req.body.id;
 
         const conn = await pool;
         const request = conn.request();
 
-        request.input("ID", ID);
+        request.input("ID", recordId);
         request.input("organisationID", organisationID);
         request.input("initiativeID", initiativeID);
         request.input("initiativeName", initiativeName);
@@ -850,7 +980,7 @@ async function getMIVDashboard(req, res) {
                 ON ti.organisation_id = o.organisation_id
 
             WHERE
-                (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR o.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR o.organisation_id = @organisationID)
                 AND (@currentStatus IS NULL OR ti.status_current = @currentStatus)
 
@@ -901,7 +1031,7 @@ async function getMIVDashboard(req, res) {
         INNER JOIN mmt_organisation o 
             ON tmd.organisation_id = o.organisation_id
         WHERE
-            (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+            (@clusterID = 0 OR o.organisation_category_id = @clusterID)
             AND (@organisationID = 0 OR o.organisation_id = @organisationID);
         `;
 
@@ -949,9 +1079,8 @@ async function getMIVactivityStatusWise(req, res) {
                 COUNT(*) AS stage_wise_count
             FROM tbl_initiative ti
             INNER JOIN mmt_organisation o ON ti.organisation_id = o.organisation_id
-            INNER JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
             WHERE
-                (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR o.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR o.organisation_id = @organisationID)
                 AND (@currentStatus IS NULL OR ti.status_current = @currentStatus)
                 AND (
@@ -990,14 +1119,13 @@ async function getMIVactivityCurrentStatusPortWise(req, res) {
         const result = await request.query(`
             SELECT 
                 mmt.organisation_id,
-                mmt.organisation_label,
+                mmt.organisation_name AS organisation_label,
                 ini.status_current AS project_status,
                 COUNT(*) AS stage_wise_count
             FROM tbl_initiative ini
             LEFT JOIN mmt_organisation mmt ON ini.organisation_id = mmt.organisation_id
-            INNER JOIN mmt_hr_cluster cid ON mmt.hr_cluster_id = cid.hr_cluster_id
             WHERE
-                (@clusterID = 0 OR mmt.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR mmt.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR mmt.organisation_id = @organisationID)
                 AND (@currentStatus IS NULL OR ini.status_current = @currentStatus)
                 AND (
@@ -1007,7 +1135,7 @@ async function getMIVactivityCurrentStatusPortWise(req, res) {
             GROUP BY 
                 ini.status_current,
                 mmt.organisation_id,
-                mmt.organisation_label
+                mmt.organisation_name
             ORDER BY mmt.organisation_id;
         `);
 
@@ -1042,9 +1170,8 @@ async function getMIVCategoryCountWise(req, res) {
                 COUNT(*) AS count
             FROM tbl_initiative ti
             INNER JOIN mmt_organisation mmt ON ti.organisation_id = mmt.organisation_id
-            INNER JOIN mmt_hr_cluster cid ON mmt.hr_cluster_id = cid.hr_cluster_id
             WHERE
-                (@clusterID = 0 OR mmt.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR mmt.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR mmt.organisation_id = @organisationID)
                 AND ti.category IS NOT NULL
                 AND (@currentStatus IS NULL OR ti.status_current = @currentStatus)
@@ -1096,7 +1223,7 @@ async function detailedMivDashboard(req, res) {
                 INNER JOIN mmt_organisation o 
                     ON tmd.organisation_id = o.organisation_id
                 WHERE
-                    (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+                    (@clusterID = 0 OR o.organisation_category_id = @clusterID)
                     AND (@organisationID = 0 OR o.organisation_id = @organisationID)
                 ORDER BY tmd.date_of_meeting DESC;
             `;
@@ -1136,7 +1263,7 @@ async function detailedMivDashboard(req, res) {
                 ON ti.organisation_id = o.organisation_id
 
             WHERE
-                (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR o.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR o.organisation_id = @organisationID)
 
                 AND (@currentStatus IS NULL OR ti.status_current = @currentStatus)
@@ -1240,10 +1367,8 @@ async function getMivCategoryDetails(req, res) {
             FROM tbl_initiative ti
             INNER JOIN mmt_organisation mmt 
                 ON ti.organisation_id = mmt.organisation_id
-            INNER JOIN mmt_hr_cluster cid 
-                ON mmt.hr_cluster_id = cid.hr_cluster_id
             WHERE
-                (@clusterID = 0 OR mmt.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR mmt.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR mmt.organisation_id = @organisationID)
                 AND (@category IS NULL OR ti.category = @category)
                 AND (@stage IS NULL OR ti.status_current = @stage)
@@ -1308,9 +1433,8 @@ async function getDetailsMivActivityStatusWise(req, res) {
                 ti.status_current AS status
             FROM tbl_initiative ti
             INNER JOIN mmt_organisation o ON ti.organisation_id = o.organisation_id
-            INNER JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
             WHERE
-                (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+                (@clusterID = 0 OR o.organisation_category_id = @clusterID)
                 AND (@organisationID = 0 OR o.organisation_id = @organisationID)
                 AND (@stage IS NULL OR ti.status_current = @stage)
                 AND (@startDate IS NULL OR ti.start_date >= @startDate OR ti.completion_date >= @startDate)
@@ -1341,6 +1465,17 @@ async function getDetailsMivActivityStatusWise(req, res) {
     }
 }
 
+async function getNewInitiatives(req, res) {
+    try {
+        const conn = await pool;
+        const result = await conn.query("SELECT DISTINCT Initiaitive_ID, Initiaitive_name FROM mmt_new_initiatives WHERE Initiaitive_ID IS NOT NULL AND Initiaitive_ID != '' ORDER BY Initiaitive_ID");
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Error fetching new initiatives dropdown:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+}
+
 const MIVTab = {
     getMIVData, createMIVData,
     createMeeting, getMeeting,
@@ -1348,7 +1483,7 @@ const MIVTab = {
     uploadFiles, downloadMeeting, getUpdateMIV, getMIVMeeting, getInitiativeMopswData, 
     getLogMeetingMopsw, getInitiativeName, getInitiativeTargetDate,getMIVDashboard,
     getMIVactivityStatusWise,getMIVactivityCurrentStatusPortWise,getMIVCategoryCountWise,detailedMivDashboard,
-    getMivCategoryDetails,getDetailsMivActivityStatusWise
+    getMivCategoryDetails,getDetailsMivActivityStatusWise, getNewInitiatives
 };
 
 export default MIVTab;

@@ -997,7 +997,7 @@ async function getsciShipmanagementbusinessReport(req,res) {
 
         -- Get distinct financial years
         SELECT @columns = STRING_AGG(QUOTENAME(financial_year), ', ')
-        FROM (SELECT DISTINCT financial_year FROM tbl_sci_sale_and_recycling_oldvessels_green_recycling) AS years;
+        FROM (SELECT DISTINCT financial_year FROM tbl_sci_ship_management_business) AS years;
 
         -- Ensure @columns is not NULL to prevent errors
         SET @columns = COALESCE(@columns, '[No Data]');

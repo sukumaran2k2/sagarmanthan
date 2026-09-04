@@ -14,6 +14,7 @@ import { ChevronDown } from 'lucide-react';
 const InternalNavigation = ({
   tabs = [],
   currentTab,
+  activeTab,
   onTabChange,
   currentSubItem,
   onSubItemChange,
@@ -22,6 +23,8 @@ const InternalNavigation = ({
   const closeTimer = useRef(null);
 
   if (!tabs.length) return null;
+
+  const effectiveCurrentTab = currentTab || activeTab;
 
   const handleMouseEnter = (tabId) => {
     clearTimeout(closeTimer.current);
@@ -35,10 +38,10 @@ const InternalNavigation = ({
 
   return (
     <div className="flex justify-end">
-      <div className="inline-flex items-center gap-0.5 border border-slate-200 rounded-xl shadow-sm bg-white p-1">
+      <div className="inline-flex items-center gap-0.5 border border-slate-200 rounded-xl shadow-sm bg-white p-1 dark:bg-slate-900 dark:border-slate-800">
         {tabs.map((tab) => {
           const TabIcon = tab.icon;
-          const isActive = currentTab === tab.id;
+          const isActive = effectiveCurrentTab === tab.id;
           const hasSubMenu = Array.isArray(tab.subMenu) && tab.subMenu.length > 0;
           const isOpen = openMenu === tab.id;
 
@@ -52,10 +55,8 @@ const InternalNavigation = ({
               {/* Main tab button */}
               <button
                 onClick={() => {
-                  if (!hasSubMenu) {
-                    onTabChange && onTabChange(tab.id);
-                  } else {
-                    // Toggle open on click too (for touch devices)
+                  onTabChange && onTabChange(tab.id);
+                  if (hasSubMenu) {
                     setOpenMenu(isOpen ? null : tab.id);
                   }
                 }}

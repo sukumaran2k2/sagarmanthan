@@ -1,266 +1,329 @@
-import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
-import * as XLSX from "xlsx";
-import { Download, Edit, Calendar, Plus, RefreshCw, Layers, LayoutDashboard, FilePieChart } from "lucide-react";
-import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import * as XLSX from 'xlsx';
+import { Edit } from 'lucide-react';
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 
-import CapexKpiCards from "./components/CapexKpiCards";
-import CapexDataListView from "./components/CapexDataListView";
-import CapexAddTargetModal from "./components/CapexAddTargetModal";
-import CapexEditTargetModal from "./components/CapexEditTargetModal";
-import CapexMonthlyDataModal from "./components/CapexMonthlyDataModal";
-import CapexForm32Report from "./components/CapexForm32Report";
-import CapexDashboardView from "./components/CapexDashboardView";
-import CapexOrgDashboardView from "./components/CapexOrgDashboardView";
-import CapexActualExpenditurePage from "./components/CapexActualExpenditurePage";
-import InternalNavigation from "../../components/InternalNavigation";
-
-import { formatCurrencyINR, calculateCapexExpenditurePercentage } from "./utils/capexUtils";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+import CapexDataListView from './components/CapexDataListView';
+// import CapexKpiCards from './components/CapexKpiCards';
+import CapexMonthlyDataModal from './components/CapexMonthlyDataModal';
+import CapexActualExpenditurePage from './components/CapexActualExpenditurePage';
+import CapexReports from './pages/Reports';
+import CapexInputForm from './pages/InputForm';
+import CapexUpdateForm from './pages/UpdateForm';
+import InternalNavigation from '../../components/InternalNavigation';
+import RestrictedAccess from '../../components/RestrictedAccess';
+import { useCapexPermissions } from './hooks/useCapexPermissions';
+import { getCurrentUserId } from '../../utils/authSession';
+import {
+  fetchCapexList,
+  fetchCapexDataEntry,
+  createCapexTarget,
+  updateCapexTarget,
+} from './api';
+import { calculateCapexExpenditurePercentage } from './utils/capexUtils';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-function getLoggedInUser() {
-  try {
-    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
-    if (!token) return null;
-    const base64Url = token.split(".")[1];
-    if (!base64Url) return null;
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
+const INIT_TAB_KEY = 'capexInitTab';
+
+function resolveSubTabId(label, showInputForm) {
+  const key = String(label || '').toLowerCase().trim();
+  if (!key || key === 'capex') return 'data';
+  if (key.includes('input form') || key === 'add') return showInputForm ? 'add' : 'data';
+  if (key.includes('datalist') || key.includes('data list') || key.includes('dashboard')) {
+    return 'data';
   }
+  if (key.includes('report')) return 'report';
+  return 'data';
 }
 
-export default function CapexView() {
-  const [activeTab, setActiveTab] = useState("dashboard"); // "dashboard", "data", "report"
-  const [viewMode, setViewMode] = useState("ministry"); // "ministry" | "org"
-  const [selectedOrgId, setSelectedOrgId] = useState("1");
+export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, triggerNotification }) {
+  const permissions = useCapexPermissions();
+  const viewMode = permissions.viewMode;
+  const showInputForm = Boolean(permissions.canAdd && viewMode !== 'org');
+
+  const [activeTab, setActiveTab] = useState('data');
+  const [selectedOrgId, setSelectedOrgId] = useState(
+    permissions.organisationId ? String(permissions.organisationId) : ''
+  );
   const [capexData, setCapexData] = useState([]);
   const [organisations, setOrganisations] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [selectedYear, setSelectedYear] = useState("2026-2027");
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 0,
+  });
+  const [filterYear, setFilterYear] = useState('2026-2027');
+  const [filterOrg, setFilterOrg] = useState('');
 
-  // Modals & Page Views
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
   const [isActualExpenditurePageActive, setIsActualExpenditurePageActive] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // Toast State
-  const [toastMsg, setToastMsg] = useState("");
-  const [toastColor, setToastColor] = useState("#10B981");
+  const [toastMsg, setToastMsg] = useState('');
+  const [toastColor, setToastColor] = useState('#10B981');
   const [toastVisible, setToastVisible] = useState(false);
 
-  const showToast = (msg, color = "#10B981") => {
-    setToastMsg(msg);
-    setToastColor(color);
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 3000);
-  };
+  const showToast = useCallback(
+    (msg, color = '#10B981') => {
+      if (typeof triggerNotification === 'function') {
+        triggerNotification(msg);
+        return;
+      }
+      setToastMsg(msg);
+      setToastColor(color);
+      setToastVisible(true);
+      setTimeout(() => setToastVisible(false), 3000);
+    },
+    [triggerNotification]
+  );
 
   useEffect(() => {
-    const user = getLoggedInUser();
-    if (user) {
-      const roleId = Number(user.roleId || user.role_id || user.role);
-      const orgId = user.organisationId || user.organisation_id || user.orgId;
+    if (permissions.organisationId) {
+      setSelectedOrgId(String(permissions.organisationId));
+    }
+  }, [permissions.organisationId]);
 
-      // Role 6 & 7 are Organization Senior Officer and Nodal Officer
-      if (roleId === 6 || roleId === 7) {
-        setViewMode("org");
-        if (orgId) {
-          setSelectedOrgId(String(orgId));
+  useEffect(() => {
+    const apply = (label) => {
+      setActiveTab(resolveSubTabId(label, showInputForm));
+    };
+    const init = sessionStorage.getItem(INIT_TAB_KEY);
+    if (init) {
+      sessionStorage.removeItem(INIT_TAB_KEY);
+      apply(init);
+    }
+    const onMenu = (e) => apply(e.detail);
+    window.addEventListener('capex-subtab', onMenu);
+    return () => window.removeEventListener('capex-subtab', onMenu);
+  }, [showInputForm]);
+
+  useEffect(() => {
+    setActiveTab(resolveSubTabId(activeSubTabProp, showInputForm));
+  }, [activeSubTabProp, showInputForm]);
+
+  useEffect(() => {
+    if (activeTab === 'add' && !showInputForm) {
+      setActiveTab('data');
+    }
+    if (activeTab === 'edit' && (!permissions.canEdit || viewMode !== 'ministry' || !selectedRecord)) {
+      setActiveTab('data');
+    }
+  }, [activeTab, showInputForm, permissions.canEdit, viewMode, selectedRecord]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filterYear, filterOrg, pageSize, viewMode, selectedOrgId]);
+
+  const fetchCapexData = useCallback(
+    async (signal) => {
+      if (!permissions.canView) return;
+      setLoading(true);
+      try {
+        const params = {
+          page,
+          limit: pageSize,
+          financialYear: filterYear || undefined,
+          search: debouncedSearch.trim() || undefined,
+        };
+
+        if (viewMode === 'org' && selectedOrgId) {
+          params.organisationId = selectedOrgId;
+        } else if (filterOrg) {
+          params.organisationId = filterOrg;
         }
-      } else {
-        setViewMode("ministry");
+
+        const res = await fetchCapexList(params, { signal });
+        const payload = res.data || {};
+        const rows = Array.isArray(payload.data)
+          ? payload.data
+          : Array.isArray(payload)
+            ? payload
+            : [];
+
+        setCapexData(rows);
+        setPagination({
+          total: Number(payload.pagination?.total) || rows.length,
+          page: Number(payload.pagination?.page) || page,
+          limit: Number(payload.pagination?.limit) || pageSize,
+          totalPages:
+            Number(payload.pagination?.totalPages) ||
+            (rows.length ? 1 : 0),
+        });
+      } catch (err) {
+        if (err?.code === 'ERR_CANCELED') return;
+        console.error('Fetch Capex data error:', err);
+        showToast('❌ Failed to load Capex data from server', '#EF4444');
+        setCapexData([]);
+        setPagination({ total: 0, page: 1, limit: pageSize, totalPages: 0 });
+      } finally {
+        if (!signal?.aborted) setLoading(false);
       }
-    }
-    fetchCapexData();
-    fetchOrganisations();
-  }, []);
+    },
+    [
+      permissions.canView,
+      showToast,
+      page,
+      pageSize,
+      filterYear,
+      filterOrg,
+      debouncedSearch,
+      viewMode,
+      selectedOrgId,
+    ]
+  );
 
-  const fetchCapexData = async () => {
-    setLoading(true);
+  const fetchOrganisations = useCallback(async () => {
     try {
-      const userID = 1; // Admin default
-      const res = await axios.get(`${API_BASE_URL}/capex/${userID}`);
-      setCapexData(res.data || []);
-    } catch (err) {
-      console.error("Fetch Capex data error:", err);
-      showToast("❌ Failed to load Capex data from server", "#EF4444");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchOrganisations = async () => {
-    try {
-      const res = await axios.get(`${API_BASE_URL}/data-entry-capex`);
-      if (res.data && res.data.organisations) {
+      const res = await fetchCapexDataEntry();
+      if (res.data?.organisations) {
         setOrganisations(res.data.organisations);
       } else if (Array.isArray(res.data)) {
         setOrganisations(res.data);
       }
     } catch (err) {
-      console.warn("Organisations fetch fallback:", err.message);
-      // Default fallback port organizations
-      setOrganisations([
-        { organisation_id: 1, organisation_name: "Syama Prasad Mookerjee Port Authority, Kolkata" },
-        { organisation_id: 2, organisation_name: "Paradip Port Authority" },
-        { organisation_id: 3, organisation_name: "Visakhapatnam Port Authority" },
-        { organisation_id: 4, organisation_name: "V.O. Chidambaranar Port Authority" },
-        { organisation_id: 5, organisation_name: "Cochin Port Authority" },
-        { organisation_id: 6, organisation_name: "New Mangalore Port Authority" },
-        { organisation_id: 7, organisation_name: "Mormugao Port Authority" },
-        { organisation_id: 8, organisation_name: "Mumbai Port Authority" },
-        { organisation_id: 9, organisation_name: "Jawaharlal Nehru Port Authority" },
-        { organisation_id: 10, organisation_name: "Deendayal Port Authority" },
-        { organisation_id: 11, organisation_name: "Inland Waterways Authority of India (IWAI)" },
-      ]);
+      console.warn('Organisations fetch fallback:', err.message);
+      setOrganisations([]);
     }
-  };
+  }, []);
 
-  
+  useEffect(() => {
+    if (!permissions.canView) return;
+    fetchOrganisations();
+  }, [permissions.canView, fetchOrganisations]);
+
+  useEffect(() => {
+    if (!permissions.canView) return;
+    const controller = new AbortController();
+    fetchCapexData(controller.signal);
+    return () => controller.abort();
+  }, [permissions.canView, fetchCapexData]);
 
   const handleAddSubmit = async (payload) => {
-    const userID = 1;
-    const body = { userID, ...payload };
+    const userID = getCurrentUserId();
     try {
-      const res = await axios.post(`${API_BASE_URL}/capex`, body);
+      const res = await createCapexTarget({ userID, ...payload });
       if (res.status === 201 || res.status === 200) {
-        showToast("✅ Capex target submitted successfully!", "#10B981");
+        showToast('✅ Capex target submitted successfully!', '#10B981');
         fetchCapexData();
       }
     } catch (err) {
-      const serverMsg = err.response?.data?.error || err.message || "Failed to submit Capex target.";
-      showToast(`❌ ${serverMsg}`, "#EF4444");
+      const serverMsg =
+        err.response?.data?.error || err.message || 'Failed to submit Capex target.';
+      showToast(`❌ ${serverMsg}`, '#EF4444');
       throw new Error(serverMsg);
     }
   };
 
-  const [filterYear, setFilterYear] = useState("2026-2027");
-  const [filterOrg, setFilterOrg] = useState("");
-
   const handleEditSubmit = async (payload) => {
-    const res = await axios.post(`${API_BASE_URL}/capex-edit`, payload);
-    if (res.status === 200) {
-      showToast("✅ Capex planned expense target updated!", "#10B981");
-      fetchCapexData();
+    try {
+      const res = await updateCapexTarget({
+        ID: payload.ID,
+        gbsValue: payload.gbsValue,
+        iebrValue: payload.iebrValue,
+        pppValue: payload.pppValue,
+        totalValue: payload.totalValue,
+        userID: getCurrentUserId(),
+      });
+      if (res.status === 200) {
+        await fetchCapexData();
+      }
+    } catch (err) {
+      const serverMsg =
+        err.response?.data?.error || err.message || 'Failed to update Capex target.';
+      showToast(`❌ ${serverMsg}`, '#EF4444');
+      throw new Error(serverMsg);
     }
   };
 
-  const selectedOrgObj = useMemo(() => {
-    return organisations.find((o) => String(o.organisation_id || o.id) === String(selectedOrgId));
-  }, [organisations, selectedOrgId]);
+  const openUpdatePage = useCallback(
+    (row) => {
+      setSelectedRecord(row);
+      setIsActualExpenditurePageActive(false);
+      if (viewMode === 'ministry') {
+        setActiveTab('edit');
+      } else {
+        setIsActualExpenditurePageActive(true);
+        setActiveTab('data');
+      }
+    },
+    [viewMode]
+  );
 
-  const filteredData = useMemo(() => {
-    let result = capexData;
-
-    if (viewMode === "org" && selectedOrgId) {
-      result = result.filter(
-        (row) =>
-          String(row.capex_organisation_id) === String(selectedOrgId) ||
-          (selectedOrgObj &&
-            String(row.organisation_name || "").toLowerCase().includes(
-              String(selectedOrgObj.organisation_name || selectedOrgObj.name || "").toLowerCase()
-            ))
-      );
-    } else if (filterOrg) {
-      result = result.filter((row) =>
-        String(row.organisation_name || "").toLowerCase().includes(filterOrg.toLowerCase())
-      );
-    }
-
-    if (filterYear) {
-      result = result.filter(
-        (row) => String(row.capex_financial_year || "").trim() === filterYear.trim()
-      );
-    }
-
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter((row) =>
-        Object.values(row).some((val) =>
-          String(val || "").toLowerCase().includes(term)
-        )
-      );
-    }
-
-    return result;
-  }, [capexData, viewMode, selectedOrgId, selectedOrgObj, filterYear, filterOrg, searchTerm]);
-
+  const closeUpdatePage = useCallback(() => {
+    setActiveTab('data');
+    setSelectedRecord(null);
+  }, []);
   const colDefs = useMemo(() => {
     const allDefs = [
       {
-        headerName: "Sl.No",
-        valueGetter: (params) => (params.node ? params.node.rowIndex + 1 : 1),
+        headerName: 'Sl.No',
+        valueGetter: (params) =>
+          params.node
+            ? (page - 1) * pageSize + params.node.rowIndex + 1
+            : 1,
         flex: 0.6,
         minWidth: 70,
-        pinned: "left",
-        cellClass: "font-bold text-slate-500 text-center flex items-center justify-center",
+        pinned: 'left',
+        cellClass:
+          'font-bold text-slate-500 text-center flex items-center justify-center',
       },
       {
-        field: "organisation_name",
-        headerName: "Organisation",
+        field: 'organisation_name',
+        headerName: 'Organisation',
         flex: 2,
         minWidth: 220,
-        cellClass: "font-bold text-slate-800 text-left flex items-center",
+        cellClass: 'font-bold text-slate-800 text-left flex items-center',
         valueGetter: (params) => {
-          if (!params.data) return "—";
+          if (!params.data) return '—';
           if (params.data.organisation_name) return params.data.organisation_name;
-          if (params.data.Organisation_Name) return params.data.Organisation_Name;
-          if (params.data.org_name) return params.data.org_name;
-          if (params.data.name) return params.data.name;
-
-          const orgId =
-            params.data.capex_organisation_id ||
-            params.data.organisation_id ||
-            params.data.common_organisation_id ||
-            params.data.goods_organisation_id ||
-            params.data.service_organisation_id ||
-            params.data.works_organisation_id ||
-            params.data.org_id ||
-            params.data.id;
-
+          const orgId = params.data.capex_organisation_id;
           const foundOrg = organisations.find(
             (o) => String(o.organisation_id || o.id) === String(orgId)
           );
-          return foundOrg ? foundOrg.organisation_name || foundOrg.name : "—";
+          return foundOrg ? foundOrg.organisation_name || foundOrg.name : '—';
         },
       },
       {
-        field: "capex_financial_year",
-        headerName: "Financial Year",
+        field: 'capex_financial_year',
+        headerName: 'Financial Year',
         flex: 1.2,
         minWidth: 130,
-        cellClass: "font-semibold text-slate-700 text-center flex items-center justify-center",
-        valueFormatter: (params) => (params.value ? String(params.value).replace(/,/g, "") : "—"),
+        cellClass:
+          'font-semibold text-slate-700 text-center flex items-center justify-center',
+        valueFormatter: (params) =>
+          params.value ? String(params.value).replace(/,/g, '') : '—',
       },
       {
-        field: "capex_total_value",
-        headerName: "Total Planned Expenditure (In Crore)",
+        field: 'capex_total_value',
+        headerName: 'Total Planned Expenditure (In Crore)',
         flex: 2,
         minWidth: 220,
-        cellClass: "font-black text-[#0f417a] text-center flex items-center justify-center",
-        valueFormatter: (params) => (params.value !== undefined && params.value !== null ? Number(params.value).toFixed(2) : "0.00"),
+        cellClass:
+          'font-black text-[#0f417a] text-center flex items-center justify-center',
+        valueFormatter: (params) =>
+          params.value !== undefined && params.value !== null
+            ? Number(params.value).toFixed(2)
+            : '0.00',
       },
       {
-        field: "total_capex_expenditure",
-        headerName: "Actual Expenditure (In Crore)",
+        field: 'total_capex_expenditure',
+        headerName: 'Actual Expenditure (In Crore)',
         flex: 2,
         minWidth: 200,
-        cellClass: "font-black text-blue-700 text-center flex items-center justify-center cursor-pointer hover:underline",
+        cellClass:
+          'font-black text-blue-700 text-center flex items-center justify-center cursor-pointer hover:underline',
         cellRenderer: (params) => (
           <div
             onClick={() => {
@@ -270,194 +333,217 @@ export default function CapexView() {
             className="text-blue-700 font-black underline cursor-pointer flex items-center justify-center gap-1.5"
             title="Click to view/edit monthly expenditure page"
           >
-            <span>{params.value !== undefined && params.value !== null ? Number(params.value).toFixed(2) : "0.00"}</span>
+            <span>
+              {params.value !== undefined && params.value !== null
+                ? Number(params.value).toFixed(2)
+                : '0.00'}
+            </span>
           </div>
         ),
       },
       {
-        headerName: "% Expenditure Of BE",
+        headerName: '% Expenditure Of BE',
         flex: 1.5,
         minWidth: 160,
-        cellClass: "font-bold text-slate-800 text-center flex items-center justify-center",
+        cellClass:
+          'font-bold text-slate-800 text-center flex items-center justify-center',
         valueGetter: (params) => {
-          if (!params.data) return "0.00";
-          const pct = calculateCapexExpenditurePercentage(
+          if (!params.data) return '0.00';
+          return calculateCapexExpenditurePercentage(
             params.data.total_capex_expenditure,
             params.data.capex_total_value
           );
-          return `${pct}`;
         },
       },
       {
-        field: "updated_date",
-        headerName: "Last Updated Date",
+        field: 'updated_date',
+        headerName: 'Last Updated Date',
         flex: 1.5,
         minWidth: 150,
-        cellClass: "text-slate-600 font-semibold text-center flex items-center justify-center",
+        cellClass:
+          'text-slate-600 font-semibold text-center flex items-center justify-center',
         valueGetter: (params) =>
-          params.data.updated_date
-            ? String(params.data.updated_date).slice(0, 10)
-            : "—",
-      },
-      {
-        headerName: "Update",
-        flex: 1,
-        minWidth: 90,
-        cellClass: "text-center flex items-center justify-center",
-        cellRenderer: (params) => (
-          <button
-            onClick={() => {
-              setSelectedRecord(params.data);
-              if (viewMode === "ministry") {
-                setIsEditModalOpen(true);
-              } else {
-                setIsActualExpenditurePageActive(true);
-              }
-            }}
-            className="p-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition cursor-pointer shadow-xs flex items-center justify-center"
-            title={viewMode === "ministry" ? "Update Planned Expense" : "Edit Expenditure"}
-          >
-            <Edit size={14} />
-          </button>
-        ),
+          params.data.updated_date ? String(params.data.updated_date).slice(0, 10) : '—',
       },
     ];
 
-    // Hide Organisation column for Organization View
-    if (viewMode === "org") {
-      return allDefs.filter((col) => col.field !== "organisation_name");
+    if (permissions.canEdit) {
+      allDefs.push({
+        headerName: 'Update',
+        flex: 1,
+        minWidth: 110,
+        maxWidth: 120,
+        pinned: 'right',
+        lockPinned: true,
+        suppressMovable: true,
+        sortable: false,
+        filter: false,
+        cellClass: 'text-center flex items-center justify-center',
+        cellRenderer: (params) => {
+          const row = params.data;
+          if (!row) return null;
+          return (
+            <div className="flex items-center justify-center gap-1 w-full h-full py-1">
+              <button
+                type="button"
+                onClick={() => openUpdatePage(row)}
+                className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
+                title={viewMode === 'ministry' ? 'Update Planned Expense' : 'Edit Expenditure'}
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+            </div>
+          );
+        },
+      });
+    }
+
+    if (viewMode === 'org') {
+      return allDefs.filter((col) => col.field !== 'organisation_name');
     }
     return allDefs;
-  }, [viewMode]);
+  }, [viewMode, organisations, permissions.canEdit, page, pageSize, openUpdatePage]);
 
-  const pinnedBottomRowData = useMemo(() => {
-    if (!filteredData || filteredData.length === 0) return [];
-    let plannedSum = 0;
-    let actualSum = 0;
-    filteredData.forEach((row) => {
-      plannedSum += Number(row.capex_total_value) || 0;
-      actualSum += Number(row.total_capex_expenditure) || 0;
-    });
-    const pctSum = calculateCapexExpenditurePercentage(actualSum, plannedSum);
-
-    return [
-      {
-        isSummaryRow: true,
-        organisation_name: "Total",
-        capex_financial_year: "Total Summary",
-        capex_total_value: plannedSum,
-        total_capex_expenditure: actualSum,
-        expenditure_percentage: pctSum,
-      },
-    ];
-  }, [filteredData]);
-
-  // Export handlers
   const handleCopyData = () => {
-    if (!filteredData || filteredData.length === 0) return;
-    const text = filteredData
+    if (!capexData?.length) return;
+    const text = capexData
       .map(
         (r) =>
-          `${r.organisation_name || ""}\t${r.capex_financial_year || ""}\t${r.capex_total_value || 0}\t${r.total_capex_expenditure || 0}`
+          `${r.organisation_name || ''}\t${r.capex_financial_year || ''}\t${r.capex_total_value || 0}\t${r.total_capex_expenditure || 0}`
       )
-      .join("\n");
+      .join('\n');
     navigator.clipboard.writeText(text);
-    showToast("📋 Capex table data copied to clipboard!", "#10B981");
+    showToast('📋 Capex table data copied to clipboard!', '#10B981');
   };
 
   const handleExportExcel = () => {
-    if (!filteredData || filteredData.length === 0) return;
-    const ws = XLSX.utils.json_to_sheet(filteredData);
+    if (!capexData?.length) return;
+    const ws = XLSX.utils.json_to_sheet(capexData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Capex_Data");
-    XLSX.writeFile(wb, "Capex_Data_List.xlsx");
-    showToast("📊 Capex data exported to Excel!", "#10B981");
+    XLSX.utils.book_append_sheet(wb, ws, 'Capex_Data');
+    XLSX.writeFile(wb, 'Capex_Data_List.xlsx');
+    showToast('📊 Capex data exported to Excel!', '#10B981');
   };
 
   const handleExportPdf = () => {
-    showToast("📄 PDF export ready. Print via browser dialog.", "#3B82F6");
+    showToast('📄 PDF export ready. Print via browser dialog.', '#3B82F6');
     window.print();
   };
 
+  const tabs = useMemo(() => {
+    const items = [];
+    if (showInputForm) {
+      items.push({ id: 'add', label: 'Input Form' });
+    }
+    items.push(
+      { id: 'data', label: 'Data List' },
+      { id: 'report', label: 'Report' }
+    );
+    return items;
+  }, [showInputForm]);
+
+  if (!permissions.canView) {
+    return <RestrictedAccess moduleName="Capex" onGoHome={onGoHome} />;
+  }
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Toast popup */}
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
       {toastVisible && (
         <div
-          className="fixed top-5 right-5 z-50 px-4 py-3 rounded-xl text-white font-bold text-xs shadow-xl transition-all duration-300 flex items-center space-x-2 animate-bounce select-none"
-          style={{ backgroundColor: toastColor }}
+          className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm text-white shadow ${
+            String(toastColor).toLowerCase().includes('ef4444') ||
+            String(toastColor).toLowerCase().includes('red')
+              ? 'bg-red-600'
+              : 'bg-emerald-600'
+          }`}
         >
-          <span>{toastMsg}</span>
+          {toastMsg}
         </div>
       )}
 
-      {/* Page Title & Subtitle with InternalNavigation on heading line */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
+          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-300 tracking-wide uppercase font-display">
             Capex Management
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
-            Monitor Capital Expenditure allocations (GBS, Internal Resources, PPP) and track monthly target realizations across major port authorities.
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+            Monitor Capital Expenditure allocations (GBS, Internal Resources, PPP) and track
+            monthly target realizations across major port authorities.
           </p>
         </div>
 
         <InternalNavigation
-          tabs={
-            viewMode === "org"
-              ? [
-                  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-                  { id: "data", label: "Datalist", icon: Layers },
-                ]
-              : [
-                  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-                  { id: "data", label: "Datalist", icon: Layers },
-                  { id: "report", label: "Report", icon: Calendar },
-                ]
-          }
-          currentTab={activeTab}
-          onTabChange={(tabId) => setActiveTab(tabId)}
+          tabs={tabs}
+          currentTab={activeTab === 'edit' ? 'data' : activeTab}
+          onTabChange={(tabId) => {
+            setIsActualExpenditurePageActive(false);
+            if (tabId !== 'edit') setSelectedRecord(null);
+            setActiveTab(tabId);
+          }}
         />
       </div>
 
-
-
-      {/* Main Content Area */}
-      {activeTab === "dashboard" && (
-        viewMode === "ministry" ? (
-          <CapexDashboardView showToast={showToast} />
-        ) : (
-          <CapexOrgDashboardView
-            organisations={organisations}
-            selectedOrgId={selectedOrgId}
-            setSelectedOrgId={setSelectedOrgId}
-            showToast={showToast}
-          />
-        )
+      <div className="space-y-8">
+      {activeTab === 'add' && showInputForm && (
+        <CapexInputForm
+          organisations={organisations}
+          onSubmit={handleAddSubmit}
+          onBack={() => setActiveTab('data')}
+          onSuccess={() => {
+            fetchCapexData();
+            setActiveTab('data');
+          }}
+          notify={(msg, type) =>
+            showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
+          }
+        />
       )}
 
-      {activeTab === "data" && (
-        isActualExpenditurePageActive && selectedRecord ? (
+      {activeTab === 'edit' && permissions.canEdit && viewMode === 'ministry' && (
+        <CapexUpdateForm
+          record={selectedRecord}
+          onSubmit={handleEditSubmit}
+          onBack={closeUpdatePage}
+          onSuccess={() => {
+            closeUpdatePage();
+            fetchCapexData();
+          }}
+          notify={(msg, type) =>
+            showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
+          }
+        />
+      )}
+
+      {activeTab === 'data' &&
+        (isActualExpenditurePageActive && selectedRecord ? (
           <CapexActualExpenditurePage
             capexRecord={selectedRecord}
             onBack={() => setIsActualExpenditurePageActive(false)}
             showToast={showToast}
             onRefresh={fetchCapexData}
+            canEdit={permissions.canEdit}
           />
         ) : (
           <>
-            <CapexKpiCards data={filteredData} />
+            {/* KPI cards commented out for now
+            <CapexKpiCards data={capexData} />
+            */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
               <CapexDataListView
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}
+                page={page}
                 pageSize={pageSize}
                 setPageSize={setPageSize}
-                filteredData={filteredData}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => {
+                  setPageSize(n);
+                  setPage(1);
+                }}
+                pagination={pagination}
+                rowData={capexData}
                 colDefs={colDefs}
-                pinnedBottomRowData={pinnedBottomRowData}
                 loading={loading}
-                onOpenAddModal={() => setIsAddModalOpen(true)}
                 handleCopyData={handleCopyData}
                 handleExportExcel={handleExportExcel}
                 handleExportPdf={handleExportPdf}
@@ -470,26 +556,12 @@ export default function CapexView() {
               />
             </div>
           </>
-        )
+        ))}
+
+      {activeTab === 'report' && (
+        <CapexReports viewMode={viewMode} showToast={showToast} />
       )}
-
-      {activeTab === "report" && <CapexForm32Report showToast={showToast} />}
-
-      {/* Modals */}
-      <CapexAddTargetModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSubmit={handleAddSubmit}
-        organisations={organisations}
-        existingData={capexData}
-      />
-
-      <CapexEditTargetModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onUpdate={handleEditSubmit}
-        initialRecord={selectedRecord}
-      />
+      </div>
 
       <CapexMonthlyDataModal
         isOpen={isMonthlyModalOpen}
