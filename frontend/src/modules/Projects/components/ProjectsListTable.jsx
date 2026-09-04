@@ -5,7 +5,6 @@ import {
   Filter,
   Info,
   Search,
-  Trash2,
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
@@ -149,11 +148,11 @@ export default function ProjectsListTable({
       },
     ];
 
-    if (canEdit || canDropProject) {
+    if (canEdit) {
       cols.push({
-        headerName: 'Actions',
-        minWidth: 140,
-        maxWidth: 160,
+        headerName: 'Update',
+        minWidth: 110,
+        maxWidth: 120,
         pinned: 'right',
         lockPinned: true,
         sortable: false,
@@ -162,32 +161,42 @@ export default function ProjectsListTable({
         cellRenderer: (params) => {
           const row = params.data;
           if (!row) return null;
+          return (
+            <button
+              type="button"
+              onClick={() => onOpenBasicInfo?.(row)}
+              className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
+              title="Update Project"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          );
+        },
+      });
+    }
+
+    if (canDropProject) {
+      cols.push({
+        headerName: 'Drop Project',
+        minWidth: 150,
+        maxWidth: 170,
+        sortable: false,
+        filter: false,
+        cellClass: 'text-center flex items-center justify-center',
+        cellRenderer: (params) => {
+          const row = params.data;
+          if (!row) return null;
 
           return (
-            <div className="flex items-center gap-1">
-              {canEdit ? (
-                <button
-                  type="button"
-                  onClick={() => onOpenBasicInfo?.(row)}
-                  className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
-                  title="Update Project"
-                >
-                  <Edit className="h-4 w-4" />
-                </button>
-              ) : null}
-
-              {canDropProject ? (
-                <button
-                  type="button"
-                  onClick={() => onDropProject?.(row)}
-                  className="p-1.5 hover:bg-rose-50 rounded text-rose-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Drop Project"
-                  disabled={dropBusyId === row.id}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              ) : null}
-            </div>
+            <button
+              type="button"
+              onClick={() => onDropProject?.(row)}
+              className="px-2.5 py-1 rounded-md border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:border-rose-400 text-[10px] font-bold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Drop Project"
+              disabled={dropBusyId === row.id}
+            >
+              {dropBusyId === row.id ? 'Submitting...' : 'Request Drop'}
+            </button>
           );
         },
       });
