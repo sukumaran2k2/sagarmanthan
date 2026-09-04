@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Tabs from './components/Tabs';
 import Projects from './modules/Projects/Projects';
-import DashboardView from './modules/Dashboard/Dashboard';
+
 import LoginView from './modules/Login/Login';
 import LandingView from './modules/Landing/Landing';
 import { PortsDashboardView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
@@ -36,20 +36,12 @@ import MediaOutreachView from './modules/MediaOutreach/MediaOutreach';
 import CapexView from './modules/Capex/Capex';
 import GEMProcurementView from './modules/GEMProcurement/GEMProcurement';
 import Footer from './components/Footer';
-import { Bell, Sparkles, CheckCircle2, Home, ChevronRight, LayoutDashboard, ClipboardList, TrendingDown, TrendingUp, FolderSync, FilePieChart, Wifi, Activity } from 'lucide-react';
+import { Sparkles, Home, Activity } from 'lucide-react';
 import Loader from './components/Loader';
 import NetworkCheckView from './components/NetworkCheckView';
 import Notification from './components/Notification';
 import ContactUs from './modules/Contact/Contact';
 
-const PROJECT_TABS = [
-  { id: 'projects-dashboard', label: 'Project Dashboard', icon: LayoutDashboard },
-  { id: 'projects-list', label: 'Project List', icon: ClipboardList },
-  { id: 'projects-less5cr', label: 'Projects Less Than 5 Cr', icon: TrendingDown },
-  { id: 'projects-lumpsum', label: 'Lumpsum - IWAI', icon: TrendingUp },
-  { id: 'projects-dropRequests', label: 'View Drop Request', icon: FolderSync },
-  { id: 'projects-reports', label: 'Reports', icon: FilePieChart },
-];
 
 const INITIAL_PROJECTS = [
   {
@@ -162,7 +154,6 @@ const getBreadcrumbs = (tab) => {
   if (tab === 'landing') return ['Home'];
   if (tab === 'Ports Reports') return ['KPI - Major Ports - (Output Reports)'];
 
-  if (tab === 'projects-dashboard') return ['Home', 'Projects', 'Project', 'Project Dashboard'];
   if (tab === 'projects-list') return ['Home', 'Projects', 'Project', 'Project List'];
   if (tab === 'projects-less5cr') return ['Home', 'Projects', 'Project', 'Projects Less Than 5 Cr'];
   if (tab === 'projects-lumpsum') return ['Home', 'Projects', 'Project', 'Lumpsum - IWAI'];
@@ -248,7 +239,6 @@ const ROUTE_MAP = {
   'landing': 'landing',
   'profile': 'profile',
 
-  'projects-dashboard': 'projects/project/project-dashboard',
   'projects-list': 'projects/project/project-list',
   'projects-less5cr': 'projects/project/projects-less-than-5-cr',
   'projects-lumpsum': 'projects/project/lumpsum-iwai',
@@ -328,12 +318,15 @@ const ROUTE_MAP = {
 
 const getTabFromSlug = (slug) => {
   const cleanSlug = decodeURIComponent(slug).replace(/^\//, '').replace(/\/$/, '');
+  if (cleanSlug === 'projects/project/project-dashboard') {
+    return 'projects-list';
+  }
   const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);
   return normalizeTab(entry ? entry[0] : cleanSlug);
 };
 
 export default function App() {
-  const [projects, setProjects] = useState(INITIAL_PROJECTS);
+  const [projects] = useState(INITIAL_PROJECTS);
   const [activeTab, setActiveTab] = useState(() => {
     const path = window.location.pathname;
     return path && path !== '/' ? getTabFromSlug(path) : 'landing';
@@ -422,16 +415,6 @@ export default function App() {
     }
   }, [notification]);
 
-  const handleAddProject = (newProject) => {
-    setProjects([newProject, ...projects]);
-    triggerNotification(`Project ${newProject.projectId} successfully created.`);
-  };
-
-  const handleAddSubProject = (newSubProject) => {
-    setProjects(prev => [newSubProject, ...prev]);
-    triggerNotification(`Sub-project ${newSubProject.subProjectId} successfully created.`);
-  };
-
   const goToTab = (tab) => setActiveTab(normalizeTab(tab));
 
   const handleLoginSuccess = () => {
@@ -519,22 +502,12 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'projects-dashboard' && (
-              <DashboardView
-                projects={projects}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-              />
-            )}
 
             {activeTab === 'projects-list' && (
               <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
+                activeSubTab={activeTab}
+                onGoHome={() => goToTab('landing')}
                 triggerNotification={triggerNotification}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
               />
             )}
 
@@ -650,7 +623,7 @@ export default function App() {
                   This module is currently processing real-time telemetry from the Ministry databases. Custom reports, input forms, and analytics for <strong className="text-blue-700">{activeTab}</strong> are being compiled.
                 </p>
                 <button
-                  onClick={() => goToTab('projects-dashboard')}
+                  onClick={() => goToTab('projects-list')}
                   className="mt-6 px-4 py-2 bg-blue-650 hover:bg-blue-705 text-white font-bold text-xs rounded-lg shadow transition cursor-pointer"
                 >
                   Back to Dashboard

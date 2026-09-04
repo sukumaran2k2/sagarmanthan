@@ -1,14 +1,13 @@
 export const MODULE_PAGES = {
   PROJECTS: {
     tabs: [
-      'projects-dashboard',
       'projects-list',
       'projects-less5cr',
       'projects-lumpsum',
       'projects-dropRequests',
       'projects-reports',
     ],
-    uiTabs: ['projects-dashboard', 'projects-list'],
+    uiTabs: ['projects-list'],
   },
 
   CSR_PROJECTS: {

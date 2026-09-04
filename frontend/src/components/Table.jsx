@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
+import { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { FileSpreadsheet } from 'lucide-react';
@@ -22,6 +22,7 @@ const Table = forwardRef(({
   onPaginationChanged,
   domLayout = 'autoHeight',
   color = '#28408f',
+  loadingMessage = 'Loading...',
   ...props
 }, ref) => {
   const localGridRef = useRef();
@@ -193,7 +194,7 @@ const Table = forwardRef(({
                 style={{ borderColor: `${color} transparent ${color} ${color}` }}
               ></div>
               <span className="text-xs font-extrabold tracking-wide">
-                Fetching records from database...
+                {loadingMessage}
               </span>
             </div>
           </div>

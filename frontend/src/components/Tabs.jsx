@@ -33,7 +33,6 @@ import {
   Compass,
   Layers,
   GraduationCap,
-  Award,
   FileText,
   LayoutDashboard,
   ListTodo,
@@ -70,7 +69,7 @@ function getLoggedInUserRole() {
     );
     const decoded = JSON.parse(jsonPayload);
     return Number(decoded.roleId || decoded.role_id || decoded.role || 1);
-  } catch (e) {
+  } catch {
     return 1;
   }
 }
@@ -88,17 +87,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateCabinetMopsw = canCreateModule('CABINET_NOTES_MOPSW');
   const canCreateConsultant = canCreateModule('CONSULTANT_APPOINTMENT');
 
-  const accessKey = (() => {
-    try {
-      const t = localStorage.getItem('accessToken');
-      if (!t) return '';
-      const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-      const codes = payload?.allowedModuleCodes;
-      return `${payload?.roleCode || ''}|${Array.isArray(codes) ? codes.join(',') : ''}|piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}`;
-    } catch {
-      return `piCreate:${canCreateParliamentary ? 1 : 0}|cnCreate:${canCreateCabinetMopsw ? 1 : 0}|caCreate:${canCreateConsultant ? 1 : 0}`;
-    }
-  })();
 
   const m = (moduleCode, item) => ({ ...item, moduleCode });
 
@@ -116,7 +104,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'Project',
           icon: FolderOpen,
           items: [
-            m('PROJECTS', { label: 'Project Dashboard', tab: 'projects-dashboard', icon: LayoutDashboard }),
             m('PROJECTS', { label: 'Project List', tab: 'projects-list', icon: ListTodo }),
             m('PROJECTS', { label: 'Projects Less Than 5 Cr', tab: 'projects-less5cr', icon: Coins }),
             m('PROJECTS', { label: 'Lumpsum - IWAI', tab: 'projects-lumpsum', icon: TrendingUp }),
@@ -454,7 +441,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       ],
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant]
+    [isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant]
   );
 
   const handleItemClick = (tabOrLabel) => {

@@ -90,6 +90,215 @@ async function projectMediaLinkDownload(req, res) {
 
 async function getProjectList(req, res) {
     const conn = await pool;
+    const userID = Number(req.params.userID);
+
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
+    const offset = (page - 1) * limit;
+
+    const search = String(req.query.search || '').trim();
+    const projectStage = String(req.query.projectStage || '').trim();
+    const projectCategory = String(req.query.projectCategory || '').trim();
+    const organisationId = Number.parseInt(req.query.organisationId, 10);
+
+    try {
+        const roleRequest = conn.request();
+        roleRequest.input('userID', userID);
+        const userResult = await roleRequest.query('SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID');
+
+        if (!userResult.recordset?.length) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const { role_id, organisation_id } = userResult.recordset[0];
+        const privilegedRoles = new Set([2, 3, 4, 5, 8]);
+
+        let submittedByFilter = '';
+        if (!privilegedRoles.has(Number(role_id))) {
+            const usersRequest = conn.request();
+            usersRequest.input('organisationID', organisation_id);
+            const usersResult = await usersRequest.query('SELECT user_id FROM tbl_user WHERE organisation_id = @organisationID');
+            const userIds = usersResult.recordset
+                .map((row) => Number(row.user_id))
+                .filter((n) => Number.isFinite(n));
+
+            if (!userIds.length) {
+                return res.json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
+            }
+
+            submittedByFilter = ` AND ISNULL(sp.sub_submitted_by, p.submitted_by) IN (${userIds.join(',')})`;
+        }
+
+        const scopeByOrganisation = Number.isFinite(organisationId) && organisationId > 0
+            ? ' AND ISNULL(sp.sub_organisation_id, p.organisation_id) = @organisationId'
+            : '';
+
+        const baseQuery = `
+            WITH base AS (
+                SELECT
+                    p.project_id,
+                    p.sagarmala_project_id,
+                    sp.sub_project_id,
+                    p.project_name,
+                    sp.sub_project_name,
+                    ISNULL(sp.sub_project_category_id, p.project_category_id) AS project_category_id,
+                    (
+                        SELECT STRING_AGG(pc.project_category_name, ', ')
+                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_project_category_id, p.project_category_id))), ',') x
+                        JOIN mmt_project_category pc ON TRY_CAST(x.value AS int) = pc.project_category_id
+                    ) AS project_category_names,
+                    ISNULL(sp.sub_state_id, p.state_id) AS state_id,
+                    (
+                        SELECT STRING_AGG(st.state_name, ', ')
+                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_state_id, p.state_id))), ',') x
+                        JOIN mmt_state st ON TRY_CAST(x.value AS int) = st.state_id
+                    ) AS state_names,
+                    ISNULL(sp.sub_organisation_id, p.organisation_id) AS organisation_id,
+                    org.organisation_name,
+                    ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id) AS current_project_stage_id,
+                    stage.stage_name,
+                    ISNULL(sp.sub_estimated_cost, p.estimated_cost) AS estimated_cost,
+                    ISNULL(sp.sub_sanctioned_cost, p.sanctioned_cost) AS sanctioned_cost,
+                    physicalProgress.physical_progress,
+                    financialProgress.financial_progress,
+                    CAST(p.project_id AS varchar(50)) AS project_id_text,
+                    CAST(ISNULL(sp.sub_project_id, -1) AS varchar(50)) AS sub_project_id_text
+                FROM tbl_project p
+                LEFT JOIN tbl_sub_project sp ON sp.project_id = p.project_id
+                LEFT JOIN mmt_organisation org ON org.organisation_id = ISNULL(sp.sub_organisation_id, p.organisation_id)
+                LEFT JOIN tbl_project_stage stage ON stage.stage_id = ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
+                LEFT JOIN (
+                    SELECT project_id AS entity_id, MAX(physical_progress) AS physical_progress
+                    FROM tbl_project_physical_progress
+                    WHERE sub_project_id = '-1'
+                    GROUP BY project_id
+                    UNION
+                    SELECT sub_project_id AS entity_id, MAX(physical_progress) AS physical_progress
+                    FROM tbl_project_physical_progress
+                    WHERE sub_project_id != '-1'
+                    GROUP BY sub_project_id
+                ) AS physicalProgress ON physicalProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
+                LEFT JOIN (
+                    SELECT
+                        e.project_id AS entity_id,
+                        (SUM(
+                            COALESCE(e.gbs_components, 0) +
+                            COALESCE(e.iebr_components, 0) +
+                            COALESCE(e.ppp_components, 0) +
+                            COALESCE(e.loans_components, 0) +
+                            COALESCE(e.multilateral_components, 0) +
+                            COALESCE(e.state_gov_fund_components, 0) +
+                            COALESCE(e.pmmsy_components, 0) +
+                            COALESCE(e.sagarmala_components, 0) +
+                            COALESCE(e.other_source_funding_comp, 0)
+                        ) / NULLIF(p2.award_project_cost, 0)) * 100 AS financial_progress
+                    FROM tbl_project_expenditure e
+                    LEFT JOIN tbl_project p2 ON p2.project_id = e.project_id
+                    WHERE e.sub_project_id = '-1'
+                    GROUP BY e.project_id, p2.award_project_cost
+                    UNION
+                    SELECT
+                        e.sub_project_id AS entity_id,
+                        (SUM(
+                            COALESCE(e.gbs_components, 0) +
+                            COALESCE(e.iebr_components, 0) +
+                            COALESCE(e.ppp_components, 0) +
+                            COALESCE(e.loans_components, 0) +
+                            COALESCE(e.multilateral_components, 0) +
+                            COALESCE(e.state_gov_fund_components, 0) +
+                            COALESCE(e.pmmsy_components, 0) +
+                            COALESCE(e.sagarmala_components, 0) +
+                            COALESCE(e.other_source_funding_comp, 0)
+                        ) / NULLIF(sp2.sub_award_project_cost, 0)) * 100 AS financial_progress
+                    FROM tbl_project_expenditure e
+                    LEFT JOIN tbl_sub_project sp2 ON sp2.sub_project_id = e.sub_project_id
+                    WHERE e.sub_project_id != '-1'
+                    GROUP BY e.sub_project_id, sp2.sub_award_project_cost
+                ) AS financialProgress ON financialProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
+                WHERE (
+                    (sp.sub_project_id IS NOT NULL AND sp.sub_status = 1)
+                    OR (sp.sub_project_id IS NULL AND p.status = 1)
+                )
+                ${submittedByFilter}
+                ${scopeByOrganisation}
+            )
+        `;
+
+        const whereClauses = [];
+        if (search) {
+            whereClauses.push(`(
+                project_id_text LIKE @search
+                OR sub_project_id_text LIKE @search
+                OR project_name LIKE @search
+                OR ISNULL(sub_project_name, '') LIKE @search
+                OR ISNULL(organisation_name, '') LIKE @search
+            )`);
+        }
+        if (projectStage && projectStage !== 'All') {
+            whereClauses.push('ISNULL(stage_name, \'\') = @projectStage');
+        }
+        if (projectCategory && projectCategory !== 'All') {
+            whereClauses.push('ISNULL(project_category_names, \'\') LIKE @projectCategory');
+        }
+
+        const outerWhere = whereClauses.length ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+
+        const countRequest = conn.request();
+        const dataRequest = conn.request();
+
+        if (Number.isFinite(organisationId) && organisationId > 0) {
+            countRequest.input('organisationId', organisationId);
+            dataRequest.input('organisationId', organisationId);
+        }
+        if (search) {
+            const searchLike = `%${search}%`;
+            countRequest.input('search', searchLike);
+            dataRequest.input('search', searchLike);
+        }
+        if (projectStage && projectStage !== 'All') {
+            countRequest.input('projectStage', projectStage);
+            dataRequest.input('projectStage', projectStage);
+        }
+        if (projectCategory && projectCategory !== 'All') {
+            const categoryLike = `%${projectCategory}%`;
+            countRequest.input('projectCategory', categoryLike);
+            dataRequest.input('projectCategory', categoryLike);
+        }
+
+        dataRequest.input('offset', offset);
+        dataRequest.input('limit', limit);
+
+        const countResult = await countRequest.query(`${baseQuery} SELECT COUNT(1) AS total FROM base ${outerWhere};`);
+        const total = Number(countResult.recordset?.[0]?.total || 0);
+
+        const dataResult = await dataRequest.query(`
+            ${baseQuery}
+            SELECT *
+            FROM base
+            ${outerWhere}
+            ORDER BY current_project_stage_id, project_id DESC
+            OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
+        `);
+
+        const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+
+        return res.json({
+            data: dataResult.recordset,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages,
+            },
+        });
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
+async function getProjectListLegacy(req, res) {
+    const conn = await pool;
     const userID = req.params.userID;
 
     try {
