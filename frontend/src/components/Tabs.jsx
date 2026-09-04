@@ -395,12 +395,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
           icon: Target,
           targetTab: 'MIV 2030',
           subItems: [
-            { label: 'Dashboard', tab: 'MIV 2030', targetSubTab: 'Dashboard', icon: LayoutDashboard },
-            { label: 'Data List', tab: 'MIV 2030', targetSubTab: 'Data List', icon: ClipboardList },
-            { label: 'Input Form', tab: 'MIV 2030', targetSubTab: 'Input Form', icon: FileEdit },
-            { label: 'MIV Meetings', tab: 'MIV 2030', targetSubTab: 'MIV Meetings', icon: Users },
-            { label: 'Organisation Report', tab: 'MIV 2030', targetSubTab: 'Organisation Report', icon: FilePieChart },
-            { label: 'Theme Report', tab: 'MIV 2030', targetSubTab: 'Theme Report', icon: BarChart3 },
+            { label: 'Dashboard', tab: 'MIV Dashboard', targetSubTab: 'Dashboard', icon: LayoutDashboard },
+            { label: 'Data List', tab: 'MIV Data List', targetSubTab: 'Data List', icon: ClipboardList },
+            { label: 'Input Form', tab: 'MIV Input Form', targetSubTab: 'Input Form', icon: FileEdit },
+            { label: 'MIV Meetings', tab: 'MIV Meetings', targetSubTab: 'MIV Meetings', icon: Users },
+            { label: 'Report', tab: 'MIV Reports', targetSubTab: 'Reports', icon: FilePieChart },
           ]
         }),
         m('GMIS_IMW_MOU_TRACKING', {

@@ -76,10 +76,12 @@ export const ROUTE_MAP = {
   'MIV Data List': 'strategies/miv-2030/data-list',
   'MIV Input Form': 'strategies/miv-2030/input-form',
   'MIV Meetings': 'strategies/miv-2030/meetings',
-  'MIV Org Report': 'strategies/miv-2030/org-report',
-  'MIV Theme Report': 'strategies/miv-2030/theme-report',
-  'Organisation Report': 'strategies/miv-2030/org-report',
-  'Theme Report': 'strategies/miv-2030/theme-report',
+  'MIV Reports': 'strategies/miv-2030/reports',
+  'MIV Report': 'strategies/miv-2030/reports',
+  'MIV Org Report': 'strategies/miv-2030/reports',
+  'MIV Theme Report': 'strategies/miv-2030/reports',
+  'Organisation Report': 'strategies/miv-2030/reports',
+  'Theme Report': 'strategies/miv-2030/reports',
   'GMIS & IMW MoUs': 'strategies/gmis-mou/dashboard',
   'GMIS-MoU': 'strategies/gmis-mou/dashboard',
   'GMIS Dashboard': 'strategies/gmis-mou/dashboard',
@@ -268,7 +270,7 @@ const getBreadcrumbs = (tab) => {
   const legalItems = ['Courtcases', 'Bills/PreConstitutions Act', 'Acts & Rules'];
   if (legalItems.includes(tab)) return ['Home', 'Legal', tab];
 
-  const mivItems = ['MIV 2030', 'MIV Dashboard', 'MIV Data List', 'MIV Input Form', 'MIV Meetings', 'MIV Org Report', 'MIV Theme Report', 'Organisation Report', 'Theme Report'];
+  const mivItems = ['MIV 2030', 'MIV Dashboard', 'MIV Data List', 'MIV Input Form', 'MIV Meetings', 'MIV Reports', 'MIV Report', 'MIV Org Report', 'MIV Theme Report', 'Organisation Report', 'Theme Report'];
   if (mivItems.includes(tab)) return ['Home', 'Long Term Strategies', 'MIV 2030', tab === 'MIV 2030' ? 'Dashboard' : tab];
 
   const gmisItems = ['GMIS & IMW MoUs', 'GMIS-MoU', 'GMIS Dashboard', 'GMIS Data List', 'GMIS Input Form', 'GMIS Reports'];
