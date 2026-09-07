@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  Search, X, Plus, Edit, ChevronDown, 
+  Search, X, Plus, Edit, ChevronDown, ChevronUp,
   Coins, Building2, Calendar, TrendingUp, Filter, RotateCcw, Save
 } from 'lucide-react';
 import Table from '../../../components/Table';
@@ -43,6 +43,9 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
   // Column visibility checklist dropdown
   const [colDropdownOpen, setColDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
+
+  // Organisation + Financial Year filters dropdown
+  const [filtersDropdownOpen, setFiltersDropdownOpen] = useState(false);
   const [visibleCols, setVisibleCols] = useState({
     sno: true,
     org: true,
@@ -403,35 +406,25 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
           
           <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0 w-full">
             
-            {/* Organisation Filter */}
-            <div className="relative min-w-[150px]">
-              <select
-                value={selectedOrg}
-                onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
-                className="appearance-none w-full text-xs pl-3 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <option value="">All Organisations</option>
-                {organisations.map((o) => (
-                  <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
-
-            {/* Financial Year Filter */}
-            <div className="relative min-w-[130px]">
-              <select
-                value={selectedFY}
-                onChange={(e) => { setSelectedFY(e.target.value); setCurrentPage(1); }}
-                className="appearance-none w-full text-xs pl-3 pr-7 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <option value="">All Years</option>
-                {FINANCIAL_YEARS.map((fy) => (
-                  <option key={fy} value={fy}>{fy}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
+            {/* Filters Toggle */}
+            <button
+              type="button"
+              onClick={() => setFiltersDropdownOpen(!filtersDropdownOpen)}
+              className="inline-flex items-center gap-2.5 px-4 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100/60 transition dark:bg-slate-950/50 dark:border-slate-800 dark:hover:bg-slate-800/60"
+            >
+              <Filter className="h-3.5 w-3.5 text-slate-500" />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Filters</span>
+              {(selectedOrg || selectedFY) && (
+                <span className="text-[10px] font-bold text-blue-700 bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded-full dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+                  {[selectedOrg, selectedFY].filter(Boolean).length}
+                </span>
+              )}
+              {filtersDropdownOpen ? (
+                <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              )}
+            </button>
 
             {/* Search Box */}
             <div className="relative min-w-[160px] max-w-xs flex-1">
@@ -563,19 +556,53 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
               hoverColor="#1e5ea8"
               triggerNotification={triggerNotification}
             />
-
-            {isOrgUser && (
-              <button
-                onClick={handleOpenAddModal}
-                className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer select-none"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Fund Details</span>
-              </button>
-            )}
           </div>
 
         </div>
+
+        {filtersDropdownOpen && (
+          <div className="bg-slate-50/70 border border-slate-200 rounded-2xl shadow-xs dark:bg-slate-950/50 dark:border-slate-800">
+            <div className="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-in">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Organisation
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedOrg}
+                    onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
+                    className="appearance-none w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs"
+                  >
+                    <option value="">All Organisations</option>
+                    {organisations.map((o) => (
+                      <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Financial Year
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedFY}
+                    onChange={(e) => { setSelectedFY(e.target.value); setCurrentPage(1); }}
+                    className="appearance-none w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs"
+                  >
+                    <option value="">All Years</option>
+                    {FINANCIAL_YEARS.map((fy) => (
+                      <option key={fy} value={fy}>{fy}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Blue Themed AG Grid Table matching CA module */}
         <div className="w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-xs dark:border-slate-800">
@@ -719,22 +746,27 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
               </div>
 
               {/* Modal Footer */}
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex items-center space-x-1.5 px-5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
-                >
-                  <Save className="h-4 w-4" />
-                  <span>{submitting ? 'Saving...' : modalMode === 'edit' ? 'Update Fund' : 'Save Fund'}</span>
-                </button>
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <p className="text-[10px] text-slate-400 italic">
+                  Fields marked with <span className="text-red-500">*</span> are mandatory
+                </p>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex items-center space-x-1.5 px-5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>{submitting ? 'Saving...' : modalMode === 'edit' ? 'Update Fund' : 'Save Fund'}</span>
+                  </button>
+                </div>
               </div>
 
             </form>

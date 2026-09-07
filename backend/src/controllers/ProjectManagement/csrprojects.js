@@ -43,7 +43,14 @@ const storage = multer.diskStorage({
 
  const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 52428800 }  //50MB
+    limits: { fileSize: 52428800 },  //50MB
+    fileFilter: (req, file, callback) => {
+        if (file.mimetype === 'application/pdf') {
+            callback(null, true);
+        } else {
+            callback(new Error('Only PDF files are allowed for this upload.'));
+        }
+    }
 });
 
 async function createCsrProjects(req, res) 
@@ -232,8 +239,29 @@ let fileStorage = multer.diskStorage({
 
 const fileUpload= multer({
     storage: fileStorage,
-    limits: { fileSize: 10000000}
+    limits: { fileSize: 10000000},
+    fileFilter: (req, file, callback) => {
+        if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Only image or video files are allowed for the gallery.'));
+        }
+    }
 });
+
+// Wraps a multer upload middleware so a rejected file (wrong type, too large)
+// returns a clean 400 JSON response instead of falling through to Express's
+// default error page.
+function handleUploadErrors(uploadMiddleware) {
+    return (req, res, next) => {
+        uploadMiddleware(req, res, (err) => {
+            if (err) {
+                return res.status(400).json({ error: err.message });
+            }
+            next();
+        });
+    };
+}
 
 async function addNewCsrFileGallery(req, res) {
     try {
@@ -1785,7 +1813,7 @@ async function getDetailedCSRProjects(req, res) {
   }
 }
 
-export default {createCsrProjects, addNewCsrFileGallery, upload, fileUpload, getCsrProjectslist,
+export default {createCsrProjects, addNewCsrFileGallery, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
         getUpdateCsrProjectsData, updateCsrProjects, csrProjectDocumentUploader, csrfileDownload, csrfileDelete,
         getCsrExpenditureCost, addCsrExpenditure,  getCsrFileUploadDocument,deleteGalleryFile,updateGalleryFile, 
         uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,csrPdfFileDownload,

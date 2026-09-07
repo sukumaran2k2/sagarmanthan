@@ -822,6 +822,10 @@ export default function InputForm({
               </div>
             </div>
 
+            <p className="text-[10px] text-slate-400 italic pt-1">
+              Fields marked with <span className="text-red-500">*</span> are mandatory
+            </p>
+
             {/* Bottom Actions: Submit (Green) & Exit (Red) */}
             <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button
@@ -957,7 +961,7 @@ export default function InputForm({
               </div>
 
               <p className="text-[10px] text-slate-400 italic pt-1">
-                Fields marked with * are mandatory
+                Fields marked with <span className="text-red-500">*</span> are mandatory
               </p>
             </div>
 

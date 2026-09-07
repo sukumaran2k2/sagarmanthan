@@ -637,17 +637,6 @@ export default function DataList({
               hoverColor="#1e5ea8"
               triggerNotification={triggerNotification}
             />
-
-            {/* Add New Button */}
-            {isOrgUser && (
-              <button
-                onClick={onAddNew}
-                className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer select-none"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add CSR Project</span>
-              </button>
-            )}
           </div>
 
         </div>
