@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { 
   FileText, Check, Layers, Clock, 
-  TrendingUp, AlertCircle, ArrowLeft, Save, Briefcase,
-  CheckCircle2
+  TrendingUp, AlertCircle, Save, Briefcase,
+  CheckCircle2, Lock
 } from 'lucide-react';
 import ProjectBasicInfoForm from './ProjectBasicInfoForm';
 import PlanningSanctioningStage from './PlanningSanctioningStage';
@@ -66,10 +66,13 @@ export default function ProjectStageWorkbench({
   const subProjectName = initialData?.subProjectName || raw.sub_project_name || '';
   const stage = initialData?.stage || initialData?.selectedStage || raw.stage_name || raw.project_stage || 'Project Initiated';
 
-  const [internalActiveStage, setInternalActiveStage] = useState(() => stageFromName(stage));
-  const activeStage = controlledActiveStage !== undefined ? controlledActiveStage : internalActiveStage;
+  const [internalActiveStage, setInternalActiveStage] = useState(() => (isUpdateMode ? stageFromName(stage) : 'basic'));
+  const activeStage = isUpdateMode
+    ? (controlledActiveStage !== undefined ? controlledActiveStage : internalActiveStage)
+    : 'basic';
 
   const setActiveStage = (stg) => {
+    if (!isUpdateMode && stg !== 'basic') return;
     setInternalActiveStage(stg);
     onActiveStageChange?.(stg);
   };
@@ -79,9 +82,13 @@ export default function ProjectStageWorkbench({
   const currentProjectLevel = useMemo(() => getStageLevel(stage), [stage]);
 
   const handleTabClick = (stageId) => {
-    if (!isUpdateMode && stageId !== 'basic') {
-      setWarningMsg('Please save Basic Information first to access milestone stage forms.');
-      setTimeout(() => setWarningMsg(null), 4000);
+    if (!isUpdateMode) return;
+    const targetIdx = STAGES.findIndex((s) => s.id === stageId);
+    if (targetIdx > currentProjectLevel) {
+      const prevStage = STAGES[targetIdx - 1];
+      const msg = `Please complete Stage 0${targetIdx} (${prevStage.label}) before proceeding to Stage 0${targetIdx + 1} (${STAGES[targetIdx].label}).`;
+      setWarningMsg(msg);
+      notify?.(msg, 'error');
       return;
     }
     setWarningMsg(null);
@@ -90,7 +97,7 @@ export default function ProjectStageWorkbench({
 
   const handleBasicSubmit = async (formData) => {
     const ok = await onSubmit?.(formData);
-    if (ok) {
+    if (ok && isUpdateMode) {
       setActiveStage('planning');
     }
     return ok;
@@ -134,14 +141,6 @@ export default function ProjectStageWorkbench({
       <div className="bg-gradient-to-r from-[#0f417a] via-[#164e8a] to-[#0284c7] p-5 text-white select-none border-b border-white/10 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5 min-w-0">
-            <button
-              type="button"
-              onClick={onBack}
-              className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl transition cursor-pointer backdrop-blur-md border border-white/15 shrink-0"
-              title="Back to Data List"
-            >
-              <ArrowLeft className="h-4.5 w-4.5" />
-            </button>
             <div className="min-w-0 space-y-0.5">
               <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-white/20 text-blue-100 font-mono border border-white/15">
@@ -198,70 +197,79 @@ export default function ProjectStageWorkbench({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1">
-          {STAGES.map((stg, idx) => {
-            const isActive = activeStage === stg.id;
-            const isCompleted = isUpdateMode && (
-              (currentProjectLevel === 4) ||
-              (idx < currentProjectLevel) ||
-              (idx === 0 && isUpdateMode)
-            );
-            const isDisabled = !isUpdateMode && stg.id !== 'basic';
+        {isUpdateMode && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1">
+            {STAGES.map((stg, idx) => {
+              const isActive = activeStage === stg.id;
+              const isLocked = idx > currentProjectLevel;
+              const isCompleted = (
+                (currentProjectLevel === 4) ||
+                (idx < currentProjectLevel)
+              );
 
-            return (
-              <button
-                key={stg.id}
-                type="button"
-                onClick={() => handleTabClick(stg.id)}
-                disabled={isDisabled}
-                className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
-                  isDisabled
-                    ? 'bg-white/5 border-white/10 text-white/40 cursor-not-allowed border-dashed'
-                    : isCompleted && isActive
-                    ? 'bg-emerald-500 text-white border-emerald-300 shadow-md shadow-emerald-950/30 ring-2 ring-emerald-300/60 cursor-pointer font-bold'
-                    : isCompleted
-                    ? 'bg-emerald-500/25 hover:bg-emerald-500/35 border-emerald-400/50 text-emerald-100 shadow-2xs cursor-pointer backdrop-blur-md'
-                    : isActive
-                    ? 'bg-white text-[#0f417a] border-white shadow-md shadow-blue-950/25 ring-2 ring-white/50 cursor-pointer font-bold'
-                    : 'bg-white/10 hover:bg-white/20 border-white/15 text-white/90 cursor-pointer backdrop-blur-sm'
-                }`}
-                title={isDisabled ? 'Save basic details first to unlock this stage' : stg.desc}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`text-[10px] font-black tracking-widest ${
-                    isActive ? (isCompleted ? 'text-emerald-100' : 'text-[#0f417a]/70') : isCompleted ? 'text-emerald-300' : 'text-blue-200'
-                  }`}>
-                    STAGE 0{idx + 1}
-                  </span>
-                  <div className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
-                    isCompleted
-                      ? isActive
-                        ? 'bg-white text-emerald-700 shadow-xs'
-                        : 'bg-emerald-500 text-white shadow-xs'
+              return (
+                <button
+                  key={stg.id}
+                  type="button"
+                  onClick={() => handleTabClick(stg.id)}
+                  disabled={isLocked}
+                  className={`p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
+                    isLocked
+                      ? 'bg-white/5 border-white/10 text-white/40 cursor-not-allowed opacity-60'
+                      : isCompleted && isActive
+                      ? 'bg-emerald-500 text-white border-emerald-300 shadow-md shadow-emerald-950/30 ring-2 ring-emerald-300/60 cursor-pointer font-bold'
+                      : isCompleted
+                      ? 'bg-emerald-500/25 hover:bg-emerald-500/35 border-emerald-400/50 text-emerald-100 shadow-2xs cursor-pointer backdrop-blur-md'
                       : isActive
-                      ? 'bg-[#0f417a] text-white'
-                      : 'bg-white/20 text-white'
-                  }`}>
-                    {isCompleted ? <Check className="h-3 w-3 stroke-[3]" /> : idx + 1}
+                      ? 'bg-white text-[#0f417a] border-white shadow-md shadow-blue-950/25 ring-2 ring-white/50 cursor-pointer font-bold'
+                      : 'bg-white/10 hover:bg-white/20 border-white/15 text-white/90 cursor-pointer backdrop-blur-sm'
+                  }`}
+                  title={isLocked ? `Locked: Complete Stage 0${idx} (${STAGES[idx - 1]?.label}) first` : stg.desc}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-[10px] font-black tracking-widest ${
+                      isLocked
+                        ? 'text-white/40'
+                        : isActive ? (isCompleted ? 'text-emerald-100' : 'text-[#0f417a]/70') : isCompleted ? 'text-emerald-300' : 'text-blue-200'
+                    }`}>
+                      STAGE 0{idx + 1}
+                    </span>
+                    <div className={`w-4.5 h-4.5 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
+                      isLocked
+                        ? 'bg-white/10 text-white/50'
+                        : isCompleted
+                        ? isActive
+                          ? 'bg-white text-emerald-700 shadow-xs'
+                          : 'bg-emerald-500 text-white shadow-xs'
+                        : isActive
+                        ? 'bg-[#0f417a] text-white'
+                        : 'bg-white/20 text-white'
+                    }`}>
+                      {isLocked ? <Lock className="h-2.5 w-2.5" /> : isCompleted ? <Check className="h-3 w-3 stroke-[3]" /> : idx + 1}
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <h3 className={`text-xs font-black leading-tight ${
-                    isActive ? (isCompleted ? 'text-white' : 'text-[#0f417a]') : isCompleted ? 'text-emerald-100' : 'text-white'
-                  }`}>
-                    {stg.label}
-                  </h3>
-                  <p className={`text-[10px] mt-0.5 truncate ${
-                    isActive ? (isCompleted ? 'text-emerald-100/90' : 'text-[#0f417a]/70 font-medium') : isCompleted ? 'text-emerald-200/80 font-medium' : 'text-blue-100/70'
-                  }`}>
-                    {stg.desc}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                  <div>
+                    <h3 className={`text-xs font-black leading-tight ${
+                      isLocked
+                        ? 'text-white/50'
+                        : isActive ? (isCompleted ? 'text-white' : 'text-[#0f417a]') : isCompleted ? 'text-emerald-100' : 'text-white'
+                    }`}>
+                      {stg.label}
+                    </h3>
+                    <p className={`text-[10px] mt-0.5 truncate ${
+                      isLocked
+                        ? 'text-white/30'
+                        : isActive ? (isCompleted ? 'text-emerald-100/90' : 'text-[#0f417a]/70 font-medium') : isCompleted ? 'text-emerald-200/80 font-medium' : 'text-blue-100/70'
+                    }`}>
+                      {isLocked ? 'Locked' : stg.desc}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {warningMsg && (
@@ -272,7 +280,7 @@ export default function ProjectStageWorkbench({
       )}
 
       <div className="p-6">
-        {activeStage === 'basic' && (
+        {(!isUpdateMode || activeStage === 'basic') && (
           <ProjectBasicInfoForm
             initialData={initialData}
             canSubmit={canSubmit}
@@ -291,10 +299,10 @@ export default function ProjectStageWorkbench({
           />
         )}
 
-        {activeStage === 'planning' && <PlanningSanctioningStage {...stageCommon} />}
-        {activeStage === 'tendering' && <UnderTenderingStage {...stageCommon} />}
-        {activeStage === 'implementation' && <UnderImplementationStage {...stageCommon} />}
-        {activeStage === 'completion' && <ProjectCompletionStage {...stageCommon} />}
+        {isUpdateMode && activeStage === 'planning' && <PlanningSanctioningStage {...stageCommon} />}
+        {isUpdateMode && activeStage === 'tendering' && <UnderTenderingStage {...stageCommon} />}
+        {isUpdateMode && activeStage === 'implementation' && <UnderImplementationStage {...stageCommon} />}
+        {isUpdateMode && activeStage === 'completion' && <ProjectCompletionStage {...stageCommon} />}
       </div>
 
     </div>

@@ -684,18 +684,6 @@ export default function ProjectsListTable({
               color="#0f417a"
               hoverColor="#1e5ea8"
             />
-
-            {canAdd && (
-              <button
-                type="button"
-                onClick={onAddNew}
-                className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition cursor-pointer"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Project</span>
-              </button>
-            )}
-
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FolderKanban } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import ProjectBasicInformationPage from './pages/ProjectBasicInformationPage';
@@ -99,9 +100,13 @@ export default function Projects({
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-300 tracking-wide uppercase font-display">
-            Projects Module
+          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display flex items-center gap-2">
+            <FolderKanban className="h-5 w-5 text-[#0f417a] dark:text-blue-400" />
+            <span>Projects Module</span>
           </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
+            Track and monitor infrastructure projects, milestone timelines, financial outlays, and execution progress.
+          </p>
         </div>
 
         <InternalNavigation

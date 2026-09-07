@@ -79,6 +79,7 @@ export default function ProjectBasicInformationPage({
   const readOnly = forceReadOnly || permissions.isViewOnlyAdmin || !canSubmit;
 
   const [activeStage, setActiveStage] = useState(() => {
+    if (!isUpdateMode) return 'basic';
     const s =
       initialData?.stage ||
       initialData?.selectedStage ||
@@ -295,7 +296,11 @@ export default function ProjectBasicInformationPage({
         },
       }));
 
-      setActiveStage('planning');
+      if (isUpdateMode) {
+        setActiveStage('planning');
+      } else {
+        onSuccess?.();
+      }
       return true;
     } catch (error) {
       console.error(error);

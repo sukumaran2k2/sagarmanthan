@@ -197,7 +197,12 @@ function Label({ children, required = false }) {
 
 function FieldError({ error }) {
   if (!error) return null;
-  return <p className="text-[10px] text-rose-500 font-semibold mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {error}</p>;
+  return (
+    <p className="text-[11px] text-rose-500 dark:text-rose-400 font-semibold mt-1.5 flex items-center gap-1 animate-fade-in">
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+      <span>{error}</span>
+    </p>
+  );
 }
 
 function MultiCheckboxSelect({
@@ -206,6 +211,7 @@ function MultiCheckboxSelect({
   onChange,
   placeholder = 'Select...',
   disabled = false,
+  hasError = false,
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -247,7 +253,11 @@ function MultiCheckboxSelect({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((prev) => !prev)}
-        className={`w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-left flex items-center justify-between gap-2 transition focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${
+        className={`w-full rounded-xl border ${
+          hasError
+            ? 'border-rose-400 ring-2 ring-rose-500/20 bg-rose-50/30 dark:bg-rose-950/20'
+            : 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800'
+        } px-3.5 py-2.5 text-xs font-semibold text-left flex items-center justify-between gap-2 transition focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${
           disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-white dark:hover:bg-slate-800'
         } ${selectedLabels.length ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}
       >
@@ -516,180 +526,224 @@ export default function ProjectBasicInfoForm({
     };
   }, []);
 
-  const validate = () => {
+  const validateSection = (sectionId) => {
     const nextErrors = {};
 
-    if (!String(formData.projectName || '').trim()) {
-      nextErrors.projectName = 'Project name is required';
-    } else if (countWords(formData.projectName) > 15) {
-      nextErrors.projectName = 'Project name should not exceed 15 words';
-    }
-
-    if (!String(formData.projectBrief || '').trim()) {
-      nextErrors.projectBrief = 'Project brief is required';
-    } else if (countWords(formData.projectBrief) > 20) {
-      nextErrors.projectBrief = 'Project brief should not exceed 20 words';
-    }
-
-    const cost = Number(formData.estimatedProjectCost);
-    if (
-      formData.estimatedProjectCost === '' ||
-      formData.estimatedProjectCost == null ||
-      Number.isNaN(cost) ||
-      cost < 0
-    ) {
-      nextErrors.estimatedProjectCost = 'Invalid estimated project cost';
-    }
-
-    if (!formData.projectType) {
-      nextErrors.projectType = 'Project type is required';
-    }
-    if (!formData.implementationType) {
-      nextErrors.implementationType = 'Implementation type is required';
-    }
-
-    const categories = getMultiValue(formData.projectCategory);
-    if (!categories.length) {
-      nextErrors.projectCategory = 'Project category is required';
-    }
-
-    if (!String(formData.primaryImplementingAgency || '').trim()) {
-      nextErrors.primaryImplementingAgency = 'Primary implementing agency is required';
-    }
-
-    if (showSecondaryIaOthers) {
-      if (!String(formData.newImplementingAgency || '').trim()) {
-        nextErrors.newImplementingAgency = 'Enter the new implementing agency';
+    if (sectionId === 'basic') {
+      if (!String(formData.projectName || '').trim()) {
+        nextErrors.projectName = 'Project name is required';
+      } else if (countWords(formData.projectName) > 15) {
+        nextErrors.projectName = 'Project name should not exceed 15 words';
       }
-      if (!String(formData.newImplementingAgencyCode || '').trim()) {
-        nextErrors.newImplementingAgencyCode = 'Enter the new implementing agency code';
+
+      if (!String(formData.projectBrief || '').trim()) {
+        nextErrors.projectBrief = 'Project brief is required';
+      } else if (countWords(formData.projectBrief) > 20) {
+        nextErrors.projectBrief = 'Project brief should not exceed 20 words';
       }
-    }
 
-    if (!formData.scheme) {
-      nextErrors.scheme = 'Scheme is required';
-    }
-
-    if (!formData.projectInitiatedDate) {
-      nextErrors.projectInitiatedDate = 'Project initiated date is required';
-    }
-    if (!isTargetDateLocked && !formData.targetCompletionDate) {
-      nextErrors.targetCompletionDate = 'Target completion date is required';
-    } else if (
-      formData.projectInitiatedDate &&
-      formData.targetCompletionDate &&
-      formData.targetCompletionDate < formData.projectInitiatedDate
-    ) {
-      nextErrors.targetCompletionDate =
-        'Target completion date should be greater than or equal to project initiated date';
-    }
-
-    if (showOutputOthers) {
-      if (!String(formData.newProjectOutput || '').trim()) {
-        nextErrors.newProjectOutput = 'Enter the new project output';
+      if (!formData.projectType) {
+        nextErrors.projectType = 'Project type is required';
       }
-      if (!String(formData.newProjectOutputUnits || '').trim()) {
-        nextErrors.newProjectOutputUnits = 'Enter the new project output units';
+      if (!formData.implementationType) {
+        nextErrors.implementationType = 'Implementation type is required';
+      }
+
+      const categories = getMultiValue(formData.projectCategory);
+      if (!categories.length) {
+        nextErrors.projectCategory = 'Project category is required';
+      }
+
+      if (!String(formData.primaryImplementingAgency || '').trim()) {
+        nextErrors.primaryImplementingAgency = 'Primary implementing agency is required';
+      }
+
+      if (showSecondaryIaOthers) {
+        if (!String(formData.newImplementingAgency || '').trim()) {
+          nextErrors.newImplementingAgency = 'Enter the new implementing agency';
+        }
+        if (!String(formData.newImplementingAgencyCode || '').trim()) {
+          nextErrors.newImplementingAgencyCode = 'Enter the new implementing agency code';
+        }
+      }
+
+      if (!formData.scheme) {
+        nextErrors.scheme = 'Scheme is required';
+      }
+
+      if (!isEditMode && formData.onSubProjectAvailable !== 0 && formData.onSubProjectAvailable !== 1) {
+        nextErrors.onSubProjectAvailable = 'Please select whether this project has sub-projects';
+      }
+
+      if (!isEditMode && Number(formData.onSubProjectAvailable) === 1) {
+        if (!formData.subProjectNum || Number(formData.subProjectNum) < 2) {
+          nextErrors.subProjectNum = 'Enter at least two sub-projects';
+        }
+        const missingSubProject = (formData.subProjectsTab || []).some(
+          (item) => !String(item?.subProjectName || '').trim()
+        );
+        if (missingSubProject) {
+          nextErrors.subProjectsTab = 'All sub-project names are required';
+        }
       }
     }
 
-    if (showOutcomeOthers) {
-      if (!String(formData.newProjectOutcome || '').trim()) {
-        nextErrors.newProjectOutcome = 'Enter the new project outcome';
-      }
-      if (!String(formData.newProjectOutcomeUnits || '').trim()) {
-        nextErrors.newProjectOutcomeUnits = 'Enter the new project outcome units';
-      }
-    }
-
-    if (!selectedFundingSourceIds.length) {
-      nextErrors.sourceOfFunding = 'Source of funding is required';
-    }
-
-    if (fundingVisibility.gbs && !isPositiveCost(formData.gbsComponents)) {
-      nextErrors.gbsComponents = 'Enter a valid GBS component cost';
-    }
-    if (fundingVisibility.iebr && !isPositiveCost(formData.iebrComponents)) {
-      nextErrors.iebrComponents = 'Enter a valid IEBR component cost';
-    }
-    if (fundingVisibility.ppp && !isPositiveCost(formData.pppComponents)) {
-      nextErrors.pppComponents = 'Enter a valid PPP component cost';
-    }
-    if (fundingVisibility.loans && !isPositiveCost(formData.loansComponents)) {
-      nextErrors.loansComponents = 'Enter a valid loan component cost';
-    }
-    if (fundingVisibility.multilateral && !isPositiveCost(formData.multiFundComponents)) {
-      nextErrors.multiFundComponents = 'Enter a valid multilateral funding cost';
-    }
-    if (fundingVisibility.stateGovFund && !isPositiveCost(formData.stateGovFundComponents)) {
-      nextErrors.stateGovFundComponents = 'Enter a valid state govt fund cost';
-    }
-    if (fundingVisibility.otherSources && !isPositiveCost(formData.otherSourceFundingComp)) {
-      nextErrors.otherSourceFundingComp = 'Enter a valid other sources cost';
-    }
-    if (fundingVisibility.sagarmala && !isPositiveCost(formData.sagarmalaComponents)) {
-      nextErrors.sagarmalaComponents = 'Enter a valid Sagarmala component cost';
-    }
-    if (fundingVisibility.pmmsy && !isPositiveCost(formData.pmmsyComponents)) {
-      nextErrors.pmmsyComponents = 'Enter a valid PMMSY component cost';
-    }
-
-    if (!formData.primaryFundingAgency) {
-      nextErrors.primaryFundingAgency = 'Primary funding agency is required';
-    }
-
-    if (showSecondaryFaOthers && !String(formData.newFundingAgency || '').trim()) {
-      nextErrors.newFundingAgency = 'Enter the new funding agency';
-    }
-
-    if (!getMultiValue(formData.state).length) {
-      nextErrors.state = 'State is required';
-    }
-    if (!getMultiValue(formData.district).length) {
-      nextErrors.district = 'District is required';
-    }
-    if (!getMultiValue(formData.mpConstituency).length) {
-      nextErrors.mpConstituency = 'MP constituency is required';
-    }
-
-    if (!isEditMode && formData.onSubProjectAvailable !== 0 && formData.onSubProjectAvailable !== 1) {
-      nextErrors.onSubProjectAvailable = 'Please select whether this project has sub-projects';
-    }
-
-    if (!isEditMode && Number(formData.onSubProjectAvailable) === 1) {
-      if (!formData.subProjectNum || Number(formData.subProjectNum) < 2) {
-        nextErrors.subProjectNum = 'Enter at least two sub-projects';
-      }
-      const missingSubProject = (formData.subProjectsTab || []).some(
-        (item) => !String(item?.subProjectName || '').trim()
-      );
-      if (missingSubProject) {
-        nextErrors.subProjectsTab = 'All sub-project names are required';
-      }
-    }
-
-    if (formData.onLandAcquistion === 1) {
-      const area = Number(formData.landAreaReq);
-      if (!String(formData.landAreaReq || '').trim() || Number.isNaN(area) || area <= 0) {
-        nextErrors.landAreaReq = 'Enter a valid land area required';
-      }
-    }
-
-    if (formData.onLandAcquistion === 1 && formData.onAcquisitionCompleted === 0) {
-      const pct = Number(formData.percentLandAcquired);
+    if (sectionId === 'cost') {
+      const cost = Number(formData.estimatedProjectCost);
       if (
-        formData.percentLandAcquired === '' ||
-        formData.percentLandAcquired == null ||
-        Number.isNaN(pct) ||
-        pct < 0 ||
-        pct > 100
+        formData.estimatedProjectCost === '' ||
+        formData.estimatedProjectCost == null ||
+        Number.isNaN(cost) ||
+        cost < 0
       ) {
-        nextErrors.percentLandAcquired = 'Enter land acquired percentage between 0 and 100';
+        nextErrors.estimatedProjectCost = 'Invalid estimated project cost';
+      }
+
+      if (!selectedFundingSourceIds.length) {
+        nextErrors.sourceOfFunding = 'Source of funding is required';
+      }
+
+      if (fundingVisibility.gbs && !isPositiveCost(formData.gbsComponents)) {
+        nextErrors.gbsComponents = 'Enter a valid GBS component cost';
+      }
+      if (fundingVisibility.iebr && !isPositiveCost(formData.iebrComponents)) {
+        nextErrors.iebrComponents = 'Enter a valid IEBR component cost';
+      }
+      if (fundingVisibility.ppp && !isPositiveCost(formData.pppComponents)) {
+        nextErrors.pppComponents = 'Enter a valid PPP component cost';
+      }
+      if (fundingVisibility.loans && !isPositiveCost(formData.loansComponents)) {
+        nextErrors.loansComponents = 'Enter a valid loan component cost';
+      }
+      if (fundingVisibility.multilateral && !isPositiveCost(formData.multiFundComponents)) {
+        nextErrors.multiFundComponents = 'Enter a valid multilateral funding cost';
+      }
+      if (fundingVisibility.stateGovFund && !isPositiveCost(formData.stateGovFundComponents)) {
+        nextErrors.stateGovFundComponents = 'Enter a valid state govt fund cost';
+      }
+      if (fundingVisibility.otherSources && !isPositiveCost(formData.otherSourceFundingComp)) {
+        nextErrors.otherSourceFundingComp = 'Enter a valid other sources cost';
+      }
+      if (fundingVisibility.sagarmala && !isPositiveCost(formData.sagarmalaComponents)) {
+        nextErrors.sagarmalaComponents = 'Enter a valid Sagarmala component cost';
+      }
+      if (fundingVisibility.pmmsy && !isPositiveCost(formData.pmmsyComponents)) {
+        nextErrors.pmmsyComponents = 'Enter a valid PMMSY component cost';
+      }
+
+      if (!formData.primaryFundingAgency) {
+        nextErrors.primaryFundingAgency = 'Primary funding agency is required';
+      }
+
+      if (showSecondaryFaOthers && !String(formData.newFundingAgency || '').trim()) {
+        nextErrors.newFundingAgency = 'Enter the new funding agency';
       }
     }
+
+    if (sectionId === 'location') {
+      if (!getMultiValue(formData.state).length) {
+        nextErrors.state = 'State is required';
+      }
+      if (!getMultiValue(formData.district).length) {
+        nextErrors.district = 'District is required';
+      }
+      if (!getMultiValue(formData.mpConstituency).length) {
+        nextErrors.mpConstituency = 'MP constituency is required';
+      }
+
+      if (formData.onLandAcquistion === 1) {
+        const area = Number(formData.landAreaReq);
+        if (!String(formData.landAreaReq || '').trim() || Number.isNaN(area) || area <= 0) {
+          nextErrors.landAreaReq = 'Enter a valid land area required';
+        }
+      }
+
+      if (formData.onLandAcquistion === 1 && formData.onAcquisitionCompleted === 0) {
+        const pct = Number(formData.percentLandAcquired);
+        if (
+          formData.percentLandAcquired === '' ||
+          formData.percentLandAcquired == null ||
+          Number.isNaN(pct) ||
+          pct < 0 ||
+          pct > 100
+        ) {
+          nextErrors.percentLandAcquired = 'Enter land acquired percentage between 0 and 100';
+        }
+      }
+    }
+
+    if (sectionId === 'timeline') {
+      if (!formData.projectInitiatedDate) {
+        nextErrors.projectInitiatedDate = 'Project initiated date is required';
+      }
+      if (!isTargetDateLocked && !formData.targetCompletionDate) {
+        nextErrors.targetCompletionDate = 'Target completion date is required';
+      } else if (
+        formData.projectInitiatedDate &&
+        formData.targetCompletionDate &&
+        formData.targetCompletionDate < formData.projectInitiatedDate
+      ) {
+        nextErrors.targetCompletionDate =
+          'Target completion date should be greater than or equal to project initiated date';
+      }
+
+      if (showOutputOthers) {
+        if (!String(formData.newProjectOutput || '').trim()) {
+          nextErrors.newProjectOutput = 'Enter the new project output';
+        }
+        if (!String(formData.newProjectOutputUnits || '').trim()) {
+          nextErrors.newProjectOutputUnits = 'Enter the new project output units';
+        }
+      }
+
+      if (showOutcomeOthers) {
+        if (!String(formData.newProjectOutcome || '').trim()) {
+          nextErrors.newProjectOutcome = 'Enter the new project outcome';
+        }
+        if (!String(formData.newProjectOutcomeUnits || '').trim()) {
+          nextErrors.newProjectOutcomeUnits = 'Enter the new project outcome units';
+        }
+      }
+    }
+
+    return nextErrors;
+  };
+
+  const validate = () => {
+    const nextErrors = {
+      ...validateSection('basic'),
+      ...validateSection('cost'),
+      ...validateSection('location'),
+      ...validateSection('timeline'),
+    };
 
     setErrors(nextErrors);
     return nextErrors;
+  };
+
+  const goToSection = (targetSectionId) => {
+    const sectionOrder = ['basic', 'cost', 'location', 'timeline', 'docs'];
+    const currentIdx = sectionOrder.indexOf(activeSection);
+    const targetIdx = sectionOrder.indexOf(targetSectionId);
+
+    if (targetIdx <= currentIdx) {
+      setActiveSection(targetSectionId);
+      return;
+    }
+
+    for (let i = 0; i < targetIdx; i++) {
+      const secKey = sectionOrder[i];
+      const secErrors = validateSection(secKey);
+      if (Object.keys(secErrors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...secErrors }));
+        setActiveSection(secKey);
+        const sectionLabel = FORM_SECTIONS.find((s) => s.id === secKey)?.label || 'current stage';
+        notify?.(`Please complete all required fields in "${sectionLabel}" before moving to the next stage.`, 'error');
+        return;
+      }
+    }
+
+    setActiveSection(targetSectionId);
   };
 
   const handleInputChange = (field, value) => {
@@ -814,6 +868,62 @@ export default function ProjectBasicInfoForm({
     setDocumentFiles([]);
   };
 
+  const completedSections = useMemo(() => {
+    return {
+      basic: Object.keys(validateSection('basic')).length === 0,
+      cost: Object.keys(validateSection('cost')).length === 0,
+      location: Object.keys(validateSection('location')).length === 0,
+      timeline: Object.keys(validateSection('timeline')).length === 0,
+      docs: isEditMode || documentRows.length > 0,
+    };
+  }, [
+    formData,
+    isEditMode,
+    documentRows.length,
+    showSecondaryIaOthers,
+    showSecondaryFaOthers,
+    showOutputOthers,
+    showOutcomeOthers,
+    selectedFundingSourceIds,
+    fundingVisibility,
+    isTargetDateLocked,
+  ]);
+
+  const sectionErrorsCount = useMemo(() => {
+    const counts = { basic: 0, cost: 0, location: 0, timeline: 0, docs: 0 };
+    Object.keys(errors).forEach((key) => {
+      if (!errors[key]) return;
+      if ([
+        'projectName', 'projectBrief', 'primaryImplementingAgency', 'newImplementingAgency',
+        'newImplementingAgencyCode', 'projectCategory', 'scheme', 'projectType',
+        'implementationType', 'onSubProjectAvailable', 'subProjectNum', 'subProjectsTab'
+      ].includes(key)) counts.basic++;
+      else if ([
+        'estimatedProjectCost', 'sourceOfFunding', 'primaryFundingAgency', 'newFundingAgency',
+        'gbsComponents', 'iebrComponents', 'pppComponents', 'loansComponents',
+        'multiFundComponents', 'stateGovFundComponents', 'otherSourceFundingComp',
+        'sagarmalaComponents', 'pmmsyComponents'
+      ].includes(key)) counts.cost++;
+      else if ([
+        'state', 'district', 'mpConstituency', 'landAreaReq', 'percentLandAcquired'
+      ].includes(key)) counts.location++;
+      else if ([
+        'projectInitiatedDate', 'targetCompletionDate', 'newProjectOutput',
+        'newProjectOutcome', 'newProjectOutputUnits', 'newProjectOutcomeUnits'
+      ].includes(key)) counts.timeline++;
+    });
+    return counts;
+  }, [errors]);
+
+  const getInputClass = (fieldName, extra = '') => {
+    const hasErr = Boolean(errors[fieldName]);
+    return `w-full rounded-xl border ${
+      hasErr
+        ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-rose-50/30 dark:bg-rose-950/20'
+        : 'border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50 dark:bg-slate-800'
+    } px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none transition ${extra}`;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
       
@@ -822,25 +932,59 @@ export default function ProjectBasicInfoForm({
           {FORM_SECTIONS.map((sec) => {
             const isSelected = activeSection === sec.id;
             const SecIcon = sec.icon;
+            const errCount = sectionErrorsCount[sec.id] || 0;
+            const isCompleted = Boolean(completedSections[sec.id]) && errCount === 0;
 
             return (
               <button
                 key={sec.id}
                 type="button"
-                onClick={() => setActiveSection(sec.id)}
+                onClick={() => goToSection(sec.id)}
                 className={`flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  isSelected
+                  errCount > 0
+                    ? isSelected
+                      ? 'border-rose-500 text-rose-600 bg-rose-50/60 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-400 rounded-t-lg'
+                      : 'border-transparent text-rose-500 hover:text-rose-600 dark:hover:text-rose-400'
+                    : isCompleted
+                    ? isSelected
+                      ? 'border-emerald-600 text-emerald-700 bg-emerald-50/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500 rounded-t-lg shadow-2xs'
+                      : 'border-transparent text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300'
+                    : isSelected
                     ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
                     : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                 }`}
               >
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${
-                  isSelected ? 'bg-[#0f417a] text-white dark:bg-blue-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
+                  errCount > 0
+                    ? 'bg-rose-500 text-white'
+                    : isCompleted
+                    ? 'bg-emerald-500 text-white shadow-xs'
+                    : isSelected
+                    ? 'bg-[#0f417a] text-white dark:bg-blue-500'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
                 }`}>
-                  {sec.number}
+                  {isCompleted ? <Check className="h-3 w-3 stroke-[3]" /> : sec.number}
                 </span>
-                <SecIcon className={`h-3.5 w-3.5 ${isSelected ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400'}`} />
+                <SecIcon className={`h-3.5 w-3.5 ${
+                  errCount > 0
+                    ? 'text-rose-500'
+                    : isCompleted
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : isSelected
+                    ? 'text-[#0f417a] dark:text-blue-400'
+                    : 'text-slate-400'
+                }`} />
                 <span>{sec.title}</span>
+                {errCount > 0 ? (
+                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300">
+                    {errCount}
+                  </span>
+                ) : isCompleted ? (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 flex items-center gap-0.5">
+                    <Check className="h-2.5 w-2.5 stroke-[3]" />
+                    <span>Done</span>
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -888,7 +1032,7 @@ export default function ProjectBasicInfoForm({
                   onChange={(e) => handleInputChange('projectName', e.target.value)}
                   disabled={!canInteract}
                   placeholder="Enter full comprehensive project name..."
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('projectName')}
                 />
                 <FieldError error={errors.projectName} />
               </div>
@@ -901,7 +1045,7 @@ export default function ProjectBasicInfoForm({
                   onChange={(e) => handleInputChange('projectBrief', e.target.value)}
                   disabled={!canInteract}
                   placeholder="Provide executive summary, core deliverables, and strategic scope..."
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('projectBrief')}
                 />
                 <FieldError error={errors.projectBrief} />
               </div>
@@ -912,7 +1056,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.primaryImplementingAgency}
                   onChange={(e) => handleInputChange('primaryImplementingAgency', e.target.value)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('primaryImplementingAgency')}
                 >
                   <option value="">Select Implementing Agency</option>
                   {iaOptions.map((ia, idx) => {
@@ -934,7 +1078,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.secondaryImplementingAgency}
                   onChange={(e) => handleInputChange('secondaryImplementingAgency', e.target.value)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('secondaryImplementingAgency')}
                 >
                   <option value="">Select Secondary Implementing Agency</option>
                   {iaOptions.map((ia, idx) => {
@@ -959,7 +1103,7 @@ export default function ProjectBasicInfoForm({
                       value={formData.newImplementingAgency}
                       onChange={(e) => handleInputChange('newImplementingAgency', e.target.value)}
                       disabled={!canInteract}
-                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                      className={getInputClass('newImplementingAgency')}
                     />
                     <FieldError error={errors.newImplementingAgency} />
                   </div>
@@ -970,7 +1114,7 @@ export default function ProjectBasicInfoForm({
                       value={formData.newImplementingAgencyCode}
                       onChange={(e) => handleInputChange('newImplementingAgencyCode', e.target.value)}
                       disabled={!canInteract}
-                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                      className={getInputClass('newImplementingAgencyCode')}
                     />
                     <FieldError error={errors.newImplementingAgencyCode} />
                   </div>
@@ -983,6 +1127,7 @@ export default function ProjectBasicInfoForm({
                   value={getMultiValue(formData.projectCategory)}
                   onChange={(next) => handleInputChange('projectCategory', next)}
                   disabled={!canInteract}
+                  hasError={Boolean(errors.projectCategory)}
                   placeholder="Select Project Category"
                   options={projectCategoryOptions.map((cat, idx) => {
                     const val = cat.id ?? cat.project_category_id ?? cat.category_id ?? cat.name ?? cat.project_category_names ?? idx;
@@ -1004,7 +1149,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.scheme}
                   onChange={(e) => handleInputChange('scheme', e.target.value)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('scheme')}
                 >
                   <option value="">Select Scheme</option>
                   {schemeOptions.map((sch, idx) => {
@@ -1045,7 +1190,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.projectType}
                   onChange={(e) => handleInputChange('projectType', e.target.value)}
                   disabled={!canInteract || isProjectTypeLocked}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                  className={getInputClass('projectType')}
                 >
                   <option value="">Select Project Type</option>
                   {PROJECT_TYPE_OPTIONS.map((item) => (
@@ -1061,7 +1206,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.implementationType}
                   onChange={(e) => handleInputChange('implementationType', e.target.value)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                  className={getInputClass('implementationType')}
                 >
                   <option value="">Select Implementation Type</option>
                   {IMPLEMENTATION_TYPE_OPTIONS.map((item) => (
@@ -1084,7 +1229,7 @@ export default function ProjectBasicInfoForm({
               </div>
 
               {!isEditMode ? (
-                <div className="md:col-span-2 space-y-3 rounded-xl border border-slate-200 p-4 bg-slate-50/60">
+                <div className={`md:col-span-2 space-y-3 rounded-xl border ${errors.onSubProjectAvailable || errors.subProjectNum || errors.subProjectsTab ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-slate-50/60'} p-4`}>
                   <Label required>Does this project have sub-projects?</Label>
                   <div className="flex gap-6 text-xs font-semibold">
                     <label className="inline-flex items-center gap-2">
@@ -1124,7 +1269,7 @@ export default function ProjectBasicInfoForm({
                         value={formData.subProjectNum || ''}
                         disabled={!canInteract}
                         onChange={(e) => setSubProjectCount(e.target.value)}
-                        className="w-40 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold"
+                        className={getInputClass('subProjectNum', 'w-40')}
                       />
                       <FieldError error={errors.subProjectNum} />
                       {(formData.subProjectsTab || []).map((item, idx) => (
@@ -1135,7 +1280,7 @@ export default function ProjectBasicInfoForm({
                             value={item?.subProjectName || ''}
                             disabled={!canInteract}
                             onChange={(e) => updateSubProjectName(idx, e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold"
+                            className={getInputClass('subProjectsTab')}
                           />
                         </div>
                       ))}
@@ -1150,7 +1295,7 @@ export default function ProjectBasicInfoForm({
             <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setActiveSection('cost')}
+                onClick={() => goToSection('cost')}
                 className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 <span>Next: Cost & Funding</span>
@@ -1187,7 +1332,7 @@ export default function ProjectBasicInfoForm({
                     onChange={(e) => handleInputChange('estimatedProjectCost', e.target.value)}
                     disabled={!canInteract}
                     placeholder="0.00"
-                    className="w-full pl-8 pr-12 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-xs font-black text-emerald-600 dark:text-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                    className={getInputClass('estimatedProjectCost', 'pl-8 pr-12 text-emerald-600 dark:text-emerald-400 font-black')}
                   />
                   <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">Cr.</span>
                 </div>
@@ -1200,6 +1345,7 @@ export default function ProjectBasicInfoForm({
                   value={getMultiValue(formData.sourceOfFunding)}
                   onChange={(next) => handleFundingSourceChange(next)}
                   disabled={!canInteract}
+                  hasError={Boolean(errors.sourceOfFunding)}
                   placeholder="Select Source of Funding"
                   options={(sourceOfFundingOptions.length
                     ? sourceOfFundingOptions.map((sof) => ({
@@ -1223,7 +1369,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.primaryFundingAgency}
                   onChange={(e) => handleInputChange('primaryFundingAgency', e.target.value)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('primaryFundingAgency')}
                 >
                   <option value="">Select Funding Agency</option>
                   {faOptions.map((fa, idx) => {
@@ -1245,7 +1391,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.secondaryFundingAgency}
                   onChange={(e) => handleInputChange('secondaryFundingAgency', e.target.value)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                  className={getInputClass('secondaryFundingAgency')}
                 >
                   <option value="">Select Secondary Funding Agency</option>
                   {faOptions.map((fa, idx) => {
@@ -1269,7 +1415,7 @@ export default function ProjectBasicInfoForm({
                     value={formData.newFundingAgency}
                     onChange={(e) => handleInputChange('newFundingAgency', e.target.value)}
                     disabled={!canInteract}
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                    className={getInputClass('newFundingAgency')}
                   />
                   <FieldError error={errors.newFundingAgency} />
                 </div>
@@ -1292,8 +1438,9 @@ export default function ProjectBasicInfoForm({
                       value={formData.gbsComponents}
                       onChange={(e) => handleInputChange('gbsComponents', e.target.value)}
                       placeholder="0.00"
-                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                      className={getInputClass('gbsComponents')}
                     />
+                    <FieldError error={errors.gbsComponents} />
                   </div>
                 )}
                 {fundingVisibility.iebr && (
@@ -1305,8 +1452,9 @@ export default function ProjectBasicInfoForm({
                       value={formData.iebrComponents}
                       onChange={(e) => handleInputChange('iebrComponents', e.target.value)}
                       placeholder="0.00"
-                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                      className={getInputClass('iebrComponents')}
                     />
+                    <FieldError error={errors.iebrComponents} />
                   </div>
                 )}
                 {fundingVisibility.ppp && (
@@ -1318,8 +1466,9 @@ export default function ProjectBasicInfoForm({
                       value={formData.pppComponents}
                       onChange={(e) => handleInputChange('pppComponents', e.target.value)}
                       placeholder="0.00"
-                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                      className={getInputClass('pppComponents')}
                     />
+                    <FieldError error={errors.pppComponents} />
                   </div>
                 )}
                 {fundingVisibility.loans && (
@@ -1331,8 +1480,9 @@ export default function ProjectBasicInfoForm({
                       value={formData.loansComponents}
                       onChange={(e) => handleInputChange('loansComponents', e.target.value)}
                       placeholder="0.00"
-                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                      className={getInputClass('loansComponents')}
                     />
+                    <FieldError error={errors.loansComponents} />
                   </div>
                 )}
                 {fundingVisibility.sagarmala && (
@@ -1344,8 +1494,9 @@ export default function ProjectBasicInfoForm({
                       value={formData.sagarmalaComponents}
                       onChange={(e) => handleInputChange('sagarmalaComponents', e.target.value)}
                       placeholder="0.00"
-                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                      className={getInputClass('sagarmalaComponents')}
                     />
+                    <FieldError error={errors.sagarmalaComponents} />
                   </div>
                 )}
                 {fundingVisibility.stateGovFund && (
@@ -1357,7 +1508,7 @@ export default function ProjectBasicInfoForm({
                       value={formData.stateGovFundComponents}
                       onChange={(e) => handleInputChange('stateGovFundComponents', e.target.value)}
                       placeholder="0.00"
-                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                      className={getInputClass('stateGovFundComponents')}
                     />
                     <FieldError error={errors.stateGovFundComponents} />
                   </div>
@@ -1371,7 +1522,7 @@ export default function ProjectBasicInfoForm({
                       value={formData.multiFundComponents}
                       onChange={(e) => handleInputChange('multiFundComponents', e.target.value)}
                       placeholder="0.00"
-                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                      className={getInputClass('multiFundComponents')}
                     />
                     <FieldError error={errors.multiFundComponents} />
                   </div>
@@ -1385,7 +1536,7 @@ export default function ProjectBasicInfoForm({
                       value={formData.pmmsyComponents}
                       onChange={(e) => handleInputChange('pmmsyComponents', e.target.value)}
                       placeholder="0.00"
-                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                      className={getInputClass('pmmsyComponents')}
                     />
                     <FieldError error={errors.pmmsyComponents} />
                   </div>
@@ -1399,7 +1550,7 @@ export default function ProjectBasicInfoForm({
                       value={formData.otherSourceFundingComp}
                       onChange={(e) => handleInputChange('otherSourceFundingComp', e.target.value)}
                       placeholder="0.00"
-                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                      className={getInputClass('otherSourceFundingComp')}
                     />
                     <FieldError error={errors.otherSourceFundingComp} />
                   </div>
@@ -1410,7 +1561,7 @@ export default function ProjectBasicInfoForm({
             <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setActiveSection('basic')}
+                onClick={() => goToSection('basic')}
                 className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -1418,7 +1569,7 @@ export default function ProjectBasicInfoForm({
               </button>
               <button
                 type="button"
-                onClick={() => setActiveSection('location')}
+                onClick={() => goToSection('location')}
                 className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 <span>Next: Location & Land</span>
@@ -1450,6 +1601,7 @@ export default function ProjectBasicInfoForm({
                   value={getMultiValue(formData.state)}
                   onChange={(next) => handleStateChange(next)}
                   disabled={!canInteract}
+                  hasError={Boolean(errors.state)}
                   placeholder="Select State / Region"
                   options={stateOptions.map((st, idx) => {
                     const val = st.id ?? st.state_id ?? st.name ?? st.state_names ?? idx;
@@ -1466,6 +1618,7 @@ export default function ProjectBasicInfoForm({
                   value={getMultiValue(formData.district)}
                   onChange={(next) => handleInputChange('district', next)}
                   disabled={!canInteract}
+                  hasError={Boolean(errors.district)}
                   placeholder="Select District"
                   options={filteredDistrictOptions.map((dist, idx) => {
                     const val = dist.id ?? dist.district_id ?? dist.name ?? dist.district_names ?? idx;
@@ -1484,7 +1637,7 @@ export default function ProjectBasicInfoForm({
                   onChange={(e) => handleInputChange('taluka', e.target.value)}
                   disabled={!canInteract}
                   placeholder="Enter taluka name..."
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('taluka')}
                 />
               </div>
 
@@ -1496,7 +1649,7 @@ export default function ProjectBasicInfoForm({
                   onChange={(e) => handleInputChange('village', e.target.value)}
                   disabled={!canInteract}
                   placeholder="Enter village name..."
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('village')}
                 />
               </div>
 
@@ -1506,6 +1659,7 @@ export default function ProjectBasicInfoForm({
                   value={getMultiValue(formData.mpConstituency)}
                   onChange={(next) => handleInputChange('mpConstituency', next)}
                   disabled={!canInteract}
+                  hasError={Boolean(errors.mpConstituency)}
                   placeholder="Select MP Constituency"
                   options={filteredMpOptions.map((mp, idx) => {
                     const val = mp.mpc_id ?? mp.id ?? mp.mp_constituency_id ?? idx;
@@ -1553,15 +1707,16 @@ export default function ProjectBasicInfoForm({
                 {formData.onLandAcquistion === 1 && (
                   <>
                     <div>
-                      <Label>Land Area Required (Acres)</Label>
+                      <Label required>Land Area Required (Acres)</Label>
                       <input
                         type="number"
                         step="0.01"
                         value={formData.landAreaReq}
                         onChange={(e) => handleInputChange('landAreaReq', e.target.value)}
                         placeholder="Area in Acres"
-                        className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold"
+                        className={getInputClass('landAreaReq')}
                       />
+                      <FieldError error={errors.landAreaReq} />
                     </div>
 
                     <div>
@@ -1591,7 +1746,7 @@ export default function ProjectBasicInfoForm({
                     </div>
 
                     <div>
-                      <Label>% Land Acquired</Label>
+                      <Label required>% Land Acquired</Label>
                       <input
                         type="number"
                         step="0.1"
@@ -1599,8 +1754,9 @@ export default function ProjectBasicInfoForm({
                         value={formData.percentLandAcquired}
                         onChange={(e) => handleInputChange('percentLandAcquired', e.target.value)}
                         placeholder="e.g. 75"
-                        className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold"
+                        className={getInputClass('percentLandAcquired')}
                       />
+                      <FieldError error={errors.percentLandAcquired} />
                     </div>
                   </>
                 )}
@@ -1610,7 +1766,7 @@ export default function ProjectBasicInfoForm({
             <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setActiveSection('cost')}
+                onClick={() => goToSection('cost')}
                 className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -1618,7 +1774,7 @@ export default function ProjectBasicInfoForm({
               </button>
               <button
                 type="button"
-                onClick={() => setActiveSection('timeline')}
+                onClick={() => goToSection('timeline')}
                 className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 <span>Next: Timelines & Deliverables</span>
@@ -1651,7 +1807,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.projectInitiatedDate}
                   onChange={(e) => handleInputChange('projectInitiatedDate', e.target.value)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('projectInitiatedDate')}
                 />
                 <FieldError error={errors.projectInitiatedDate} />
               </div>
@@ -1663,7 +1819,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.targetCompletionDate}
                   onChange={(e) => handleInputChange('targetCompletionDate', e.target.value)}
                   disabled={!canInteract || isTargetDateLocked}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-75"
+                  className={getInputClass('targetCompletionDate', isTargetDateLocked ? 'opacity-75' : '')}
                 />
                 <FieldError error={errors.targetCompletionDate} />
               </div>
@@ -1675,8 +1831,9 @@ export default function ProjectBasicInfoForm({
                   value={formData.revisedTargetCompletionDate}
                   onChange={(e) => handleInputChange('revisedTargetCompletionDate', e.target.value)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('revisedTargetCompletionDate')}
                 />
+                <FieldError error={errors.revisedTargetCompletionDate} />
               </div>
 
               <div>
@@ -1688,8 +1845,9 @@ export default function ProjectBasicInfoForm({
                   onChange={(e) => handleInputChange('capacityAddition', e.target.value)}
                   disabled={!canInteract}
                   placeholder="e.g. 5.5 MTPA"
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('capacityAddition')}
                 />
+                <FieldError error={errors.capacityAddition} />
               </div>
 
               <div>
@@ -1698,7 +1856,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.projectOutput}
                   onChange={(e) => handleInputChange('projectOutput', e.target.value)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('projectOutput')}
                 >
                   <option value="">Select Project Output</option>
                   {outputOptions.map((out, idx) => {
@@ -1712,6 +1870,7 @@ export default function ProjectBasicInfoForm({
                   })}
                   <option value="Others">Others</option>
                 </select>
+                <FieldError error={errors.projectOutput} />
               </div>
 
               {showOutputOthers ? (
@@ -1723,7 +1882,7 @@ export default function ProjectBasicInfoForm({
                       value={formData.newProjectOutput}
                       onChange={(e) => handleInputChange('newProjectOutput', e.target.value)}
                       disabled={!canInteract}
-                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold"
+                      className={getInputClass('newProjectOutput')}
                     />
                     <FieldError error={errors.newProjectOutput} />
                   </div>
@@ -1734,7 +1893,7 @@ export default function ProjectBasicInfoForm({
                       value={formData.newProjectOutputUnits}
                       onChange={(e) => handleInputChange('newProjectOutputUnits', e.target.value)}
                       disabled={!canInteract}
-                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold"
+                      className={getInputClass('newProjectOutputUnits')}
                     />
                     <FieldError error={errors.newProjectOutputUnits} />
                   </div>
@@ -1747,7 +1906,7 @@ export default function ProjectBasicInfoForm({
                   value={formData.projectOutcome}
                   onChange={(e) => handleInputChange('projectOutcome', e.target.value)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  className={getInputClass('projectOutcome')}
                 >
                   <option value="">Select Project Outcome</option>
                   {outcomeOptions.map((outc, idx) => {
@@ -1762,6 +1921,7 @@ export default function ProjectBasicInfoForm({
                   })}
                   <option value="Others">Others</option>
                 </select>
+                <FieldError error={errors.projectOutcome} />
               </div>
 
               {showOutcomeOthers ? (
@@ -1773,7 +1933,7 @@ export default function ProjectBasicInfoForm({
                       value={formData.newProjectOutcome}
                       onChange={(e) => handleInputChange('newProjectOutcome', e.target.value)}
                       disabled={!canInteract}
-                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold"
+                      className={getInputClass('newProjectOutcome')}
                     />
                     <FieldError error={errors.newProjectOutcome} />
                   </div>
@@ -1784,7 +1944,7 @@ export default function ProjectBasicInfoForm({
                       value={formData.newProjectOutcomeUnits}
                       onChange={(e) => handleInputChange('newProjectOutcomeUnits', e.target.value)}
                       disabled={!canInteract}
-                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold"
+                      className={getInputClass('newProjectOutcomeUnits')}
                     />
                     <FieldError error={errors.newProjectOutcomeUnits} />
                   </div>
@@ -1796,7 +1956,7 @@ export default function ProjectBasicInfoForm({
             <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setActiveSection('location')}
+                onClick={() => goToSection('location')}
                 className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -1804,7 +1964,7 @@ export default function ProjectBasicInfoForm({
               </button>
               <button
                 type="button"
-                onClick={() => setActiveSection('docs')}
+                onClick={() => goToSection('docs')}
                 className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 <span>Next: Project Documents</span>
