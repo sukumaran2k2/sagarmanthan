@@ -79,6 +79,10 @@ function toProjectListParams(params = {}) {
     query.organisationId = params.organisationId;
   }
 
+  if (params.state) {
+    query.state = params.state;
+  }
+
   if (params.financialYear) {
     query.financialYear = params.financialYear;
   }

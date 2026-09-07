@@ -53,6 +53,16 @@ export default function ProjectBasicInformationPage({
   const identity = getProjectIdentity(initialData || {});
   const isUpdateMode = Boolean(initialData?.id && identity.projectID);
 
+  const [activeStage, setActiveStage] = useState(() => {
+    const s = initialData?.stage || initialData?.selectedStage || initialData?.raw?.stage_name || initialData?.raw?.project_stage || '';
+    const text = String(s).toLowerCase();
+    if (text.includes('complete')) return 'completion';
+    if (text.includes('implement')) return 'implementation';
+    if (text.includes('tender')) return 'tendering';
+    if (text.includes('planning') || text.includes('sanction')) return 'planning';
+    return 'basic';
+  });
+
   const loadDocuments = async () => {
     if (!isUpdateMode || !identity.projectID) {
       setDocuments([]);
@@ -188,7 +198,7 @@ export default function ProjectBasicInformationPage({
   const handleSubmit = async (formData) => {
     if (!permissions.canAdd && !permissions.canEdit) {
       notify?.('You do not have permission to submit project details.', 'error');
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -200,21 +210,45 @@ export default function ProjectBasicInformationPage({
         initialData: editData || initialData,
       });
 
+      let res;
       if (isUpdateMode) {
-        await updateProjectBasicInformation(payload);
+        res = await updateProjectBasicInformation(payload);
         notify?.('Project basic information updated successfully.', 'success');
       } else {
-        await createProjectBasicInformation(payload);
+        res = await createProjectBasicInformation(payload);
         notify?.('Project basic information saved successfully.', 'success');
       }
 
-      onSuccess?.();
+      const createdId = res?.data?.project_id || res?.data?.projectId || res?.data?.id || payload.projectID;
+      const createdSubId = res?.data?.sub_project_id || res?.data?.subProjectId || payload.subProjectID || '-1';
+
+      setEditData((prev) => ({
+        ...(prev || {}),
+        id: prev?.id || createdId,
+        projectId: createdId,
+        subProjectId: createdSubId,
+        projectName: formData.projectName,
+        stage: prev?.stage && !String(prev.stage).toLowerCase().includes('initiated') ? prev.stage : 'Planning & Sanctioning',
+        raw: {
+          ...(prev?.raw || {}),
+          ...(res?.data || {}),
+          project_id: createdId,
+          sub_project_id: createdSubId,
+          project_name: formData.projectName,
+          stage_name: prev?.raw?.stage_name || 'Planning & Sanctioning',
+        },
+      }));
+
+      // Advance from Stage 1 (Basic Info) to Stage 2 (Planning & Sanctioning)
+      setActiveStage('planning');
+      return true;
     } catch (error) {
       console.error(error);
       notify?.(
         error?.response?.data?.message || 'Unable to save project details. Please try again.',
         'error'
       );
+      return false;
     } finally {
       setSaving(false);
     }
@@ -223,12 +257,12 @@ export default function ProjectBasicInformationPage({
   const handleStageSubmit = async (stageId, stageData = {}) => {
     if (!permissions.canAdd && !permissions.canEdit) {
       notify?.('You do not have permission to submit stage details.', 'error');
-      return;
+      return false;
     }
 
     if (!identity.projectID) {
       notify?.('Please save basic information first before submitting stage details.', 'error');
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -269,7 +303,15 @@ export default function ProjectBasicInformationPage({
         payload.selectedStage = computePlanningStageId(payload);
         await submitPlanningSanctioning(payload);
         notify?.('Planning & Sanctioning details updated successfully.', 'success');
-        return;
+
+        // Advance from Stage 2 to Stage 3 (Under Tendering)
+        setActiveStage('tendering');
+        setEditData((prev) => ({
+          ...(prev || {}),
+          stage: 'Under Tendering',
+          raw: { ...(prev?.raw || {}), stage_name: 'Under Tendering', project_stage: 'Under Tendering' },
+        }));
+        return true;
       }
 
       if (stageId === 'tendering') {
@@ -331,7 +373,15 @@ export default function ProjectBasicInformationPage({
         });
 
         notify?.('Under Tendering details updated successfully.', 'success');
-        return;
+
+        // Advance from Stage 3 to Stage 4 (Under Implementation)
+        setActiveStage('implementation');
+        setEditData((prev) => ({
+          ...(prev || {}),
+          stage: 'Under Implementation',
+          raw: { ...(prev?.raw || {}), stage_name: 'Under Implementation', project_stage: 'Under Implementation' },
+        }));
+        return true;
       }
 
       if (stageId === 'implementation') {
@@ -364,7 +414,15 @@ export default function ProjectBasicInformationPage({
         });
 
         notify?.('Under Implementation details updated successfully.', 'success');
-        return;
+
+        // Advance from Stage 4 to Stage 5 (Completed)
+        setActiveStage('completion');
+        setEditData((prev) => ({
+          ...(prev || {}),
+          stage: 'Completed',
+          raw: { ...(prev?.raw || {}), stage_name: 'Completed', project_stage: 'Completed' },
+        }));
+        return true;
       }
 
       if (stageId === 'completion') {
@@ -376,45 +434,45 @@ export default function ProjectBasicInformationPage({
           projectStageID: 14,
         });
         notify?.('Project completion details updated successfully.', 'success');
-        return;
+        setEditData((prev) => ({
+          ...(prev || {}),
+          stage: 'Completed',
+          raw: { ...(prev?.raw || {}), stage_name: 'Completed', project_stage: 'Completed' },
+        }));
+        return true;
       }
 
       notify?.('Unsupported stage payload.', 'error');
+      return false;
     } catch (error) {
       console.error(error);
       notify?.(
         error?.response?.data?.message || 'Unable to save stage details. Please try again.',
         'error'
       );
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const workbenchKey = isUpdateMode
-    ? `${identity.projectID}-${identity.subProjectID}-${
-        editData?.raw?.latest_revised_target_completion_date || ''
-      }-${editData?.raw?.project_intiated_date || ''}-${editData?.raw?.target_completion_date || ''}`
-    : 'new-project-basic-info';
-
   return (
     <ProjectStageWorkbench
-      key={workbenchKey}
       initialData={editData || initialData}
+      activeStage={activeStage}
+      onActiveStageChange={setActiveStage}
       canSubmit={permissions.canAdd || permissions.canEdit}
       readOnly={permissions.isViewOnlyAdmin}
       loading={saving || hydrating}
       onBack={onBack}
       onSubmit={handleSubmit}
       onSubmitStage={handleStageSubmit}
-      basicInfoProps={{
-        documentRows: documents,
-        documentsLoading,
-        uploadingDocuments,
-        onUploadDocuments: handleUploadDocuments,
-        onDeleteDocument: handleDeleteDocument,
-        onDownloadDocument: handleDownloadDocument,
-      }}
+      documentRows={documents}
+      documentsLoading={documentsLoading}
+      uploadingDocuments={uploadingDocuments}
+      onUploadDocuments={handleUploadDocuments}
+      onDeleteDocument={handleDeleteDocument}
+      onDownloadDocument={handleDownloadDocument}
     />
   );
 }

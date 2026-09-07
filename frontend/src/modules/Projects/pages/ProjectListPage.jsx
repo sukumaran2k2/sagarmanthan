@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchProjectList, requestDropProject } from '../api';
+import { fetchProjectList, requestDropProject, fetchMmtDropdown } from '../api';
 import ProjectsListTable from '../components/ProjectsListTable';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 import {
@@ -13,11 +13,14 @@ const DEFAULT_FILTERS = {
   search: '',
   projectStage: 'All',
   projectCategory: 'All',
+  organisationId: '',
+  state: '',
 };
 
 export default function ProjectListPage({
   notify,
   onOpenBasicInfo,
+  onAddNew,
 }) {
   const permissions = useProjectsPermissions();
   const claims = getSessionClaims() || {};
@@ -34,9 +37,45 @@ export default function ProjectListPage({
     totalPages: 0,
   });
 
+  const [organisations, setOrganisations] = useState([]);
+  const [states, setStates] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [stageCounts, setStageCounts] = useState({
+    all: 0,
+    planning: 0,
+    tendering: 0,
+    ui: 0,
+    completed: 0,
+  });
+
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [dropBusyId, setDropBusyId] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
+
+  // Load dropdown options for Filter drawer
+  useEffect(() => {
+    let mounted = true;
+    Promise.allSettled([
+      fetchMmtDropdown('mmt_organisation'),
+      fetchMmtDropdown('mmt_state'),
+      fetchMmtDropdown('mmt_project_category'),
+    ]).then(([orgRes, stateRes, catRes]) => {
+      if (!mounted) return;
+      if (orgRes.status === 'fulfilled' && Array.isArray(orgRes.value?.data)) {
+        setOrganisations(orgRes.value.data);
+      }
+      if (stateRes.status === 'fulfilled' && Array.isArray(stateRes.value?.data)) {
+        setStates(stateRes.value.data);
+      }
+      if (catRes.status === 'fulfilled' && Array.isArray(catRes.value?.data)) {
+        setCategories(catRes.value.data);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -65,6 +104,8 @@ export default function ProjectListPage({
           search: effectiveFilters.search,
           projectStage: effectiveFilters.projectStage,
           projectCategory: effectiveFilters.projectCategory,
+          organisationId: effectiveFilters.organisationId,
+          state: effectiveFilters.state,
         };
 
         if (permissions.viewMode === 'org' && permissions.organisationId) {
@@ -77,11 +118,15 @@ export default function ProjectListPage({
         const mappedRows = serverRows.map(mapProjectListRow);
 
         setRows(mappedRows);
+        if (payload?.pagination?.counts) {
+          setStageCounts(payload.pagination.counts);
+        }
         setPagination({
           total: Number(payload?.pagination?.total) || 0,
           page: Number(payload?.pagination?.page) || page,
           limit: Number(payload?.pagination?.limit) || pageSize,
           totalPages: Number(payload?.pagination?.totalPages) || 0,
+          counts: payload?.pagination?.counts || null,
         });
       } catch (error) {
         if (error?.code === 'ERR_CANCELED') return;
@@ -171,17 +216,21 @@ export default function ProjectListPage({
       page={page}
       pageSize={pageSize}
       pagination={pagination}
+      stageCounts={stageCounts}
       filters={filters}
       onFiltersChange={(nextFilters) => {
         setFilters(nextFilters);
         setPage(1);
       }}
       stageOptions={PROJECT_STAGE_OPTIONS}
-      categoryOptions={PROJECT_CATEGORY_OPTIONS}
-      canCreate={permissions.canAdd}
+      categoryOptions={categories?.length ? categories : PROJECT_CATEGORY_OPTIONS}
+      organisations={organisations}
+      states={states}
+      canAdd={permissions.canAdd}
       canEdit={permissions.canEdit}
       canDropProject={permissions.canRemove || permissions.canEdit}
       dropBusyId={dropBusyId}
+      onAddNew={onAddNew}
       onOpenBasicInfo={onOpenBasicInfo}
       onDropProject={handleDropProject}
       onPageChange={setPage}

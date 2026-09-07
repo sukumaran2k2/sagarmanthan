@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Download, Save, Trash2, Upload } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { 
+  ArrowLeft, Download, Save, Trash2, Upload, Briefcase, 
+  Building2, DollarSign, Calendar, MapPin, Landmark, 
+  TrendingUp, Layers, CheckCircle2, AlertTriangle, FileText, 
+  ChevronRight, ChevronLeft, Plus, X, Eye, Sparkles, Check,
+  Info
+} from 'lucide-react';
 import {
   FUNDING_SOURCE_OPTIONS,
   IMPLEMENTATION_TYPE_OPTIONS,
@@ -8,6 +14,10 @@ import {
   PROJECT_STAGE_OPTIONS,
 } from '../utils/constants';
 import { fetchMmtDropdown } from '../api';
+import PlanningSanctioningStage from './PlanningSanctioningStage';
+import UnderTenderingStage from './UnderTenderingStage';
+import UnderImplementationStage from './UnderImplementationStage';
+import ProjectCompletionStage from './ProjectCompletionStage';
 
 const EMPTY_FORM = {
   projectID: '',
@@ -58,6 +68,14 @@ const EMPTY_FORM = {
   subProjectNum: 0,
   subProjectsTab: [],
 };
+
+const FORM_SECTIONS = [
+  { id: 'basic', number: '01', title: 'Basic Information', subtitle: 'Name, Agency & Category', icon: Briefcase },
+  { id: 'cost', number: '02', title: 'Cost & Funding', subtitle: 'Outlay & Sources', icon: DollarSign },
+  { id: 'location', number: '03', title: 'Location & Land', subtitle: 'State, District & Land', icon: MapPin },
+  { id: 'timeline', number: '04', title: 'Timelines & Deliverables', subtitle: 'Dates, Output & Capacity', icon: Calendar },
+  { id: 'docs', number: '05', title: 'Project Documents', subtitle: 'Attachments & PPTs', icon: FileText },
+];
 
 function toRadioValue(value) {
   if (value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'yes') return 1;
@@ -154,15 +172,15 @@ function hasLockedProjectTypeValue(value) {
 
 function Label({ children, required = false }) {
   return (
-    <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-      {children} {required ? <span className="text-rose-600">*</span> : null}
+    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block mb-1">
+      {children} {required ? <span className="text-rose-500">*</span> : null}
     </label>
   );
 }
 
 function FieldError({ error }) {
   if (!error) return null;
-  return <p className="text-[10px] text-rose-600 font-semibold">{error}</p>;
+  return <p className="text-[10px] text-rose-500 font-semibold mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {error}</p>;
 }
 
 export default function ProjectBasicInfoForm({
@@ -172,6 +190,7 @@ export default function ProjectBasicInfoForm({
   loading = false,
   onBack,
   onSubmit,
+  onSubmitStage,
   documentRows = [],
   documentsLoading = false,
   uploadingDocuments = false,
@@ -181,6 +200,14 @@ export default function ProjectBasicInfoForm({
 }) {
   const [formData, setFormData] = useState(() => getInitialForm(initialData));
   const [errors, setErrors] = useState({});
+  const [activeSection, setActiveSection] = useState('basic');
+  const [activeSubStage, setActiveSubStage] = useState(() => {
+    const rawStage = String(initialData?.stage || initialData?.selectedStage || '').toLowerCase();
+    if (rawStage.includes('tender')) return 'tendering';
+    if (rawStage.includes('implement')) return 'implementation';
+    if (rawStage.includes('complete')) return 'completion';
+    return 'planning';
+  });
   const [documentType, setDocumentType] = useState('project_ppt');
   const [documentFiles, setDocumentFiles] = useState([]);
 
@@ -197,7 +224,6 @@ export default function ProjectBasicInfoForm({
   const [outcomeOptions, setOutcomeOptions] = useState([]);
 
   const isEditMode = Boolean(initialData?.id);
-
   const canInteract = canSubmit && !readOnly && !loading;
   const isProjectTypeLocked = isEditMode && hasLockedProjectTypeValue(formData.projectType);
   const isTargetDateLocked = isEditMode && Boolean(formData.targetCompletionDate);
@@ -212,14 +238,17 @@ export default function ProjectBasicInfoForm({
     []
   );
 
-  const selectedStateIds = useMemo(() => {
-    const value = formData.state;
+  function getMultiValue(value) {
     if (Array.isArray(value)) return value.map(String);
     if (value == null || value === '') return [];
     return String(value)
       .split(',')
       .map((x) => x.trim())
       .filter(Boolean);
+  }
+
+  const selectedStateIds = useMemo(() => {
+    return getMultiValue(formData.state);
   }, [formData.state]);
 
   const filteredDistrictOptions = useMemo(() => {
@@ -251,19 +280,6 @@ export default function ProjectBasicInfoForm({
     }),
     [selectedFundingSourceIds]
   );
-
-  function getMultiValue(value) {
-    if (Array.isArray(value)) return value.map(String);
-    if (value == null || value === '') return [];
-    return String(value)
-      .split(',')
-      .map((x) => x.trim())
-      .filter(Boolean);
-  }
-
-  function getMultiSelectValue(event) {
-    return Array.from(event.target.selectedOptions || [], (option) => option.value);
-  }
 
   useEffect(() => {
     let mounted = true;
@@ -315,912 +331,1025 @@ export default function ProjectBasicInfoForm({
     };
   }, []);
 
-
-
   const validate = () => {
     const nextErrors = {};
 
-    if (!formData.projectName.trim()) {
-      nextErrors.projectName = 'Project name is required';
-    }
-    if (!formData.estimatedProjectCost || Number(formData.estimatedProjectCost) <= 0) {
-      nextErrors.estimatedProjectCost = 'Estimated project cost should be greater than 0';
-    }
-    if (!formData.projectType) {
-      nextErrors.projectType = 'Project type is required';
-    }
-    if (!formData.implementationType) {
-      nextErrors.implementationType = 'Implementation type is required';
-    }
-    const categories = getMultiValue(formData.projectCategory);
-    if (!categories.length) {
-      nextErrors.projectCategory = 'Project category is required';
-    }
-    if (!formData.primaryImplementingAgency.trim()) {
-      nextErrors.primaryImplementingAgency = 'Primary implementing agency is required';
-    }
-    if (!formData.projectInitiatedDate) {
-      nextErrors.projectInitiatedDate = 'Project initiated date is required';
-    }
-    if (!formData.targetCompletionDate) {
-      nextErrors.targetCompletionDate = 'Target completion date is required';
+    if (!String(formData.projectName || '').trim()) {
+      nextErrors.projectName = 'Project name is required.';
     }
 
-    if (Number(formData.onSubProjectAvailable) === 1) {
-      if (!formData.subProjectNum || Number(formData.subProjectNum) <= 0) {
-        nextErrors.subProjectNum = 'Enter number of sub-projects';
-      }
-      const missingSubProject = (formData.subProjectsTab || []).some(
-        (item) => !String(item?.subProjectName || '').trim()
-      );
-      if (missingSubProject) {
-        nextErrors.subProjectsTab = 'All sub-project names are required';
-      }
+    if (!String(formData.primaryImplementingAgency || '').trim()) {
+      nextErrors.primaryImplementingAgency = 'Primary implementing agency is required.';
     }
 
-    if (formData.onLandAcquistion === 1 && !String(formData.landAreaReq || '').trim()) {
-      nextErrors.landAreaReq = 'Land area required is mandatory when land acquisition is Yes';
+    if (!String(formData.projectCategory || '').trim()) {
+      nextErrors.projectCategory = 'Project category is required.';
     }
 
-    if (
-      formData.onLandAcquistion === 1 &&
-      formData.onAcquisitionCompleted === 0 &&
-      !String(formData.percentLandAcquired || '').trim()
-    ) {
-      nextErrors.percentLandAcquired = 'Enter land acquired percentage';
+    if (!String(formData.scheme || '').trim()) {
+      nextErrors.scheme = 'Scheme is required.';
+    }
+
+    if (!String(formData.initiative || '').trim()) {
+      nextErrors.initiative = 'Initiative is required.';
+    }
+
+    if (!String(formData.estimatedProjectCost || '').trim()) {
+      nextErrors.estimatedProjectCost = 'Estimated project cost is required.';
+    } else if (Number(formData.estimatedProjectCost) <= 0) {
+      nextErrors.estimatedProjectCost = 'Estimated cost must be greater than 0.';
+    }
+
+    if (!String(formData.sourceOfFunding || '').trim()) {
+      nextErrors.sourceOfFunding = 'Source of funding is required.';
+    }
+
+    if (!String(formData.state || '').trim()) {
+      nextErrors.state = 'State is required.';
+    }
+
+    if (!String(formData.projectInitiatedDate || '').trim()) {
+      nextErrors.projectInitiatedDate = 'Project initiated date is required.';
+    }
+
+    if (!isTargetDateLocked && !String(formData.targetCompletionDate || '').trim()) {
+      nextErrors.targetCompletionDate = 'Target completion date is required.';
     }
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    if (!canInteract) return;
-    if (!validate()) return;
-    await onSubmit?.(formData);
+  const handleInputChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
   };
 
-  const updateField = (key, value) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
+  const handleFormSubmit = (e) => {
+    e?.preventDefault();
+    if (!validate()) {
+      // Find first section with error and switch to it
+      if (errors.projectName || errors.primaryImplementingAgency || errors.projectCategory || errors.scheme || errors.initiative) {
+        setActiveSection('basic');
+      } else if (errors.estimatedProjectCost || errors.sourceOfFunding) {
+        setActiveSection('cost');
+      } else if (errors.state) {
+        setActiveSection('location');
+      } else if (errors.projectInitiatedDate || errors.targetCompletionDate) {
+        setActiveSection('timeline');
+      }
+      return;
+    }
+
+    onSubmit?.(formData);
   };
 
-  const handleStateChange = (event) => {
-    const nextStates = getMultiSelectValue(event);
-    const allowedDistrictIds = new Set(
-      districtOptions
-        .filter((item) => nextStates.includes(String(item.state_id)))
-        .map((item) => String(item.district_id))
-    );
-    const allowedMpIds = new Set(
-      mpOptions
-        .filter((item) => nextStates.includes(String(item.state_id)))
-        .map((item) => String(item.mpc_id))
-    );
-
-    setFormData((prev) => ({
-      ...prev,
-      state: nextStates,
-      district: getMultiValue(prev.district).filter((id) => allowedDistrictIds.has(String(id))),
-      mpConstituency: getMultiValue(prev.mpConstituency).filter((id) => allowedMpIds.has(String(id))),
-    }));
-  };
-
-  const handleFundingSourceChange = (event) => {
-    const nextFundingSources = getMultiSelectValue(event);
-    setFormData((prev) => ({
-      ...prev,
-      sourceOfFunding: nextFundingSources,
-      sagarmalaFunding:
-        nextFundingSources.includes('8') ? '1' : prev.sagarmalaFunding,
-    }));
-  };
-
-  const handleDocumentUpload = async () => {
-    if (!documentFiles.length || !documentType) return;
-    await onUploadDocuments?.({ folderName: documentType, files: documentFiles });
+  const handleDocumentUploadSubmit = (e) => {
+    e.preventDefault();
+    if (!documentFiles.length) return;
+    onUploadDocuments?.({
+      folderName: documentType,
+      files: documentFiles,
+    });
     setDocumentFiles([]);
   };
 
-  const setSubProjectCount = (nextCount) => {
-    const count = Number(nextCount) || 0;
-    setFormData((prev) => {
-      const list = Array.from({ length: count }, (_, idx) => {
-        const existing = prev.subProjectsTab?.[idx];
-        return existing || { subProjectName: '' };
-      });
-      return {
-        ...prev,
-        subProjectNum: count,
-        subProjectsTab: list,
-      };
-    });
-  };
-
-  const updateSubProjectName = (index, value) => {
-    setFormData((prev) => {
-      const list = [...(prev.subProjectsTab || [])];
-      list[index] = { ...(list[index] || { subProjectName: '' }), subProjectName: value };
-      return { ...prev, subProjectsTab: list };
-    });
-  };
-
-  const inputClass =
-    'w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition disabled:opacity-70 disabled:cursor-not-allowed';
-
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 md:p-8 animate-fade-in space-y-6">
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
-        <div>
-          <h2 className="text-xl font-black text-[#0f417a] uppercase tracking-wide font-display">
-            {isEditMode ? 'Edit Project - Basic Information' : 'Project - Basic Information'}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
-            Capture core project metadata. RBAC-controlled submission is enabled via JWT claims.
-          </p>
-        </div>
+    <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
+      
+      {/* Sub Tabs matching MIV DataList Stage Design */}
+      <div className="flex items-center border-b border-slate-200 dark:border-slate-800 select-none overflow-x-auto scrollbar-none">
+        <div className="flex space-x-1">
+          {FORM_SECTIONS.map((sec) => {
+            const isSelected = activeSection === sec.id;
+            const SecIcon = sec.icon;
 
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to List
-        </button>
+            return (
+              <button
+                key={sec.id}
+                type="button"
+                onClick={() => setActiveSection(sec.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  isSelected
+                    ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                }`}
+              >
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${
+                  isSelected ? 'bg-[#0f417a] text-white dark:bg-blue-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                }`}>
+                  {sec.number}
+                </span>
+                <SecIcon className={`h-3.5 w-3.5 ${isSelected ? 'text-[#0f417a] dark:text-blue-400' : 'text-slate-400'}`} />
+                <span>{sec.title}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {!canSubmit && (
-        <div className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5">
-          You can view this form, but add/update is restricted by your module permissions.
-        </div>
-      )}
-
-      <form className="space-y-7" onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {isEditMode ? (
-            <>
-              <div className="space-y-1">
-                <Label>Project ID</Label>
-                <input type="text" value={formData.projectID} className={inputClass} disabled />
+      {/* Form Body Content */}
+      <form id="project-basic-info-form" onSubmit={handleFormSubmit} className="space-y-6">
+        
+        {/* ================= SECTION 1: BASIC INFORMATION ================= */}
+        {activeSection === 'basic' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-lg text-blue-600 dark:text-blue-400">
+                <Briefcase className="h-5 w-5" />
               </div>
-              <div className="space-y-1">
-                <Label>Sub Project ID</Label>
-                <input type="text" value={formData.subProjectID} className={inputClass} disabled />
+              <div>
+                <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                  Basic Project Details
+                </h3>
+                <p className="text-xs text-slate-500">Specify project name, implementing agencies, scheme and category classification</p>
               </div>
-            </>
-          ) : null}
-
-          <div className="space-y-1">
-            <Label required>Project Name</Label>
-            <input
-              type="text"
-              value={formData.projectName}
-              onChange={(e) => updateField('projectName', e.target.value)}
-              className={inputClass}
-              placeholder="Enter complete project name"
-              disabled={!canInteract}
-            />
-            <FieldError error={errors.projectName} />
-          </div>
-
-          <div className="space-y-1">
-            <Label required>Estimated Cost (₹ Cr)</Label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.estimatedProjectCost}
-              onChange={(e) => updateField('estimatedProjectCost', e.target.value)}
-              className={inputClass}
-              placeholder="0.00"
-              disabled={!canInteract}
-            />
-            <FieldError error={errors.estimatedProjectCost} />
-          </div>
-
-          <div className="space-y-1 md:col-span-2">
-            <Label>Project Brief</Label>
-            <textarea
-              rows={2}
-              value={formData.projectBrief}
-              onChange={(e) => updateField('projectBrief', e.target.value)}
-              className={inputClass}
-              placeholder="Brief summary of the project"
-              disabled={!canInteract}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label required>Project Type</Label>
-            <select
-              value={formData.projectType}
-              onChange={(e) => updateField('projectType', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract || isProjectTypeLocked}
-            >
-              <option value="">Select project type</option>
-              {PROJECT_TYPE_OPTIONS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-            <FieldError error={errors.projectType} />
-          </div>
-
-          <div className="space-y-1">
-            <Label required>Implementation Type</Label>
-            <select
-              value={formData.implementationType}
-              onChange={(e) => updateField('implementationType', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract}
-            >
-              <option value="">Select implementation type</option>
-              {IMPLEMENTATION_TYPE_OPTIONS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-            <FieldError error={errors.implementationType} />
-          </div>
-
-          <div className="space-y-1">
-            <Label>Mode of Implementation</Label>
-            <input
-              type="text"
-              value={formData.implementationMode}
-              onChange={(e) => updateField('implementationMode', e.target.value)}
-              className={inputClass}
-              placeholder="Mode of implementation"
-              disabled={!canInteract}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label required>Project Category</Label>
-            <select
-              multiple
-              size={1}
-              value={getMultiValue(formData.projectCategory)}
-              onChange={(e) => updateField('projectCategory', getMultiSelectValue(e))}
-              className={`${inputClass} h-10`}
-              disabled={!canInteract}
-            >
-              {(projectCategoryOptions.length
-                ? projectCategoryOptions.map((item) => ({
-                    value: String(item.project_category_id),
-                    label: item.project_category_name,
-                  }))
-                : selectedCategoryOptions.map((item) => ({ value: item, label: item }))
-              ).map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-[10px] text-slate-500 font-medium">Hold Ctrl/Cmd to select multiple</p>
-            <FieldError error={errors.projectCategory} />
-          </div>
-
-          <div className="space-y-1">
-            <Label required>Stage</Label>
-            <select
-              value={formData.selectedStage}
-              onChange={(e) => updateField('selectedStage', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract}
-            >
-              <option value="">Select stage</option>
-              {selectedStageOptions.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <Label required>Primary Implementing Agency</Label>
-            <select
-              value={formData.primaryImplementingAgency}
-              onChange={(e) => updateField('primaryImplementingAgency', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract}
-            >
-              <option value="">Select implementing agency</option>
-              {iaOptions.map((item) => (
-                <option key={item.ia_id} value={String(item.ia_id)}>
-                  {item.ia_name}
-                </option>
-              ))}
-            </select>
-            <FieldError error={errors.primaryImplementingAgency} />
-          </div>
-
-          <div className="space-y-1">
-            <Label>Secondary Implementing Agency</Label>
-            <select
-              value={formData.secondaryImplementingAgency}
-              onChange={(e) => updateField('secondaryImplementingAgency', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract}
-            >
-              <option value="">Select secondary implementing agency</option>
-              {iaOptions.map((item) => (
-                <option key={item.ia_id} value={String(item.ia_id)}>
-                  {item.ia_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <Label required>Project Initiated Date</Label>
-            <input
-              type="date"
-              value={formData.projectInitiatedDate}
-              onChange={(e) => updateField('projectInitiatedDate', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract}
-            />
-            <FieldError error={errors.projectInitiatedDate} />
-          </div>
-
-          <div className="space-y-1">
-            <Label required>Target Completion Date</Label>
-            <input
-              type="date"
-              value={formData.targetCompletionDate}
-              onChange={(e) => updateField('targetCompletionDate', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract || isTargetDateLocked}
-            />
-            <FieldError error={errors.targetCompletionDate} />
-          </div>
-
-          {isEditMode ? (
-            <div className="space-y-1">
-              <Label>Revised Target Completion Date</Label>
-              <input
-                type="date"
-                value={formData.revisedTargetCompletionDate}
-                className={inputClass}
-                disabled
-              />
             </div>
-          ) : null}
 
-          <div className="space-y-1">
-            <Label>Source of Funding</Label>
-            <select
-              multiple
-              size={1}
-              value={getMultiValue(formData.sourceOfFunding)}
-              onChange={handleFundingSourceChange}
-              className={`${inputClass} h-10`}
-              disabled={!canInteract}
-            >
-              {(sourceOfFundingOptions.length
-                ? sourceOfFundingOptions.map((item) => ({
-                    value: String(item.source_of_funding_id),
-                    label: item.source_of_funding_name,
-                  }))
-                : FUNDING_SOURCE_OPTIONS.map((item) => ({ value: item, label: item }))
-              ).map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-[10px] text-slate-500 font-medium">Hold Ctrl/Cmd to select multiple</p>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Primary Funding Agency</Label>
-            <select
-              value={formData.primaryFundingAgency}
-              onChange={(e) => updateField('primaryFundingAgency', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract}
-            >
-              <option value="">Select primary funding agency</option>
-              {faOptions.map((item) => (
-                <option key={item.fa_id} value={String(item.fa_id)}>
-                  {item.fa_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Secondary Funding Agency</Label>
-            <select
-              value={formData.secondaryFundingAgency}
-              onChange={(e) => updateField('secondaryFundingAgency', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract}
-            >
-              <option value="">Select secondary funding agency</option>
-              {faOptions.map((item) => (
-                <option key={item.fa_id} value={String(item.fa_id)}>
-                  {item.fa_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Scheme</Label>
-            <select
-              value={formData.scheme}
-              onChange={(e) => updateField('scheme', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract}
-            >
-              <option value="">Select scheme</option>
-              {schemeOptions.map((item) => (
-                <option key={item.scheme_id} value={String(item.scheme_id)}>
-                  {item.scheme_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Initiative</Label>
-            <select
-              multiple
-              size={1}
-              value={getMultiValue(formData.initiative)}
-              onChange={(e) => updateField('initiative', getMultiSelectValue(e))}
-              className={`${inputClass} h-10`}
-              disabled={!canInteract}
-            >
-              {initiativeOptions.map((item) => (
-                <option key={item.initiative_id} value={String(item.initiative_id)}>
-                  {item.initiative_name}
-                </option>
-              ))}
-            </select>
-            <p className="text-[10px] text-slate-500 font-medium">Hold Ctrl/Cmd to select multiple</p>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Project Output</Label>
-            <select
-              value={formData.projectOutput}
-              onChange={(e) => {
-                updateField('projectOutput', e.target.value);
-                updateField('projectOutcome', '');
-              }}
-              className={inputClass}
-              disabled={!canInteract}
-            >
-              <option value="">Select output</option>
-              {outputOptions.map((item) => (
-                <option key={item.project_output_id} value={String(item.project_output_id)}>
-                  {item.project_output_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Project Outcome</Label>
-            <select
-              value={formData.projectOutcome}
-              onChange={(e) => updateField('projectOutcome', e.target.value)}
-              className={inputClass}
-              disabled={!canInteract}
-            >
-              <option value="">Select outcome</option>
-              {outcomeOptions
-                .filter((item) => {
-                  if (!formData.projectOutput) return true;
-                  return String(item.project_output_id) === String(formData.projectOutput);
-                })
-                .map((item) => (
-                  <option key={item.project_outcome_id} value={String(item.project_outcome_id)}>
-                    {item.project_outcome_name}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>State</Label>
-            <select
-              multiple
-              size={1}
-              value={getMultiValue(formData.state)}
-              onChange={handleStateChange}
-              className={`${inputClass} h-10`}
-              disabled={!canInteract}
-            >
-              {stateOptions.map((item) => (
-                <option key={item.state_id} value={String(item.state_id)}>
-                  {item.state_name}
-                </option>
-              ))}
-            </select>
-            <p className="text-[10px] text-slate-500 font-medium">Hold Ctrl/Cmd to select multiple</p>
-          </div>
-
-          <div className="space-y-1">
-            <Label>District</Label>
-            <select
-              multiple
-              size={1}
-              value={getMultiValue(formData.district)}
-              onChange={(e) => updateField('district', getMultiSelectValue(e))}
-              className={`${inputClass} h-10`}
-              disabled={!canInteract}
-            >
-              {filteredDistrictOptions.map((item) => (
-                <option key={item.district_id} value={String(item.district_id)}>
-                  {item.district_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Taluka</Label>
-            <input
-              type="text"
-              value={formData.taluka}
-              onChange={(e) => updateField('taluka', e.target.value)}
-              className={inputClass}
-              placeholder="Taluka"
-              disabled={!canInteract}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label>Village</Label>
-            <input
-              type="text"
-              value={formData.village}
-              onChange={(e) => updateField('village', e.target.value)}
-              className={inputClass}
-              placeholder="Village"
-              disabled={!canInteract}
-            />
-          </div>
-
-          <div className="space-y-1 md:col-span-2">
-            <Label>MP Constituency</Label>
-            <select
-              multiple
-              size={1}
-              value={getMultiValue(formData.mpConstituency)}
-              onChange={(e) => updateField('mpConstituency', getMultiSelectValue(e))}
-              className={`${inputClass} h-10`}
-              disabled={!canInteract}
-            >
-              {filteredMpOptions.map((item) => (
-                <option key={item.mpc_id} value={String(item.mpc_id)}>
-                  {item.mpc_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Project Output Units</Label>
-            <input
-              type="text"
-              value={formData.newProjectOutputUnits}
-              onChange={(e) => updateField('newProjectOutputUnits', e.target.value)}
-              className={inputClass}
-              placeholder="Output units"
-              disabled={!canInteract}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label>Project Outcome Units</Label>
-            <input
-              type="text"
-              value={formData.newProjectOutcomeUnits}
-              onChange={(e) => updateField('newProjectOutcomeUnits', e.target.value)}
-              className={inputClass}
-              placeholder="Outcome units"
-              disabled={!canInteract}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label>Capacity Addition</Label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.capacityAddition}
-              onChange={(e) => updateField('capacityAddition', e.target.value)}
-              className={inputClass}
-              placeholder="0.00"
-              disabled={!canInteract}
-            />
-          </div>
-
-          <div className="space-y-2 md:col-span-2">
-            <Label>Sagarmala Funding</Label>
-            <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
-              <input
-                type="checkbox"
-                checked={Boolean(formData.sagarmalaFunding)}
-                onChange={(e) => updateField('sagarmalaFunding', e.target.checked ? '1' : '')}
-                disabled={!canInteract}
-              />
-              Mark as Sagarmala funded
-            </label>
-          </div>
-        </div>
-
-        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-          <h3 className="text-xs font-black text-[#0f417a] uppercase tracking-wide">Funding Components (In Cr.)</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {fundingVisibility.gbs ? (
-              <div className="space-y-1"><Label>GBS</Label><input type="number" min="0" step="0.01" value={formData.gbsComponents} onChange={(e) => updateField('gbsComponents', e.target.value)} className={inputClass} disabled={!canInteract} /></div>
-            ) : null}
-            {fundingVisibility.iebr ? (
-              <div className="space-y-1"><Label>IEBR</Label><input type="number" min="0" step="0.01" value={formData.iebrComponents} onChange={(e) => updateField('iebrComponents', e.target.value)} className={inputClass} disabled={!canInteract} /></div>
-            ) : null}
-            {fundingVisibility.ppp ? (
-              <div className="space-y-1"><Label>PPP</Label><input type="number" min="0" step="0.01" value={formData.pppComponents} onChange={(e) => updateField('pppComponents', e.target.value)} className={inputClass} disabled={!canInteract} /></div>
-            ) : null}
-            {fundingVisibility.loans ? (
-              <div className="space-y-1"><Label>Loans</Label><input type="number" min="0" step="0.01" value={formData.loansComponents} onChange={(e) => updateField('loansComponents', e.target.value)} className={inputClass} disabled={!canInteract} /></div>
-            ) : null}
-            {fundingVisibility.multilateral ? (
-              <div className="space-y-1"><Label>Multilateral</Label><input type="number" min="0" step="0.01" value={formData.multiFundComponents} onChange={(e) => updateField('multiFundComponents', e.target.value)} className={inputClass} disabled={!canInteract} /></div>
-            ) : null}
-            {fundingVisibility.stateGovFund ? (
-              <div className="space-y-1"><Label>State Govt Fund</Label><input type="number" min="0" step="0.01" value={formData.stateGovFundComponents} onChange={(e) => updateField('stateGovFundComponents', e.target.value)} className={inputClass} disabled={!canInteract} /></div>
-            ) : null}
-            {fundingVisibility.pmmsy ? (
-              <div className="space-y-1"><Label>PMMSY</Label><input type="number" min="0" step="0.01" value={formData.pmmsyComponents} onChange={(e) => updateField('pmmsyComponents', e.target.value)} className={inputClass} disabled={!canInteract} /></div>
-            ) : null}
-            {fundingVisibility.sagarmala ? (
-              <div className="space-y-1"><Label>Sagarmala</Label><input type="number" min="0" step="0.01" value={formData.sagarmalaComponents} onChange={(e) => updateField('sagarmalaComponents', e.target.value)} className={inputClass} disabled={!canInteract} /></div>
-            ) : null}
-            {fundingVisibility.otherSources ? (
-              <div className="space-y-1"><Label>Other Sources</Label><input type="number" min="0" step="0.01" value={formData.otherSourceFundingComp} onChange={(e) => updateField('otherSourceFundingComp', e.target.value)} className={inputClass} disabled={!canInteract} /></div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-          <h3 className="text-xs font-black text-[#0f417a] uppercase tracking-wide">Land Acquisition</h3>
-          <div className="space-y-2">
-            <Label>Is Land Acquisition required?</Label>
-            <div className="flex items-center gap-6 text-xs font-semibold text-slate-700">
-              <label className="inline-flex items-center gap-2">
-                <input type="radio" name="onLandAcquistion" checked={formData.onLandAcquistion === 1} onChange={() => updateField('onLandAcquistion', 1)} disabled={!canInteract} /> Yes
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input type="radio" name="onLandAcquistion" checked={formData.onLandAcquistion === 0} onChange={() => updateField('onLandAcquistion', 0)} disabled={!canInteract} /> No
-              </label>
-            </div>
-          </div>
-
-          {formData.onLandAcquistion === 1 ? (
-            <>
-              <div className="space-y-1">
-                <Label required>Land Area Required</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Project Name */}
+              <div className="md:col-span-2">
+                <Label required>Project Name</Label>
                 <input
                   type="text"
-                  value={formData.landAreaReq}
-                  onChange={(e) => updateField('landAreaReq', e.target.value)}
-                  className={inputClass}
-                  placeholder="Land area"
+                  value={formData.projectName}
+                  onChange={(e) => handleInputChange('projectName', e.target.value)}
                   disabled={!canInteract}
+                  placeholder="Enter full comprehensive project name..."
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                 />
-                <FieldError error={errors.landAreaReq} />
+                <FieldError error={errors.projectName} />
               </div>
 
-              <div className="space-y-2">
-                <Label>Is Land Acquisition completed?</Label>
-                <div className="flex items-center gap-6 text-xs font-semibold text-slate-700">
-                  <label className="inline-flex items-center gap-2">
-                    <input type="radio" name="onAcquisitionCompleted" checked={formData.onAcquisitionCompleted === 1} onChange={() => updateField('onAcquisitionCompleted', 1)} disabled={!canInteract} /> Yes
-                  </label>
-                  <label className="inline-flex items-center gap-2">
-                    <input type="radio" name="onAcquisitionCompleted" checked={formData.onAcquisitionCompleted === 0} onChange={() => updateField('onAcquisitionCompleted', 0)} disabled={!canInteract} /> No
-                  </label>
-                </div>
+              {/* Project Brief */}
+              <div className="md:col-span-2">
+                <Label>Project Brief & Objectives</Label>
+                <textarea
+                  rows={3}
+                  value={formData.projectBrief}
+                  onChange={(e) => handleInputChange('projectBrief', e.target.value)}
+                  disabled={!canInteract}
+                  placeholder="Provide executive summary, core deliverables, and strategic scope..."
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                />
               </div>
 
-              {formData.onAcquisitionCompleted === 0 ? (
-                <div className="space-y-1">
-                  <Label required>% Land Acquired</Label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.percentLandAcquired}
-                    onChange={(e) => updateField('percentLandAcquired', e.target.value)}
-                    className={inputClass}
-                    placeholder="0 - 100"
-                    disabled={!canInteract}
-                  />
-                  <FieldError error={errors.percentLandAcquired} />
-                </div>
-              ) : null}
-            </>
-          ) : null}
-        </div>
-
-        <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-          <h3 className="text-xs font-black text-[#0f417a] uppercase tracking-wide">Project and Sub-Projects</h3>
-          <div className="space-y-2">
-            <Label>Does this project have sub-projects?</Label>
-            <div className="flex items-center gap-6 text-xs font-semibold text-slate-700">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="onSubProjectAvailable"
-                  checked={Number(formData.onSubProjectAvailable) === 1}
-                  onChange={() => {
-                    updateField('onSubProjectAvailable', 1);
-                    if (!formData.subProjectNum) setSubProjectCount(1);
-                  }}
-                  disabled={!canInteract}
-                />
-                Yes
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="onSubProjectAvailable"
-                  checked={Number(formData.onSubProjectAvailable) === 0}
-                  onChange={() => {
-                    updateField('onSubProjectAvailable', 0);
-                    setSubProjectCount(0);
-                  }}
-                  disabled={!canInteract}
-                />
-                No
-              </label>
-            </div>
-          </div>
-
-          {Number(formData.onSubProjectAvailable) === 1 ? (
-            <>
-              <div className="space-y-1 max-w-xs">
-                <Label required>Number of Sub-Projects</Label>
-                <input
-                  type="number"
-                  min="1"
-                  value={formData.subProjectNum}
-                  onChange={(e) => setSubProjectCount(e.target.value)}
-                  className={inputClass}
-                  disabled={!canInteract}
-                />
-                <FieldError error={errors.subProjectNum} />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(formData.subProjectsTab || []).map((item, idx) => (
-                  <div key={`subproject-${idx}`} className="space-y-1">
-                    <Label required>Sub-Project {idx + 1} Name</Label>
-                    <input
-                      type="text"
-                      value={item?.subProjectName || ''}
-                      onChange={(e) => updateSubProjectName(idx, e.target.value)}
-                      className={inputClass}
-                      placeholder={`Enter sub-project ${idx + 1} name`}
-                      disabled={!canInteract}
-                    />
-                  </div>
-                ))}
-              </div>
-              <FieldError error={errors.subProjectsTab} />
-            </>
-          ) : null}
-        </div>
-
-        {isEditMode ? (
-          <div className="border border-slate-200 rounded-xl p-4 space-y-4">
-            <h3 className="text-xs font-black text-[#0f417a] uppercase tracking-wide">Update Project Files</h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-              <div className="space-y-1">
-                <Label>Document Type</Label>
+              {/* Primary Implementing Agency */}
+              <div>
+                <Label required>Primary Implementing Agency (IA)</Label>
                 <select
-                  value={documentType}
-                  onChange={(e) => setDocumentType(e.target.value)}
-                  className={inputClass}
-                  disabled={!canInteract || uploadingDocuments}
+                  value={formData.primaryImplementingAgency}
+                  onChange={(e) => handleInputChange('primaryImplementingAgency', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                 >
-                  <option value="project_ppt">Project PPT</option>
-                  <option value="project_pert">Project PERT</option>
-                  <option value="project_images">Project Images</option>
+                  <option value="">Select Implementing Agency</option>
+                  {iaOptions.map((ia, idx) => {
+                    const val = ia.id ?? ia.ia_id ?? ia.organisation_id ?? ia.name ?? ia.ia_names ?? idx;
+                    const label = ia.name || ia.ia_names || ia.organisation_name || String(val);
+                    return (
+                      <option key={`ia-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                <FieldError error={errors.primaryImplementingAgency} />
+              </div>
+
+              {/* Secondary Implementing Agency */}
+              <div>
+                <Label>Secondary Implementing Agency</Label>
+                <input
+                  type="text"
+                  value={formData.secondaryImplementingAgency}
+                  onChange={(e) => handleInputChange('secondaryImplementingAgency', e.target.value)}
+                  disabled={!canInteract}
+                  placeholder="Optional co-implementing agency name..."
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                />
+              </div>
+
+              {/* Project Category */}
+              <div>
+                <Label required>Project Category</Label>
+                <select
+                  value={formData.projectCategory}
+                  onChange={(e) => handleInputChange('projectCategory', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="">Select Project Category</option>
+                  {projectCategoryOptions.map((cat, idx) => {
+                    const val = cat.id ?? cat.project_category_id ?? cat.category_id ?? cat.name ?? cat.project_category_names ?? idx;
+                    const label = cat.name || cat.project_category_names || cat.category_name || String(val);
+                    return (
+                      <option key={`cat-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                <FieldError error={errors.projectCategory} />
+              </div>
+
+              {/* Scheme */}
+              <div>
+                <Label required>Scheme</Label>
+                <select
+                  value={formData.scheme}
+                  onChange={(e) => handleInputChange('scheme', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="">Select Scheme</option>
+                  {schemeOptions.map((sch, idx) => {
+                    const val = sch.id ?? sch.scheme_id ?? sch.name ?? sch.scheme_name ?? idx;
+                    const label = sch.name || sch.scheme_name || String(val);
+                    return (
+                      <option key={`sch-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                <FieldError error={errors.scheme} />
+              </div>
+
+              {/* Initiative */}
+              <div>
+                <Label required>Initiative</Label>
+                <select
+                  value={formData.initiative}
+                  onChange={(e) => handleInputChange('initiative', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="">Select Initiative</option>
+                  {initiativeOptions.map((init, idx) => {
+                    const val = init.id ?? init.initiative_id ?? init.name ?? init.initiative_names ?? idx;
+                    const label = init.name || init.initiative_names || String(val);
+                    return (
+                      <option key={`init-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                <FieldError error={errors.initiative} />
+              </div>
+
+              {/* Implementation Mode & Type */}
+              <div>
+                <Label>Implementation Mode</Label>
+                <select
+                  value={formData.implementationMode}
+                  onChange={(e) => handleInputChange('implementationMode', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="Direct">Direct</option>
+                  <option value="Deposit">Deposit</option>
+                  <option value="PPP">PPP</option>
+                  <option value="Joint Venture">Joint Venture</option>
                 </select>
               </div>
 
-              <div className="space-y-1 md:col-span-2">
-                <Label>Choose File(s)</Label>
-                <input
-                  type="file"
-                  multiple
-                  onChange={(e) => setDocumentFiles(Array.from(e.target.files || []))}
-                  className={inputClass}
-                  disabled={!canInteract || uploadingDocuments}
-                />
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setActiveSection('cost')}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                <span>Next: Cost & Funding</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= SECTION 2: COST & FUNDING ================= */}
+        {activeSection === 'cost' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg text-emerald-600 dark:text-emerald-400">
+                <DollarSign className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                  Financial Outlay & Funding Sources
+                </h3>
+                <p className="text-xs text-slate-500">Specify estimated cost in ₹ Cr, funding splits and agencies</p>
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleDocumentUpload}
-                disabled={!canInteract || uploadingDocuments || !documentFiles.length}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black text-white bg-emerald-700 hover:bg-emerald-800 transition shadow disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <Upload className="h-4 w-4" />
-                {uploadingDocuments ? 'Uploading...' : 'Upload File(s)'}
-              </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Estimated Project Cost */}
+              <div>
+                <Label required>Estimated Project Cost (₹ in Cr)</Label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.estimatedProjectCost}
+                    onChange={(e) => handleInputChange('estimatedProjectCost', e.target.value)}
+                    disabled={!canInteract}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-12 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-xs font-black text-emerald-600 dark:text-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                  />
+                  <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">Cr.</span>
+                </div>
+                <FieldError error={errors.estimatedProjectCost} />
+              </div>
+
+              {/* Source of Funding */}
+              <div>
+                <Label required>Source of Funding</Label>
+                <select
+                  value={formData.sourceOfFunding}
+                  onChange={(e) => handleInputChange('sourceOfFunding', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="">Select Funding Source</option>
+                  {sourceOfFundingOptions.map((sof, idx) => {
+                    const val = sof.id ?? sof.sof_id ?? sof.source_id ?? sof.name ?? sof.sof_names ?? idx;
+                    const label = sof.name || sof.sof_names || sof.source_name || String(val);
+                    return (
+                      <option key={`sof-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                <FieldError error={errors.sourceOfFunding} />
+              </div>
+
+              {/* Primary Funding Agency */}
+              <div>
+                <Label>Primary Funding Agency</Label>
+                <select
+                  value={formData.primaryFundingAgency}
+                  onChange={(e) => handleInputChange('primaryFundingAgency', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="">Select Funding Agency</option>
+                  {faOptions.map((fa, idx) => {
+                    const val = fa.id ?? fa.fa_id ?? fa.funding_agency_id ?? fa.name ?? fa.fa_names ?? idx;
+                    const label = fa.name || fa.fa_names || fa.funding_agency_name || String(val);
+                    return (
+                      <option key={`fa-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Secondary Funding Agency */}
+              <div>
+                <Label>Secondary Funding Agency</Label>
+                <input
+                  type="text"
+                  value={formData.secondaryFundingAgency}
+                  onChange={(e) => handleInputChange('secondaryFundingAgency', e.target.value)}
+                  disabled={!canInteract}
+                  placeholder="Optional secondary funding agency..."
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                />
+              </div>
+
             </div>
 
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <div className="px-3 py-2 bg-slate-50 text-xs font-bold text-slate-700">Uploaded Documents</div>
-              <div className="divide-y divide-slate-100">
-                {documentsLoading ? (
-                  <div className="px-3 py-3 text-xs text-slate-500">Loading documents...</div>
-                ) : documentRows.length ? (
-                  documentRows.map((doc, idx) => (
-                    <div key={`${doc.document_name || 'doc'}-${idx}`} className="px-3 py-2 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-800 truncate">{doc.document_name}</p>
-                        <p className="text-[10px] text-slate-500 uppercase">{doc.document_type}</p>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => onDownloadDocument?.(doc.document_name)}
-                          className="p-1.5 rounded hover:bg-slate-100 text-[#0f417a]"
-                          title="Download"
-                        >
-                          <Download className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteDocument?.(doc.document_name)}
-                          className="p-1.5 rounded hover:bg-rose-50 text-rose-700"
-                          title="Delete"
-                          disabled={!canInteract}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="px-3 py-3 text-xs text-slate-500">No documents uploaded.</div>
+            {/* Dynamic Funding Component Inputs */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Funding Components Breakdown (₹ in Cr)
+              </h4>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {fundingVisibility.gbs && (
+                  <div>
+                    <Label>GBS Component</Label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.gbsComponents}
+                      onChange={(e) => handleInputChange('gbsComponents', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                    />
+                  </div>
+                )}
+                {fundingVisibility.iebr && (
+                  <div>
+                    <Label>IEBR Component</Label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.iebrComponents}
+                      onChange={(e) => handleInputChange('iebrComponents', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                    />
+                  </div>
+                )}
+                {fundingVisibility.ppp && (
+                  <div>
+                    <Label>PPP Component</Label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.pppComponents}
+                      onChange={(e) => handleInputChange('pppComponents', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                    />
+                  </div>
+                )}
+                {fundingVisibility.loans && (
+                  <div>
+                    <Label>Loans Component</Label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.loansComponents}
+                      onChange={(e) => handleInputChange('loansComponents', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                    />
+                  </div>
+                )}
+                {fundingVisibility.sagarmala && (
+                  <div>
+                    <Label>Sagarmala Component</Label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.sagarmalaComponents}
+                      onChange={(e) => handleInputChange('sagarmalaComponents', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                    />
+                  </div>
+                )}
+                {fundingVisibility.stateGovFund && (
+                  <div>
+                    <Label>State Govt Component</Label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.stateGovFundComponents}
+                      onChange={(e) => handleInputChange('stateGovFundComponents', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                    />
+                  </div>
                 )}
               </div>
             </div>
 
-
+            <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setActiveSection('basic')}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Previous</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection('location')}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                <span>Next: Location & Land</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-        ) : null}
+        )}
 
-        <div className="border-t border-slate-100 pt-4 flex flex-wrap items-center justify-end gap-3">
-          <button
-            type="submit"
-            disabled={!canInteract}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black text-white bg-[#0f417a] hover:bg-[#1d5594] transition shadow disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <Save className="h-4 w-4" />
-            {loading ? 'Saving...' : isEditMode ? 'Update Project' : 'Save Project'}
-          </button>
-        </div>
+        {/* ================= SECTION 3: LOCATION & LAND ================= */}
+        {activeSection === 'location' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="p-2 bg-amber-50 dark:bg-amber-950/50 rounded-lg text-amber-600 dark:text-amber-400">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                  Location & Land Acquisition Details
+                </h3>
+                <p className="text-xs text-slate-500">Select administrative geography and record land acquisition status</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* State */}
+              <div>
+                <Label required>State / Region</Label>
+                <select
+                  value={formData.state}
+                  onChange={(e) => handleInputChange('state', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="">Select State</option>
+                  {stateOptions.map((st, idx) => {
+                    const val = st.id ?? st.state_id ?? st.name ?? st.state_names ?? idx;
+                    const label = st.name || st.state_names || st.state_name || String(val);
+                    return (
+                      <option key={`st-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+                <FieldError error={errors.state} />
+              </div>
+
+              {/* District */}
+              <div>
+                <Label>District</Label>
+                <select
+                  value={formData.district}
+                  onChange={(e) => handleInputChange('district', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="">Select District</option>
+                  {filteredDistrictOptions.map((dist, idx) => {
+                    const val = dist.id ?? dist.district_id ?? dist.name ?? dist.district_names ?? idx;
+                    const label = dist.name || dist.district_names || dist.district_name || String(val);
+                    return (
+                      <option key={`dist-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Taluka */}
+              <div>
+                <Label>Taluka / Tehsil</Label>
+                <input
+                  type="text"
+                  value={formData.taluka}
+                  onChange={(e) => handleInputChange('taluka', e.target.value)}
+                  disabled={!canInteract}
+                  placeholder="Enter taluka name..."
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                />
+              </div>
+
+              {/* Village */}
+              <div>
+                <Label>Village</Label>
+                <input
+                  type="text"
+                  value={formData.village}
+                  onChange={(e) => handleInputChange('village', e.target.value)}
+                  disabled={!canInteract}
+                  placeholder="Enter village name..."
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                />
+              </div>
+
+              {/* MP Constituency */}
+              <div>
+                <Label>MP Constituency</Label>
+                <select
+                  value={formData.mpConstituency}
+                  onChange={(e) => handleInputChange('mpConstituency', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="">Select Constituency</option>
+                  {filteredMpOptions.map((mp, idx) => {
+                    const val = mp.id ?? mp.mp_constituency_id ?? mp.name ?? mp.mp_constituency_names ?? idx;
+                    const label = mp.name || mp.mp_constituency_names || mp.mp_constituency_name || String(val);
+                    return (
+                      <option key={`mp-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+            </div>
+
+            {/* Land Acquisition Sub-Card */}
+            <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-3">
+              <h4 className="text-xs font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wider">
+                Land Acquisition Information
+              </h4>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <Label>Land Acquisition Needed?</Label>
+                  <div className="flex items-center space-x-4 mt-2">
+                    <label className="flex items-center space-x-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="onLandAcquisition"
+                        checked={formData.onLandAcquistion === 1}
+                        onChange={() => handleInputChange('onLandAcquistion', 1)}
+                        className="text-blue-600"
+                      />
+                      <span>Yes</span>
+                    </label>
+                    <label className="flex items-center space-x-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="onLandAcquisition"
+                        checked={formData.onLandAcquistion === 0}
+                        onChange={() => handleInputChange('onLandAcquistion', 0)}
+                        className="text-blue-600"
+                      />
+                      <span>No</span>
+                    </label>
+                  </div>
+                </div>
+
+                {formData.onLandAcquistion === 1 && (
+                  <>
+                    <div>
+                      <Label>Land Area Required (Acres)</Label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.landAreaReq}
+                        onChange={(e) => handleInputChange('landAreaReq', e.target.value)}
+                        placeholder="Area in Acres"
+                        className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold"
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Acquisition Completed?</Label>
+                      <div className="flex items-center space-x-4 mt-2">
+                        <label className="flex items-center space-x-1.5 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="onAcquisitionCompleted"
+                            checked={formData.onAcquisitionCompleted === 1}
+                            onChange={() => handleInputChange('onAcquisitionCompleted', 1)}
+                            className="text-blue-600"
+                          />
+                          <span>Yes</span>
+                        </label>
+                        <label className="flex items-center space-x-1.5 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="onAcquisitionCompleted"
+                            checked={formData.onAcquisitionCompleted === 0}
+                            onChange={() => handleInputChange('onAcquisitionCompleted', 0)}
+                            className="text-blue-600"
+                          />
+                          <span>No</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>% Land Acquired</Label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        max="100"
+                        value={formData.percentLandAcquired}
+                        onChange={(e) => handleInputChange('percentLandAcquired', e.target.value)}
+                        placeholder="e.g. 75"
+                        className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setActiveSection('cost')}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Previous</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection('timeline')}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                <span>Next: Timelines & Deliverables</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= SECTION 4: TIMELINES & DELIVERABLES ================= */}
+        {activeSection === 'timeline' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="p-2 bg-purple-50 dark:bg-purple-950/50 rounded-lg text-purple-600 dark:text-purple-400">
+                <Calendar className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                  Project Timelines, Outputs & Outcomes
+                </h3>
+                <p className="text-xs text-slate-500">Key milestone dates and measurable physical capacities</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Project Initiated Date */}
+              <div>
+                <Label required>Project Initiated Date</Label>
+                <input
+                  type="date"
+                  value={formData.projectInitiatedDate}
+                  onChange={(e) => handleInputChange('projectInitiatedDate', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                />
+                <FieldError error={errors.projectInitiatedDate} />
+              </div>
+
+              {/* Target Completion Date */}
+              <div>
+                <Label required>Target Completion Date</Label>
+                <input
+                  type="date"
+                  value={formData.targetCompletionDate}
+                  onChange={(e) => handleInputChange('targetCompletionDate', e.target.value)}
+                  disabled={!canInteract || isTargetDateLocked}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-75"
+                />
+                <FieldError error={errors.targetCompletionDate} />
+              </div>
+
+              {/* Revised Target Completion Date */}
+              <div>
+                <Label>Revised Target Completion Date</Label>
+                <input
+                  type="date"
+                  value={formData.revisedTargetCompletionDate}
+                  onChange={(e) => handleInputChange('revisedTargetCompletionDate', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                />
+              </div>
+
+              {/* Capacity Addition */}
+              <div>
+                <Label>Capacity Addition (MTPA / Units)</Label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.capacityAddition}
+                  onChange={(e) => handleInputChange('capacityAddition', e.target.value)}
+                  disabled={!canInteract}
+                  placeholder="e.g. 5.5 MTPA"
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                />
+              </div>
+
+              {/* Output */}
+              <div>
+                <Label>Project Output</Label>
+                <select
+                  value={formData.projectOutput}
+                  onChange={(e) => handleInputChange('projectOutput', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="">Select Project Output</option>
+                  {outputOptions.map((out, idx) => {
+                    const val = out.id ?? out.output_id ?? out.name ?? out.output_names ?? idx;
+                    const label = out.name || out.output_names || out.output_name || String(val);
+                    return (
+                      <option key={`out-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Outcome */}
+              <div>
+                <Label>Project Outcome</Label>
+                <select
+                  value={formData.projectOutcome}
+                  onChange={(e) => handleInputChange('projectOutcome', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                >
+                  <option value="">Select Project Outcome</option>
+                  {outcomeOptions.map((outc, idx) => {
+                    const val = outc.id ?? outc.outcome_id ?? outc.name ?? outc.outcome_names ?? idx;
+                    const label = outc.name || outc.outcome_names || outc.outcome_name || String(val);
+                    return (
+                      <option key={`outc-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+            </div>
+
+            <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setActiveSection('location')}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Previous</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection('docs')}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                <span>Next: Project Documents</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= SECTION 5: DOCUMENTS & ATTACHMENTS ================= */}
+        {activeSection === 'docs' && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="p-2 bg-cyan-50 dark:bg-cyan-950/50 rounded-lg text-cyan-600 dark:text-cyan-400">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                  Project Documents & Attachments
+                </h3>
+                <p className="text-xs text-slate-500">Upload and manage project presentations, sanction orders and reports</p>
+              </div>
+            </div>
+
+            {/* Document Uploader Form */}
+            {canInteract && isEditMode && (
+              <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-3">
+                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Upload New Project Document
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                  <div>
+                    <Label>Document Category</Label>
+                    <select
+                      value={documentType}
+                      onChange={(e) => setDocumentType(e.target.value)}
+                      className="w-full p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold"
+                    >
+                      <option value="project_ppt">Project PPT / Presentation</option>
+                      <option value="detailed_project_report">Detailed Project Report (DPR)</option>
+                      <option value="sanction_order">Sanction Order</option>
+                      <option value="tender_document">Tender Document</option>
+                      <option value="progress_report">Progress Report</option>
+                      <option value="other_document">Other Supporting Document</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label>Select File(s)</Label>
+                    <input
+                      type="file"
+                      multiple
+                      onChange={(e) => setDocumentFiles(Array.from(e.target.files || []))}
+                      className="w-full p-1.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-500"
+                    />
+                  </div>
+
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!documentFiles.length) return;
+                        onUploadDocuments?.({ folderName: documentType, files: documentFiles });
+                        setDocumentFiles([]);
+                      }}
+                      disabled={uploadingDocuments || !documentFiles.length}
+                      className="w-full flex items-center justify-center space-x-1.5 px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>{uploadingDocuments ? 'Uploading...' : 'Upload Files'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Documents List */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Uploaded Project Attachments ({documentRows.length})
+              </h4>
+              
+              {documentsLoading ? (
+                <div className="py-8 text-center text-xs text-slate-400">Loading project documents...</div>
+              ) : documentRows.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                  No documents uploaded for this project yet.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <tr>
+                        <th className="p-3">File Name</th>
+                        <th className="p-3">Category</th>
+                        <th className="p-3">Uploaded Date</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
+                      {documentRows.map((doc, idx) => (
+                        <tr key={doc.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <td className="p-3 text-slate-800 dark:text-slate-100">{doc.document_name || doc.name || doc.file_name}</td>
+                          <td className="p-3 text-slate-500">{doc.document_type || doc.folder_name || 'Document'}</td>
+                          <td className="p-3 text-slate-500">{doc.created_date ? String(doc.created_date).slice(0, 10) : '-'}</td>
+                          <td className="p-3 text-right space-x-1.5">
+                            {onDownloadDocument && (
+                              <button
+                                type="button"
+                                onClick={() => onDownloadDocument(doc)}
+                                className="p-1 hover:bg-blue-50 text-blue-600 rounded"
+                                title="Download"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                            )}
+                            {canInteract && onDeleteDocument && (
+                              <button
+                                type="button"
+                                onClick={() => onDeleteDocument(doc)}
+                                className="p-1 hover:bg-rose-50 text-rose-600 rounded"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setActiveSection('timeline')}
+                className="flex items-center space-x-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Previous: Timelines & Deliverables</span>
+              </button>
+              {canInteract && (
+                <button
+                  type="button"
+                  onClick={handleFormSubmit}
+                  disabled={loading}
+                  className="flex items-center space-x-1.5 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{isEditMode ? 'Save & Update Project' : 'Complete & Save Project'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
       </form>
+
     </div>
   );
 }

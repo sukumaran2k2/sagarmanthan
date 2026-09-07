@@ -108,6 +108,10 @@ export default function Projects({
           <ProjectListPage
             key={listRefreshKey}
             notify={notify}
+            onAddNew={() => {
+              setEditingRecord(null);
+              setManualSubTab('basic-info');
+            }}
             onOpenBasicInfo={(row) => {
               setEditingRecord(row);
               setManualSubTab('basic-info');

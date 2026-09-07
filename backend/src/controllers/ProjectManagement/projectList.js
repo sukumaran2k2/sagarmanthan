@@ -99,6 +99,7 @@ async function getProjectList(req, res) {
     const search = String(req.query.search || '').trim();
     const projectStage = String(req.query.projectStage || '').trim();
     const projectCategory = String(req.query.projectCategory || '').trim();
+    const state = String(req.query.state || '').trim();
     const organisationId = Number.parseInt(req.query.organisationId, 10);
 
     try {
@@ -123,7 +124,7 @@ async function getProjectList(req, res) {
                 .filter((n) => Number.isFinite(n));
 
             if (!userIds.length) {
-                return res.json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
+                return res.json({ data: [], pagination: { total: 0, page, limit, totalPages: 0, counts: { all: 0, planning: 0, tendering: 0, ui: 0, completed: 0 } } });
             }
 
             submittedByFilter = ` AND ISNULL(sp.sub_submitted_by, p.submitted_by) IN (${userIds.join(',')})`;
@@ -224,24 +225,44 @@ async function getProjectList(req, res) {
             )
         `;
 
-        const whereClauses = [];
+        const filterWhereClauses = [];
         if (search) {
-            whereClauses.push(`(
+            filterWhereClauses.push(`(
                 project_id_text LIKE @search
                 OR sub_project_id_text LIKE @search
                 OR project_name LIKE @search
                 OR ISNULL(sub_project_name, '') LIKE @search
                 OR ISNULL(organisation_name, '') LIKE @search
+                OR ISNULL(state_names, '') LIKE @search
+                OR ISNULL(project_category_names, '') LIKE @search
             )`);
         }
-        if (projectStage && projectStage !== 'All') {
-            whereClauses.push('ISNULL(stage_name, \'\') = @projectStage');
-        }
         if (projectCategory && projectCategory !== 'All') {
-            whereClauses.push('ISNULL(project_category_names, \'\') LIKE @projectCategory');
+            filterWhereClauses.push('ISNULL(project_category_names, \'\') LIKE @projectCategory');
+        }
+        if (state) {
+            filterWhereClauses.push('ISNULL(state_names, \'\') LIKE @state');
+        }
+
+        const whereClauses = [...filterWhereClauses];
+        if (projectStage && projectStage !== 'All') {
+            if (projectStage === 'Planning & Sanctioning' || projectStage === 'Planning' || projectStage === 'Project Initiated' || projectStage === 'planning') {
+                whereClauses.push('(current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, \'\') LIKE \'%Planning%\' OR ISNULL(stage_name, \'\') LIKE \'%Initiated%\' OR current_project_stage_id IS NULL)');
+            } else if (projectStage === 'Under Tendering' || projectStage === 'Tendering' || projectStage === 'tendering') {
+                whereClauses.push('(current_project_stage_id = 12 OR ISNULL(stage_name, \'\') LIKE \'%Tender%\')');
+            } else if (projectStage === 'Under Implementation' || projectStage === 'Implementation' || projectStage === 'under_implementation') {
+                whereClauses.push('(current_project_stage_id = 13 OR ISNULL(stage_name, \'\') LIKE \'%Implement%\')');
+            } else if (projectStage === 'Completed' || projectStage === 'completed') {
+                whereClauses.push('(current_project_stage_id = 14 OR ISNULL(stage_name, \'\') LIKE \'%Complete%\')');
+            } else if (projectStage === 'Dropped' || projectStage === 'dropped') {
+                whereClauses.push('ISNULL(stage_name, \'\') LIKE \'%Drop%\'');
+            } else {
+                whereClauses.push('(ISNULL(stage_name, \'\') = @projectStage OR ISNULL(stage_name, \'\') LIKE @projectStageLike)');
+            }
         }
 
         const outerWhere = whereClauses.length ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+        const countsWhere = filterWhereClauses.length ? ` WHERE ${filterWhereClauses.join(' AND ')}` : '';
 
         const countRequest = conn.request();
         const dataRequest = conn.request();
@@ -258,11 +279,18 @@ async function getProjectList(req, res) {
         if (projectStage && projectStage !== 'All') {
             countRequest.input('projectStage', projectStage);
             dataRequest.input('projectStage', projectStage);
+            countRequest.input('projectStageLike', `%${projectStage}%`);
+            dataRequest.input('projectStageLike', `%${projectStage}%`);
         }
         if (projectCategory && projectCategory !== 'All') {
             const categoryLike = `%${projectCategory}%`;
             countRequest.input('projectCategory', categoryLike);
             dataRequest.input('projectCategory', categoryLike);
+        }
+        if (state) {
+            const stateLike = `%${state}%`;
+            countRequest.input('state', stateLike);
+            dataRequest.input('state', stateLike);
         }
 
         dataRequest.input('offset', offset);
@@ -270,6 +298,26 @@ async function getProjectList(req, res) {
 
         const countResult = await countRequest.query(`${baseQuery} SELECT COUNT(1) AS total FROM base ${outerWhere};`);
         const total = Number(countResult.recordset?.[0]?.total || 0);
+
+        const countsResult = await countRequest.query(`
+            ${baseQuery}
+            SELECT
+                COUNT(1) AS allCount,
+                SUM(CASE WHEN current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL THEN 1 ELSE 0 END) AS planningCount,
+                SUM(CASE WHEN current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%' THEN 1 ELSE 0 END) AS tenderingCount,
+                SUM(CASE WHEN current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%' THEN 1 ELSE 0 END) AS uiCount,
+                SUM(CASE WHEN current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%' THEN 1 ELSE 0 END) AS completedCount
+            FROM base
+            ${countsWhere};
+        `);
+        const cRow = countsResult.recordset?.[0] || {};
+        const counts = {
+            all: Number(cRow.allCount || 0),
+            planning: Number(cRow.planningCount || 0),
+            tendering: Number(cRow.tenderingCount || 0),
+            ui: Number(cRow.uiCount || 0),
+            completed: Number(cRow.completedCount || 0),
+        };
 
         const dataResult = await dataRequest.query(`
             ${baseQuery}
@@ -289,6 +337,7 @@ async function getProjectList(req, res) {
                 page,
                 limit,
                 totalPages,
+                counts,
             },
         });
     } catch (err) {
