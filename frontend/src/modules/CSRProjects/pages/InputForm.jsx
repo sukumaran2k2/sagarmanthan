@@ -64,6 +64,19 @@ export default function InputForm({
   const [physicalProgress, setPhysicalProgress] = useState('');
   const [remarks, setRemarks] = useState('');
 
+  const isFullyComplete = Number(physicalProgress) === 100 && Number(financialProgress) === 100;
+
+  // Project Status is derived from progress once both reach 100%: the status
+  // can only become "Completed" this way, and automatically reverts to the
+  // manually-selected value if either progress figure drops back below 100.
+  useEffect(() => {
+    if (isFullyComplete) {
+      setProjectStatus('Completed');
+    } else {
+      setProjectStatus((prev) => (prev === 'Completed' ? 'Project Under implementation' : prev));
+    }
+  }, [isFullyComplete]);
+
   // Multi-year Expenditure Breakdown
   const [expenditures, setExpenditures] = useState([
     { year: FINANCIAL_YEARS[0], cost: '' }
@@ -532,14 +545,18 @@ export default function InputForm({
                     <select
                       value={projectStatus}
                       onChange={(e) => setProjectStatus(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      disabled={isFullyComplete}
+                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-500"
                     >
-                      {CSR_STATUSES.map(s => (
+                      {CSR_STATUSES.filter((s) => s !== 'Completed' || isFullyComplete).map(s => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   </div>
+                  {isFullyComplete && (
+                    <p className="text-[10px] font-semibold text-slate-400">Set automatically once both progress fields reach 100%.</p>
+                  )}
                 </div>
 
                 {/* Financial Year */}

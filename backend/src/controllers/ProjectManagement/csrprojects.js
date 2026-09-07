@@ -65,7 +65,7 @@ async function createCsrProjects(req, res)
     const userID = req.body.userID;
     let uniqueFileName = req.body.csrDocumentFileName;  // Use req.uniqueFileName here
     let focusID = req.body.focusID;
-    const csrExpenditureTab = req.body.csrExpenditureTab || [];
+    const csrExpenditureTab = req.body.expenditures || [];
     // Ensure csrGalleryFileNames is an array, even if it's not provided
     const csrGalleryFileNames = req.body.csrGalleryFileNames || [];
     // Ensure the default values for optional fields
@@ -109,13 +109,13 @@ async function createCsrProjects(req, res)
             INSERT INTO tbl_csr_projects (
                 organisation_id, csr_focus, project_name, project_received_from, impact_possible_outcome, target_beneficiaries,
                 project_value, project_status, financial_year, commenced_on, completed_on, financial_progress, physical_progress, remarks,        
-                created_by, project_completion_doc
+                created_by, created_date, project_completion_doc
             )
             OUTPUT INSERTED.csr_project_id
             VALUES (
                 @organisationID, @csrfocus, @nameofproject, @projectReceived, @impactproject, @targetbeneficiaries,
                 @projectvalue, @projectstatus, @financialYear, @commencedon, @completedon, @finiancialprogresssofar, @physicalprogresssofar,
-                @remarksoftheproject, @userID, @uniqueFileName
+                @remarksoftheproject, @userID, GETDATE(), @uniqueFileName
             );
         `);
 
@@ -136,10 +136,11 @@ async function createCsrProjects(req, res)
                 expenditureRequest.input("csrExpenditureId", csrExpenditureId);
                 expenditureRequest.input("expenditureFinancialYear", expenditureFinancialYear);
                 expenditureRequest.input("expenditureCost", expenditureCost);
+                expenditureRequest.input("userID", userID);
         
                 let query = ` 
-                    INSERT INTO tbl_csr_expenditure (csr_project_id, year, csr_expenditure_cost) 
-                    VALUES (@csrProjectId, @expenditureFinancialYear, @expenditureCost);
+                    INSERT INTO tbl_csr_expenditure (csr_project_id, year, csr_expenditure_cost, created_by, created_date) 
+                    VALUES (@csrProjectId, @expenditureFinancialYear, @expenditureCost, @userID, GETDATE());
                 `;
         
                 await expenditureRequest.query(query);
@@ -473,6 +474,7 @@ async function updateCsrProjects(req, res)
     const remarksoftheproject = req.body.remarksoftheproject;
     let uniqueFileName = req.body.uniqueFileName;
     const userID = req.body.userID;
+    const expenditures = req.body.expenditures || [];
 
     // Handle null or empty values
     if (!commencedon || commencedon === "") {
@@ -529,7 +531,30 @@ async function updateCsrProjects(req, res)
             
             WHERE csr_project_id = @projectID
         `);
-            
+
+        // Replace all expenditure rows for this project: the frontend doesn't
+        // track individual expenditure row IDs, so the simplest correct way
+        // to handle additions, removals, and edits in one step is to clear
+        // the existing rows and re-insert fresh from the current payload.
+        if (expenditures.length > 0) {
+            const deleteRequest = conn.request();
+            deleteRequest.input("projectID", projectID);
+            await deleteRequest.query(`DELETE FROM tbl_csr_expenditure WHERE csr_project_id = @projectID`);
+
+            for (let i = 0; i < expenditures.length; i++) {
+                const expenditureRequest = conn.request();
+                expenditureRequest.input(`csrProjectId${i}`, projectID);
+                expenditureRequest.input(`expenditureFinancialYear${i}`, expenditures[i].expenditureFinancialYear);
+                expenditureRequest.input(`expenditureCost${i}`, expenditures[i].expenditureCost);
+                expenditureRequest.input(`userID${i}`, userID);
+
+                await expenditureRequest.query(`
+                    INSERT INTO tbl_csr_expenditure (csr_project_id, year, csr_expenditure_cost, created_by, created_date)
+                    VALUES (@csrProjectId${i}, @expenditureFinancialYear${i}, @expenditureCost${i}, @userID${i}, GETDATE());
+                `);
+            }
+        }
+
          res.sendStatus(200);
     }catch (err) {
         console.error(err);
@@ -543,6 +568,7 @@ async function addCsrExpenditure(req, res)
 {
     const csrProjectId = req.body.csrProjectId;
     const csrExpenditureTab = JSON.parse(req.body.csrExpenditureTab);
+    const userID = req.body.userID;
 
     const conn = await pool;
     
@@ -559,6 +585,7 @@ async function addCsrExpenditure(req, res)
             request.input("csrExpenditureId", csrExpenditureId);
             request.input("financialYear", financialYear);
             request.input("expenditureCost", expenditureCost);
+            request.input("userID", userID);
 
             let query;
 
@@ -566,13 +593,13 @@ async function addCsrExpenditure(req, res)
             if(csrExpenditureId && csrProjectId)
             {
                 query =   ` UPDATE tbl_csr_expenditure 
-                    SET  csr_expenditure_cost = @expenditureCost 
+                    SET  csr_expenditure_cost = @expenditureCost, updated_by = @userID, updated_date = GETDATE()
                     WHERE csr_project_id = @csrProjectId AND year = @financialYear`;
             }
             else 
             {
-                query = ` INSERT INTO tbl_csr_expenditure ( csr_project_id, year, csr_expenditure_cost) 
-                        VALUES ( @csrProjectId, @financialYear, @expenditureCost)            
+                query = ` INSERT INTO tbl_csr_expenditure ( csr_project_id, year, csr_expenditure_cost, created_by, created_date ) 
+                        VALUES ( @csrProjectId, @financialYear, @expenditureCost, @userID, GETDATE() )            
                     ` ;
             }          
             
@@ -808,11 +835,11 @@ async function addCsrFundDetails(req, res)
         // Insert into tbl_csr_projects and get the csr_project_id
         const result = await request.query(`
             INSERT INTO tbl_csr_fund (
-                organisation_id, financial_year, net_profit, csr_fund_alloted_year, opening_balance_csr, created_by
+                organisation_id, financial_year, net_profit, csr_fund_alloted_year, opening_balance_csr, created_by, created_date
             )
             OUTPUT INSERTED.csr_fund_id
             VALUES (
-                @organisationID, @financialYear, @netProfit, @csrFundAllotedForYear, @openingBalanceCSR, @userID
+                @organisationID, @financialYear, @netProfit, @csrFundAllotedForYear, @openingBalanceCSR, @userID, GETDATE()
             );
         `);
 
