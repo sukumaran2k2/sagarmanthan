@@ -3,7 +3,9 @@ import {
   getCurrentUserId,
   getDataScopeCode,
   getSessionOrganisationId,
+  getSessionWingId,
   getUiViewCode,
+  isOrganisationUser,
   isViewOnlyAdmin,
 } from '../../../utils/authSession';
 
@@ -19,6 +21,7 @@ function resolveViewMode(dataScopeCode) {
 export function useProjectsPermissions() {
   const crud = getModuleCrud(MODULE_CODE);
   const dataScopeCode = getDataScopeCode();
+  const uiViewCode = getUiViewCode() || 'STANDARD';
 
   return {
     moduleCode: MODULE_CODE,
@@ -27,11 +30,14 @@ export function useProjectsPermissions() {
     canEdit: crud.update,
     canRemove: crud.delete,
     canView: crud.read,
-    uiViewCode: getUiViewCode() || 'STANDARD',
+    uiViewCode,
     dataScopeCode,
     viewMode: resolveViewMode(dataScopeCode),
     isViewOnlyAdmin: isViewOnlyAdmin(),
+    isOrganisationUser: isOrganisationUser(),
+    isStandardView: String(uiViewCode).toUpperCase() === 'STANDARD',
     userId: getCurrentUserId(),
     organisationId: getSessionOrganisationId(),
+    wingId: getSessionWingId(),
   };
 }

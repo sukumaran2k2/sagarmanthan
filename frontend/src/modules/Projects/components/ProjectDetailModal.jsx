@@ -47,7 +47,6 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
       <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-7xl w-full max-h-[92vh] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-scale-up" onClick={(e) => e.stopPropagation()}>
         
-        {/* Header Bar */}
         <div className="px-6 py-4 bg-gradient-to-r from-[#0f417a] via-[#1a5596] to-[#0284c7] text-white flex items-center justify-between shadow-md select-none">
           <div className="flex items-center space-x-3.5 min-w-0">
             <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/15 shadow-inner shrink-0">
@@ -99,10 +98,8 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
           </div>
         </div>
 
-        {/* Modal Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 text-slate-800 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-900/50">
-          
-          {/* Top Quick Stats Grid */}
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
             <div className="p-3.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-xs">
               <div className="flex items-center justify-between text-slate-400 mb-1">
@@ -161,7 +158,6 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
             </div>
           </div>
 
-          {/* Project Brief / Summary */}
           <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-2">
             <h3 className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400 flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5" /> Project Brief & Scope
@@ -171,10 +167,8 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
             </p>
           </div>
 
-          {/* Key Information & Agencies Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            
-            {/* Implementation Details */}
+
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-3">
               <h3 className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400 flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-700 pb-2">
                 <Briefcase className="h-3.5 w-3.5" /> Implementation & Classification
@@ -207,7 +201,6 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
               </div>
             </div>
 
-            {/* Location & Land Details */}
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-3">
               <h3 className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400 flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-700 pb-2">
                 <MapPin className="h-3.5 w-3.5" /> Location & Land Acquisition
@@ -246,7 +239,6 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
 
           </div>
 
-          {/* Timelines & Schedule */}
           <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-3">
             <h3 className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400 flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-700 pb-2">
               <Calendar className="h-3.5 w-3.5" /> Project Timelines & Key Dates
@@ -267,7 +259,6 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
             </div>
           </div>
 
-          {/* Outputs & Outcomes */}
           {(raw.project_output_name || raw.project_outcome_name || raw.capacity_addition) && (
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-xs space-y-3">
               <h3 className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400 flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-700 pb-2">
@@ -292,7 +283,6 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
 
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
           <span>Project ID: <strong className="text-slate-700 dark:text-slate-300">{projectId}</strong></span>
           <button

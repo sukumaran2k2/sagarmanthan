@@ -52,7 +52,6 @@ export default function ProjectListPage({
   const [dropBusyId, setDropBusyId] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
 
-  // Load dropdown options for Filter drawer
   useEffect(() => {
     let mounted = true;
     Promise.allSettled([
@@ -176,6 +175,10 @@ export default function ProjectListPage({
   }, [loadProjects, refreshTick]);
 
   const handleDropProject = async (row) => {
+    if (!permissions.canRemove) {
+      notify?.('You do not have permission to request project drop.', 'error');
+      return;
+    }
     if (!row?.projectId) return;
 
     const currentStageId = Number(row?.raw?.current_project_stage_id || 0);
@@ -228,7 +231,8 @@ export default function ProjectListPage({
       states={states}
       canAdd={permissions.canAdd}
       canEdit={permissions.canEdit}
-      canDropProject={permissions.canRemove || permissions.canEdit}
+      canView={permissions.canView}
+      canDropProject={permissions.canRemove}
       dropBusyId={dropBusyId}
       onAddNew={onAddNew}
       onOpenBasicInfo={onOpenBasicInfo}

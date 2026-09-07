@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
   ArrowLeft, Download, Save, Trash2, Upload, Briefcase, 
   Building2, DollarSign, Calendar, MapPin, Landmark, 
   TrendingUp, Layers, CheckCircle2, AlertTriangle, FileText, 
-  ChevronRight, ChevronLeft, Plus, X, Eye, Sparkles, Check,
+  ChevronRight, ChevronLeft, ChevronDown, Plus, X, Eye, Sparkles, Check,
   Info
 } from 'lucide-react';
 import {
@@ -14,10 +14,16 @@ import {
   PROJECT_STAGE_OPTIONS,
 } from '../utils/constants';
 import { fetchMmtDropdown } from '../api';
-import PlanningSanctioningStage from './PlanningSanctioningStage';
-import UnderTenderingStage from './UnderTenderingStage';
-import UnderImplementationStage from './UnderImplementationStage';
-import ProjectCompletionStage from './ProjectCompletionStage';
+import {
+  deriveImplementationMode,
+  deriveSagarmalaFunding,
+} from '../utils/mapProject';
+import {
+  clearProjectBasicInfoDraft,
+  loadProjectBasicInfoDraft,
+  saveProjectBasicInfoDraft,
+} from '../utils/projectDraft';
+import ProjectExpenditureOutlay from './ProjectExpenditureOutlay';
 
 const EMPTY_FORM = {
   projectID: '',
@@ -26,10 +32,12 @@ const EMPTY_FORM = {
   projectBrief: '',
   estimatedProjectCost: '',
   projectType: '',
-  implementationMode: 'Direct',
+  implementationMode: 'EPC',
   implementationType: '',
   primaryImplementingAgency: '',
   secondaryImplementingAgency: '',
+  newImplementingAgency: '',
+  newImplementingAgencyCode: '',
   projectCategory: '',
   scheme: '',
   initiative: '',
@@ -37,8 +45,10 @@ const EMPTY_FORM = {
   targetCompletionDate: '',
   revisedTargetCompletionDate: '',
   projectOutput: '',
+  newProjectOutput: '',
   newProjectOutputUnits: '',
   projectOutcome: '',
+  newProjectOutcome: '',
   newProjectOutcomeUnits: '',
   capacityAddition: '',
   sourceOfFunding: '',
@@ -54,6 +64,7 @@ const EMPTY_FORM = {
   otherSourceFundingComp: '',
   primaryFundingAgency: '',
   secondaryFundingAgency: '',
+  newFundingAgency: '',
   state: '',
   district: '',
   taluka: '',
@@ -94,6 +105,9 @@ function getInitialForm(initialData) {
     raw.sub_project_id ||
     (String(raw.sub_project_id || '').trim() ? raw.sub_project_id : '-1');
 
+  const sourceOfFunding =
+    initialData.sourceOfFunding || raw.source_of_funding_id || raw.source_of_funding_names || '';
+
   return {
     ...EMPTY_FORM,
     projectID: String(projectID || ''),
@@ -103,7 +117,10 @@ function getInitialForm(initialData) {
     estimatedProjectCost:
       initialData.estimatedProjectCost || initialData.cost || raw.estimated_cost || raw.sanctioned_cost || '',
     projectType: initialData.projectType || raw.project_type || '',
-    implementationMode: initialData.implementationMode || raw.mode_of_implememtation || 'Direct',
+    implementationMode:
+      initialData.implementationMode ||
+      raw.mode_of_implememtation ||
+      deriveImplementationMode(sourceOfFunding),
     implementationType: initialData.implementationType || raw.implememtation_type || '',
     primaryImplementingAgency:
       initialData.primaryImplementingAgency || initialData.organisationName || raw.primary_ia_id || '',
@@ -125,8 +142,8 @@ function getInitialForm(initialData) {
     projectOutcome: initialData.projectOutcome || raw.project_outcome_id || raw.project_outcome_name || '',
     newProjectOutcomeUnits: initialData.newProjectOutcomeUnits || raw.project_outcome_units || '',
     capacityAddition: initialData.capacityAddition || raw.capacity_addition || '',
-    sourceOfFunding: initialData.sourceOfFunding || raw.source_of_funding_id || raw.source_of_funding_names || '',
-    sagarmalaFunding: raw.is_sagarmala_funded ? '1' : '',
+    sourceOfFunding,
+    sagarmalaFunding: deriveSagarmalaFunding(sourceOfFunding) || (raw.is_sagarmala_funded ? '1' : ''),
     gbsComponents: raw.gbs_components || '',
     iebrComponents: raw.iebr_components || '',
     pppComponents: raw.ppp_components || '',
@@ -183,6 +200,158 @@ function FieldError({ error }) {
   return <p className="text-[10px] text-rose-500 font-semibold mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {error}</p>;
 }
 
+function MultiCheckboxSelect({
+  options = [],
+  value = [],
+  onChange,
+  placeholder = 'Select...',
+  disabled = false,
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const selected = Array.isArray(value) ? value.map(String) : [];
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handleClickOutside = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  const selectedLabels = options
+    .filter((opt) => selected.includes(String(opt.value)))
+    .map((opt) => opt.label);
+
+  const summary =
+    selectedLabels.length === 0
+      ? placeholder
+      : selectedLabels.length <= 2
+        ? selectedLabels.join(', ')
+        : `${selectedLabels.slice(0, 2).join(', ')} +${selectedLabels.length - 2}`;
+
+  const toggleValue = (optValue) => {
+    const key = String(optValue);
+    const next = selected.includes(key)
+      ? selected.filter((item) => item !== key)
+      : [...selected, key];
+    onChange?.(next);
+  };
+
+  return (
+    <div className="relative" ref={rootRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((prev) => !prev)}
+        className={`w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-left flex items-center justify-between gap-2 transition focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${
+          disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-white dark:hover:bg-slate-800'
+        } ${selectedLabels.length ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}
+      >
+        <span className="truncate">{summary}</span>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-slate-500 transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && !disabled ? (
+        <div className="absolute left-0 right-0 mt-1.5 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+          {options.length === 0 ? (
+            <span className="px-2.5 py-2 text-xs text-slate-400 font-semibold">No options available</span>
+          ) : (
+            options.map((opt) => {
+              const checked = selected.includes(String(opt.value));
+              return (
+                <label
+                  key={String(opt.value)}
+                  className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleValue(opt.value)}
+                    className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="truncate">{opt.label}</span>
+                </label>
+              );
+            })
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function countWords(text) {
+  return String(text || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function isPositiveCost(value) {
+  const n = Number(value);
+  return value !== '' && value != null && Number.isFinite(n) && n > 0;
+}
+
+function resolveSectionForErrors(nextErrors) {
+  if (
+    nextErrors.projectName ||
+    nextErrors.projectBrief ||
+    nextErrors.primaryImplementingAgency ||
+    nextErrors.newImplementingAgency ||
+    nextErrors.newImplementingAgencyCode ||
+    nextErrors.projectCategory ||
+    nextErrors.scheme ||
+    nextErrors.projectType ||
+    nextErrors.implementationType ||
+    nextErrors.onSubProjectAvailable ||
+    nextErrors.subProjectNum ||
+    nextErrors.subProjectsTab
+  ) {
+    return 'basic';
+  }
+  if (
+    nextErrors.estimatedProjectCost ||
+    nextErrors.sourceOfFunding ||
+    nextErrors.primaryFundingAgency ||
+    nextErrors.newFundingAgency ||
+    nextErrors.gbsComponents ||
+    nextErrors.iebrComponents ||
+    nextErrors.pppComponents ||
+    nextErrors.loansComponents ||
+    nextErrors.multiFundComponents ||
+    nextErrors.stateGovFundComponents ||
+    nextErrors.otherSourceFundingComp ||
+    nextErrors.sagarmalaComponents ||
+    nextErrors.pmmsyComponents
+  ) {
+    return 'cost';
+  }
+  if (
+    nextErrors.state ||
+    nextErrors.district ||
+    nextErrors.mpConstituency ||
+    nextErrors.landAreaReq ||
+    nextErrors.percentLandAcquired
+  ) {
+    return 'location';
+  }
+  if (
+    nextErrors.projectInitiatedDate ||
+    nextErrors.targetCompletionDate ||
+    nextErrors.newProjectOutput ||
+    nextErrors.newProjectOutcome ||
+    nextErrors.newProjectOutputUnits ||
+    nextErrors.newProjectOutcomeUnits
+  ) {
+    return 'timeline';
+  }
+  return 'basic';
+}
+
 export default function ProjectBasicInfoForm({
   initialData = null,
   canSubmit = false,
@@ -190,24 +359,20 @@ export default function ProjectBasicInfoForm({
   loading = false,
   onBack,
   onSubmit,
-  onSubmitStage,
+  notify,
   documentRows = [],
   documentsLoading = false,
   uploadingDocuments = false,
   onUploadDocuments,
   onDeleteDocument,
   onDownloadDocument,
+  outlayProps = null,
 }) {
   const [formData, setFormData] = useState(() => getInitialForm(initialData));
   const [errors, setErrors] = useState({});
   const [activeSection, setActiveSection] = useState('basic');
-  const [activeSubStage, setActiveSubStage] = useState(() => {
-    const rawStage = String(initialData?.stage || initialData?.selectedStage || '').toLowerCase();
-    if (rawStage.includes('tender')) return 'tendering';
-    if (rawStage.includes('implement')) return 'implementation';
-    if (rawStage.includes('complete')) return 'completion';
-    return 'planning';
-  });
+  const [draftMeta, setDraftMeta] = useState(null);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [documentType, setDocumentType] = useState('project_ppt');
   const [documentFiles, setDocumentFiles] = useState([]);
 
@@ -223,7 +388,9 @@ export default function ProjectBasicInfoForm({
   const [outputOptions, setOutputOptions] = useState([]);
   const [outcomeOptions, setOutcomeOptions] = useState([]);
 
-  const isEditMode = Boolean(initialData?.id);
+  const isEditMode = Boolean(
+    initialData?.id || initialData?.projectId || initialData?.projectID || initialData?.raw?.project_id
+  );
   const canInteract = canSubmit && !readOnly && !loading;
   const isProjectTypeLocked = isEditMode && hasLockedProjectTypeValue(formData.projectType);
   const isTargetDateLocked = isEditMode && Boolean(formData.targetCompletionDate);
@@ -281,6 +448,24 @@ export default function ProjectBasicInfoForm({
     [selectedFundingSourceIds]
   );
 
+  const showSecondaryIaOthers = String(formData.secondaryImplementingAgency) === 'Others';
+  const showSecondaryFaOthers = String(formData.secondaryFundingAgency) === 'Others';
+  const showOutputOthers = String(formData.projectOutput) === 'Others';
+  const showOutcomeOthers = String(formData.projectOutcome) === 'Others';
+
+  useEffect(() => {
+    if (isEditMode) return;
+    const draft = loadProjectBasicInfoDraft();
+    if (!draft?.formData) return;
+    setFormData({ ...EMPTY_FORM, ...draft.formData });
+    setDraftMeta(draft);
+  }, [isEditMode]);
+
+  useEffect(() => {
+    if (!initialData) return;
+    setFormData(getInitialForm(initialData));
+  }, [initialData]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -335,49 +520,176 @@ export default function ProjectBasicInfoForm({
     const nextErrors = {};
 
     if (!String(formData.projectName || '').trim()) {
-      nextErrors.projectName = 'Project name is required.';
+      nextErrors.projectName = 'Project name is required';
+    } else if (countWords(formData.projectName) > 15) {
+      nextErrors.projectName = 'Project name should not exceed 15 words';
+    }
+
+    if (!String(formData.projectBrief || '').trim()) {
+      nextErrors.projectBrief = 'Project brief is required';
+    } else if (countWords(formData.projectBrief) > 20) {
+      nextErrors.projectBrief = 'Project brief should not exceed 20 words';
+    }
+
+    const cost = Number(formData.estimatedProjectCost);
+    if (
+      formData.estimatedProjectCost === '' ||
+      formData.estimatedProjectCost == null ||
+      Number.isNaN(cost) ||
+      cost < 0
+    ) {
+      nextErrors.estimatedProjectCost = 'Invalid estimated project cost';
+    }
+
+    if (!formData.projectType) {
+      nextErrors.projectType = 'Project type is required';
+    }
+    if (!formData.implementationType) {
+      nextErrors.implementationType = 'Implementation type is required';
+    }
+
+    const categories = getMultiValue(formData.projectCategory);
+    if (!categories.length) {
+      nextErrors.projectCategory = 'Project category is required';
     }
 
     if (!String(formData.primaryImplementingAgency || '').trim()) {
-      nextErrors.primaryImplementingAgency = 'Primary implementing agency is required.';
+      nextErrors.primaryImplementingAgency = 'Primary implementing agency is required';
     }
 
-    if (!String(formData.projectCategory || '').trim()) {
-      nextErrors.projectCategory = 'Project category is required.';
+    if (showSecondaryIaOthers) {
+      if (!String(formData.newImplementingAgency || '').trim()) {
+        nextErrors.newImplementingAgency = 'Enter the new implementing agency';
+      }
+      if (!String(formData.newImplementingAgencyCode || '').trim()) {
+        nextErrors.newImplementingAgencyCode = 'Enter the new implementing agency code';
+      }
     }
 
-    if (!String(formData.scheme || '').trim()) {
-      nextErrors.scheme = 'Scheme is required.';
+    if (!formData.scheme) {
+      nextErrors.scheme = 'Scheme is required';
     }
 
-    if (!String(formData.initiative || '').trim()) {
-      nextErrors.initiative = 'Initiative is required.';
+    if (!formData.projectInitiatedDate) {
+      nextErrors.projectInitiatedDate = 'Project initiated date is required';
+    }
+    if (!isTargetDateLocked && !formData.targetCompletionDate) {
+      nextErrors.targetCompletionDate = 'Target completion date is required';
+    } else if (
+      formData.projectInitiatedDate &&
+      formData.targetCompletionDate &&
+      formData.targetCompletionDate < formData.projectInitiatedDate
+    ) {
+      nextErrors.targetCompletionDate =
+        'Target completion date should be greater than or equal to project initiated date';
     }
 
-    if (!String(formData.estimatedProjectCost || '').trim()) {
-      nextErrors.estimatedProjectCost = 'Estimated project cost is required.';
-    } else if (Number(formData.estimatedProjectCost) <= 0) {
-      nextErrors.estimatedProjectCost = 'Estimated cost must be greater than 0.';
+    if (showOutputOthers) {
+      if (!String(formData.newProjectOutput || '').trim()) {
+        nextErrors.newProjectOutput = 'Enter the new project output';
+      }
+      if (!String(formData.newProjectOutputUnits || '').trim()) {
+        nextErrors.newProjectOutputUnits = 'Enter the new project output units';
+      }
     }
 
-    if (!String(formData.sourceOfFunding || '').trim()) {
-      nextErrors.sourceOfFunding = 'Source of funding is required.';
+    if (showOutcomeOthers) {
+      if (!String(formData.newProjectOutcome || '').trim()) {
+        nextErrors.newProjectOutcome = 'Enter the new project outcome';
+      }
+      if (!String(formData.newProjectOutcomeUnits || '').trim()) {
+        nextErrors.newProjectOutcomeUnits = 'Enter the new project outcome units';
+      }
     }
 
-    if (!String(formData.state || '').trim()) {
-      nextErrors.state = 'State is required.';
+    if (!selectedFundingSourceIds.length) {
+      nextErrors.sourceOfFunding = 'Source of funding is required';
     }
 
-    if (!String(formData.projectInitiatedDate || '').trim()) {
-      nextErrors.projectInitiatedDate = 'Project initiated date is required.';
+    if (fundingVisibility.gbs && !isPositiveCost(formData.gbsComponents)) {
+      nextErrors.gbsComponents = 'Enter a valid GBS component cost';
+    }
+    if (fundingVisibility.iebr && !isPositiveCost(formData.iebrComponents)) {
+      nextErrors.iebrComponents = 'Enter a valid IEBR component cost';
+    }
+    if (fundingVisibility.ppp && !isPositiveCost(formData.pppComponents)) {
+      nextErrors.pppComponents = 'Enter a valid PPP component cost';
+    }
+    if (fundingVisibility.loans && !isPositiveCost(formData.loansComponents)) {
+      nextErrors.loansComponents = 'Enter a valid loan component cost';
+    }
+    if (fundingVisibility.multilateral && !isPositiveCost(formData.multiFundComponents)) {
+      nextErrors.multiFundComponents = 'Enter a valid multilateral funding cost';
+    }
+    if (fundingVisibility.stateGovFund && !isPositiveCost(formData.stateGovFundComponents)) {
+      nextErrors.stateGovFundComponents = 'Enter a valid state govt fund cost';
+    }
+    if (fundingVisibility.otherSources && !isPositiveCost(formData.otherSourceFundingComp)) {
+      nextErrors.otherSourceFundingComp = 'Enter a valid other sources cost';
+    }
+    if (fundingVisibility.sagarmala && !isPositiveCost(formData.sagarmalaComponents)) {
+      nextErrors.sagarmalaComponents = 'Enter a valid Sagarmala component cost';
+    }
+    if (fundingVisibility.pmmsy && !isPositiveCost(formData.pmmsyComponents)) {
+      nextErrors.pmmsyComponents = 'Enter a valid PMMSY component cost';
     }
 
-    if (!isTargetDateLocked && !String(formData.targetCompletionDate || '').trim()) {
-      nextErrors.targetCompletionDate = 'Target completion date is required.';
+    if (!formData.primaryFundingAgency) {
+      nextErrors.primaryFundingAgency = 'Primary funding agency is required';
+    }
+
+    if (showSecondaryFaOthers && !String(formData.newFundingAgency || '').trim()) {
+      nextErrors.newFundingAgency = 'Enter the new funding agency';
+    }
+
+    if (!getMultiValue(formData.state).length) {
+      nextErrors.state = 'State is required';
+    }
+    if (!getMultiValue(formData.district).length) {
+      nextErrors.district = 'District is required';
+    }
+    if (!getMultiValue(formData.mpConstituency).length) {
+      nextErrors.mpConstituency = 'MP constituency is required';
+    }
+
+    if (!isEditMode && formData.onSubProjectAvailable !== 0 && formData.onSubProjectAvailable !== 1) {
+      nextErrors.onSubProjectAvailable = 'Please select whether this project has sub-projects';
+    }
+
+    if (!isEditMode && Number(formData.onSubProjectAvailable) === 1) {
+      if (!formData.subProjectNum || Number(formData.subProjectNum) < 2) {
+        nextErrors.subProjectNum = 'Enter at least two sub-projects';
+      }
+      const missingSubProject = (formData.subProjectsTab || []).some(
+        (item) => !String(item?.subProjectName || '').trim()
+      );
+      if (missingSubProject) {
+        nextErrors.subProjectsTab = 'All sub-project names are required';
+      }
+    }
+
+    if (formData.onLandAcquistion === 1) {
+      const area = Number(formData.landAreaReq);
+      if (!String(formData.landAreaReq || '').trim() || Number.isNaN(area) || area <= 0) {
+        nextErrors.landAreaReq = 'Enter a valid land area required';
+      }
+    }
+
+    if (formData.onLandAcquistion === 1 && formData.onAcquisitionCompleted === 0) {
+      const pct = Number(formData.percentLandAcquired);
+      if (
+        formData.percentLandAcquired === '' ||
+        formData.percentLandAcquired == null ||
+        Number.isNaN(pct) ||
+        pct < 0 ||
+        pct > 100
+      ) {
+        nextErrors.percentLandAcquired = 'Enter land acquired percentage between 0 and 100';
+      }
     }
 
     setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    return nextErrors;
   };
 
   const handleInputChange = (field, value) => {
@@ -387,24 +699,110 @@ export default function ProjectBasicInfoForm({
     }
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e?.preventDefault();
-    if (!validate()) {
-      // Find first section with error and switch to it
-      if (errors.projectName || errors.primaryImplementingAgency || errors.projectCategory || errors.scheme || errors.initiative) {
-        setActiveSection('basic');
-      } else if (errors.estimatedProjectCost || errors.sourceOfFunding) {
-        setActiveSection('cost');
-      } else if (errors.state) {
-        setActiveSection('location');
-      } else if (errors.projectInitiatedDate || errors.targetCompletionDate) {
-        setActiveSection('timeline');
-      }
+    if (!canInteract) return;
+    const nextErrors = validate();
+    if (Object.keys(nextErrors).length) {
+      setActiveSection(resolveSectionForErrors(nextErrors));
+      notify?.('Please fix the highlighted validation errors before submitting.', 'error');
       return;
     }
 
-    onSubmit?.(formData);
+    const saved = await onSubmit?.(formData);
+    if (!isEditMode && saved === true) {
+      clearProjectBasicInfoDraft();
+      setDraftMeta(null);
+    }
   };
+
+  const handleSaveDraft = () => {
+    if (!canInteract || isEditMode) return;
+    if (!String(formData.projectName || '').trim()) {
+      setErrors({ projectName: 'Project name is required to save a draft' });
+      notify?.('Enter a project name before saving as draft.', 'error');
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      const saved = saveProjectBasicInfoDraft(formData);
+      setDraftMeta(saved);
+      setErrors({});
+      notify?.('Draft saved locally. You can resume this form later.', 'success');
+    } catch (error) {
+      console.error(error);
+      notify?.('Unable to save draft. Please try again.', 'error');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    clearProjectBasicInfoDraft();
+    setDraftMeta(null);
+    setFormData({ ...EMPTY_FORM });
+    setErrors({});
+    notify?.('Local draft discarded.', 'success');
+  };
+
+  const handleFundingSourceChange = (value) => {
+    setFormData((prev) => ({
+      ...prev,
+      sourceOfFunding: value,
+      sagarmalaFunding: deriveSagarmalaFunding(value),
+      implementationMode: deriveImplementationMode(value),
+    }));
+    if (errors.sourceOfFunding) {
+      setErrors((prev) => ({ ...prev, sourceOfFunding: undefined }));
+    }
+  };
+
+  const handleStateChange = (nextStateIds) => {
+    const allowedDistrictIds = new Set(
+      districtOptions
+        .filter((item) => nextStateIds.includes(String(item.state_id)))
+        .map((item) => String(item.district_id))
+    );
+    const allowedMpIds = new Set(
+      mpOptions
+        .filter((item) => nextStateIds.includes(String(item.state_id)))
+        .map((item) => String(item.mpc_id))
+    );
+
+    setFormData((prev) => ({
+      ...prev,
+      state: nextStateIds,
+      district: getMultiValue(prev.district).filter((id) => allowedDistrictIds.has(String(id))),
+      mpConstituency: getMultiValue(prev.mpConstituency).filter((id) => allowedMpIds.has(String(id))),
+    }));
+  };
+
+  const setSubProjectCount = (nextCount) => {
+    const count = Math.max(0, Number(nextCount) || 0);
+    setFormData((prev) => {
+      const list = Array.from({ length: count }, (_, idx) => {
+        const existing = prev.subProjectsTab?.[idx];
+        return existing || { subProjectName: '' };
+      });
+      return {
+        ...prev,
+        subProjectNum: count,
+        subProjectsTab: list,
+      };
+    });
+  };
+
+  const updateSubProjectName = (index, value) => {
+    setFormData((prev) => {
+      const list = [...(prev.subProjectsTab || [])];
+      list[index] = { ...(list[index] || { subProjectName: '' }), subProjectName: value };
+      return { ...prev, subProjectsTab: list };
+    });
+  };
+
+  const draftSavedLabel = draftMeta?.savedAt
+    ? new Date(draftMeta.savedAt).toLocaleString()
+    : null;
 
   const handleDocumentUploadSubmit = (e) => {
     e.preventDefault();
@@ -419,7 +817,6 @@ export default function ProjectBasicInfoForm({
   return (
     <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
       
-      {/* Sub Tabs matching MIV DataList Stage Design */}
       <div className="flex items-center border-b border-slate-200 dark:border-slate-800 select-none overflow-x-auto scrollbar-none">
         <div className="flex space-x-1">
           {FORM_SECTIONS.map((sec) => {
@@ -450,10 +847,23 @@ export default function ProjectBasicInfoForm({
         </div>
       </div>
 
-      {/* Form Body Content */}
+      {!isEditMode && draftMeta ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900 flex flex-wrap items-center justify-between gap-3">
+          <span>
+            Local draft restored{draftSavedLabel ? ` (saved ${draftSavedLabel})` : ''}. Submit when ready, or discard.
+          </span>
+          <button
+            type="button"
+            onClick={handleDiscardDraft}
+            className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-amber-800 font-bold"
+          >
+            Discard Draft
+          </button>
+        </div>
+      ) : null}
+
       <form id="project-basic-info-form" onSubmit={handleFormSubmit} className="space-y-6">
         
-        {/* ================= SECTION 1: BASIC INFORMATION ================= */}
         {activeSection === 'basic' && (
           <div className="space-y-6 animate-fade-in">
             <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -470,7 +880,6 @@ export default function ProjectBasicInfoForm({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
-              {/* Project Name */}
               <div className="md:col-span-2">
                 <Label required>Project Name</Label>
                 <input
@@ -484,9 +893,8 @@ export default function ProjectBasicInfoForm({
                 <FieldError error={errors.projectName} />
               </div>
 
-              {/* Project Brief */}
               <div className="md:col-span-2">
-                <Label>Project Brief & Objectives</Label>
+                <Label required>Project Brief & Objectives</Label>
                 <textarea
                   rows={3}
                   value={formData.projectBrief}
@@ -495,9 +903,9 @@ export default function ProjectBasicInfoForm({
                   placeholder="Provide executive summary, core deliverables, and strategic scope..."
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                 />
+                <FieldError error={errors.projectBrief} />
               </div>
 
-              {/* Primary Implementing Agency */}
               <div>
                 <Label required>Primary Implementing Agency (IA)</Label>
                 <select
@@ -508,8 +916,8 @@ export default function ProjectBasicInfoForm({
                 >
                   <option value="">Select Implementing Agency</option>
                   {iaOptions.map((ia, idx) => {
-                    const val = ia.id ?? ia.ia_id ?? ia.organisation_id ?? ia.name ?? ia.ia_names ?? idx;
-                    const label = ia.name || ia.ia_names || ia.organisation_name || String(val);
+                    const val = ia.ia_id ?? ia.id ?? ia.organisation_id ?? idx;
+                    const label = ia.ia_name || ia.name || ia.organisation_name || String(val);
                     return (
                       <option key={`ia-${val}-${idx}`} value={val}>
                         {label}
@@ -520,43 +928,76 @@ export default function ProjectBasicInfoForm({
                 <FieldError error={errors.primaryImplementingAgency} />
               </div>
 
-              {/* Secondary Implementing Agency */}
               <div>
                 <Label>Secondary Implementing Agency</Label>
-                <input
-                  type="text"
+                <select
                   value={formData.secondaryImplementingAgency}
                   onChange={(e) => handleInputChange('secondaryImplementingAgency', e.target.value)}
                   disabled={!canInteract}
-                  placeholder="Optional co-implementing agency name..."
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                />
-              </div>
-
-              {/* Project Category */}
-              <div>
-                <Label required>Project Category</Label>
-                <select
-                  value={formData.projectCategory}
-                  onChange={(e) => handleInputChange('projectCategory', e.target.value)}
-                  disabled={!canInteract}
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
                 >
-                  <option value="">Select Project Category</option>
-                  {projectCategoryOptions.map((cat, idx) => {
-                    const val = cat.id ?? cat.project_category_id ?? cat.category_id ?? cat.name ?? cat.project_category_names ?? idx;
-                    const label = cat.name || cat.project_category_names || cat.category_name || String(val);
+                  <option value="">Select Secondary Implementing Agency</option>
+                  {iaOptions.map((ia, idx) => {
+                    const val = ia.ia_id ?? ia.id ?? ia.organisation_id ?? idx;
+                    const label = ia.ia_name || ia.name || ia.organisation_name || String(val);
                     return (
-                      <option key={`cat-${val}-${idx}`} value={val}>
+                      <option key={`sia-${val}-${idx}`} value={val}>
                         {label}
                       </option>
                     );
                   })}
+                  <option value="Others">Others</option>
                 </select>
+              </div>
+
+              {showSecondaryIaOthers ? (
+                <>
+                  <div>
+                    <Label required>New Implementing Agency</Label>
+                    <input
+                      type="text"
+                      value={formData.newImplementingAgency}
+                      onChange={(e) => handleInputChange('newImplementingAgency', e.target.value)}
+                      disabled={!canInteract}
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                    />
+                    <FieldError error={errors.newImplementingAgency} />
+                  </div>
+                  <div>
+                    <Label required>New Implementing Agency Code</Label>
+                    <input
+                      type="text"
+                      value={formData.newImplementingAgencyCode}
+                      onChange={(e) => handleInputChange('newImplementingAgencyCode', e.target.value)}
+                      disabled={!canInteract}
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                    />
+                    <FieldError error={errors.newImplementingAgencyCode} />
+                  </div>
+                </>
+              ) : null}
+
+              <div>
+                <Label required>Project Category</Label>
+                <MultiCheckboxSelect
+                  value={getMultiValue(formData.projectCategory)}
+                  onChange={(next) => handleInputChange('projectCategory', next)}
+                  disabled={!canInteract}
+                  placeholder="Select Project Category"
+                  options={projectCategoryOptions.map((cat, idx) => {
+                    const val = cat.id ?? cat.project_category_id ?? cat.category_id ?? cat.name ?? cat.project_category_names ?? idx;
+                    const label =
+                      cat.project_category_name ||
+                      cat.name ||
+                      cat.project_category_names ||
+                      cat.category_name ||
+                      String(val);
+                    return { value: String(val), label };
+                  })}
+                />
                 <FieldError error={errors.projectCategory} />
               </div>
 
-              {/* Scheme */}
               <div>
                 <Label required>Scheme</Label>
                 <select
@@ -567,8 +1008,8 @@ export default function ProjectBasicInfoForm({
                 >
                   <option value="">Select Scheme</option>
                   {schemeOptions.map((sch, idx) => {
-                    const val = sch.id ?? sch.scheme_id ?? sch.name ?? sch.scheme_name ?? idx;
-                    const label = sch.name || sch.scheme_name || String(val);
+                    const val = sch.scheme_id ?? sch.id ?? idx;
+                    const label = sch.scheme_name || sch.name || String(val);
                     return (
                       <option key={`sch-${val}-${idx}`} value={val}>
                         {label}
@@ -579,44 +1020,130 @@ export default function ProjectBasicInfoForm({
                 <FieldError error={errors.scheme} />
               </div>
 
-              {/* Initiative */}
               <div>
-                <Label required>Initiative</Label>
-                <select
-                  value={formData.initiative}
-                  onChange={(e) => handleInputChange('initiative', e.target.value)}
+                <Label>Initiative</Label>
+                <MultiCheckboxSelect
+                  value={getMultiValue(formData.initiative)}
+                  onChange={(next) => handleInputChange('initiative', next)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                >
-                  <option value="">Select Initiative</option>
-                  {initiativeOptions.map((init, idx) => {
+                  placeholder="Select Initiative"
+                  options={initiativeOptions.map((init, idx) => {
                     const val = init.id ?? init.initiative_id ?? init.name ?? init.initiative_names ?? idx;
-                    const label = init.name || init.initiative_names || String(val);
-                    return (
-                      <option key={`init-${val}-${idx}`} value={val}>
-                        {label}
-                      </option>
-                    );
+                    const label =
+                      init.initiative_name ||
+                      init.name ||
+                      init.initiative_names ||
+                      String(val);
+                    return { value: String(val), label };
                   })}
-                </select>
-                <FieldError error={errors.initiative} />
+                />
               </div>
 
-              {/* Implementation Mode & Type */}
+              <div>
+                <Label required>Project Type</Label>
+                <select
+                  value={formData.projectType}
+                  onChange={(e) => handleInputChange('projectType', e.target.value)}
+                  disabled={!canInteract || isProjectTypeLocked}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                >
+                  <option value="">Select Project Type</option>
+                  {PROJECT_TYPE_OPTIONS.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+                <FieldError error={errors.projectType} />
+              </div>
+
+              <div>
+                <Label required>Implementation Type</Label>
+                <select
+                  value={formData.implementationType}
+                  onChange={(e) => handleInputChange('implementationType', e.target.value)}
+                  disabled={!canInteract}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                >
+                  <option value="">Select Implementation Type</option>
+                  {IMPLEMENTATION_TYPE_OPTIONS.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+                <FieldError error={errors.implementationType} />
+              </div>
+
               <div>
                 <Label>Implementation Mode</Label>
-                <select
-                  value={formData.implementationMode}
-                  onChange={(e) => handleInputChange('implementationMode', e.target.value)}
-                  disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                >
-                  <option value="Direct">Direct</option>
-                  <option value="Deposit">Deposit</option>
-                  <option value="PPP">PPP</option>
-                  <option value="Joint Venture">Joint Venture</option>
-                </select>
+                <input
+                  type="text"
+                  value={formData.implementationMode || 'EPC'}
+                  readOnly
+                  disabled
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-700"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Derived from Source of Funding (PPP if SoF includes PPP / id 3).</p>
               </div>
+
+              {!isEditMode ? (
+                <div className="md:col-span-2 space-y-3 rounded-xl border border-slate-200 p-4 bg-slate-50/60">
+                  <Label required>Does this project have sub-projects?</Label>
+                  <div className="flex gap-6 text-xs font-semibold">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="onSubProjectAvailable"
+                        checked={Number(formData.onSubProjectAvailable) === 1}
+                        disabled={!canInteract}
+                        onChange={() => {
+                          handleInputChange('onSubProjectAvailable', 1);
+                          if (Number(formData.subProjectNum) < 2) setSubProjectCount(2);
+                        }}
+                      />
+                      Yes
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="onSubProjectAvailable"
+                        checked={Number(formData.onSubProjectAvailable) === 0}
+                        disabled={!canInteract}
+                        onChange={() => {
+                          handleInputChange('onSubProjectAvailable', 0);
+                          setSubProjectCount(0);
+                        }}
+                      />
+                      No
+                    </label>
+                  </div>
+                  <FieldError error={errors.onSubProjectAvailable} />
+                  {Number(formData.onSubProjectAvailable) === 1 ? (
+                    <div className="space-y-2">
+                      <Label required>Number of Sub-projects</Label>
+                      <input
+                        type="number"
+                        min="2"
+                        value={formData.subProjectNum || ''}
+                        disabled={!canInteract}
+                        onChange={(e) => setSubProjectCount(e.target.value)}
+                        className="w-40 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold"
+                      />
+                      <FieldError error={errors.subProjectNum} />
+                      {(formData.subProjectsTab || []).map((item, idx) => (
+                        <div key={`sp-${idx}`}>
+                          <Label required>{`Sub-project ${idx + 1} Name`}</Label>
+                          <input
+                            type="text"
+                            value={item?.subProjectName || ''}
+                            disabled={!canInteract}
+                            onChange={(e) => updateSubProjectName(idx, e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold"
+                          />
+                        </div>
+                      ))}
+                      <FieldError error={errors.subProjectsTab} />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
             </div>
 
@@ -633,7 +1160,6 @@ export default function ProjectBasicInfoForm({
           </div>
         )}
 
-        {/* ================= SECTION 2: COST & FUNDING ================= */}
         {activeSection === 'cost' && (
           <div className="space-y-6 animate-fade-in">
             <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -650,7 +1176,6 @@ export default function ProjectBasicInfoForm({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
-              {/* Estimated Project Cost */}
               <div>
                 <Label required>Estimated Project Cost (₹ in Cr)</Label>
                 <div className="relative">
@@ -669,32 +1194,31 @@ export default function ProjectBasicInfoForm({
                 <FieldError error={errors.estimatedProjectCost} />
               </div>
 
-              {/* Source of Funding */}
               <div>
                 <Label required>Source of Funding</Label>
-                <select
-                  value={formData.sourceOfFunding}
-                  onChange={(e) => handleInputChange('sourceOfFunding', e.target.value)}
+                <MultiCheckboxSelect
+                  value={getMultiValue(formData.sourceOfFunding)}
+                  onChange={(next) => handleFundingSourceChange(next)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                >
-                  <option value="">Select Funding Source</option>
-                  {sourceOfFundingOptions.map((sof, idx) => {
-                    const val = sof.id ?? sof.sof_id ?? sof.source_id ?? sof.name ?? sof.sof_names ?? idx;
-                    const label = sof.name || sof.sof_names || sof.source_name || String(val);
-                    return (
-                      <option key={`sof-${val}-${idx}`} value={val}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
+                  placeholder="Select Source of Funding"
+                  options={(sourceOfFundingOptions.length
+                    ? sourceOfFundingOptions.map((sof) => ({
+                        value: String(sof.source_of_funding_id ?? sof.id ?? sof.sof_id ?? sof.source_id ?? ''),
+                        label:
+                          sof.source_of_funding_name ||
+                          sof.name ||
+                          sof.sof_names ||
+                          sof.source_name ||
+                          String(sof.source_of_funding_id ?? sof.id ?? ''),
+                      }))
+                    : FUNDING_SOURCE_OPTIONS.map((item) => ({ value: item, label: item }))
+                  ).filter((item) => item.value)}
+                />
                 <FieldError error={errors.sourceOfFunding} />
               </div>
 
-              {/* Primary Funding Agency */}
               <div>
-                <Label>Primary Funding Agency</Label>
+                <Label required>Primary Funding Agency</Label>
                 <select
                   value={formData.primaryFundingAgency}
                   onChange={(e) => handleInputChange('primaryFundingAgency', e.target.value)}
@@ -703,8 +1227,8 @@ export default function ProjectBasicInfoForm({
                 >
                   <option value="">Select Funding Agency</option>
                   {faOptions.map((fa, idx) => {
-                    const val = fa.id ?? fa.fa_id ?? fa.funding_agency_id ?? fa.name ?? fa.fa_names ?? idx;
-                    const label = fa.name || fa.fa_names || fa.funding_agency_name || String(val);
+                    const val = fa.fa_id ?? fa.id ?? fa.funding_agency_id ?? idx;
+                    const label = fa.fa_name || fa.name || fa.funding_agency_name || String(val);
                     return (
                       <option key={`fa-${val}-${idx}`} value={val}>
                         {label}
@@ -712,24 +1236,47 @@ export default function ProjectBasicInfoForm({
                     );
                   })}
                 </select>
+                <FieldError error={errors.primaryFundingAgency} />
               </div>
 
-              {/* Secondary Funding Agency */}
               <div>
                 <Label>Secondary Funding Agency</Label>
-                <input
-                  type="text"
+                <select
                   value={formData.secondaryFundingAgency}
                   onChange={(e) => handleInputChange('secondaryFundingAgency', e.target.value)}
                   disabled={!canInteract}
-                  placeholder="Optional secondary funding agency..."
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                />
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                >
+                  <option value="">Select Secondary Funding Agency</option>
+                  {faOptions.map((fa, idx) => {
+                    const val = fa.fa_id ?? fa.id ?? fa.funding_agency_id ?? idx;
+                    const label = fa.fa_name || fa.name || fa.funding_agency_name || String(val);
+                    return (
+                      <option key={`sfa-${val}-${idx}`} value={val}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                  <option value="Others">Others</option>
+                </select>
               </div>
+
+              {showSecondaryFaOthers ? (
+                <div>
+                  <Label required>New Funding Agency</Label>
+                  <input
+                    type="text"
+                    value={formData.newFundingAgency}
+                    onChange={(e) => handleInputChange('newFundingAgency', e.target.value)}
+                    disabled={!canInteract}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                  />
+                  <FieldError error={errors.newFundingAgency} />
+                </div>
+              ) : null}
 
             </div>
 
-            {/* Dynamic Funding Component Inputs */}
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
               <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Funding Components Breakdown (₹ in Cr)
@@ -812,6 +1359,49 @@ export default function ProjectBasicInfoForm({
                       placeholder="0.00"
                       className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
                     />
+                    <FieldError error={errors.stateGovFundComponents} />
+                  </div>
+                )}
+                {fundingVisibility.multilateral && (
+                  <div>
+                    <Label>Multilateral Funding Component</Label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.multiFundComponents}
+                      onChange={(e) => handleInputChange('multiFundComponents', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                    />
+                    <FieldError error={errors.multiFundComponents} />
+                  </div>
+                )}
+                {fundingVisibility.pmmsy && (
+                  <div>
+                    <Label>PMMSY Component</Label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.pmmsyComponents}
+                      onChange={(e) => handleInputChange('pmmsyComponents', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                    />
+                    <FieldError error={errors.pmmsyComponents} />
+                  </div>
+                )}
+                {fundingVisibility.otherSources && (
+                  <div>
+                    <Label>Other Sources Component</Label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.otherSourceFundingComp}
+                      onChange={(e) => handleInputChange('otherSourceFundingComp', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 text-xs font-semibold"
+                    />
+                    <FieldError error={errors.otherSourceFundingComp} />
                   </div>
                 )}
               </div>
@@ -838,7 +1428,6 @@ export default function ProjectBasicInfoForm({
           </div>
         )}
 
-        {/* ================= SECTION 3: LOCATION & LAND ================= */}
         {activeSection === 'location' && (
           <div className="space-y-6 animate-fade-in">
             <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -855,52 +1444,38 @@ export default function ProjectBasicInfoForm({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
-              {/* State */}
               <div>
                 <Label required>State / Region</Label>
-                <select
-                  value={formData.state}
-                  onChange={(e) => handleInputChange('state', e.target.value)}
+                <MultiCheckboxSelect
+                  value={getMultiValue(formData.state)}
+                  onChange={(next) => handleStateChange(next)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                >
-                  <option value="">Select State</option>
-                  {stateOptions.map((st, idx) => {
+                  placeholder="Select State / Region"
+                  options={stateOptions.map((st, idx) => {
                     const val = st.id ?? st.state_id ?? st.name ?? st.state_names ?? idx;
-                    const label = st.name || st.state_names || st.state_name || String(val);
-                    return (
-                      <option key={`st-${val}-${idx}`} value={val}>
-                        {label}
-                      </option>
-                    );
+                    const label = st.state_name || st.name || st.state_names || String(val);
+                    return { value: String(val), label };
                   })}
-                </select>
+                />
                 <FieldError error={errors.state} />
               </div>
 
-              {/* District */}
               <div>
-                <Label>District</Label>
-                <select
-                  value={formData.district}
-                  onChange={(e) => handleInputChange('district', e.target.value)}
+                <Label required>District</Label>
+                <MultiCheckboxSelect
+                  value={getMultiValue(formData.district)}
+                  onChange={(next) => handleInputChange('district', next)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                >
-                  <option value="">Select District</option>
-                  {filteredDistrictOptions.map((dist, idx) => {
+                  placeholder="Select District"
+                  options={filteredDistrictOptions.map((dist, idx) => {
                     const val = dist.id ?? dist.district_id ?? dist.name ?? dist.district_names ?? idx;
-                    const label = dist.name || dist.district_names || dist.district_name || String(val);
-                    return (
-                      <option key={`dist-${val}-${idx}`} value={val}>
-                        {label}
-                      </option>
-                    );
+                    const label = dist.district_name || dist.name || dist.district_names || String(val);
+                    return { value: String(val), label };
                   })}
-                </select>
+                />
+                <FieldError error={errors.district} />
               </div>
 
-              {/* Taluka */}
               <div>
                 <Label>Taluka / Tehsil</Label>
                 <input
@@ -913,7 +1488,6 @@ export default function ProjectBasicInfoForm({
                 />
               </div>
 
-              {/* Village */}
               <div>
                 <Label>Village</Label>
                 <input
@@ -926,31 +1500,24 @@ export default function ProjectBasicInfoForm({
                 />
               </div>
 
-              {/* MP Constituency */}
               <div>
-                <Label>MP Constituency</Label>
-                <select
-                  value={formData.mpConstituency}
-                  onChange={(e) => handleInputChange('mpConstituency', e.target.value)}
+                <Label required>MP Constituency</Label>
+                <MultiCheckboxSelect
+                  value={getMultiValue(formData.mpConstituency)}
+                  onChange={(next) => handleInputChange('mpConstituency', next)}
                   disabled={!canInteract}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-                >
-                  <option value="">Select Constituency</option>
-                  {filteredMpOptions.map((mp, idx) => {
-                    const val = mp.id ?? mp.mp_constituency_id ?? mp.name ?? mp.mp_constituency_names ?? idx;
-                    const label = mp.name || mp.mp_constituency_names || mp.mp_constituency_name || String(val);
-                    return (
-                      <option key={`mp-${val}-${idx}`} value={val}>
-                        {label}
-                      </option>
-                    );
+                  placeholder="Select MP Constituency"
+                  options={filteredMpOptions.map((mp, idx) => {
+                    const val = mp.mpc_id ?? mp.id ?? mp.mp_constituency_id ?? idx;
+                    const label = mp.mpc_name || mp.mp_constituency_name || mp.name || String(val);
+                    return { value: String(val), label };
                   })}
-                </select>
+                />
+                <FieldError error={errors.mpConstituency} />
               </div>
 
             </div>
 
-            {/* Land Acquisition Sub-Card */}
             <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-3">
               <h4 className="text-xs font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wider">
                 Land Acquisition Information
@@ -1061,7 +1628,6 @@ export default function ProjectBasicInfoForm({
           </div>
         )}
 
-        {/* ================= SECTION 4: TIMELINES & DELIVERABLES ================= */}
         {activeSection === 'timeline' && (
           <div className="space-y-6 animate-fade-in">
             <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1078,7 +1644,6 @@ export default function ProjectBasicInfoForm({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
-              {/* Project Initiated Date */}
               <div>
                 <Label required>Project Initiated Date</Label>
                 <input
@@ -1091,7 +1656,6 @@ export default function ProjectBasicInfoForm({
                 <FieldError error={errors.projectInitiatedDate} />
               </div>
 
-              {/* Target Completion Date */}
               <div>
                 <Label required>Target Completion Date</Label>
                 <input
@@ -1104,7 +1668,6 @@ export default function ProjectBasicInfoForm({
                 <FieldError error={errors.targetCompletionDate} />
               </div>
 
-              {/* Revised Target Completion Date */}
               <div>
                 <Label>Revised Target Completion Date</Label>
                 <input
@@ -1116,7 +1679,6 @@ export default function ProjectBasicInfoForm({
                 />
               </div>
 
-              {/* Capacity Addition */}
               <div>
                 <Label>Capacity Addition (MTPA / Units)</Label>
                 <input
@@ -1130,7 +1692,6 @@ export default function ProjectBasicInfoForm({
                 />
               </div>
 
-              {/* Output */}
               <div>
                 <Label>Project Output</Label>
                 <select
@@ -1141,18 +1702,45 @@ export default function ProjectBasicInfoForm({
                 >
                   <option value="">Select Project Output</option>
                   {outputOptions.map((out, idx) => {
-                    const val = out.id ?? out.output_id ?? out.name ?? out.output_names ?? idx;
-                    const label = out.name || out.output_names || out.output_name || String(val);
+                    const val = out.project_output_id ?? out.id ?? out.output_id ?? idx;
+                    const label = out.project_output_name || out.output_name || out.name || String(val);
                     return (
                       <option key={`out-${val}-${idx}`} value={val}>
                         {label}
                       </option>
                     );
                   })}
+                  <option value="Others">Others</option>
                 </select>
               </div>
 
-              {/* Outcome */}
+              {showOutputOthers ? (
+                <>
+                  <div>
+                    <Label required>New Project Output</Label>
+                    <input
+                      type="text"
+                      value={formData.newProjectOutput}
+                      onChange={(e) => handleInputChange('newProjectOutput', e.target.value)}
+                      disabled={!canInteract}
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold"
+                    />
+                    <FieldError error={errors.newProjectOutput} />
+                  </div>
+                  <div>
+                    <Label required>New Output Units</Label>
+                    <input
+                      type="text"
+                      value={formData.newProjectOutputUnits}
+                      onChange={(e) => handleInputChange('newProjectOutputUnits', e.target.value)}
+                      disabled={!canInteract}
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold"
+                    />
+                    <FieldError error={errors.newProjectOutputUnits} />
+                  </div>
+                </>
+              ) : null}
+
               <div>
                 <Label>Project Outcome</Label>
                 <select
@@ -1163,16 +1751,45 @@ export default function ProjectBasicInfoForm({
                 >
                   <option value="">Select Project Outcome</option>
                   {outcomeOptions.map((outc, idx) => {
-                    const val = outc.id ?? outc.outcome_id ?? outc.name ?? outc.outcome_names ?? idx;
-                    const label = outc.name || outc.outcome_names || outc.outcome_name || String(val);
+                    const val = outc.project_outcome_id ?? outc.id ?? outc.outcome_id ?? idx;
+                    const label =
+                      outc.project_outcome_name || outc.outcome_name || outc.name || String(val);
                     return (
                       <option key={`outc-${val}-${idx}`} value={val}>
                         {label}
                       </option>
                     );
                   })}
+                  <option value="Others">Others</option>
                 </select>
               </div>
+
+              {showOutcomeOthers ? (
+                <>
+                  <div>
+                    <Label required>New Project Outcome</Label>
+                    <input
+                      type="text"
+                      value={formData.newProjectOutcome}
+                      onChange={(e) => handleInputChange('newProjectOutcome', e.target.value)}
+                      disabled={!canInteract}
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold"
+                    />
+                    <FieldError error={errors.newProjectOutcome} />
+                  </div>
+                  <div>
+                    <Label required>New Outcome Units</Label>
+                    <input
+                      type="text"
+                      value={formData.newProjectOutcomeUnits}
+                      onChange={(e) => handleInputChange('newProjectOutcomeUnits', e.target.value)}
+                      disabled={!canInteract}
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold"
+                    />
+                    <FieldError error={errors.newProjectOutcomeUnits} />
+                  </div>
+                </>
+              ) : null}
 
             </div>
 
@@ -1197,7 +1814,6 @@ export default function ProjectBasicInfoForm({
           </div>
         )}
 
-        {/* ================= SECTION 5: DOCUMENTS & ATTACHMENTS ================= */}
         {activeSection === 'docs' && (
           <div className="space-y-6 animate-fade-in">
             <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1212,7 +1828,10 @@ export default function ProjectBasicInfoForm({
               </div>
             </div>
 
-            {/* Document Uploader Form */}
+            {isEditMode && outlayProps ? (
+              <ProjectExpenditureOutlay {...outlayProps} />
+            ) : null}
+
             {canInteract && isEditMode && (
               <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-3">
                 <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
@@ -1265,7 +1884,6 @@ export default function ProjectBasicInfoForm({
               </div>
             )}
 
-            {/* Documents List */}
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Uploaded Project Attachments ({documentRows.length})
@@ -1298,7 +1916,7 @@ export default function ProjectBasicInfoForm({
                             {onDownloadDocument && (
                               <button
                                 type="button"
-                                onClick={() => onDownloadDocument(doc)}
+                                onClick={() => onDownloadDocument(doc.document_name || doc)}
                                 className="p-1 hover:bg-blue-50 text-blue-600 rounded"
                                 title="Download"
                               >
@@ -1308,7 +1926,7 @@ export default function ProjectBasicInfoForm({
                             {canInteract && onDeleteDocument && (
                               <button
                                 type="button"
-                                onClick={() => onDeleteDocument(doc)}
+                                onClick={() => onDeleteDocument(doc.document_name || doc)}
                                 className="p-1 hover:bg-rose-50 text-rose-600 rounded"
                                 title="Delete"
                               >
@@ -1334,15 +1952,28 @@ export default function ProjectBasicInfoForm({
                 <span>Previous: Timelines & Deliverables</span>
               </button>
               {canInteract && (
-                <button
-                  type="button"
-                  onClick={handleFormSubmit}
-                  disabled={loading}
-                  className="flex items-center space-x-1.5 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer"
-                >
-                  <Save className="h-4 w-4" />
-                  <span>{isEditMode ? 'Save & Update Project' : 'Complete & Save Project'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {!isEditMode ? (
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      disabled={loading || savingDraft}
+                      className="flex items-center space-x-1.5 px-4 py-2.5 bg-white border border-[#0f417a]/40 text-[#0f417a] rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>{savingDraft ? 'Saving Draft...' : 'Save as Draft'}</span>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleFormSubmit}
+                    disabled={loading}
+                    className="flex items-center space-x-1.5 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>{isEditMode ? 'Save & Update Project' : 'Complete & Save Project'}</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>

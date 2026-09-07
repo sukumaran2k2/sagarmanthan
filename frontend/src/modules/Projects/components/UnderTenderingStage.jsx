@@ -1,34 +1,78 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchUnderTenderingCostAndCalls, fetchUnderTenderingDates } from '../api';
+import { getProjectIdentity } from '../utils/mapProject';
+import {
+  buildDefaultTenderRows,
+  mapTenderMetaFromCostApi,
+  mapTenderRowsFromApi,
+} from '../utils/stageMappers';
 
-const DEFAULT_TENDER_ROWS = [
-  'Tech. Sanction obtained',
-  'Tender Document approved',
-  'Tender Notice Issued',
-  'Technical Evaluation completed',
-  'Financial Evaluation completed',
-  'Sanction of Competent Authority obtained for Award',
-  'Work Awarded / LOA Issued',
-  'Contract Agreement Signed',
-].map((label, index) => ({
-  id: index + 1,
-  label,
-  plannedDate: '',
-  revisedDate: '',
-  actualDate: '',
-  notApplicable: false,
-  hasCost: label === 'Tech. Sanction obtained' || label === 'Work Awarded / LOA Issued',
-  cost: '',
-}));
+export default function UnderTenderingStage({
+  projectID: projectIDProp,
+  subProjectID: subProjectIDProp,
+  initialData,
+  canSubmit,
+  readOnly,
+  onSubmitStage,
+  notify,
+  refreshKey = 0,
+}) {
+  const identity = useMemo(() => {
+    if (projectIDProp) {
+      return {
+        projectID: projectIDProp,
+        subProjectID: subProjectIDProp || '-1',
+      };
+    }
+    return getProjectIdentity(initialData || {});
+  }, [projectIDProp, subProjectIDProp, initialData]);
 
-export default function UnderTenderingStage({ canSubmit, readOnly, onSubmitStage }) {
+  const { projectID, subProjectID } = identity;
   const [onNominationBasisAwarded, setOnNominationBasisAwarded] = useState('0');
   const [numberOfTenderCalls, setNumberOfTenderCalls] = useState('');
-  const [rows, setRows] = useState(DEFAULT_TENDER_ROWS);
+  const [rows, setRows] = useState(buildDefaultTenderRows);
   const [foundationLaid, setFoundationLaid] = useState('');
   const [foundationLaidDate, setFoundationLaidDate] = useState('');
   const [foundationTentativeDate, setFoundationTentativeDate] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const disabled = !canSubmit || readOnly;
+
+  useEffect(() => {
+    if (!projectID) return;
+    let mounted = true;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [datesRes, costRes] = await Promise.all([
+          fetchUnderTenderingDates(projectID, subProjectID),
+          fetchUnderTenderingCostAndCalls(subProjectID, projectID),
+        ]);
+        if (!mounted) return;
+
+        const dateRows = Array.isArray(datesRes?.data) ? datesRes.data : [];
+        const costRow = Array.isArray(costRes?.data) ? costRes.data[0] : null;
+        setRows(mapTenderRowsFromApi(dateRows, costRow));
+        const meta = mapTenderMetaFromCostApi(costRow);
+        setOnNominationBasisAwarded(meta.onNominationBasisAwarded);
+        setNumberOfTenderCalls(meta.numberOfTenderCalls);
+        setFoundationLaid(meta.foundationLaid);
+        setFoundationLaidDate(meta.foundationLaidDate);
+        setFoundationTentativeDate(meta.foundationTentativeDate);
+      } catch (error) {
+        console.error(error);
+        notify?.('Failed to load under tendering details.', 'error');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [projectID, subProjectID, refreshKey, notify]);
 
   const updateRow = (id, patch) => {
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -36,6 +80,10 @@ export default function UnderTenderingStage({ canSubmit, readOnly, onSubmitStage
 
   return (
     <div className="space-y-5">
+      {loading ? (
+        <div className="text-xs font-semibold text-slate-500">Loading tendering details...</div>
+      ) : null}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-2">
           <p className="text-xs font-bold text-slate-800">Is the project awarded on nomination basis?</p>

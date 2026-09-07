@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import ProjectListPage from './pages/ProjectListPage';
 import ProjectBasicInformationPage from './pages/ProjectBasicInformationPage';
 import { useProjectsPermissions } from './hooks/useProjectsPermissions';
+import { resolveProjectsListView } from './views';
 
 const INIT_TAB_KEY = 'projectsInitTab';
 
@@ -19,20 +19,26 @@ export default function Projects({
   triggerNotification,
 }) {
   const permissions = useProjectsPermissions();
+  const ListView = useMemo(
+    () => resolveProjectsListView(permissions.uiViewCode),
+    [permissions.uiViewCode]
+  );
+
   const [manualSubTab, setManualSubTab] = useState(() => {
     const init = sessionStorage.getItem(INIT_TAB_KEY);
     if (!init) return null;
     sessionStorage.removeItem(INIT_TAB_KEY);
-    return resolveSubTabId(init, true);
+    return resolveSubTabId(init, permissions.canAdd);
   });
   const [listRefreshKey, setListRefreshKey] = useState(0);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [formReadOnly, setFormReadOnly] = useState(false);
   const [toast, setToast] = useState(null);
 
   const notify = useCallback(
     (message, type = 'success') => {
       if (typeof triggerNotification === 'function') {
-        triggerNotification(message);
+        triggerNotification(message, type);
         return;
       }
 
@@ -44,6 +50,8 @@ export default function Projects({
 
   useEffect(() => {
     const onMenu = (event) => {
+      setEditingRecord(null);
+      setFormReadOnly(false);
       setManualSubTab(resolveSubTabId(event.detail, permissions.canAdd));
     };
 
@@ -53,19 +61,20 @@ export default function Projects({
 
   const tabs = useMemo(() => {
     const items = [{ id: 'list', label: 'Data List' }];
-    if (permissions.canAdd || permissions.canEdit) {
+    if (permissions.canAdd) {
       items.push({ id: 'basic-info', label: 'Input Form' });
     }
     return items;
-  }, [permissions.canAdd, permissions.canEdit]);
+  }, [permissions.canAdd]);
 
   const activeSubTab = useMemo(() => {
+    if (editingRecord) return 'basic-info';
     const base = manualSubTab ?? resolveSubTabId(activeSubTabProp, permissions.canAdd);
-    if (base === 'basic-info' && !permissions.canAdd && !permissions.canEdit) {
+    if (base === 'basic-info' && !permissions.canAdd) {
       return 'list';
     }
     return base;
-  }, [manualSubTab, activeSubTabProp, permissions.canAdd, permissions.canEdit]);
+  }, [manualSubTab, activeSubTabProp, permissions.canAdd, editingRecord]);
 
   if (!permissions.canView) {
     return (
@@ -93,27 +102,38 @@ export default function Projects({
           <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-300 tracking-wide uppercase font-display">
             Projects Module
           </h1>
-
         </div>
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeSubTab}
-          onTabChange={(tab) => setManualSubTab(tab)}
+          currentTab={
+            activeSubTab === 'basic-info' && editingRecord && !permissions.canAdd
+              ? 'list'
+              : activeSubTab
+          }
+          onTabChange={(tab) => {
+            setEditingRecord(null);
+            setFormReadOnly(false);
+            setManualSubTab(tab);
+          }}
         />
       </div>
 
       <div className="space-y-8">
         {activeSubTab === 'list' ? (
-          <ProjectListPage
+          <ListView
             key={listRefreshKey}
             notify={notify}
             onAddNew={() => {
               setEditingRecord(null);
+              setFormReadOnly(false);
               setManualSubTab('basic-info');
             }}
-            onOpenBasicInfo={(row) => {
+            onOpenBasicInfo={(row, options = {}) => {
               setEditingRecord(row);
+              setFormReadOnly(
+                Boolean(options.readOnly) || (!permissions.canEdit && permissions.canView)
+              );
               setManualSubTab('basic-info');
             }}
           />
@@ -123,12 +143,15 @@ export default function Projects({
           <ProjectBasicInformationPage
             initialData={editingRecord}
             notify={notify}
+            forceReadOnly={formReadOnly}
             onBack={() => {
               setEditingRecord(null);
+              setFormReadOnly(false);
               setManualSubTab('list');
             }}
             onSuccess={() => {
               setEditingRecord(null);
+              setFormReadOnly(false);
               setManualSubTab('list');
               setListRefreshKey((prev) => prev + 1);
             }}

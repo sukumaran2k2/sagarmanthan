@@ -9,6 +9,7 @@ import PlanningSanctioningStage from './PlanningSanctioningStage';
 import UnderTenderingStage from './UnderTenderingStage';
 import UnderImplementationStage from './UnderImplementationStage';
 import ProjectCompletionStage from './ProjectCompletionStage';
+import { getProjectIdentity } from '../utils/mapProject';
 
 const STAGES = [
   { id: 'basic', label: 'Basic Info', title: 'Basic Info', desc: 'Details & Geography' },
@@ -46,17 +47,21 @@ export default function ProjectStageWorkbench({
   onBack,
   onSubmit,
   onSubmitStage,
+  notify,
+  stageRefreshKey = 0,
   documentRows = [],
   documentsLoading = false,
   uploadingDocuments = false,
   onUploadDocuments,
   onDeleteDocument,
   onDownloadDocument,
+  outlayProps = null,
 }) {
   const isUpdateMode = Boolean(initialData?.id || initialData?.projectId || initialData?.raw?.project_id);
+  const identity = useMemo(() => getProjectIdentity(initialData || {}), [initialData]);
   const raw = initialData?.raw || {};
-  const projectId = initialData?.projectId || initialData?.projectID || raw.project_id || '';
-  const subProjectId = initialData?.subProjectId || initialData?.subProjectID || raw.sub_project_id || '';
+  const projectId = identity.projectID || initialData?.projectId || initialData?.projectID || raw.project_id || '';
+  const subProjectId = identity.subProjectID || initialData?.subProjectId || initialData?.subProjectID || raw.sub_project_id || '';
   const projectName = initialData?.projectName || raw.project_name || '';
   const subProjectName = initialData?.subProjectName || raw.sub_project_name || '';
   const stage = initialData?.stage || initialData?.selectedStage || raw.stage_name || raw.project_stage || 'Project Initiated';
@@ -88,6 +93,7 @@ export default function ProjectStageWorkbench({
     if (ok) {
       setActiveStage('planning');
     }
+    return ok;
   };
 
   const handleMilestoneSubmit = async (stageId, stageData) => {
@@ -101,6 +107,18 @@ export default function ProjectStageWorkbench({
         setActiveStage('completion');
       }
     }
+    return ok;
+  };
+
+  const stageCommon = {
+    projectID: identity.projectID,
+    subProjectID: identity.subProjectID,
+    initialData,
+    canSubmit,
+    readOnly,
+    onSubmitStage: handleMilestoneSubmit,
+    notify,
+    refreshKey: stageRefreshKey,
   };
 
   const getStageBadgeClass = (s) => {
@@ -113,14 +131,8 @@ export default function ProjectStageWorkbench({
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden text-slate-800 dark:text-slate-100 animate-fade-in">
-      
-      {/* 1. Integrated Master Header Bar with Heading & Stage Cards */}
       <div className="bg-gradient-to-r from-[#0f417a] via-[#164e8a] to-[#0284c7] p-5 text-white select-none border-b border-white/10 space-y-4">
-        
-        {/* Top Heading Line: Project Identity, Title & Action Buttons */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          
-          {/* Left: Back Button + Badges + Project Name */}
           <div className="flex items-center space-x-3.5 min-w-0">
             <button
               type="button"
@@ -155,7 +167,6 @@ export default function ProjectStageWorkbench({
             </div>
           </div>
 
-          {/* Right: Cancel & Save Buttons */}
           <div className="flex items-center space-x-2.5 shrink-0 self-end sm:self-center">
             <button
               type="button"
@@ -185,17 +196,15 @@ export default function ProjectStageWorkbench({
               </button>
             )}
           </div>
-
         </div>
 
-        {/* Stage Cards directly in Header Line */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1">
           {STAGES.map((stg, idx) => {
             const isActive = activeStage === stg.id;
             const isCompleted = isUpdateMode && (
-              (currentProjectLevel === 4) || // If project is completed, all stages are completed
-              (idx < currentProjectLevel) ||  // If past this stage
-              (idx === 0 && isUpdateMode)     // Basic info is completed if project exists
+              (currentProjectLevel === 4) ||
+              (idx < currentProjectLevel) ||
+              (idx === 0 && isUpdateMode)
             );
             const isDisabled = !isUpdateMode && stg.id !== 'basic';
 
@@ -253,7 +262,6 @@ export default function ProjectStageWorkbench({
             );
           })}
         </div>
-
       </div>
 
       {warningMsg && (
@@ -263,7 +271,6 @@ export default function ProjectStageWorkbench({
         </div>
       )}
 
-      {/* 3. Stage Content & Form Body */}
       <div className="p-6">
         {activeStage === 'basic' && (
           <ProjectBasicInfoForm
@@ -273,7 +280,8 @@ export default function ProjectStageWorkbench({
             loading={loading}
             onBack={onBack}
             onSubmit={handleBasicSubmit}
-            onSubmitStage={handleMilestoneSubmit}
+            notify={notify}
+            outlayProps={outlayProps}
             documentRows={documentRows}
             documentsLoading={documentsLoading}
             uploadingDocuments={uploadingDocuments}
@@ -283,41 +291,10 @@ export default function ProjectStageWorkbench({
           />
         )}
 
-        {activeStage === 'planning' && (
-          <PlanningSanctioningStage
-            initialData={initialData}
-            canSubmit={canSubmit}
-            readOnly={readOnly}
-            onSubmitStage={handleMilestoneSubmit}
-          />
-        )}
-
-        {activeStage === 'tendering' && (
-          <UnderTenderingStage
-            initialData={initialData}
-            canSubmit={canSubmit}
-            readOnly={readOnly}
-            onSubmitStage={handleMilestoneSubmit}
-          />
-        )}
-
-        {activeStage === 'implementation' && (
-          <UnderImplementationStage
-            initialData={initialData}
-            canSubmit={canSubmit}
-            readOnly={readOnly}
-            onSubmitStage={handleMilestoneSubmit}
-          />
-        )}
-
-        {activeStage === 'completion' && (
-          <ProjectCompletionStage
-            initialData={initialData}
-            canSubmit={canSubmit}
-            readOnly={readOnly}
-            onSubmitStage={handleMilestoneSubmit}
-          />
-        )}
+        {activeStage === 'planning' && <PlanningSanctioningStage {...stageCommon} />}
+        {activeStage === 'tendering' && <UnderTenderingStage {...stageCommon} />}
+        {activeStage === 'implementation' && <UnderImplementationStage {...stageCommon} />}
+        {activeStage === 'completion' && <ProjectCompletionStage {...stageCommon} />}
       </div>
 
     </div>

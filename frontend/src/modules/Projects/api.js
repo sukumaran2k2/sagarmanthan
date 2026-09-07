@@ -122,12 +122,24 @@ export function submitPlanningSanctioning(payload) {
   return api.post('/planning-sanctioning', payload);
 }
 
+export function fetchPlanningSanctioning(projectID, subProjectID) {
+  return api.get(`/planning-sanctioning/${projectID}/${subProjectID}`);
+}
+
 export function submitUnderTenderingDates(payload) {
   return api.post('/undertendering', payload);
 }
 
+export function fetchUnderTenderingDates(projectID, subProjectID) {
+  return api.get(`/undertendering/${projectID}/${subProjectID}`);
+}
+
 export function submitUnderTenderingCostAndCalls(payload) {
   return api.post('/awardofcontract-cost', payload);
+}
+
+export function fetchUnderTenderingCostAndCalls(subProjectID, projectID) {
+  return api.get(`/awardofcontract-cost/${subProjectID}/${projectID}`);
 }
 
 export function submitUnderImplementationProgress(payload) {
@@ -138,8 +150,58 @@ export function submitUnderImplementationMilestones(payload) {
   return api.post('/milestone', payload);
 }
 
+export function fetchUnderImplementationMilestones(projectID, subProjectID) {
+  return api.get(`/milestone/${projectID}/${subProjectID}`);
+}
+
+export function fetchPhysicalProgress(projectID, subProjectID) {
+  return api.get(`/get-progress-value/${projectID}/${subProjectID}`);
+}
+
+export function fetchDelayReason(projectID, subProjectID) {
+  return api.get(`/get-delay-reason/${projectID}/${subProjectID}`);
+}
+
+export function fetchInaugurationDates(projectID, subProjectID) {
+  return api.get(`/get-inauguration-dates/${projectID}/${subProjectID}`);
+}
+
+export function fetchFundingComponents(projectID, subProjectID) {
+  return api.get(`/get-component/${projectID}/${subProjectID}`);
+}
+
+export function fetchExpenditureDetails(projectID, subProjectID) {
+  return api.get(`/get-expenditure-detail/${projectID}/${subProjectID}`);
+}
+
+export function fetchTotalExpenditureValue(projectID, subProjectID) {
+  return api.get(`/get-total-expenditure-value/${projectID}/${subProjectID}`);
+}
+
+export function fetchExpenditureMainFinancialYear(projectID, subProjectID, financialYear, month) {
+  return api.get(
+    `/get-expenditure-main-financial-year/${projectID}/${subProjectID}/${encodeURIComponent(financialYear)}/${month}`
+  );
+}
+
+export function submitExpenditureDetail(payload) {
+  return api.post('/add-expenditure-detail', payload);
+}
+
+export function fetchExpenditureOutlay(projectID, subProjectID) {
+  return api.get(`/get-expenditure-outlay/${projectID}/${subProjectID}`);
+}
+
+export function submitExpenditureOutlay(payload) {
+  return api.post('/add-expenditure-outlay', payload);
+}
+
 export function submitProjectCompletion(payload) {
   return api.post('/completionpage', payload);
+}
+
+export function fetchProjectCompletion(projectID, subProjectID) {
+  return api.get(`/completionpage/${projectID}/${subProjectID}`);
 }
 
 export function fetchProjectDocuments(projectID, subProjectID) {

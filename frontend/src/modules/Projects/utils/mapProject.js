@@ -16,6 +16,25 @@ function normalizeSubProjectId(value) {
   return text;
 }
 
+function normalizeMulti(value) {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  if (value == null || value === '') return [];
+  return String(value)
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function toTitleCase(value) {
+  return String(value || '').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function nullIfInvalidNumber(value) {
+  if (value === '' || value == null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function getProjectIdentity(input = {}) {
   const projectId = input.projectId || input.projectID || input?.raw?.project_id || '';
   const subProjectId =
@@ -39,6 +58,44 @@ export function resolveStageId(value) {
   if (normalized.includes('project initiated')) return '0';
 
   return '0';
+}
+
+export function deriveImplementationMode(sourceOfFunding) {
+  const ids = normalizeMulti(sourceOfFunding);
+  return ids.includes('3') ? 'PPP' : 'EPC';
+}
+
+export function deriveSagarmalaFunding(sourceOfFunding) {
+  const ids = normalizeMulti(sourceOfFunding);
+  return ids.includes('8') ? '1' : '';
+}
+
+/**
+ * Normalize Others selections into API-ready values (legacy addNewProject parity).
+ */
+export function normalizeProjectFormForSubmit(form = {}) {
+  const next = { ...form };
+
+  if (String(next.secondaryImplementingAgency) === 'Others') {
+    next.secondaryImplementingAgency = toTitleCase(next.newImplementingAgency);
+  }
+
+  if (String(next.secondaryFundingAgency) === 'Others') {
+    next.secondaryFundingAgency = toTitleCase(next.newFundingAgency);
+  }
+
+  if (String(next.projectOutput) === 'Others') {
+    next.projectOutput = toTitleCase(next.newProjectOutput);
+  }
+
+  if (String(next.projectOutcome) === 'Others') {
+    next.projectOutcome = toTitleCase(next.newProjectOutcome);
+  }
+
+  next.implementationMode = deriveImplementationMode(next.sourceOfFunding);
+  next.sagarmalaFunding = deriveSagarmalaFunding(next.sourceOfFunding);
+
+  return next;
 }
 
 export function mapProjectListRow(raw = {}, index = 0) {
@@ -70,59 +127,70 @@ export function mapProjectListRow(raw = {}, index = 0) {
 }
 
 export function mapProjectBasicInfoPayload(form, options = {}) {
-  const { userId, organisationId, isUpdate = false, initialData = null } = options;
+  const {
+    userId,
+    organisationId,
+    wingId = null,
+    isUpdate = false,
+    initialData = null,
+  } = options;
   const identity = getProjectIdentity(initialData || {});
+  const normalized = normalizeProjectFormForSubmit(form);
 
   const payload = {
-    projectName: form.projectName,
-    projectBrief: form.projectBrief,
-    estimatedProjectCost: form.estimatedProjectCost,
-    projectType: form.projectType,
-    implementationMode: form.implementationMode,
-    implementationType: form.implementationType,
-    primaryImplementingAgency: form.primaryImplementingAgency,
-    secondaryImplementingAgency: form.secondaryImplementingAgency,
-    projectCategory: form.projectCategory,
-    scheme: form.scheme,
-    initiative: form.initiative,
-    projectInitiatedDate: form.projectInitiatedDate,
-    targetCompletionDate: form.targetCompletionDate,
-    projectOutput: form.projectOutput,
-    newProjectOutputUnits: form.newProjectOutputUnits || '',
-    projectOutcome: form.projectOutcome,
-    newProjectOutcomeUnits: form.newProjectOutcomeUnits || '',
-    capacityAddition: form.capacityAddition,
-    sourceOfFunding: form.sourceOfFunding,
-    primaryFundingAgency: form.primaryFundingAgency,
-    secondaryFundingAgency: form.secondaryFundingAgency,
-    state: form.state,
-    district: form.district,
-    taluka: form.taluka,
-    village: form.village,
-    mpConstituency: form.mpConstituency,
-    selectedStage: resolveStageId(form.selectedStage),
+    projectName: normalized.projectName,
+    projectBrief: normalized.projectBrief,
+    estimatedProjectCost: normalized.estimatedProjectCost,
+    projectType: normalized.projectType,
+    implementationMode: normalized.implementationMode,
+    implementationType: normalized.implementationType,
+    primaryImplementingAgency: normalized.primaryImplementingAgency,
+    secondaryImplementingAgency: normalized.secondaryImplementingAgency,
+    newImplementingAgencyCode:
+      String(form.secondaryImplementingAgency) === 'Others'
+        ? form.newImplementingAgencyCode || ''
+        : '',
+    projectCategory: normalized.projectCategory,
+    scheme: normalized.scheme,
+    initiative: normalized.initiative,
+    projectInitiatedDate: normalized.projectInitiatedDate,
+    targetCompletionDate: normalized.targetCompletionDate,
+    projectOutput: normalized.projectOutput,
+    newProjectOutputUnits: normalized.newProjectOutputUnits || '',
+    projectOutcome: normalized.projectOutcome,
+    newProjectOutcomeUnits: normalized.newProjectOutcomeUnits || '',
+    capacityAddition: nullIfInvalidNumber(normalized.capacityAddition),
+    sourceOfFunding: normalized.sourceOfFunding,
+    primaryFundingAgency: normalized.primaryFundingAgency,
+    secondaryFundingAgency: normalized.secondaryFundingAgency,
+    state: normalized.state,
+    district: normalized.district,
+    taluka: normalized.taluka,
+    village: normalized.village,
+    mpConstituency: normalized.mpConstituency,
+    selectedStage: isUpdate ? resolveStageId(normalized.selectedStage) : '0',
 
-    gbsComponents: form.gbsComponents || '',
-    iebrComponents: form.iebrComponents || '',
-    pppComponents: form.pppComponents || '',
-    loansComponents: form.loansComponents || '',
-    multiFundComponents: form.multiFundComponents || '',
-    stateGovFundComponents: form.stateGovFundComponents || '',
-    pmmsyComponents: form.pmmsyComponents || '',
-    sagarmalaComponents: form.sagarmalaComponents || '',
-    otherSourceFundingComp: form.otherSourceFundingComp || '',
-    sagarmalaFunding: form.sagarmalaFunding || '',
-    onLandAcquistion: form.onLandAcquistion ?? null,
-    landAreaReq: form.landAreaReq || null,
-    onAcquisitionCompleted: form.onAcquisitionCompleted ?? null,
-    percentLandAcquired: form.percentLandAcquired || null,
+    gbsComponents: normalized.gbsComponents || '',
+    iebrComponents: normalized.iebrComponents || '',
+    pppComponents: normalized.pppComponents || '',
+    loansComponents: normalized.loansComponents || '',
+    multiFundComponents: normalized.multiFundComponents || '',
+    stateGovFundComponents: normalized.stateGovFundComponents || '',
+    pmmsyComponents: normalized.pmmsyComponents || '',
+    sagarmalaComponents: normalized.sagarmalaComponents || '',
+    otherSourceFundingComp: normalized.otherSourceFundingComp || '',
+    sagarmalaFunding: normalized.sagarmalaFunding || '',
+    onLandAcquistion: normalized.onLandAcquistion ?? null,
+    landAreaReq: normalized.landAreaReq || null,
+    onAcquisitionCompleted: normalized.onAcquisitionCompleted ?? null,
+    percentLandAcquired: normalized.percentLandAcquired || null,
 
     userID: userId,
     organisationID: organisationId,
-    wingID: null,
-    onSubProjectAvailable: Number(form.onSubProjectAvailable || 0),
-    subProjectNum: Number(form.subProjectNum || 0),
-    subProjectsTab: Array.isArray(form.subProjectsTab) ? form.subProjectsTab : [],
+    wingID: wingId,
+    onSubProjectAvailable: Number(normalized.onSubProjectAvailable || 0),
+    subProjectNum: Number(normalized.subProjectNum || 0),
+    subProjectsTab: Array.isArray(normalized.subProjectsTab) ? normalized.subProjectsTab : [],
   };
 
   if (isUpdate) {

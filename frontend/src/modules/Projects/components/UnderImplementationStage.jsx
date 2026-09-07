@@ -1,29 +1,51 @@
-import { useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
+import {
+  fetchDelayReason,
+  fetchExpenditureDetails,
+  fetchFundingComponents,
+  fetchInaugurationDates,
+  fetchPhysicalProgress,
+  fetchUnderImplementationMilestones,
+} from '../api';
+import { getProjectIdentity } from '../utils/mapProject';
+import { DEFAULT_MILESTONES, mapMilestonesFromApi, sliceDate } from '../utils/stageMappers';
 
-const DEFAULT_MILESTONES = [
-  { id: 1, milestone: 'Milestone 0 (<20%)', targetedEndDate: '', actualEndDate: '' },
-  { id: 2, milestone: 'Milestone 1 (>=20% and <40%)', targetedEndDate: '', actualEndDate: '' },
-  { id: 3, milestone: 'Milestone 2 (>=40% and <60%)', targetedEndDate: '', actualEndDate: '' },
-  { id: 4, milestone: 'Milestone 3 (>=60% and <80%)', targetedEndDate: '', actualEndDate: '' },
-  { id: 5, milestone: 'Milestone 4 (>=80% and <100%)', targetedEndDate: '', actualEndDate: '' },
-  { id: 6, milestone: 'Final Milestone (Completion Report =100%)', targetedEndDate: '', actualEndDate: '' },
+const COMPONENT_KEYS = [
+  { key: 'gbsComponents', label: 'GBS Components (In Cr.)', apiField: 'gbs_components' },
+  { key: 'iebrComponents', label: 'IEBR Components (In Cr.)', apiField: 'iebr_components' },
+  { key: 'pppComponents', label: 'PPP-Private Components (In Cr.)', apiField: 'ppp_components' },
+  { key: 'loansComponents', label: 'Loans Components (In Cr.)', apiField: 'loans_components' },
+  { key: 'multilateralComponents', label: 'Multilateral Funding Components (In Cr.)', apiField: 'multilateral_components' },
+  { key: 'stateGovFundComponents', label: 'State Govt. Fund Components (In Cr.)', apiField: 'state_gov_fund_components' },
+  { key: 'pmmsyComponents', label: 'PMMSY Components (In Cr.)', apiField: 'pmmsy_components' },
+  { key: 'sagarmalaComponents', label: 'Sagarmala Components (In Cr.)', apiField: 'sagarmala_components' },
+  { key: 'otherSourceFunding', label: 'Other Components (In Cr.)', apiField: 'other_source_funding_comp' },
 ];
 
-const COMPONENT_FIELDS = [
-  'GBS Components (In Cr.)',
-  'IEBR Components (In Cr.)',
-  'PPP-Private Components (In Cr.)',
-  'Loans Components (In Cr.)',
-  'Multilateral Funding Components (In Cr.)',
-  'State Govt. Fund Components (In Cr.)',
-  'PMMSY Components (In Cr.)',
-  'Sagarmala Components (In Cr.)',
-  'Other Components (In Cr.)',
-];
+export default function UnderImplementationStage({
+  projectID: projectIDProp,
+  subProjectID: subProjectIDProp,
+  initialData,
+  canSubmit,
+  readOnly,
+  onSubmitStage,
+  notify,
+  refreshKey = 0,
+}) {
+  const identity = useMemo(() => {
+    if (projectIDProp) {
+      return {
+        projectID: projectIDProp,
+        subProjectID: subProjectIDProp || '-1',
+      };
+    }
+    return getProjectIdentity(initialData || {});
+  }, [projectIDProp, subProjectIDProp, initialData]);
 
-export default function UnderImplementationStage({ canSubmit, readOnly, onSubmitStage }) {
+  const { projectID, subProjectID } = identity;
   const [progressDate, setProgressDate] = useState('');
   const [progressValue, setProgressValue] = useState('0');
+  const [progressLocked, setProgressLocked] = useState(false);
   const [delayReason, setDelayReason] = useState('');
   const [inauguration, setInauguration] = useState('');
   const [inaugurationDate, setInaugurationDate] = useState('');
@@ -32,10 +54,94 @@ export default function UnderImplementationStage({ canSubmit, readOnly, onSubmit
   const [financialYear, setFinancialYear] = useState('');
   const [month, setMonth] = useState('');
   const [components, setComponents] = useState(() =>
-    COMPONENT_FIELDS.reduce((acc, key) => ({ ...acc, [key]: '' }), {})
+    COMPONENT_KEYS.reduce((acc, item) => ({ ...acc, [item.key]: '' }), {})
   );
+  const [visibleComponents, setVisibleComponents] = useState(() =>
+    COMPONENT_KEYS.reduce((acc, item) => ({ ...acc, [item.key]: true }), {})
+  );
+  const [awardProjectCost, setAwardProjectCost] = useState(0);
+  const [expenditureLogs, setExpenditureLogs] = useState([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const disabled = !canSubmit || readOnly;
+  const progressDisabled = disabled || progressLocked;
+
+  const visibleFields = useMemo(
+    () => COMPONENT_KEYS.filter((item) => visibleComponents[item.key]),
+    [visibleComponents]
+  );
+
+  useEffect(() => {
+    if (!projectID) return;
+    let mounted = true;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [milestoneRes, progressRes, delayRes, inaugRes, fundRes, expRes] = await Promise.all([
+          fetchUnderImplementationMilestones(projectID, subProjectID),
+          fetchPhysicalProgress(projectID, subProjectID),
+          fetchDelayReason(projectID, subProjectID),
+          fetchInaugurationDates(projectID, subProjectID),
+          fetchFundingComponents(projectID, subProjectID),
+          fetchExpenditureDetails(projectID, subProjectID),
+        ]);
+        if (!mounted) return;
+
+        setMilestones(mapMilestonesFromApi(Array.isArray(milestoneRes?.data) ? milestoneRes.data : []));
+
+        const progressRow = Array.isArray(progressRes?.data) ? progressRes.data[0] : null;
+        if (progressRow) {
+          setProgressDate(sliceDate(progressRow.progress_date || progressRow.as_on_date));
+          setProgressValue(String(progressRow.physical_progress ?? progressRow.progress_value ?? '0'));
+          setProgressLocked(true);
+        }
+
+        const delayRow = Array.isArray(delayRes?.data) ? delayRes.data[0] : null;
+        if (delayRow) setDelayReason(delayRow.delay_reason || delayRow.reason || '');
+
+        const inaugRow = Array.isArray(inaugRes?.data) ? inaugRes.data[0] : null;
+        if (inaugRow) {
+          if (inaugRow.inauguration_value === 1 || inaugRow.inauguration_value === true) {
+            setInauguration('yes');
+            setInaugurationDate(sliceDate(inaugRow.inauguration_date));
+          } else if (inaugRow.inauguration_value === 0 || inaugRow.inauguration_value === false) {
+            setInauguration('no');
+            setTentativeInaugurationDate(sliceDate(inaugRow.tentative_inauguration_date));
+          }
+        }
+
+        const fundRow = Array.isArray(fundRes?.data) ? fundRes.data[0] : null;
+        if (fundRow) {
+          setAwardProjectCost(Number(fundRow.award_project_cost || 0));
+          const visibility = {};
+          COMPONENT_KEYS.forEach((item) => {
+            const val = fundRow[item.apiField];
+            visibility[item.key] = val != null && val !== '' && Number(val) > 0;
+          });
+          if (!Object.values(visibility).some(Boolean)) {
+            COMPONENT_KEYS.forEach((item) => {
+              visibility[item.key] = true;
+            });
+          }
+          setVisibleComponents(visibility);
+        }
+
+        setExpenditureLogs(Array.isArray(expRes?.data) ? expRes.data : []);
+      } catch (error) {
+        console.error(error);
+        notify?.('Failed to load under implementation details.', 'error');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [projectID, subProjectID, refreshKey, notify]);
 
   const updateMilestone = (id, patch) => {
     setMilestones((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -43,19 +149,37 @@ export default function UnderImplementationStage({ canSubmit, readOnly, onSubmit
 
   return (
     <div className="space-y-5">
+      {loading ? (
+        <div className="text-xs font-semibold text-slate-500">Loading implementation details...</div>
+      ) : null}
+
       <div className="border border-slate-200 rounded-2xl p-4 bg-white">
         <div className="grid grid-cols-1 md:grid-cols-[1.3fr_1fr_auto] gap-4 items-end">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Physical Progress as on</label>
-            <input type="date" value={progressDate} disabled={disabled} onChange={(e) => setProgressDate(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
+            <input type="date" value={progressDate} disabled={progressDisabled} onChange={(e) => setProgressDate(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Physical Progress (%)</label>
-            <input type="number" min="0" max="100" value={progressValue} disabled={disabled} onChange={(e) => setProgressValue(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
+            <input type="number" min="0" max="100" value={progressValue} disabled={progressDisabled} onChange={(e) => setProgressValue(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
           </div>
           <div className="flex gap-2">
-            <button type="button" disabled className="px-3 py-2 text-xs font-bold rounded-lg border border-blue-200 text-blue-700 bg-blue-50">Edit</button>
-            <button type="button" disabled className="px-3 py-2 text-xs font-bold rounded-lg border border-rose-200 text-rose-700 bg-rose-50">Cancel</button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => setProgressLocked(false)}
+              className="px-3 py-2 text-xs font-bold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 disabled:opacity-60"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => setProgressLocked(true)}
+              className="px-3 py-2 text-xs font-bold rounded-lg border border-rose-200 text-rose-700 bg-rose-50 disabled:opacity-60"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </div>
@@ -101,8 +225,47 @@ export default function UnderImplementationStage({ canSubmit, readOnly, onSubmit
       <div className="border border-slate-200 rounded-2xl bg-white p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-black text-[#0f417a] uppercase">Expenditure Logs</h3>
-          <button type="button" disabled className="px-3 py-1.5 text-xs font-bold border border-blue-200 rounded-lg text-blue-700 bg-blue-50">View Expenditure Log</button>
+          <button
+            type="button"
+            onClick={() => setShowLogs((prev) => !prev)}
+            className="px-3 py-1.5 text-xs font-bold border border-blue-200 rounded-lg text-blue-700 bg-blue-50"
+          >
+            {showLogs ? 'Hide Expenditure Log' : 'View Expenditure Log'}
+          </button>
         </div>
+
+        {showLogs ? (
+          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <table className="min-w-full text-[11px]">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-2 py-1.5 text-left">Year</th>
+                  <th className="px-2 py-1.5 text-left">Month</th>
+                  <th className="px-2 py-1.5 text-left">GBS</th>
+                  <th className="px-2 py-1.5 text-left">IEBR</th>
+                  <th className="px-2 py-1.5 text-left">PPP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenditureLogs.length ? (
+                  expenditureLogs.map((row, idx) => (
+                    <tr key={`${row.year}-${row.month}-${idx}`} className="border-t border-slate-100">
+                      <td className="px-2 py-1.5">{row.year || row.financial_year || '-'}</td>
+                      <td className="px-2 py-1.5">{row.month || '-'}</td>
+                      <td className="px-2 py-1.5">{row.gbs_components ?? '-'}</td>
+                      <td className="px-2 py-1.5">{row.iebr_components ?? '-'}</td>
+                      <td className="px-2 py-1.5">{row.ppp_components ?? '-'}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-2 py-2 text-slate-500">No expenditure logs found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -136,14 +299,14 @@ export default function UnderImplementationStage({ canSubmit, readOnly, onSubmit
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {COMPONENT_FIELDS.map((field) => (
-            <div key={field}>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">{field}</label>
+          {visibleFields.map((field) => (
+            <div key={field.key}>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">{field.label}</label>
               <input
                 type="number"
-                value={components[field]}
+                value={components[field.key]}
                 disabled={disabled}
-                onChange={(e) => setComponents((prev) => ({ ...prev, [field]: e.target.value }))}
+                onChange={(e) => setComponents((prev) => ({ ...prev, [field.key]: e.target.value }))}
                 className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50"
               />
             </div>
@@ -155,7 +318,21 @@ export default function UnderImplementationStage({ canSubmit, readOnly, onSubmit
         <button
           type="button"
           disabled={disabled}
-          onClick={() => onSubmitStage?.('implementation', { progressDate, progressValue, milestones, delayReason, inauguration, inaugurationDate, tentativeInaugurationDate, financialYear, month, components })}
+          onClick={() =>
+            onSubmitStage?.('implementation', {
+              progressDate,
+              progressValue,
+              milestones,
+              delayReason,
+              inauguration,
+              inaugurationDate,
+              tentativeInaugurationDate,
+              financialYear,
+              month,
+              components,
+              awardProjectCost,
+            })
+          }
           className="px-4 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-60"
         >
           Submit Under Implementation

@@ -14,9 +14,13 @@ import {
   uploadProjectDocuments,
   deleteProjectDocumentByName,
   downloadProjectDocumentFile,
+  fetchTotalExpenditureValue,
+  fetchExpenditureMainFinancialYear,
+  submitExpenditureDetail,
 } from '../api';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 import { getProjectIdentity, mapProjectBasicInfoPayload } from '../utils/mapProject';
+import { yearForMonth } from '../utils/stageMappers';
 
 function toBit(value) {
   return value ? 1 : 0;
@@ -36,11 +40,23 @@ function computePlanningStageId(payload) {
   return '0';
 }
 
+function numOrZero(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeDocumentName(docOrName) {
+  if (!docOrName) return '';
+  if (typeof docOrName === 'string') return docOrName;
+  return docOrName.document_name || docOrName.name || docOrName.file_name || '';
+}
+
 export default function ProjectBasicInformationPage({
   initialData,
   onBack,
   onSuccess,
   notify,
+  forceReadOnly = false,
 }) {
   const permissions = useProjectsPermissions();
   const [saving, setSaving] = useState(false);
@@ -49,12 +65,26 @@ export default function ProjectBasicInformationPage({
   const [documents, setDocuments] = useState([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [uploadingDocuments, setUploadingDocuments] = useState(false);
+  const [stageRefreshKey, setStageRefreshKey] = useState(0);
 
-  const identity = getProjectIdentity(initialData || {});
-  const isUpdateMode = Boolean(initialData?.id && identity.projectID);
+  const identity = getProjectIdentity(editData || initialData || {});
+  const isUpdateMode = Boolean(
+    identity.projectID &&
+      (initialData?.id || editData?.id || editData?.projectId || editData?.raw?.project_id)
+  );
+  const canSubmit =
+    !forceReadOnly &&
+    !permissions.isViewOnlyAdmin &&
+    ((isUpdateMode && permissions.canEdit) || (!isUpdateMode && permissions.canAdd));
+  const readOnly = forceReadOnly || permissions.isViewOnlyAdmin || !canSubmit;
 
   const [activeStage, setActiveStage] = useState(() => {
-    const s = initialData?.stage || initialData?.selectedStage || initialData?.raw?.stage_name || initialData?.raw?.project_stage || '';
+    const s =
+      initialData?.stage ||
+      initialData?.selectedStage ||
+      initialData?.raw?.stage_name ||
+      initialData?.raw?.project_stage ||
+      '';
     const text = String(s).toLowerCase();
     if (text.includes('complete')) return 'completion';
     if (text.includes('implement')) return 'implementation';
@@ -133,6 +163,10 @@ export default function ProjectBasicInformationPage({
   }, [initialData, isUpdateMode, identity.projectID, identity.subProjectID, notify]);
 
   const handleUploadDocuments = async ({ folderName, files }) => {
+    if (!permissions.canEdit || readOnly) {
+      notify?.('You do not have permission to upload documents.', 'error');
+      return;
+    }
     if (!isUpdateMode || !identity.projectID) {
       notify?.('Please save basic information first before uploading documents.', 'error');
       return;
@@ -162,7 +196,12 @@ export default function ProjectBasicInformationPage({
     }
   };
 
-  const handleDeleteDocument = async (documentName) => {
+  const handleDeleteDocument = async (docOrName) => {
+    if (!permissions.canEdit || readOnly) {
+      notify?.('You do not have permission to delete documents.', 'error');
+      return;
+    }
+    const documentName = normalizeDocumentName(docOrName);
     if (!documentName) return;
     const ok = window.confirm('Are you sure you want to delete this document?');
     if (!ok) return;
@@ -177,9 +216,18 @@ export default function ProjectBasicInformationPage({
     }
   };
 
-  const handleDownloadDocument = async (documentName) => {
+  const handleDownloadDocument = async (docOrName) => {
+    const documentName = normalizeDocumentName(docOrName);
+    if (!documentName) {
+      notify?.('Document name is missing.', 'error');
+      return;
+    }
     try {
-      const response = await downloadProjectDocumentFile(identity.projectID, identity.subProjectID, documentName);
+      const response = await downloadProjectDocumentFile(
+        identity.projectID,
+        identity.subProjectID,
+        documentName
+      );
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -194,9 +242,8 @@ export default function ProjectBasicInformationPage({
     }
   };
 
-
   const handleSubmit = async (formData) => {
-    if (!permissions.canAdd && !permissions.canEdit) {
+    if (!canSubmit) {
       notify?.('You do not have permission to submit project details.', 'error');
       return false;
     }
@@ -206,6 +253,7 @@ export default function ProjectBasicInformationPage({
       const payload = mapProjectBasicInfoPayload(formData, {
         userId: permissions.userId,
         organisationId: permissions.organisationId,
+        wingId: permissions.wingId,
         isUpdate: isUpdateMode,
         initialData: editData || initialData,
       });
@@ -219,8 +267,13 @@ export default function ProjectBasicInformationPage({
         notify?.('Project basic information saved successfully.', 'success');
       }
 
-      const createdId = res?.data?.project_id || res?.data?.projectId || res?.data?.id || payload.projectID;
-      const createdSubId = res?.data?.sub_project_id || res?.data?.subProjectId || payload.subProjectID || '-1';
+      const createdId =
+        res?.data?.project_id || res?.data?.projectId || res?.data?.id || payload.projectID;
+      const createdSubId =
+        res?.data?.sub_project_id ||
+        res?.data?.subProjectId ||
+        payload.subProjectID ||
+        '-1';
 
       setEditData((prev) => ({
         ...(prev || {}),
@@ -228,7 +281,10 @@ export default function ProjectBasicInformationPage({
         projectId: createdId,
         subProjectId: createdSubId,
         projectName: formData.projectName,
-        stage: prev?.stage && !String(prev.stage).toLowerCase().includes('initiated') ? prev.stage : 'Planning & Sanctioning',
+        stage:
+          prev?.stage && !String(prev.stage).toLowerCase().includes('initiated')
+            ? prev.stage
+            : 'Planning & Sanctioning',
         raw: {
           ...(prev?.raw || {}),
           ...(res?.data || {}),
@@ -239,7 +295,6 @@ export default function ProjectBasicInformationPage({
         },
       }));
 
-      // Advance from Stage 1 (Basic Info) to Stage 2 (Planning & Sanctioning)
       setActiveStage('planning');
       return true;
     } catch (error) {
@@ -255,12 +310,13 @@ export default function ProjectBasicInformationPage({
   };
 
   const handleStageSubmit = async (stageId, stageData = {}) => {
-    if (!permissions.canAdd && !permissions.canEdit) {
+    if (!canSubmit) {
       notify?.('You do not have permission to submit stage details.', 'error');
       return false;
     }
 
-    if (!identity.projectID) {
+    const liveIdentity = getProjectIdentity(editData || initialData || {});
+    if (!liveIdentity.projectID) {
       notify?.('Please save basic information first before submitting stage details.', 'error');
       return false;
     }
@@ -270,10 +326,17 @@ export default function ProjectBasicInformationPage({
       if (stageId === 'planning') {
         const rows = stageData.rows || [];
         const byKey = (key) => rows.find((row) => row.key === key) || {};
+        const hasAnyPlanningDate = rows.some(
+          (row) => String(row?.actualDate || '').trim() && !row?.notApplicable
+        );
+        if (!hasAnyPlanningDate) {
+          notify?.('Enter at least one planning actual date before submit.', 'error');
+          return false;
+        }
 
         const payload = {
-          projectID: identity.projectID,
-          subProjectID: identity.subProjectID,
+          projectID: liveIdentity.projectID,
+          subProjectID: liveIdentity.subProjectID,
           isDprNotApplicable: toBit(byKey('dpr').notApplicable),
           dprActualDate: byKey('dpr').actualDate || '',
           dprRemarks: byKey('dpr').remarks || '',
@@ -303,24 +366,27 @@ export default function ProjectBasicInformationPage({
         payload.selectedStage = computePlanningStageId(payload);
         await submitPlanningSanctioning(payload);
         notify?.('Planning & Sanctioning details updated successfully.', 'success');
-
-        // Advance from Stage 2 to Stage 3 (Under Tendering)
+        setStageRefreshKey((prev) => prev + 1);
         setActiveStage('tendering');
         setEditData((prev) => ({
           ...(prev || {}),
           stage: 'Under Tendering',
-          raw: { ...(prev?.raw || {}), stage_name: 'Under Tendering', project_stage: 'Under Tendering' },
+          raw: {
+            ...(prev?.raw || {}),
+            stage_name: 'Under Tendering',
+            project_stage: 'Under Tendering',
+          },
         }));
         return true;
       }
 
       if (stageId === 'tendering') {
         const rows = stageData.rows || [];
-        const byId = (id) => rows.find((row) => row.id === id) || {};
+        const byId = (id) => rows.find((row) => Number(row.id) === id) || {};
 
         await submitUnderTenderingDates({
-          projectID: identity.projectID,
-          subProjectID: identity.subProjectID,
+          projectID: liveIdentity.projectID,
+          subProjectID: liveIdentity.subProjectID,
           userID: permissions.userId,
           onNominationBasisAwarded: stageData.onNominationBasisAwarded || '0',
 
@@ -356,8 +422,8 @@ export default function ProjectBasicInformationPage({
         });
 
         await submitUnderTenderingCostAndCalls({
-          projectID: identity.projectID,
-          subProjectID: identity.subProjectID,
+          projectID: liveIdentity.projectID,
+          subProjectID: liveIdentity.subProjectID,
           techSanctionCost: byId(1).cost || '',
           awardProjectCost: byId(7).cost || '',
           noOfTenderCalls: stageData.numberOfTenderCalls || '',
@@ -373,22 +439,33 @@ export default function ProjectBasicInformationPage({
         });
 
         notify?.('Under Tendering details updated successfully.', 'success');
-
-        // Advance from Stage 3 to Stage 4 (Under Implementation)
+        setStageRefreshKey((prev) => prev + 1);
         setActiveStage('implementation');
         setEditData((prev) => ({
           ...(prev || {}),
           stage: 'Under Implementation',
-          raw: { ...(prev?.raw || {}), stage_name: 'Under Implementation', project_stage: 'Under Implementation' },
+          raw: {
+            ...(prev?.raw || {}),
+            stage_name: 'Under Implementation',
+            project_stage: 'Under Implementation',
+          },
         }));
         return true;
       }
 
       if (stageId === 'implementation') {
+        if (stageData.progressValue !== '' && stageData.progressValue != null) {
+          const progressNum = Number(stageData.progressValue);
+          if (Number.isNaN(progressNum) || progressNum < 0 || progressNum > 100) {
+            notify?.('Physical progress must be between 0 and 100.', 'error');
+            return false;
+          }
+        }
+
         if (stageData.progressDate || stageData.progressValue) {
           await submitUnderImplementationProgress({
-            projectID: identity.projectID,
-            subProjectID: identity.subProjectID,
+            projectID: liveIdentity.projectID,
+            subProjectID: liveIdentity.subProjectID,
             userID: permissions.userId,
             progressDate: stageData.progressDate || '',
             progressValue: stageData.progressValue || '0',
@@ -403,8 +480,8 @@ export default function ProjectBasicInformationPage({
         }));
 
         await submitUnderImplementationMilestones({
-          projectID: identity.projectID,
-          subProjectID: identity.subProjectID,
+          projectID: liveIdentity.projectID,
+          subProjectID: liveIdentity.subProjectID,
           userID: permissions.userId,
           activityTab,
           inaugurationValue:
@@ -413,9 +490,82 @@ export default function ProjectBasicInformationPage({
           tentativeInaugurationDate: stageData.tentativeInaugurationDate || '',
         });
 
-        notify?.('Under Implementation details updated successfully.', 'success');
+        const components = stageData.components || {};
+        const hasAnyComponentValue = Object.values(components).some(
+          (v) => String(v || '').trim() !== ''
+        );
+        const hasAnyExpenditureField =
+          Boolean(stageData.financialYear) || Boolean(stageData.month) || hasAnyComponentValue;
+        if (hasAnyExpenditureField && (!stageData.financialYear || !stageData.month)) {
+          notify?.('Select both Financial Year and Month for expenditure entry.', 'error');
+          return false;
+        }
+        const hasExpenditureInput =
+          Boolean(stageData.financialYear) &&
+          Boolean(stageData.month) &&
+          hasAnyComponentValue;
 
-        // Advance from Stage 4 to Stage 5 (Completed)
+        if (hasExpenditureInput) {
+          const checkRes = await fetchExpenditureMainFinancialYear(
+            liveIdentity.projectID,
+            liveIdentity.subProjectID,
+            stageData.financialYear,
+            stageData.month
+          );
+          const yearCount = Number(checkRes?.data?.[0]?.yearCount || 0);
+          if (yearCount >= 1) {
+            notify?.(
+              'Expenditure log already present for the selected financial year and month.',
+              'error'
+            );
+            return false;
+          }
+
+          const totalRes = await fetchTotalExpenditureValue(
+            liveIdentity.projectID,
+            liveIdentity.subProjectID
+          );
+          const totalExpenditure = numOrZero(totalRes?.data?.[0]?.total_expenditure);
+          const added =
+            numOrZero(components.gbsComponents) +
+            numOrZero(components.iebrComponents) +
+            numOrZero(components.pppComponents) +
+            numOrZero(components.loansComponents) +
+            numOrZero(components.multilateralComponents) +
+            numOrZero(components.stateGovFundComponents) +
+            numOrZero(components.pmmsyComponents) +
+            numOrZero(components.sagarmalaComponents) +
+            numOrZero(components.otherSourceFunding);
+          const calculatedTotal = totalExpenditure + added;
+          const awardCost = numOrZero(stageData.awardProjectCost);
+
+          if (awardCost > 0 && calculatedTotal > awardCost) {
+            notify?.('Total expenditure should not exceed the awarded project cost.', 'error');
+            return false;
+          }
+
+          const financialProgress = awardCost > 0 ? (calculatedTotal / awardCost) * 100 : 0;
+          await submitExpenditureDetail({
+            projectID: liveIdentity.projectID,
+            subProjectID: liveIdentity.subProjectID,
+            financialYear: yearForMonth(stageData.month, stageData.financialYear),
+            financialYearOriginal: stageData.financialYear,
+            month: stageData.month,
+            gbsComponents: components.gbsComponents || 0,
+            iebrComponents: components.iebrComponents || 0,
+            pppComponents: components.pppComponents || 0,
+            loansComponents: components.loansComponents || 0,
+            multilateralComponents: components.multilateralComponents || 0,
+            stateGovFundComponents: components.stateGovFundComponents || 0,
+            pmmsyComponents: components.pmmsyComponents || 0,
+            sagarmalaComponents: components.sagarmalaComponents || 0,
+            otherSourceFunding: components.otherSourceFunding || 0,
+            financialProgress,
+          });
+        }
+
+        notify?.('Under Implementation details updated successfully.', 'success');
+        setStageRefreshKey((prev) => prev + 1);
         setActiveStage('completion');
         setEditData((prev) => ({
           ...(prev || {}),
@@ -426,19 +576,30 @@ export default function ProjectBasicInformationPage({
       }
 
       if (stageId === 'completion') {
+        if (!String(stageData.actualCompletionDate || '').trim()) {
+          notify?.('Actual completion date is required.', 'error');
+          return false;
+        }
+        const closureCost = Number(stageData.closureCost);
+        if (!String(stageData.closureCost || '').trim() || Number.isNaN(closureCost) || closureCost <= 0) {
+          notify?.('Closure cost must be greater than 0.', 'error');
+          return false;
+        }
         await submitProjectCompletion({
-          projectID: identity.projectID,
-          subProjectID: identity.subProjectID,
+          projectID: liveIdentity.projectID,
+          subProjectID: liveIdentity.subProjectID,
           actualCompletionDate: stageData.actualCompletionDate || '',
           closureCost: stageData.closureCost || '',
           projectStageID: 14,
         });
         notify?.('Project completion details updated successfully.', 'success');
+        setStageRefreshKey((prev) => prev + 1);
         setEditData((prev) => ({
           ...(prev || {}),
           stage: 'Completed',
           raw: { ...(prev?.raw || {}), stage_name: 'Completed', project_stage: 'Completed' },
         }));
+        onSuccess?.();
         return true;
       }
 
@@ -456,23 +617,44 @@ export default function ProjectBasicInformationPage({
     }
   };
 
+  const liveIdentity = getProjectIdentity(editData || initialData || {});
+  const workbenchKey = isUpdateMode
+    ? `${liveIdentity.projectID}-${liveIdentity.subProjectID}-${
+        editData?.raw?.latest_revised_target_completion_date || ''
+      }-${editData?.raw?.project_intiated_date || ''}-${editData?.raw?.target_completion_date || ''}`
+    : 'new-project-basic-info';
+
   return (
     <ProjectStageWorkbench
+      key={workbenchKey}
       initialData={editData || initialData}
       activeStage={activeStage}
       onActiveStageChange={setActiveStage}
-      canSubmit={permissions.canAdd || permissions.canEdit}
-      readOnly={permissions.isViewOnlyAdmin}
+      canSubmit={canSubmit}
+      readOnly={readOnly}
       loading={saving || hydrating}
       onBack={onBack}
       onSubmit={handleSubmit}
       onSubmitStage={handleStageSubmit}
+      notify={notify}
+      stageRefreshKey={stageRefreshKey}
       documentRows={documents}
       documentsLoading={documentsLoading}
       uploadingDocuments={uploadingDocuments}
       onUploadDocuments={handleUploadDocuments}
       onDeleteDocument={handleDeleteDocument}
       onDownloadDocument={handleDownloadDocument}
+      outlayProps={
+        isUpdateMode
+          ? {
+              projectID: liveIdentity.projectID,
+              subProjectID: liveIdentity.subProjectID,
+              canSubmit,
+              readOnly,
+              notify,
+            }
+          : null
+      }
     />
   );
 }
