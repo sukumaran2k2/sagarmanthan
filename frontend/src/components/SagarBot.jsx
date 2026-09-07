@@ -9,7 +9,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { useAICopilot } from '../context/AICopilotContext';
 import { AI_MODULE_QUERY_ENDPOINT } from '../config/api';
-import { MOCK_AI_RESPONSES } from '../config/mockAiResponses';
 
 // Comprehensive Sagarmanthan Knowledge Base
 const KNOWLEDGE_BASE = [
@@ -487,52 +486,7 @@ export default function SagarBot() {
       console.warn('[SagarBot] Live AI API unreachable or error:', apiErr.message);
     }
 
-    // 2. Fallback to Constant Mock Responses if live API is offline
-    const matchedFixture = MOCK_AI_RESPONSES.find(item => 
-      item.triggers.some(trig => cleanLowerText.includes(trig) || trig.includes(cleanLowerText))
-    );
-
-    if (matchedFixture) {
-      setTimeout(() => {
-        const result = matchedFixture.response;
-        const hasData = Array.isArray(result.data) && result.data.length > 0;
-        
-        let dynamicCols = [];
-        if (hasData) {
-          dynamicCols = Object.keys(result.data[0]).map(key => ({
-            field: key,
-            headerName: key.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
-          }));
-        }
-
-        const moduleTitle = result.module_name || targetModule;
-        const dynamicReportObj = hasData ? {
-          reportTitle: `${moduleTitle} Report`,
-          moduleName: moduleTitle,
-          tableName: result.table_name || 'tbl_chatbot_query',
-          sqlQuery: result.sql_query,
-          rowCount: result.row_count || result.data.length,
-          executionTimeMs: result.execution_time_ms,
-          columns: dynamicCols,
-          data: result.data
-        } : null;
-
-        const botMsg = {
-          id: botMsgId,
-          sender: 'bot',
-          text: result.summary,
-          dynamicReport: dynamicReportObj,
-          suggestions: isReportMode ? reportSuggestions : QUICK_TOPICS,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-
-        setMessages(prev => [...prev, botMsg]);
-        setIsTyping(false);
-      }, 350);
-      return;
-    }
-
-    // 3. Local Knowledge Base Fallback
+    // 2. Local Knowledge Base Fallback for navigation / general questions
     setTimeout(() => {
       const answerObj = findAnswer(text);
       const botMsg = {
