@@ -2634,7 +2634,13 @@ router.get('/get-total-mou-amount-2025/:category/:organisationId', gmisMouTab.ge
 router.get('/get-status-wise-count-2025/:category/:organisationId', gmisMouTab.getStatusWiseCountAmount_2025);
 router.get('/get-organisation-wise-count-amount-status_2025/:category/:organisationId', gmisMouTab.getOrganisationWiseCountAmountStatus_2025);
 router.get('/get-org-wise-status-count_2025/:organisationId', gmisMouTab.getOrganisationWiseStatusCount_2025);
-//MoU-Chart
+//GIMS report 
+router.get('/get-event-wise-summary/:userId', gmisMouTab.getEventWiseSummary);
+router.get('/get-org-wise-performance-ranking-report/:userId', gmisMouTab.getorgWisePerformanceRankingReport);
+router.get('/get-vibas-cell-wise-summary/:userId', gmisMouTab.getVibascellWiseSummary);
+router.get('/get-category-wise-summary/:userId', gmisMouTab.getCategoryWiseSummary);
+router.get('/get-physical-and-financial-progress-wise/:userId', gmisMouTab.getPhysicalAndFinancialProgressWise);
+router.get('/get-dropped-mous-report/:userId', gmisMouTab.getDroppedMousReport);
 
 //Marine Casualty
 router.post('/submit-marine-prev-data', marineTab.addMarinePrevIncident);

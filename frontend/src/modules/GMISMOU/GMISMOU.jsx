@@ -1,13 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import { 
-  LayoutDashboard, Layers, PlusCircle, Globe 
+  LayoutDashboard, Layers, PlusCircle, Globe ,FilePieChart
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import Dashboard from './pages/Dashboard';
 import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
+import GMISReports from './pages/Reports';
 import { useGMISPermissions } from './hooks/useGMISPermissions';
 
 export default function GMISMOUView({
@@ -20,19 +21,34 @@ export default function GMISMOUView({
 
   const [editData, setEditData] = useState(null);
 
-  // Derive active tab ID from current pathname
   const currentTab = useMemo(() => {
-    const path = location.pathname.toLowerCase();
-    if (path.includes('/data-list') || path.includes('/list')) return 'list';
-    if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'add';
-    return 'dashboard';
-  }, [location.pathname]);
+  const path = location.pathname.toLowerCase();
+
+  if (path.includes('/reports') || path.includes('/report')) {
+    return 'report';
+  }
+
+  if (path.includes('/data-list') || path.includes('/list')) {
+    return 'list';
+  }
+
+  if (
+    path.includes('/input-form') ||
+    path.includes('/add') ||
+    path.includes('/edit')
+  ) {
+    return 'add';
+  }
+
+  return 'dashboard';
+}, [location.pathname]);
 
   const tabs = useMemo(() => {
     const list = [];
     if (canView) list.push({ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard });
     if (canAdd) list.push({ id: 'add', label: editData ? 'Update MoU' : 'Input Form', icon: PlusCircle });
     if (canView) list.push({ id: 'list', label: 'Data List', icon: Layers });
+    if (canView) list.push({ id: 'report', label: 'Report', icon: FilePieChart });
     return list;
   }, [canAdd, canView, editData]);
 
@@ -44,6 +60,8 @@ export default function GMISMOUView({
     } else if (tabId === 'add') {
       setEditData(null);
       navigate('/strategies/gmis-mou/input-form');
+    }else if (tabId === 'report') {
+      navigate('/strategies/gmis-mou/reports');
     }
   };
 
@@ -127,6 +145,18 @@ export default function GMISMOUView({
               triggerNotification={triggerNotification}
             />
           } />
+
+          <Route path="reports"
+              element={
+                <div className=" space-y-4 animate-fade-in ">
+                  <GMISReports
+                    triggerNotification={
+                      triggerNotification
+                    }
+                  />
+                </div>
+              }
+            />
 
           {/* Default fallback inside GMIS */}
           <Route index element={<Navigate to="dashboard" replace />} />

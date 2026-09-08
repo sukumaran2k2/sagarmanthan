@@ -279,18 +279,6 @@ export default function GMISDataList({
       hide: !visibleCols.org,
     },
     {
-      headerName: 'Summit / Event',
-      field: 'event_name',
-      width: 130,
-      cellClass: 'text-xs font-bold text-blue-700 dark:text-blue-300',
-      hide: !visibleCols.event,
-      cellRenderer: (params) => (
-        <span className="bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[11px] font-bold border border-blue-200 dark:border-blue-800">
-          {params.value || 'GMIS 2025'}
-        </span>
-      ),
-    },
-    {
       headerName: 'Name of MoU / Project',
       field: 'name_of_mou',
       flex: 2.2,
@@ -304,6 +292,23 @@ export default function GMISDataList({
         </span>
       ),
     },
+    {
+      headerName: 'Summit / Event',
+      field: 'event_name',
+      width: 130,
+      cellClass: 'text-xs font-bold text-blue-700 dark:text-blue-300',
+
+      // Hide automatically only when "All Summits" is selected.
+      // For individual GMIS tabs, respect the Visibility checkbox.
+      hide: selectedEvent === '' || !visibleCols.event,
+
+      cellRenderer: (params) => (
+        <span className="bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[11px] font-bold border border-blue-200 dark:border-blue-800">
+          {params.value || '-'}
+        </span>
+      ),
+    },
+    
     {
       headerName: '2nd Party (Partner / Vendor)',
       field: 'name_of_second_party',
@@ -535,7 +540,7 @@ export default function GMISDataList({
       sortable: false,
       filter: false,
     },
-  ], [visibleCols, currentPage, pageSize]);
+  ], [visibleCols, currentPage, pageSize, selectedEvent]);
 
   // Export handlers
   const handleExport = (type) => {
@@ -979,7 +984,7 @@ export default function GMISDataList({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {/* 1. Summit Event Filter */}
+{/*              
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">Summit / Event</label>
                 <select
@@ -992,7 +997,7 @@ export default function GMISDataList({
                     <option key={i} value={ev}>{ev}</option>
                   ))}
                 </select>
-              </div>
+              </div> */}
 
               {/* 2. Organisation Filter */}
               <div>
