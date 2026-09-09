@@ -430,6 +430,7 @@ export default function GMISReports({
         flex: 1.8,
         minWidth: 250,
         pinned: 'left',
+
         cellClass:
           'font-bold text-[#4b2424] dark:text-amber-200',
 
@@ -442,8 +443,10 @@ export default function GMISReports({
         field: 'Total MoUs',
         width: 130,
         headerClass: 'text-center',
+
         cellClass:
           'font-black text-center text-[#4b2424] dark:text-amber-200',
+
         valueFormatter: numberFormatter,
       },
 
@@ -452,16 +455,61 @@ export default function GMISReports({
         field: 'Total Cost',
         width: 180,
         headerClass: 'text-right',
+
         cellClass:
           'font-black text-right text-emerald-700 dark:text-emerald-400',
+
         valueFormatter: currencyFormatter,
       },
 
       ...stageColumns,
-    ],
-    []
-  );
 
+      {
+        headerName: 'Implementation Progress (%)',
+        field: 'Implementation Progress (%)',
+        width: 210,
+        headerClass: 'text-center',
+
+        cellClass:
+          'font-black text-center text-blue-700 dark:text-blue-400',
+
+        valueFormatter: (params) => {
+          if (
+            params.value === null ||
+            params.value === undefined ||
+            params.value === ''
+          ) {
+            return '0.00%';
+          }
+
+          return params.value;
+        },
+      },
+
+      {
+        headerName: 'Performance Rank',
+        field: 'Performance Rank',
+        width: 170,
+        headerClass: 'text-center',
+
+        cellClass:
+          'font-black text-center text-purple-700 dark:text-purple-400',
+
+        valueFormatter: (params) => {
+          if (
+            params.value === null ||
+            params.value === undefined ||
+            params.value === ''
+          ) {
+            return '-';
+          }
+
+          return ` ${params.value}`;
+        },
+      },
+    ],
+    [stageColumns]
+  );
   const report4Columns = useMemo(
     () => [
       {
@@ -470,8 +518,7 @@ export default function GMISReports({
         flex: 1.8,
         minWidth: 250,
         pinned: 'left',
-        cellClass:
-          'font-bold text-[#4b2424] dark:text-amber-200',
+        cellClass:'font-bold text-[#4b2424] dark:text-amber-200',
         valueFormatter: (params) =>
           params.value || '-',
       },
@@ -481,8 +528,7 @@ export default function GMISReports({
         field: 'No. of MoUs',
         width: 140,
         headerClass: 'text-center',
-        cellClass:
-          'font-black text-center text-[#4b2424] dark:text-amber-200',
+        cellClass:'font-black text-center text-[#4b2424] dark:text-amber-200',
         valueFormatter: numberFormatter,
       },
 
@@ -491,8 +537,7 @@ export default function GMISReports({
         field: 'Total Amount',
         width: 180,
         headerClass: 'text-right',
-        cellClass:
-          'font-black text-right text-emerald-700 dark:text-emerald-400',
+        cellClass: 'font-black text-right text-emerald-700 dark:text-emerald-400',
         valueFormatter: currencyFormatter,
       },
 
@@ -509,9 +554,7 @@ export default function GMISReports({
         width: 75,
         pinned: 'left',
         headerClass: 'text-center',
-        cellClass:
-          'font-mono text-center font-bold text-slate-600 dark:text-slate-400',
-
+        cellClass: 'font-mono text-center font-bold text-slate-600 dark:text-slate-400',
         valueGetter: (params) => {
           if (params.node?.rowPinned) {
             return '';
@@ -526,34 +569,30 @@ export default function GMISReports({
         field: 'Organisation',
         flex: 1.4,
         minWidth: 180,
-        cellClass:
-          'font-bold text-[#4b2424] dark:text-amber-200',
+        cellClass: 'font-bold text-[#4b2424] dark:text-amber-200',
       },
 
       {
         headerName: 'MoU / Project',
-        field: 'Total MoUs',
+        field: 'MoU / Project',
         flex: 2,
         minWidth: 250,
-        cellClass:
-          'font-semibold text-slate-800 dark:text-slate-200',
+        cellClass:'font-semibold text-slate-800 dark:text-slate-200',
       },
 
-      // {
-      //   headerName: 'Current Status',
-      //   field: 'Current Status',
-      //   width: 180,
-      //   cellClass:
-      //     'text-slate-700 dark:text-slate-300',
-      // },
+      {
+        headerName: 'Current Status',
+        field: 'Current Status',
+        width: 180,
+        cellClass:'text-slate-700 dark:text-slate-300',
+      },
 
       {
         headerName: 'Original Amount (₹ Cr.)',
         field: 'Original Amount (₹ Cr)',
         width: 180,
         headerClass: 'text-right',
-        cellClass:
-          'font-bold text-right text-emerald-700 dark:text-emerald-400',
+        cellClass: 'font-bold text-right text-emerald-700 dark:text-emerald-400',
         valueFormatter: currencyFormatter,
       },
 
@@ -562,8 +601,7 @@ export default function GMISReports({
         field: 'Revised Amount (₹ Cr)',
         width: 180,
         headerClass: 'text-right',
-        cellClass:
-          'font-bold text-right text-emerald-700 dark:text-emerald-400',
+        cellClass:'font-bold text-right text-emerald-700 dark:text-emerald-400',
         valueFormatter: currencyFormatter,
       },
 
@@ -572,8 +610,7 @@ export default function GMISReports({
         field: 'Financial Progress (%)',
         width: 170,
         headerClass: 'text-center',
-        cellClass:
-          'font-bold text-center text-blue-700 dark:text-blue-400',
+        cellClass:'font-bold text-center text-blue-700 dark:text-blue-400',
         valueFormatter: percentageFormatter,
       },
 
@@ -582,8 +619,7 @@ export default function GMISReports({
         field: 'Physical Progress (%)',
         width: 170,
         headerClass: 'text-center',
-        cellClass:
-          'font-bold text-center text-purple-700 dark:text-purple-400',
+        cellClass:'font-bold text-center text-purple-700 dark:text-purple-400',
         valueFormatter: percentageFormatter,
       },
 
