@@ -927,6 +927,10 @@ router.get('/get-csr-project-dashboard/:clusterID/:organisationID/:fy/:focusID',
 router.get('/get-csr-fund-allocatted/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCsrFundAllocatted);
 router.get('/get-csr-fund-year-wise-report/:fy',csrProjectTab.getCsrFundYearWiseReport);
 router.get('/get-csr-fund-org-wise-report/:fy',csrProjectTab.getCsrFundOrgWiseReport);
+router.get('/get-csr-fund-org-trend-report/:orgId',csrProjectTab.getCsrFundOrgTrendReport);
+router.get('/get-csr-projects-year-wise-summary/:orgId',csrProjectTab.getCsrProjectsYearWiseSummary);
+router.get('/get-csr-projects-org-wise-summary',csrProjectTab.getCsrProjectsOrgWiseSummary);
+router.get('/get-csr-projects-focus-wise-summary/:orgId',csrProjectTab.getCsrProjectsFocusWiseSummary);
 router.get('/get-csr-project-stage-wise/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCsrProjectStageWise);
 router.get('/get-csr-project-count-wise/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCSRProjectCountWise);
 router.get('/get-detailed-csr-projects/:clusterID/:organisationID/:fy/:stage/:focusID',csrProjectTab.getDetailedCSRProjects);

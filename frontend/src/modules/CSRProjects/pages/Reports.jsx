@@ -3,6 +3,10 @@ import ReportTable from '../../../components/ReportTable';
 import {
   fetchCsrFundYearWiseReport,
   fetchCsrFundOrgWiseReport,
+  fetchCsrFundOrgTrendReport,
+  fetchCsrProjectsYearWiseSummary,
+  fetchCsrProjectsOrgWiseSummary,
+  fetchCsrProjectsFocusWiseSummary,
   fetchOrganisations,
   getUserIdFromToken
 } from '../api';
@@ -13,11 +17,19 @@ import { getDataScopeCode, getSessionClaims, getSessionOrganisationId, getSessio
 const REPORT_TITLES = {
   'fund-year-wise-report': 'Report No.: C.S.R 1.1 - CSR Fund Year Wise Report',
   'fund-org-wise-report': 'Report No.: C.S.R 1.2 - CSR Fund Organisation Wise Report',
+  'fund-org-trend-report': 'Report No.: C.S.R 1.3 - Organisation-wise CSR Fund Trend',
+  'projects-year-wise-summary': 'Report No.: C.S.R 1.4 - Financial Year-wise CSR Projects Summary',
+  'projects-org-wise-summary': 'Report No.: C.S.R 1.5 - Organisation-wise CSR Projects Summary',
+  'projects-focus-wise-summary': 'Report No.: C.S.R 1.6 - CSR Focus/Project Area-wise CSR Projects Summary',
 };
 
 const REPORT_LABELS = {
   'fund-year-wise-report': 'CSR Fund Year Wise Report',
   'fund-org-wise-report': 'CSR Fund Organisation Wise Report',
+  'fund-org-trend-report': 'Organisation-wise CSR Fund Trend',
+  'projects-year-wise-summary': 'Financial Year-wise CSR Projects Summary',
+  'projects-org-wise-summary': 'Organisation-wise CSR Projects Summary',
+  'projects-focus-wise-summary': 'CSR Focus/Project Area-wise CSR Projects Summary',
 };
 
 export default function Reports({
@@ -42,6 +54,7 @@ export default function Reports({
 
   const [organisations, setOrganisations] = useState([]);
   const [filterFY, setFilterFY] = useState('all');
+  const [filterOrgTrend, setFilterOrgTrend] = useState('');
 
   useEffect(() => {
     if (initialReportType) {
@@ -54,12 +67,19 @@ export default function Reports({
     setReportType(type);
     onReportTypeChange?.(type);
     setFilterFY(type === 'fund-org-wise-report' ? FINANCIAL_YEARS[0] : 'all');
+    if (type === 'fund-org-trend-report') {
+      setFilterOrgTrend(isOrgUser && userOrgId ? String(userOrgId) : '');
+    }
   };
 
-  const hasActiveFilters = filterFY !== 'all';
+  const hasActiveFilters = reportType === 'fund-org-trend-report' ? !!filterOrgTrend : filterFY !== 'all';
 
   const resetFilters = () => {
-    setFilterFY('all');
+    if (reportType === 'fund-org-trend-report') {
+      setFilterOrgTrend(isOrgUser && userOrgId ? String(userOrgId) : '');
+    } else {
+      setFilterFY('all');
+    }
     triggerNotification?.('Filters have been reset', 'info');
   };
 
@@ -81,6 +101,18 @@ export default function Reports({
       } else if (reportType === 'fund-org-wise-report') {
         const res = await fetchCsrFundOrgWiseReport(filterFY);
         setReportData(Array.isArray(res) ? res : []);
+      } else if (reportType === 'fund-org-trend-report') {
+        const res = await fetchCsrFundOrgTrendReport(filterOrgTrend || 'all');
+        setReportData(Array.isArray(res) ? res : []);
+      } else if (reportType === 'projects-year-wise-summary') {
+        const res = await fetchCsrProjectsYearWiseSummary(isOrgUser && userOrgId ? String(userOrgId) : 'all');
+        setReportData(Array.isArray(res) ? res : []);
+      } else if (reportType === 'projects-org-wise-summary') {
+        const res = await fetchCsrProjectsOrgWiseSummary();
+        setReportData(Array.isArray(res) ? res : []);
+      } else if (reportType === 'projects-focus-wise-summary') {
+        const res = await fetchCsrProjectsFocusWiseSummary(isOrgUser && userOrgId ? String(userOrgId) : 'all');
+        setReportData(Array.isArray(res) ? res : []);
       }
     } catch (err) {
       console.warn("CSR report fetch notice:", err.message);
@@ -88,7 +120,7 @@ export default function Reports({
     } finally {
       setLoading(false);
     }
-  }, [reportType, filterFY]);
+  }, [reportType, filterFY, filterOrgTrend, isOrgUser, userOrgId]);
 
   useEffect(() => {
     loadReportData();
@@ -268,6 +300,311 @@ export default function Reports({
       ];
     }
 
+    // Report 1.3 - Organisation-wise CSR Fund Trend
+    if (reportType === 'fund-org-trend-report') {
+      return [
+        {
+          headerName: "S.No",
+          field: "S No",
+          width: 75,
+          pinned: 'left',
+          cellStyle: { textAlign: 'center', fontWeight: 700 },
+          valueGetter: (params) => params.node.rowIndex + 1
+        },
+        {
+          headerName: "Financial Year",
+          field: "Financial_Year",
+          minWidth: 150,
+          pinned: 'left',
+          cellStyle: { fontWeight: 700, color: '#4b2424' }
+        },
+        {
+          headerName: "CSR Fund Allotted (₹ Lakh)",
+          field: "CSR_Fund_Allotted_Lakh",
+          minWidth: 200,
+          flex: 1.5,
+          headerClass: "text-center",
+          cellClass: "text-center",
+          cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
+          valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+        },
+        {
+          headerName: "Project Expenditure (₹ Lakh)",
+          field: "Project_Expenditure_Lakh",
+          minWidth: 200,
+          flex: 1.5,
+          headerClass: "text-center",
+          cellClass: "text-center",
+          cellStyle: { textAlign: 'center', fontWeight: 800, color: '#d97706', justifyContent: 'center' },
+          valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+          cellRenderer: (params) => (
+            <div className="w-full flex items-center justify-center text-center font-extrabold text-amber-600">
+              {params.value != null ? Number(params.value).toFixed(2) : '-'}
+            </div>
+          )
+        },
+        {
+          headerName: "CSR Fund Balance (₹ Lakh)",
+          field: "CSR_Fund_Balance_Lakh",
+          minWidth: 200,
+          flex: 1.5,
+          headerClass: "text-center",
+          cellClass: "text-center",
+          cellStyle: { textAlign: 'center', fontWeight: 800, color: '#059669', justifyContent: 'center' },
+          valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+          cellRenderer: (params) => (
+            <div className="w-full flex items-center justify-center text-center font-extrabold text-emerald-600">
+              {params.value != null ? Number(params.value).toFixed(2) : '-'}
+            </div>
+          )
+        },
+        {
+          headerName: "Utilisation (%)",
+          field: "Utilisation_Percent",
+          minWidth: 150,
+          headerClass: "text-center",
+          cellClass: "text-center",
+          cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
+          valueFormatter: (params) => params.value != null ? `${Number(params.value).toFixed(2)}%` : '-'
+        }
+      ];
+    }
+
+    // Report 1.4 - Financial Year-wise CSR Projects Summary
+    if (reportType === 'projects-year-wise-summary') {
+      return [
+        {
+          headerName: "S.No",
+          field: "S No",
+          width: 75,
+          pinned: 'left',
+          cellStyle: { textAlign: 'center', fontWeight: 700 },
+          valueGetter: (params) => params.node.rowIndex + 1
+        },
+        {
+          headerName: "Financial Year",
+          field: "Financial_Year",
+          minWidth: 150,
+          pinned: 'left',
+          cellStyle: { fontWeight: 700, color: '#4b2424' }
+        },
+        {
+          headerName: "Total CSR Projects",
+          field: "Total_CSR_Projects",
+          minWidth: 160,
+          headerClass: "text-center",
+          cellClass: "text-center",
+          cellStyle: { textAlign: 'center', fontWeight: 800, color: '#4b2424', justifyContent: 'center' }
+        },
+        {
+          headerName: "CSR Fund Allotted (₹ Lakh)",
+          field: "CSR_Fund_Allotted_Lakh",
+          minWidth: 200,
+          flex: 1.5,
+          headerClass: "text-center",
+          cellClass: "text-center",
+          cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
+          valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+        },
+        {
+          headerName: "Stage wise CSR Projects count",
+          headerClass: "text-center",
+          children: [
+            {
+              headerName: "Approved by Board",
+              field: "Approved_By_Board",
+              minWidth: 140,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#2563eb', justifyContent: 'center' }
+            },
+            {
+              headerName: "Yet to Start",
+              field: "Yet_to_Start",
+              minWidth: 130,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#d97706', justifyContent: 'center' }
+            },
+            {
+              headerName: "Under Implementation",
+              field: "Under_Implementation",
+              minWidth: 160,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#4b2424', justifyContent: 'center' }
+            },
+            {
+              headerName: "Completed",
+              field: "Completed",
+              minWidth: 130,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#059669', justifyContent: 'center' }
+            }
+          ]
+        }
+      ];
+    }
+
+    // Report 1.5 - Organisation-wise CSR Projects Summary
+    if (reportType === 'projects-org-wise-summary') {
+      return [
+        {
+          headerName: "S.No",
+          field: "S No",
+          width: 75,
+          pinned: 'left',
+          cellStyle: { textAlign: 'center', fontWeight: 700 },
+          valueGetter: (params) => params.node.rowIndex + 1
+        },
+        {
+          headerName: "Organisation",
+          field: "Organisation_Name",
+          minWidth: 260,
+          flex: 2,
+          pinned: 'left',
+          cellStyle: { fontWeight: 700, color: '#4b2424' }
+        },
+        {
+          headerName: "Total CSR Projects",
+          field: "Total_CSR_Projects",
+          minWidth: 160,
+          headerClass: "text-center",
+          cellClass: "text-center",
+          cellStyle: { textAlign: 'center', fontWeight: 800, color: '#4b2424', justifyContent: 'center' }
+        },
+        {
+          headerName: "Stage wise CSR Projects count",
+          headerClass: "text-center",
+          children: [
+            {
+              headerName: "Approved by Board",
+              field: "Approved_By_Board",
+              minWidth: 140,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#2563eb', justifyContent: 'center' }
+            },
+            {
+              headerName: "Yet to Start",
+              field: "Yet_to_Start",
+              minWidth: 130,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#d97706', justifyContent: 'center' }
+            },
+            {
+              headerName: "Under Implementation",
+              field: "Under_Implementation",
+              minWidth: 160,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#4b2424', justifyContent: 'center' }
+            },
+            {
+              headerName: "Completed",
+              field: "Completed",
+              minWidth: 130,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#059669', justifyContent: 'center' }
+            }
+          ]
+        }
+      ];
+    }
+
+    // Report 1.6 - CSR Focus/Project Area-wise CSR Projects Summary
+    if (reportType === 'projects-focus-wise-summary') {
+      return [
+        {
+          headerName: "S.No",
+          field: "S No",
+          width: 75,
+          pinned: 'left',
+          cellStyle: { textAlign: 'center', fontWeight: 700 },
+          valueGetter: (params) => params.node.rowIndex + 1
+        },
+        {
+          headerName: "CSR Focus/Project Area",
+          field: "CSR_Focus",
+          minWidth: 280,
+          flex: 2,
+          pinned: 'left',
+          cellStyle: { fontWeight: 700, color: '#4b2424' }
+        },
+        {
+          headerName: "Total CSR Projects",
+          field: "Total_CSR_Projects",
+          minWidth: 160,
+          headerClass: "text-center",
+          cellClass: "text-center",
+          cellStyle: { textAlign: 'center', fontWeight: 800, color: '#4b2424', justifyContent: 'center' }
+        },
+        {
+          headerName: "CSR Fund Allotted (₹ Lakh)",
+          field: "CSR_Fund_Allotted_Lakh",
+          minWidth: 200,
+          flex: 1.5,
+          headerClass: "text-center",
+          cellClass: "text-center",
+          cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
+          valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+        },
+        {
+          headerName: "Stage wise CSR Projects count",
+          headerClass: "text-center",
+          children: [
+            {
+              headerName: "Approved by Board",
+              field: "Approved_By_Board",
+              minWidth: 140,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#2563eb', justifyContent: 'center' }
+            },
+            {
+              headerName: "Yet to Start",
+              field: "Yet_to_Start",
+              minWidth: 130,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#d97706', justifyContent: 'center' }
+            },
+            {
+              headerName: "Under Implementation",
+              field: "Under_Implementation",
+              minWidth: 160,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#4b2424', justifyContent: 'center' }
+            },
+            {
+              headerName: "Completed",
+              field: "Completed",
+              minWidth: 130,
+              flex: 1,
+              headerClass: 'text-center',
+              cellClass: 'text-center',
+              cellStyle: { textAlign: 'center', fontWeight: 700, color: '#059669', justifyContent: 'center' }
+            }
+          ]
+        }
+      ];
+    }
+
     return [];
   }, [reportType]);
 
@@ -305,6 +642,58 @@ export default function Reports({
       }];
     }
 
+    if (reportType === 'fund-org-trend-report') {
+      const totalAllotted = filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0);
+      const totalExp = filteredData.reduce((acc, r) => acc + (Number(r.Project_Expenditure_Lakh) || 0), 0);
+      const totalBal = filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Balance_Lakh) || 0), 0);
+      return [{
+        'S No': 'Total',
+        Financial_Year: '',
+        CSR_Fund_Allotted_Lakh: totalAllotted,
+        Project_Expenditure_Lakh: totalExp,
+        CSR_Fund_Balance_Lakh: totalBal,
+        Utilisation_Percent: totalAllotted ? Number(((totalExp / totalAllotted) * 100).toFixed(2)) : null,
+      }];
+    }
+
+    if (reportType === 'projects-year-wise-summary') {
+      return [{
+        'S No': 'Total',
+        Financial_Year: '',
+        Total_CSR_Projects: filteredData.reduce((acc, r) => acc + (Number(r.Total_CSR_Projects) || 0), 0),
+        CSR_Fund_Allotted_Lakh: filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0),
+        Approved_By_Board: filteredData.reduce((acc, r) => acc + (Number(r.Approved_By_Board) || 0), 0),
+        Yet_to_Start: filteredData.reduce((acc, r) => acc + (Number(r.Yet_to_Start) || 0), 0),
+        Under_Implementation: filteredData.reduce((acc, r) => acc + (Number(r.Under_Implementation) || 0), 0),
+        Completed: filteredData.reduce((acc, r) => acc + (Number(r.Completed) || 0), 0),
+      }];
+    }
+
+    if (reportType === 'projects-org-wise-summary') {
+      return [{
+        'S No': 'Total',
+        Organisation_Name: '',
+        Total_CSR_Projects: filteredData.reduce((acc, r) => acc + (Number(r.Total_CSR_Projects) || 0), 0),
+        Approved_By_Board: filteredData.reduce((acc, r) => acc + (Number(r.Approved_By_Board) || 0), 0),
+        Yet_to_Start: filteredData.reduce((acc, r) => acc + (Number(r.Yet_to_Start) || 0), 0),
+        Under_Implementation: filteredData.reduce((acc, r) => acc + (Number(r.Under_Implementation) || 0), 0),
+        Completed: filteredData.reduce((acc, r) => acc + (Number(r.Completed) || 0), 0),
+      }];
+    }
+
+    if (reportType === 'projects-focus-wise-summary') {
+      return [{
+        'S No': 'Total',
+        CSR_Focus: '',
+        Total_CSR_Projects: filteredData.reduce((acc, r) => acc + (Number(r.Total_CSR_Projects) || 0), 0),
+        CSR_Fund_Allotted_Lakh: filteredData.reduce((acc, r) => acc + (Number(r.CSR_Fund_Allotted_Lakh) || 0), 0),
+        Approved_By_Board: filteredData.reduce((acc, r) => acc + (Number(r.Approved_By_Board) || 0), 0),
+        Yet_to_Start: filteredData.reduce((acc, r) => acc + (Number(r.Yet_to_Start) || 0), 0),
+        Under_Implementation: filteredData.reduce((acc, r) => acc + (Number(r.Under_Implementation) || 0), 0),
+        Completed: filteredData.reduce((acc, r) => acc + (Number(r.Completed) || 0), 0),
+      }];
+    }
+
     return undefined;
   }, [filteredData, reportType]);
 
@@ -314,7 +703,7 @@ export default function Reports({
     resizable: true,
   }), []);
 
-  const toolbarExtra = (
+  const toolbarExtra = (reportType === 'projects-year-wise-summary' || reportType === 'projects-org-wise-summary' || reportType === 'projects-focus-wise-summary') ? null : (
     <div className="flex items-center gap-2">
       <button
         type="button"
@@ -348,7 +737,7 @@ export default function Reports({
     </div>
   );
 
-  const filterPanel = showFilterPanel ? (
+  const filterPanel = (showFilterPanel && reportType !== 'projects-year-wise-summary' && reportType !== 'projects-org-wise-summary' && reportType !== 'projects-focus-wise-summary') ? (
     <div className="space-y-3 select-none">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
@@ -370,19 +759,40 @@ export default function Reports({
       </div>
 
       <div className="max-w-md">
-        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-          Financial Year
-        </label>
-        <select
-          value={filterFY}
-          onChange={e => setFilterFY(e.target.value)}
-          className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500 focus:outline-none cursor-pointer"
-        >
-          <option value="all">Show All Financial Years</option>
-          {FINANCIAL_YEARS.map(fy => (
-            <option key={fy} value={fy}>{fy}</option>
-          ))}
-        </select>
+        {reportType === 'fund-org-trend-report' ? (
+          <div>
+            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+              Organisation
+            </label>
+            <select
+              value={filterOrgTrend}
+              onChange={e => setFilterOrgTrend(e.target.value)}
+              disabled={isOrgUser}
+              className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500 focus:outline-none cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
+            >
+              <option value="">-- Select an Organisation --</option>
+              {organisations.map(o => (
+                <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div>
+            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+              Financial Year
+            </label>
+            <select
+              value={filterFY}
+              onChange={e => setFilterFY(e.target.value)}
+              className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-amber-500 focus:outline-none cursor-pointer"
+            >
+              <option value="all">Show All Financial Years</option>
+              {FINANCIAL_YEARS.map(fy => (
+                <option key={fy} value={fy}>{fy}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     </div>
   ) : null;
@@ -420,8 +830,67 @@ export default function Reports({
             <Coins className="h-4 w-4" />
             <span>CSR FUND ORGANISATION WISE REPORT</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => handleSwitchReportType('fund-org-trend-report')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+              reportType === 'fund-org-trend-report'
+                ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            <Coins className="h-4 w-4" />
+            <span>ORGANISATION-WISE CSR FUND TREND</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSwitchReportType('projects-year-wise-summary')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+              reportType === 'projects-year-wise-summary'
+                ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            <Coins className="h-4 w-4" />
+            <span>FINANCIAL YEAR-WISE PROJECTS SUMMARY</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSwitchReportType('projects-org-wise-summary')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+              reportType === 'projects-org-wise-summary'
+                ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            <Coins className="h-4 w-4" />
+            <span>ORGANISATION-WISE PROJECTS SUMMARY</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSwitchReportType('projects-focus-wise-summary')}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+              reportType === 'projects-focus-wise-summary'
+                ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }`}
+          >
+            <Coins className="h-4 w-4" />
+            <span>CSR FOCUS AREA-WISE PROJECTS SUMMARY</span>
+          </button>
         </div>
       </div>
+
+      {reportType === 'fund-org-trend-report' && !filterOrgTrend && (
+        <div className="flex items-center gap-2.5 px-4 py-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl text-xs font-semibold text-amber-800 dark:text-amber-300">
+          <Filter className="h-3.5 w-3.5 flex-shrink-0" />
+          <span>Select an organisation from the Filter panel above to generate this report.</span>
+        </div>
+      )}
 
       <ReportTable
         title={currentReportTitle}

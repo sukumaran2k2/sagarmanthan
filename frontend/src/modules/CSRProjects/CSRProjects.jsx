@@ -64,6 +64,10 @@ export default function CSRProjects({ triggerNotification }) {
         subMenu: [
           { id: 'fund-year-wise-report', label: 'CSR Fund Year Wise Report' },
           { id: 'fund-org-wise-report', label: 'CSR Fund Organisation Wise Report' },
+          { id: 'fund-org-trend-report', label: 'Organisation-wise CSR Fund Trend' },
+          { id: 'projects-year-wise-summary', label: 'Financial Year-wise CSR Projects Summary' },
+          { id: 'projects-org-wise-summary', label: 'Organisation-wise CSR Projects Summary' },
+          { id: 'projects-focus-wise-summary', label: 'CSR Focus/Project Area-wise CSR Projects Summary' },
         ]
       }
     );
@@ -89,7 +93,7 @@ export default function CSRProjects({ triggerNotification }) {
     if (subId === 'project' || subId === 'fund') {
       setInputFormType(subId);
       navigate('/projects/csr-projects/input-form');
-    } else if (subId === 'fund-year-wise-report' || subId === 'fund-org-wise-report') {
+    } else if (subId === 'fund-year-wise-report' || subId === 'fund-org-wise-report' || subId === 'fund-org-trend-report' || subId === 'projects-year-wise-summary' || subId === 'projects-org-wise-summary' || subId === 'projects-focus-wise-summary') {
       setReportType(subId);
       navigate('/projects/csr-projects/reports');
     }
