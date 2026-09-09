@@ -10,7 +10,7 @@ import {
   fetchOrganisations,
   getUserIdFromToken
 } from '../api';
-import { FINANCIAL_YEARS } from '../utils/constants';
+import { FINANCIAL_YEARS, CSR_FOCUS_AREAS } from '../utils/constants';
 import { Coins, Filter, ChevronDown, X, RotateCcw } from 'lucide-react';
 import { getDataScopeCode, getSessionClaims, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
 
@@ -540,7 +540,11 @@ export default function Reports({
           minWidth: 280,
           flex: 2,
           pinned: 'left',
-          cellStyle: { fontWeight: 700, color: '#4b2424' }
+          cellStyle: { fontWeight: 700, color: '#4b2424' },
+          valueFormatter: (params) => {
+            const match = CSR_FOCUS_AREAS.find(f => f.id === Number(params.value));
+            return match ? match.name : (params.value || '-');
+          }
         },
         {
           headerName: "Total CSR Projects",
