@@ -17,7 +17,7 @@ export default function CSRProjects({ triggerNotification }) {
   const navigate = useNavigate();
 
   const [inputFormType, setInputFormType] = useState('project'); // 'project' | 'fund'
-  const [reportType, setReportType] = useState('project-report'); // 'project-report' | 'expenditure-report'
+  const [reportType, setReportType] = useState('fund-year-wise-report'); // 'fund-year-wise-report' | 'fund-org-wise-report'
   const [editData, setEditData] = useState(null);
 
   const isOrgUser = useMemo(() => {
@@ -35,7 +35,7 @@ export default function CSRProjects({ triggerNotification }) {
     if (path.includes('/fund-details') || path.includes('/fund')) return 'fund-details';
     if (path.includes('/project-list') || path.includes('/list') || path.includes('/data-list')) return 'list';
     if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'add';
-    if (path.includes('/reports') || path.includes('/project-report') || path.includes('/expenditure-report')) return 'reports';
+    if (path.includes('/reports') || path.includes('/fund-year-wise-report') || path.includes('/fund-org-wise-report')) return 'reports';
     return 'dashboard';
   }, [location.pathname]);
 
@@ -62,8 +62,8 @@ export default function CSRProjects({ triggerNotification }) {
         label: 'CSR Reports', 
         icon: FilePieChart,
         subMenu: [
-          { id: 'project-report', label: 'CSR Project Report' },
-          { id: 'expenditure-report', label: 'CSR Expenditure Report' },
+          { id: 'fund-year-wise-report', label: 'CSR Fund Year Wise Report' },
+          { id: 'fund-org-wise-report', label: 'CSR Fund Organisation Wise Report' },
         ]
       }
     );
@@ -89,7 +89,7 @@ export default function CSRProjects({ triggerNotification }) {
     if (subId === 'project' || subId === 'fund') {
       setInputFormType(subId);
       navigate('/projects/csr-projects/input-form');
-    } else if (subId === 'project-report' || subId === 'expenditure-report') {
+    } else if (subId === 'fund-year-wise-report' || subId === 'fund-org-wise-report') {
       setReportType(subId);
       navigate('/projects/csr-projects/reports');
     }

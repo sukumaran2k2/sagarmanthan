@@ -172,6 +172,16 @@ export const fetchCsrFundAllocated = async (clusterId = 0, orgId = 0, fy = 'all'
   return response.data;
 };
 
+export const fetchCsrFundYearWiseReport = async (fy = 'all') => {
+  const response = await api.get(`/get-csr-fund-year-wise-report/${fy}`);
+  return response.data;
+};
+
+export const fetchCsrFundOrgWiseReport = async (fy = 'all') => {
+  const response = await api.get(`/get-csr-fund-org-wise-report/${fy}`);
+  return response.data;
+};
+
 export const fetchCsrProjectStageWise = async (clusterId = 0, orgId = 0, fy = 'all', focusId = 0) => {
   const response = await api.get(`/get-csr-project-stage-wise/${clusterId}/${orgId}/${fy}/${focusId}`);
   return response.data;

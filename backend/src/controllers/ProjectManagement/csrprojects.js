@@ -1813,11 +1813,115 @@ async function getDetailedCSRProjects(req, res) {
   }
 }
 
+async function getCsrFundOrgWiseReport(req, res) {
+  try {
+    const financialYear = req.params.fy && req.params.fy !== 'all' ? req.params.fy : null;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("financialYear", financialYear);
+
+    // Report 1.2 - CSR Fund Organisation Wise Report.
+    // One row per organisation, for the selected financial year (the UI
+    // defaults this to the current FY, matching the platform's own
+    // convention elsewhere). Same expenditure-aggregation logic as
+    // Report 1.1, just grouped by organisation instead of by year.
+    const sqlQuery = `
+      WITH ExpenditureByYear AS (
+        SELECT
+          p.organisation_id,
+          e.year AS financial_year,
+          SUM(e.csr_expenditure_cost) AS total_expenditure
+        FROM tbl_csr_expenditure e
+        INNER JOIN tbl_csr_projects p ON e.csr_project_id = p.csr_project_id
+        GROUP BY p.organisation_id, e.year
+      )
+      SELECT
+        o.organisation_name AS Organisation_Name,
+        f.opening_balance_csr AS Opening_CSR_Balance_Lakh,
+        f.csr_fund_alloted_year AS CSR_Fund_Allotted_Lakh,
+        COALESCE(eby.total_expenditure, 0) AS Project_Expenditure_Lakh,
+        (COALESCE(f.opening_balance_csr, 0) + COALESCE(f.csr_fund_alloted_year, 0) - COALESCE(eby.total_expenditure, 0)) AS CSR_Fund_Balance_Lakh,
+        CASE
+          WHEN COALESCE(f.csr_fund_alloted_year, 0) = 0 THEN NULL
+          ELSE ROUND((COALESCE(eby.total_expenditure, 0) / f.csr_fund_alloted_year) * 100, 2)
+        END AS Utilisation_Percent
+      FROM tbl_csr_fund f
+      LEFT JOIN mmt_organisation o ON f.organisation_id = o.organisation_id
+      LEFT JOIN ExpenditureByYear eby
+        ON eby.organisation_id = f.organisation_id
+        AND eby.financial_year = f.financial_year
+      WHERE (@financialYear IS NULL OR f.financial_year = @financialYear)
+      ORDER BY o.organisation_name;
+    `;
+
+    const { recordset } = await request.query(sqlQuery);
+    res.status(200).json(recordset);
+
+  } catch (err) {
+    console.error("Database Error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function getCsrFundYearWiseReport(req, res) {
+  try {
+    const financialYear = req.params.fy && req.params.fy !== 'all' ? req.params.fy : null;
+
+    const conn = await pool;
+    const request = conn.request();
+    request.input("financialYear", financialYear);
+
+    // Report 1.1 - CSR Fund Year Wise Report.
+    // No. of Organisations counts distinct orgs that have a fund record for
+    // that year. Project Expenditure sums every project's expenditure rows
+    // recorded IN that year (not filtered by when the underlying project was
+    // originally approved -- a multi-year project's later-year spending still
+    // counts toward that later year's fund utilisation).
+    const sqlQuery = `
+      WITH ExpenditureByYear AS (
+        SELECT
+          p.organisation_id,
+          e.year AS financial_year,
+          SUM(e.csr_expenditure_cost) AS total_expenditure
+        FROM tbl_csr_expenditure e
+        INNER JOIN tbl_csr_projects p ON e.csr_project_id = p.csr_project_id
+        GROUP BY p.organisation_id, e.year
+      )
+      SELECT
+        f.financial_year AS Financial_Year,
+        COUNT(DISTINCT f.organisation_id) AS No_of_Organisations,
+        SUM(f.csr_fund_alloted_year) AS CSR_Fund_Allotted_Lakh,
+        SUM(COALESCE(eby.total_expenditure, 0)) AS Project_Expenditure_Lakh,
+        (SUM(f.opening_balance_csr) + SUM(f.csr_fund_alloted_year) - SUM(COALESCE(eby.total_expenditure, 0))) AS CSR_Fund_Balance_Lakh,
+        CASE
+          WHEN SUM(f.csr_fund_alloted_year) = 0 THEN NULL
+          ELSE ROUND((SUM(COALESCE(eby.total_expenditure, 0)) / SUM(f.csr_fund_alloted_year)) * 100, 2)
+        END AS Utilisation_Percent
+      FROM tbl_csr_fund f
+      LEFT JOIN ExpenditureByYear eby
+        ON eby.organisation_id = f.organisation_id
+        AND eby.financial_year = f.financial_year
+      WHERE (@financialYear IS NULL OR f.financial_year = @financialYear)
+      GROUP BY f.financial_year
+      ORDER BY f.financial_year DESC;
+    `;
+
+    const { recordset } = await request.query(sqlQuery);
+    res.status(200).json(recordset);
+
+  } catch (err) {
+    console.error("Database Error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 export default {createCsrProjects, addNewCsrFileGallery, upload, fileUpload, handleUploadErrors, getCsrProjectslist,
         getUpdateCsrProjectsData, updateCsrProjects, csrProjectDocumentUploader, csrfileDownload, csrfileDelete,
         getCsrExpenditureCost, addCsrExpenditure,  getCsrFileUploadDocument,deleteGalleryFile,updateGalleryFile, 
         uploadMediaGalleryFile, addCsrFundDetails, getCsrFundList, getUpdateFundData,  editCsrFund,csrPdfFileDownload,
         csrProjectsAbstractReport,csrProjectsDetailedReport,csrExpenditureReport,getCSRProjectDashboard,getCsrFundAllocatted,
+        getCsrFundYearWiseReport, getCsrFundOrgWiseReport,
         getCsrProjectStageWise,getCSRProjectCountWise,getDetailedCSRProjects};
 
 
