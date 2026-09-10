@@ -156,10 +156,19 @@ async function getProjectList(req, res) {
                     ) AS state_names,
                     ISNULL(sp.sub_organisation_id, p.organisation_id) AS organisation_id,
                     org.organisation_name,
-                    ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id) AS current_project_stage_id,
-                    stage.stage_name,
+                    ISNULL(sp.sub_status, p.status) AS project_status,
+                    CASE
+                        WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 99
+                        ELSE ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
+                    END AS current_project_stage_id,
+                    CASE
+                        WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 'Dropped'
+                        ELSE stage.stage_name
+                    END AS stage_name,
                     ISNULL(sp.sub_estimated_cost, p.estimated_cost) AS estimated_cost,
                     ISNULL(sp.sub_sanctioned_cost, p.sanctioned_cost) AS sanctioned_cost,
+                    ISNULL(sp.sub_primary_ia_id, p.primary_ia_id) AS primary_ia_id,
+                    ISNULL(ia.ia_name, '') AS primary_ia_name,
                     physicalProgress.physical_progress,
                     financialProgress.financial_progress,
                     CAST(p.project_id AS varchar(50)) AS project_id_text,
@@ -167,6 +176,7 @@ async function getProjectList(req, res) {
                 FROM tbl_project p
                 LEFT JOIN tbl_sub_project sp ON sp.project_id = p.project_id
                 LEFT JOIN mmt_organisation org ON org.organisation_id = ISNULL(sp.sub_organisation_id, p.organisation_id)
+                LEFT JOIN mmt_implementing_agency ia ON ia.ia_id = ISNULL(sp.sub_primary_ia_id, p.primary_ia_id)
                 LEFT JOIN tbl_project_stage stage ON stage.stage_id = ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
                 LEFT JOIN (
                     SELECT project_id AS entity_id, MAX(physical_progress) AS physical_progress
@@ -216,10 +226,7 @@ async function getProjectList(req, res) {
                     WHERE e.sub_project_id != '-1'
                     GROUP BY e.sub_project_id, sp2.sub_award_project_cost
                 ) AS financialProgress ON financialProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
-                WHERE (
-                    (sp.sub_project_id IS NOT NULL AND sp.sub_status = 1)
-                    OR (sp.sub_project_id IS NULL AND p.status = 1)
-                )
+                WHERE 1=1
                 ${submittedByFilter}
                 ${scopeByOrganisation}
             )
@@ -233,6 +240,7 @@ async function getProjectList(req, res) {
                 OR project_name LIKE @search
                 OR ISNULL(sub_project_name, '') LIKE @search
                 OR ISNULL(organisation_name, '') LIKE @search
+                OR ISNULL(primary_ia_name, '') LIKE @search
                 OR ISNULL(state_names, '') LIKE @search
                 OR ISNULL(project_category_names, '') LIKE @search
             )`);
@@ -247,15 +255,15 @@ async function getProjectList(req, res) {
         const whereClauses = [...filterWhereClauses];
         if (projectStage && projectStage !== 'All') {
             if (projectStage === 'Planning & Sanctioning' || projectStage === 'Planning' || projectStage === 'Project Initiated' || projectStage === 'planning') {
-                whereClauses.push('(current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, \'\') LIKE \'%Planning%\' OR ISNULL(stage_name, \'\') LIKE \'%Initiated%\' OR current_project_stage_id IS NULL)');
+                whereClauses.push('(project_status = 1 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, \'\') LIKE \'%Planning%\' OR ISNULL(stage_name, \'\') LIKE \'%Initiated%\' OR current_project_stage_id IS NULL))');
             } else if (projectStage === 'Under Tendering' || projectStage === 'Tendering' || projectStage === 'tendering') {
-                whereClauses.push('(current_project_stage_id = 12 OR ISNULL(stage_name, \'\') LIKE \'%Tender%\')');
+                whereClauses.push('(project_status = 1 AND (current_project_stage_id = 12 OR ISNULL(stage_name, \'\') LIKE \'%Tender%\'))');
             } else if (projectStage === 'Under Implementation' || projectStage === 'Implementation' || projectStage === 'under_implementation') {
-                whereClauses.push('(current_project_stage_id = 13 OR ISNULL(stage_name, \'\') LIKE \'%Implement%\')');
+                whereClauses.push('(project_status = 1 AND (current_project_stage_id = 13 OR ISNULL(stage_name, \'\') LIKE \'%Implement%\'))');
             } else if (projectStage === 'Completed' || projectStage === 'completed') {
-                whereClauses.push('(current_project_stage_id = 14 OR ISNULL(stage_name, \'\') LIKE \'%Complete%\')');
+                whereClauses.push('(project_status = 1 AND (current_project_stage_id = 14 OR ISNULL(stage_name, \'\') LIKE \'%Complete%\'))');
             } else if (projectStage === 'Dropped' || projectStage === 'dropped') {
-                whereClauses.push('ISNULL(stage_name, \'\') LIKE \'%Drop%\'');
+                whereClauses.push('(project_status = 0 OR ISNULL(stage_name, \'\') LIKE \'%Drop%\')');
             } else {
                 whereClauses.push('(ISNULL(stage_name, \'\') = @projectStage OR ISNULL(stage_name, \'\') LIKE @projectStageLike)');
             }
@@ -303,10 +311,11 @@ async function getProjectList(req, res) {
             ${baseQuery}
             SELECT
                 COUNT(1) AS allCount,
-                SUM(CASE WHEN current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL THEN 1 ELSE 0 END) AS planningCount,
-                SUM(CASE WHEN current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%' THEN 1 ELSE 0 END) AS tenderingCount,
-                SUM(CASE WHEN current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%' THEN 1 ELSE 0 END) AS uiCount,
-                SUM(CASE WHEN current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%' THEN 1 ELSE 0 END) AS completedCount
+                SUM(CASE WHEN project_status = 1 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL) THEN 1 ELSE 0 END) AS planningCount,
+                SUM(CASE WHEN project_status = 1 AND (current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%') THEN 1 ELSE 0 END) AS tenderingCount,
+                SUM(CASE WHEN project_status = 1 AND (current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%') THEN 1 ELSE 0 END) AS uiCount,
+                SUM(CASE WHEN project_status = 1 AND (current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%') THEN 1 ELSE 0 END) AS completedCount,
+                SUM(CASE WHEN project_status = 0 OR ISNULL(stage_name, '') LIKE '%Drop%' THEN 1 ELSE 0 END) AS droppedCount
             FROM base
             ${countsWhere};
         `);
@@ -317,6 +326,7 @@ async function getProjectList(req, res) {
             tendering: Number(cRow.tenderingCount || 0),
             ui: Number(cRow.uiCount || 0),
             completed: Number(cRow.completedCount || 0),
+            dropped: Number(cRow.droppedCount || 0),
         };
 
         const dataResult = await dataRequest.query(`

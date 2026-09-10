@@ -124,13 +124,19 @@ async function viewDropProjectList(req, res) {
         else 
         {
             const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
+            if (!orgResult.recordset.length || !orgResult.recordset[0].organisation_id) {
+                return res.json([]);
+            }
             const organisationID = orgResult.recordset[0].organisation_id;
 
             request.input("organisationID", organisationID);
 
             const usersResult = await request.query(`SELECT user_id FROM tbl_user WHERE organisation_id = @organisationID`);
-            const userIDs = usersResult.recordset.map(user => user.user_id);
+            const userIDs = usersResult.recordset.map(user => user.user_id).filter(Boolean);
 
+            if (userIDs.length === 0) {
+                return res.json([]);
+            }
 
             const result = await conn.query(`SELECT tbl_project.project_id, 
                 ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) AS organisation_id, organisation_name,
@@ -213,8 +219,11 @@ async function rejectProjectDropRequest(req, res) {
     request.input("reason", reason);
 
     try {
-        const result = await request.query(`UPDATE tbl_project_drop_request SET reject_request_status = 0, drop_rejected_remarks = @reason
-        WHERE project_id = @projectID AND sub_project_id = @subProjectID`);
+        let whereClause = (subProjectID == -1 || subProjectID == '-1' || !subProjectID)
+            ? "WHERE project_id = @projectID AND (sub_project_id = '-1' OR sub_project_id IS NULL OR sub_project_id = '')"
+            : "WHERE project_id = @projectID AND sub_project_id = @subProjectID";
+            
+        const result = await request.query(`UPDATE tbl_project_drop_request SET reject_request_status = 0, drop_rejected_remarks = @reason ${whereClause}`);
 
         res.sendStatus(200);
     }
