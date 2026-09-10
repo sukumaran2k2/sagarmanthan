@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Edit, Eye, Search, X, List, BarChart3, Building2, ChevronDown, Filter, 
-  Trash2, Plus, Layers, TrendingUp, DollarSign, Calendar, Check
+  Trash2, Plus, Layers, TrendingUp, DollarSign, Calendar, Check, Ban, File, Minus
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import Table from '../../../components/Table';
@@ -17,6 +17,8 @@ const STATUS_COLORS = {
   'Completed': '#10b981',
   'Dropped': '#ef4444',
 };
+
+
 
 function toAmount(value) {
   const n = Number(value);
@@ -63,13 +65,11 @@ export default function ProjectsListTable({
     sNo: true,
     projectId: true,
     projectName: true,
-    organisation: true,
-    category: true,
-    state: true,
-    stage: true,
-    cost: true,
+    primaryImplementingAgency: true,
+    sanctionedCost: true,
     physicalProgress: true,
     financialProgress: true,
+    stage: true,
     actions: true,
   });
 
@@ -154,6 +154,7 @@ export default function ProjectsListTable({
     { id: 'Under Tendering', label: 'UNDER TENDERING', count: counts.tendering },
     { id: 'Under Implementation', label: 'UNDER IMPLEMENTATION', count: counts.ui },
     { id: 'Completed', label: 'COMPLETED', count: counts.completed },
+    { id: 'Dropped', label: 'DROPPED', count: counts.dropped },
   ];
 
   const displayRows = useMemo(() => {
@@ -180,19 +181,60 @@ export default function ProjectsListTable({
     if (visibleCols.projectId) {
       cols.push({
         field: 'projectId',
-        headerName: 'Project ID',
-        width: 125,
+        headerName: 'Project ID / Sub Project ID',
+        width: 175,
+        minWidth: 160,
         pinned: 'left',
-        cellClass: 'font-mono text-center font-bold text-slate-800 dark:text-slate-200',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'font-mono text-center font-bold text-slate-800 dark:text-slate-200 flex items-center justify-center',
         headerClass: 'text-center',
+        cellStyle: {
+          fontWeight: 700,
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: '1.35',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        valueGetter: (params) => {
+          const pid = params.data?.projectId || params.value || '-';
+          const subId = params.data?.subProjectId;
+          const hasSub = subId && subId !== '-1' && subId !== '-' && subId !== '0';
+          return hasSub ? `Sub Project ${subId} / Main ID ${pid}` : pid;
+        },
         cellRenderer: (params) => {
           const pid = params.data?.projectId || params.value || '-';
           const subId = params.data?.subProjectId;
           const hasSub = subId && subId !== '-1' && subId !== '-' && subId !== '0';
           return (
-            <span className="font-extrabold text-[#0f417a] dark:text-blue-300 font-mono tracking-wide text-xs">
-              {pid}{hasSub ? ` / ${subId}` : ''}
-            </span>
+            <div className="flex flex-col items-center justify-center text-center py-1.5 w-full">
+              {hasSub ? (
+                <>
+                  <span 
+                    className="text-[11px] font-black text-slate-900 dark:text-slate-100 font-mono whitespace-nowrap"
+                    title={`Sub Project ID: ${subId}`}
+                    style={{ fontWeight: 900 }}
+                  >
+                    Sub Project <span className="font-black text-[#0f417a] dark:text-blue-300" style={{ fontWeight: 900 }}>{subId}</span>
+                  </span>
+                  <span 
+                    className="font-extrabold text-[#0f417a] dark:text-blue-300 font-mono tracking-wide text-xs mt-0.5"
+                    title={`Main ID: ${pid}`}
+                  >
+                    Main: {pid}
+                  </span>
+                </>
+              ) : (
+                <span 
+                  className="font-extrabold text-[#0f417a] dark:text-blue-300 font-mono tracking-wide text-xs"
+                  title={`Project ID: ${pid}`}
+                >
+                  {pid}
+                </span>
+              )}
+            </div>
           );
         },
       });
@@ -216,30 +258,45 @@ export default function ProjectsListTable({
           display: 'flex',
           alignItems: 'center',
         },
-        cellRenderer: (params) => (
-          <div className="flex flex-col text-left py-1.5 w-full">
-            <span 
-              className="font-bold text-slate-800 dark:text-slate-100"
-              title={params.value}
-            >
-              {params.value || '-'}
-            </span>
-            {params.data?.subProjectName && params.data.subProjectName !== '-' && (
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal mt-0.5">
-                Sub: {params.data.subProjectName}
-              </span>
-            )}
-          </div>
-        ),
+        cellRenderer: (params) => {
+          const mainName = params.value || '-';
+          const subName = params.data?.subProjectName;
+          const hasSubName = subName && subName !== '-';
+          
+          return (
+            <div className="flex flex-col text-left py-1.5 w-full">
+              {hasSubName ? (
+                <>
+                  <span 
+                    className="font-bold text-slate-800 dark:text-slate-100"
+                    title={subName}
+                  >
+                    {subName}
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal mt-0.5" title={mainName}>
+                    Main: {mainName}
+                  </span>
+                </>
+              ) : (
+                <span 
+                  className="font-bold text-slate-800 dark:text-slate-100"
+                  title={mainName}
+                >
+                  {mainName}
+                </span>
+              )}
+            </div>
+          );
+        },
       });
     }
 
-    if (visibleCols.organisation) {
+    if (visibleCols.primaryImplementingAgency) {
       cols.push({
-        field: 'organisationName',
-        headerName: 'Lead Organisation',
+        field: 'primaryImplementingAgency',
+        headerName: 'Primary Implementing Agency',
         flex: 1.5,
-        minWidth: 200,
+        minWidth: 180,
         wrapText: true,
         autoHeight: true,
         headerClass: 'text-left',
@@ -260,46 +317,23 @@ export default function ProjectsListTable({
       });
     }
 
-    if (visibleCols.category) {
+    if (visibleCols.sanctionedCost) {
       cols.push({
-        field: 'category',
-        headerName: 'Category',
+        field: 'sanctionedCost',
+        headerName: 'Sanctioned Cost (₹ Cr)',
         width: 150,
-        cellClass: 'text-slate-600 dark:text-slate-400 text-xs text-left',
-        headerClass: 'text-left',
-        cellRenderer: (params) => (
-          <span>{params.value || 'General'}</span>
-        ),
-      });
-    }
-
-    if (visibleCols.state) {
-      cols.push({
-        field: 'stateName',
-        headerName: 'State / Region',
-        width: 140,
-        cellClass: 'text-slate-600 dark:text-slate-400 text-xs text-left',
-        headerClass: 'text-left',
-        cellRenderer: (params) => (
-          <span>{params.value || '-'}</span>
-        ),
-      });
-    }
-
-    if (visibleCols.cost) {
-      cols.push({
-        field: 'cost',
-        headerName: 'Total Cost (₹ Cr)',
-        width: 140,
         cellClass: 'font-bold text-emerald-600 dark:text-emerald-400 text-right font-mono text-xs',
         headerClass: 'text-right',
-        cellRenderer: (params) => (
-          <span>
-            {params.value !== undefined && params.value !== null && params.value !== ''
-              ? `₹ ${toAmount(params.value)}`
-              : '-'}
-          </span>
-        ),
+        cellRenderer: (params) => {
+          const val = params.data?.sanctionedCost ?? params.data?.cost ?? params.value;
+          return (
+            <span>
+              {val !== undefined && val !== null && val !== ''
+                ? `₹ ${toAmount(val)}`
+                : '-'}
+            </span>
+          );
+        },
       });
     }
 
@@ -342,21 +376,31 @@ export default function ProjectsListTable({
         width: 170,
         cellClass: 'text-xs font-semibold text-slate-800 dark:text-slate-200 text-left flex items-center',
         headerClass: 'text-left',
-        cellRenderer: (params) => (
-          <span>{params.value || 'Project Initiated'}</span>
-        ),
+        cellRenderer: (params) => {
+          const isDropped = String(params.value || '').toLowerCase().includes('drop');
+          if (isDropped) {
+            return (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-xs">
+                <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+                <span>Dropped</span>
+              </span>
+            );
+          }
+          return <span>{params.value || 'Project Initiated'}</span>;
+        },
       });
     }
 
     if (visibleCols.actions) {
       cols.push({
         headerName: 'Action',
-        width: 115,
+        width: 140,
         pinned: 'right',
         cellRenderer: (params) => {
           const row = params.data;
           if (!row) return null;
           const isBusy = dropBusyId === row.id;
+          const isDropped = String(row.stage || '').toLowerCase().includes('drop');
 
           return (
             <div className="flex items-center justify-center space-x-1.5 h-full py-1">
@@ -384,11 +428,18 @@ export default function ProjectsListTable({
                 <button
                   type="button"
                   onClick={() => onDropProject?.(row)}
-                  disabled={isBusy}
-                  title="Request Drop Project"
-                  className="p-1.5 hover:bg-rose-50 dark:hover:bg-slate-800 text-rose-600 dark:text-rose-400 rounded-lg transition cursor-pointer disabled:opacity-50"
+                  disabled={isBusy || isDropped}
+                  title={isDropped ? 'Project is already dropped' : 'Drop'}
+                  className={`p-1.5 rounded-lg transition cursor-pointer flex items-center justify-center shrink-0 ${
+                    isDropped
+                      ? 'text-rose-400 dark:text-rose-500/60 bg-rose-50/40 dark:bg-rose-950/20 opacity-60 cursor-not-allowed'
+                      : 'text-rose-600 hover:text-rose-800 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-slate-800'
+                  }`}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <div className="flex items-center">
+                    <Minus className="h-3 w-3 shrink-0 mr-0.5" strokeWidth={3} />
+                    <File className="h-4 w-4 shrink-0" />
+                  </div>
                 </button>
               )}
             </div>
@@ -420,7 +471,12 @@ export default function ProjectsListTable({
           const line = [];
           columnDefs.forEach((col) => {
             if (col.headerName && col.headerName !== 'Action') {
-              const val = row[col.field] !== undefined ? row[col.field] : '';
+              let val = '';
+              if (typeof col.valueGetter === 'function') {
+                val = col.valueGetter({ data: row, value: row[col.field] });
+              } else {
+                val = row[col.field] !== undefined ? row[col.field] : '';
+              }
               line.push(val);
             }
           });
@@ -453,7 +509,12 @@ export default function ProjectsListTable({
         rowsHtml += '<tr>';
         columnDefs.forEach((col) => {
           if (col.headerName && col.headerName !== 'Action') {
-            const val = row[col.field] !== undefined ? row[col.field] : '';
+            let val = '';
+            if (typeof col.valueGetter === 'function') {
+              val = col.valueGetter({ data: row, value: row[col.field] });
+            } else {
+              val = row[col.field] !== undefined ? row[col.field] : '';
+            }
             rowsHtml += `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 11px;">${val}</td>`;
           }
         });
@@ -505,13 +566,18 @@ export default function ProjectsListTable({
               <button
                 key={tab.id}
                 onClick={() => setFilter('projectStage', tab.id)}
-                className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   isSelected
-                    ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+                    ? tab.id === 'Dropped'
+                      ? 'border-rose-600 text-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-400 rounded-t-lg'
+                      : 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
                     : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                 }`}
               >
-                {tab.label} ({tab.count})
+                {tab.id === 'Dropped' && (
+                  <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
+                )}
+                <span>{tab.label} ({tab.count})</span>
               </button>
             );
           })}
@@ -640,12 +706,10 @@ export default function ProjectsListTable({
                   <span className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1">Toggle Columns</span>
                   {[
                     { key: 'sNo', label: 'S.No' },
-                    { key: 'projectId', label: 'Project ID' },
+                    { key: 'projectId', label: 'Project ID / Sub Project ID' },
                     { key: 'projectName', label: 'Project Name' },
-                    { key: 'organisation', label: 'Lead Organisation' },
-                    { key: 'category', label: 'Category' },
-                    { key: 'state', label: 'State / Region' },
-                    { key: 'cost', label: 'Total Cost (₹ Cr)' },
+                    { key: 'primaryImplementingAgency', label: 'Primary Implementing Agency' },
+                    { key: 'sanctionedCost', label: 'Sanctioned Cost (₹ Cr)' },
                     { key: 'physicalProgress', label: 'Physical Progress' },
                     { key: 'financialProgress', label: 'Financial Progress' },
                     { key: 'stage', label: 'Status / Stage' },

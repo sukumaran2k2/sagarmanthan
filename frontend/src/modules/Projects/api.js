@@ -228,4 +228,16 @@ export function requestDropProject(payload) {
   return api.post('/dropproject-request', payload);
 }
 
+export function fetchDropRequests(userId) {
+  return api.get(`/viewdrop-projectlist/${userId}`);
+}
+
+export function acceptDropRequest(projectId, subProjectId) {
+  return api.put(`/delete-project/${projectId}/${subProjectId}`);
+}
+
+export function rejectDropProject(payload) {
+  return api.post('/reject-project-drop-request', payload);
+}
+
 export default api;

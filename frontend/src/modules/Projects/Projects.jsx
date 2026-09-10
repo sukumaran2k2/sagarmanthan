@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { FolderKanban } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import ProjectBasicInformationPage from './pages/ProjectBasicInformationPage';
+import DropRequestsPage from './pages/DropRequestsPage';
 import { useProjectsPermissions } from './hooks/useProjectsPermissions';
 import { resolveProjectsListView } from './views';
 
@@ -11,6 +13,7 @@ const INIT_TAB_KEY = 'projectsInitTab';
 function resolveSubTabId(label, canAdd) {
   const key = String(label || '').toLowerCase().trim();
   if (key.includes('basic') || key.includes('input')) return canAdd ? 'basic-info' : 'list';
+  if (key.includes('drop') || key === 'view-drop-request' || key === 'projects-droprequests') return 'drop-requests';
   return 'list';
 }
 
@@ -19,6 +22,7 @@ export default function Projects({
   onGoHome,
   triggerNotification,
 }) {
+  const location = useLocation();
   const permissions = useProjectsPermissions();
   const ListView = useMemo(
     () => resolveProjectsListView(permissions.uiViewCode),
@@ -27,9 +31,14 @@ export default function Projects({
 
   const [manualSubTab, setManualSubTab] = useState(() => {
     const init = sessionStorage.getItem(INIT_TAB_KEY);
-    if (!init) return null;
-    sessionStorage.removeItem(INIT_TAB_KEY);
-    return resolveSubTabId(init, permissions.canAdd);
+    if (init) {
+      sessionStorage.removeItem(INIT_TAB_KEY);
+      return resolveSubTabId(init, permissions.canAdd);
+    }
+    if (location.pathname.includes('view-drop-request') || location.pathname.includes('projects-dropRequests')) {
+      return 'drop-requests';
+    }
+    return resolveSubTabId(activeSubTabProp, permissions.canAdd);
   });
   const [listRefreshKey, setListRefreshKey] = useState(0);
   const [editingRecord, setEditingRecord] = useState(null);
@@ -50,6 +59,14 @@ export default function Projects({
   );
 
   useEffect(() => {
+    if (location.pathname.includes('view-drop-request') || location.pathname.includes('projects-dropRequests')) {
+      setEditingRecord(null);
+      setFormReadOnly(false);
+      setManualSubTab('drop-requests');
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
     const onMenu = (event) => {
       setEditingRecord(null);
       setFormReadOnly(false);
@@ -65,6 +82,7 @@ export default function Projects({
     if (permissions.canAdd) {
       items.push({ id: 'basic-info', label: 'Input Form' });
     }
+    items.push({ id: 'drop-requests', label: 'Drop Requests' });
     return items;
   }, [permissions.canAdd]);
 
@@ -161,6 +179,10 @@ export default function Projects({
               setListRefreshKey((prev) => prev + 1);
             }}
           />
+        ) : null}
+
+        {activeSubTab === 'drop-requests' ? (
+          <DropRequestsPage notify={notify} />
         ) : null}
       </div>
     </div>

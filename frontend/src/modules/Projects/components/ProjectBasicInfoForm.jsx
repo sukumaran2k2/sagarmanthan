@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
-  ArrowLeft, Download, Save, Trash2, Upload, Briefcase, 
+  ArrowLeft, ArrowRight, Download, Save, Trash2, Upload, Briefcase, 
   Building2, DollarSign, Calendar, MapPin, Landmark, 
   TrendingUp, Layers, CheckCircle2, AlertTriangle, FileText, 
   ChevronRight, ChevronLeft, ChevronDown, Plus, X, Eye, Sparkles, Check,
@@ -189,8 +189,8 @@ function hasLockedProjectTypeValue(value) {
 
 function Label({ children, required = false }) {
   return (
-    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block mb-1">
-      {children} {required ? <span className="text-rose-500">*</span> : null}
+    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
+      {children} {required && <span className="text-rose-500 font-bold">*</span>}
     </label>
   );
 }
@@ -198,8 +198,8 @@ function Label({ children, required = false }) {
 function FieldError({ error }) {
   if (!error) return null;
   return (
-    <p className="text-[11px] text-rose-500 dark:text-rose-400 font-semibold mt-1.5 flex items-center gap-1 animate-fade-in">
-      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+    <p className="text-[11px] text-rose-500 font-semibold mt-1 flex items-center gap-1 animate-fade-in">
+      <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" />
       <span>{error}</span>
     </p>
   );
@@ -377,6 +377,11 @@ export default function ProjectBasicInfoForm({
   onDeleteDocument,
   onDownloadDocument,
   outlayProps = null,
+  activeAddStage = 'general',
+  onAddStageChange,
+  addStageProgress = {},
+  onStageProgressChange,
+  registerNavigateAddStage,
 }) {
   const [formData, setFormData] = useState(() => getInitialForm(initialData));
   const [errors, setErrors] = useState({});
@@ -709,6 +714,350 @@ export default function ProjectBasicInfoForm({
     return nextErrors;
   };
 
+  const validateGeneralStage = () => {
+    const errs = {};
+    if (!String(formData.projectName || '').trim()) {
+      errs.projectName = 'Project name is required';
+    } else if (countWords(formData.projectName) > 15) {
+      errs.projectName = 'Project name should not exceed 15 words';
+    }
+
+    if (!String(formData.projectBrief || '').trim()) {
+      errs.projectBrief = 'Project brief is required';
+    } else if (countWords(formData.projectBrief) > 20) {
+      errs.projectBrief = 'Project brief should not exceed 20 words';
+    }
+
+    const cost = Number(formData.estimatedProjectCost);
+    if (
+      formData.estimatedProjectCost === '' ||
+      formData.estimatedProjectCost == null ||
+      Number.isNaN(cost) ||
+      cost < 0
+    ) {
+      errs.estimatedProjectCost = 'Invalid estimated project cost';
+    }
+
+    if (!formData.projectType) {
+      errs.projectType = 'Project type is required';
+    }
+    if (!formData.implementationType) {
+      errs.implementationType = 'Implementation type is required';
+    }
+
+    const categories = getMultiValue(formData.projectCategory);
+    if (!categories.length) {
+      errs.projectCategory = 'Project category is required';
+    }
+
+    if (!formData.projectInitiatedDate) {
+      errs.projectInitiatedDate = 'Project initiated date is required';
+    }
+
+    if (!formData.targetCompletionDate) {
+      errs.targetCompletionDate = 'Target completion date is required';
+    } else if (
+      formData.projectInitiatedDate &&
+      formData.targetCompletionDate &&
+      formData.targetCompletionDate < formData.projectInitiatedDate
+    ) {
+      errs.targetCompletionDate =
+        'Target completion date should be greater than or equal to project initiated date';
+    }
+
+    if (!String(formData.primaryImplementingAgency || '').trim()) {
+      errs.primaryImplementingAgency = 'Primary implementing agency is required';
+    }
+
+    if (showSecondaryIaOthers) {
+      if (!String(formData.newImplementingAgency || '').trim()) {
+        errs.newImplementingAgency = 'Enter the new implementing agency';
+      }
+      if (!String(formData.newImplementingAgencyCode || '').trim()) {
+        errs.newImplementingAgencyCode = 'Enter the new implementing agency code';
+      }
+    }
+
+    if (!formData.scheme) {
+      errs.scheme = 'Scheme is required';
+    }
+
+    if (showOutputOthers) {
+      if (!String(formData.newProjectOutput || '').trim()) {
+        errs.newProjectOutput = 'Enter the new project output';
+      }
+      if (!String(formData.newProjectOutputUnits || '').trim()) {
+        errs.newProjectOutputUnits = 'Enter the new project output units';
+      }
+    }
+
+    if (showOutcomeOthers) {
+      if (!String(formData.newProjectOutcome || '').trim()) {
+        errs.newProjectOutcome = 'Enter the new project outcome';
+      }
+      if (!String(formData.newProjectOutcomeUnits || '').trim()) {
+        errs.newProjectOutcomeUnits = 'Enter the new project outcome units';
+      }
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setErrors((prev) => ({ ...prev, ...errs }));
+      const firstMsg = Object.values(errs)[0];
+      const count = Object.keys(errs).length;
+      notify?.(
+        count > 1
+          ? 'Please fill all mandatory fields (*) in Stage 1: General Details before proceeding.'
+          : firstMsg,
+        'error'
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const validateFundingStage = () => {
+    const errs = {};
+    if (!selectedFundingSourceIds.length) {
+      errs.sourceOfFunding = 'Source of funding is required';
+    }
+
+    if (fundingVisibility.gbs && !isPositiveCost(formData.gbsComponents)) {
+      errs.gbsComponents = 'Enter a valid GBS component cost';
+    }
+    if (fundingVisibility.iebr && !isPositiveCost(formData.iebrComponents)) {
+      errs.iebrComponents = 'Enter a valid IEBR component cost';
+    }
+    if (fundingVisibility.ppp && !isPositiveCost(formData.pppComponents)) {
+      errs.pppComponents = 'Enter a valid PPP component cost';
+    }
+    if (fundingVisibility.loans && !isPositiveCost(formData.loansComponents)) {
+      errs.loansComponents = 'Enter a valid loan component cost';
+    }
+    if (fundingVisibility.multilateral && !isPositiveCost(formData.multiFundComponents)) {
+      errs.multiFundComponents = 'Enter a valid multilateral funding cost';
+    }
+    if (fundingVisibility.stateGovFund && !isPositiveCost(formData.stateGovFundComponents)) {
+      errs.stateGovFundComponents = 'Enter a valid state govt fund cost';
+    }
+    if (fundingVisibility.otherSources && !isPositiveCost(formData.otherSourceFundingComp)) {
+      errs.otherSourceFundingComp = 'Enter a valid other sources cost';
+    }
+    if (fundingVisibility.sagarmala && !isPositiveCost(formData.sagarmalaComponents)) {
+      errs.sagarmalaComponents = 'Enter a valid Sagarmala component cost';
+    }
+    if (fundingVisibility.pmmsy && !isPositiveCost(formData.pmmsyComponents)) {
+      errs.pmmsyComponents = 'Enter a valid PMMSY component cost';
+    }
+
+    if (!formData.primaryFundingAgency) {
+      errs.primaryFundingAgency = 'Primary funding agency is required';
+    }
+
+    if (showSecondaryFaOthers && !String(formData.newFundingAgency || '').trim()) {
+      errs.newFundingAgency = 'Enter the new funding agency';
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setErrors((prev) => ({ ...prev, ...errs }));
+      const firstMsg = Object.values(errs)[0];
+      const count = Object.keys(errs).length;
+      notify?.(
+        count > 1
+          ? 'Please fill all mandatory fields (*) in Stage 2: Source of Funding before proceeding.'
+          : firstMsg,
+        'error'
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const validateLocationStage = () => {
+    const errs = {};
+    if (!getMultiValue(formData.state).length) {
+      errs.state = 'State is required';
+    }
+    if (!getMultiValue(formData.district).length) {
+      errs.district = 'District is required';
+    }
+    if (!getMultiValue(formData.mpConstituency).length) {
+      errs.mpConstituency = 'MP constituency is required';
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setErrors((prev) => ({ ...prev, ...errs }));
+      const firstMsg = Object.values(errs)[0];
+      const count = Object.keys(errs).length;
+      notify?.(
+        count > 1
+          ? 'Please fill all mandatory fields (*) in Stage 3: Project Location before proceeding.'
+          : firstMsg,
+        'error'
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const validateSubProjectStage = () => {
+    const errs = {};
+    if (formData.onSubProjectAvailable !== 0 && formData.onSubProjectAvailable !== 1) {
+      errs.onSubProjectAvailable = 'Please select whether this project has sub-projects';
+    }
+
+    if (Number(formData.onSubProjectAvailable) === 1) {
+      if (!formData.subProjectNum || Number(formData.subProjectNum) < 2) {
+        errs.subProjectNum = 'Enter at least two sub-projects';
+      }
+      const missingSubProject = (formData.subProjectsTab || []).some(
+        (item) => !String(item?.subProjectName || '').trim()
+      );
+      if (missingSubProject) {
+        errs.subProjectsTab = 'All sub-project names are required';
+      }
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setErrors((prev) => ({ ...prev, ...errs }));
+      const firstMsg = Object.values(errs)[0];
+      const count = Object.keys(errs).length;
+      notify?.(
+        count > 1
+          ? 'Please fill all mandatory fields (*) in Stage 4: Sub-projects before proceeding.'
+          : firstMsg,
+        'error'
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const handleNavigateToAddStage = (targetStageId) => {
+    if (targetStageId === activeAddStage) return;
+
+    const stageOrder = ['general', 'funding', 'location', 'subproject'];
+    const currentIndex = stageOrder.indexOf(activeAddStage);
+    const targetIndex = stageOrder.indexOf(targetStageId);
+
+    // If moving backwards to a previous stage, allow freely
+    if (targetIndex <= currentIndex) {
+      onAddStageChange?.(targetStageId);
+      return;
+    }
+
+    // If moving forward to Stage 2, 3, or 4 -> Stage 1 must be valid
+    if (targetIndex >= 1) {
+      if (!validateGeneralStage()) {
+        onAddStageChange?.('general');
+        return;
+      }
+    }
+
+    // If moving forward to Stage 3 or 4 -> Stage 2 must also be valid
+    if (targetIndex >= 2) {
+      if (!validateFundingStage()) {
+        onAddStageChange?.('funding');
+        return;
+      }
+    }
+
+    // If moving forward to Stage 4 -> Stage 3 must also be valid
+    if (targetIndex >= 3) {
+      if (!validateLocationStage()) {
+        onAddStageChange?.('location');
+        return;
+      }
+    }
+
+    onAddStageChange?.(targetStageId);
+  };
+
+  const isGeneralStageValid = useMemo(() => {
+    if (!String(formData.projectName || '').trim() || countWords(formData.projectName) > 15) return false;
+    if (!String(formData.projectBrief || '').trim() || countWords(formData.projectBrief) > 20) return false;
+    const cost = Number(formData.estimatedProjectCost);
+    if (
+      formData.estimatedProjectCost === '' ||
+      formData.estimatedProjectCost == null ||
+      Number.isNaN(cost) ||
+      cost < 0
+    ) return false;
+    if (!formData.projectType || !formData.implementationType) return false;
+    if (!getMultiValue(formData.projectCategory).length) return false;
+    if (!formData.projectInitiatedDate || !formData.targetCompletionDate) return false;
+    if (formData.targetCompletionDate < formData.projectInitiatedDate) return false;
+    if (!String(formData.primaryImplementingAgency || '').trim()) return false;
+    if (showSecondaryIaOthers) {
+      if (!String(formData.newImplementingAgency || '').trim()) return false;
+      if (!String(formData.newImplementingAgencyCode || '').trim()) return false;
+    }
+    if (!formData.scheme) return false;
+    if (showOutputOthers) {
+      if (!String(formData.newProjectOutput || '').trim()) return false;
+      if (!String(formData.newProjectOutputUnits || '').trim()) return false;
+    }
+    if (showOutcomeOthers) {
+      if (!String(formData.newProjectOutcome || '').trim()) return false;
+      if (!String(formData.newProjectOutcomeUnits || '').trim()) return false;
+    }
+    return true;
+  }, [formData, showSecondaryIaOthers, showOutputOthers, showOutcomeOthers]);
+
+  const isFundingStageValid = useMemo(() => {
+    if (!selectedFundingSourceIds.length) return false;
+    if (fundingVisibility.gbs && !isPositiveCost(formData.gbsComponents)) return false;
+    if (fundingVisibility.iebr && !isPositiveCost(formData.iebrComponents)) return false;
+    if (fundingVisibility.ppp && !isPositiveCost(formData.pppComponents)) return false;
+    if (fundingVisibility.loans && !isPositiveCost(formData.loansComponents)) return false;
+    if (fundingVisibility.multilateral && !isPositiveCost(formData.multiFundComponents)) return false;
+    if (fundingVisibility.stateGovFund && !isPositiveCost(formData.stateGovFundComponents)) return false;
+    if (fundingVisibility.otherSources && !isPositiveCost(formData.otherSourceFundingComp)) return false;
+    if (fundingVisibility.sagarmala && !isPositiveCost(formData.sagarmalaComponents)) return false;
+    if (fundingVisibility.pmmsy && !isPositiveCost(formData.pmmsyComponents)) return false;
+    if (!formData.primaryFundingAgency) return false;
+    if (showSecondaryFaOthers && !String(formData.newFundingAgency || '').trim()) return false;
+    return true;
+  }, [formData, selectedFundingSourceIds, fundingVisibility, showSecondaryFaOthers]);
+
+  const isLocationStageValid = useMemo(() => {
+    if (!getMultiValue(formData.state).length) return false;
+    if (!getMultiValue(formData.district).length) return false;
+    if (!getMultiValue(formData.mpConstituency).length) return false;
+    return true;
+  }, [formData.state, formData.district, formData.mpConstituency]);
+
+  const isSubProjectStageValid = useMemo(() => {
+    if (formData.onSubProjectAvailable !== 0 && formData.onSubProjectAvailable !== 1) return false;
+    if (Number(formData.onSubProjectAvailable) === 1) {
+      if (!formData.subProjectNum || Number(formData.subProjectNum) < 2) return false;
+      const missing = (formData.subProjectsTab || []).some(
+        (item) => !String(item?.subProjectName || '').trim()
+      );
+      if (missing) return false;
+    }
+    return true;
+  }, [formData.onSubProjectAvailable, formData.subProjectNum, formData.subProjectsTab]);
+
+  useEffect(() => {
+    if (!isEditMode && onStageProgressChange) {
+      onStageProgressChange({
+        general: isGeneralStageValid,
+        funding: isFundingStageValid,
+        location: isLocationStageValid,
+        subproject: isSubProjectStageValid,
+      });
+    }
+  }, [isEditMode, isGeneralStageValid, isFundingStageValid, isLocationStageValid, isSubProjectStageValid, onStageProgressChange]);
+
+  const handleNavigateToAddStageRef = useRef();
+  handleNavigateToAddStageRef.current = handleNavigateToAddStage;
+
+  useEffect(() => {
+    if (!isEditMode && registerNavigateAddStage) {
+      registerNavigateAddStage((targetStageId) => handleNavigateToAddStageRef.current?.(targetStageId));
+    }
+  }, [isEditMode, registerNavigateAddStage]);
+
   const validate = () => {
     const nextErrors = {
       ...validateSection('basic'),
@@ -756,6 +1105,33 @@ export default function ProjectBasicInfoForm({
   const handleFormSubmit = async (e) => {
     e?.preventDefault();
     if (!canInteract) return;
+
+    if (!isEditMode) {
+      if (!validateGeneralStage()) {
+        onAddStageChange?.('general');
+        return;
+      }
+      if (!validateFundingStage()) {
+        onAddStageChange?.('funding');
+        return;
+      }
+      if (!validateLocationStage()) {
+        onAddStageChange?.('location');
+        return;
+      }
+      if (!validateSubProjectStage()) {
+        onAddStageChange?.('subproject');
+        return;
+      }
+
+      const saved = await onSubmit?.(formData);
+      if (saved === true) {
+        clearProjectBasicInfoDraft();
+        setDraftMeta(null);
+      }
+      return;
+    }
+
     const nextErrors = validate();
     if (Object.keys(nextErrors).length) {
       setActiveSection(resolveSectionForErrors(nextErrors));
@@ -829,6 +1205,18 @@ export default function ProjectBasicInfoForm({
       district: getMultiValue(prev.district).filter((id) => allowedDistrictIds.has(String(id))),
       mpConstituency: getMultiValue(prev.mpConstituency).filter((id) => allowedMpIds.has(String(id))),
     }));
+  };
+
+  const handleSubProjectAvailableChange = (val) => {
+    setFormData((prev) => ({
+      ...prev,
+      onSubProjectAvailable: val,
+      subProjectNum: val === 1 ? (prev.subProjectNum || 2) : 0,
+      subProjectsTab: val === 1 ? (prev.subProjectsTab?.length ? prev.subProjectsTab : [{ subProjectName: '' }, { subProjectName: '' }]) : [],
+    }));
+    if (errors.onSubProjectAvailable) {
+      setErrors((prev) => ({ ...prev, onSubProjectAvailable: undefined }));
+    }
   };
 
   const setSubProjectCount = (nextCount) => {
@@ -917,79 +1305,81 @@ export default function ProjectBasicInfoForm({
 
   const getInputClass = (fieldName, extra = '') => {
     const hasErr = Boolean(errors[fieldName]);
-    return `w-full rounded-xl border ${
+    return `w-full px-3.5 py-2.5 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border ${
       hasErr
-        ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 bg-rose-50/30 dark:bg-rose-950/20'
-        : 'border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50 dark:bg-slate-800'
-    } px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:bg-white focus:outline-none transition ${extra}`;
+        ? 'border-rose-500 ring-1 ring-rose-500/30'
+        : 'border-slate-200 dark:border-slate-700'
+    } rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 transition-colors ${extra}`;
   };
 
   return (
     <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
       
-      <div className="flex items-center border-b border-slate-200 dark:border-slate-800 select-none overflow-x-auto scrollbar-none">
-        <div className="flex space-x-1">
-          {FORM_SECTIONS.map((sec) => {
-            const isSelected = activeSection === sec.id;
-            const SecIcon = sec.icon;
-            const errCount = sectionErrorsCount[sec.id] || 0;
-            const isCompleted = Boolean(completedSections[sec.id]) && errCount === 0;
+      {isEditMode && (
+        <div className="flex items-center border-b border-slate-200 dark:border-slate-800 select-none overflow-x-auto scrollbar-none">
+          <div className="flex space-x-1">
+            {FORM_SECTIONS.map((sec) => {
+              const isSelected = activeSection === sec.id;
+              const SecIcon = sec.icon;
+              const errCount = sectionErrorsCount[sec.id] || 0;
+              const isCompleted = Boolean(completedSections[sec.id]) && errCount === 0;
 
-            return (
-              <button
-                key={sec.id}
-                type="button"
-                onClick={() => goToSection(sec.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                  errCount > 0
-                    ? isSelected
-                      ? 'border-rose-500 text-rose-600 bg-rose-50/60 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-400 rounded-t-lg'
-                      : 'border-transparent text-rose-500 hover:text-rose-600 dark:hover:text-rose-400'
-                    : isCompleted
-                    ? isSelected
-                      ? 'border-emerald-600 text-emerald-700 bg-emerald-50/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500 rounded-t-lg shadow-2xs'
-                      : 'border-transparent text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300'
-                    : isSelected
-                    ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                }`}
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
-                  errCount > 0
-                    ? 'bg-rose-500 text-white'
-                    : isCompleted
-                    ? 'bg-emerald-500 text-white shadow-xs'
-                    : isSelected
-                    ? 'bg-[#0f417a] text-white dark:bg-blue-500'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                }`}>
-                  {isCompleted ? <Check className="h-3 w-3 stroke-[3]" /> : sec.number}
-                </span>
-                <SecIcon className={`h-3.5 w-3.5 ${
-                  errCount > 0
-                    ? 'text-rose-500'
-                    : isCompleted
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : isSelected
-                    ? 'text-[#0f417a] dark:text-blue-400'
-                    : 'text-slate-400'
-                }`} />
-                <span>{sec.title}</span>
-                {errCount > 0 ? (
-                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300">
-                    {errCount}
+              return (
+                <button
+                  key={sec.id}
+                  type="button"
+                  onClick={() => goToSection(sec.id)}
+                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                    errCount > 0
+                      ? isSelected
+                        ? 'border-rose-500 text-rose-600 bg-rose-50/60 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-400 rounded-t-lg'
+                        : 'border-transparent text-rose-500 hover:text-rose-600 dark:hover:text-rose-400'
+                      : isCompleted
+                      ? isSelected
+                        ? 'border-emerald-600 text-emerald-700 bg-emerald-50/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500 rounded-t-lg shadow-2xs'
+                        : 'border-transparent text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300'
+                      : isSelected
+                      ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+                      : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
+                    errCount > 0
+                      ? 'bg-rose-500 text-white'
+                      : isCompleted
+                      ? 'bg-emerald-500 text-white shadow-xs'
+                      : isSelected
+                      ? 'bg-[#0f417a] text-white dark:bg-blue-500'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                  }`}>
+                    {isCompleted ? <Check className="h-3 w-3 stroke-[3]" /> : sec.number}
                   </span>
-                ) : isCompleted ? (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 flex items-center gap-0.5">
-                    <Check className="h-2.5 w-2.5 stroke-[3]" />
-                    <span>Done</span>
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
+                  <SecIcon className={`h-3.5 w-3.5 ${
+                    errCount > 0
+                      ? 'text-rose-500'
+                      : isCompleted
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : isSelected
+                      ? 'text-[#0f417a] dark:text-blue-400'
+                      : 'text-slate-400'
+                  }`} />
+                  <span>{sec.title}</span>
+                  {errCount > 0 ? (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300">
+                      {errCount}
+                    </span>
+                  ) : isCompleted ? (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 flex items-center gap-0.5">
+                      <Check className="h-2.5 w-2.5 stroke-[3]" />
+                      <span>Done</span>
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {!isEditMode && draftMeta ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900 flex flex-wrap items-center justify-between gap-3">
@@ -1008,21 +1398,911 @@ export default function ProjectBasicInfoForm({
 
       <form id="project-basic-info-form" onSubmit={handleFormSubmit} className="space-y-6">
         
-        {activeSection === 'basic' && (
+        {!isEditMode ? (
           <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-lg text-blue-600 dark:text-blue-400">
-                <Briefcase className="h-5 w-5" />
+            {/* 1. General Details */}
+            {activeAddStage === 'general' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5 animate-fade-in">
+                <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-lg text-[#0f417a] dark:text-blue-400">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                    General Details
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Project parameters, classifications, timelines and executing agencies</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
-                  Basic Project Details
-                </h3>
-                <p className="text-xs text-slate-500">Specify project name, implementing agencies, scheme and category classification</p>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                
+                <div>
+                  <Label required>Project Name</Label>
+                  <input
+                    type="text"
+                    value={formData.projectName}
+                    onChange={(e) => handleInputChange('projectName', e.target.value)}
+                    disabled={!canInteract}
+                    placeholder="Enter project name..."
+                    className={getInputClass('projectName')}
+                  />
+                  <FieldError error={errors.projectName} />
+                </div>
+
+                <div className="md:row-span-2">
+                  <Label required>Project Brief (Max length of words should not exceed 20)</Label>
+                  <textarea
+                    rows={4}
+                    value={formData.projectBrief}
+                    onChange={(e) => handleInputChange('projectBrief', e.target.value)}
+                    disabled={!canInteract}
+                    placeholder="Enter brief project summary..."
+                    className={getInputClass('projectBrief', 'resize-none')}
+                  />
+                  <div className="flex justify-between items-center mt-1">
+                    <FieldError error={errors.projectBrief} />
+                    <span className="text-[10px] text-slate-400 block text-right ml-auto">Max length of words should not exceed 20</span>
+                  </div>
+                </div>
+
+                <div>
+                  <Label required>Estimated Cost (In Cr.)</Label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.estimatedProjectCost}
+                      onChange={(e) => handleInputChange('estimatedProjectCost', e.target.value)}
+                      disabled={!canInteract}
+                      placeholder="0.00"
+                      className={getInputClass('estimatedProjectCost', 'pr-12 font-bold text-emerald-600 dark:text-emerald-400')}
+                    />
+                    <span className="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">₹ Cr</span>
+                  </div>
+                  <FieldError error={errors.estimatedProjectCost} />
+                </div>
+
+                <div>
+                  <Label required>Project Type</Label>
+                  <select
+                    value={formData.projectType}
+                    onChange={(e) => handleInputChange('projectType', e.target.value)}
+                    disabled={!canInteract}
+                    className={getInputClass('projectType')}
+                  >
+                    <option value="">Select Project Type</option>
+                    {PROJECT_TYPE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                  <FieldError error={errors.projectType} />
+                </div>
+
+                <div>
+                  <Label required>Implementation Type</Label>
+                  <select
+                    value={formData.implementationType}
+                    onChange={(e) => handleInputChange('implementationType', e.target.value)}
+                    disabled={!canInteract}
+                    className={getInputClass('implementationType')}
+                  >
+                    <option value="">Select Implementation Type</option>
+                    {IMPLEMENTATION_TYPE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                  <FieldError error={errors.implementationType} />
+                </div>
+
+                <div>
+                  <Label required>Project Category</Label>
+                  <MultiCheckboxSelect
+                    value={getMultiValue(formData.projectCategory)}
+                    onChange={(next) => handleInputChange('projectCategory', next)}
+                    disabled={!canInteract}
+                    hasError={Boolean(errors.projectCategory)}
+                    placeholder="Select Project Category"
+                    options={projectCategoryOptions.map((cat, idx) => {
+                      const val = cat.id ?? cat.project_category_id ?? cat.category_id ?? cat.name ?? cat.project_category_names ?? idx;
+                      const label = cat.project_category_name || cat.name || cat.project_category_names || cat.category_name || String(val);
+                      return { value: String(val), label };
+                    })}
+                  />
+                  <FieldError error={errors.projectCategory} />
+                </div>
+
+                <div>
+                  <Label required>Project Initiated Date</Label>
+                  <input
+                    type="date"
+                    value={formData.projectInitiatedDate}
+                    onChange={(e) => handleInputChange('projectInitiatedDate', e.target.value)}
+                    disabled={!canInteract}
+                    className={getInputClass('projectInitiatedDate')}
+                  />
+                  <FieldError error={errors.projectInitiatedDate} />
+                </div>
+
+                <div>
+                  <Label required>Targeted Completion Date</Label>
+                  <input
+                    type="date"
+                    value={formData.targetCompletionDate}
+                    onChange={(e) => handleInputChange('targetCompletionDate', e.target.value)}
+                    disabled={!canInteract || isTargetDateLocked}
+                    className={getInputClass('targetCompletionDate', isTargetDateLocked ? 'opacity-75' : '')}
+                  />
+                  <FieldError error={errors.targetCompletionDate} />
+                </div>
+
+                <div>
+                  <Label required>Primary Implementing Agency</Label>
+                  <select
+                    value={formData.primaryImplementingAgency}
+                    onChange={(e) => handleInputChange('primaryImplementingAgency', e.target.value)}
+                    disabled={!canInteract}
+                    className={getInputClass('primaryImplementingAgency')}
+                  >
+                    <option value="">Select Implementing Agency</option>
+                    {iaOptions.map((ia, idx) => {
+                      const val = ia.ia_id ?? ia.id ?? ia.organisation_id ?? idx;
+                      const label = ia.ia_name || ia.name || ia.organisation_name || String(val);
+                      return <option key={`pia-${val}-${idx}`} value={val}>{label}</option>;
+                    })}
+                    <option value="Others">Others</option>
+                  </select>
+                  <FieldError error={errors.primaryImplementingAgency} />
+                </div>
+
+                <div>
+                  <Label>Secondary Implementing Agency</Label>
+                  <select
+                    value={formData.secondaryImplementingAgency}
+                    onChange={(e) => handleInputChange('secondaryImplementingAgency', e.target.value)}
+                    disabled={!canInteract}
+                    className={getInputClass('secondaryImplementingAgency')}
+                  >
+                    <option value="">Select Implementing Agency</option>
+                    {iaOptions.map((ia, idx) => {
+                      const val = ia.ia_id ?? ia.id ?? ia.organisation_id ?? idx;
+                      const label = ia.ia_name || ia.name || ia.organisation_name || String(val);
+                      return <option key={`sia-${val}-${idx}`} value={val}>{label}</option>;
+                    })}
+                    <option value="Others">Others</option>
+                  </select>
+                </div>
+
+                {showSecondaryIaOthers ? (
+                  <>
+                    <div>
+                      <Label required>New Implementing Agency</Label>
+                      <input
+                        type="text"
+                        value={formData.newImplementingAgency}
+                        onChange={(e) => handleInputChange('newImplementingAgency', e.target.value)}
+                        disabled={!canInteract}
+                        className={getInputClass('newImplementingAgency')}
+                      />
+                      <FieldError error={errors.newImplementingAgency} />
+                    </div>
+                    <div>
+                      <Label required>New Implementing Agency Code</Label>
+                      <input
+                        type="text"
+                        value={formData.newImplementingAgencyCode}
+                        onChange={(e) => handleInputChange('newImplementingAgencyCode', e.target.value)}
+                        disabled={!canInteract}
+                        className={getInputClass('newImplementingAgencyCode')}
+                      />
+                      <FieldError error={errors.newImplementingAgencyCode} />
+                    </div>
+                  </>
+                ) : null}
+
+                <div>
+                  <Label required>Scheme</Label>
+                  <select
+                    value={formData.scheme}
+                    onChange={(e) => handleInputChange('scheme', e.target.value)}
+                    disabled={!canInteract}
+                    className={getInputClass('scheme')}
+                  >
+                    <option value="">Select Scheme</option>
+                    {schemeOptions.map((sch, idx) => {
+                      const val = sch.scheme_id ?? sch.id ?? idx;
+                      const label = sch.scheme_name || sch.name || String(val);
+                      return <option key={`sch-${val}-${idx}`} value={val}>{label}</option>;
+                    })}
+                  </select>
+                  <FieldError error={errors.scheme} />
+                </div>
+
+                <div>
+                  <Label>Initiative</Label>
+                  <MultiCheckboxSelect
+                    value={getMultiValue(formData.initiative)}
+                    onChange={(next) => handleInputChange('initiative', next)}
+                    disabled={!canInteract}
+                    placeholder="--Select Initiative--"
+                    options={initiativeOptions.map((ini, idx) => {
+                      const val = ini.initiative_id ?? ini.id ?? idx;
+                      const label = ini.initiative_name || ini.name || String(val);
+                      return { value: String(val), label };
+                    })}
+                  />
+                </div>
+
+                <div>
+                  <Label>Project Output</Label>
+                  <select
+                    value={formData.projectOutput}
+                    onChange={(e) => handleInputChange('projectOutput', e.target.value)}
+                    disabled={!canInteract}
+                    className={getInputClass('projectOutput')}
+                  >
+                    <option value="">Select Project Output</option>
+                    {outputOptions.map((out, idx) => {
+                      const val = out.project_output_id ?? out.id ?? out.output_id ?? idx;
+                      const label = out.project_output_name || out.output_name || out.name || String(val);
+                      return <option key={`out-${val}-${idx}`} value={val}>{label}</option>;
+                    })}
+                    <option value="Others">Others</option>
+                  </select>
+                  <FieldError error={errors.projectOutput} />
+                </div>
+
+                <div>
+                  <Label>Project Outcome</Label>
+                  <select
+                    value={formData.projectOutcome}
+                    onChange={(e) => handleInputChange('projectOutcome', e.target.value)}
+                    disabled={!canInteract}
+                    className={getInputClass('projectOutcome')}
+                  >
+                    <option value="">Select Project Outcome</option>
+                    {outcomeOptions.map((outc, idx) => {
+                      const val = outc.project_outcome_id ?? outc.id ?? outc.outcome_id ?? idx;
+                      const label = outc.project_outcome_name || outc.outcome_name || outc.name || String(val);
+                      return <option key={`outc-${val}-${idx}`} value={val}>{label}</option>;
+                    })}
+                    <option value="Others">Others</option>
+                  </select>
+                  <FieldError error={errors.projectOutcome} />
+                </div>
+
+                {showOutputOthers ? (
+                  <>
+                    <div>
+                      <Label required>New Project Output</Label>
+                      <input
+                        type="text"
+                        value={formData.newProjectOutput}
+                        onChange={(e) => handleInputChange('newProjectOutput', e.target.value)}
+                        disabled={!canInteract}
+                        className={getInputClass('newProjectOutput')}
+                      />
+                      <FieldError error={errors.newProjectOutput} />
+                    </div>
+                    <div>
+                      <Label required>New Output Units</Label>
+                      <input
+                        type="text"
+                        value={formData.newProjectOutputUnits}
+                        onChange={(e) => handleInputChange('newProjectOutputUnits', e.target.value)}
+                        disabled={!canInteract}
+                        className={getInputClass('newProjectOutputUnits')}
+                      />
+                      <FieldError error={errors.newProjectOutputUnits} />
+                    </div>
+                  </>
+                ) : null}
+
+                {showOutcomeOthers ? (
+                  <>
+                    <div>
+                      <Label required>New Project Outcome</Label>
+                      <input
+                        type="text"
+                        value={formData.newProjectOutcome}
+                        onChange={(e) => handleInputChange('newProjectOutcome', e.target.value)}
+                        disabled={!canInteract}
+                        className={getInputClass('newProjectOutcome')}
+                      />
+                      <FieldError error={errors.newProjectOutcome} />
+                    </div>
+                    <div>
+                      <Label required>New Outcome Units</Label>
+                      <input
+                        type="text"
+                        value={formData.newProjectOutcomeUnits}
+                        onChange={(e) => handleInputChange('newProjectOutcomeUnits', e.target.value)}
+                        disabled={!canInteract}
+                        className={getInputClass('newProjectOutcomeUnits')}
+                      />
+                      <FieldError error={errors.newProjectOutcomeUnits} />
+                    </div>
+                  </>
+                ) : null}
+
+                <div>
+                  <Label>Capacity Addition (in MTPA)</Label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.capacityAddition}
+                    onChange={(e) => handleInputChange('capacityAddition', e.target.value)}
+                    disabled={!canInteract}
+                    placeholder="e.g. 5.5 MTPA"
+                    className={getInputClass('capacityAddition')}
+                  />
+                  <FieldError error={errors.capacityAddition} />
+                </div>
+              </div>
+
+              {/* Bottom Actions for Stage 1 */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-[11px] text-slate-400 italic">
+                    * Fields marked with red asterisk are mandatory
+                  </span>
+                  <div className="flex items-center space-x-3">
+                    {onBack && (
+                      <button
+                        type="button"
+                        onClick={onBack}
+                        className="px-5 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                      >
+                        Exit
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      disabled={loading || savingDraft}
+                      className="flex items-center space-x-1.5 px-4 py-2.5 bg-white border border-[#0f417a]/40 text-[#0f417a] hover:bg-blue-50 dark:bg-slate-800 dark:text-blue-300 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>{savingDraft ? 'Saving Draft...' : 'Save as Draft'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateToAddStage('funding')}
+                      className="flex items-center space-x-2 px-6 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition cursor-pointer"
+                    >
+                      <span>Proceed to Source of Funding</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2. Source of Funding */}
+            {activeAddStage === 'funding' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5 animate-fade-in">
+                <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg text-emerald-600 dark:text-emerald-400">
+                  <DollarSign className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                    Source of Funding
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Financial allocation, funding source distribution and funding agencies</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <Label required>Source of Funding</Label>
+                  <MultiCheckboxSelect
+                    value={getMultiValue(formData.sourceOfFunding)}
+                    onChange={(next) => handleFundingSourceChange(next)}
+                    disabled={!canInteract}
+                    hasError={Boolean(errors.sourceOfFunding)}
+                    placeholder="--Select Source of Funding--"
+                    options={(sourceOfFundingOptions.length
+                      ? sourceOfFundingOptions.map((sof) => ({
+                          value: String(sof.source_of_funding_id ?? sof.id ?? sof.sof_id ?? sof.source_id ?? ''),
+                          label:
+                            sof.source_of_funding_name ||
+                            sof.name ||
+                            sof.sof_names ||
+                            sof.source_name ||
+                            String(sof.source_of_funding_id ?? sof.id ?? ''),
+                        }))
+                      : FUNDING_SOURCE_OPTIONS.map((item) => ({ value: item, label: item }))
+                    ).filter((item) => item.value)}
+                  />
+                  <FieldError error={errors.sourceOfFunding} />
+                </div>
+
+                {selectedFundingSourceIds.length > 0 && (
+                  <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                    <h4 className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                      Funding Components Breakdown (₹ in Cr)
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {fundingVisibility.gbs && (
+                        <div>
+                          <Label>GBS Component</Label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.gbsComponents}
+                            onChange={(e) => handleInputChange('gbsComponents', e.target.value)}
+                            placeholder="0.00"
+                            className={getInputClass('gbsComponents')}
+                          />
+                          <FieldError error={errors.gbsComponents} />
+                        </div>
+                      )}
+                      {fundingVisibility.iebr && (
+                        <div>
+                          <Label>IEBR Component</Label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.iebrComponents}
+                            onChange={(e) => handleInputChange('iebrComponents', e.target.value)}
+                            placeholder="0.00"
+                            className={getInputClass('iebrComponents')}
+                          />
+                          <FieldError error={errors.iebrComponents} />
+                        </div>
+                      )}
+                      {fundingVisibility.ppp && (
+                        <div>
+                          <Label>PPP Component</Label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.pppComponents}
+                            onChange={(e) => handleInputChange('pppComponents', e.target.value)}
+                            placeholder="0.00"
+                            className={getInputClass('pppComponents')}
+                          />
+                          <FieldError error={errors.pppComponents} />
+                        </div>
+                      )}
+                      {fundingVisibility.loans && (
+                        <div>
+                          <Label>Loans Component</Label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.loansComponents}
+                            onChange={(e) => handleInputChange('loansComponents', e.target.value)}
+                            placeholder="0.00"
+                            className={getInputClass('loansComponents')}
+                          />
+                          <FieldError error={errors.loansComponents} />
+                        </div>
+                      )}
+                      {fundingVisibility.sagarmala && (
+                        <div>
+                          <Label>Sagarmala Component</Label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.sagarmalaComponents}
+                            onChange={(e) => handleInputChange('sagarmalaComponents', e.target.value)}
+                            placeholder="0.00"
+                            className={getInputClass('sagarmalaComponents')}
+                          />
+                          <FieldError error={errors.sagarmalaComponents} />
+                        </div>
+                      )}
+                      {fundingVisibility.stateGovFund && (
+                        <div>
+                          <Label>State Govt Component</Label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.stateGovFundComponents}
+                            onChange={(e) => handleInputChange('stateGovFundComponents', e.target.value)}
+                            placeholder="0.00"
+                            className={getInputClass('stateGovFundComponents')}
+                          />
+                          <FieldError error={errors.stateGovFundComponents} />
+                        </div>
+                      )}
+                      {fundingVisibility.multilateral && (
+                        <div>
+                          <Label>Multilateral Funding Component</Label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.multiFundComponents}
+                            onChange={(e) => handleInputChange('multiFundComponents', e.target.value)}
+                            placeholder="0.00"
+                            className={getInputClass('multiFundComponents')}
+                          />
+                          <FieldError error={errors.multiFundComponents} />
+                        </div>
+                      )}
+                      {fundingVisibility.pmmsy && (
+                        <div>
+                          <Label>PMMSY Component</Label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.pmmsyComponents}
+                            onChange={(e) => handleInputChange('pmmsyComponents', e.target.value)}
+                            placeholder="0.00"
+                            className={getInputClass('pmmsyComponents')}
+                          />
+                          <FieldError error={errors.pmmsyComponents} />
+                        </div>
+                      )}
+                      {fundingVisibility.otherSources && (
+                        <div>
+                          <Label>Other Sources Component</Label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.otherSourceFundingComp}
+                            onChange={(e) => handleInputChange('otherSourceFundingComp', e.target.value)}
+                            placeholder="0.00"
+                            className={getInputClass('otherSourceFundingComp')}
+                          />
+                          <FieldError error={errors.otherSourceFundingComp} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <Label required>Primary Funding Agency</Label>
+                    <select
+                      value={formData.primaryFundingAgency}
+                      onChange={(e) => handleInputChange('primaryFundingAgency', e.target.value)}
+                      disabled={!canInteract}
+                      className={getInputClass('primaryFundingAgency')}
+                    >
+                      <option value="">--Select Funding Agency--</option>
+                      {faOptions.map((fa, idx) => {
+                        const val = fa.fa_id ?? fa.id ?? fa.funding_agency_id ?? idx;
+                        const label = fa.fa_name || fa.name || fa.funding_agency_name || String(val);
+                        return <option key={`fa-${val}-${idx}`} value={val}>{label}</option>;
+                      })}
+                      <option value="Others">Others</option>
+                    </select>
+                    <FieldError error={errors.primaryFundingAgency} />
+                  </div>
+
+                  <div>
+                    <Label>Secondary Funding Agency</Label>
+                    <select
+                      value={formData.secondaryFundingAgency}
+                      onChange={(e) => handleInputChange('secondaryFundingAgency', e.target.value)}
+                      disabled={!canInteract}
+                      className={getInputClass('secondaryFundingAgency')}
+                    >
+                      <option value="">--Select Funding Agency--</option>
+                      {faOptions.map((fa, idx) => {
+                        const val = fa.fa_id ?? fa.id ?? fa.funding_agency_id ?? idx;
+                        const label = fa.fa_name || fa.name || fa.funding_agency_name || String(val);
+                        return <option key={`sfa-${val}-${idx}`} value={val}>{label}</option>;
+                      })}
+                      <option value="Others">Others</option>
+                    </select>
+                  </div>
+
+                  {showSecondaryFaOthers ? (
+                    <div className="md:col-span-2">
+                      <Label required>New Funding Agency</Label>
+                      <input
+                        type="text"
+                        value={formData.newFundingAgency}
+                        onChange={(e) => handleInputChange('newFundingAgency', e.target.value)}
+                        disabled={!canInteract}
+                        className={getInputClass('newFundingAgency')}
+                      />
+                      <FieldError error={errors.newFundingAgency} />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Bottom Actions for Stage 2 */}
+                <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => onAddStageChange?.('general')}
+                    className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                  >
+                    ← Previous Stage
+                  </button>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      disabled={loading || savingDraft}
+                      className="flex items-center space-x-1.5 px-4 py-2.5 bg-white border border-[#0f417a]/40 text-[#0f417a] hover:bg-blue-50 dark:bg-slate-800 dark:text-blue-300 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>{savingDraft ? 'Saving Draft...' : 'Save as Draft'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateToAddStage('location')}
+                      className="flex items-center space-x-2 px-6 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition cursor-pointer"
+                    >
+                      <span>Proceed to Project Location</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 3. Project Location */}
+            {activeAddStage === 'location' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5 animate-fade-in">
+                <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="p-2 bg-purple-50 dark:bg-purple-950/50 rounded-lg text-purple-600 dark:text-purple-400">
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                    Project Location
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Geographic footprint, state, district and constituency demarcation</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <Label required>State</Label>
+                  <MultiCheckboxSelect
+                    value={getMultiValue(formData.state)}
+                    onChange={(next) => handleStateChange(next)}
+                    disabled={!canInteract}
+                    hasError={Boolean(errors.state)}
+                    placeholder="--Select State--"
+                    options={stateOptions.map((st, idx) => {
+                      const val = st.id ?? st.state_id ?? st.name ?? st.state_names ?? idx;
+                      const label = st.state_name || st.name || st.state_names || String(val);
+                      return { value: String(val), label };
+                    })}
+                  />
+                  <FieldError error={errors.state} />
+                </div>
+
+                <div>
+                  <Label required>District</Label>
+                  <MultiCheckboxSelect
+                    value={getMultiValue(formData.district)}
+                    onChange={(next) => handleInputChange('district', next)}
+                    disabled={!canInteract}
+                    hasError={Boolean(errors.district)}
+                    placeholder="--Select District--"
+                    options={filteredDistrictOptions.map((dist, idx) => {
+                      const val = dist.id ?? dist.district_id ?? dist.name ?? dist.district_names ?? idx;
+                      const label = dist.district_name || dist.name || dist.district_names || String(val);
+                      return { value: String(val), label };
+                    })}
+                  />
+                  <FieldError error={errors.district} />
+                </div>
+
+                <div>
+                  <Label>Taluk</Label>
+                  <input
+                    type="text"
+                    value={formData.taluka}
+                    onChange={(e) => handleInputChange('taluka', e.target.value)}
+                    disabled={!canInteract}
+                    placeholder="Enter taluk name..."
+                    className={getInputClass('taluka')}
+                  />
+                </div>
+
+                <div>
+                  <Label>Village</Label>
+                  <input
+                    type="text"
+                    value={formData.village}
+                    onChange={(e) => handleInputChange('village', e.target.value)}
+                    disabled={!canInteract}
+                    placeholder="Enter village name..."
+                    className={getInputClass('village')}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <Label required>MP Constituency</Label>
+                  <MultiCheckboxSelect
+                    value={getMultiValue(formData.mpConstituency)}
+                    onChange={(next) => handleInputChange('mpConstituency', next)}
+                    disabled={!canInteract}
+                    hasError={Boolean(errors.mpConstituency)}
+                    placeholder="--Select MP Constituency--"
+                    options={filteredMpOptions.map((mp, idx) => {
+                      const val = mp.id ?? mp.mp_constituency_id ?? mp.mp_id ?? mp.name ?? mp.mp_constituency_names ?? idx;
+                      const label = mp.mp_constituency_name || mp.name || mp.mp_constituency_names || String(val);
+                      return { value: String(val), label };
+                    })}
+                  />
+                  <FieldError error={errors.mpConstituency} />
+                </div>
+              </div>
+
+              {/* Bottom Actions for Stage 3 */}
+                <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => onAddStageChange?.('funding')}
+                    className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                  >
+                    ← Previous Stage
+                  </button>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      disabled={loading || savingDraft}
+                      className="flex items-center space-x-1.5 px-4 py-2.5 bg-white border border-[#0f417a]/40 text-[#0f417a] hover:bg-blue-50 dark:bg-slate-800 dark:text-blue-300 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>{savingDraft ? 'Saving Draft...' : 'Save as Draft'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateToAddStage('subproject')}
+                      className="flex items-center space-x-2 px-6 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition cursor-pointer"
+                    >
+                      <span>Proceed to Sub-projects</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 4. Does this project have sub project? */}
+            {activeAddStage === 'subproject' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5 animate-fade-in">
+                <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="p-2 bg-amber-50 dark:bg-amber-950/50 rounded-lg text-amber-600 dark:text-amber-400">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                    Does this project have sub project?
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Sub-project breakdown, packages and individual project nomenclature</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <Label required>Does this project have sub project?</Label>
+                  <div className="flex items-center space-x-4 mt-2">
+                    <label className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl border font-bold text-xs cursor-pointer transition ${
+                      Number(formData.onSubProjectAvailable) === 1
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-[#0f417a] dark:text-blue-300 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="onSubProjectAvailable"
+                        value="1"
+                        checked={Number(formData.onSubProjectAvailable) === 1}
+                        onChange={() => handleSubProjectAvailableChange(1)}
+                        disabled={!canInteract}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>Yes</span>
+                    </label>
+                    <label className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl border font-bold text-xs cursor-pointer transition ${
+                      Number(formData.onSubProjectAvailable) === 0
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-[#0f417a] dark:text-blue-300 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="onSubProjectAvailable"
+                        value="0"
+                        checked={Number(formData.onSubProjectAvailable) === 0}
+                        onChange={() => handleSubProjectAvailableChange(0)}
+                        disabled={!canInteract}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>No</span>
+                    </label>
+                  </div>
+                  <FieldError error={errors.onSubProjectAvailable} />
+                </div>
+
+                {Number(formData.onSubProjectAvailable) === 1 && (
+                  <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl space-y-3">
+                    <Label required>Number of Sub-projects</Label>
+                    <input
+                      type="number"
+                      min="2"
+                      value={formData.subProjectNum || ''}
+                      disabled={!canInteract}
+                      placeholder="Minimum 2 sub-projects"
+                      onChange={(e) => setSubProjectCount(e.target.value)}
+                      className={getInputClass('subProjectNum', 'w-48')}
+                    />
+                    <FieldError error={errors.subProjectNum} />
+                    {(formData.subProjectsTab || []).map((item, idx) => (
+                      <div key={`sp-${idx}`} className="space-y-1">
+                        <Label required>{`Sub-project ${idx + 1} Name`}</Label>
+                        <input
+                          type="text"
+                          value={item?.subProjectName || ''}
+                          disabled={!canInteract}
+                          onChange={(e) => updateSubProjectName(idx, e.target.value)}
+                          className={getInputClass('subProjectsTab')}
+                        />
+                      </div>
+                    ))}
+                    <FieldError error={errors.subProjectsTab} />
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom Actions for Stage 4 */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => onAddStageChange?.('location')}
+                    className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                  >
+                    ← Previous Stage
+                  </button>
+                  <div className="flex items-center space-x-3">
+                    {onBack && (
+                      <button
+                        type="button"
+                        onClick={onBack}
+                        className="px-5 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                      >
+                        Exit
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      disabled={loading || savingDraft}
+                      className="flex items-center space-x-1.5 px-4 py-2.5 bg-white border border-[#0f417a]/40 text-[#0f417a] hover:bg-blue-50 dark:bg-slate-800 dark:text-blue-300 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>{savingDraft ? 'Saving Draft...' : 'Save as Draft'}</span>
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex items-center space-x-2 px-8 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 rounded-xl shadow-md transition cursor-pointer disabled:opacity-50"
+                    >
+                      <Save className="h-4 w-4" />
+                      <span>{loading ? 'Submitting...' : 'Submit Project'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {activeSection === 'basic' && (
+              <div className="space-y-6 animate-fade-in">
+                <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-lg text-blue-600 dark:text-blue-400">
+                    <Briefcase className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                      Basic Project Details
+                    </h3>
+                    <p className="text-xs text-slate-500">Specify project name, implementing agencies, scheme and category classification</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
               <div className="md:col-span-2">
                 <Label required>Project Name</Label>
@@ -2138,6 +3418,8 @@ export default function ProjectBasicInfoForm({
             </div>
           </div>
         )}
+      </>
+    )}
 
       </form>
 

@@ -55,7 +55,10 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
             <div className="min-w-0">
               <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <span className="text-[11px] font-black uppercase tracking-wider bg-white/20 px-2.5 py-0.5 rounded text-blue-100 border border-white/10">
-                  {projectId} {subProjectId && subProjectId !== '-' && subProjectId !== '-1' ? `/ ${subProjectId}` : ''}
+                  {projectId}
+                  {subProjectId && subProjectId !== '-' && subProjectId !== '-1' && (
+                    <span className="font-black text-white" style={{ fontWeight: 900 }}>{` / Sub Project ${subProjectId}`}</span>
+                  )}
                 </span>
                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${getStageBadgeClass(stage)}`}>
                   {stage}

@@ -1,4 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
+import { getCurrentUserId } from '../utils/authSession';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import { isSuperAdmin } from '../utils/authSession';
 import {
@@ -13,6 +16,7 @@ import { getDataScopeCode } from '../utils/authSession';
 import {
   Home,
   Briefcase,
+  Bell,
   Activity,
   Users,
   ShieldCheck,
@@ -81,6 +85,39 @@ function getLoggedInUserRole() {
 export default function Tabs({ activeTab, setActiveTab }) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
+  const [dropRequestCount, setDropRequestCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDropRequestsCount = async () => {
+      try {
+        const userId = getCurrentUserId() || 1;
+        const res = await axios.get(`${API_BASE_URL}/viewdrop-projectlist/${userId}`);
+        const data = res.data || [];
+        const pending = data.filter(
+          (item) =>
+            (item.status === 1 || item.status === '1') &&
+            item.reject_request_status !== 0 &&
+            !item.drop_date
+        );
+        if (isMounted) {
+          setDropRequestCount(pending.length);
+        }
+      } catch (err) {
+        console.error('Failed to fetch drop requests count in Tabs:', err);
+      }
+    };
+
+    fetchDropRequestsCount();
+    const interval = setInterval(fetchDropRequestsCount, 30000);
+    window.addEventListener('drop-request-updated', fetchDropRequestsCount);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('drop-request-updated', fetchDropRequestsCount);
+    };
+  }, []);
 
   const isOrgUser = useMemo(() => {
     const scope = String(getDataScopeCode() || '').toUpperCase();
@@ -575,11 +612,24 @@ export default function Tabs({ activeTab, setActiveTab }) {
               <div key={menu.id} className="relative group flex-shrink-0">
                 {/* Main Menu Button */}
                 <button
-                  className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 ${
+                  className={`flex flex-col items-center space-y-0.5 py-1 px-1.5 text-center transition-all duration-200 cursor-pointer rounded-lg hover:bg-slate-50 min-w-16 relative ${
                     isMainMenuActive ? 'text-blue-700 font-bold' : 'text-slate-655 font-semibold hover:text-slate-900'
                   }`}
                 >
-                  <Icon className="h-4.5 w-4.5 text-slate-500 group-hover:text-blue-600 transition-colors" />
+                  <div className="relative">
+                    <Icon className="h-4.5 w-4.5 text-slate-500 group-hover:text-blue-600 transition-colors" />
+                    {menu.id === 'projects' && dropRequestCount > 0 && (
+                      <span
+                        title={`${dropRequestCount} Drop Request${dropRequestCount > 1 ? 's' : ''} Pending`}
+                        className="absolute -top-1.5 -right-2.5 flex items-center justify-center pointer-events-none"
+                      >
+                        <span className="relative flex items-center justify-center bg-rose-600 text-white font-black text-[9px] min-w-[17px] h-[17px] px-1 rounded-full shadow-md border border-white dark:border-slate-800 animate-pulse">
+                          <Bell className="h-2 w-2 mr-0.5 fill-current shrink-0" />
+                          <span>{dropRequestCount > 99 ? '99+' : dropRequestCount}</span>
+                        </span>
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[9px] tracking-tight uppercase flex items-center gap-0.5 select-none whitespace-nowrap">
                     {menu.label}
                     {hasDropdown && <ChevronDown className="h-2.5 w-2.5 opacity-60" />}
@@ -618,6 +668,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                 <div className="flex flex-col space-y-1.5">
                                   {sub.items.map((item, iIdx) => {
                                     const ItemIcon = item.icon;
+                                    const isDropTab = item.tab === 'projects-dropRequests' || item.label === 'View Drop Request';
+
                                     if (item.subItems) {
                                       return (
                                         <div key={iIdx} className="relative group/ypfly">
@@ -658,10 +710,18 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                       <button
                                         key={iIdx}
                                         onClick={() => handleItemClick(item.tab ?? item.label)}
-                                        className="flex items-center space-x-2 w-full text-left text-xs font-semibold text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-all py-1.5 px-2 rounded border border-transparent hover:border-slate-100 cursor-pointer"
+                                        className="flex items-center justify-between w-full text-left text-xs font-semibold text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-all py-1.5 px-2 rounded border border-transparent hover:border-slate-100 cursor-pointer"
                                       >
-                                        {ItemIcon && <ItemIcon className="h-3.5 w-3.5 text-slate-400 group-hover/sub:text-blue-600 transition-colors" />}
-                                        <span>{item.label}</span>
+                                        <div className="flex items-center space-x-2">
+                                          {ItemIcon && <ItemIcon className="h-3.5 w-3.5 text-slate-400 group-hover/sub:text-blue-600 transition-colors" />}
+                                          <span>{item.label}</span>
+                                        </div>
+                                        {isDropTab && dropRequestCount > 0 && (
+                                          <span className="inline-flex items-center gap-1 bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-xs">
+                                            <Bell className="h-2.5 w-2.5 fill-current" />
+                                            <span>{dropRequestCount}</span>
+                                          </span>
+                                        )}
                                       </button>
                                     );
                                   })}
@@ -923,6 +983,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
                       <div className="flex items-center space-x-2.5">
                         <CatIcon className="h-4.5 w-4.5 text-slate-400" />
                         <span>{menu.label}</span>
+                        {menu.id === 'projects' && dropRequestCount > 0 && (
+                          <span className="inline-flex items-center gap-0.5 bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs">
+                            <Bell className="h-2.5 w-2.5 fill-current" />
+                            <span>{dropRequestCount > 99 ? '99+' : dropRequestCount}</span>
+                          </span>
+                        )}
                       </div>
                       {hasSub && (
                         <ChevronDown className={`h-3.5 w-3.5 opacity-60 transition-transform duration-200 ${
@@ -999,18 +1065,27 @@ export default function Tabs({ activeTab, setActiveTab }) {
                                         </div>
                                       );
                                     }
+                                    const isDropTab = item.tab === 'projects-dropRequests' || item.label === 'View Drop Request';
                                     return (
                                       <button
                                         key={iIdx}
                                         onClick={() => { handleItemClick(item.tab ?? item.label); setIsOpen(false); }}
-                                        className={`flex items-center space-x-2 text-left text-[11px] font-semibold transition-all py-1.5 px-2 rounded-md ${
+                                        className={`flex items-center justify-between w-full text-left text-[11px] font-semibold transition-all py-1.5 px-2 rounded-md ${
                                           activeTab === (item.tab ?? item.label)
                                             ? 'bg-blue-600 text-white font-bold shadow-sm' 
                                             : 'text-slate-500 hover:text-blue-600 hover:bg-slate-100'
                                         }`}
                                       >
-                                        {item.icon && React.createElement(item.icon, { className: "h-3 w-3 opacity-80" })}
-                                        <span>{item.label}</span>
+                                        <div className="flex items-center space-x-2">
+                                          {item.icon && React.createElement(item.icon, { className: "h-3 w-3 opacity-80" })}
+                                          <span>{item.label}</span>
+                                        </div>
+                                        {isDropTab && dropRequestCount > 0 && (
+                                          <span className="inline-flex items-center gap-0.5 bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs">
+                                            <Bell className="h-2 w-2 fill-current" />
+                                            <span>{dropRequestCount}</span>
+                                          </span>
+                                        )}
                                       </button>
                                     );
                                   })}

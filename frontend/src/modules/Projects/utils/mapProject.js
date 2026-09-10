@@ -120,6 +120,12 @@ export function mapProjectListRow(raw = {}, index = 0) {
     cost: safeNumber(
       raw.project_cost || raw.estimatedProjectCost || raw.cost || raw.estimated_cost || raw.sanctioned_cost
     ),
+    sanctionedCost: (raw.sanctioned_cost !== undefined && raw.sanctioned_cost !== null && raw.sanctioned_cost !== '')
+      ? safeNumber(raw.sanctioned_cost)
+      : (raw.cost !== undefined && raw.cost !== null ? safeNumber(raw.cost) : null),
+    primaryImplementingAgency: textOrDash(
+      raw.primary_ia_name || raw.primaryImplementingAgency || raw.primary_ia || raw.primaryImplementingAgencyName || raw.ia_name
+    ),
     physicalProgress: safeNumber(raw.physical_progress || raw.physicalProgress),
     financialProgress: safeNumber(raw.financial_progress || raw.financialProgress),
     raw,
