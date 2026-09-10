@@ -60,8 +60,22 @@ export default function Reports({
     if (initialReportType) {
       setReportType(initialReportType);
       setFilterFY(initialReportType === 'fund-org-wise-report' ? FINANCIAL_YEARS[0] : 'all');
+      if (initialReportType === 'fund-org-trend-report') {
+        setFilterOrgTrend(isOrgUser && userOrgId ? String(userOrgId) : '');
+      }
     }
   }, [initialReportType]);
+
+  // Org-scoped users only see the 3 org-facing reports (1.3, 1.4, 1.6) --
+  // the other 3 (1.1, 1.2, 1.5) compare/list across all organisations,
+  // which isn't meaningful for a single-org view. Redirect if a stale or
+  // default value lands them on a hidden one.
+  const MOPSW_ONLY_REPORTS = ['fund-year-wise-report', 'fund-org-wise-report', 'projects-org-wise-summary'];
+  useEffect(() => {
+    if (isOrgUser && MOPSW_ONLY_REPORTS.includes(reportType)) {
+      handleSwitchReportType('fund-org-trend-report');
+    }
+  }, [isOrgUser, reportType]);
 
   const handleSwitchReportType = (type) => {
     setReportType(type);
@@ -809,6 +823,7 @@ export default function Reports({
 
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 select-none">
         <div className="flex space-x-1">
+          {!isOrgUser && (
           <button
             type="button"
             onClick={() => handleSwitchReportType('fund-year-wise-report')}
@@ -821,7 +836,9 @@ export default function Reports({
             <Coins className="h-4 w-4" />
             <span>CSR FUND YEAR WISE REPORT</span>
           </button>
+          )}
 
+          {!isOrgUser && (
           <button
             type="button"
             onClick={() => handleSwitchReportType('fund-org-wise-report')}
@@ -834,6 +851,7 @@ export default function Reports({
             <Coins className="h-4 w-4" />
             <span>CSR FUND ORGANISATION WISE REPORT</span>
           </button>
+          )}
 
           <button
             type="button"
@@ -861,6 +879,7 @@ export default function Reports({
             <span>FINANCIAL YEAR-WISE PROJECTS SUMMARY</span>
           </button>
 
+          {!isOrgUser && (
           <button
             type="button"
             onClick={() => handleSwitchReportType('projects-org-wise-summary')}
@@ -873,6 +892,7 @@ export default function Reports({
             <Coins className="h-4 w-4" />
             <span>ORGANISATION-WISE PROJECTS SUMMARY</span>
           </button>
+          )}
 
           <button
             type="button"

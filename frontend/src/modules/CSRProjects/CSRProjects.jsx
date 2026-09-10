@@ -17,8 +17,6 @@ export default function CSRProjects({ triggerNotification }) {
   const navigate = useNavigate();
 
   const [inputFormType, setInputFormType] = useState('project'); // 'project' | 'fund'
-  const [reportType, setReportType] = useState('fund-year-wise-report'); // 'fund-year-wise-report' | 'fund-org-wise-report'
-  const [editData, setEditData] = useState(null);
 
   const isOrgUser = useMemo(() => {
     const scope = String(getDataScopeCode() || '').toUpperCase();
@@ -28,6 +26,9 @@ export default function CSRProjects({ triggerNotification }) {
     const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
     return roleId === 6 || roleId === 7;
   }, []);
+
+  const [reportType, setReportType] = useState(() => (isOrgUser ? 'fund-org-trend-report' : 'fund-year-wise-report'));
+  const [editData, setEditData] = useState(null);
 
   // Derive active tab from current pathname
   const currentTab = useMemo(() => {
@@ -68,7 +69,7 @@ export default function CSRProjects({ triggerNotification }) {
           { id: 'projects-year-wise-summary', label: 'Financial Year-wise CSR Projects Summary' },
           { id: 'projects-org-wise-summary', label: 'Organisation-wise CSR Projects Summary' },
           { id: 'projects-focus-wise-summary', label: 'CSR Focus/Project Area-wise CSR Projects Summary' },
-        ]
+        ].filter(item => !isOrgUser || !['fund-year-wise-report', 'fund-org-wise-report', 'projects-org-wise-summary'].includes(item.id))
       }
     );
     return list;
