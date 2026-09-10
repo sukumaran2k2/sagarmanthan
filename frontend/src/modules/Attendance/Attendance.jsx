@@ -426,7 +426,7 @@ export default function AttendanceView({ triggerNotification }) {
   }, [reportData, searchTerm]);
 
   const availableWings = useMemo(() => {
-    const wings = new Set(employeeRows.map(r => r.Wing).filter(Boolean));
+    const wings = new Set(employeeRows.map(r => r.Wing || r.wing_name || r.organization_name || r.Division || r.division_name).filter(Boolean));
     return ['All', ...Array.from(wings)];
   }, [employeeRows]);
 
@@ -455,7 +455,7 @@ export default function AttendanceView({ triggerNotification }) {
       : employeeRows;
 
     if (dataFilterWing !== 'All') {
-      result = result.filter(r => r.Wing === dataFilterWing || r.wing_name === dataFilterWing);
+      result = result.filter(r => (r.Wing || r.wing_name || r.organization_name || r.Division || r.division_name) === dataFilterWing);
     }
     if (dataFilterMonth !== 'All') {
       result = result.filter(r => r.Month === dataFilterMonth);
@@ -483,13 +483,13 @@ export default function AttendanceView({ triggerNotification }) {
       const wingsCount = wingRows.length;
       const wingLabel = wingsCount ? `Across ${wingsCount} wing${wingsCount > 1 ? 's' : ''}` : 'This period';
 
-      if (totalRow && totalRow['Total Monitored Employees']) {
-        return { empCount: totalRow['Total Monitored Employees'], wingCount: wingLabel };
+      if (totalRow && totalRow['Number Of Employees']) {
+        return { empCount: totalRow['Number Of Employees'], wingCount: wingLabel };
       }
-      const sum = reportData.reduce((acc, r) => acc + (Number(r['Total Monitored Employees']) || 0), 0);
+      const sum = reportData.reduce((acc, r) => acc + (Number(r['Number Of Employees']) || 0), 0);
       if (sum > 0) return { empCount: sum, wingCount: wingLabel };
     }
-    const empIds = new Set(filteredEmployeeRows.map(r => r.EmpId || r['Emp Id']).filter(Boolean));
+    const empIds = new Set(filteredEmployeeRows.map(r => r.EmpId || r['Emp Id'] || r.Emp_Id || r.emp_id).filter(Boolean));
     const empCount = empIds.size > 0 ? empIds.size : filteredEmployeeRows.length;
     const wingsCount = new Set(filteredEmployeeRows.map(r => r.Wing).filter(Boolean)).size;
     return { empCount, wingCount: wingsCount ? `Across ${wingsCount} wing${wingsCount > 1 ? 's' : ''}` : 'From latest upload' };
@@ -548,7 +548,7 @@ export default function AttendanceView({ triggerNotification }) {
       const totalRow = reportData.find(r => r.Wing === 'Total');
       if (totalRow) {
         const before930 = Number(totalRow['In-Time Before 09:30 AM']) || 0;
-        const totalMon = Number(totalRow['Total Monitored Employees']) || 0;
+        const totalMon = Number(totalRow['Number Of Employees']) || 0;
         if (totalMon > 0) return `${Math.round((before930 / totalMon) * 100)}%`;
       }
     }
@@ -593,12 +593,15 @@ export default function AttendanceView({ triggerNotification }) {
     const sample = reportData[0];
     return Object.keys(sample).map(key => {
       const isWing = key.toLowerCase().includes('wing');
+      const isLongHeader = key.length > 12;
       
       return {
         headerName: key,
         field: key,
         flex: isWing ? 2 : 1,
-        minWidth: isWing ? 180 : 120,
+        minWidth: isWing ? 180 : (isLongHeader ? 150 : 120),
+        wrapHeaderText: true,
+        autoHeaderHeight: true,
         filter: true,
         sortable: true,
         pinned: isWing ? 'left' : null,
@@ -1233,6 +1236,10 @@ export default function AttendanceView({ triggerNotification }) {
         .yp-pro-grid .ag-header-cell-text {
           color: #ffffff !important;
           font-weight: 800 !important;
+          word-break: normal !important;
+          overflow-wrap: normal !important;
+          white-space: normal !important;
+          hyphens: none !important;
         }
 
         .yp-pro-grid .ag-floating-bottom-row {
