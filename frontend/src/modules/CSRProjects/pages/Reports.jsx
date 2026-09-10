@@ -42,6 +42,18 @@ const REPORT_LABELS = {
   'projects-focus-wise-summary': 'CSR Focus/Project Area-wise CSR Projects Summary',
 };
 
+// Utilisation % color tiers, matching the scheme used in the Capex module's
+// reports (feature/capex-module, capexUtils.js getCapexStatusMeta): >100%
+// blue (above allotted), 75-100% emerald (good), 50-<75% amber (moderate),
+// <50% red (low).
+const getUtilisationColor = (value) => {
+  if (value == null) return '#475569';
+  if (value > 100) return '#2563eb';
+  if (value >= 75) return '#059669';
+  if (value >= 50) return '#b45309';
+  return '#dc2626';
+};
+
 export default function Reports({
   initialReportType = 'fund-year-wise-report',
   onReportTypeChange,
@@ -237,7 +249,7 @@ export default function Reports({
           minWidth: 150,
           headerClass: "text-center",
           cellClass: "text-center",
-          cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
+          cellStyle: (params) => ({ textAlign: 'center', fontWeight: 800, justifyContent: 'center', color: getUtilisationColor(params.value) }),
           valueFormatter: (params) => params.value != null ? `${Number(params.value).toFixed(2)}%` : '-'
         }
       ];
@@ -318,7 +330,7 @@ export default function Reports({
           minWidth: 150,
           headerClass: "text-center",
           cellClass: "text-center",
-          cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
+          cellStyle: (params) => ({ textAlign: 'center', fontWeight: 800, justifyContent: 'center', color: getUtilisationColor(params.value) }),
           valueFormatter: (params) => params.value != null ? `${Number(params.value).toFixed(2)}%` : '-'
         }
       ];
@@ -388,7 +400,7 @@ export default function Reports({
           minWidth: 150,
           headerClass: "text-center",
           cellClass: "text-center",
-          cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
+          cellStyle: (params) => ({ textAlign: 'center', fontWeight: 800, justifyContent: 'center', color: getUtilisationColor(params.value) }),
           valueFormatter: (params) => params.value != null ? `${Number(params.value).toFixed(2)}%` : '-'
         }
       ];
@@ -949,6 +961,23 @@ export default function Reports({
         oddRowColor="#f8faf6"
         totalLabel="Total"
       />
+
+      {(reportType === 'fund-year-wise-report' || reportType === 'fund-org-wise-report' || reportType === 'fund-org-trend-report') && (
+        <div className="flex flex-wrap gap-3 text-[11px] text-slate-600 dark:text-slate-400 px-1">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> 75–100% Good
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-600" /> 50–&lt;75% Moderate
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> &lt;50% Low
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> &gt;100% Above Fund Allotted
+          </span>
+        </div>
+      )}
 
     </div>
   );

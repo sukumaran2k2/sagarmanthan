@@ -205,6 +205,12 @@ export default function InputForm({
     if (commencedOn && completedOn && completedOn < commencedOn) {
       errs.completedOn = 'Completed date cannot be earlier than Commenced date.';
     }
+    if (physicalProgress !== '' && (isNaN(Number(physicalProgress)) || Number(physicalProgress) < 0 || Number(physicalProgress) > 100)) {
+      errs.physicalProgress = 'Physical Progress must be between 0 and 100.';
+    }
+    if (financialProgress !== '' && (isNaN(Number(financialProgress)) || Number(financialProgress) < 0 || Number(financialProgress) > 100)) {
+      errs.financialProgress = 'Financial Progress must be between 0 and 100.';
+    }
     setProjectErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -622,8 +628,13 @@ export default function InputForm({
                     placeholder="0"
                     value={physicalProgress}
                     onChange={(e) => setPhysicalProgress(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
+                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                      projectFormSubmitted && projectErrors.physicalProgress ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
+                    }`}
                   />
+                  {projectFormSubmitted && projectErrors.physicalProgress && (
+                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.physicalProgress}</p>
+                  )}
                 </div>
 
                 {/* Financial Progress */}
@@ -639,8 +650,13 @@ export default function InputForm({
                     placeholder="0"
                     value={financialProgress}
                     onChange={(e) => setFinancialProgress(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
+                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                      projectFormSubmitted && projectErrors.financialProgress ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
+                    }`}
                   />
+                  {projectFormSubmitted && projectErrors.financialProgress && (
+                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.financialProgress}</p>
+                  )}
                 </div>
 
                 {/* Remarks of the Project */}
