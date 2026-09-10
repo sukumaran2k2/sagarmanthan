@@ -36,7 +36,7 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [selectedOrg, setSelectedOrg] = useState('');
+  const [selectedOrg, setSelectedOrg] = useState(() => (isOrgUser && userOrgId ? String(userOrgId) : ''));
   const [selectedFY, setSelectedFY] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -226,13 +226,13 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
   };
 
   const clearFilters = () => {
-    setSelectedOrg('');
+    if (!isOrgUser) setSelectedOrg('');
     setSelectedFY('');
     setSearchTerm('');
     setCurrentPage(1);
   };
 
-  const hasActiveFilters = selectedOrg || selectedFY || searchTerm;
+  const hasActiveFilters = (isOrgUser ? false : !!selectedOrg) || selectedFY || searchTerm;
 
   // Blue Themed AG Grid Column Definitions
   const columnDefs = useMemo(() => [
@@ -241,7 +241,9 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       field: "sno",
       width: 70,
       minWidth: 60,
-      cellStyle: { textAlign: 'center', fontWeight: 700 },
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
       hide: !visibleCols.sno,
       valueGetter: (params) => (currentPage - 1) * pageSize + params.node.rowIndex + 1
     },
@@ -257,54 +259,66 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     {
       headerName: "Financial Year",
       field: "financial_year",
-      width: 130,
+      flex: 1,
       minWidth: 110,
       hide: !visibleCols.financial_year,
-      cellStyle: { textAlign: 'center', fontWeight: 600 }
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' }
     },
     {
       headerName: "Net Profit (₹ Cr)",
       field: "net_profit",
-      width: 140,
+      flex: 1,
       minWidth: 120,
       hide: !visibleCols.net_profit,
-      cellStyle: { textAlign: 'right', fontWeight: 600 },
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
     },
     {
       headerName: "CSR Allotted (₹ Cr)",
       field: "csr_fund_alloted_year",
-      width: 160,
+      flex: 1,
       minWidth: 130,
       hide: !visibleCols.csr_fund_alloted_year,
-      cellStyle: { textAlign: 'right', fontWeight: 800, color: '#0f417a' },
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#0f417a', justifyContent: 'center' },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
     },
     {
       headerName: "Opening Bal (₹ Cr)",
       field: "opening_balance_csr",
-      width: 150,
+      flex: 1,
       minWidth: 120,
       hide: !visibleCols.opening_balance_csr,
-      cellStyle: { textAlign: 'right', fontWeight: 600 },
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
     },
     {
       headerName: "Expenditure (₹ Cr)",
       field: "project_expenditure",
-      width: 150,
+      flex: 1,
       minWidth: 120,
       hide: !visibleCols.project_expenditure,
-      cellStyle: { textAlign: 'right', fontWeight: 800, color: '#d97706' },
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#d97706', justifyContent: 'center' },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '0.00'
     },
     {
       headerName: "Fund Balance (₹ Cr)",
       field: "csr_fund_balance",
-      width: 160,
+      flex: 1,
       minWidth: 130,
       hide: !visibleCols.csr_fund_balance,
-      cellStyle: { textAlign: 'right', fontWeight: 800, color: '#059669' },
+      headerClass: 'text-center',
+      cellClass: 'text-center',
+      cellStyle: { textAlign: 'center', fontWeight: 800, color: '#059669', justifyContent: 'center' },
       valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
     },
     ...(isOrgUser ? [{
@@ -414,9 +428,9 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
             >
               <Filter className="h-3.5 w-3.5 text-slate-500" />
               <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Filters</span>
-              {(selectedOrg || selectedFY) && (
+              {((isOrgUser ? false : !!selectedOrg) || selectedFY) && (
                 <span className="text-[10px] font-bold text-blue-700 bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded-full dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
-                  {[selectedOrg, selectedFY].filter(Boolean).length}
+                  {[isOrgUser ? null : selectedOrg, selectedFY].filter(Boolean).length}
                 </span>
               )}
               {filtersDropdownOpen ? (
@@ -571,7 +585,8 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
                   <select
                     value={selectedOrg}
                     onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
-                    className="appearance-none w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs"
+                    disabled={isOrgUser}
+                    className="appearance-none w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                   >
                     <option value="">All Organisations</option>
                     {organisations.map((o) => (

@@ -72,7 +72,7 @@ export default function DataList({
   }, []);
 
   // Filter states
-  const [selectedOrg, setSelectedOrg] = useState('');
+  const [selectedOrg, setSelectedOrg] = useState(() => (isOrgUser && userOrgId ? String(userOrgId) : ''));
   const [selectedFY, setSelectedFY] = useState('');
   const [selectedFocus, setSelectedFocus] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
@@ -131,9 +131,9 @@ export default function DataList({
     if (!isOrgUser && selectedOrg) count++;
     if (selectedFY) count++;
     if (selectedFocus) count++;
-    if (selectedStatus) count++;
+    if (activeTab !== 'completed' && selectedStatus) count++;
     return count;
-  }, [isOrgUser, selectedOrg, selectedFY, selectedFocus, selectedStatus]);
+  }, [isOrgUser, selectedOrg, selectedFY, selectedFocus, selectedStatus, activeTab]);
 
   // Counts for Sub-Tabs
   const allCount = scopedProjects.length;
@@ -157,8 +157,8 @@ export default function DataList({
     setCurrentPage(1);
     if ((tab === 'active' || tab === 'pending') && selectedStatus === 'Completed') {
       setSelectedStatus('');
-    } else if (tab === 'completed' && selectedStatus && selectedStatus !== 'Completed') {
-      setSelectedStatus('');
+    } else if (tab === 'completed') {
+      setSelectedStatus('Completed');
     }
   };
 
@@ -198,10 +198,10 @@ export default function DataList({
 
   // Reset all filters handler
   const handleResetFilters = () => {
-    setSelectedOrg('');
+    if (!isOrgUser) setSelectedOrg('');
     setSelectedFY('');
     setSelectedFocus('');
-    setSelectedStatus('');
+    setSelectedStatus(activeTab === 'completed' ? 'Completed' : '');
     setSearchTerm('');
     setCurrentPage(1);
     triggerNotification?.('Filters have been reset', 'info');
@@ -284,7 +284,7 @@ export default function DataList({
     {
       headerName: "Financial Year",
       field: "financial_year",
-      width: 140,
+      flex: 1,
       minWidth: 120,
       headerClass: 'text-center',
       cellClass: 'text-center',
@@ -299,8 +299,8 @@ export default function DataList({
     {
       headerName: "Name of the Project",
       field: "project_name",
-      minWidth: 300,
-      flex: 3,
+      minWidth: 220,
+      flex: 2,
       wrapText: true,
       autoHeight: true,
       cellClass: 'mopsw-wrap-cell text-left font-semibold text-slate-800 dark:text-slate-100 flex items-center py-2.5',
@@ -317,8 +317,8 @@ export default function DataList({
     {
       headerName: "Project Value(Rs. In Lakhs)",
       field: "project_value",
-      width: 175,
-      minWidth: 150,
+      flex: 1,
+      minWidth: 130,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 800, color: '#0f417a', justifyContent: 'center' },
@@ -333,8 +333,8 @@ export default function DataList({
     {
       headerName: "Project Status",
       field: "project_status",
-      width: 200,
-      minWidth: 170,
+      flex: 1,
+      minWidth: 150,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', justifyContent: 'center' },
@@ -353,8 +353,8 @@ export default function DataList({
     {
       headerName: "Completed On",
       field: "completed_on",
-      width: 140,
-      minWidth: 120,
+      flex: 1,
+      minWidth: 110,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', justifyContent: 'center' },
@@ -372,7 +372,7 @@ export default function DataList({
     {
       headerName: "Remarks",
       field: "remarks",
-      minWidth: 240,
+      minWidth: 180,
       flex: 2,
       wrapText: true,
       autoHeight: true,
@@ -673,7 +673,8 @@ export default function DataList({
                 <select
                   value={selectedOrg}
                   onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
-                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                  disabled={isOrgUser}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                 >
                   <option value="">All Organisations ({organisations.length})</option>
                   {organisations.map((org) => (
@@ -726,7 +727,8 @@ export default function DataList({
                 <select
                   value={selectedStatus}
                   onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                  disabled={activeTab === 'completed'}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                 >
                   <option value="">
                     {activeTab === 'active' ? 'All Active Statuses' : activeTab === 'completed' ? 'Completed' : 'All Statuses'}

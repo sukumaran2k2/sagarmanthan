@@ -429,7 +429,7 @@ export default function InputForm({
                     <select
                       value={csrFocus}
                       onChange={(e) => setCsrFocus(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                     >
                       {CSR_FOCUS_AREAS.map(f => (
                         <option key={f.id} value={f.id}>{f.label}</option>
@@ -546,7 +546,7 @@ export default function InputForm({
                       value={projectStatus}
                       onChange={(e) => setProjectStatus(e.target.value)}
                       disabled={isFullyComplete}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-500"
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-500"
                     >
                       {CSR_STATUSES.filter((s) => s !== 'Completed' || isFullyComplete).map(s => (
                         <option key={s} value={s}>{s}</option>
@@ -568,7 +568,7 @@ export default function InputForm({
                     <select
                       value={financialYear}
                       onChange={(e) => setFinancialYear(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                     >
                       {FINANCIAL_YEARS.map(fy => (
                         <option key={fy} value={fy}>{fy}</option>
@@ -888,7 +888,7 @@ export default function InputForm({
                     <select
                       value={fundFY}
                       onChange={(e) => setFundFY(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                     >
                       {FINANCIAL_YEARS.map(fy => (
                         <option key={fy} value={fy}>{fy}</option>
