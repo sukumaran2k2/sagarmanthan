@@ -23,6 +23,16 @@ const REPORT_TITLES = {
   'projects-focus-wise-summary': 'Report No.: C.S.R 1.6 - CSR Focus/Project Area-wise CSR Projects Summary',
 };
 
+// The 3 org-facing reports carry their own numbering (1.1/1.2/1.3) on the
+// Organisation sheet, distinct from their number on the Mopsw sheet
+// (1.3/1.4/1.6) -- same underlying report, different sheet, different
+// number, shown depending on who's viewing it.
+const REPORT_TITLES_ORG = {
+  'fund-org-trend-report': 'Report No.: C.S.R 1.1 - CSR Fund - Summary Report',
+  'projects-year-wise-summary': 'Report No.: C.S.R 1.2 - Financial Year-wise CSR Projects Summary',
+  'projects-focus-wise-summary': 'Report No.: C.S.R 1.3 - CSR Focus/Project Area-wise CSR Projects Summary',
+};
+
 const REPORT_LABELS = {
   'fund-year-wise-report': 'CSR Fund Year Wise Report',
   'fund-org-wise-report': 'CSR Fund Organisation Wise Report',
@@ -721,7 +731,7 @@ export default function Reports({
     resizable: true,
   }), []);
 
-  const toolbarExtra = (reportType === 'projects-year-wise-summary' || reportType === 'projects-org-wise-summary' || reportType === 'projects-focus-wise-summary') ? null : (
+  const toolbarExtra = (reportType === 'projects-year-wise-summary' || reportType === 'projects-org-wise-summary' || reportType === 'projects-focus-wise-summary' || (reportType === 'fund-org-trend-report' && isOrgUser)) ? null : (
     <div className="flex items-center gap-2">
       <button
         type="button"
@@ -755,7 +765,7 @@ export default function Reports({
     </div>
   );
 
-  const filterPanel = (showFilterPanel && reportType !== 'projects-year-wise-summary' && reportType !== 'projects-org-wise-summary' && reportType !== 'projects-focus-wise-summary') ? (
+  const filterPanel = (showFilterPanel && reportType !== 'projects-year-wise-summary' && reportType !== 'projects-org-wise-summary' && reportType !== 'projects-focus-wise-summary' && !(reportType === 'fund-org-trend-report' && isOrgUser)) ? (
     <div className="space-y-3 select-none">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
@@ -815,7 +825,7 @@ export default function Reports({
     </div>
   ) : null;
 
-  const currentReportTitle = REPORT_TITLES[reportType] || '';
+  const currentReportTitle = (isOrgUser ? REPORT_TITLES_ORG[reportType] : REPORT_TITLES[reportType]) || '';
   const currentEyebrow = REPORT_LABELS[reportType] || '';
 
   return (
