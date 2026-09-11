@@ -101,7 +101,7 @@ export function fetchProjectList({ userId, ...params }, config = {}) {
 
   return api.get(`/project-list/${userId}`, {
     params: toProjectListParams(params),
-    timeout: config.timeout ?? 20000,
+    timeout: config.timeout ?? 60000,
     ...config,
   });
 }
@@ -140,6 +140,35 @@ export function submitUnderTenderingCostAndCalls(payload) {
 
 export function fetchUnderTenderingCostAndCalls(subProjectID, projectID) {
   return api.get(`/awardofcontract-cost/${subProjectID}/${projectID}`);
+}
+
+export function saveUnderTenderingRevision(payload) {
+  return api.post('/revisionDate', payload);
+}
+
+export function fetchUnderTenderingRevisionHistory(projectID, subStageID, subProjectID) {
+  return api.get(`/undertendering-revision/${projectID}/${subStageID}/${subProjectID}`);
+}
+
+export function uploadUnderTenderingDocument(formData) {
+  return api.post('/project-document-uploader', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}
+
+export function checkUnderTenderingDocument(fileName) {
+  return api.get('/check-file-exists', { params: { fileName } });
+}
+
+export function downloadUnderTenderingDocument(folderName, fileName) {
+  return api.get('/download-file', {
+    params: { folderName, fileName },
+    responseType: 'blob',
+  });
+}
+
+export function deleteUnderTenderingDocument(folderName, fileName) {
+  return api.delete('/delete-file', { params: { folderName, fileName } });
 }
 
 export function submitUnderImplementationProgress(payload) {
@@ -186,6 +215,14 @@ export function fetchExpenditureMainFinancialYear(projectID, subProjectID, finan
 
 export function submitExpenditureDetail(payload) {
   return api.post('/add-expenditure-detail', payload);
+}
+
+export function editExpenditureComponentsDetails(payload) {
+  return api.post('/edit-expenditure-components-details', payload);
+}
+
+export function deleteExpenditureLogRow(payload) {
+  return api.post('/delete-expenditure-log-row', payload);
 }
 
 export function fetchExpenditureOutlay(projectID, subProjectID) {

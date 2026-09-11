@@ -1,9 +1,8 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   FileText, Check, Layers, Clock, 
   TrendingUp, AlertCircle, Save, Briefcase,
-  CheckCircle2, Lock, ArrowLeft, DollarSign,
-  MapPin, Building2
+  CheckCircle2, Lock
 } from 'lucide-react';
 import ProjectBasicInfoForm from './ProjectBasicInfoForm';
 import PlanningSanctioningStage from './PlanningSanctioningStage';
@@ -11,13 +10,6 @@ import UnderTenderingStage from './UnderTenderingStage';
 import UnderImplementationStage from './UnderImplementationStage';
 import ProjectCompletionStage from './ProjectCompletionStage';
 import { getProjectIdentity } from '../utils/mapProject';
-
-export const ADD_PROJECT_STAGES = [
-  { id: 'general', number: '01', title: 'General Details', subtitle: 'Scope & Cost', icon: Layers },
-  { id: 'funding', number: '02', title: 'Source of Funding', subtitle: 'Finance & Breakdown', icon: DollarSign },
-  { id: 'location', number: '03', title: 'Project Location', subtitle: 'State & MP Constituency', icon: MapPin },
-  { id: 'subproject', number: '04', title: 'Sub-projects', subtitle: 'Packages & Structure', icon: Building2 },
-];
 
 const STAGES = [
   { id: 'basic', label: 'Basic Info', title: 'Basic Info', desc: 'Details & Geography' },
@@ -46,24 +38,24 @@ function getStageLevel(stageName) {
 }
 
 export default function ProjectStageWorkbench({
-  initialData = null,
+  initialData,
   activeStage: controlledActiveStage,
   onActiveStageChange,
-  canSubmit = false,
-  readOnly = false,
-  loading = false,
+  canSubmit,
+  readOnly,
+  loading,
   onBack,
   onSubmit,
   onSubmitStage,
   notify,
-  outlayProps = null,
+  stageRefreshKey = 0,
   documentRows = [],
   documentsLoading = false,
   uploadingDocuments = false,
   onUploadDocuments,
   onDeleteDocument,
   onDownloadDocument,
-  stageRefreshKey = 0,
+  outlayProps = null,
 }) {
   const isUpdateMode = Boolean(initialData?.id || initialData?.projectId || initialData?.raw?.project_id);
   const identity = useMemo(() => getProjectIdentity(initialData || {}), [initialData]);
@@ -83,23 +75,6 @@ export default function ProjectStageWorkbench({
     if (!isUpdateMode && stg !== 'basic') return;
     setInternalActiveStage(stg);
     onActiveStageChange?.(stg);
-  };
-
-  const [activeAddStage, setActiveAddStage] = useState('general');
-  const [addStageProgress, setAddStageProgress] = useState({
-    general: false,
-    funding: false,
-    location: false,
-    subproject: false,
-  });
-  const navigateAddStageRef = useRef(null);
-
-  const handleNavigateToAddStage = (targetStageId) => {
-    if (navigateAddStageRef.current) {
-      navigateAddStageRef.current(targetStageId);
-    } else {
-      setActiveAddStage(targetStageId);
-    }
   };
 
   const [warningMsg, setWarningMsg] = useState(null);
@@ -162,36 +137,22 @@ export default function ProjectStageWorkbench({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] text-slate-800 dark:text-slate-100 animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] via-[#134e96] to-[#1a5ba3] px-6 py-4 text-white select-none border-b border-[#0a2d55]/30 space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-12 items-center gap-4">
-          
-          {/* Left Column (3 cols): Back Button + Title + Subtitle */}
-          <div className="lg:col-span-3 flex items-center space-x-3.5 min-w-0 shrink-0">
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition cursor-pointer backdrop-blur-sm border border-white/10 shrink-0"
-                title="Back to List"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-            )}
+    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm text-slate-800 dark:text-slate-100 animate-fade-in">
+      <div
+        className={`bg-gradient-to-r from-[#0f417a] via-[#164e8a] to-[#0284c7] p-5 text-white select-none border-b border-white/10 space-y-4 ${
+          isUpdateMode
+            ? 'sticky top-[42px] z-40 shadow-lg supports-[backdrop-filter]:backdrop-blur-xs'
+            : ''
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3.5 min-w-0">
             <div className="min-w-0 space-y-0.5">
               <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                <h1 className="text-base font-black tracking-wide uppercase font-display text-white whitespace-nowrap">
-                  {isUpdateMode ? (projectName || 'Edit Project') : 'Add Project'}
-                </h1>
-                {isUpdateMode && projectId && (
-                  <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-white/20 text-blue-100 font-mono border border-white/15">
-                    {projectId}
-                    {subProjectId && subProjectId !== '-1' && subProjectId !== '-' && (
-                      <span className="font-black text-white" style={{ fontWeight: 900 }}>{` / Sub Project ${subProjectId}`}</span>
-                    )}
-                  </span>
-                )}
-                {isUpdateMode && stage && (
+                <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-white/20 text-blue-100 font-mono border border-white/15">
+                  {isUpdateMode ? `Edit Project: ${projectId}${subProjectId && subProjectId !== '-1' && subProjectId !== '-' ? ` / ${subProjectId}` : ''}` : 'New Project'}
+                </span>
+                {stage && (
                   <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${getStageBadgeClass(stage)}`}>
                     {String(stage).toLowerCase().includes('complete') && (
                       <Check className="h-3 w-3 stroke-[3]" />
@@ -200,99 +161,26 @@ export default function ProjectStageWorkbench({
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-blue-100/80 font-medium whitespace-nowrap">
-                Ministry of Ports, Shipping and Waterways {isUpdateMode && subProjectName && subProjectName !== '-' ? `• Sub-project: ${subProjectName}` : ''}
-              </p>
+              <h1 className="text-base sm:text-lg font-bold text-white tracking-wide truncate">
+                {projectName || 'Project Basic Information & Progress Form'}
+              </h1>
+              {subProjectName && subProjectName !== '-' && (
+                <p className="text-xs text-blue-100 font-medium truncate">
+                  Sub-project: {subProjectName}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Center Column (7 cols): Connected Gradient Progress Stepper when adding project */}
-          {!isUpdateMode ? (
-            <div className="lg:col-span-7 flex justify-center w-full">
-              <div className="w-full max-w-lg xl:max-w-xl">
-                <div className="relative flex items-center justify-between px-2">
-                  {/* Background Track Line */}
-                  <div className="absolute top-[14px] md:top-[16px] left-[10%] right-[10%] h-1.5 bg-white/20 rounded-full -translate-y-1/2 z-0" />
-
-                  {/* Completed Green Progress Fill Line */}
-                  <div
-                    className="absolute top-[14px] md:top-[16px] left-[10%] h-1.5 bg-emerald-400 rounded-full -translate-y-1/2 z-0 transition-all duration-500 ease-out"
-                    style={{
-                      width: `${(ADD_PROJECT_STAGES.findIndex((s) => s.id === activeAddStage) / (ADD_PROJECT_STAGES.length - 1)) * 80}%`,
-                    }}
-                  />
-
-                  {/* Step Nodes Grid */}
-                  <div className="relative z-10 w-full grid grid-cols-4 items-start">
-                    {ADD_PROJECT_STAGES.map((stg, idx) => {
-                      const isActive = activeAddStage === stg.id;
-                      const isCompleted = Boolean(addStageProgress[stg.id]);
-
-                      return (
-                        <div
-                          key={stg.id}
-                          onClick={() => handleNavigateToAddStage(stg.id)}
-                          className="flex flex-col items-center text-center cursor-pointer group px-1 select-none"
-                        >
-                          {/* Circular Number Node */}
-                          <div
-                            className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-black text-xs transition-all duration-300 shadow-md ${
-                              isCompleted && !isActive
-                                ? 'bg-emerald-500 text-white shadow-emerald-900/30 hover:bg-emerald-400 hover:scale-105'
-                                : isActive
-                                ? 'bg-white text-[#0f417a] ring-4 ring-emerald-400/60 scale-110 shadow-lg'
-                                : 'bg-white/15 text-white/50 border border-white/20 backdrop-blur-md hover:bg-white/25 hover:text-white'
-                            }`}
-                          >
-                            {isCompleted && !isActive ? (
-                              <Check className="h-3.5 w-3.5 stroke-[3]" />
-                            ) : (
-                              idx + 1
-                            )}
-                          </div>
-
-                          {/* Step Label */}
-                          <div className="mt-1.5 flex flex-col items-center">
-                            <span
-                              className={`text-[10px] md:text-[11px] font-bold tracking-tight leading-tight transition-colors truncate max-w-[90px] sm:max-w-none ${
-                                isActive
-                                  ? 'text-white font-black drop-shadow-sm'
-                                  : isCompleted
-                                  ? 'text-emerald-200 font-semibold'
-                                  : 'text-blue-100/60 font-medium'
-                              }`}
-                            >
-                              {stg.title}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="lg:col-span-7 hidden lg:block" />
-          )}
-
-          {/* Right Column (2 cols): Stage Pill + Exit/Submit */}
-          <div className="lg:col-span-2 flex items-center justify-end space-x-2.5 shrink-0">
-            {!isUpdateMode ? (
-              <span className="text-[11px] font-black px-3 py-1 rounded-full bg-white/15 border border-white/20 text-white font-mono tracking-wider shadow-sm">
-                Stage {activeAddStage === 'general' ? '1' : activeAddStage === 'funding' ? '2' : activeAddStage === 'location' ? '3' : '4'} of 4
-              </span>
-            ) : null}
-            {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white/90 bg-white/10 hover:bg-white/20 border border-white/15 transition cursor-pointer backdrop-blur-xs"
-              >
-                Exit
-              </button>
-            )}
-            {canSubmit && !readOnly && isUpdateMode && activeStage === 'basic' && (
+          <div className="flex items-center space-x-2.5 shrink-0 self-end sm:self-center">
+            <button
+              type="button"
+              onClick={onBack}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-white/90 bg-white/10 hover:bg-white/20 border border-white/15 transition cursor-pointer backdrop-blur-xs"
+            >
+              Cancel
+            </button>
+            {canSubmit && !readOnly && activeStage === 'basic' && (
               <button
                 type="submit"
                 form="project-basic-info-form"
@@ -307,13 +195,12 @@ export default function ProjectStageWorkbench({
                 ) : (
                   <>
                     <Save className="h-4 w-4 text-[#0f417a]" />
-                    <span>Update Project</span>
+                    <span>{isUpdateMode ? 'Update Project' : 'Save Details'}</span>
                   </>
                 )}
               </button>
             )}
           </div>
-
         </div>
 
         {isUpdateMode && (
@@ -415,11 +302,6 @@ export default function ProjectStageWorkbench({
             onUploadDocuments={onUploadDocuments}
             onDeleteDocument={onDeleteDocument}
             onDownloadDocument={onDownloadDocument}
-            activeAddStage={activeAddStage}
-            onAddStageChange={setActiveAddStage}
-            addStageProgress={addStageProgress}
-            onStageProgressChange={setAddStageProgress}
-            registerNavigateAddStage={(fn) => { navigateAddStageRef.current = fn; }}
           />
         )}
 

@@ -6,10 +6,6 @@ import {
 import { fetchDropRequests, acceptDropRequest, rejectDropProject } from '../api';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
-
 function fmt(dateStr) {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
@@ -38,10 +34,6 @@ function StatusBadge({ row }) {
     </span>
   );
 }
-
-// ─────────────────────────────────────────────────────────────
-// Confirmation Modal
-// ─────────────────────────────────────────────────────────────
 
 function ConfirmModal({ open, title, message, confirmLabel, confirmColor, onConfirm, onCancel, children }) {
   if (!open) return null;
@@ -74,10 +66,6 @@ function ConfirmModal({ open, title, message, confirmLabel, confirmColor, onConf
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Request Card
-// ─────────────────────────────────────────────────────────────
-
 function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
   const isPending = row.reject_request_status !== 0 && !row.drop_date;
   const isDropped = row.status === 0 && !!row.drop_date;
@@ -92,7 +80,6 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
 
   return (
     <div className={`border rounded-2xl shadow-sm p-4.5 space-y-3.5 transition hover:shadow-md ${borderCls}`}>
-      {/* Top row */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-1 flex-1 min-w-0">
           {hasSub ? (
@@ -121,7 +108,6 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
         <StatusBadge row={row} />
       </div>
 
-      {/* Meta */}
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
         {row.organisation_name && (
           <span className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />{row.organisation_name}</span>
@@ -140,7 +126,6 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
         )}
       </div>
 
-      {/* Drop reason */}
       {row.remarks && (
         <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
           <span className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1 mb-0.5">
@@ -150,7 +135,6 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
         </div>
       )}
 
-      {/* Rejection remark */}
       {isRejected && row.drop_rejected_remarks && (
         <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
           <span className="font-semibold flex items-center gap-1 mb-0.5">
@@ -160,14 +144,12 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
         </div>
       )}
 
-      {/* Drop date */}
       {isDropped && row.drop_date && (
         <p className="text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
           <CheckCheck className="h-3.5 w-3.5" /> Dropped on {fmt(row.drop_date)}
         </p>
       )}
 
-      {/* Action buttons — ministry only */}
       {isMinistry && isPending && (
         <div className="flex gap-2 pt-2 border-t border-slate-150 dark:border-slate-800">
           <button
@@ -189,10 +171,6 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────
-// Main Page
-// ─────────────────────────────────────────────────────────────
 
 const FILTER_TABS = [
   { id: 'pending',  label: 'Pending',           color: 'text-blue-700 dark:text-blue-300 border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/40' },
@@ -283,7 +261,6 @@ export default function DropRequestsPage({ notify }) {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
         <div>
           <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -310,7 +287,6 @@ export default function DropRequestsPage({ notify }) {
         </button>
       </div>
 
-      {/* Filter chips */}
       <div className="flex flex-wrap gap-2">
         {FILTER_TABS.map((f) => (
           <button
@@ -331,7 +307,6 @@ export default function DropRequestsPage({ notify }) {
         ))}
       </div>
 
-      {/* List */}
       {loading ? (
         <div className="py-16 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
           <RefreshCw className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-3" />
@@ -362,7 +337,6 @@ export default function DropRequestsPage({ notify }) {
         </div>
       )}
 
-      {/* Accept modal */}
       <ConfirmModal
         open={!!acceptModal}
         title="Accept Drop Request"
@@ -377,7 +351,6 @@ export default function DropRequestsPage({ notify }) {
         }
       />
 
-      {/* Reject modal */}
       <ConfirmModal
         open={!!rejectModal}
         title="Reject Drop Request"

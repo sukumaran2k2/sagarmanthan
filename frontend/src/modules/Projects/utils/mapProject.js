@@ -105,20 +105,55 @@ export function mapProjectListRow(raw = {}, index = 0) {
   const stateName =
     raw.sub_state_names || raw.state_names || raw.state_name || raw.state || raw.stateName;
 
+  const estimatedCost = nullIfInvalidNumber(
+    raw.estimated_cost ?? raw.estimatedProjectCost ?? raw.estimatedCost
+  );
+  const sanctionedCost = nullIfInvalidNumber(
+    raw.sanctioned_cost ?? raw.sanctionedCost
+  );
+  const awardedCost = nullIfInvalidNumber(
+    raw.award_project_cost ?? raw.awarded_cost ?? raw.awardedCost
+  );
+  const closureCost = nullIfInvalidNumber(raw.closure_cost ?? raw.closureCost);
+
+  const stage = textOrDash(
+    raw.project_stage || raw.projectStageName || raw.stage || raw.stage_name
+  );
+  const stageLower = String(stage).toLowerCase();
+
+  let cost = estimatedCost;
+  if (stageLower.includes('complete')) cost = closureCost ?? awardedCost ?? sanctionedCost ?? estimatedCost;
+  else if (stageLower.includes('implementation')) cost = awardedCost ?? sanctionedCost ?? estimatedCost;
+  else if (stageLower.includes('tender')) cost = sanctionedCost ?? estimatedCost;
+  else cost = estimatedCost ?? sanctionedCost;
+
+  cost = cost ?? nullIfInvalidNumber(raw.project_cost || raw.cost) ?? 0;
+
   return {
     id: raw.id || raw.project_details_id || `${projectId}-${subProjectId}-${index}`,
     projectId: textOrDash(projectId),
     subProjectId: textOrDash(subProjectId),
     projectName: textOrDash(raw.project_name || raw.projectName),
     subProjectName: textOrDash(raw.sub_project_name || raw.subProjectName),
-    stage: textOrDash(raw.project_stage || raw.projectStageName || raw.stage || raw.stage_name),
+    stage,
     category: textOrDash(
       raw.project_category || raw.projectCategory || raw.category || raw.project_category_names
     ),
     organisationName: textOrDash(raw.organisation_name || raw.organisationName || raw.agency),
     stateName: textOrDash(stateName),
-    cost: safeNumber(
-      raw.project_cost || raw.estimatedProjectCost || raw.cost || raw.estimated_cost || raw.sanctioned_cost
+    estimatedCost: estimatedCost ?? 0,
+    sanctionedCost: sanctionedCost ?? 0,
+    awardedCost: awardedCost ?? 0,
+    closureCost: closureCost ?? 0,
+    cost,
+    projectInitiatedDate: textOrDash(
+      raw.project_intiated_date || raw.project_initiated_date || raw.projectInitiatedDate
+    ),
+    targetCompletionDate: textOrDash(
+      raw.target_completion_date || raw.targetCompletionDate
+    ),
+    actualCompletionDate: textOrDash(
+      raw.actual_date_of_completion || raw.actualCompletionDate
     ),
     sanctionedCost: (raw.sanctioned_cost !== undefined && raw.sanctioned_cost !== null && raw.sanctioned_cost !== '')
       ? safeNumber(raw.sanctioned_cost)
