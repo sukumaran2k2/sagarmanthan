@@ -134,4 +134,29 @@ export function fetchRevisedFinancialProgressDate(mouId) {
   return api.get(`/get-revised-financial-progress-date/${mouId}`);
 }
 
+//report 1.1
+export function getEventWiseSummary(userId) {
+  return api.get(`/get-event-wise-summary/${userId}`);
+}
+
+export function getorgWisePerformanceRankingReport(userId) {
+  return api.get(`/get-org-wise-performance-ranking-report/${userId}`);
+}
+
+export function getVibascellWiseSummary(userId) {
+  return api.get(`/get-vibas-cell-wise-summary/${userId}`);
+}
+
+export function getCategoryWiseSummary(userId) {
+  return api.get(`/get-category-wise-summary/${userId}`);
+}
+
+export function getPhysicalAndFinancialProgressWise(userId) {
+  return api.get(`/get-physical-and-financial-progress-wise/${userId}`);
+}
+
+export function getDroppedMousReport(userId) {
+  return api.get(`/get-dropped-mous-report/${userId}`);
+}
+
 export default api;

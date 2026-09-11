@@ -4074,9 +4074,894 @@ async function addRevisedfinancialprogressdate(req, res) {
         return res.status(500).json({ error: "Failed to save revised financial progress" });
     }
 };
+
+//Report
+let ALL_ORGANISATION_ROLES = [1, 2, 3, 4, 5, 8];
+
+async function getEventWiseSummary(req, res) {
+    try {
+        const conn = await pool;
+        const userID = Number(req.params.userId);
+
+        if (!Number.isInteger(userID) || userID <= 0) {
+            return res.status(400).json({
+                message: "Invalid userID"
+            });
+        }
+        const userRequest = conn.request();
+        userRequest.input("userID", userID);
+
+        const userResult = await userRequest.query(`
+            SELECT
+                role_id,
+                organisation_id
+            FROM tbl_user
+            WHERE user_id = @userID
+        `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const { role_id, organisation_id } = userResult.recordset[0];
+
+        const userRoleId = Number(role_id);
+        const userOrganisationId = Number(organisation_id);
+
+        const canViewAllOrganisations =  ALL_ORGANISATION_ROLES.includes(userRoleId);
+
+        if (
+            !canViewAllOrganisations &&
+            (!Number.isInteger(userOrganisationId) ||
+                userOrganisationId <= 0)
+        ) {
+            return res.status(403).json({
+                message: "User is not mapped to an organisation"
+            });
+        }
+
+        const request = conn.request();
+
+        let organisationFilter = "";
+
+        if (!canViewAllOrganisations) {
+            request.input(
+                "organisation_id",
+                userOrganisationId
+            );
+
+            organisationFilter = `
+                WHERE organisation_id = @organisation_id
+            `;
+        }
+
+        const result = await request.query(`
+            SELECT
+                event_name AS [GMIS Event],
+                COUNT(*) AS [Total MoUs],
+                SUM(ISNULL(amount, 0)) AS [Total Cost],
+                SUM(
+                    CASE
+                        WHEN LOWER(LTRIM(RTRIM(present_status)))
+                             LIKE '%yet%start%'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Yet To be Started],
+                SUM(
+                    CASE
+                        WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%feasibility%'
+                          OR LOWER(LTRIM(RTRIM(present_status))) LIKE '%dpr%'
+                          OR LOWER(LTRIM(RTRIM(present_status))) LIKE '%planning%'
+                          OR LOWER(LTRIM(RTRIM(present_status))) LIKE '%study%'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Feasibility / DPR / Planning / Study Phase],
+                SUM(
+                    CASE
+                        WHEN LOWER(LTRIM(RTRIM(present_status)))
+                             LIKE '%approval%'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Approval Phase],
+                SUM(
+                    CASE
+                        WHEN LOWER(LTRIM(RTRIM(present_status)))
+                             LIKE '%tender%'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Tendering Stage],
+                SUM(
+                    CASE
+                        WHEN LOWER(LTRIM(RTRIM(present_status)))
+                             LIKE '%implementation%'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Work Under Implementation],
+                SUM(
+                    CASE
+                        WHEN LOWER(LTRIM(RTRIM(present_status)))
+                             LIKE '%completed%'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Work Completed],
+                SUM(
+                    CASE
+                        WHEN LOWER(LTRIM(RTRIM(present_status)))
+                             LIKE '%dropped%'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS [Dropped]
+                 
+            FROM tbl_gmis_mou
+            ${organisationFilter}
+            GROUP BY event_name
+            ORDER BY event_name;
+        `);
+
+        return res.status(200).json({
+            rows: result.recordset
+        });
+
+    } catch (err) {
+        console.error( "getEventWiseSummary Error:", err );
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+}
+
+async function getorgWisePerformanceRankingReport(req, res) {
+    try {
+        const conn = await pool;
+        const userID = Number(req.params.userId);
+
+        if (!Number.isInteger(userID) || userID <= 0) {
+            return res.status(400).json({
+                message: "Invalid userID"
+            });
+        }
+
+        // Get user role and organisation
+        const userRequest = conn.request();
+        userRequest.input("userID", userID);
+
+        const userResult = await userRequest.query(`
+            SELECT
+                role_id,
+                organisation_id
+            FROM tbl_user
+            WHERE user_id = @userID
+        `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const { role_id, organisation_id } = userResult.recordset[0];
+
+        const userRoleId = Number(role_id);
+        const userOrganisationId = Number(organisation_id);
+
+        const canViewAllOrganisations =
+            ALL_ORGANISATION_ROLES.includes(userRoleId);
+
+        if (
+            !canViewAllOrganisations &&
+            (!Number.isInteger(userOrganisationId) ||
+                userOrganisationId <= 0)
+        ) {
+            return res.status(403).json({
+                message: "User is not mapped to an organisation"
+            });
+        }
+
+        const request = conn.request();
+
+        let organisationFilter = "";
+
+        if (!canViewAllOrganisations) {
+            request.input(
+                "organisation_id",
+                userOrganisationId
+            );
+
+            organisationFilter = `
+                WHERE gmis.organisation_id = @organisation_id
+            `;
+        }
+
+        const result = await request.query(`
+            WITH OrganisationProgress AS (
+                SELECT
+                    gmis.organisation_id,
+                    org.organisation_name AS [Organisation Name],
+
+                    COUNT(*) AS [Total MoUs],
+
+                    SUM(ISNULL(gmis.amount, 0)) AS [Total Cost],
+
+                    -- Stage counts
+                    SUM(CASE
+                        WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                             LIKE '%yet%start%'
+                        THEN 1 ELSE 0
+                    END) AS [Yet To be Started],
+
+                    SUM(CASE
+                        WHEN LOWER(LTRIM(RTRIM(gmis.present_status))) LIKE '%feasibility%'
+                          OR LOWER(LTRIM(RTRIM(gmis.present_status))) LIKE '%dpr%'
+                          OR LOWER(LTRIM(RTRIM(gmis.present_status))) LIKE '%planning%'
+                          OR LOWER(LTRIM(RTRIM(gmis.present_status))) LIKE '%study%'
+                        THEN 1 ELSE 0
+                    END) AS [Feasibility / DPR / Planning / Study Phase],
+
+                    SUM(CASE
+                        WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                             LIKE '%approval%'
+                        THEN 1 ELSE 0
+                    END) AS [Approval Phase],
+
+                    SUM(CASE
+                        WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                             LIKE '%tender%'
+                        THEN 1 ELSE 0
+                    END) AS [Tendering Stage],
+
+                    SUM(CASE
+                        WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                             LIKE '%implementation%'
+                        THEN 1 ELSE 0
+                    END) AS [Work Under Implementation],
+
+                    SUM(CASE
+                        WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                             LIKE '%completed%'
+                        THEN 1 ELSE 0
+                    END) AS [Work Completed],
+
+                    SUM(CASE
+                        WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                             LIKE '%dropped%'
+                        THEN 1 ELSE 0
+                    END) AS [Dropped]
+
+                FROM tbl_gmis_mou gmis
+
+                LEFT JOIN mmt_organisation org
+                    ON gmis.organisation_id = org.organisation_id
+
+                ${organisationFilter}
+
+                GROUP BY
+                    gmis.organisation_id,
+                    org.organisation_name
+            ),
+
+            CalculatedProgress AS (
+            SELECT
+                *,
+                
+                -- Numeric Implementation Progress
+                CAST(
+                    CASE
+                        WHEN ([Total MoUs] - [Dropped]) > 0
+                        THEN
+                            (
+                                ([Feasibility / DPR / Planning / Study Phase] * 20.0)
+                                +
+                                ([Approval Phase] * 40.0)
+                                +
+                                ([Tendering Stage] * 60.0)
+                                +
+                                ([Work Under Implementation] * 80.0)
+                                +
+                                ([Work Completed] * 100.0)
+                            )
+                            / ([Total MoUs] - [Dropped])
+                        ELSE 0
+                    END
+                AS DECIMAL(10, 2)) AS [Implementation Progress Value]
+
+                FROM OrganisationProgress
+                )
+
+            SELECT
+                [Organisation Name],
+                [Total MoUs],
+                [Total Cost],
+                [Yet To be Started],
+                [Feasibility / DPR / Planning / Study Phase],
+                [Approval Phase],
+                [Tendering Stage],
+                [Work Under Implementation],
+                [Work Completed],
+                [Dropped],
+
+                -- Display value with %
+                CONCAT(
+                    [Implementation Progress Value],
+                    '%'
+                ) AS [Implementation Progress],
+
+                -- Rank based on numeric value
+                RANK() OVER (
+                    ORDER BY [Implementation Progress Value] DESC
+                ) AS [Performance Rank]
+
+            FROM CalculatedProgress
+
+            ORDER BY
+                [Performance Rank],
+                [Organisation Name];
+        `);
+
+        return res.status(200).json({
+            rows: result.recordset
+        });
+
+    } catch (err) {
+        console.error(
+            "getorgWisePerformanceRankingReport Error:",
+            err
+        );
+
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+}
+
+async function getVibascellWiseSummary(req, res) {
+    try {
+        const conn = await pool;
+        const userID = Number(req.params.userId);
+
+        if (!Number.isInteger(userID) || userID <= 0) {
+            return res.status(400).json({
+                message: "Invalid userID"
+            });
+        }
+
+        const userRequest = conn.request();
+        userRequest.input("userID", userID);
+
+        const userResult = await userRequest.query(`
+            SELECT
+                role_id,
+                organisation_id
+            FROM tbl_user
+            WHERE user_id = @userID
+        `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const { role_id, organisation_id } = userResult.recordset[0];
+
+        const userRoleId = Number(role_id);
+        const userOrganisationId = Number(organisation_id);
+
+        const canViewAllOrganisations =
+            ALL_ORGANISATION_ROLES.includes(userRoleId);
+
+        if (
+            !canViewAllOrganisations &&
+            (!Number.isInteger(userOrganisationId) ||
+                userOrganisationId <= 0)
+        ) {
+            return res.status(403).json({
+                message: "User is not mapped to an organisation"
+            });
+        }
+
+        const request = conn.request();
+
+        let organisationFilter = "";
+
+        if (!canViewAllOrganisations) {
+            request.input(
+                "organisation_id",
+                userOrganisationId
+            );
+
+            organisationFilter = `  WHERE gmis.organisation_id = @organisation_id `;
+        }
+
+        const result = await request.query(`
+            WITH VibhasSummary AS (
+                SELECT
+                    gmis.navic_vibhas_id,
+                    vibhas.navic_name AS [Navic / Vibhas Name],
+                    COUNT(*) AS [Total MoUs],
+                    SUM(ISNULL(gmis.amount, 0)) AS [Total Cost],
+                    SUM(
+                        CASE
+                            WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%yet%start%'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Yet To be Started],
+
+                    SUM(
+                        CASE
+                            WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%feasibility%'
+                              OR LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%dpr%'
+                              OR LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%planning%'
+                              OR LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%study%'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Feasibility / DPR / Planning / Study Phase],
+
+                    SUM(
+                        CASE
+                            WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%approval%'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Approval Phase],
+
+                    SUM(
+                        CASE
+                            WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%tender%'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Tendering Stage],
+
+                    SUM(
+                        CASE
+                            WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%implementation%'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Work Under Implementation],
+
+                    SUM(
+                        CASE
+                            WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%completed%'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Work Completed],
+
+                    SUM(
+                        CASE
+                            WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%dropped%'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS [Dropped]
+
+                FROM tbl_gmis_mou gmis
+                LEFT JOIN mmt_navic_vibhas vibhas ON gmis.navic_vibhas_id = vibhas.id
+                ${organisationFilter}
+                GROUP BY
+                    gmis.navic_vibhas_id,
+                    vibhas.navic_name
+            ),
+
+            CalculatedProgress AS (
+                SELECT
+                    *,
+
+                    CAST(
+                        CASE
+                            WHEN ([Total MoUs] - [Dropped]) > 0
+                            THEN
+                                (
+                                    ([Yet To be Started] * 0.0)
+                                    +
+                                    ([Feasibility / DPR / Planning / Study Phase] * 20.0)
+                                    +
+                                    ([Approval Phase] * 40.0)
+                                    +
+                                    ([Tendering Stage] * 60.0)
+                                    +
+                                    ([Work Under Implementation] * 80.0)
+                                    +
+                                    ([Work Completed] * 100.0)
+                                )
+                                /
+                                ([Total MoUs] - [Dropped])
+
+                            ELSE 0
+                        END
+                    AS DECIMAL(10, 2))
+                    AS [Implementation Progress Value]
+
+                FROM VibhasSummary
+            )
+            SELECT
+                [Navic / Vibhas Name],
+                [Total MoUs],
+                [Total Cost],
+                [Yet To be Started],
+                [Feasibility / DPR / Planning / Study Phase],
+                [Approval Phase],
+                [Tendering Stage],
+                [Work Under Implementation],
+                [Work Completed],
+                [Dropped],
+
+                CONCAT(
+                    [Implementation Progress Value],
+                    '%'
+                ) AS [Implementation Progress (%)],
+
+                RANK() OVER (
+                    ORDER BY
+                        [Implementation Progress Value] DESC
+                ) AS [Performance Rank]
+
+            FROM CalculatedProgress
+
+            ORDER BY
+                [Performance Rank],
+                [Navic / Vibhas Name];
+
+        `);
+
+        return res.status(200).json({
+            rows: result.recordset
+        });
+
+    } catch (err) {
+        console.error( "getVibascellWiseSummary Error:", err);
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+}
+async function getCategoryWiseSummary(req,res) {
+    try {
+        const conn = await pool;
+        const userID = Number(req.params.userId);
+
+        if (!Number.isInteger(userID) || userID <= 0) {
+            return res.status(400).json({
+                message: "Invalid userID"
+            });
+        }
+
+        const userRequest = conn.request();
+        userRequest.input("userID", userID);
+
+        const userResult = await userRequest.query(`
+            SELECT
+                role_id,
+                organisation_id
+            FROM tbl_user
+            WHERE user_id = @userID
+        `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const { role_id, organisation_id } = userResult.recordset[0];
+
+        const userRoleId = Number(role_id);
+        const userOrganisationId = Number(organisation_id);
+        const canViewAllOrganisations = ALL_ORGANISATION_ROLES.includes(userRoleId);
+
+        if (
+            !canViewAllOrganisations &&
+            (!Number.isInteger(userOrganisationId) ||
+                userOrganisationId <= 0)
+        ) {
+            return res.status(403).json({
+                message: "User is not mapped to an organisation"
+            });
+        }
+
+        const request = conn.request();
+
+        let organisationFilter = "";
+
+        if (!canViewAllOrganisations) {
+            request.input(
+                "organisation_id",
+                userOrganisationId
+            );
+
+            organisationFilter = `  WHERE organisation_id = @organisation_id `;
+        }
+
+        const result = await request.query(`
+           SELECT
+            mou.mou_category_name AS [MoU Category],
+            COUNT(*) AS [Total MoUs],
+            SUM(ISNULL(amount, 0)) AS [Total Cost],
+            SUM(CASE
+                WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%yet%start%'
+                THEN 1 ELSE 0
+            END) AS [Yet To be Started],
+            SUM(CASE
+                WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%feasibility%'
+                OR LOWER(LTRIM(RTRIM(present_status))) LIKE '%dpr%'
+                OR LOWER(LTRIM(RTRIM(present_status))) LIKE '%planning%'
+                OR LOWER(LTRIM(RTRIM(present_status))) LIKE '%study%'
+                THEN 1 ELSE 0
+            END) AS [Feasibility / DPR / Planning / Study Phase],
+            SUM(CASE
+                WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%approval%'
+                THEN 1 ELSE 0
+            END) AS [Approval Phase],
+            SUM(CASE
+                WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%tender%'
+                THEN 1 ELSE 0
+            END) AS [Tendering Stage],
+            SUM(CASE
+                WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%implementation%'
+                THEN 1 ELSE 0
+            END) AS [Work Under Implementation],
+            SUM(CASE
+                WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%completed%'
+                THEN 1 ELSE 0
+            END) AS [Work Completed],
+            SUM(CASE
+                WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%dropped%'
+                THEN 1 ELSE 0
+            END) AS [Dropped]
+        FROM tbl_gmis_mou gmis
+        LEFT JOIN mmt_mou_category mou ON gmis.navic_vibhas_id = mou.mou_category_id
+        ${organisationFilter}
+        GROUP BY mou.mou_category_name
+        ORDER BY mou.mou_category_name;
+        `);
+
+        return res.status(200).json({
+            rows: result.recordset
+        });
+
+    } catch (err) {
+        console.error("getEventWiseSummary Error:", err );
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+}
+
+async function getPhysicalAndFinancialProgressWise(req, res) {
+    try {
+        const conn = await pool;
+        const userID = Number(req.params.userId);
+
+        if (!Number.isInteger(userID) || userID <= 0) {
+            return res.status(400).json({
+                message: "Invalid userID"
+            });
+        }
+
+        const userRequest = conn.request();
+        userRequest.input("userID", userID);
+
+        const userResult = await userRequest.query(`
+            SELECT 
+                role_id,
+                organisation_id
+            FROM tbl_user
+            WHERE user_id = @userID
+        `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const { role_id, organisation_id } = userResult.recordset[0];
+
+        const userRoleId = Number(role_id);
+        const userOrganisationId = Number(organisation_id);
+
+        const canViewAllOrganisations =
+            ALL_ORGANISATION_ROLES.includes(userRoleId);
+
+        if (
+            !canViewAllOrganisations &&
+            (!Number.isInteger(userOrganisationId) ||
+                userOrganisationId <= 0)
+        ) {
+            return res.status(403).json({
+                message: "User is not mapped to an organisation"
+            });
+        }
+
+        const request = conn.request();
+
+        let organisationFilter = "";
+
+        if (!canViewAllOrganisations) {
+            request.input(
+                "organisation_id",
+                userOrganisationId
+            );
+
+            organisationFilter = ` WHERE gmis.organisation_id = @organisation_id`;
+        }
+
+        const result = await request.query(`
+            SELECT
+                ROW_NUMBER() OVER (
+                    ORDER BY mmt.organisation_name, gmis.event_name
+                ) AS [S.No.],
+                mmt.organisation_name AS [Organisation],
+                gmis.name_of_mou AS [MoU / Project],
+                gmis.present_status AS [Current Status],
+                ISNULL(gmis.amount, 0) AS [Original Amount (₹ Cr)],
+                ISNULL(gmis.revised_amount, 0) AS [Revised Amount (₹ Cr)],
+                ISNULL(
+                    gfp.revised_financial_progress_percentage,
+                    0
+                ) AS [Financial Progress (%)],
+                ISNULL(
+                    gpp.revised_physical_progress_percentage,
+                    0
+                ) AS [Physical Progress (%)]
+
+            FROM tbl_gmis_mou AS gmis
+            LEFT JOIN mmt_organisation AS mmt ON gmis.organisation_id = mmt.organisation_id
+            LEFT JOIN (
+                SELECT
+                    mou_id,
+                    MAX(revised_financial_progress_percentage)
+                        AS revised_financial_progress_percentage
+                FROM tbl_gmis_mou_financial_progress
+                GROUP BY mou_id
+            ) AS gfp ON gmis.id = gfp.mou_id
+
+            LEFT JOIN (
+                SELECT
+                    mou_id,
+                    MAX(revised_physical_progress_percentage)
+                        AS revised_physical_progress_percentage
+                FROM tbl_gmis_mou_physical_progress
+                GROUP BY mou_id
+            ) AS gpp
+                ON gmis.id = gpp.mou_id
+
+            ${organisationFilter}
+
+            ORDER BY
+                mmt.organisation_name,
+                gmis.event_name;
+        `);
+
+        return res.status(200).json({
+            rows: result.recordset
+        });
+
+    } catch (err) {
+        console.error( "getPhysicalAndFinancialProgressWise Error:", err );
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+}
+
+async function getDroppedMousReport(req, res) {
+    try {
+    const conn = await pool;
+    const userID = Number(req.params.userId);
+
+        if (!Number.isInteger(userID) || userID <= 0) {
+            return res.status(400).json({
+                message: "Invalid userID"
+            });
+        }
+
+        const userRequest = conn.request();
+        userRequest.input("userID", userID);
+
+        const userResult = await userRequest.query(`
+            SELECT 
+                role_id,
+                organisation_id
+            FROM tbl_user
+            WHERE user_id = @userID
+        `);
+
+        if (userResult.recordset.length === 0) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        const { role_id, organisation_id } = userResult.recordset[0];
+
+        const userRoleId = Number(role_id);
+        const userOrganisationId = Number(organisation_id);
+
+        const canViewAllOrganisations = ALL_ORGANISATION_ROLES.includes(userRoleId);
+
+        if (
+            !canViewAllOrganisations &&
+            (!Number.isInteger(userOrganisationId) ||
+                userOrganisationId <= 0)
+        ) {
+            return res.status(403).json({
+                message: "User is not mapped to an organisation"
+            });
+        }
+
+        const request = conn.request();
+        let organisationFilter = "";
+
+        if (!canViewAllOrganisations) {
+            request.input(  "organisation_id", userOrganisationId );
+
+            organisationFilter = ` WHERE gmis.organisation_id = @organisation_id `;
+        }
+
+        const result = await request.query(`
+            SELECT
+                gmis.name_of_mou AS [MoU / Project],
+                gmis.name_of_first_party AS [First Party],
+                gmis.nature_of_second_party AS [Second Party],
+                mou.mou_category_name AS [Category Name],
+                ISNULL(gmis.amount, 0) AS [Amount],
+                gmis.remark_or_detailed_status AS [Remark],
+                gmis.next_steps AS [Next Steps]
+
+            FROM tbl_gmis_mou AS gmis
+
+            LEFT JOIN mmt_mou_category AS mou ON gmis.navic_vibhas_id = mou.mou_category_id
+            ${organisationFilter}
+            ORDER BY
+                mou.mou_category_name,
+                gmis.name_of_mou;
+        `);
+
+        return res.status(200).json({
+            rows: result.recordset
+        });
+
+    } catch (err) {
+        console.error( "getDroppedMousReport Error:", err );
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+}
+
 export default {
     getGmisMouPaginated, getMouCategory, submitGmisMouData, getGmisMouData, getGmisMouChartData, updateGmisMouData, getGmisMouDataByID, getGmisMouStageDetails,getGmisMouSecondParty, getGmisMouVibhasNavicCell, getGmisMouCategoryName, getGmisMouPresentStatus, getOrganisationWiseCountAmount,getOrganisationWiseStatusCount_2023,getOrganisationWiseCountAmount_2023,getGmisMouStageDetails_2023, getTotalMouAndAmountCategoryWise_2025,getOrganisationWiseCountAmountStatusorgView_2021_category,getOrganisationWiseCountAmountStatusorgView_2023_category,upload,fileUpload,gmisfileDelete,addRevisedfinancialprogressdate,getRevisedfinancialprogressdate,getRevisedphysicalprogressdate,
     getStatusWiseCountAmount, getOrganisationWiseStatusCount, getGmisMouDataByOrganisationAndStatus, getOrganisationWiseCountAmountStatus, getMouTotalCountAmount,getTotalMouAndAmountCategoryWise_2021,getGmisMouStageDetails_2021,getOrganisationWiseCountAmountStatus_2023,getStatusWiseCountAmount_2021,getGmisMouStageDetails_2025,getGmisMouStageDetails_2025_org,getGmisMouStageDetails_2023_org,getGmisMouStageDetails_2021_org,getGmisMouStageDetails_org,getOrganisationWiseCountAmountStatusorgView_2025_category,getOrganisationWiseCountAmountStatusorgView_category,addNewgmisFileupload,gmisPdfFileDownload,addRevisedphysicalprogressdate,
     getMouCategories, getTotalMouAndAmountCategoryWise, getOrgWiseMouOrder,getOrganisationWiseCountAmountStatus_2021,getOrganisationWiseStatusCount_2021,getOrganisationWiseCountAmount_2021,getMouTotalCountAmount_2021,getTotalMouAndAmountCategoryWise_2023,getStatusWiseCountAmount_2023,getMouTotalCountAmount_2023,getOrganisationWiseCountAmount_2025,getOrganisationWiseStatusCountorgView_2025,getMouTotalCountAmount_2025,getStatusWiseCountAmount_2025,getOrganisationWiseCountAmountStatus_2025,getOrganisationWiseStatusCount_2025,getOrganisationWiseCountAmountStatusorgView,getOrganisationWiseStatusCountorgView,getTotalMouAndAmountyearWise,getGmisDrilldownData,
-    getOrganisationWiseStatusCountorgView_2021,getOrganisationWiseCountAmountStatusorgView_2021,getOrganisationWiseCountAmountStatusorgView_2023,getOrganisationWiseStatusCountorgView_2023,getOrganisationWiseCountAmountStatusorgView_2025,getYearWisegmisData
+    getOrganisationWiseStatusCountorgView_2021,getOrganisationWiseCountAmountStatusorgView_2021,getOrganisationWiseCountAmountStatusorgView_2023,getOrganisationWiseStatusCountorgView_2023,getOrganisationWiseCountAmountStatusorgView_2025,getYearWisegmisData,
+    getEventWiseSummary,getorgWisePerformanceRankingReport,getVibascellWiseSummary,getCategoryWiseSummary,getPhysicalAndFinancialProgressWise,getDroppedMousReport
 };
