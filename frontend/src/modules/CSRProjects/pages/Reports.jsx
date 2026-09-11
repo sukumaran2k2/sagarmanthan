@@ -186,7 +186,7 @@ export default function Reports({
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowIndex + 1
+          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
         },
         {
           headerName: "Financial Year",
@@ -264,7 +264,7 @@ export default function Reports({
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowIndex + 1
+          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
         },
         {
           headerName: "Organisation",
@@ -345,7 +345,7 @@ export default function Reports({
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowIndex + 1
+          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
         },
         {
           headerName: "Financial Year",
@@ -415,7 +415,7 @@ export default function Reports({
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowIndex + 1
+          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
         },
         {
           headerName: "Financial Year",
@@ -496,7 +496,7 @@ export default function Reports({
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowIndex + 1
+          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
         },
         {
           headerName: "Organisation",
@@ -568,7 +568,7 @@ export default function Reports({
           width: 75,
           pinned: 'left',
           cellStyle: { textAlign: 'center', fontWeight: 700 },
-          valueGetter: (params) => params.node.rowIndex + 1
+          valueGetter: (params) => params.node.rowPinned ? params.data['S No'] : params.node.rowIndex + 1
         },
         {
           headerName: "CSR Focus/Project Area",
