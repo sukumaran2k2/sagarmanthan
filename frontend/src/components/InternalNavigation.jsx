@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { ChevronDown, Bell } from 'lucide-react';
 
 /**
  * InternalNavigation Component
@@ -69,7 +69,19 @@ const InternalNavigation = ({
                 {TabIcon && (
                   <TabIcon className={`h-4 w-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                 )}
-                {tab.label}
+                <span>{tab.label}</span>
+                {(tab.count > 0 || tab.badge > 0) && (
+                  <span
+                    className={`inline-flex items-center gap-1 font-black text-[10px] min-w-[18px] h-[18px] px-1.5 rounded-full shadow-xs transition-colors ${
+                      isActive
+                        ? 'bg-rose-500 text-white'
+                        : 'bg-rose-600 text-white'
+                    }`}
+                  >
+                    <Bell className="h-2.5 w-2.5 fill-current shrink-0" />
+                    <span>{(tab.count || tab.badge) > 99 ? '99+' : (tab.count || tab.badge)}</span>
+                  </span>
+                )}
                 {hasSubMenu && (
                   <ChevronDown
                     className={`h-3.5 w-3.5 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${isActive ? 'text-blue-200' : 'text-slate-400'}`}

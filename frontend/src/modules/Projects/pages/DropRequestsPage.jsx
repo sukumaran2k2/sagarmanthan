@@ -238,6 +238,7 @@ export default function DropRequestsPage({ notify }) {
       await acceptDropRequest(row.project_id, subId);
       if (notify) notify('Project dropped successfully.', 'success');
       window.dispatchEvent(new Event('drop-request-updated'));
+      window.dispatchEvent(new Event('notifications-updated'));
       await load();
     } catch (err) {
       const msg = (err && err.response && err.response.data && err.response.data.message) || 'Failed to accept drop request.';
@@ -259,6 +260,7 @@ export default function DropRequestsPage({ notify }) {
       await rejectDropProject({ projectID: row.project_id, subProjectID: subId, reason });
       if (notify) notify('Drop request rejected.', 'success');
       window.dispatchEvent(new Event('drop-request-updated'));
+      window.dispatchEvent(new Event('notifications-updated'));
       await load();
     } catch (err) {
       const msg = (err && err.response && err.response.data && err.response.data.message) || 'Failed to reject drop request.';

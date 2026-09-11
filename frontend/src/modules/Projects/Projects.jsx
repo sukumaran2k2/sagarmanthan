@@ -7,6 +7,8 @@ import ProjectBasicInformationPage from './pages/ProjectBasicInformationPage';
 import DropRequestsPage from './pages/DropRequestsPage';
 import { useProjectsPermissions } from './hooks/useProjectsPermissions';
 import { resolveProjectsListView } from './views';
+import { fetchDropRequests } from './api';
+import { getCurrentUserId } from '../../utils/authSession';
 
 const INIT_TAB_KEY = 'projectsInitTab';
 
@@ -40,10 +42,40 @@ export default function Projects({
     }
     return resolveSubTabId(activeSubTabProp, permissions.canAdd);
   });
+  const [dropRequestCount, setDropRequestCount] = useState(0);
   const [listRefreshKey, setListRefreshKey] = useState(0);
   const [editingRecord, setEditingRecord] = useState(null);
   const [formReadOnly, setFormReadOnly] = useState(false);
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCount = async () => {
+      try {
+        const uid = getCurrentUserId() || 1;
+        const res = await fetchDropRequests(uid);
+        const data = res.data || [];
+        const pending = data.filter(
+          (item) => item.reject_request_status !== 0 && !item.drop_date
+        );
+        if (isMounted) {
+          setDropRequestCount(pending.length);
+        }
+      } catch (err) {
+        console.error('Failed to fetch drop request count:', err);
+      }
+    };
+
+    fetchCount();
+    const interval = setInterval(fetchCount, 30000);
+    window.addEventListener('drop-request-updated', fetchCount);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('drop-request-updated', fetchCount);
+    };
+  }, []);
 
   const notify = useCallback(
     (message, type = 'success') => {
@@ -82,9 +114,13 @@ export default function Projects({
     if (permissions.canAdd) {
       items.push({ id: 'basic-info', label: 'Input Form' });
     }
-    items.push({ id: 'drop-requests', label: 'Drop Requests' });
+    items.push({
+      id: 'drop-requests',
+      label: 'Drop Requests',
+      count: dropRequestCount,
+    });
     return items;
-  }, [permissions.canAdd]);
+  }, [permissions.canAdd, dropRequestCount]);
 
   const activeSubTab = useMemo(() => {
     if (editingRecord) return 'basic-info';

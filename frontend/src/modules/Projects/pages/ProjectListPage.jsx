@@ -203,6 +203,8 @@ export default function ProjectListPage({
         reason: String(reason).trim(),
       });
       notify?.('Drop project request submitted successfully.', 'success');
+      window.dispatchEvent(new Event('drop-request-updated'));
+      window.dispatchEvent(new Event('notifications-updated'));
       setRefreshTick((prev) => prev + 1);
     } catch (error) {
       console.error(error);

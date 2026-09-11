@@ -70,6 +70,8 @@ export default function ProjectsListTable({
     physicalProgress: true,
     financialProgress: true,
     stage: true,
+    dropDate: true,
+    dropRemarks: true,
     actions: true,
   });
 
@@ -369,7 +371,11 @@ export default function ProjectsListTable({
       });
     }
 
-    if (visibleCols.stage) {
+    const isAllProjectsTab = !filters?.projectStage || filters.projectStage === 'All';
+    const isDroppedTab = filters?.projectStage === 'Dropped';
+
+    // Status / Stage column: ONLY needed in the "ALL PROJECTS" tab
+    if (isAllProjectsTab && visibleCols.stage) {
       cols.push({
         field: 'stage',
         headerName: 'Status / Stage',
@@ -387,6 +393,68 @@ export default function ProjectsListTable({
             );
           }
           return <span>{params.value || 'Project Initiated'}</span>;
+        },
+      });
+    }
+
+    // Dropped Date with timestamp column: ONLY shown in the "DROPPED" tab
+    if (isDroppedTab && visibleCols.dropDate !== false) {
+      cols.push({
+        field: 'dropDate',
+        headerName: 'Dropped Date & Time',
+        width: 190,
+        minWidth: 170,
+        cellClass: 'text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
+        headerClass: 'text-center',
+        valueGetter: (params) => {
+          const val = params.data?.dropDate || params.data?.raw?.drop_date || params.value;
+          if (!val) return '-';
+          const d = new Date(val);
+          if (isNaN(d.getTime())) return String(val);
+          return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+        },
+        cellRenderer: (params) => {
+          const val = params.data?.dropDate || params.data?.raw?.drop_date || params.value;
+          if (!val) return <span className="text-slate-400 font-mono text-xs">-</span>;
+          const d = new Date(val);
+          if (isNaN(d.getTime())) return <span className="text-xs font-mono font-semibold text-rose-600">{val}</span>;
+
+          return (
+            <div className="flex flex-col items-center justify-center text-center py-1 w-full leading-tight">
+              <span className="font-bold text-rose-700 dark:text-rose-400 font-mono text-xs">
+                {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                {d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+              </span>
+            </div>
+          );
+        },
+      });
+    }
+
+    // Drop Reason column: ONLY shown in the "DROPPED" tab
+    if (isDroppedTab && visibleCols.dropRemarks !== false) {
+      cols.push({
+        field: 'dropRemarks',
+        headerName: 'Drop Reason',
+        width: 250,
+        minWidth: 180,
+        cellClass: 'text-xs text-slate-700 dark:text-slate-300 text-left flex items-center',
+        headerClass: 'text-left',
+        valueGetter: (params) => {
+          return params.data?.dropRemarks || params.data?.raw?.drop_remarks || params.data?.raw?.remarks || params.value || '-';
+        },
+        cellRenderer: (params) => {
+          const val = params.data?.dropRemarks || params.data?.raw?.drop_remarks || params.data?.raw?.remarks || params.value;
+          if (!val || val === '-') {
+            return <span className="text-slate-400 font-mono text-xs italic">-</span>;
+          }
+          return (
+            <div className="text-xs text-slate-700 dark:text-slate-200 line-clamp-2 leading-relaxed py-1" title={val}>
+              {val}
+            </div>
+          );
         },
       });
     }
@@ -453,7 +521,7 @@ export default function ProjectsListTable({
     }
 
     return cols;
-  }, [visibleCols, canEdit, canView, canDropProject, dropBusyId, onOpenBasicInfo, onDropProject]);
+  }, [visibleCols, canEdit, canView, canDropProject, dropBusyId, onOpenBasicInfo, onDropProject, filters?.projectStage]);
 
   const handleExport = (type) => {
     if (type === 'Copy') {
@@ -712,7 +780,15 @@ export default function ProjectsListTable({
                     { key: 'sanctionedCost', label: 'Sanctioned Cost (₹ Cr)' },
                     { key: 'physicalProgress', label: 'Physical Progress' },
                     { key: 'financialProgress', label: 'Financial Progress' },
-                    { key: 'stage', label: 'Status / Stage' },
+                    ...((!filters?.projectStage || filters.projectStage === 'All')
+                      ? [{ key: 'stage', label: 'Status / Stage' }]
+                      : []),
+                    ...(filters?.projectStage === 'Dropped'
+                      ? [
+                          { key: 'dropDate', label: 'Dropped Date & Time' },
+                          { key: 'dropRemarks', label: 'Drop Reason' },
+                        ]
+                      : []),
                   ].map((col) => (
                     <label
                       key={col.key}

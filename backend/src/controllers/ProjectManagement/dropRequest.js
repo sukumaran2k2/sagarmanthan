@@ -30,35 +30,29 @@ async function deleteProjectRequest(req, res)
             const result = await request.query(`INSERT INTO tbl_project_drop_request (project_id, sub_project_id,
                 submitted_by, remarks) VALUES (@projectID, @subProjectID, @userID, @reason )`);
 
-
-                // Email Notification
-           
+            // Email Notification
+            try {
                 let CommonProjectIdLabel, CommonProjectNameLabel, CommonProjectID, CommonProjectName;
-                if(subProjectID == '-1')
+                if(subProjectID == '-1' || subProjectID == '-' || !subProjectID)
                 {
-                    const query1 = await request.query('SELECT project_name from tbl_project where project_id = @projectID')
-                    const userProjectNameData = query1.recordset[0];
+                    const query1 = await request.query('SELECT project_name from tbl_project where project_id = @projectID');
+                    const userProjectNameData = (query1.recordset && query1.recordset[0]) || {};
 
                     CommonProjectIdLabel = "Project ID";
                     CommonProjectNameLabel = "Project Name";
                     CommonProjectID = projectID;
-                    CommonProjectName = userProjectNameData.project_name;
-                    console.log(CommonProjectName, userProjectNameData,"CommonProjectName, userProjectNameData" )
-
+                    CommonProjectName = userProjectNameData.project_name || projectID;
                 }
                 else
                 {
-                    const query1 = await request.query('SELECT sub_project_name from tbl_sub_project where sub_project_id = @subProjectID')
-                    const userProjectNameData = query1.recordset[0];
+                    const query1 = await request.query('SELECT sub_project_name from tbl_sub_project where sub_project_id = @subProjectID');
+                    const userProjectNameData = (query1.recordset && query1.recordset[0]) || {};
 
                     CommonProjectIdLabel = "Sub Project ID";
                     CommonProjectNameLabel = "Sub Project Name";
                     CommonProjectID = subProjectID;
-                    CommonProjectName = userProjectNameData.sub_project_name;
-                    console.log(CommonProjectName, userProjectNameData,"CommonProjectName, userProjectNameData" )
-
+                    CommonProjectName = userProjectNameData.sub_project_name || subProjectID;
                 }
-                console.log(CommonProjectIdLabel, CommonProjectID, "CommonProjectIdLabel, CommonProjectID;")
                
                 let subject = "Drop Project Request Submission";
                 let body = `Dear User,
@@ -70,18 +64,27 @@ async function deleteProjectRequest(req, res)
                             <br>
                             <strong>${CommonProjectNameLabel}: ${CommonProjectName}</strong>
                             <br>
-                            <strong>Date of Submission: ${currentDate}</strong>  `
+                            <strong>Date of Submission: ${currentDate}</strong>`;
                         
-                            const sendNotification1 = await sendEmail(email, null, subject, body, req, res);
+                if (email) {
+                    await sendEmail(email, null, subject, body, req, res);
+                } else if (!res.headersSent) {
+                    return res.sendStatus(200);
+                }
+            } catch (notifyErr) {
+                console.error("Email notification sending failed:", notifyErr);
+                if (!res.headersSent) {
+                    return res.sendStatus(200);
+                }
+            }
         } 
         catch (err) 
         {
             console.log(err);
-            return res.sendStatus(500);
+            if (!res.headersSent) {
+                return res.sendStatus(500);
+            }
         }
-            console.log(
-              "--------------------------------------------------------------------------------"
-            );      
 };
 
 async function viewDropProjectList(req, res) {

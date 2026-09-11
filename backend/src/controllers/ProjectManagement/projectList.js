@@ -171,6 +171,8 @@ async function getProjectList(req, res) {
                     ISNULL(ia.ia_name, '') AS primary_ia_name,
                     physicalProgress.physical_progress,
                     financialProgress.financial_progress,
+                    ISNULL(dropReq.drop_date, ISNULL(sp.sub_last_updated, p.last_updated)) AS drop_date,
+                    ISNULL(dropReq.drop_remarks, '-') AS drop_remarks,
                     CAST(p.project_id AS varchar(50)) AS project_id_text,
                     CAST(ISNULL(sp.sub_project_id, -1) AS varchar(50)) AS sub_project_id_text
                 FROM tbl_project p
@@ -178,6 +180,16 @@ async function getProjectList(req, res) {
                 LEFT JOIN mmt_organisation org ON org.organisation_id = ISNULL(sp.sub_organisation_id, p.organisation_id)
                 LEFT JOIN mmt_implementing_agency ia ON ia.ia_id = ISNULL(sp.sub_primary_ia_id, p.primary_ia_id)
                 LEFT JOIN tbl_project_stage stage ON stage.stage_id = ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
+                LEFT JOIN (
+                    SELECT project_id, sub_project_id, MAX(drop_date) AS drop_date, MAX(CAST(remarks AS nvarchar(1000))) AS drop_remarks
+                    FROM tbl_project_drop_request
+                    WHERE status = 0 AND drop_date IS NOT NULL
+                    GROUP BY project_id, sub_project_id
+                ) AS dropReq ON dropReq.project_id = p.project_id 
+                    AND (
+                        (sp.sub_project_id IS NOT NULL AND CAST(dropReq.sub_project_id AS varchar(50)) = CAST(sp.sub_project_id AS varchar(50)))
+                        OR (sp.sub_project_id IS NULL AND (CAST(dropReq.sub_project_id AS varchar(50)) = '-1' OR dropReq.sub_project_id IS NULL))
+                    )
                 LEFT JOIN (
                     SELECT project_id AS entity_id, MAX(physical_progress) AS physical_progress
                     FROM tbl_project_physical_progress

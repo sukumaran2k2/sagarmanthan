@@ -57,7 +57,6 @@ import {
   Shield,
   Menu,
   Target,
-  BarChart3,
   PlusCircle,
   X
 } from 'lucide-react';
@@ -95,10 +94,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
         const res = await axios.get(`${API_BASE_URL}/viewdrop-projectlist/${userId}`);
         const data = res.data || [];
         const pending = data.filter(
-          (item) =>
-            (item.status === 1 || item.status === '1') &&
-            item.reject_request_status !== 0 &&
-            !item.drop_date
+          (item) => item.reject_request_status !== 0 && !item.drop_date
         );
         if (isMounted) {
           setDropRequestCount(pending.length);
@@ -616,19 +612,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
                     isMainMenuActive ? 'text-blue-700 font-bold' : 'text-slate-655 font-semibold hover:text-slate-900'
                   }`}
                 >
-                  <div className="relative">
+                  <div>
                     <Icon className="h-4.5 w-4.5 text-slate-500 group-hover:text-blue-600 transition-colors" />
-                    {menu.id === 'projects' && dropRequestCount > 0 && (
-                      <span
-                        title={`${dropRequestCount} Drop Request${dropRequestCount > 1 ? 's' : ''} Pending`}
-                        className="absolute -top-1.5 -right-2.5 flex items-center justify-center pointer-events-none"
-                      >
-                        <span className="relative flex items-center justify-center bg-rose-600 text-white font-black text-[9px] min-w-[17px] h-[17px] px-1 rounded-full shadow-md border border-white dark:border-slate-800 animate-pulse">
-                          <Bell className="h-2 w-2 mr-0.5 fill-current shrink-0" />
-                          <span>{dropRequestCount > 99 ? '99+' : dropRequestCount}</span>
-                        </span>
-                      </span>
-                    )}
                   </div>
                   <span className="text-[9px] tracking-tight uppercase flex items-center gap-0.5 select-none whitespace-nowrap">
                     {menu.label}

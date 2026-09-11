@@ -128,6 +128,8 @@ export function mapProjectListRow(raw = {}, index = 0) {
     ),
     physicalProgress: safeNumber(raw.physical_progress || raw.physicalProgress),
     financialProgress: safeNumber(raw.financial_progress || raw.financialProgress),
+    dropDate: raw.drop_date || raw.dropDate || raw.raw?.drop_date || null,
+    dropRemarks: textOrDash(raw.drop_remarks || raw.dropRemarks || raw.remarks || raw.raw?.drop_remarks),
     raw,
   };
 }
