@@ -134,7 +134,7 @@ export default function AttendanceView({ triggerNotification }) {
   const [detailTitle, setDetailTitle] = useState('');
 
   // Page limit for tables
-  const [pageSize, setPageSize] = useState(15);
+  const [pageSize, setPageSize] = useState(10);
   const gridRef = useRef(null);
   const [fetchError, setFetchError] = useState(null);
 
@@ -639,7 +639,7 @@ export default function AttendanceView({ triggerNotification }) {
     return [
       {
         headerName: 'S.No',
-        valueGetter: (params) => (params.node ? params.node.rowIndex + 1 : 1),
+        valueGetter: (params) => (params.node && !params.node.rowPinned ? params.node.rowIndex + 1 : ''),
         width: 70,
         pinned: 'left',
         cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
@@ -703,7 +703,7 @@ export default function AttendanceView({ triggerNotification }) {
     return [
       {
         headerName: 'S.No',
-        valueGetter: (params) => (params.node ? params.node.rowIndex + 1 : 1),
+        valueGetter: (params) => (params.node && !params.node.rowPinned ? params.node.rowIndex + 1 : ''),
         width: 70,
         pinned: 'left',
         cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
