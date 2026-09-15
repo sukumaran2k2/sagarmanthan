@@ -70,9 +70,6 @@ export function deriveSagarmalaFunding(sourceOfFunding) {
   return ids.includes('8') ? '1' : '';
 }
 
-/**
- * Normalize Others selections into API-ready values (legacy addNewProject parity).
- */
 export function normalizeProjectFormForSubmit(form = {}) {
   const next = { ...form };
 

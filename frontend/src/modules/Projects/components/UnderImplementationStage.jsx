@@ -1,18 +1,26 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Columns3, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Activity, Columns3, DollarSign, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   deleteExpenditureLogRow,
   editExpenditureComponentsDetails,
   fetchDelayReason,
   fetchExpenditureDetails,
+  fetchExpenditureMainFinancialYear,
   fetchFundingComponents,
   fetchInaugurationDates,
   fetchPhysicalProgress,
+  fetchTotalExpenditureValue,
   fetchUnderImplementationMilestones,
+  submitExpenditureDetail,
 } from '../api';
 import { getProjectIdentity } from '../utils/mapProject';
-import { DEFAULT_MILESTONES, mapMilestonesFromApi, sliceDate } from '../utils/stageMappers';
+import {
+  DEFAULT_MILESTONES,
+  mapMilestonesFromApi,
+  sliceDate,
+  yearForMonth,
+} from '../utils/stageMappers';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
@@ -59,6 +67,11 @@ const formatCrores = (value) =>
     maximumFractionDigits: 2,
   }).format(toNumber(value));
 
+function displayMonth(value) {
+  const key = Number(value);
+  return MONTH_NAME_BY_VALUE[key] || value || '-';
+}
+
 export default function UnderImplementationStage({
   projectID: projectIDProp,
   subProjectID: subProjectIDProp,
@@ -83,7 +96,8 @@ export default function UnderImplementationStage({
   const [progressDate, setProgressDate] = useState('');
   const [progressValue, setProgressValue] = useState('0');
   const [previousProgressValue, setPreviousProgressValue] = useState(null);
-  const [progressLocked, setProgressLocked] = useState(false);
+  const [progressLocked, setProgressLocked] = useState(true);
+  const [progressSnapshot, setProgressSnapshot] = useState({ date: '', value: '0' });
   const [delayReason, setDelayReason] = useState('');
   const [inauguration, setInauguration] = useState('');
   const [inaugurationDate, setInaugurationDate] = useState('');
@@ -137,9 +151,7 @@ export default function UnderImplementationStage({
     () => Object.values(components).some((value) => String(value || '').trim() !== ''),
     [components]
   );
-  const hasPendingFinancialEntry = !editingFinancialRow && Boolean(financialYear || month || hasAnyComponentValue);
   const financialGridRows = useMemo(() => {
-    const rows = [];
     const toComponentsText = (source) =>
       COMPONENT_KEYS.map((item) => {
         const raw = source[item.key];
@@ -150,31 +162,13 @@ export default function UnderImplementationStage({
         .filter(Boolean)
         .join(', ');
 
-    if (hasPendingFinancialEntry) {
-      const pendingSource = {};
-      COMPONENT_KEYS.forEach((item) => {
-        pendingSource[item.key] = components[item.key];
-      });
-      const pendingRow = {
-        sNo: 1,
-        financialYear: financialYear || '-',
-        month: displayMonth(month),
-        components: toComponentsText(pendingSource) || '-',
-        rawFinancialYear: financialYear || '',
-        rawMonth: month || '',
-        rawComponents: pendingSource,
-        rowState: 'pending',
-      };
-      rows.push(pendingRow);
-    }
-
-    expenditureLogs.forEach((row) => {
+    return expenditureLogs.map((row, index) => {
       const source = {};
       COMPONENT_KEYS.forEach((item) => {
         source[item.key] = row[item.apiField];
       });
-      const savedRow = {
-        sNo: rows.length + 1,
+      return {
+        sNo: index + 1,
         financialYear: row.year || row.financial_year || '-',
         month: displayMonth(row.month),
         components: toComponentsText(source) || '-',
@@ -183,18 +177,8 @@ export default function UnderImplementationStage({
         rawComponents: source,
         rowState: 'saved',
       };
-      rows.push(savedRow);
     });
-
-    return rows;
-  }, [
-    hasPendingFinancialEntry,
-    financialYear,
-    month,
-    components,
-    expenditureLogs,
-    visibleFields,
-  ]);
+  }, [expenditureLogs]);
 
   const financialColumnDefs = useMemo(() => {
     const cols = [
@@ -391,12 +375,18 @@ export default function UnderImplementationStage({
 
         const progressRow = Array.isArray(progressRes?.data) ? progressRes.data[0] : null;
         if (progressRow) {
-          setProgressDate(sliceDate(progressRow.progress_date || progressRow.as_on_date));
-          setProgressValue(String(progressRow.physical_progress ?? progressRow.progress_value ?? '0'));
+          const loadedDate = sliceDate(progressRow.progress_date || progressRow.as_on_date);
+          const loadedValue = String(progressRow.physical_progress ?? progressRow.progress_value ?? '0');
+          setProgressDate(loadedDate);
+          setProgressValue(loadedValue);
           setPreviousProgressValue(
             Number(progressRow.physical_progress ?? progressRow.progress_value ?? 0)
           );
+          setProgressSnapshot({ date: loadedDate, value: loadedValue });
           setProgressLocked(true);
+        } else {
+          setProgressSnapshot({ date: '', value: '0' });
+          setProgressLocked(false);
         }
 
         const delayRow = Array.isArray(delayRes?.data) ? delayRes.data[0] : null;
@@ -452,6 +442,14 @@ export default function UnderImplementationStage({
 
   const handleSubmit = () => {
     const progressNum = Number(progressValue);
+    const hasProgressValue = String(progressValue || '').trim() !== '';
+
+    // Legacy addPhysicalProgress always required the as-on date when saving progress.
+    if (!progressDate && hasProgressValue && String(progressValue) !== '0') {
+      notify?.('Please select a physical progress as on date', 'error');
+      return;
+    }
+
     if (progressDate) {
       if (Number.isNaN(progressNum) || progressNum > 100 || progressNum < 0) {
         notify?.('The physical progress must be less than or equal to 100 %.', 'error');
@@ -468,9 +466,6 @@ export default function UnderImplementationStage({
         );
         return;
       }
-    } else if (String(progressValue || '').trim() && String(progressValue) !== '0') {
-      notify?.('Please select a physical progress as on date.', 'error');
-      return;
     }
 
     onSubmitStage?.('implementation', {
@@ -481,10 +476,6 @@ export default function UnderImplementationStage({
       inauguration,
       inaugurationDate,
       tentativeInaugurationDate,
-      financialYear,
-      month,
-      components,
-      awardProjectCost,
     });
   };
 
@@ -493,16 +484,21 @@ export default function UnderImplementationStage({
     setActiveSection(targetSection);
   };
 
+  const clearFinancialDraft = () => {
+    setFinancialYear('');
+    setMonth('');
+    setComponents(buildEmptyComponents());
+  };
+
   const openFinancialModal = () => {
     setEditingFinancialRow(null);
+    clearFinancialDraft();
     setFinancialModalOpen(true);
   };
 
   const closeFinancialModal = () => {
     setFinancialModalOpen(false);
-    if (editingFinancialRow) {
-      clearFinancialDraft();
-    }
+    clearFinancialDraft();
     setEditingFinancialRow(null);
   };
 
@@ -525,10 +521,7 @@ export default function UnderImplementationStage({
   }
 
   function handleDeleteExpenditureLog(row) {
-    if (row?.rowState !== 'saved') {
-      clearFinancialDraft();
-      return;
-    }
+    if (row?.rowState !== 'saved') return;
     setDeleteConfirmModal({ open: true, row });
   }
 
@@ -565,7 +558,6 @@ export default function UnderImplementationStage({
         String(editingFinancialRow.month) === String(row.rawMonth)
       ) {
         closeFinancialModal();
-        clearFinancialDraft();
       }
       closeDeleteConfirmModal();
       notify?.('Expenditure log deleted successfully.', 'success');
@@ -616,7 +608,6 @@ export default function UnderImplementationStage({
           })
         );
         closeFinancialModal();
-        clearFinancialDraft();
         notify?.('Expenditure details updated successfully.', 'success');
       } catch (error) {
         console.error(error);
@@ -625,19 +616,64 @@ export default function UnderImplementationStage({
       return;
     }
 
-    setFinancialModalOpen(false);
-  };
+    try {
+      const checkRes = await fetchExpenditureMainFinancialYear(
+        projectID,
+        subProjectID,
+        financialYear,
+        month
+      );
+      const yearCount = Number(checkRes?.data?.[0]?.yearCount || 0);
+      if (yearCount >= 1) {
+        notify?.(
+          'Expenditure log already present for the selected financial year and month',
+          'error'
+        );
+        return;
+      }
 
-  const clearFinancialDraft = () => {
-    setFinancialYear('');
-    setMonth('');
-    setComponents(buildEmptyComponents());
-  };
+      const totalRes = await fetchTotalExpenditureValue(projectID, subProjectID);
+      const totalExpenditure = toNumber(totalRes?.data?.[0]?.total_expenditure);
+      const added = COMPONENT_KEYS.reduce(
+        (sum, item) => sum + toNumber(components[item.key]),
+        0
+      );
+      const calculatedTotal = totalExpenditure + added;
+      const awardCost = toNumber(awardProjectCost);
 
-  function displayMonth(value) {
-    const key = Number(value);
-    return MONTH_NAME_BY_VALUE[key] || value || '-';
-  }
+      if (awardCost > 0 && calculatedTotal > awardCost) {
+        notify?.('Total expenditure should not exceed the awarded project cost', 'error');
+        return;
+      }
+
+      const financialProgress = awardCost > 0 ? (calculatedTotal / awardCost) * 100 : 0;
+      await submitExpenditureDetail({
+        projectID,
+        subProjectID,
+        financialYear: yearForMonth(month, financialYear),
+        financialYearOriginal: financialYear,
+        month,
+        gbsComponents: components.gbsComponents || 0,
+        iebrComponents: components.iebrComponents || 0,
+        pppComponents: components.pppComponents || 0,
+        loansComponents: components.loansComponents || 0,
+        multilateralComponents: components.multilateralComponents || 0,
+        stateGovFundComponents: components.stateGovFundComponents || 0,
+        pmmsyComponents: components.pmmsyComponents || 0,
+        sagarmalaComponents: components.sagarmalaComponents || 0,
+        otherSourceFunding: components.otherSourceFunding || 0,
+        financialProgress,
+      });
+
+      const expRes = await fetchExpenditureDetails(projectID, subProjectID);
+      setExpenditureLogs(Array.isArray(expRes?.data) ? expRes.data : []);
+      closeFinancialModal();
+      notify?.('Expenditure details submitted successfully.', 'success');
+    } catch (error) {
+      console.error(error);
+      notify?.('Failed to save expenditure details.', 'error');
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -663,6 +699,9 @@ export default function UnderImplementationStage({
             }`}>
               1
             </span>
+            <Activity className={`h-3.5 w-3.5 ${
+              activeSection === 'physical' ? 'text-[#0f417a]' : 'text-slate-400'
+            }`} />
             <span>Physical Progress</span>
           </button>
           <button
@@ -681,6 +720,9 @@ export default function UnderImplementationStage({
             }`}>
               2
             </span>
+            <DollarSign className={`h-3.5 w-3.5 ${
+              activeSection === 'financial' ? 'text-[#0f417a]' : 'text-slate-400'
+            }`} />
             <span>Financial Progress</span>
           </button>
         </div>
@@ -688,29 +730,71 @@ export default function UnderImplementationStage({
 
       {activeSection === 'physical' && (
         <>
-          <div className="border border-slate-200 rounded-2xl p-4 bg-white">
+          <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-lg text-blue-600 dark:text-blue-400">
+              <Activity className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                Physical Progress
+              </h3>
+              <p className="text-xs text-slate-500">Update progress percentage, milestones, and inauguration details</p>
+            </div>
+          </div>
+
+          <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
             <div className="grid grid-cols-1 md:grid-cols-[1.3fr_1fr_auto] gap-4 items-end">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Physical Progress as on</label>
-                <input type="date" max={today} value={progressDate} disabled={progressDisabled} onChange={(e) => setProgressDate(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
+                <label className="block text-xs font-bold text-slate-800 mb-1">Physical Progress as on</label>
+                <input
+                  type="date"
+                  max={today}
+                  value={progressDate}
+                  disabled={progressDisabled}
+                  onChange={(e) => setProgressDate(e.target.value)}
+                  className={`w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg ${
+                    progressDisabled
+                      ? 'bg-slate-100 text-slate-500 cursor-not-allowed'
+                      : 'bg-white text-slate-800'
+                  }`}
+                />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Physical Progress (%)</label>
-                <input type="number" min="0" max="100" value={progressValue} disabled={progressDisabled} onChange={(e) => setProgressValue(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
+                <label className="block text-xs font-bold text-slate-800 mb-1">Physical Progress (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={progressValue}
+                  disabled={progressDisabled}
+                  onChange={(e) => setProgressValue(e.target.value)}
+                  className={`w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg ${
+                    progressDisabled
+                      ? 'bg-slate-100 text-slate-500 cursor-not-allowed'
+                      : 'bg-white text-slate-800'
+                  }`}
+                />
               </div>
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={disabled}
-                  onClick={() => setProgressLocked(false)}
+                  disabled={disabled || !progressLocked}
+                  onClick={() => {
+                    setProgressSnapshot({ date: progressDate, value: progressValue });
+                    setProgressLocked(false);
+                  }}
                   className="px-3 py-2 text-xs font-bold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 disabled:opacity-60"
                 >
                   Edit
                 </button>
                 <button
                   type="button"
-                  disabled={disabled}
-                  onClick={() => setProgressLocked(true)}
+                  disabled={disabled || progressLocked}
+                  onClick={() => {
+                    setProgressDate(progressSnapshot.date);
+                    setProgressValue(progressSnapshot.value);
+                    setProgressLocked(true);
+                  }}
                   className="px-3 py-2 text-xs font-bold rounded-lg border border-rose-200 text-rose-700 bg-rose-50 disabled:opacity-60"
                 >
                   Cancel
@@ -719,13 +803,16 @@ export default function UnderImplementationStage({
             </div>
           </div>
 
-          <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white">
+          <div className="border border-slate-200 rounded-2xl bg-white">
             <table className="min-w-full text-xs">
-              <thead className="bg-[#0f417a] text-white">
+              <thead
+                className="sticky z-30 bg-[#0f417a] text-white shadow-sm"
+                style={{ top: 'var(--stage-table-sticky-top, 42px)' }}
+              >
                 <tr>
-                  <th className="text-left px-3 py-2.5">Milestone</th>
-                  <th className="text-left px-3 py-2.5">Targeted End Date</th>
-                  <th className="text-left px-3 py-2.5">Actual End Date</th>
+                  <th className="text-left px-3 py-2.5 bg-[#0f417a]">Milestone</th>
+                  <th className="text-left px-3 py-2.5 bg-[#0f417a]">Targeted End Date</th>
+                  <th className="text-left px-3 py-2.5 bg-[#0f417a]">Actual End Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -741,13 +828,13 @@ export default function UnderImplementationStage({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="border border-slate-200 rounded-xl bg-white p-4">
-              <label className="block text-xs font-bold text-slate-700 mb-1">Reasons for Delay (if any)</label>
-              <input type="text" value={delayReason} disabled={disabled} onChange={(e) => setDelayReason(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
+            <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
+              <label className="block text-xs font-bold text-slate-800 mb-1">Reasons for Delay (if any)</label>
+              <input type="text" value={delayReason} disabled={disabled} onChange={(e) => setDelayReason(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white" />
             </div>
 
-            <div className="border border-slate-200 rounded-xl bg-white p-4 space-y-3">
-              <p className="text-xs font-bold text-slate-700">Whether the Project is Inaugurated?</p>
+            <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-3">
+              <p className="text-xs font-bold text-slate-800">Whether the Project is Inaugurated?</p>
               <div className="flex gap-6 text-xs font-semibold text-slate-700">
                 <label className="inline-flex items-center gap-2"><input type="radio" value="yes" checked={inauguration === 'yes'} disabled={disabled} onChange={(e) => setInauguration(e.target.value)} /> Yes</label>
                 <label className="inline-flex items-center gap-2"><input type="radio" value="no" checked={inauguration === 'no'} disabled={disabled} onChange={(e) => setInauguration(e.target.value)} /> No</label>
@@ -755,13 +842,13 @@ export default function UnderImplementationStage({
               {inauguration === 'yes' && (
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">Date of Inauguration</label>
-                  <input type="date" max={today} value={inaugurationDate} disabled={disabled} onChange={(e) => setInaugurationDate(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
+                  <input type="date" max={today} value={inaugurationDate} disabled={disabled} onChange={(e) => setInaugurationDate(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white" />
                 </div>
               )}
               {inauguration === 'no' && (
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">Tentative Date of Inauguration</label>
-                  <input type="date" value={tentativeInaugurationDate} disabled={disabled} onChange={(e) => setTentativeInaugurationDate(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
+                  <input type="date" value={tentativeInaugurationDate} disabled={disabled} onChange={(e) => setTentativeInaugurationDate(e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white" />
                 </div>
               )}
             </div>
@@ -770,7 +857,20 @@ export default function UnderImplementationStage({
       )}
 
       {activeSection === 'financial' && (
-        <div className="border border-slate-200 rounded-2xl bg-white p-4 space-y-4">
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg text-emerald-600 dark:text-emerald-400">
+              <DollarSign className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
+                Financial Progress
+              </h3>
+              <p className="text-xs text-slate-500">Record expenditure logs and funding component breakup</p>
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-2xl bg-white p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-black text-[#0f417a] uppercase">Expenditure Logs</h3>
             <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -825,16 +925,6 @@ export default function UnderImplementationStage({
                   </div>
                 ) : null}
               </div>
-              {hasPendingFinancialEntry && !editingFinancialRow ? (
-                <button
-                  type="button"
-                  onClick={clearFinancialDraft}
-                  disabled={disabled}
-                  className="px-3 py-1.5 text-xs font-bold border border-rose-200 rounded-lg text-rose-700 bg-rose-50 disabled:opacity-60"
-                >
-                  Clear Pending
-                </button>
-              ) : null}
               <button
                 type="button"
                 onClick={openFinancialModal}
@@ -842,7 +932,7 @@ export default function UnderImplementationStage({
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-lg text-white bg-[#0f417a] hover:bg-[#1d5594] shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Plus className="h-3.5 w-3.5" />
-                {hasPendingFinancialEntry ? 'Edit Pending Entry' : 'Add Financial Progress'}
+                Add Financial Progress
               </button>
             </div>
           </div>
@@ -865,9 +955,6 @@ export default function UnderImplementationStage({
               </p>
               <p className="mt-1 text-base font-black text-amber-800">
                 Rs. {formatCrores(totalExpenditureTillDate)} Cr
-              </p>
-              <p className="text-[11px] font-semibold text-amber-700/80">
-                Total saved expenditure
               </p>
             </div>
           </div>
@@ -892,6 +979,7 @@ export default function UnderImplementationStage({
           {!financialGridRows.length ? (
             <p className="text-xs text-slate-500">No expenditure logs found.</p>
           ) : null}
+          </div>
         </div>
       )}
 
