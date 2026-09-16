@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Edit, Eye, Search, X, List, BarChart3, Building2, ChevronDown, Filter, 
-  Trash2, Plus, Layers, TrendingUp, DollarSign, Calendar, Check, Ban, File, Minus, Anchor
+  Trash2, Plus, Layers, TrendingUp, DollarSign, Calendar, Check, Ban, File, Minus, Anchor,
+  Clock, CheckCircle2, XCircle
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import Table from '../../../components/Table';
@@ -9,6 +10,7 @@ import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import ProjectDetailModal from './ProjectDetailModal';
+import ProjectDetailView from './ProjectDetailView';
 
 const STATUS_COLORS = {
   'Under Implementation': '#0284c7',
@@ -50,6 +52,7 @@ export default function ProjectsListTable({
   dropBusyId = null,
   onAddNew,
   onOpenBasicInfo,
+  onOpenProjectDetail,
   onDropProject,
   onPageChange,
   onPageSizeChange,
@@ -70,8 +73,10 @@ export default function ProjectsListTable({
     physicalProgress: true,
     financialProgress: true,
     stage: true,
-    dropDate: true,
+    dropReqAt: true,
+    dropReqApprovedAt: true,
     dropRemarks: true,
+    dropStatus: true,
     actions: true,
   });
 
@@ -225,18 +230,25 @@ export default function ProjectsListTable({
           );
 
           return (
-            <div className="flex flex-col items-center justify-center text-center py-1.5 w-full">
+            <div 
+              className="flex flex-col items-center justify-center text-center py-1.5 w-full cursor-pointer group select-none"
+              onClick={() => {
+                if (onOpenProjectDetail) onOpenProjectDetail(params.data);
+                else setSelectedProjectForView(params.data);
+              }}
+              title="Click to view full project details"
+            >
               {hasSub ? (
                 <>
                   <span 
-                    className="text-[11px] font-black text-slate-900 dark:text-slate-100 font-mono whitespace-nowrap"
+                    className="text-[11px] font-black text-slate-900 dark:text-slate-100 font-mono whitespace-nowrap group-hover:text-blue-600 dark:group-hover:text-blue-400 transition"
                     title={`Sub Project ID: ${subId}`}
                     style={{ fontWeight: 900 }}
                   >
-                    Sub Project <span className="font-black text-[#0f417a] dark:text-blue-300" style={{ fontWeight: 900 }}>{subId}</span>
+                    Sub Project <span className="font-black text-[#0f417a] dark:text-blue-300 group-hover:underline" style={{ fontWeight: 900 }}>{subId}</span>
                   </span>
                   <span 
-                    className="font-extrabold text-[#0f417a] dark:text-blue-300 font-mono tracking-wide text-xs mt-0.5"
+                    className="font-extrabold text-[#0f417a] dark:text-blue-300 font-mono tracking-wide text-xs mt-0.5 group-hover:underline"
                     title={`Main ID: ${pid}`}
                   >
                     Main: {pid}
@@ -244,7 +256,7 @@ export default function ProjectsListTable({
                 </>
               ) : (
                 <span 
-                  className="font-extrabold text-[#0f417a] dark:text-blue-300 font-mono tracking-wide text-xs"
+                  className="font-extrabold text-[#0f417a] dark:text-blue-300 font-mono tracking-wide text-xs group-hover:underline"
                   title={`Project ID: ${pid}`}
                 >
                   {pid}
@@ -290,11 +302,18 @@ export default function ProjectsListTable({
           const hasSubName = subName && subName !== '-';
           
           return (
-            <div className="flex flex-col text-left py-1.5 w-full">
+            <div 
+              className="flex flex-col text-left py-1.5 w-full cursor-pointer group select-none"
+              onClick={() => {
+                if (onOpenProjectDetail) onOpenProjectDetail(params.data);
+                else setSelectedProjectForView(params.data);
+              }}
+              title="Click to view full project details"
+            >
               {hasSubName ? (
                 <>
                   <span 
-                    className="font-bold text-slate-800 dark:text-slate-100"
+                    className="font-bold text-[#0f417a] dark:text-blue-400 group-hover:underline group-hover:text-blue-700 dark:group-hover:text-blue-300 transition leading-snug"
                     title={subName}
                   >
                     {subName}
@@ -305,7 +324,7 @@ export default function ProjectsListTable({
                 </>
               ) : (
                 <span 
-                  className="font-bold text-slate-800 dark:text-slate-100"
+                  className="font-bold text-[#0f417a] dark:text-blue-400 group-hover:underline group-hover:text-blue-700 dark:group-hover:text-blue-300 transition leading-snug"
                   title={mainName}
                 >
                   {mainName}
@@ -348,16 +367,24 @@ export default function ProjectsListTable({
         field: 'sanctionedCost',
         headerName: 'Sanctioned Cost (₹ Cr)',
         width: 150,
-        cellClass: 'font-bold text-emerald-600 dark:text-emerald-400 text-right font-mono text-xs',
-        headerClass: 'text-right',
+        cellClass: 'font-bold text-emerald-600 dark:text-emerald-400 text-center font-mono text-xs flex items-center justify-center',
+        headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+        },
         cellRenderer: (params) => {
           const val = params.data?.sanctionedCost ?? params.data?.cost ?? params.value;
           return (
-            <span>
-              {val !== undefined && val !== null && val !== ''
-                ? `₹ ${toAmount(val)}`
-                : '-'}
-            </span>
+            <div className="w-full flex items-center justify-center text-center">
+              <span>
+                {val !== undefined && val !== null && val !== ''
+                  ? `₹ ${toAmount(val)}`
+                  : '-'}
+              </span>
+            </div>
           );
         },
       });
@@ -368,13 +395,19 @@ export default function ProjectsListTable({
         field: 'physicalProgress',
         headerName: 'Physical Progress',
         width: 130,
-        cellClass: 'font-mono text-center font-bold text-slate-700 dark:text-slate-300 text-xs',
+        cellClass: 'font-mono text-center font-bold text-slate-700 dark:text-slate-300 text-xs flex items-center justify-center',
         headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+        },
         cellRenderer: (params) => {
           const val = params.value !== undefined && params.value !== null && params.value !== ''
             ? `${Number(params.value).toFixed(0)}%`
             : '0%';
-          return <span>{val}</span>;
+          return <div className="w-full flex items-center justify-center text-center"><span>{val}</span></div>;
         },
       });
     }
@@ -384,13 +417,19 @@ export default function ProjectsListTable({
         field: 'financialProgress',
         headerName: 'Financial Progress',
         width: 130,
-        cellClass: 'font-mono text-center font-bold text-slate-700 dark:text-slate-300 text-xs',
+        cellClass: 'font-mono text-center font-bold text-slate-700 dark:text-slate-300 text-xs flex items-center justify-center',
         headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+        },
         cellRenderer: (params) => {
           const val = params.value !== undefined && params.value !== null && params.value !== ''
             ? `${Number(params.value).toFixed(0)}%`
             : '0%';
-          return <span>{val}</span>;
+          return <div className="w-full flex items-center justify-center text-center"><span>{val}</span></div>;
         },
       });
     }
@@ -403,49 +442,141 @@ export default function ProjectsListTable({
       cols.push({
         field: 'stage',
         headerName: 'Status / Stage',
-        width: 170,
-        cellClass: 'text-xs font-semibold text-slate-800 dark:text-slate-200 text-left flex items-center',
-        headerClass: 'text-left',
+        width: 190,
+        cellClass: 'text-xs font-semibold text-slate-800 dark:text-slate-200 text-center flex items-center justify-center',
+        headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+        },
         cellRenderer: (params) => {
-          const isDropped = String(params.value || '').toLowerCase().includes('drop');
-          if (isDropped) {
-            return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-xs">
+          const val = params.value || params.data?.stage || 'Project Initiated';
+          const s = String(val).toLowerCase();
+
+          let badgeContent;
+          if (s.includes('drop')) {
+            badgeContent = (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 shadow-xs">
                 <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
                 <span>Dropped</span>
               </span>
             );
+          } else if (s.includes('complete')) {
+            badgeContent = (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 shadow-xs">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>Completed</span>
+              </span>
+            );
+          } else if (s.includes('implement')) {
+            badgeContent = (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800 shadow-xs">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0"></span>
+                <span>Under Implementation</span>
+              </span>
+            );
+          } else if (s.includes('tender')) {
+            badgeContent = (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800 shadow-xs">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-600 dark:bg-amber-400 shrink-0"></span>
+                <span>Under Tendering</span>
+              </span>
+            );
+          } else {
+            badgeContent = (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800 shadow-xs">
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shrink-0"></span>
+                <span>{val || 'Project Initiated'}</span>
+              </span>
+            );
           }
-          return <span>{params.value || 'Project Initiated'}</span>;
+
+          return (
+            <div className="w-full flex items-center justify-center text-center">
+              {badgeContent}
+            </div>
+          );
         },
       });
     }
 
-    // Dropped Date with timestamp column: ONLY shown in the "DROPPED" tab
-    if (isDroppedTab && visibleCols.dropDate !== false) {
+    // Drop Req At column: ONLY shown in the "DROPPED" tab
+    if (isDroppedTab && visibleCols.dropReqAt !== false) {
       cols.push({
-        field: 'dropDate',
-        headerName: 'Dropped Date & Time',
-        width: 190,
-        minWidth: 170,
+        field: 'dropReqAt',
+        headerName: 'Drop Req At',
+        width: 185,
+        minWidth: 165,
         cellClass: 'text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
         headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+        },
         valueGetter: (params) => {
-          const val = params.data?.dropDate || params.data?.raw?.drop_date || params.value;
+          const val = params.data?.dropReqAt || params.data?.raw?.drop_req_at || params.data?.raw?.submitted_on || params.data?.dropDate || params.data?.raw?.drop_date || params.value;
+          if (!val || val === '-') return '-';
+          const d = new Date(val);
+          if (isNaN(d.getTime())) return String(val);
+          return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+        },
+        cellRenderer: (params) => {
+          const val = params.data?.dropReqAt || params.data?.raw?.drop_req_at || params.data?.raw?.submitted_on || params.data?.dropDate || params.data?.raw?.drop_date || params.value;
+          if (!val || val === '-') return <div className="w-full flex items-center justify-center text-center"><span className="text-slate-400 font-mono text-xs">-</span></div>;
+          const d = new Date(val);
+          if (isNaN(d.getTime())) return <div className="w-full flex items-center justify-center text-center"><span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{val}</span></div>;
+
+          return (
+            <div className="flex flex-col items-center justify-center text-center py-1 w-full leading-tight">
+              <span className="font-bold text-slate-800 dark:text-slate-200 font-mono text-xs">
+                {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                {d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+              </span>
+            </div>
+          );
+        },
+      });
+    }
+
+    // Drop Req Approved At column: ONLY shown in the "DROPPED" tab
+    if (isDroppedTab && visibleCols.dropReqApprovedAt !== false) {
+      cols.push({
+        field: 'dropReqApprovedAt',
+        headerName: 'Drop Req Approved At',
+        width: 195,
+        minWidth: 175,
+        cellClass: 'text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
+        headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+        },
+        valueGetter: (params) => {
+          const isApproved = String(params.data?.dropStatus || params.data?.raw?.drop_status || '').toLowerCase().includes('approve') || params.data?.project_status === 0 || params.data?.raw?.status === 0;
+          const val = params.data?.dropReqApprovedAt || params.data?.raw?.drop_req_approved_at || (isApproved ? (params.data?.dropDate || params.data?.raw?.drop_date) : null) || params.value;
           if (!val) return '-';
           const d = new Date(val);
           if (isNaN(d.getTime())) return String(val);
           return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
         },
         cellRenderer: (params) => {
-          const val = params.data?.dropDate || params.data?.raw?.drop_date || params.value;
-          if (!val) return <span className="text-slate-400 font-mono text-xs">-</span>;
+          const isApproved = String(params.data?.dropStatus || params.data?.raw?.drop_status || '').toLowerCase().includes('approve') || params.data?.project_status === 0 || params.data?.raw?.status === 0;
+          const val = params.data?.dropReqApprovedAt || params.data?.raw?.drop_req_approved_at || (isApproved ? (params.data?.dropDate || params.data?.raw?.drop_date) : null) || params.value;
+          if (!val || !isApproved) return <div className="w-full flex items-center justify-center text-center"><span className="text-slate-400 font-mono text-xs italic">-</span></div>;
           const d = new Date(val);
-          if (isNaN(d.getTime())) return <span className="text-xs font-mono font-semibold text-rose-600">{val}</span>;
+          if (isNaN(d.getTime())) return <div className="w-full flex items-center justify-center text-center"><span className="text-xs font-mono font-semibold text-emerald-600">{val}</span></div>;
 
           return (
             <div className="flex flex-col items-center justify-center text-center py-1 w-full leading-tight">
-              <span className="font-bold text-rose-700 dark:text-rose-400 font-mono text-xs">
+              <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono text-xs">
                 {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
               </span>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
@@ -462,20 +593,32 @@ export default function ProjectsListTable({
       cols.push({
         field: 'dropRemarks',
         headerName: 'Drop Reason',
-        width: 250,
-        minWidth: 180,
-        cellClass: 'text-xs text-slate-700 dark:text-slate-300 text-left flex items-center',
+        width: 280,
+        minWidth: 200,
+        flex: 1.5,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-xs text-slate-700 dark:text-slate-300 text-left flex items-center justify-start',
         headerClass: 'text-left',
+        cellStyle: {
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: '1.4',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          textAlign: 'left',
+        },
         valueGetter: (params) => {
           return params.data?.dropRemarks || params.data?.raw?.drop_remarks || params.data?.raw?.remarks || params.value || '-';
         },
         cellRenderer: (params) => {
           const val = params.data?.dropRemarks || params.data?.raw?.drop_remarks || params.data?.raw?.remarks || params.value;
           if (!val || val === '-') {
-            return <span className="text-slate-400 font-mono text-xs italic">-</span>;
+            return <span className="text-slate-400 font-mono text-xs italic text-left">-</span>;
           }
           return (
-            <div className="text-xs text-slate-700 dark:text-slate-200 line-clamp-2 leading-relaxed py-1" title={val}>
+            <div className="text-xs text-slate-700 dark:text-slate-200 whitespace-normal break-words leading-relaxed py-1.5 w-full text-left" style={{ textAlign: 'left' }} title={val}>
               {val}
             </div>
           );
@@ -483,7 +626,70 @@ export default function ProjectsListTable({
       });
     }
 
-    if (visibleCols.actions) {
+    // Drop Status column: ONLY shown in the "DROPPED" tab
+    if (isDroppedTab && visibleCols.dropStatus !== false) {
+      cols.push({
+        field: 'dropStatus',
+        headerName: 'Drop Status',
+        width: 220,
+        minWidth: 190,
+        autoHeight: true,
+        wrapText: true,
+        cellClass: 'text-xs font-semibold text-center flex items-center justify-center py-2',
+        headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          minHeight: '48px',
+        },
+        valueGetter: (params) => {
+          return params.data?.dropStatus || params.data?.raw?.drop_status || params.value || 'Approved';
+        },
+        cellRenderer: (params) => {
+          const status = params.data?.dropStatus || params.data?.raw?.drop_status || params.value || 'Approved';
+          const s = String(status).toLowerCase();
+
+          let statusBadge;
+          if (s.includes('wait') || s.includes('pending')) {
+            statusBadge = (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 shadow-xs tracking-tight whitespace-nowrap min-h-[28px]">
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+                <Clock className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>Waiting for Approval</span>
+              </span>
+            );
+          } else if (s.includes('reject')) {
+            statusBadge = (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 shadow-xs tracking-tight whitespace-nowrap min-h-[28px]">
+                <XCircle className="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
+                <span>Rejected</span>
+              </span>
+            );
+          } else {
+            statusBadge = (
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 shadow-xs tracking-tight whitespace-nowrap min-h-[28px]">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span>Approved</span>
+              </span>
+            );
+          }
+
+          return (
+            <div className="w-full flex items-center justify-center text-center py-1">
+              {statusBadge}
+            </div>
+          );
+        },
+      });
+    }
+
+    // Action column: NOT shown in the "DROPPED" tab
+    if (!isDroppedTab && visibleCols.actions) {
       cols.push({
         headerName: 'Action',
         width: 140,
@@ -508,8 +714,11 @@ export default function ProjectsListTable({
               ) : canView ? (
                 <button
                   type="button"
-                  onClick={() => setSelectedProjectForView(row)}
-                  title="View Project"
+                  onClick={() => {
+                    if (onOpenProjectDetail) onOpenProjectDetail(row);
+                    else setSelectedProjectForView(row);
+                  }}
+                  title="View Project Details"
                   className="p-1.5 hover:bg-blue-50 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-lg transition cursor-pointer"
                 >
                   <Eye className="h-4 w-4" />
@@ -545,7 +754,7 @@ export default function ProjectsListTable({
     }
 
     return cols;
-  }, [visibleCols, canEdit, canView, canDropProject, dropBusyId, onOpenBasicInfo, onDropProject, filters?.projectStage]);
+  }, [visibleCols, canEdit, canView, canDropProject, dropBusyId, onOpenBasicInfo, onOpenProjectDetail, onDropProject, filters?.projectStage]);
 
   const handleExport = (type) => {
     if (type === 'Copy') {
@@ -646,6 +855,24 @@ export default function ProjectsListTable({
       printWindow.document.close();
     }
   };
+
+  if (selectedProjectForView) {
+    return (
+      <ProjectDetailView
+        project={selectedProjectForView}
+        onBack={() => setSelectedProjectForView(null)}
+        onEdit={
+          canEdit
+            ? (row) => {
+                setSelectedProjectForView(null);
+                onOpenBasicInfo?.(row, { readOnly: false });
+              }
+            : undefined
+        }
+        canEdit={canEdit}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in relative text-slate-800 dark:text-slate-100">
@@ -809,9 +1036,14 @@ export default function ProjectsListTable({
                       : []),
                     ...(filters?.projectStage === 'Dropped'
                       ? [
-                          { key: 'dropDate', label: 'Dropped Date & Time' },
+                          { key: 'dropReqAt', label: 'Drop Req At' },
+                          { key: 'dropReqApprovedAt', label: 'Drop Req Approved At' },
                           { key: 'dropRemarks', label: 'Drop Reason' },
+                          { key: 'dropStatus', label: 'Drop Status' },
                         ]
+                      : []),
+                    ...(filters?.projectStage !== 'Dropped'
+                      ? [{ key: 'actions', label: 'Action' }]
                       : []),
                   ].map((col) => (
                     <label
@@ -1056,21 +1288,6 @@ export default function ProjectsListTable({
         )}
 
       </div>
-
-      {selectedProjectForView && (
-        <ProjectDetailModal
-          project={selectedProjectForView}
-          onClose={() => setSelectedProjectForView(null)}
-          onEdit={
-            canEdit
-              ? (row) => {
-                  setSelectedProjectForView(null);
-                  onOpenBasicInfo?.(row, { readOnly: false });
-                }
-              : undefined
-          }
-        />
-      )}
 
     </div>
   );

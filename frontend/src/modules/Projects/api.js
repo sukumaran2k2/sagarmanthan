@@ -293,4 +293,20 @@ export function rejectDropProject(payload) {
   return api.post('/reject-project-drop-request', payload);
 }
 
+export function fetchViewProjectData(projectID, subProjectID = '-1') {
+  return api.get(`/view-projectdata/${projectID}/${subProjectID}`);
+}
+
+export function fetchViewProjectMilestones(projectID, subProjectID = '-1') {
+  return api.get(`/viewproject-milestone-data/${projectID}/${subProjectID}`);
+}
+
+export function fetchViewProjectTenderData(projectID, subProjectID = '-1') {
+  return api.get(`/viewproject-tender-data/${projectID}/${subProjectID}`);
+}
+
+export function fetchViewProjectImages(projectID, subProjectID = '-1') {
+  return api.get(`/view-projectimages/${projectID}/${subProjectID}`);
+}
+
 export default api;

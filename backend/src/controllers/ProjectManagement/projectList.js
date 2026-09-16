@@ -159,10 +159,12 @@ async function getProjectList(req, res) {
                     ISNULL(sp.sub_status, p.status) AS project_status,
                     CASE
                         WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 99
+                        WHEN dropReq.drop_status IN ('Waiting for Approval', 'Pending Approval from MoPSW') THEN 99
                         ELSE ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
                     END AS current_project_stage_id,
                     CASE
                         WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 'Dropped'
+                        WHEN dropReq.drop_status IN ('Waiting for Approval', 'Pending Approval from MoPSW') THEN 'Dropped'
                         ELSE stage.stage_name
                     END AS stage_name,
                     ISNULL(sp.sub_estimated_cost, p.estimated_cost) AS estimated_cost,
@@ -171,8 +173,29 @@ async function getProjectList(req, res) {
                     ISNULL(ia.ia_name, '') AS primary_ia_name,
                     physicalProgress.physical_progress,
                     financialProgress.financial_progress,
-                    ISNULL(dropReq.drop_date, ISNULL(sp.sub_last_updated, p.last_updated)) AS drop_date,
-                    ISNULL(dropReq.drop_remarks, '-') AS drop_remarks,
+                    CASE
+                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN COALESCE(dropReq.drop_req_at, dropReq.drop_date, sp.sub_last_updated, p.last_updated)
+                        ELSE NULL
+                    END AS drop_req_at,
+                    CASE
+                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN COALESCE(dropReq.drop_req_approved_at, CASE WHEN ISNULL(sp.sub_status, p.status) = 0 THEN COALESCE(dropReq.drop_date, sp.sub_last_updated, p.last_updated) ELSE NULL END)
+                        ELSE NULL
+                    END AS drop_req_approved_at,
+                    CASE
+                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN COALESCE(dropReq.drop_date, sp.sub_last_updated, p.last_updated)
+                        ELSE NULL
+                    END AS drop_date,
+                    CASE
+                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN ISNULL(dropReq.drop_remarks, '-')
+                        ELSE '-'
+                    END AS drop_remarks,
+                    CASE
+                        WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 'Approved'
+                        WHEN dropReq.drop_status IS NOT NULL THEN dropReq.drop_status
+                        ELSE NULL
+                    END AS drop_status,
+                    dropReq.drop_request_status,
+                    dropReq.reject_request_status,
                     ISNULL(sp.sub_is_sagarmala_funded, p.is_sagarmala_funded) AS is_sagarmala_funded,
                     ISNULL(sp.sub_source_of_funding_id, p.source_of_funding_id) AS source_of_funding_id,
                     ISNULL(sp.sub_sagarmala_components, p.sagarmala_components) AS sagarmala_components,
@@ -183,16 +206,37 @@ async function getProjectList(req, res) {
                 LEFT JOIN mmt_organisation org ON org.organisation_id = ISNULL(sp.sub_organisation_id, p.organisation_id)
                 LEFT JOIN mmt_implementing_agency ia ON ia.ia_id = ISNULL(sp.sub_primary_ia_id, p.primary_ia_id)
                 LEFT JOIN tbl_project_stage stage ON stage.stage_id = ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
-                LEFT JOIN (
-                    SELECT project_id, sub_project_id, MAX(drop_date) AS drop_date, MAX(CAST(remarks AS nvarchar(1000))) AS drop_remarks
-                    FROM tbl_project_drop_request
-                    WHERE status = 0 AND drop_date IS NOT NULL
-                    GROUP BY project_id, sub_project_id
-                ) AS dropReq ON dropReq.project_id = p.project_id 
-                    AND (
-                        (sp.sub_project_id IS NOT NULL AND CAST(dropReq.sub_project_id AS varchar(50)) = CAST(sp.sub_project_id AS varchar(50)))
-                        OR (sp.sub_project_id IS NULL AND (CAST(dropReq.sub_project_id AS varchar(50)) = '-1' OR dropReq.sub_project_id IS NULL))
-                    )
+                OUTER APPLY (
+                    SELECT TOP 1
+                        dr.submitted_on AS drop_req_at,
+                        dr.drop_date AS drop_req_approved_at,
+                        COALESCE(dr.drop_date, dr.submitted_on) AS drop_date,
+                        COALESCE(NULLIF(CAST(dr.remarks AS nvarchar(1000)), ''), NULLIF(CAST(dr.drop_rejected_remarks AS nvarchar(1000)), ''), '-') AS drop_remarks,
+                        dr.status AS drop_request_status,
+                        dr.reject_request_status,
+                        dr.drop_rejected_remarks,
+                        CASE
+                            WHEN dr.reject_request_status = 0 THEN 'Rejected'
+                            WHEN dr.status = 0 THEN 'Approved'
+                            WHEN dr.status = 1 THEN 'Waiting for Approval'
+                            ELSE NULL
+                        END AS drop_status
+                    FROM tbl_project_drop_request dr
+                    WHERE dr.project_id = p.project_id
+                      AND (
+                          (sp.sub_project_id IS NOT NULL AND (
+                              CAST(dr.sub_project_id AS varchar(50)) = CAST(sp.sub_project_id AS varchar(50))
+                              OR dr.sub_project_id IS NULL
+                              OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
+                          ))
+                          OR (sp.sub_project_id IS NULL AND (
+                              dr.sub_project_id IS NULL 
+                              OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
+                          ))
+                      )
+                    ORDER BY 
+                        COALESCE(dr.submitted_on, dr.drop_date) DESC
+                ) AS dropReq
                 LEFT JOIN (
                     SELECT project_id AS entity_id, MAX(physical_progress) AS physical_progress
                     FROM tbl_project_physical_progress
@@ -270,15 +314,15 @@ async function getProjectList(req, res) {
         const whereClauses = [...filterWhereClauses];
         if (projectStage && projectStage !== 'All') {
             if (projectStage === 'Planning & Sanctioning' || projectStage === 'Planning' || projectStage === 'Project Initiated' || projectStage === 'planning') {
-                whereClauses.push('(project_status = 1 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, \'\') LIKE \'%Planning%\' OR ISNULL(stage_name, \'\') LIKE \'%Initiated%\' OR current_project_stage_id IS NULL))');
+                whereClauses.push('(stage_name != \'Dropped\' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, \'\') LIKE \'%Planning%\' OR ISNULL(stage_name, \'\') LIKE \'%Initiated%\' OR current_project_stage_id IS NULL))');
             } else if (projectStage === 'Under Tendering' || projectStage === 'Tendering' || projectStage === 'tendering') {
-                whereClauses.push('(project_status = 1 AND (current_project_stage_id = 12 OR ISNULL(stage_name, \'\') LIKE \'%Tender%\'))');
+                whereClauses.push('(stage_name != \'Dropped\' AND current_project_stage_id != 99 AND (current_project_stage_id = 12 OR ISNULL(stage_name, \'\') LIKE \'%Tender%\'))');
             } else if (projectStage === 'Under Implementation' || projectStage === 'Implementation' || projectStage === 'under_implementation') {
-                whereClauses.push('(project_status = 1 AND (current_project_stage_id = 13 OR ISNULL(stage_name, \'\') LIKE \'%Implement%\'))');
+                whereClauses.push('(stage_name != \'Dropped\' AND current_project_stage_id != 99 AND (current_project_stage_id = 13 OR ISNULL(stage_name, \'\') LIKE \'%Implement%\'))');
             } else if (projectStage === 'Completed' || projectStage === 'completed') {
-                whereClauses.push('(project_status = 1 AND (current_project_stage_id = 14 OR ISNULL(stage_name, \'\') LIKE \'%Complete%\'))');
+                whereClauses.push('(stage_name != \'Dropped\' AND current_project_stage_id != 99 AND (current_project_stage_id = 14 OR ISNULL(stage_name, \'\') LIKE \'%Complete%\'))');
             } else if (projectStage === 'Dropped' || projectStage === 'dropped') {
-                whereClauses.push('(project_status = 0 OR ISNULL(stage_name, \'\') LIKE \'%Drop%\')');
+                whereClauses.push('(stage_name = \'Dropped\' OR current_project_stage_id = 99)');
             } else {
                 whereClauses.push('(ISNULL(stage_name, \'\') = @projectStage OR ISNULL(stage_name, \'\') LIKE @projectStageLike)');
             }
@@ -326,11 +370,11 @@ async function getProjectList(req, res) {
             ${baseQuery}
             SELECT
                 COUNT(1) AS allCount,
-                SUM(CASE WHEN project_status = 1 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL) THEN 1 ELSE 0 END) AS planningCount,
-                SUM(CASE WHEN project_status = 1 AND (current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%') THEN 1 ELSE 0 END) AS tenderingCount,
-                SUM(CASE WHEN project_status = 1 AND (current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%') THEN 1 ELSE 0 END) AS uiCount,
-                SUM(CASE WHEN project_status = 1 AND (current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%') THEN 1 ELSE 0 END) AS completedCount,
-                SUM(CASE WHEN project_status = 0 OR ISNULL(stage_name, '') LIKE '%Drop%' THEN 1 ELSE 0 END) AS droppedCount
+                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL) THEN 1 ELSE 0 END) AS planningCount,
+                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%') THEN 1 ELSE 0 END) AS tenderingCount,
+                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%') THEN 1 ELSE 0 END) AS uiCount,
+                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%') THEN 1 ELSE 0 END) AS completedCount,
+                SUM(CASE WHEN stage_name = 'Dropped' OR current_project_stage_id = 99 THEN 1 ELSE 0 END) AS droppedCount
             FROM base
             ${countsWhere};
         `);
@@ -1848,8 +1892,8 @@ async function viewProjectData(req, res)
             physicalProgress.physical_progress, financialProgress.financial_progress, expenditure_till_date.total_expenditure,
 			project_brief, 
       
-            is_sagarmala_funded, mode_of_implememtation, primary_ia_id,  mmt_implementing_agency.ia_name AS primary_ia_name,
-            secondary_ia_id, tbl_project.scheme_id, scheme_name, 
+            is_sagarmala_funded, mode_of_implememtation, primary_ia_id, mmt_implementing_agency.ia_name AS primary_ia_name,
+            secondary_ia_id, sec_imp_agency.ia_name AS secondary_ia_name, tbl_project.scheme_id, scheme_name, 
             
             tbl_project.initiative_id,
             (
@@ -1865,30 +1909,49 @@ async function viewProjectData(req, res)
             ) AS source_of_funding_names,
             estimated_cost, sanctioned_cost, technical_sanction_cost, award_project_cost, closure_cost, last_updated,
 
-            target_completion_date, project_output_id, project_outcome_id,tbl_project.gbs_components, tbl_project.iebr_components, 
+            target_completion_date, tbl_project.project_output_id, tbl_project.project_outcome_id,
+            mmt_output.project_output_name AS project_output_name,
+            mmt_outcome.project_outcome_name AS project_outcome_name,
+            tbl_project.gbs_components, tbl_project.iebr_components, 
             tbl_project.ppp_components, tbl_project.loans_components, tbl_project.multilateral_components, tbl_project.state_gov_fund_components,
             tbl_project.pmmsy_components, tbl_project.sagarmala_components, tbl_project.other_source_funding_comp,  
             primary_funding_agency_id, secondary_funding_agency_id, tbl_project.state_id,
-            tbl_project.district_id, taluka_id, village_id, mp_constituency_id, on_land_acquisition, land_area_req, 
+            (
+                SELECT STRING_AGG(st.state_name, ', ')
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.state_id)), ',') AS pst
+                JOIN mmt_state AS st ON TRY_CAST(pst.value AS int) = st.state_id
+            ) AS state_names,
+            tbl_project.district_id,
+            (
+                SELECT STRING_AGG(dt.district_name, ', ')
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.district_id)), ',') AS pdt
+                JOIN mmt_district AS dt ON TRY_CAST(pdt.value AS int) = dt.district_id
+            ) AS district_names,
+            taluka_id, village_id, mp_constituency_id,
+            (
+                SELECT STRING_AGG(mp.mpc_name, ', ')
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_project.mp_constituency_id)), ',') AS pmp
+                JOIN mmt_mp_constituency AS mp ON TRY_CAST(pmp.value AS int) = mp.mpc_id
+            ) AS mp_constituency_names,
+            on_land_acquisition, land_area_req, 
             on_acquisition_completed, percent_land_acq, submitted_by, project_intiated_date
             
             FROM tbl_project
-            LEFT JOIN mmt_implementing_agency ON mmt_implementing_agency.ia_id =  tbl_project.primary_ia_id
+            LEFT JOIN mmt_implementing_agency ON mmt_implementing_agency.ia_id = tbl_project.primary_ia_id
             LEFT JOIN (SELECT ia_id, ia_name FROM mmt_implementing_agency) sec_imp_agency ON sec_imp_agency.ia_id = tbl_project.secondary_ia_id
-
-            LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id =  tbl_project.organisation_id
-            LEFT JOIN tbl_project_stage ON tbl_project_stage.stage_id =  tbl_project.current_project_stage_id 
-            LEFT JOIN mmt_scheme ON mmt_scheme.scheme_id =  tbl_project.scheme_id   
+            LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_project.organisation_id
+            LEFT JOIN tbl_project_stage ON tbl_project_stage.stage_id = tbl_project.current_project_stage_id 
+            LEFT JOIN mmt_scheme ON mmt_scheme.scheme_id = tbl_project.scheme_id
+            LEFT JOIN mmt_output ON mmt_output.project_output_id = tbl_project.project_output_id
+            LEFT JOIN mmt_outcome ON mmt_outcome.project_outcome_id = tbl_project.project_outcome_id
 
             LEFT JOIN 
             (
                 SELECT tbl_project_physical_progress.project_id, MAX(physical_progress) AS physical_progress
                 FROM tbl_project
-                
                 LEFT JOIN tbl_project_physical_progress ON tbl_project_physical_progress.project_id = tbl_project.project_id
                 WHERE tbl_project_physical_progress.sub_project_id = '-1'
                 GROUP BY tbl_project_physical_progress.project_id
-                
             ) AS physicalProgress ON physicalProgress.project_id = tbl_project.project_id
 
             LEFT JOIN 
@@ -1906,54 +1969,43 @@ async function viewProjectData(req, res)
                         ISNULL(tbl_project_expenditure.sagarmala_components, 0) + 
                         ISNULL(tbl_project_expenditure.other_source_funding_comp, 0)
                     ) / NULLIF(tbl_project.award_project_cost, 0)) * 100 AS financial_progress
-                        FROM tbl_project_expenditure
-                        LEFT JOIN tbl_project 
-                            ON tbl_project_expenditure.project_id = tbl_project.project_id
-                        WHERE tbl_project_expenditure.sub_project_id = '-1'
-                        GROUP BY tbl_project_expenditure.project_id, tbl_project.award_project_cost
-            ) AS financialProgress ON financialProgress.project_id =  tbl_project.project_id
-
-
+                FROM tbl_project_expenditure
+                LEFT JOIN tbl_project ON tbl_project_expenditure.project_id = tbl_project.project_id
+                WHERE tbl_project_expenditure.sub_project_id = '-1'
+                GROUP BY tbl_project_expenditure.project_id, tbl_project.award_project_cost
+            ) AS financialProgress ON financialProgress.project_id = tbl_project.project_id
 
 			LEFT JOIN 
             (
-              
                 SELECT 
                     tbl_project_expenditure.project_id, 
-            SUM(tbl_project_expenditure.gbs_components) AS gbs_components,
-            SUM(tbl_project_expenditure.iebr_components) AS iebr_components,
-            SUM(tbl_project_expenditure.ppp_components) AS ppp_components,
-            SUM(tbl_project_expenditure.loans_components) AS loans_components,
-            SUM(tbl_project_expenditure.multilateral_components) AS multilateral_components,
-            SUM(tbl_project_expenditure.state_gov_fund_components) AS state_gov_fund_components,            
-            SUM(tbl_project_expenditure.pmmsy_components) AS pmmsy_components,
-            SUM(tbl_project_expenditure.sagarmala_components) AS sagarmala_components,
-            SUM(tbl_project_expenditure.other_source_funding_comp) AS other_source_funding_components,
-            SUM(tbl_project_expenditure.gbs_components) + 
-                SUM(tbl_project_expenditure.iebr_components) + 
-                SUM(tbl_project_expenditure.ppp_components) + 
-                SUM(tbl_project_expenditure.loans_components) + 
-                SUM(tbl_project_expenditure.multilateral_components) +
-                SUM(tbl_project_expenditure.state_gov_fund_components) + 
-                SUM(tbl_project_expenditure.pmmsy_components) + 
-                SUM(tbl_project_expenditure.sagarmala_components) + 
-                SUM(tbl_project_expenditure.other_source_funding_comp) AS total_expenditure
-  
-                    FROM tbl_project_expenditure
-                    LEFT JOIN tbl_project 
-                        ON tbl_project_expenditure.project_id = tbl_project.project_id
-                    WHERE tbl_project_expenditure.sub_project_id = '-1'
-                    GROUP BY tbl_project_expenditure.project_id
-            ) AS expenditure_till_date ON expenditure_till_date.project_id =  tbl_project.project_id
+                    SUM(tbl_project_expenditure.gbs_components) AS gbs_components,
+                    SUM(tbl_project_expenditure.iebr_components) AS iebr_components,
+                    SUM(tbl_project_expenditure.ppp_components) AS ppp_components,
+                    SUM(tbl_project_expenditure.loans_components) AS loans_components,
+                    SUM(tbl_project_expenditure.multilateral_components) AS multilateral_components,
+                    SUM(tbl_project_expenditure.state_gov_fund_components) AS state_gov_fund_components,            
+                    SUM(tbl_project_expenditure.pmmsy_components) AS pmmsy_components,
+                    SUM(tbl_project_expenditure.sagarmala_components) AS sagarmala_components,
+                    SUM(tbl_project_expenditure.other_source_funding_comp) AS other_source_funding_components,
+                    SUM(tbl_project_expenditure.gbs_components) + 
+                    SUM(tbl_project_expenditure.iebr_components) + 
+                    SUM(tbl_project_expenditure.ppp_components) + 
+                    SUM(tbl_project_expenditure.loans_components) + 
+                    SUM(tbl_project_expenditure.multilateral_components) +
+                    SUM(tbl_project_expenditure.state_gov_fund_components) + 
+                    SUM(tbl_project_expenditure.pmmsy_components) + 
+                    SUM(tbl_project_expenditure.sagarmala_components) + 
+                    SUM(tbl_project_expenditure.other_source_funding_comp) AS total_expenditure
+                FROM tbl_project_expenditure
+                LEFT JOIN tbl_project ON tbl_project_expenditure.project_id = tbl_project.project_id
+                WHERE tbl_project_expenditure.sub_project_id = '-1'
+                GROUP BY tbl_project_expenditure.project_id
+            ) AS expenditure_till_date ON expenditure_till_date.project_id = tbl_project.project_id
                     
-               
             WHERE tbl_project.project_id = @projectID;`)
     }
-
-    // project_intiated_date, removed
     else {
-        // console.log(subProjectID, "have subproject")
-
         editProjectDetailsData = (`SELECT tbl_sub_project.sub_organisation_id, organisation_name, tbl_sub_project.sub_project_id, 
             tbl_sub_project.project_id, tbl_sub_project.sub_sagarmala_project_id AS sagarmala_project_id, 
             sub_project_name AS project_name, tbl_sub_project.sub_current_project_stage_id AS current_project_stage_id, stage_name,
@@ -1969,16 +2021,15 @@ async function viewProjectData(req, res)
             sub_estimated_cost AS estimated_cost, sub_sanctioned_cost AS sanctioned_cost,
             sub_technical_sanction_cost AS technical_sanction_cost, sub_award_project_cost AS award_project_cost,
             sub_closure_cost AS closure_cost, sub_last_updated AS last_updated,
-
             
             sub_mode_of_implememtation AS mode_of_implememtation, sub_is_sagarmala_funded AS is_sagarmala_funded,
-            sub_primary_ia_id AS primary_ia_id,  mmt_implementing_agency.ia_name AS primary_ia_name,
-            sub_secondary_ia_id AS secondary_ia_id, tbl_sub_project.sub_scheme_id AS scheme_id, scheme_name, 
+            sub_primary_ia_id AS primary_ia_id, mmt_implementing_agency.ia_name AS primary_ia_name,
+            sub_secondary_ia_id AS secondary_ia_id, sec_imp_agency.ia_name AS secondary_ia_name, tbl_sub_project.sub_scheme_id AS scheme_id, scheme_name, 
             tbl_sub_project.sub_initiative_id AS initiative_id, 
             (
-            SELECT STRING_AGG(mi.initiative_name, ', ')
-            FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_initiative_id)), ',') AS si
-            JOIN mmt_initiative AS mi ON TRY_CAST(si.value AS int) = mi.initiative_id
+                SELECT STRING_AGG(mi.initiative_name, ', ')
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_initiative_id)), ',') AS si
+                JOIN mmt_initiative AS mi ON TRY_CAST(si.value AS int) = mi.initiative_id
             ) AS initiative_names,
             tbl_sub_project.sub_source_of_funding_id AS source_of_funding_id,
             (
@@ -1987,100 +2038,104 @@ async function viewProjectData(req, res)
                 JOIN mmt_source_of_funding AS msf ON TRY_CAST(ssf.value AS int) = msf.source_of_funding_id
             ) AS source_of_funding_names, 
 
-              
-
             sub_target_completion_date AS target_completion_date, sub_project_output_id AS project_output_id,
             sub_project_outcome_id AS project_outcome_id,
+            mmt_output.project_output_name AS project_output_name,
+            mmt_outcome.project_outcome_name AS project_outcome_name,
             sub_gbs_components AS gbs_components, sub_iebr_components AS iebr_components, 
             sub_ppp_components AS ppp_components, sub_loans_components AS loans_components, sub_multilateral_components AS multilateral_components, 
             sub_state_gov_fund_components AS state_gov_fund_components, sub_pmmsy_components AS pmmsy_components,
-            sub_sagarmala_components AS sagarmala_components,  sub_other_source_funding_comp AS other_source_funding_comp, 
+            sub_sagarmala_components AS sagarmala_components, sub_other_source_funding_comp AS other_source_funding_comp, 
             sub_primary_funding_agency_id AS primary_funding_agency_id, sub_secondary_funding_agency_id AS secondary_funding_agency_id,
-            tbl_sub_project.sub_state_id AS state_id, tbl_sub_project.sub_district_id AS district_id, 
-            sub_taluka_id AS taluka_id, sub_village_id AS village_id, sub_mp_constituency_id AS mp_constituency_id, sub_on_land_acquisition AS on_land_acquisition, 
+            tbl_sub_project.sub_state_id AS state_id,
+            (
+                SELECT STRING_AGG(st.state_name, ', ')
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_state_id)), ',') AS spst
+                JOIN mmt_state AS st ON TRY_CAST(spst.value AS int) = st.state_id
+            ) AS state_names,
+            tbl_sub_project.sub_district_id AS district_id, 
+            (
+                SELECT STRING_AGG(dt.district_name, ', ')
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_district_id)), ',') AS spdt
+                JOIN mmt_district AS dt ON TRY_CAST(spdt.value AS int) = dt.district_id
+            ) AS district_names,
+            sub_taluka_id AS taluka_id, sub_village_id AS village_id, sub_mp_constituency_id AS mp_constituency_id, 
+            (
+                SELECT STRING_AGG(mp.mpc_name, ', ')
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), tbl_sub_project.sub_mp_constituency_id)), ',') AS spmp
+                JOIN mmt_mp_constituency AS mp ON TRY_CAST(spmp.value AS int) = mp.mpc_id
+            ) AS mp_constituency_names,
+            sub_on_land_acquisition AS on_land_acquisition, 
             sub_land_area_req AS land_area_req, sub_on_acquisition_completed AS on_acquisition_completed, sub_percent_land_acq AS percent_land_acq,
             sub_project_intiated_date AS project_intiated_date
 
-
-
             FROM tbl_sub_project
             LEFT JOIN mmt_implementing_agency ON mmt_implementing_agency.ia_id = tbl_sub_project.sub_primary_ia_id
-            LEFT JOIN mmt_implementing_agency AS mmt_implementing_agency_sub ON mmt_implementing_agency_sub.ia_id = tbl_sub_project.sub_primary_ia_id
-
-            LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id =  tbl_sub_project.sub_organisation_id
-            LEFT JOIN tbl_project_stage ON tbl_project_stage.stage_id =  tbl_sub_project.sub_current_project_stage_id           
-            LEFT JOIN mmt_scheme ON mmt_scheme.scheme_id =  tbl_sub_project.sub_scheme_id   
-        
-
+            LEFT JOIN (SELECT ia_id, ia_name FROM mmt_implementing_agency) sec_imp_agency ON sec_imp_agency.ia_id = tbl_sub_project.sub_secondary_ia_id
+            LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = tbl_sub_project.sub_organisation_id
+            LEFT JOIN tbl_project_stage ON tbl_project_stage.stage_id = tbl_sub_project.sub_current_project_stage_id           
+            LEFT JOIN mmt_scheme ON mmt_scheme.scheme_id = tbl_sub_project.sub_scheme_id   
+            LEFT JOIN mmt_output ON mmt_output.project_output_id = tbl_sub_project.sub_project_output_id
+            LEFT JOIN mmt_outcome ON mmt_outcome.project_outcome_id = tbl_sub_project.sub_project_outcome_id
 
             LEFT JOIN 
             (
-                SELECT tbl_project_physical_progress.sub_project_id,MAX(physical_progress) AS physical_progress
+                SELECT tbl_project_physical_progress.sub_project_id, MAX(physical_progress) AS physical_progress
                 FROM tbl_sub_project
-
                 LEFT JOIN tbl_project_physical_progress ON tbl_project_physical_progress.sub_project_id = tbl_sub_project.sub_project_id
                 WHERE tbl_project_physical_progress.sub_project_id != '-1'  
                 GROUP BY tbl_project_physical_progress.sub_project_id
-
             ) AS physicalProgress ON physicalProgress.sub_project_id = tbl_sub_project.sub_project_id
 
             LEFT JOIN 
             (
                 SELECT 
-                tbl_project_expenditure.sub_project_id, 
-                (SUM(
-                    ISNULL(tbl_project_expenditure.gbs_components, 0) + 
-                    ISNULL(tbl_project_expenditure.iebr_components, 0) + 
-                    ISNULL(tbl_project_expenditure.ppp_components, 0) + 
-                    ISNULL(tbl_project_expenditure.loans_components, 0) + 
-                    ISNULL(tbl_project_expenditure.multilateral_components, 0) + 
-                    ISNULL(tbl_project_expenditure.state_gov_fund_components, 0) + 
-                    ISNULL(tbl_project_expenditure.pmmsy_components, 0) +                     
-                    ISNULL(tbl_project_expenditure.sagarmala_components, 0) + 
-                    ISNULL(tbl_project_expenditure.other_source_funding_comp, 0)
-                  ) / NULLIF(tbl_sub_project.sub_award_project_cost, 0)) * 100 AS financial_progress
+                    tbl_project_expenditure.sub_project_id, 
+                    (SUM(
+                        ISNULL(tbl_project_expenditure.gbs_components, 0) + 
+                        ISNULL(tbl_project_expenditure.iebr_components, 0) + 
+                        ISNULL(tbl_project_expenditure.ppp_components, 0) + 
+                        ISNULL(tbl_project_expenditure.loans_components, 0) + 
+                        ISNULL(tbl_project_expenditure.multilateral_components, 0) + 
+                        ISNULL(tbl_project_expenditure.state_gov_fund_components, 0) + 
+                        ISNULL(tbl_project_expenditure.pmmsy_components, 0) +                     
+                        ISNULL(tbl_project_expenditure.sagarmala_components, 0) + 
+                        ISNULL(tbl_project_expenditure.other_source_funding_comp, 0)
+                    ) / NULLIF(tbl_sub_project.sub_award_project_cost, 0)) * 100 AS financial_progress
                 FROM tbl_project_expenditure
-                LEFT JOIN tbl_sub_project 
-                    ON tbl_project_expenditure.sub_project_id = tbl_sub_project.sub_project_id
+                LEFT JOIN tbl_sub_project ON tbl_project_expenditure.sub_project_id = tbl_sub_project.sub_project_id
                 WHERE tbl_project_expenditure.sub_project_id != '-1'  
                 GROUP BY tbl_project_expenditure.sub_project_id, tbl_sub_project.sub_award_project_cost
             ) AS financialProgress ON financialProgress.sub_project_id = tbl_sub_project.sub_project_id
 
-              
-
-			   LEFT JOIN 
+			LEFT JOIN 
             (
                 SELECT 
-                tbl_project_expenditure.sub_project_id, 
-                SUM(gbs_components) AS gbs_components,
-            SUM(iebr_components) AS iebr_components,
-            SUM(ppp_components) AS ppp_components,
-            SUM(loans_components) AS loans_components,
-            SUM(multilateral_components) AS multilateral_components,
-            SUM(state_gov_fund_components) AS state_gov_fund_components,            
-            SUM(pmmsy_components) AS pmmsy_components,
-            SUM(sagarmala_components) AS sagarmala_components,
-            SUM(other_source_funding_comp) AS other_source_funding_components,
-            SUM(gbs_components) + 
-                SUM(iebr_components) + 
-                SUM(ppp_components) + 
-                SUM(loans_components) + 
-                SUM(multilateral_components) +
-                SUM(state_gov_fund_components) + 
-                SUM(pmmsy_components) +                 
-                SUM(sagarmala_components) + 
-                SUM(other_source_funding_comp) AS total_expenditure 
-				
-			
-       
+                    tbl_project_expenditure.sub_project_id, 
+                    SUM(gbs_components) AS gbs_components,
+                    SUM(iebr_components) AS iebr_components,
+                    SUM(ppp_components) AS ppp_components,
+                    SUM(loans_components) AS loans_components,
+                    SUM(multilateral_components) AS multilateral_components,
+                    SUM(state_gov_fund_components) AS state_gov_fund_components,            
+                    SUM(pmmsy_components) AS pmmsy_components,
+                    SUM(sagarmala_components) AS sagarmala_components,
+                    SUM(other_source_funding_comp) AS other_source_funding_components,
+                    SUM(gbs_components) + 
+                    SUM(iebr_components) + 
+                    SUM(ppp_components) + 
+                    SUM(loans_components) + 
+                    SUM(multilateral_components) +
+                    SUM(state_gov_fund_components) + 
+                    SUM(pmmsy_components) +                 
+                    SUM(sagarmala_components) + 
+                    SUM(other_source_funding_comp) AS total_expenditure 
                 FROM tbl_project_expenditure
-                LEFT JOIN tbl_sub_project 
-                    ON tbl_project_expenditure.sub_project_id = tbl_sub_project.sub_project_id
+                LEFT JOIN tbl_sub_project ON tbl_project_expenditure.sub_project_id = tbl_sub_project.sub_project_id
                 WHERE tbl_project_expenditure.sub_project_id != '-1'  
                 GROUP BY tbl_project_expenditure.sub_project_id
             ) AS expenditure_till_date ON expenditure_till_date.sub_project_id = tbl_sub_project.sub_project_id
 
-           
             WHERE tbl_sub_project.sub_project_id = @subProjectID;
         `)
     }

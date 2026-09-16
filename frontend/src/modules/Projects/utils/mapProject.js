@@ -70,6 +70,35 @@ export function deriveSagarmalaFunding(sourceOfFunding) {
   return ids.includes('8') ? '1' : '';
 }
 
+export function deriveDropStatus(raw = {}) {
+  const explicit = raw.drop_status || raw.dropStatus;
+  if (explicit && explicit !== '-' && explicit !== 'null' && explicit !== 'undefined') {
+    const s = String(explicit).toLowerCase().trim();
+    if (s.includes('reject')) return 'Rejected';
+    if (s.includes('wait') || s.includes('pending')) return 'Waiting for Approval';
+    if (s.includes('approve') || s.includes('drop')) return 'Approved';
+  }
+
+  const rejectStatus = raw.reject_request_status ?? raw.raw?.reject_request_status;
+  if (rejectStatus === 0 || rejectStatus === '0') {
+    return 'Rejected';
+  }
+
+  const reqStatus = raw.drop_request_status ?? raw.dropRequestStatus ?? raw.raw?.drop_request_status;
+  const dropDate = raw.drop_date || raw.dropDate || raw.raw?.drop_date;
+  const projStatus = raw.project_status ?? raw.projectStatus ?? raw.status ?? raw.raw?.status;
+
+  if (projStatus === 0 || projStatus === '0' || (reqStatus === 0 && dropDate)) {
+    return 'Approved';
+  }
+
+  if (reqStatus === 1 || reqStatus === '1') {
+    return 'Waiting for Approval';
+  }
+
+  return null;
+}
+
 export function normalizeProjectFormForSubmit(form = {}) {
   const next = { ...form };
 
@@ -113,9 +142,16 @@ export function mapProjectListRow(raw = {}, index = 0) {
   );
   const closureCost = nullIfInvalidNumber(raw.closure_cost ?? raw.closureCost);
 
-  const stage = textOrDash(
+  const dropStatus = deriveDropStatus(raw);
+  let stage = textOrDash(
     raw.project_stage || raw.projectStageName || raw.stage || raw.stage_name
   );
+  if (dropStatus === 'Waiting for Approval' || dropStatus === 'Approved') {
+    stage = 'Dropped';
+  } else if (dropStatus === 'Rejected' && String(stage).toLowerCase() === 'dropped') {
+    stage = 'Under Implementation';
+  }
+
   const stageLower = String(stage).toLowerCase();
 
   let cost = estimatedCost;
@@ -175,8 +211,11 @@ export function mapProjectListRow(raw = {}, index = 0) {
       Number(raw.sagarmala_components || raw.sagarmalaComponents) > 0
     ),
     sagarmalaProjectId: textOrDash(raw.sagarmala_project_id || raw.sagarmalaProjectId),
+    dropReqAt: raw.drop_req_at || raw.submitted_on || raw.drop_requested_at || raw.drop_date || raw.dropDate || raw.sub_last_updated || raw.last_updated || null,
+    dropReqApprovedAt: raw.drop_req_approved_at || (deriveDropStatus(raw) === 'Approved' ? (raw.drop_date || raw.dropDate || raw.sub_last_updated || raw.last_updated) : null) || null,
     dropDate: raw.drop_date || raw.dropDate || raw.raw?.drop_date || null,
     dropRemarks: textOrDash(raw.drop_remarks || raw.dropRemarks || raw.remarks || raw.raw?.drop_remarks),
+    dropStatus: deriveDropStatus(raw),
     raw,
   };
 }
