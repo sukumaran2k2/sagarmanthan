@@ -3,7 +3,7 @@ import {
   X, Calendar, DollarSign, Building2, Briefcase, FileText, 
   CheckCircle2, AlertTriangle, Layers, Users, TrendingUp, 
   Download, Eye, MapPin, Landmark, Coins, ShieldCheck, 
-  Clock, ArrowRight, ExternalLink, Edit 
+  Clock, ArrowRight, ExternalLink, Edit, Anchor
 } from 'lucide-react';
 import { API_BASE, downloadProjectDocumentFile } from '../api';
 
@@ -60,6 +60,22 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
                     <span className="font-black text-white" style={{ fontWeight: 900 }}>{` / Sub Project ${subProjectId}`}</span>
                   )}
                 </span>
+                {(project.isSagarmalaFunded ||
+                  raw.is_sagarmala_funded === 1 ||
+                  raw.is_sagarmala_funded === '1' ||
+                  raw.is_sagarmala_funded === true ||
+                  raw.sub_is_sagarmala_funded === 1 ||
+                  raw.sub_is_sagarmala_funded === '1' ||
+                  raw.sub_is_sagarmala_funded === true ||
+                  raw.sagarmalaFunding === '1' ||
+                  raw.sagarmalaFunding === 1 ||
+                  (raw.sagarmala_project_id && String(raw.sagarmala_project_id).trim() !== '' && String(raw.sagarmala_project_id).trim() !== '-') ||
+                  Number(raw.sagarmala_components || raw.sagarmalaComponents) > 0) && (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-cyan-400/25 text-cyan-200 border border-cyan-300/40 inline-flex items-center gap-1 shadow-xs">
+                    <Anchor className="h-3 w-3 text-cyan-200 shrink-0" />
+                    <span>Sagarmala</span>
+                  </span>
+                )}
                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${getStageBadgeClass(stage)}`}>
                   {stage}
                 </span>

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Edit, Eye, Search, X, List, BarChart3, Building2, ChevronDown, Filter, 
-  Trash2, Plus, Layers, TrendingUp, DollarSign, Calendar, Check, Ban, File, Minus
+  Trash2, Plus, Layers, TrendingUp, DollarSign, Calendar, Check, Ban, File, Minus, Anchor
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import Table from '../../../components/Table';
@@ -210,6 +210,20 @@ export default function ProjectsListTable({
           const pid = params.data?.projectId || params.value || '-';
           const subId = params.data?.subProjectId;
           const hasSub = subId && subId !== '-1' && subId !== '-' && subId !== '0';
+          const isSagarmala = Boolean(
+            params.data?.isSagarmalaFunded ||
+            params.data?.raw?.is_sagarmala_funded === 1 ||
+            params.data?.raw?.is_sagarmala_funded === '1' ||
+            params.data?.raw?.is_sagarmala_funded === true ||
+            params.data?.raw?.sub_is_sagarmala_funded === 1 ||
+            params.data?.raw?.sub_is_sagarmala_funded === '1' ||
+            params.data?.raw?.sub_is_sagarmala_funded === true ||
+            params.data?.raw?.sagarmalaFunding === '1' ||
+            params.data?.raw?.sagarmalaFunding === 1 ||
+            (params.data?.raw?.sagarmala_project_id && String(params.data?.raw?.sagarmala_project_id).trim() !== '' && String(params.data?.raw?.sagarmala_project_id).trim() !== '-') ||
+            Number(params.data?.raw?.sagarmala_components || params.data?.raw?.sagarmalaComponents) > 0
+          );
+
           return (
             <div className="flex flex-col items-center justify-center text-center py-1.5 w-full">
               {hasSub ? (
@@ -234,6 +248,16 @@ export default function ProjectsListTable({
                   title={`Project ID: ${pid}`}
                 >
                   {pid}
+                </span>
+              )}
+
+              {isSagarmala && (
+                <span 
+                  className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-sky-50 to-blue-50 text-[#0f417a] border border-sky-300 dark:from-sky-950/70 dark:to-blue-900/60 dark:text-sky-300 dark:border-sky-700 shadow-2xs select-none"
+                  title="Sagarmala Funded Project"
+                >
+                  <Anchor className="h-2.5 w-2.5 text-[#0f417a] dark:text-sky-300 shrink-0" />
+                  <span>Sagarmala</span>
                 </span>
               )}
             </div>

@@ -173,6 +173,9 @@ async function getProjectList(req, res) {
                     financialProgress.financial_progress,
                     ISNULL(dropReq.drop_date, ISNULL(sp.sub_last_updated, p.last_updated)) AS drop_date,
                     ISNULL(dropReq.drop_remarks, '-') AS drop_remarks,
+                    ISNULL(sp.sub_is_sagarmala_funded, p.is_sagarmala_funded) AS is_sagarmala_funded,
+                    ISNULL(sp.sub_source_of_funding_id, p.source_of_funding_id) AS source_of_funding_id,
+                    ISNULL(sp.sub_sagarmala_components, p.sagarmala_components) AS sagarmala_components,
                     CAST(p.project_id AS varchar(50)) AS project_id_text,
                     CAST(ISNULL(sp.sub_project_id, -1) AS varchar(50)) AS sub_project_id_text
                 FROM tbl_project p

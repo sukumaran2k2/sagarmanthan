@@ -160,6 +160,21 @@ export function mapProjectListRow(raw = {}, index = 0) {
     ),
     physicalProgress: safeNumber(raw.physical_progress || raw.physicalProgress),
     financialProgress: safeNumber(raw.financial_progress || raw.financialProgress),
+    isSagarmalaFunded: Boolean(
+      raw.is_sagarmala_funded === 1 ||
+      raw.is_sagarmala_funded === '1' ||
+      raw.is_sagarmala_funded === true ||
+      raw.sub_is_sagarmala_funded === 1 ||
+      raw.sub_is_sagarmala_funded === '1' ||
+      raw.sub_is_sagarmala_funded === true ||
+      raw.sagarmalaFunding === '1' ||
+      raw.sagarmalaFunding === 1 ||
+      raw.isSagarmalaFunded ||
+      deriveSagarmalaFunding(raw.source_of_funding_id || raw.sourceOfFunding) === '1' ||
+      (raw.sagarmala_project_id && String(raw.sagarmala_project_id).trim() !== '' && String(raw.sagarmala_project_id).trim() !== '-') ||
+      Number(raw.sagarmala_components || raw.sagarmalaComponents) > 0
+    ),
+    sagarmalaProjectId: textOrDash(raw.sagarmala_project_id || raw.sagarmalaProjectId),
     dropDate: raw.drop_date || raw.dropDate || raw.raw?.drop_date || null,
     dropRemarks: textOrDash(raw.drop_remarks || raw.dropRemarks || raw.remarks || raw.raw?.drop_remarks),
     raw,

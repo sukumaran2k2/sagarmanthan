@@ -174,7 +174,6 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
 
 const FILTER_TABS = [
   { id: 'pending',  label: 'Pending',           color: 'text-blue-700 dark:text-blue-300 border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-950/40' },
-  { id: 'accepted', label: 'Accepted / Dropped', color: 'text-red-700 dark:text-red-300 border-red-400 dark:border-red-500 bg-red-50 dark:bg-red-950/40' },
   { id: 'rejected', label: 'Rejected',           color: 'text-amber-700 dark:text-amber-300 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-950/40' },
   { id: 'all',      label: 'All Requests',       color: 'text-slate-700 dark:text-slate-300 border-slate-400 dark:border-slate-500 bg-slate-50 dark:bg-slate-800' },
 ];
@@ -252,7 +251,6 @@ export default function DropRequestsPage({ notify }) {
 
   const filtered = rows.filter((r) => {
     if (filter === 'pending')  return r.reject_request_status !== 0 && !r.drop_date;
-    if (filter === 'accepted') return r.status === 0 && !!r.drop_date;
     if (filter === 'rejected') return r.reject_request_status === 0;
     return true;
   });
