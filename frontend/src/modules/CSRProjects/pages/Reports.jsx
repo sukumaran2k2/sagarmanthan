@@ -131,23 +131,24 @@ export default function Reports({
   const loadReportData = useCallback(async () => {
     setLoading(true);
     try {
+      const userID = getUserIdFromToken();
       if (reportType === 'fund-year-wise-report') {
-        const res = await fetchCsrFundYearWiseReport('all');
+        const res = await fetchCsrFundYearWiseReport('all', userID);
         setReportData(Array.isArray(res) ? res : []);
       } else if (reportType === 'fund-org-wise-report') {
-        const res = await fetchCsrFundOrgWiseReport(filterFY);
+        const res = await fetchCsrFundOrgWiseReport(filterFY, userID);
         setReportData(Array.isArray(res) ? res : []);
       } else if (reportType === 'fund-org-trend-report') {
-        const res = await fetchCsrFundOrgTrendReport(filterOrgTrend || 'all');
+        const res = await fetchCsrFundOrgTrendReport(filterOrgTrend || 'all', userID);
         setReportData(Array.isArray(res) ? res : []);
       } else if (reportType === 'projects-year-wise-summary') {
-        const res = await fetchCsrProjectsYearWiseSummary(isOrgUser && userOrgId ? String(userOrgId) : 'all');
+        const res = await fetchCsrProjectsYearWiseSummary(isOrgUser && userOrgId ? String(userOrgId) : 'all', userID);
         setReportData(Array.isArray(res) ? res : []);
       } else if (reportType === 'projects-org-wise-summary') {
-        const res = await fetchCsrProjectsOrgWiseSummary();
+        const res = await fetchCsrProjectsOrgWiseSummary(userID);
         setReportData(Array.isArray(res) ? res : []);
       } else if (reportType === 'projects-focus-wise-summary') {
-        const res = await fetchCsrProjectsFocusWiseSummary(isOrgUser && userOrgId ? String(userOrgId) : 'all');
+        const res = await fetchCsrProjectsFocusWiseSummary(isOrgUser && userOrgId ? String(userOrgId) : 'all', userID);
         setReportData(Array.isArray(res) ? res : []);
       }
     } catch (err) {
