@@ -97,6 +97,19 @@ export default function InputForm({
   const [physicalProgress, setPhysicalProgress] = useState('');
   const [remarks, setRemarks] = useState('');
 
+  const isFullyComplete = Number(physicalProgress) === 100 && Number(financialProgress) === 100;
+
+  // Project Status is derived from progress once both reach 100%: the status
+  // can only become "Completed" this way, and automatically reverts to the
+  // manually-selected value if either progress figure drops back below 100.
+  useEffect(() => {
+    if (isFullyComplete) {
+      setProjectStatus('Completed');
+    } else {
+      setProjectStatus((prev) => (prev === 'Completed' ? 'Project Under implementation' : prev));
+    }
+  }, [isFullyComplete]);
+
   // Multi-year Expenditure Breakdown
   const [expenditures, setExpenditures] = useState([
     { year: FINANCIAL_YEARS[0], cost: '' }
@@ -352,6 +365,28 @@ export default function InputForm({
   // ==========================================
   // FORM 1: PROJECT SUBMISSION
   // ==========================================
+  const validateProjectForm = () => {
+    const errs = {};
+    if (!projectName.trim()) errs.projectName = 'Name of the Project is required.';
+    if (!projectReceivedFrom.trim()) errs.projectReceivedFrom = 'Project received from is required.';
+    if (!impactOutcome.trim()) errs.impactOutcome = 'Impact / Possible Outcome is required.';
+    if (!targetBeneficiaries.trim()) errs.targetBeneficiaries = 'Target Beneficiaries is required.';
+    if (projectValue === '' || isNaN(Number(projectValue)) || Number(projectValue) < 0) {
+      errs.projectValue = 'Valid Project Value (Rs. in Lakhs) is required.';
+    }
+    if (commencedOn && completedOn && completedOn < commencedOn) {
+      errs.completedOn = 'Completed date cannot be earlier than Commenced date.';
+    }
+    if (physicalProgress !== '' && (isNaN(Number(physicalProgress)) || Number(physicalProgress) < 0 || Number(physicalProgress) > 100)) {
+      errs.physicalProgress = 'Physical Progress must be between 0 and 100.';
+    }
+    if (financialProgress !== '' && (isNaN(Number(financialProgress)) || Number(financialProgress) < 0 || Number(financialProgress) > 100)) {
+      errs.financialProgress = 'Financial Progress must be between 0 and 100.';
+    }
+    setProjectErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const handleProjectSubmit = async (e) => {
     if (e) e.preventDefault();
 
@@ -648,47 +683,26 @@ export default function InputForm({
                     <span>General Project Details</span>
                   </h4>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    
-                    {/* Organisation (if applicable) */}
-                    {organisations.length > 1 && (
-                      <div className="space-y-1.5">
-                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                          Organisation <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={organisationId}
-                            onChange={(e) => setOrganisationId(e.target.value)}
-                            className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                          >
-                            {organisations.map(o => (
-                              <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-                            ))}
-                          </select>
-                          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* CSR Focus Area */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                        CSR Focus/Project Area <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <select
-                          value={csrFocus}
-                          onChange={(e) => setCsrFocus(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                        >
-                          {CSR_FOCUS_AREAS.map(f => (
-                            <option key={f.id} value={f.id}>{f.label}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                      </div>
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* CSR Focus Area */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    CSR Focus/Project Area <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={csrFocus}
+                      onChange={(e) => setCsrFocus(e.target.value)}
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                    >
+                      {CSR_FOCUS_AREAS.map(f => (
+                        <option key={f.id} value={f.id}>{f.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  </div>
+                </div>
 
                     {/* Name of the Project */}
                     <div className="space-y-1.5 md:col-span-2">
@@ -854,80 +868,47 @@ export default function InputForm({
                       )}
                     </div>
 
-                    {/* Remarks of the Project */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                        Remarks of the Project
-                      </label>
-                      <textarea
-                        rows={2}
-                        placeholder="Enter remarks..."
-                        value={remarks}
-                        onChange={(e) => setRemarks(e.target.value)}
-                        className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 resize-none"
-                      />
-                    </div>
-
+                {/* Project Status */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Project Status <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={projectStatus}
+                      onChange={(e) => setProjectStatus(e.target.value)}
+                      disabled={isFullyComplete}
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-500"
+                    >
+                      {CSR_STATUSES.filter((s) => s !== 'Completed' || isFullyComplete).map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   </div>
+                  {isFullyComplete && (
+                    <p className="text-[10px] font-semibold text-slate-400">Set automatically once both progress fields reach 100%.</p>
+                  )}
                 </div>
 
-                {/* Footer Navigation */}
-                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <span className="text-xs text-rose-500 font-bold italic">
-                    * Asterisks marked with red are mandatory fields
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveSection('general')}
-                      className="px-4 py-2 text-xs font-bold text-slate-700 bg-white dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                {/* Financial Year */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Financial Year <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={financialYear}
+                      onChange={(e) => setFinancialYear(e.target.value)}
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                     >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleNavigateToStage('status')}
-                      className="flex items-center space-x-2 px-6 py-2.5 text-xs font-bold text-white bg-[#0f417a] hover:bg-blue-800 rounded-xl shadow-xs transition cursor-pointer"
-                    >
-                      <span>Proceed to Status</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
+                      {FINANCIAL_YEARS.map(fy => (
+                        <option key={fy} value={fy}>{fy}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* ========================================================= */}
-            {/* STAGE 3: STATUS & PROGRESS */}
-            {/* ========================================================= */}
-            {activeSection === 'status' && (
-              <div className="space-y-5 animate-fade-in">
-                <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4">
-                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                    <span>Status & Progress Details</span>
-                  </h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    
-                    {/* Project Status */}
-                    <div className="space-y-1.5 md:col-span-2">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                        Project Status <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <select
-                          value={projectStatus}
-                          onChange={(e) => setProjectStatus(e.target.value)}
-                          className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-                        >
-                          {CSR_STATUSES.map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                      </div>
-                    </div>
 
                     {/* Commenced On */}
                     <div className="space-y-1.5">
@@ -963,39 +944,49 @@ export default function InputForm({
                       )}
                     </div>
 
-                    {/* Physical Progress */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                        Physical Progress (in %)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        placeholder="0"
-                        value={physicalProgress}
-                        onChange={(e) => setPhysicalProgress(e.target.value)}
-                        className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
-                      />
-                    </div>
+                {/* Physical Progress */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Physical Progress (in %)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="0"
+                    value={physicalProgress}
+                    onChange={(e) => setPhysicalProgress(e.target.value)}
+                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                      projectFormSubmitted && projectErrors.physicalProgress ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
+                    }`}
+                  />
+                  {projectFormSubmitted && projectErrors.physicalProgress && (
+                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.physicalProgress}</p>
+                  )}
+                </div>
 
-                    {/* Financial Progress */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                        Financial Progress (in %)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        placeholder="0"
-                        value={financialProgress}
-                        onChange={(e) => setFinancialProgress(e.target.value)}
-                        className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
-                      />
-                    </div>
+                {/* Financial Progress */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Financial Progress (in %)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="0"
+                    value={financialProgress}
+                    onChange={(e) => setFinancialProgress(e.target.value)}
+                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                      projectFormSubmitted && projectErrors.financialProgress ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
+                    }`}
+                  />
+                  {projectFormSubmitted && projectErrors.financialProgress && (
+                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.financialProgress}</p>
+                  )}
+                </div>
 
                   </div>
                 </div>
@@ -1191,8 +1182,12 @@ export default function InputForm({
                       </div>
                     </div>
 
-                  </div>
-                </div>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-slate-400 italic pt-1">
+              Fields marked with <span className="text-red-500">*</span> are mandatory
+            </p>
 
                 {/* Footer Navigation & Final Submission */}
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -1263,7 +1258,7 @@ export default function InputForm({
                     <select
                       value={fundFY}
                       onChange={(e) => setFundFY(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                     >
                       {FINANCIAL_YEARS.map(fy => (
                         <option key={fy} value={fy}>{fy}</option>
@@ -1334,6 +1329,10 @@ export default function InputForm({
                 </div>
 
               </div>
+
+              <p className="text-[10px] text-slate-400 italic pt-1">
+                Fields marked with <span className="text-red-500">*</span> are mandatory
+              </p>
             </div>
 
             {/* Bottom Actions: Mandatory notice, Submit (Green) & Exit (Red) */}

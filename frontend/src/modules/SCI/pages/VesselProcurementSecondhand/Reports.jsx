@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Search, X } from 'lucide-react';
 import { fetchSecondhandVesselProcurementReport } from '../../api';
 import Table from '../../../../components/Table';
 import ExportDropdown from '../../../../components/ExportDropdown';
@@ -12,6 +12,7 @@ export default function SecondhandVesselProcurementReports() {
   const [rowData, setRowData] = useState([]);
   const [columnDefs, setColumnDefs] = useState([]);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const title = 'Form No. K-6.2.2 - Abstract - SCI - Vessel Procurement - Secondhand';
 
@@ -44,10 +45,16 @@ export default function SecondhandVesselProcurementReports() {
     cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
   }), []);
 
+  const filteredRowData = useMemo(() => {
+    if (!searchQuery.trim()) return rowData;
+    const q = searchQuery.toLowerCase();
+    return rowData.filter((row) => Object.values(row).some((val) => String(val ?? '').toLowerCase().includes(q)));
+  }, [rowData, searchQuery]);
+
   const handleCopy = () => {
-    if (!rowData.length) return;
+    if (!filteredRowData.length) return;
     let tsv = columnDefs.map((c) => c.headerName).join('\t') + '\n';
-    rowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
+    filteredRowData.forEach((row) => { tsv += columnDefs.map((c) => row[c.field] ?? '').join('\t') + '\n'; });
     navigator.clipboard.writeText(tsv);
   };
 
@@ -58,30 +65,50 @@ export default function SecondhandVesselProcurementReports() {
         title,
         chartRoots: [],
         columnDefs,
-        rowData,
+        rowData: filteredRowData,
         fileName: 'sci_secondhand_vessel_procurement_report',
       });
     }
   };
 
   return (
-    <div>
-      <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 p-5 md:p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-4 rounded-t-2xl">
-        <div>
+    <div className="rounded-2xl shadow-lg">
+      <div className="rounded-2xl overflow-hidden">
+      <div className="relative flex flex-wrap items-center justify-between gap-4 px-6 py-6 bg-gradient-to-r from-[#fdfcfc] to-slate-50 dark:from-slate-900 dark:to-slate-800 border-b border-slate-200 dark:border-slate-800 rounded-t-2xl">
+        <div className="flex-1 min-w-[300px]">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp size={14} className="text-[#8c4242] dark:text-blue-400" strokeWidth={2.5} />
             <span className="text-[10.5px] font-black text-[#8c4242] dark:text-blue-400 uppercase tracking-widest">SCI - Secondhand Vessel Procurement Report</span>
           </div>
-          <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight">{title}</h3>
+          <h3 className="text-xl font-bold text-[#4b2424] dark:text-blue-400 tracking-wide">{title}</h3>
           <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
-            <span>As on date: <strong className="text-slate-800 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></span>
+            <span>As on date: <strong className="text-[#4b2424] dark:text-blue-400">{new Date().toISOString().split('T')[0]}</strong></span>
             <span className="text-slate-300 dark:text-slate-700">•</span>
-            <span>Report for the month — <strong className="text-slate-800 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</strong></span>
+            <span>Report for the month — <strong className="text-[#4b2424] dark:text-blue-400">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</strong></span>
           </div>
         </div>
         <div className="flex items-center justify-end gap-2.5 flex-wrap">
+          <div className="relative w-56">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4b2424] dark:text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search reports..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 text-[13.5px] font-medium rounded-[9px] outline-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:border-[#4b2424] focus:ring-[3px] focus:ring-[#4b2424]/10 transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer bg-transparent border-0 p-0.5"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
           <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
-          <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} />
+          <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#4b2424" hoverColor="#6b3535" />
         </div>
       </div>
 
@@ -89,7 +116,7 @@ export default function SecondhandVesselProcurementReports() {
         <div className="p-8 text-center text-sm font-semibold text-red-500 dark:text-red-400">{error}</div>
       ) : (
         <div className="ag-theme-quartz sci-secondhand-procurement-report-grid mt-4" style={{ width: '100%' }}>
-          <Table ref={gridRef} theme="legacy" rowData={rowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
+          <Table ref={gridRef} theme="legacy" rowData={filteredRowData} columnDefs={columnDefs} defaultColDef={defaultColDef} domLayout="autoHeight" rowHeight={48} headerHeight={42} suppressColumnVirtualisation={true} animateRows={true} enableExport={false} color="#4b2424" />
         </div>
       )}
 
@@ -107,6 +134,7 @@ export default function SecondhandVesselProcurementReports() {
         .dark .sci-secondhand-procurement-report-grid .ag-row-odd { background: #0f172a !important; }
         .dark .sci-secondhand-procurement-report-grid .ag-cell { border-right: 1px solid #1e293b !important; color: #e2e8f0 !important; }
       `}} />
+      </div>
     </div>
   );
 }

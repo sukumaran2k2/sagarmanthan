@@ -172,6 +172,36 @@ export const fetchCsrFundAllocated = async (clusterId = 0, orgId = 0, fy = 'all'
   return response.data;
 };
 
+export const fetchCsrFundYearWiseReport = async (fy = 'all') => {
+  const response = await api.get(`/get-csr-fund-year-wise-report/${fy}`);
+  return response.data;
+};
+
+export const fetchCsrFundOrgWiseReport = async (fy = 'all') => {
+  const response = await api.get(`/get-csr-fund-org-wise-report/${fy}`);
+  return response.data;
+};
+
+export const fetchCsrFundOrgTrendReport = async (orgId = 'all') => {
+  const response = await api.get(`/get-csr-fund-org-trend-report/${orgId}`);
+  return response.data;
+};
+
+export const fetchCsrProjectsYearWiseSummary = async (orgId = 'all') => {
+  const response = await api.get(`/get-csr-projects-year-wise-summary/${orgId}`);
+  return response.data;
+};
+
+export const fetchCsrProjectsOrgWiseSummary = async () => {
+  const response = await api.get(`/get-csr-projects-org-wise-summary`);
+  return response.data;
+};
+
+export const fetchCsrProjectsFocusWiseSummary = async (orgId = 'all') => {
+  const response = await api.get(`/get-csr-projects-focus-wise-summary/${orgId}`);
+  return response.data;
+};
+
 export const fetchCsrProjectStageWise = async (clusterId = 0, orgId = 0, fy = 'all', focusId = 0) => {
   const response = await api.get(`/get-csr-project-stage-wise/${clusterId}/${orgId}/${fy}/${focusId}`);
   return response.data;

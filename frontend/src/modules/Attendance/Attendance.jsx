@@ -134,7 +134,7 @@ export default function AttendanceView({ triggerNotification }) {
   const [detailTitle, setDetailTitle] = useState('');
 
   // Page limit for tables
-  const [pageSize, setPageSize] = useState(15);
+  const [pageSize, setPageSize] = useState(10);
   const gridRef = useRef(null);
   const [fetchError, setFetchError] = useState(null);
 
@@ -426,7 +426,7 @@ export default function AttendanceView({ triggerNotification }) {
   }, [reportData, searchTerm]);
 
   const availableWings = useMemo(() => {
-    const wings = new Set(employeeRows.map(r => r.Wing).filter(Boolean));
+    const wings = new Set(employeeRows.map(r => r.Wing || r.wing_name || r.organization_name || r.Division || r.division_name).filter(Boolean));
     return ['All', ...Array.from(wings)];
   }, [employeeRows]);
 
@@ -455,7 +455,7 @@ export default function AttendanceView({ triggerNotification }) {
       : employeeRows;
 
     if (dataFilterWing !== 'All') {
-      result = result.filter(r => r.Wing === dataFilterWing || r.wing_name === dataFilterWing);
+      result = result.filter(r => (r.Wing || r.wing_name || r.organization_name || r.Division || r.division_name) === dataFilterWing);
     }
     if (dataFilterMonth !== 'All') {
       result = result.filter(r => r.Month === dataFilterMonth);
@@ -483,13 +483,13 @@ export default function AttendanceView({ triggerNotification }) {
       const wingsCount = wingRows.length;
       const wingLabel = wingsCount ? `Across ${wingsCount} wing${wingsCount > 1 ? 's' : ''}` : 'This period';
 
-      if (totalRow && totalRow['Total Monitored Employees']) {
-        return { empCount: totalRow['Total Monitored Employees'], wingCount: wingLabel };
+      if (totalRow && totalRow['Number Of Employees']) {
+        return { empCount: totalRow['Number Of Employees'], wingCount: wingLabel };
       }
-      const sum = reportData.reduce((acc, r) => acc + (Number(r['Total Monitored Employees']) || 0), 0);
+      const sum = reportData.reduce((acc, r) => acc + (Number(r['Number Of Employees']) || 0), 0);
       if (sum > 0) return { empCount: sum, wingCount: wingLabel };
     }
-    const empIds = new Set(filteredEmployeeRows.map(r => r.EmpId || r['Emp Id']).filter(Boolean));
+    const empIds = new Set(filteredEmployeeRows.map(r => r.EmpId || r['Emp Id'] || r.Emp_Id || r.emp_id).filter(Boolean));
     const empCount = empIds.size > 0 ? empIds.size : filteredEmployeeRows.length;
     const wingsCount = new Set(filteredEmployeeRows.map(r => r.Wing).filter(Boolean)).size;
     return { empCount, wingCount: wingsCount ? `Across ${wingsCount} wing${wingsCount > 1 ? 's' : ''}` : 'From latest upload' };
@@ -548,7 +548,7 @@ export default function AttendanceView({ triggerNotification }) {
       const totalRow = reportData.find(r => r.Wing === 'Total');
       if (totalRow) {
         const before930 = Number(totalRow['In-Time Before 09:30 AM']) || 0;
-        const totalMon = Number(totalRow['Total Monitored Employees']) || 0;
+        const totalMon = Number(totalRow['Number Of Employees']) || 0;
         if (totalMon > 0) return `${Math.round((before930 / totalMon) * 100)}%`;
       }
     }
@@ -593,12 +593,15 @@ export default function AttendanceView({ triggerNotification }) {
     const sample = reportData[0];
     return Object.keys(sample).map(key => {
       const isWing = key.toLowerCase().includes('wing');
+      const isLongHeader = key.length > 12;
       
       return {
         headerName: key,
         field: key,
         flex: isWing ? 2 : 1,
-        minWidth: isWing ? 180 : 120,
+        minWidth: isWing ? 180 : (isLongHeader ? 150 : 120),
+        wrapHeaderText: true,
+        autoHeaderHeight: true,
         filter: true,
         sortable: true,
         pinned: isWing ? 'left' : null,
@@ -636,7 +639,7 @@ export default function AttendanceView({ triggerNotification }) {
     return [
       {
         headerName: 'S.No',
-        valueGetter: (params) => (params.node ? params.node.rowIndex + 1 : 1),
+        valueGetter: (params) => (params.node && !params.node.rowPinned ? params.node.rowIndex + 1 : ''),
         width: 70,
         pinned: 'left',
         cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
@@ -672,11 +675,35 @@ export default function AttendanceView({ triggerNotification }) {
     ];
   }, [detailData]);
 
+  const EMPLOYEE_COLUMN_LABELS = {
+    EmpId: 'Emp ID',
+    EmpName: 'Employee Name',
+    Wing: 'Wing',
+    Division: 'Division',
+    Designation: 'Designation',
+    AttendanceMarked: 'Days Marked',
+    WorkingHours: 'Avg Work Hours',
+    InTimeAvg: 'In Time Avg',
+    OutTimeAvg: 'Out Time Avg',
+  };
+
+  const [employeeVisibleCols, setEmployeeVisibleCols] = useState({
+    EmpId: true,
+    EmpName: true,
+    Wing: true,
+    Division: true,
+    Designation: true,
+    AttendanceMarked: true,
+    WorkingHours: true,
+    InTimeAvg: true,
+    OutTimeAvg: true,
+  });
+
   const employeeColDefs = useMemo(() => {
     return [
       {
         headerName: 'S.No',
-        valueGetter: (params) => (params.node ? params.node.rowIndex + 1 : 1),
+        valueGetter: (params) => (params.node && !params.node.rowPinned ? params.node.rowIndex + 1 : ''),
         width: 70,
         pinned: 'left',
         cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
@@ -685,6 +712,7 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'EmpId',
         headerName: 'Emp ID',
         width: 110,
+        hide: !employeeVisibleCols.EmpId,
         cellClass: 'font-bold text-[#0f417a] text-center flex items-center justify-center',
         valueGetter: (params) => {
           if (!params || !params.data) return '—';
@@ -697,6 +725,7 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Employee Name',
         flex: 2,
         minWidth: 180,
+        hide: !employeeVisibleCols.EmpName,
         cellClass: 'font-semibold text-slate-800 flex items-center',
         valueGetter: (params) => {
           if (!params || !params.data) return '—';
@@ -709,6 +738,7 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Wing',
         flex: 1.5,
         minWidth: 140,
+        hide: !employeeVisibleCols.Wing,
         cellClass: 'text-slate-700 font-medium flex items-center',
         valueGetter: (params) => {
           if (!params || !params.data) return '—';
@@ -721,6 +751,7 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Division',
         flex: 1.5,
         minWidth: 140,
+        hide: !employeeVisibleCols.Division,
         cellClass: 'text-slate-600 font-medium flex items-center',
         valueGetter: (params) => {
           if (!params || !params.data) return '—';
@@ -733,6 +764,7 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Designation',
         flex: 1.5,
         minWidth: 150,
+        hide: !employeeVisibleCols.Designation,
         cellClass: 'text-slate-600 font-medium flex items-center',
         valueGetter: (params) => {
           if (!params || !params.data) return '—';
@@ -744,6 +776,7 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'AttendanceMarked',
         headerName: 'Days Marked',
         width: 120,
+        hide: !employeeVisibleCols.AttendanceMarked,
         cellClass: 'text-center font-bold text-slate-700 flex items-center justify-center',
         valueGetter: (params) => {
           if (!params || !params.data) return 0;
@@ -755,6 +788,7 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'WorkingHours',
         headerName: 'Avg Work Hours',
         width: 140,
+        hide: !employeeVisibleCols.WorkingHours,
         cellClass: 'text-center font-bold text-slate-800 flex items-center justify-center',
         valueGetter: (params) => {
           if (!params || !params.data) return '—';
@@ -770,6 +804,7 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'InTimeAvg',
         headerName: 'In Time Avg',
         width: 130,
+        hide: !employeeVisibleCols.InTimeAvg,
         cellClass: 'text-center font-medium text-emerald-700 flex items-center justify-center',
         valueGetter: (params) => {
           if (!params || !params.data) return '—';
@@ -782,6 +817,7 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'OutTimeAvg',
         headerName: 'Out Time Avg',
         width: 130,
+        hide: !employeeVisibleCols.OutTimeAvg,
         cellClass: 'text-center font-medium text-slate-600 flex items-center justify-center',
         valueGetter: (params) => {
           if (!params || !params.data) return '—';
@@ -791,7 +827,7 @@ export default function AttendanceView({ triggerNotification }) {
         valueFormatter: (params) => formatTimeStr(params.value),
       },
     ];
-  }, []);
+  }, [employeeVisibleCols]);
 
   const historyColDefs = useMemo(() => [
     {
@@ -833,6 +869,12 @@ export default function AttendanceView({ triggerNotification }) {
       minWidth: 160,
       cellClass: 'text-slate-600 font-medium text-center flex items-center justify-center',
       valueGetter: (params) => params.data['Date of Upload'] || params.data.date_of_upload || params.data.Date_of_Upload || '—',
+      valueFormatter: (params) => {
+        if (!params.value || params.value === '—') return '—';
+        const d = new Date(params.value);
+        if (isNaN(d.getTime())) return params.value;
+        return d.toISOString().split('T')[0];
+      },
     },
     {
       headerName: 'Actions',
@@ -1194,6 +1236,10 @@ export default function AttendanceView({ triggerNotification }) {
         .yp-pro-grid .ag-header-cell-text {
           color: #ffffff !important;
           font-weight: 800 !important;
+          word-break: normal !important;
+          overflow-wrap: normal !important;
+          white-space: normal !important;
+          hyphens: none !important;
         }
 
         .yp-pro-grid .ag-floating-bottom-row {
@@ -1381,6 +1427,9 @@ export default function AttendanceView({ triggerNotification }) {
             filteredEmployeeRows={filteredEmployeeRows}
             employeeColDefs={employeeColDefs}
             pinnedBottomRowData={pinnedBottomRowData}
+            visibleCols={employeeVisibleCols}
+            setVisibleCols={setEmployeeVisibleCols}
+            columnLabels={EMPLOYEE_COLUMN_LABELS}
           />
         )}
 

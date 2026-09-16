@@ -502,21 +502,11 @@ export default function DataList({
                 </div>
 
                 <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                  Total Rows: {loading ? '...' : filteredData.length}
+                  Total: {loading ? '...' : filteredData.length}
                 </div>
 
-                <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
-                <ExportDropdown
-                  onExportExcel={() => handleExport('Excel')}
-                  onExportPdf={() => handleExport('PDF')}
-                  color="#0f417a"
-                  hoverColor="#1e5ea8"
-                />
-              </>
-            )}
-
-            {/* Column Visibility Dropdown */}
-            {viewMode === 'table' && (
+                {/* Column Visibility Dropdown */}
+                {viewMode === 'table' && (
               <div className="relative" ref={colDropdownRef}>
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -541,6 +531,16 @@ export default function DataList({
                   </div>
                 )}
               </div>
+            )}
+
+                <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
+                <ExportDropdown
+                  onExportExcel={() => handleExport('Excel')}
+                  onExportPdf={() => handleExport('PDF')}
+                  color="#0f417a"
+                  hoverColor="#1e5ea8"
+                />
+              </>
             )}
 
             {/* Toggle View -- hidden for now, kept for potential future use

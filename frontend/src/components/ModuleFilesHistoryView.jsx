@@ -22,12 +22,12 @@ export default function ModuleFilesHistoryView({
           {title} ({filesList.length} Files)
         </h3>
 
-        <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg shadow-2xs">
-          <span>Show</span>
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none">
+          <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
           <select
             value={pageSize}
             onChange={(e) => setPageSize(Number(e.target.value))}
-            className="bg-white border border-slate-300 rounded px-1.5 py-0.5 text-xs font-bold focus:outline-none text-slate-700 cursor-pointer"
+            className="bg-transparent border-none text-xs font-bold focus:outline-none cursor-pointer p-0"
           >
             <option value={10}>10</option>
             <option value={15}>15</option>
@@ -35,7 +35,6 @@ export default function ModuleFilesHistoryView({
             <option value={50}>50</option>
             <option value={100}>100</option>
           </select>
-          <span>entries</span>
         </div>
       </div>
 

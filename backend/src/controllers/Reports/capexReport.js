@@ -1,50 +1,16 @@
 import { pool } from "../../db.js";
 import { applyDataScope } from "../../middleware/dataScope.js";
 
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-const WEEKS = [1, 2, 3, 4];
-
-function buildSumExpression(prefix) {
-  const parts = [];
-  for (const m of MONTHS) {
-    for (const w of WEEKS) {
-      parts.push(`ISNULL(capex_${prefix}_Week${w}_${m}, 0)`);
-    }
-  }
-  return parts.join(" + ");
-}
-
-const GBS_SUM_SQL = buildSumExpression("GBS");
-const IEBR_SUM_SQL = buildSumExpression("IEBR");
-const PPP_SUM_SQL = buildSumExpression("PPP");
-const TOTAL_MONTHS_SUM_SQL = MONTHS.map(
-  (m) => `ISNULL(capex_Total_Month_${m}, 0)`
-).join(" + ");
-
 const MONTHLY_TOTALS_JOIN = `
   LEFT JOIN (
     SELECT
       capex_id,
-      ISNULL(SUM(${GBS_SUM_SQL}), 0) AS total_GBS,
-      ISNULL(SUM(${IEBR_SUM_SQL}), 0) AS total_IEBR,
-      ISNULL(SUM(${PPP_SUM_SQL}), 0) AS total_PPP,
-      ISNULL(SUM(${TOTAL_MONTHS_SUM_SQL}), 0) AS total_Capex,
+      SUM(CASE WHEN funding_type = 'GBS'  THEN ISNULL(amount, 0) ELSE 0 END) AS total_GBS,
+      SUM(CASE WHEN funding_type = 'IEBR' THEN ISNULL(amount, 0) ELSE 0 END) AS total_IEBR,
+      SUM(CASE WHEN funding_type = 'PPP'  THEN ISNULL(amount, 0) ELSE 0 END) AS total_PPP,
+      SUM(ISNULL(amount, 0)) AS total_Capex,
       MAX(updated_date) AS updated_date
-    FROM dbo.tbl_capex_monthly
+    FROM sagarmanthan_revamp.dbo.tbl_capex_monthly
     GROUP BY capex_id
   ) AS tbl_capex_monthly ON tbl_capex.capex_id = tbl_capex_monthly.capex_id
 `;
@@ -88,8 +54,8 @@ function detailedReportSelectSql(categoryWhere) {
         )
       END AS exp_ppp,
       tbl_capex_monthly.updated_date AS monthly_updated_date
-    FROM dbo.mmt_organisation
-    LEFT JOIN dbo.tbl_capex
+    FROM sagarmanthan_revamp.dbo.mmt_organisation
+    LEFT JOIN sagarmanthan_revamp.dbo.tbl_capex
       ON mmt_organisation.organisation_id = tbl_capex.capex_organisation_id
      AND tbl_capex.capex_financial_year = @selectedYear
     ${MONTHLY_TOTALS_JOIN}
@@ -114,8 +80,8 @@ function summaryReportSelectSql(scopeWhereSql = "") {
           2
         )
       END AS pct
-    FROM dbo.mmt_organisation
-    LEFT JOIN dbo.tbl_capex
+    FROM sagarmanthan_revamp.dbo.mmt_organisation
+    LEFT JOIN sagarmanthan_revamp.dbo.tbl_capex
       ON mmt_organisation.organisation_id = tbl_capex.capex_organisation_id
      AND tbl_capex.capex_financial_year = @selectedYear
     ${MONTHLY_TOTALS_JOIN}
@@ -160,7 +126,7 @@ async function capexReportData(req, res) {
       shippingsectorOrganisations: shippingsectorOrganisationsQuery.recordset,
     });
   } catch (err) {
-    console.error("Capex Report Data Error:", err);
+    console.log(err);
     return res.sendStatus(500);
   }
 }
@@ -184,7 +150,7 @@ async function capexSummaryReportData(req, res) {
       data: result.recordset || [],
     });
   } catch (err) {
-    console.error("Capex Summary Report Error:", err);
+    console.log(err);
     return res.sendStatus(500);
   }
 }
@@ -223,11 +189,17 @@ function yoyFlatSelectSql(fyInClause, scopeWhereSql = "") {
           2
         )
       END AS pct
-    FROM dbo.mmt_organisation
-    LEFT JOIN dbo.tbl_capex
+    FROM sagarmanthan_revamp.dbo.mmt_organisation
+    LEFT JOIN sagarmanthan_revamp.dbo.tbl_capex
       ON mmt_organisation.organisation_id = tbl_capex.capex_organisation_id
      AND tbl_capex.capex_financial_year IN (${fyInClause})
-    ${MONTHLY_TOTALS_JOIN}
+    LEFT JOIN (
+      SELECT
+        capex_id,
+        SUM(ISNULL(amount, 0)) AS total_Capex
+      FROM sagarmanthan_revamp.dbo.tbl_capex_monthly
+      GROUP BY capex_id
+    ) AS tbl_capex_monthly ON tbl_capex.capex_id = tbl_capex_monthly.capex_id
     WHERE ${SUMMARY_ORG_CATEGORY_WHERE}
     ${scopeWhereSql}
     ORDER BY mmt_organisation.organisation_name, tbl_capex.capex_financial_year
@@ -237,38 +209,52 @@ function yoyFlatSelectSql(fyInClause, scopeWhereSql = "") {
 function pivotYoYRows(flatRows, financialYears) {
   const byOrg = new Map();
 
-  for (const row of flatRows) {
-    const orgId = Number(row.organisation_id);
-    if (!byOrg.has(orgId)) {
-      const initYears = {};
-      for (const fy of financialYears) {
-        initYears[fy] = { be: 0, exp: 0, pct: 0 };
-      }
-      byOrg.set(orgId, {
+  (flatRows || []).forEach((row) => {
+    const orgId = row.organisation_id;
+    const key = String(orgId ?? row.organisation_name);
+    if (!byOrg.has(key)) {
+      const years = {};
+      financialYears.forEach((fy) => {
+        years[fy] = { be: 0, exp: 0, pct: 0 };
+      });
+      byOrg.set(key, {
         organisation_id: orgId,
-        organisation_name: row.organisation_name,
+        organisation_name: row.organisation_name || "—",
         organisation_category_id: row.organisation_category_id,
-        years: initYears,
+        years,
       });
     }
 
-    const orgEntry = byOrg.get(orgId);
+    const entry = byOrg.get(key);
     const fy = row.capex_financial_year;
-    if (fy && orgEntry.years[fy] !== undefined) {
-      orgEntry.years[fy] = {
+    if (fy && entry.years[fy]) {
+      entry.years[fy] = {
         be: Number(row.be) || 0,
         exp: Number(row.exp) || 0,
         pct: Number(row.pct) || 0,
       };
     }
-  }
+  });
 
-  return Array.from(byOrg.values());
+  return Array.from(byOrg.values()).sort((a, b) =>
+    String(a.organisation_name).localeCompare(String(b.organisation_name), "en")
+  );
 }
 
 async function capexYoYReportData(req, res) {
+  const financialYears = buildYoYFinancialYears();
+  if (!financialYears.length) {
+    return res.json({ financialYears: [], data: [] });
+  }
+
   const conn = await pool;
   const request = conn.request();
+
+  const fyParams = financialYears.map((fy, i) => {
+    const name = `fy${i}`;
+    request.input(name, fy);
+    return `@${name}`;
+  });
 
   const { whereSql } = applyDataScope(request, req.user, {
     strategy: "directOrgColumn",
@@ -276,20 +262,16 @@ async function capexYoYReportData(req, res) {
     orgColumn: "organisation_id",
   });
 
-  const financialYears = buildYoYFinancialYears();
-  const fyInClause = financialYears.map((fy) => `'${fy.replace(/'/g, "''")}'`).join(", ");
-
   try {
-    const result = await request.query(yoyFlatSelectSql(fyInClause, whereSql));
-    const flatRows = result.recordset || [];
-    const rows = pivotYoYRows(flatRows, financialYears);
-
+    const result = await request.query(
+      yoyFlatSelectSql(fyParams.join(", "), whereSql)
+    );
     res.json({
       financialYears,
-      rows,
+      data: pivotYoYRows(result.recordset, financialYears),
     });
   } catch (err) {
-    console.error("Capex YoY Report Error:", err);
+    console.log(err);
     return res.sendStatus(500);
   }
 }

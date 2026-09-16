@@ -168,7 +168,14 @@ export default function DataList({
       cellClass: 'text-slate-550 flex items-center py-2 border-r border-slate-100 font-medium',
       valueFormatter: (params) => params.value || '--'
     }] : []),
-    ...(visibleCols.lastUpdated ? [{ headerName: 'Last Updated Date', field: 'lastUpdated', minWidth: 155, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium' }] : []),
+    ...(visibleCols.lastUpdated ? [{ headerName: 'Last Updated Date', field: 'lastUpdated', minWidth: 155, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium',
+      valueFormatter: (params) => {
+        if (!params.value) return '—';
+        const d = new Date(params.value);
+        if (isNaN(d.getTime())) return params.value;
+        return d.toISOString().split('T')[0];
+      },
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
       cellClass: 'text-center flex items-center justify-center gap-1',
@@ -239,7 +246,7 @@ export default function DataList({
 
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-            Total Rows: {loading ? '...' : totalEntries}
+            Total: {loading ? '...' : totalEntries}
           </div>
           <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
           <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#0f417a" hoverColor="#1d5594" />

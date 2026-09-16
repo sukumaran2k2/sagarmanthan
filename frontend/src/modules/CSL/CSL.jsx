@@ -48,12 +48,50 @@ export default function CSLView({ activeTab, triggerNotification }) {
   const permissions = useCSLPermissions();
   const { canAdd, canEdit, canView, canRemove } = permissions;
 
-  const [activeSection, setActiveSection] = useState('vesselsBuilt');
-  const [activeSubTab, setActiveSubTab] = useState(activeTab === 'CSL Reports' ? 'report' : 'list');
+  const VALID_SECTION_IDS = SECTIONS.map((s) => s.id);
+
+  const getInitialStateFromURL = () => {
+    const params = new URLSearchParams(window.location.search);
+    const urlSection = params.get('section');
+    const urlTab = params.get('tab');
+    return {
+      section: VALID_SECTION_IDS.includes(urlSection) ? urlSection : 'vesselsBuilt',
+      subTab: ['add', 'list', 'report'].includes(urlTab)
+        ? urlTab
+        : (activeTab === 'CSL Reports' ? 'report' : 'list'),
+    };
+  };
+
+  const [activeSection, setActiveSection] = useState(() => getInitialStateFromURL().section);
+  const [activeSubTab, setActiveSubTab] = useState(() => getInitialStateFromURL().subTab);
 
   const [rowData, setRowData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editData, setEditData] = useState(null);
+
+  // Keep the URL's ?section=&tab= query params in sync with the current view,
+  // so refreshing, bookmarking, or using browser back/forward preserves the
+  // exact section and tab the user was on.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('section', activeSection);
+    params.set('tab', activeSubTab);
+    const newSearch = `?${params.toString()}`;
+    if (window.location.search !== newSearch) {
+      window.history.pushState(null, '', `${window.location.pathname}${newSearch}`);
+    }
+  }, [activeSection, activeSubTab]);
+
+  // Restore state when the user navigates via the browser's back/forward buttons.
+  useEffect(() => {
+    const handlePopState = () => {
+      const { section, subTab } = getInitialStateFromURL();
+      setActiveSection(section);
+      setActiveSubTab(subTab);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const currentSection = SECTIONS.find((s) => s.id === activeSection);
 
@@ -102,9 +140,8 @@ export default function CSLView({ activeTab, triggerNotification }) {
     }
   };
 
-  useEffect(() => {
+    useEffect(() => {
     setEditData(null);
-    setActiveSubTab('list');
     fetchData();
   }, [activeSection]);
 
@@ -247,7 +284,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm mt-2">
+      <div className={(activeSubTab === 'report' || activeSubTab === 'add') ? 'mt-2' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm mt-2'}>
         {!currentSection.ready ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Construction className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />

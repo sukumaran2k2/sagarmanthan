@@ -65,9 +65,11 @@ const Table = forwardRef(({
   const handleGridSizeChanged = (params) => {
     if (params?.api) {
       try {
-        params.api.sizeColumnsToFit();
         params.api.resetRowHeights();
-      } catch (_) {}
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onGridSizeChanged) {
       onGridSizeChanged(params);
@@ -77,9 +79,11 @@ const Table = forwardRef(({
   const handleFirstDataRendered = (params) => {
     if (params?.api) {
       try {
-        params.api.sizeColumnsToFit();
         params.api.resetRowHeights();
-      } catch (_) {}
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onFirstDataRendered) {
       onFirstDataRendered(params);
@@ -94,9 +98,11 @@ const Table = forwardRef(({
       setTotalRows(params.api.paginationGetRowCount());
       setPageSize(params.api.paginationGetPageSize());
       try {
-        params.api.sizeColumnsToFit();
         params.api.resetRowHeights();
-      } catch (_) {}
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onGridReady) {
       onGridReady(params);
