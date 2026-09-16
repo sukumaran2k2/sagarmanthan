@@ -64,6 +64,19 @@ export default function InputForm({
   const [physicalProgress, setPhysicalProgress] = useState('');
   const [remarks, setRemarks] = useState('');
 
+  const isFullyComplete = Number(physicalProgress) === 100 && Number(financialProgress) === 100;
+
+  // Project Status is derived from progress once both reach 100%: the status
+  // can only become "Completed" this way, and automatically reverts to the
+  // manually-selected value if either progress figure drops back below 100.
+  useEffect(() => {
+    if (isFullyComplete) {
+      setProjectStatus('Completed');
+    } else {
+      setProjectStatus((prev) => (prev === 'Completed' ? 'Project Under implementation' : prev));
+    }
+  }, [isFullyComplete]);
+
   // Multi-year Expenditure Breakdown
   const [expenditures, setExpenditures] = useState([
     { year: FINANCIAL_YEARS[0], cost: '' }
@@ -191,6 +204,12 @@ export default function InputForm({
     }
     if (commencedOn && completedOn && completedOn < commencedOn) {
       errs.completedOn = 'Completed date cannot be earlier than Commenced date.';
+    }
+    if (physicalProgress !== '' && (isNaN(Number(physicalProgress)) || Number(physicalProgress) < 0 || Number(physicalProgress) > 100)) {
+      errs.physicalProgress = 'Physical Progress must be between 0 and 100.';
+    }
+    if (financialProgress !== '' && (isNaN(Number(financialProgress)) || Number(financialProgress) < 0 || Number(financialProgress) > 100)) {
+      errs.financialProgress = 'Financial Progress must be between 0 and 100.';
     }
     setProjectErrors(errs);
     return Object.keys(errs).length === 0;
@@ -416,7 +435,7 @@ export default function InputForm({
                     <select
                       value={csrFocus}
                       onChange={(e) => setCsrFocus(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                     >
                       {CSR_FOCUS_AREAS.map(f => (
                         <option key={f.id} value={f.id}>{f.label}</option>
@@ -532,14 +551,18 @@ export default function InputForm({
                     <select
                       value={projectStatus}
                       onChange={(e) => setProjectStatus(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      disabled={isFullyComplete}
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-500"
                     >
-                      {CSR_STATUSES.map(s => (
+                      {CSR_STATUSES.filter((s) => s !== 'Completed' || isFullyComplete).map(s => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   </div>
+                  {isFullyComplete && (
+                    <p className="text-[10px] font-semibold text-slate-400">Set automatically once both progress fields reach 100%.</p>
+                  )}
                 </div>
 
                 {/* Financial Year */}
@@ -551,7 +574,7 @@ export default function InputForm({
                     <select
                       value={financialYear}
                       onChange={(e) => setFinancialYear(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                     >
                       {FINANCIAL_YEARS.map(fy => (
                         <option key={fy} value={fy}>{fy}</option>
@@ -605,8 +628,13 @@ export default function InputForm({
                     placeholder="0"
                     value={physicalProgress}
                     onChange={(e) => setPhysicalProgress(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
+                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                      projectFormSubmitted && projectErrors.physicalProgress ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
+                    }`}
                   />
+                  {projectFormSubmitted && projectErrors.physicalProgress && (
+                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.physicalProgress}</p>
+                  )}
                 </div>
 
                 {/* Financial Progress */}
@@ -622,8 +650,13 @@ export default function InputForm({
                     placeholder="0"
                     value={financialProgress}
                     onChange={(e) => setFinancialProgress(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200"
+                    className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 ${
+                      projectFormSubmitted && projectErrors.financialProgress ? 'border-red-500 bg-red-50/20' : 'border-slate-250 dark:border-slate-800'
+                    }`}
                   />
+                  {projectFormSubmitted && projectErrors.financialProgress && (
+                    <p className="text-[10px] font-bold text-red-500 mt-1">{projectErrors.financialProgress}</p>
+                  )}
                 </div>
 
                 {/* Remarks of the Project */}
@@ -805,6 +838,10 @@ export default function InputForm({
               </div>
             </div>
 
+            <p className="text-[10px] text-slate-400 italic pt-1">
+              Fields marked with <span className="text-red-500">*</span> are mandatory
+            </p>
+
             {/* Bottom Actions: Submit (Green) & Exit (Red) */}
             <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button
@@ -867,7 +904,7 @@ export default function InputForm({
                     <select
                       value={fundFY}
                       onChange={(e) => setFundFY(e.target.value)}
-                      className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      className="appearance-none w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                     >
                       {FINANCIAL_YEARS.map(fy => (
                         <option key={fy} value={fy}>{fy}</option>
@@ -940,7 +977,7 @@ export default function InputForm({
               </div>
 
               <p className="text-[10px] text-slate-400 italic pt-1">
-                Fields marked with * are mandatory
+                Fields marked with <span className="text-red-500">*</span> are mandatory
               </p>
             </div>
 

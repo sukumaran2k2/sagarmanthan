@@ -120,14 +120,31 @@ body {
 }
 
 .ag-cell {
-  text-align: center !important;
+  text-align: center;
 }
 
-.ag-cell,
-.ag-cell * {
-  white-space: nowrap !important;
-  text-overflow: ellipsis !important;
-  overflow: hidden !important;
+.ag-cell:not(.ag-cell-wrap-text):not(.mopsw-wrap-cell):not(.yp-wrap-cell):not(.wrap-text),
+.ag-cell:not(.ag-cell-wrap-text):not(.mopsw-wrap-cell):not(.yp-wrap-cell):not(.wrap-text) .ag-cell-value {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* Allow text wrapping when wrap classes are specified */
+.ag-cell.ag-cell-wrap-text,
+.ag-cell.mopsw-wrap-cell,
+.ag-cell.yp-wrap-cell,
+.ag-cell.wrap-text,
+.ag-cell.ag-cell-wrap-text *,
+.ag-cell.mopsw-wrap-cell *,
+.ag-cell.yp-wrap-cell *,
+.ag-cell.wrap-text * {
+  white-space: normal !important;
+  text-overflow: unset !important;
+  overflow: visible !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.5 !important;
 }
 
 /* Style filter and sort icons on header to be white */

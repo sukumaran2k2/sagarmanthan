@@ -37,7 +37,10 @@ export default function DataList({
   const [organisations, setOrganisations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Column Visibility state
+  // Dedicated Collapsible Filter Panel Toggle State (matching GMIS DataList)
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // Column visibility checklist dropdown
   const [colDropdownOpen, setColDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
   const [visibleCols, setVisibleCols] = useState({
@@ -53,20 +56,17 @@ export default function DataList({
   });
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
+    function handleClickOutside(event) {
       if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
         setColDropdownOpen(false);
       }
-    };
+    }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Dedicated Collapsible Filter Panel Toggle State (matching GMIS DataList)
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
-
   // Filter states
-  const [selectedOrg, setSelectedOrg] = useState('');
+  const [selectedOrg, setSelectedOrg] = useState(() => (isOrgUser && userOrgId ? String(userOrgId) : ''));
   const [selectedFY, setSelectedFY] = useState('');
   const [selectedFocus, setSelectedFocus] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
@@ -125,9 +125,9 @@ export default function DataList({
     if (!isOrgUser && selectedOrg) count++;
     if (selectedFY) count++;
     if (selectedFocus) count++;
-    if (selectedStatus) count++;
+    if (activeTab !== 'completed' && selectedStatus) count++;
     return count;
-  }, [isOrgUser, selectedOrg, selectedFY, selectedFocus, selectedStatus]);
+  }, [isOrgUser, selectedOrg, selectedFY, selectedFocus, selectedStatus, activeTab]);
 
   // Counts for Sub-Tabs
   const allCount = scopedProjects.length;
@@ -191,10 +191,10 @@ export default function DataList({
 
   // Reset all filters handler
   const handleResetFilters = () => {
-    setSelectedOrg('');
+    if (!isOrgUser) setSelectedOrg('');
     setSelectedFY('');
     setSelectedFocus('');
-    setSelectedStatus('');
+    setSelectedStatus(activeTab === 'completed' ? 'Completed' : '');
     setSearchTerm('');
     setCurrentPage(1);
     triggerNotification?.('Filters have been reset', 'info');
@@ -429,7 +429,6 @@ export default function DataList({
 
   return (
     <div className="space-y-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      
       {/* Sub-Tabs Row matching CA / GMIS style */}
       <div className="flex border-b border-slate-200 dark:border-slate-800 space-x-1 select-none">
         <button
@@ -470,34 +469,35 @@ export default function DataList({
         {/* Search, Filters and Actions Toolbar */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           
-          {/* 1. Dedicated Filter Button (matching GMIS DataList) */}
-          <div className="flex items-center gap-2.5 w-full lg:w-auto">
+          {/* Left Action Tools: Filter Toggle Button */}
+          <div className="flex items-center gap-2 w-full lg:w-auto">
             <button
               type="button"
               onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs cursor-pointer ${
                 showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
+                  ? 'bg-blue-50 border-[#0f417a] text-[#0f417a] dark:bg-blue-950/60 dark:border-blue-700 dark:text-blue-300'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
               }`}
             >
-              <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+              <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
               <span>Filter</span>
               {activeFiltersCount > 0 && (
-                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                <span className="bg-[#0f417a] text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
                   {activeFiltersCount}
                 </span>
               )}
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
             </button>
 
             {activeFiltersCount > 0 && (
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
-                Reset
+                <RotateCcw size={12} />
+                <span>Reset</span>
               </button>
             )}
           </div>
@@ -716,7 +716,8 @@ export default function DataList({
                 <select
                   value={selectedStatus}
                   onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                  disabled={activeTab === 'completed'}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                 >
                   <option value="">All Statuses</option>
                   {availableStatuses.map((st) => (

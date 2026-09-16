@@ -894,20 +894,20 @@ router.post("/add-lumpsum-activity", addNewLumpSumTab.createLumpSumActivityData)
 router.get("/getdata-lumpsum-activitydata/:projectID", addNewLumpSumTab.getSubProActivityData);
 
 // CSR Projects
-router.post("/csr-gallery-upload", csrProjectTab.upload.array('file'), csrProjectTab.addNewCsrFileGallery);
+router.post("/csr-gallery-upload", csrProjectTab.handleUploadErrors(csrProjectTab.upload.array('file')), csrProjectTab.addNewCsrFileGallery);
 router.post('/add-csr-projects', csrProjectTab.createCsrProjects);
 router.get('/csr-projects-list/:userID',csrProjectTab.getCsrProjectslist);
 router.put("/update-csr-list", csrProjectTab.updateCsrProjects);
 router.get("/csr-list/:csrProjectId", csrProjectTab.getUpdateCsrProjectsData);
-router.post("/csrprojectdocument", csrProjectTab.upload.single('file'), csrProjectTab.csrProjectDocumentUploader);
+router.post("/csrprojectdocument", csrProjectTab.handleUploadErrors(csrProjectTab.upload.single('file')), csrProjectTab.csrProjectDocumentUploader);
 router.get("/download-csrfile/:fileName", csrProjectTab.csrfileDownload);
 router.delete("/delete-csrfile", csrProjectTab.csrfileDelete);
 router.get("/get-csr-expenditure/:csrProjectId", csrProjectTab.getCsrExpenditureCost);
 router.post('/add-csr-expenditure', csrProjectTab.addCsrExpenditure);
 router.get("/get-csr-project-files/:csrProjectId", csrProjectTab.getCsrFileUploadDocument);
 router.delete("/delete-csr-gallery-file/:csrProjectId/:filename",csrProjectTab.deleteGalleryFile);
-router.put("/update-csr-gallery-file",csrProjectTab.fileUpload.single('file'),csrProjectTab.updateGalleryFile);
-router.post("/update-csr-gallery-upload/:csrProjectId", csrProjectTab.fileUpload.array('file'),csrProjectTab.uploadMediaGalleryFile)
+router.put("/update-csr-gallery-file",csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.single('file')),csrProjectTab.updateGalleryFile);
+router.post("/update-csr-gallery-upload/:csrProjectId", csrProjectTab.handleUploadErrors(csrProjectTab.fileUpload.array('file')),csrProjectTab.uploadMediaGalleryFile)
 router.get("/download-csrfile-pdf-document", csrProjectTab.csrPdfFileDownload);
 router.get("/get-csr-project-overview-reports/:userID",csrProjectTab.csrProjectsAbstractReport);
 router.get("/get-csr-projects-detailed-reports/:organisationID/:OrganisationName",csrProjectTab.csrProjectsDetailedReport)
@@ -920,6 +920,12 @@ router.post('/add-csr-Fund',csrProjectTab.addCsrFundDetails);
 router.get('/get-csr-fund-expenditure-report/:userID',csrProjectTab.csrExpenditureReport);
 router.get('/get-csr-project-dashboard/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCSRProjectDashboard);
 router.get('/get-csr-fund-allocatted/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCsrFundAllocatted);
+router.get('/get-csr-fund-year-wise-report/:fy',csrProjectTab.getCsrFundYearWiseReport);
+router.get('/get-csr-fund-org-wise-report/:fy',csrProjectTab.getCsrFundOrgWiseReport);
+router.get('/get-csr-fund-org-trend-report/:orgId',csrProjectTab.getCsrFundOrgTrendReport);
+router.get('/get-csr-projects-year-wise-summary/:orgId',csrProjectTab.getCsrProjectsYearWiseSummary);
+router.get('/get-csr-projects-org-wise-summary',csrProjectTab.getCsrProjectsOrgWiseSummary);
+router.get('/get-csr-projects-focus-wise-summary/:orgId',csrProjectTab.getCsrProjectsFocusWiseSummary);
 router.get('/get-csr-project-stage-wise/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCsrProjectStageWise);
 router.get('/get-csr-project-count-wise/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCSRProjectCountWise);
 router.get('/get-detailed-csr-projects/:clusterID/:organisationID/:fy/:stage/:focusID',csrProjectTab.getDetailedCSRProjects);
