@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Search, BookOpen, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import PageBanner from '../../../components/PageBanner';
 import Table from '../../../components/Table';
+import { API_BASE_URL } from '../../../config/api';
 
 export default function TrainingDetails() {
   const [trainings, setTrainings] = useState([]);
@@ -12,7 +13,7 @@ export default function TrainingDetails() {
 
   useEffect(() => {
     setLoading(true);
-    axios.get(`http://localhost:3000/get-all-training-data/1`)
+    axios.get(`${API_BASE_URL}/get-all-training-data/1`)
       .then(res => {
         setTrainings(res.data || []);
       })

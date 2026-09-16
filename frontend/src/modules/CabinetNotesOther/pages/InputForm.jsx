@@ -483,12 +483,18 @@ export default function InputForm({
         await createCabinetMinistry(payload);
       }
       if (triggerNotification) {
-        triggerNotification(isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.");
+        triggerNotification(
+          isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.",
+          "success"
+        );
       }
       onSuccess();
     } catch (err) {
       console.error("Save error details:", err.response?.data || err.message || err);
-      alert(err.response?.data?.error || "Failed to save Cabinet Note. Please try again.");
+      const errorMsg = err.response?.data?.error || "Failed to save Cabinet Note. Please try again.";
+      if (triggerNotification) {
+        triggerNotification(errorMsg, "error");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -525,7 +531,7 @@ export default function InputForm({
 
             {/* Subject Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Subject*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Subject <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={subject}
@@ -542,7 +548,7 @@ export default function InputForm({
 
             {/* Ministry Name Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Ministry*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Ministry <span className="text-red-500">*</span></label>
               <select
                 value={ministryId}
                 onChange={e => {
@@ -570,7 +576,7 @@ export default function InputForm({
 
             {/* E-Office File Number Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">E-Office File Number*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">E-Office File Number <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={eofficeFileNumber}
@@ -673,7 +679,7 @@ export default function InputForm({
                       </div>
                     </div>
 
-                    {/* Stage-specific optional remark field matching CabinetNotesMOPSW */}
+                    {/* Stage-specific optional remark field */}
                     {!isStageDisabled && !!currentStage.date && (
                       <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
                         <input

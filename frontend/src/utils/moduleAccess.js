@@ -44,7 +44,9 @@ export function getAllowedModuleCodes() {
 
 export function hasModuleAccess(moduleCode) {
   if (!moduleCode || isSuperAdmin()) return false;
-  return getAllowedModuleCodes().includes(String(moduleCode).toUpperCase());
+  const upper = String(moduleCode).toUpperCase();
+  const allowed = getAllowedModuleCodes();
+  return allowed.includes(upper);
 }
 
 export function isSuperAdminTab(tab) {

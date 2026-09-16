@@ -13,6 +13,7 @@ import {
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import PageBanner from '../../../components/PageBanner';
 import Table from '../../../components/Table';
+import { API_BASE_URL } from '../../../config/api';
 
 const COLORS = ['#0f417a', '#2ECC71', '#F1C40F', '#E74C3C', '#9b59b6', '#34495e', '#1abc9c', '#e67e22', '#3498db'];
 
@@ -40,7 +41,7 @@ export default function Dashboard() {
 
   // Load organisations list
   useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_organisation")
+    axios.get(`${API_BASE_URL}/mmt-dropdown/mmt_organisation`)
       .then(res => setOrganisations(res.data || []))
       .catch(err => console.error("Error loading organisations:", err));
   }, []);
@@ -52,7 +53,7 @@ export default function Dashboard() {
         setLoading(true);
 
         // Fetch Dashboard Content (KPI Stats)
-        const dashboardRes = await axios.get(`http://localhost:3000/get-admin-hr-dashboard-content/1/${selectedOrg}`);
+        const dashboardRes = await axios.get(`${API_BASE_URL}/get-admin-hr-dashboard-content/1/${selectedOrg}`);
         if (dashboardRes.data) {
           const totals = dashboardRes.data.clusterTotals || dashboardRes.data.combinedTotals;
           if (totals) {
@@ -71,7 +72,7 @@ export default function Dashboard() {
         }
 
         // Fetch Gender Analytics
-        const genderRes = await axios.get(`http://localhost:3000/get-gender-wise-cont-by-org/1/${selectedOrg}`);
+        const genderRes = await axios.get(`${API_BASE_URL}/get-gender-wise-cont-by-org/1/${selectedOrg}`);
         if (genderRes.data) {
           const list = genderRes.data.value || genderRes.data || [];
           setGenderData(list.map((item) => ({
@@ -81,7 +82,7 @@ export default function Dashboard() {
         }
 
         // Fetch Ex-Service Status
-        const exServiceRes = await axios.get(`http://localhost:3000/get-experienced-emp-count/1/${selectedOrg}`);
+        const exServiceRes = await axios.get(`${API_BASE_URL}/get-experienced-emp-count/1/${selectedOrg}`);
         if (exServiceRes.data) {
           const list = exServiceRes.data.value || exServiceRes.data || [];
           // Group ex-service vs non ex-service counts
@@ -94,7 +95,7 @@ export default function Dashboard() {
         }
 
         // Fetch Disability Data
-        const disabilityRes = await axios.get(`http://localhost:3000/get-pwbd-wise-count/1/${selectedOrg}`);
+        const disabilityRes = await axios.get(`${API_BASE_URL}/get-pwbd-wise-count/1/${selectedOrg}`);
         if (disabilityRes.data) {
           const list = disabilityRes.data.value || disabilityRes.data || [];
           setDisabilityData(list.map(item => ({
@@ -104,7 +105,7 @@ export default function Dashboard() {
         }
 
         // Fetch Community Data
-        const communityRes = await axios.get(`http://localhost:3000/get-community-wise-count-by-org/1/${selectedOrg}`);
+        const communityRes = await axios.get(`${API_BASE_URL}/get-community-wise-count-by-org/1/${selectedOrg}`);
         if (communityRes.data) {
           const list = communityRes.data.value || communityRes.data || [];
           if (list.length) {
@@ -120,7 +121,7 @@ export default function Dashboard() {
         }
 
         // Fetch Vacancy Analytics
-        const vacancyRes = await axios.get(`http://localhost:3000/get-department-wise-post-status/1/${selectedOrg}`);
+        const vacancyRes = await axios.get(`${API_BASE_URL}/get-department-wise-post-status/1/${selectedOrg}`);
         if (vacancyRes.data) {
           const list = vacancyRes.data.value || vacancyRes.data || [];
           setVacancyAnalytics(list.map(item => ({

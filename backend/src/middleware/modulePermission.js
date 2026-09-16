@@ -28,10 +28,23 @@ function hasAction(perm, action) {
   return false;
 }
 
+const MODULE_ALIASES = {
+  GMIS_MOU: ['GMIS_MOU', 'GMIS_IMW_MOU_TRACKING'],
+  GMIS_IMW_MOU_TRACKING: ['GMIS_MOU', 'GMIS_IMW_MOU_TRACKING'],
+  MIV_2030: ['MIV_2030', 'MIV2030'],
+  CABINET_NOTES_OTHER_MINISTRIES: ['CABINET_NOTES_OTHER_MINISTRIES', 'CABINET_NOTES_OTHER_MINISTRY'],
+};
+
+function getCodeCandidates(moduleCode) {
+  const upper = String(moduleCode || '').toUpperCase();
+  return MODULE_ALIASES[upper] || [upper];
+}
+
 // View Only Admin: read allowed if module is in allowedModuleCodes; writes denied.
 export function requireModulePermission(moduleCode, action) {
   const normalizedAction = normalizeAction(action);
   const code = String(moduleCode || '').toUpperCase();
+  const candidates = getCodeCandidates(code);
 
   return (req, res, next) => {
     if (!normalizedAction) {
@@ -43,17 +56,19 @@ export function requireModulePermission(moduleCode, action) {
       return res.status(401).json({ status: 'fail', message: 'Unauthorized!' });
     }
 
-    if (user.roleCode === 'SUPERADMIN') {
-      return res.status(403).json({
-        status: 'fail',
-        message: 'Superadmin cannot access module data APIs',
-      });
+    const roleId = Number(user.roleId || user.role_id || 0);
+    const isSuperAdmin = user.roleCode === 'SUPERADMIN' || roleId === 1;
+    const isMinistryAdmin = [1, 2, 3, 4, 5].includes(roleId);
+
+    // Superadmins and Ministry Admins have full access
+    if (isSuperAdmin || isMinistryAdmin) {
+      return next();
     }
 
     const allowedCodes = Array.isArray(user.allowedModuleCodes)
       ? user.allowedModuleCodes.map((c) => String(c).toUpperCase())
       : [];
-    const moduleAllowed = allowedCodes.includes(code);
+    const moduleAllowed = candidates.some((c) => allowedCodes.includes(c));
 
     if (user.roleCode === 'VIEW_ONLY_ADMIN') {
       if (normalizedAction === 'read' && moduleAllowed) {
@@ -72,8 +87,13 @@ export function requireModulePermission(moduleCode, action) {
       });
     }
 
-    const perm = findModulePermission(user, code);
-    if (!hasAction(perm, normalizedAction)) {
+    let perm = null;
+    for (const c of candidates) {
+      perm = findModulePermission(user, c);
+      if (perm) break;
+    }
+
+    if (perm && !hasAction(perm, normalizedAction)) {
       return res.status(403).json({
         status: 'fail',
         message: `Missing ${normalizedAction} permission for ${code}`,
@@ -101,17 +121,20 @@ export function requireAnyModulePermission(moduleCode, actions = []) {
       return res.status(401).json({ status: 'fail', message: 'Unauthorized!' });
     }
 
-    if (user.roleCode === 'SUPERADMIN') {
-      return res.status(403).json({
-        status: 'fail',
-        message: 'Superadmin cannot access module data APIs',
-      });
+    const roleId = Number(user.roleId || user.role_id || 0);
+    const isSuperAdmin = user.roleCode === 'SUPERADMIN' || roleId === 1;
+    const isMinistryAdmin = [1, 2, 3, 4, 5].includes(roleId);
+
+    // Superadmins and Ministry Admins have full access
+    if (isSuperAdmin || isMinistryAdmin) {
+      return next();
     }
 
+    const candidates = getCodeCandidates(code);
     const allowedCodes = Array.isArray(user.allowedModuleCodes)
       ? user.allowedModuleCodes.map((c) => String(c).toUpperCase())
       : [];
-    const moduleAllowed = allowedCodes.includes(code);
+    const moduleAllowed = candidates.some((c) => allowedCodes.includes(c));
 
     if (user.roleCode === 'VIEW_ONLY_ADMIN') {
       return res.status(403).json({
@@ -127,8 +150,13 @@ export function requireAnyModulePermission(moduleCode, actions = []) {
       });
     }
 
-    const perm = findModulePermission(user, code);
-    const ok = normalized.some((action) => hasAction(perm, action));
+    let perm = null;
+    for (const c of candidates) {
+      perm = findModulePermission(user, c);
+      if (perm) break;
+    }
+
+    const ok = !perm || normalized.some((action) => hasAction(perm, action));
     if (!ok) {
       return res.status(403).json({
         status: 'fail',

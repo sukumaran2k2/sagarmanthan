@@ -42,6 +42,7 @@ export default function IssueListTable({
   onEdit,
   onDelete,
   onAdd,
+  notify,
 }) {
   const [gridApi, setGridApi] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -251,22 +252,33 @@ export default function IssueListTable({
         });
         tsv += `${line.join('\t')}\n`;
       });
-      navigator.clipboard.writeText(tsv).catch(() => {});
+      navigator.clipboard.writeText(tsv)
+        .then(() => {
+          notify?.('Parliamentary issues copied to clipboard!', 'success');
+        })
+        .catch(() => {
+          notify?.('Failed to copy to clipboard.', 'error');
+        });
       return;
     }
 
     if (type === 'Excel') {
-      if (!gridApi) return;
-      gridApi.exportDataAsCsv({
-        fileName: 'Parliamentary_Issues_Register_export.csv',
-        columnKeys: columnDefs
-          .filter((c) => c.field && c.headerName !== 'Update' && !c.hide)
-          .map((c) => c.field),
-      });
+      if (gridApi) {
+        gridApi.exportDataAsCsv({
+          fileName: 'Parliamentary_Issues_Register_export.csv',
+          columnKeys: columnDefs
+            .filter((c) => c.field && c.headerName !== 'Update' && !c.hide)
+            .map((c) => c.field),
+        });
+        notify?.('Parliamentary issues exported to CSV successfully!', 'success');
+      } else {
+        notify?.('Exporting table data...', 'info');
+      }
       return;
     }
 
     if (type === 'PDF') {
+      notify?.('Preparing PDF document for Parliamentary issues...', 'info');
       const printWindow = window.open('', '_blank');
       if (!printWindow) return;
       let headersHtml = '';

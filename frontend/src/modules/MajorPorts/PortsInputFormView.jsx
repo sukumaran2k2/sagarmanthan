@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ChevronDown, Plus, Search, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 import CommonTable from '../../components/CommonTable';
+import { API_BASE_URL } from '../../config/api';
 
 export default function PortsInputFormView() {
   const [subView, setSubView] = useState('list'); // 'list' or 'details'
@@ -23,7 +24,7 @@ export default function PortsInputFormView() {
   useEffect(() => {
     if (subView === 'details' && selectedForm === 'traffic') {
       setLoading(true);
-      axios.get(`http://localhost:3000/get-traffic-actual-data`, {
+      axios.get(`${API_BASE_URL}/get-traffic-actual-data`, {
         params: {
           page: currentPage,
           limit: entriesLimit

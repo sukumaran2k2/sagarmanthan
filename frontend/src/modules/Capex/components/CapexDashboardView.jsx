@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
-import { ClipboardList, TrendingUp, Percent,  } from "lucide-react";
+import { ClipboardList, TrendingUp, Percent } from "lucide-react";
 import {
   ComposedChart,
   Bar,
@@ -12,11 +11,13 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+import {
+  fetchCapexDashboard,
+  fetchCapexDashboardBarGraph,
+} from "../api";
 
 export default function CapexDashboardView({ showToast }) {
-  const [clusterID, setClusterID] = useState("1"); // 1 = Major Ports
+  const [clusterID, setClusterID] = useState("1");
   const [financialYear, setFinancialYear] = useState("2026-2027");
   const [loading, setLoading] = useState(false);
 
@@ -36,9 +37,8 @@ export default function CapexDashboardView({ showToast }) {
     setLoading(true);
     try {
       const yearParam = fy || "all";
-      // 1. Fetch totals
-      const totalsRes = await axios.get(`${API_BASE_URL}/get-capex-dashboard/${cid}/${yearParam}`);
-      if (totalsRes.data && totalsRes.data.combinedTotals) {
+      const totalsRes = await fetchCapexDashboard(cid, yearParam);
+      if (totalsRes.data?.combinedTotals) {
         setTotals({
           totalPlannedExpenditure: Number(totalsRes.data.combinedTotals.totalPlannedExpenditure) || 0,
           totalActualExpenditure: Number(totalsRes.data.combinedTotals.totalActualExpenditure) || 0,
@@ -48,25 +48,22 @@ export default function CapexDashboardView({ showToast }) {
         setTotals({ totalPlannedExpenditure: 0, totalActualExpenditure: 0, expenditurePercentage: 0 });
       }
 
-      // 2. Fetch chart data
-      const chartRes = await axios.get(`${API_BASE_URL}/get-capex-dashboard-bar-graph/${cid}/${yearParam}`);
+      const chartRes = await fetchCapexDashboardBarGraph(cid, yearParam);
       if (
-        chartRes.data &&
-        chartRes.data.labels &&
-        chartRes.data.datasets &&
+        chartRes.data?.labels &&
+        chartRes.data?.datasets &&
         chartRes.data.datasets.length >= 2
       ) {
         const labels = chartRes.data.labels;
         const plannedArr = chartRes.data.datasets[0].data || [];
         const actualArr = chartRes.data.datasets[1].data || [];
-
-        const formatted = labels.map((lbl, idx) => ({
-          name: lbl,
-          planned: plannedArr[idx] !== undefined ? Number(plannedArr[idx]) : 0,
-          actual: actualArr[idx] !== undefined ? Number(actualArr[idx]) : 0,
-        }));
-
-        setChartData(formatted);
+        setChartData(
+          labels.map((lbl, idx) => ({
+            name: lbl,
+            planned: plannedArr[idx] !== undefined ? Number(plannedArr[idx]) : 0,
+            actual: actualArr[idx] !== undefined ? Number(actualArr[idx]) : 0,
+          }))
+        );
       } else {
         setChartData([]);
       }
@@ -81,8 +78,8 @@ export default function CapexDashboardView({ showToast }) {
   return (
     <div className="space-y-6 animate-fade-in select-none">
       {/* Light Blue Banner Header */}
-      <div className="bg-gradient-to-r from-sky-200 via-sky-100 to-teal-100 py-4 px-6 rounded-2xl text-center border border-sky-300 shadow-xs">
-        <h2 className="text-xl font-black text-[#0c3c6b] tracking-wide uppercase font-display">
+      <div className="bg-gradient-to-r from-[#0f417a] via-[#163a66] to-[#1d5594] py-4 px-6 rounded-2xl text-center border border-[#0c3563] shadow-xs">
+        <h2 className="text-xl font-black text-white tracking-wide uppercase font-display">
           Capex Dashboard
         </h2>
       </div>

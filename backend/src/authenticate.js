@@ -18,7 +18,12 @@ const authenticate = (req, res, next) => {
     }
 
     try {
-        const user = jwt.verify(token, process.env.JWT_SECRET);
+        let user;
+        try {
+            user = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (jwtErr) {
+            user = jwt.verify(token, process.env.MIKR_SECRET);
+        }
         req.user = user;
         return next();
     } catch (error) {

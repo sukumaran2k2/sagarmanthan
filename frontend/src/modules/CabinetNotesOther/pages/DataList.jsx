@@ -298,12 +298,14 @@ export default function DataList({
           fileName: `Cabinet_Notes_Other_Ministry_Register_export.csv`
         });
         if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`);
+          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
         }
+      } else {
+        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
       }
     } else if (type === 'PDF') {
       if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`);
+        triggerNotification(`Preparing PDF document...`, 'info');
       }
       const printWindow = window.open('', '_blank');
       const title = 'Cabinet Notes Other Ministry Register';
@@ -437,7 +439,7 @@ export default function DataList({
           <div className="flex items-center space-x-2 flex-shrink-0">
             {/* Total Rows Pill Badge */}
             <div className="px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-[#0f417a] dark:text-blue-400 tracking-wider">
-              TOTAL ROWS: {filteredData.length}
+              TOTAL: {filteredData.length}
             </div>
 
             {/* Column Visibility Dropdown */}

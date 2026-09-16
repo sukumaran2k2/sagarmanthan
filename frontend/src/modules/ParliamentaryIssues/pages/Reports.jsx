@@ -442,15 +442,42 @@ export default function ParliamentaryIssuesReports({ notify }) {
     const serial = visible.filter(isSerial);
     const rest = visible.filter((col) => !isSerial(col)).map((col) => {
       const field = String(col.field || '');
-      if (!/implementation report furnished/i.test(field)) return col;
-      return {
-        ...col,
-        width: 160,
-        minWidth: 140,
-        maxWidth: 170,
-        wrapHeaderText: true,
-        autoHeaderHeight: true,
-      };
+      const header = String(col.headerName || '');
+      const label = `${field} ${header}`;
+
+      if (/implementation report furnished/i.test(label)) {
+        return {
+          ...col,
+          width: 160,
+          minWidth: 140,
+          maxWidth: 170,
+          wrapHeaderText: true,
+          autoHeaderHeight: true,
+        };
+      }
+
+      // Long wing lists — wrap so full text is visible (no ellipsis truncate)
+      if (/comments (yet|not yet) to be received/i.test(label)) {
+        return {
+          ...col,
+          minWidth: 280,
+          flex: 1.4,
+          wrapText: true,
+          autoHeight: true,
+          wrapHeaderText: true,
+          autoHeaderHeight: true,
+          cellClass: 'yp-wrap-cell',
+          cellStyle: {
+            textAlign: 'left',
+            lineHeight: '1.35',
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+          },
+          tooltipField: field || undefined,
+        };
+      }
+
+      return col;
     });
     return [...serial, ...rest];
   }, [mapColumnRenderers, reportCols, isSummary, reportView]);
@@ -562,6 +589,7 @@ export default function ParliamentaryIssuesReports({ notify }) {
           columns={columns}
           loading={loading}
           onRefresh={fetchReportData}
+          triggerNotification={notify}
           pagination
           brandColor="#4b2424"
           brandColorHover="#6b3535"

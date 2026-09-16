@@ -117,7 +117,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
     const finalOrgId = organisationId || (hideOrgSelect ? sessionOrg : null) || (isEdit ? editData?.organisation_id : null);
 
     if (!financialYear || !month || !finalOrgId) {
-      if (triggerNotification) triggerNotification(hideOrgSelect ? 'Please select Financial Year and Month.' : 'Please select Financial Year, Month, and Organisation.');
+      if (triggerNotification) triggerNotification(hideOrgSelect ? 'Please select Financial Year and Month.' : 'Please select Financial Year, Month, and Organisation.', 'warning');
       return;
     }
 
@@ -174,10 +174,11 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
 
       try {
         await updateSocialMedia(updatePayload);
+        if (triggerNotification) triggerNotification('Media outreach record updated successfully.', 'success');
         onSuccess();
       } catch (err) {
         console.error(err);
-        if (triggerNotification) triggerNotification('Error updating record. Please try again.');
+        if (triggerNotification) triggerNotification('Error updating record. Please try again.', 'error');
       } finally {
         setSubmitting(false);
       }
@@ -220,16 +221,17 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
       try {
         const res = await createSocialMedia(payload);
         if (res.status === 302 || res.status === 200) {
-          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.');
+          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.', 'warning');
         } else {
+          if (triggerNotification) triggerNotification('Media outreach record registered successfully.', 'success');
           onSuccess();
         }
       } catch (err) {
         if (err.response?.status === 302) {
-          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.');
+          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.', 'warning');
         } else {
           console.error(err);
-          if (triggerNotification) triggerNotification('Error saving record. Please try again.');
+          if (triggerNotification) triggerNotification('Error saving record. Please try again.', 'error');
         }
       } finally {
         setSubmitting(false);
@@ -271,7 +273,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
         {/* Financial Year, Month & Organisation selectors */}
         <div className={`grid grid-cols-1 ${hideOrgSelect ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-5`}>
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Financial Year*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Financial Year <span className="text-red-500">*</span></label>
             <select
               value={financialYear}
               onChange={(e) => setFinancialYear(e.target.value)}
@@ -283,7 +285,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Month*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Month <span className="text-red-500">*</span></label>
             <select
               value={month}
               onChange={(e) => setMonth(e.target.value)}

@@ -1,6 +1,79 @@
-/**
- * Utility functions for Capex Module
- */
+export const FY_MONTHS = [
+  'April', 'May', 'June', 'July', 'August', 'September',
+  'October', 'November', 'December', 'January', 'February', 'March',
+];
+
+export const MONTH_NAME_TO_NUMBER = {
+  January: 1,
+  February: 2,
+  March: 3,
+  April: 4,
+  May: 5,
+  June: 6,
+  July: 7,
+  August: 8,
+  September: 9,
+  October: 10,
+  November: 11,
+  December: 12,
+};
+
+export function createEmptyMonthsData() {
+  const initial = {};
+  FY_MONTHS.forEach((m) => {
+    initial[m] = {
+      gbsWeek1: 0, iebrWeek1: 0, pppWeek1: 0,
+      gbsWeek2: 0, iebrWeek2: 0, pppWeek2: 0,
+      gbsWeek3: 0, iebrWeek3: 0, pppWeek3: 0,
+      gbsWeek4: 0, iebrWeek4: 0, pppWeek4: 0,
+    };
+  });
+  return initial;
+}
+
+export function rowsToMonthsData(rows = []) {
+  const loaded = createEmptyMonthsData();
+  const numberToName = Object.fromEntries(
+    Object.entries(MONTH_NAME_TO_NUMBER).map(([name, num]) => [num, name])
+  );
+
+  rows.forEach((row) => {
+    const monthName = numberToName[Number(row.month_number)];
+    if (!monthName || !loaded[monthName]) return;
+    const week = Number(row.week_number);
+    const type = String(row.funding_type || '').toUpperCase();
+    const amount = Number(row.amount) || 0;
+    if (![1, 2, 3, 4].includes(week)) return;
+    if (type === 'GBS') loaded[monthName][`gbsWeek${week}`] = amount;
+    if (type === 'IEBR') loaded[monthName][`iebrWeek${week}`] = amount;
+    if (type === 'PPP') loaded[monthName][`pppWeek${week}`] = amount;
+  });
+
+  return loaded;
+}
+
+export function monthsDataToEntries(allMonthsData = {}) {
+  const entries = [];
+  FY_MONTHS.forEach((monthName) => {
+    const data = allMonthsData[monthName] || {};
+    const monthNumber = MONTH_NAME_TO_NUMBER[monthName];
+    for (let w = 1; w <= 4; w++) {
+      [
+        ['GBS', data[`gbsWeek${w}`]],
+        ['IEBR', data[`iebrWeek${w}`]],
+        ['PPP', data[`pppWeek${w}`]],
+      ].forEach(([funding_type, amount]) => {
+        entries.push({
+          month_number: monthNumber,
+          week_number: w,
+          funding_type,
+          amount: Number(amount) || 0,
+        });
+      });
+    }
+  });
+  return entries;
+}
 
 export function calculateCapexTotal(gbs = 0, iebr = 0, ppp = 0) {
   const g = parseFloat(gbs) || 0;
@@ -12,13 +85,73 @@ export function calculateCapexTotal(gbs = 0, iebr = 0, ppp = 0) {
 export function calculateCapexExpenditurePercentage(expenditure = 0, totalTarget = 0) {
   const exp = parseFloat(expenditure) || 0;
   const target = parseFloat(totalTarget) || 0;
-  if (target <= 0) return "0.00";
+  if (target <= 0) return '0.00';
   return ((exp / target) * 100).toFixed(2);
 }
 
 export function formatCurrencyINR(amount) {
-  if (amount === null || amount === undefined || amount === "") return "—";
+  if (amount === null || amount === undefined || amount === '') return '—';
   const num = parseFloat(amount);
-  if (isNaN(num)) return "—";
+  if (isNaN(num)) return '—';
   return `₹ ${num.toLocaleString('en-IN', { maximumFractionDigits: 2 })} Cr`;
+}
+
+export function getCapexStatusMeta(pct) {
+  const value = Number(pct) || 0;
+  if (value > 100) {
+    return { label: 'Above BE', tone: 'orange', bg: 'bg-orange-100', text: 'text-orange-700' };
+  }
+  if (value >= 75) {
+    return { label: 'Good Utilisation', tone: 'green', bg: 'bg-emerald-100', text: 'text-emerald-800' };
+  }
+  if (value >= 50) {
+    return { label: 'Moderate Utilisation', tone: 'yellow', bg: 'bg-yellow-100', text: 'text-yellow-800' };
+  }
+  return { label: 'Low Utilisation', tone: 'red', bg: 'bg-red-100', text: 'text-red-800' };
+}
+
+/** Matches legacy capexReport.html asOnDate() */
+export function getCapexReportAsOnMeta(financialYear) {
+  const today = new Date();
+  const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastDayOfPrevMonth = new Date(firstDayOfCurrentMonth - 1);
+  const day = String(lastDayOfPrevMonth.getDate()).padStart(2, '0');
+  const month = String(lastDayOfPrevMonth.getMonth() + 1).padStart(2, '0');
+  const startYear =
+    String(financialYear || '').split('-')[0] || String(today.getFullYear());
+  const monthName = lastDayOfPrevMonth.toLocaleString('en-IN', { month: 'long' });
+  return {
+    asOnDate: `${day}/${month}/${startYear}`,
+    asOnDateStr: `${day}-${month}-${startYear}`,
+    reportMonthStr: `${monthName} ${startYear}`,
+  };
+}
+
+export function mapCapexSummaryReportRows(payload = {}) {
+  const list = Array.isArray(payload.data)
+    ? payload.data
+    : Array.isArray(payload)
+      ? payload
+      : [];
+
+  return list.map((item) => {
+    const be = Number(item.be) || 0;
+    const exp = Number(item.exp) || 0;
+    const pct =
+      item.pct != null && item.pct !== ''
+        ? Number(item.pct) || 0
+        : be > 0
+          ? (exp * 100) / be
+          : 0;
+    return {
+      organisation_id: item.organisation_id,
+      organisation_name: item.organisation_name || '—',
+      organisation_category_id: item.organisation_category_id,
+      be,
+      exp,
+      pct,
+      pctLabel: pct.toFixed(2),
+      status: getCapexStatusMeta(pct),
+    };
+  });
 }

@@ -47,7 +47,6 @@ export default function CapexAddTargetModal({ isOpen, onClose, onSubmit, organis
       return;
     }
 
-    // Check for duplicate entry for same organisation and financial year
     const isDuplicate = existingData.some((item) => {
       const itemFY = String(item.capex_financial_year || item.financial_year || item.financialYear || "").trim();
       const itemOrgID = String(item.capex_organisation_id || item.organisation_id || item.organisationId || "").trim();

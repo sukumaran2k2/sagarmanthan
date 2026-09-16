@@ -72,7 +72,7 @@ async function getCapexData(req, res) {
             tbl_capex.*,
             COALESCE(monthly.total_capex_expenditure, 0) AS total_capex_expenditure,
             org.organisation_name as organisation_name
-        FROM sagarmanthan_revamp.dbo.tbl_capex
+        FROM dbo.tbl_capex
         LEFT JOIN (
             SELECT
                 capex_id,
@@ -90,10 +90,10 @@ async function getCapexData(req, res) {
                     ISNULL(capex_Total_Month_November, 0) +
                     ISNULL(capex_Total_Month_December, 0)
                 ), 0) AS total_capex_expenditure
-            FROM sagarmanthan_revamp.dbo.tbl_capex_monthly
+            FROM dbo.tbl_capex_monthly
             GROUP BY capex_id
         ) AS monthly ON tbl_capex.capex_id = monthly.capex_id
-        LEFT JOIN sagarmanthan_revamp.dbo.mmt_organisation AS org ON tbl_capex.capex_organisation_id = org.organisation_id
+        LEFT JOIN dbo.mmt_organisation AS org ON tbl_capex.capex_organisation_id = org.organisation_id
         ORDER BY tbl_capex.capex_financial_year DESC;
      `);
 

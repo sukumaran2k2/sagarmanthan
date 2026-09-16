@@ -15,6 +15,7 @@ export default function EOfficeUploadView(props) {
       }}
       accentColor="#0f417a"
       themeClass="eoffice-blue-grid"
+      sampleFileName="Sample Template"
     />
   );
 }

@@ -84,11 +84,6 @@ function bindListFilters(request, query, { includeStatus = false } = {}) {
     filterSql += ` AND (
       tpi.subject LIKE @search
       OR tpi.remarks LIKE @search
-      OR tpi.received_at_ministry_remarks LIKE @search
-      OR tpi.comment_soughted_remarks LIKE @search
-      OR tpi.comment_received_remarks LIKE @search
-      OR tpi.matter_disposed_remarks LIKE @search
-      OR tpi.reply_send_remarks LIKE @search
       OR mmt_wings.wing_name LIKE @search
       OR mmt_division.division_name LIKE @search
       OR tpi.parliamentary_issue_type LIKE @search
@@ -218,25 +213,6 @@ async function getParliamentaryIssue(req, res) {
           tpi.division,
           tpi.parliamentary_issue_type,
           tpi.remarks,
-          tpi.received_at_ministry_remarks,
-          tpi.debated_in_parliament_remarks,
-          tpi.comment_soughted_remarks,
-          tpi.comment_received_remarks,
-          tpi.shipping_remarks,
-          tpi.vigilance_remarks,
-          tpi.ports_remarks,
-          tpi.iwt_remarks,
-          tpi.administration_remarks,
-          tpi.coord_I_remarks,
-          tpi.coord_II_remarks,
-          tpi.dgll_parliament_and_trw_remarks,
-          tpi.development_remarks,
-          tpi.finance_remarks,
-          tpi.sagarmala_remarks,
-          tpi.extension_time_soughted_remarks,
-          tpi.implementation_report_furnished_remarks,
-          tpi.matter_disposed_remarks,
-          tpi.reply_send_remarks,
           tpi.created_by,
           tpi.created_date,
           tpi.updated_date,

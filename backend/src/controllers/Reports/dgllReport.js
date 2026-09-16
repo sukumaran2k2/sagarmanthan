@@ -235,7 +235,7 @@ async function getLightHouseMasterReport(req, res) {
             SELECT CONCAT(2014 + n, ''-'', 2015 + n)
             FROM (SELECT TOP (YEAR(GETDATE()) - 2014 + 2) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 AS n 
                 FROM master.dbo.spt_values) AS Tally
-            WHERE 2014 + n <= (SELECT YEAR(GETDATE()))
+            WHERE 2014 + n <= (SELECT YEAR(MAX(commisioned_date)) FROM dbo.tbl_light_house_master)
         ),
         LighthouseData AS (
             SELECT 

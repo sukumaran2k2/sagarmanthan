@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { ClipboardList, TrendingUp, Percent, Calendar, LineChart as ChartIcon } from "lucide-react";
 import {
   ComposedChart,
@@ -12,14 +11,10 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+import { fetchCapexList, fetchCapexMonthlyData } from "../api";
+import { FY_MONTHS, MONTH_NAME_TO_NUMBER } from "../utils/capexUtils";
 
 const MONTHS_ORDER = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
-const FULL_MONTHS = [
-  "April", "May", "June", "July", "August", "September", "October", "November", "December",
-  "January", "February", "March"
-];
 
 export default function CapexOrgDashboardView({ organisations = [], selectedOrgId, setSelectedOrgId, showToast }) {
   const [financialYear, setFinancialYear] = useState("2026-2027");
@@ -46,19 +41,26 @@ export default function CapexOrgDashboardView({ organisations = [], selectedOrgI
   const fetchOrgDashboardData = async () => {
     setLoading(true);
     try {
-      const userID = 1;
-      const res = await axios.get(`${API_BASE_URL}/capex/${userID}`);
-      const dataList = res.data || [];
+      const res = await fetchCapexList({
+        financialYear,
+        organisationId: selectedOrgId,
+        page: 1,
+        limit: 1,
+      });
+      const payload = res.data || {};
+      const dataList = Array.isArray(payload.data)
+        ? payload.data
+        : Array.isArray(payload)
+          ? payload
+          : [];
 
-      // Filter rows for selectedOrgId
       const orgRows = dataList.filter(
         (r) => String(r.capex_organisation_id) === String(selectedOrgId)
       );
 
-      // Current year record
-      const record = orgRows.find(
-        (r) => String(r.capex_financial_year).trim() === financialYear.trim()
-      ) || orgRows[0];
+      const record =
+        orgRows.find((r) => String(r.capex_financial_year).trim() === financialYear.trim()) ||
+        orgRows[0];
 
       if (record) {
         const planned = parseFloat(record.capex_total_value) || 0;
@@ -71,65 +73,54 @@ export default function CapexOrgDashboardView({ organisations = [], selectedOrgI
           expenditurePercentage: pct,
         });
 
-        // Fetch monthly data for table
         if (record.capex_id) {
-          const mRes = await axios.get(`${API_BASE_URL}/capex-monthly-data/${record.capex_id}`);
-          const mObj = mRes.data && mRes.data.length > 0 ? mRes.data[0] : {};
+          const mRes = await fetchCapexMonthlyData(record.capex_id);
+          const rows = Array.isArray(mRes.data) ? mRes.data : [];
 
           const gbsObj = {};
           const iebrObj = {};
           const pdpObj = {};
-
-          FULL_MONTHS.forEach((m, idx) => {
-            const shortM = MONTHS_ORDER[idx];
-            const gbs =
-              (parseFloat(mObj[`capex_GBS_Week1_${m}`]) || 0) +
-              (parseFloat(mObj[`capex_GBS_Week2_${m}`]) || 0) +
-              (parseFloat(mObj[`capex_GBS_Week3_${m}`]) || 0) +
-              (parseFloat(mObj[`capex_GBS_Week4_${m}`]) || 0);
-
-            const iebr =
-              (parseFloat(mObj[`capex_IEBR_Week1_${m}`]) || 0) +
-              (parseFloat(mObj[`capex_IEBR_Week2_${m}`]) || 0) +
-              (parseFloat(mObj[`capex_IEBR_Week3_${m}`]) || 0) +
-              (parseFloat(mObj[`capex_IEBR_Week4_${m}`]) || 0);
-
-            const pdp =
-              (parseFloat(mObj[`capex_PPP_Week1_${m}`]) || 0) +
-              (parseFloat(mObj[`capex_PPP_Week2_${m}`]) || 0) +
-              (parseFloat(mObj[`capex_PPP_Week3_${m}`]) || 0) +
-              (parseFloat(mObj[`capex_PPP_Week4_${m}`]) || 0);
-
-            gbsObj[shortM] = gbs;
-            iebrObj[shortM] = iebr;
-            pdpObj[shortM] = pdp;
+          MONTHS_ORDER.forEach((m) => {
+            gbsObj[m] = 0;
+            iebrObj[m] = 0;
+            pdpObj[m] = 0;
           });
 
-          setTableData({
-            GBS: gbsObj,
-            IEBR: iebrObj,
-            PDP: pdpObj,
+          const shortByNum = {};
+          FY_MONTHS.forEach((full, idx) => {
+            shortByNum[MONTH_NAME_TO_NUMBER[full]] = MONTHS_ORDER[idx];
           });
+
+          rows.forEach((row) => {
+            const shortM = shortByNum[Number(row.month_number)];
+            if (!shortM) return;
+            const amount = Number(row.amount) || 0;
+            const type = String(row.funding_type || "").toUpperCase();
+            if (type === "GBS") gbsObj[shortM] += amount;
+            if (type === "IEBR") iebrObj[shortM] += amount;
+            if (type === "PPP") pdpObj[shortM] += amount;
+          });
+
+          setTableData({ GBS: gbsObj, IEBR: iebrObj, PDP: pdpObj });
         }
       } else {
         setTotals({ totalPlannedExpenditure: 0, totalActualExpenditure: 0, expenditurePercentage: 0 });
         setTableData({ GBS: {}, IEBR: {}, PDP: {} });
       }
 
-      // Build Year Wise Trend chart data across financial years
       const yearsMap = ["2023-2024", "2024-2025", "2025-2026", "2026-2027"];
-      const trendData = yearsMap.map((fy) => {
-        const row = orgRows.find((r) => String(r.capex_financial_year).trim() === fy);
+      const trend = yearsMap.map((y) => {
+        const row = orgRows.find((r) => String(r.capex_financial_year).trim() === y);
         return {
-          year: fy,
-          planned: row ? parseFloat(row.capex_total_value) || 0 : 0,
-          actual: row ? parseFloat(row.total_capex_expenditure) || 0 : 0,
+          year: y,
+          planned: row ? Number(row.capex_total_value) || 0 : 0,
+          actual: row ? Number(row.total_capex_expenditure) || 0 : 0,
         };
       });
-
-      setTrendChartData(trendData);
+      setTrendChartData(trend);
     } catch (err) {
-      console.error("Fetch Org Capex Dashboard error:", err);
+      console.error("Org Capex Dashboard fetch error:", err);
+      if (showToast) showToast("❌ Failed to load Capex Organisation Dashboard", "#EF4444");
     } finally {
       setLoading(false);
     }
@@ -145,8 +136,8 @@ export default function CapexOrgDashboardView({ organisations = [], selectedOrgI
   return (
     <div className="space-y-6 animate-fade-in select-none">
       {/* Title Banner */}
-      <div className="bg-gradient-to-r from-sky-200 via-sky-100 to-teal-100 py-4 px-6 rounded-2xl text-center border border-sky-300 shadow-xs">
-        <h2 className="text-xl font-black text-[#0c3c6b] tracking-wide uppercase font-display">
+      <div className="bg-gradient-to-r from-[#0f417a] via-[#163a66] to-[#1d5594] py-4 px-6 rounded-2xl text-center border border-[#0c3563] shadow-xs">
+        <h2 className="text-xl font-black text-white tracking-wide uppercase font-display">
           Capex Dashboard
         </h2>
       </div>

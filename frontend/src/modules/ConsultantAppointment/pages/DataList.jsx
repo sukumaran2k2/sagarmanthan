@@ -1,12 +1,124 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Table from '../../../components/Table';
-import { Search, X, Edit, ChevronDown } from 'lucide-react';
+import { Search, X, Edit, Trash2, ChevronDown, Users } from 'lucide-react';
 import ExportDropdown from '../../../components/ExportDropdown';
+import CopyButton from '../../../components/CopyButton';
+import CandidateDrilldownView from './CandidateDrilldownView';
+import TablePagination from '../../../components/TablePagination';
+import { fetchConsultantAppointments } from '../api';
+
+const STAGES = [
+  { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
+  { key: 'tenderPublished', label: 'Tender Published' },
+  { key: 'preBidQueries', label: 'Pre-bid Queries Responded' },
+  { key: 'bidReceived', label: 'Bid Received' },
+  { key: 'techBidFinalized', label: 'Technical Bid Finalized' },
+  { key: 'finBidFinalized', label: 'Financial Bid Finalized' },
+  { key: 'workOrderIssued', label: 'Work Order Issued' },
+  { key: 'contractSigned', label: 'Contract Signed' },
+];
+
+const PENDING_STAGES = [
+  'Initiated',
+  'Admin Approval for engaging Consultant',
+  'Tender Published',
+  'Pre-bid Queries Responded',
+  'Bid Received',
+  'Technical Bid Finalized',
+  'Financial Bid Finalized',
+  'Work Order Issued',
+];
+
+const formatDate = (d) => (d ? new Date(d).toISOString().split('T')[0] : '');
+const formatDateTime = (d) => {
+  if (!d) return '';
+  const str = typeof d === 'string' ? d : d.toISOString ? d.toISOString() : String(d);
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const y = match[1];
+    const m = match[2];
+    const day = match[3];
+    const hStr = match[4];
+    const min = match[5];
+    const sec = match[6];
+    
+    if (hStr === '00' && min === '00' && sec === '00') {
+      return `${day}/${m}/${y}`;
+    }
+
+    let h = parseInt(hStr, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    h = h ? h : 12;
+    const hFormatted = String(h).padStart(2, '0');
+    return `${day}/${m}/${y}, ${hFormatted}:${min} ${ampm}`;
+  }
+  return String(d);
+};
+
+const getStatusFromStages = (stages) => {
+  for (let i = STAGES.length - 1; i >= 0; i--) {
+    if (stages[STAGES[i].key]) {
+      return STAGES[i].label;
+    }
+  }
+  return 'Initiated';
+};
+
+function parseAppointmentRow(b) {
+  const stages = {
+    adminApproval: !!b.admin_approval_for_nkg_consultant_date,
+    adminApprovalDate: formatDate(b.admin_approval_for_nkg_consultant_date),
+    tenderPublished: !!b.tender_published_date,
+    tenderPublishedDate: formatDate(b.tender_published_date),
+    preBidQueries: !!b.pre_bid_queries_responded_date,
+    preBidQueriesDate: formatDate(b.pre_bid_queries_responded_date),
+    bidReceived: !!b.bid_received_date,
+    bidReceivedDate: formatDate(b.bid_received_date),
+    techBidFinalized: !!b.technical_bid_finalized_date,
+    techBidFinalizedDate: formatDate(b.technical_bid_finalized_date),
+    finBidFinalized: !!b.financial_bid_finalized_date,
+    finBidFinalizedDate: formatDate(b.financial_bid_finalized_date),
+    workOrderIssued: !!b.work_order_issued_date,
+    workOrderIssuedDate: formatDate(b.work_order_issued_date),
+    contractSigned: !!b.contract_signed_date,
+    contractSignedDate: formatDate(b.contract_signed_date),
+  };
+
+  const remarks = {
+    adminApproval: b.admin_approval_for_nkg_consultant_remarks || '',
+    tenderPublished: b.tender_published_remarks || '',
+    preBidQueries: b.pre_bid_queries_responded_remarks || '',
+    bidReceived: b.bid_received_remarks || '',
+    techBidFinalized: b.technical_bid_finalized_remarks || '',
+    finBidFinalized: b.financial_bid_finalized_remarks || '',
+    workOrderIssued: b.work_order_issued_remarks || '',
+    contractSigned: b.contract_signed_remarks || '',
+  };
+
+  return {
+    id: b.consultant_appointment_id,
+    wing_id: b.wing,
+    division_id: b.division,
+    wing: b.wing_name || 'Unknown',
+    division: b.division_name || 'Unknown',
+    appointmentType: b.appointment_type || 'Full Time',
+    numResources: b.number_of_resources || 1,
+    status: getStatusFromStages(stages),
+    stages,
+    remarks,
+    created_date: b.created_date,
+    updated_date: b.updated_date,
+    lastUpdated: formatDateTime(b.updated_date || b.created_date),
+    createdDateFormatted: formatDateTime(b.created_date),
+    updatedDateFormatted: formatDateTime(b.updated_date),
+    raw: b,
+  };
+}
 
 export default function DataList({
-  rowData = [],
-  loading,
   onEdit,
+  onDelete,
   onAddClick,
   wings = [],
   divisions = [],
@@ -15,10 +127,27 @@ export default function DataList({
   canAdd = true,
   canRemove = true
 }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedWing, setSelectedWing] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
-  const [gridApi, setGridApi] = useState(null); // Ag Grid API
+  const [gridApi, setGridApi] = useState(null);
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'completed'
+  const [selectedStage, setSelectedStage] = useState(''); // stage filter for pending tab
+  const [drilldownAppointment, setDrilldownAppointment] = useState(null);
+
+  // Reset stage filter when switching tabs
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab !== 'pending') setSelectedStage('');
+  };
 
   // Column visibility states
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -28,8 +157,28 @@ export default function DataList({
     division: true,
     appointmentType: true,
     status: true,
-    numResources: true
+    numResources: true,
+    lastUpdated: true
   });
+
+  // Debounce search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  const handleWingChange = (val) => {
+    setSelectedWing(val);
+    setCurrentPage(1);
+  };
+
+  const handleDivisionChange = (val) => {
+    setSelectedDivision(val);
+    setCurrentPage(1);
+  };
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -40,6 +189,48 @@ export default function DataList({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchConsultantAppointments({
+        page: currentPage,
+        limit: pageSize,
+        search: debouncedSearch,
+        wing: selectedWing,
+        division: selectedDivision
+      });
+
+      const payload = res.data;
+      if (payload && payload.data && payload.pagination) {
+        const parsed = (payload.data || []).map((item, idx) => ({
+          ...parseAppointmentRow(item),
+          sNo: (payload.pagination.page - 1) * payload.pagination.limit + idx + 1
+        }));
+        setData(parsed);
+        setTotalCount(payload.pagination.total || 0);
+        setTotalPages(payload.pagination.totalPages || 1);
+      } else {
+        const list = Array.isArray(payload) ? payload : [];
+        const parsed = list.map((item, idx) => ({
+          ...parseAppointmentRow(item),
+          sNo: idx + 1
+        }));
+        setData(parsed);
+        setTotalCount(list.length);
+        setTotalPages(Math.ceil(list.length / pageSize) || 1);
+      }
+    } catch (err) {
+      console.error("Error fetching consultant appointments:", err);
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, pageSize, debouncedSearch, selectedWing, selectedDivision]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const wingOptions = useMemo(() => {
     return wings.map(w => ({
@@ -55,39 +246,60 @@ export default function DataList({
     }));
   }, [divisions]);
 
-  const filteredData = useMemo(() => {
-    return rowData.filter(item => {
-      const search = searchTerm.toLowerCase();
-      const matchesSearch =
-        (item.wing || '').toLowerCase().includes(search) ||
-        (item.division || '').toLowerCase().includes(search) ||
-        (item.status || '').toLowerCase().includes(search);
+  const pendingCount = useMemo(() => {
+    return data.filter(item => item.status !== 'Contract Signed').length;
+  }, [data]);
 
-      const matchesWing = selectedWing ? (item.wing || '') === selectedWing : true;
-      const matchesDivision = selectedDivision ? (item.division || '') === selectedDivision : true;
-
-      return matchesSearch && matchesWing && matchesDivision;
-    }).map((item, index) => ({
-      ...item,
-      sNo: index + 1
-    }));
-  }, [rowData, searchTerm, selectedWing, selectedDivision]);
-
+  const completedCount = useMemo(() => {
+    return data.filter(item => item.status === 'Contract Signed').length;
+  }, [data]);
   const handleExport = (type) => {
-    if (type === 'Excel') {
+    if (type === 'Copy') {
+      if (gridApi) {
+        let tsv = '';
+        const headers = [];
+        columnDefs.forEach(col => {
+          if (col.headerName && col.headerName !== 'Action') {
+            headers.push(col.headerName);
+          }
+        });
+        tsv += headers.join('\t') + '\n';
+        
+        data.forEach((row, rowIndex) => {
+          const line = [];
+          columnDefs.forEach(col => {
+            if (col.headerName && col.headerName !== 'Action') {
+              const val = row[col.field] !== undefined ? row[col.field] : '';
+              line.push(val);
+            }
+          });
+          tsv += line.join('\t') + '\n';
+        });
+        
+        navigator.clipboard.writeText(tsv)
+          .then(() => {
+            if (triggerNotification) triggerNotification('Current page data copied to clipboard!', 'success');
+          })
+          .catch(() => {
+            if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
+          });
+      } else {
+        if (triggerNotification) triggerNotification('Grid is not ready for copy yet.', 'warning');
+      }
+    } else if (type === 'Excel') {
       if (gridApi) {
         gridApi.exportDataAsCsv({
-          fileName: `Consultant_Appointment_Register_export.csv`
+          fileName: `Consultant_Appointment_Page_${currentPage}.csv`
         });
         if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`);
+          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
         }
       } else {
-        alert("Grid is not ready for export yet.");
+        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
       }
     } else if (type === 'PDF') {
       if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`);
+        triggerNotification(`Preparing PDF document...`, 'info');
       }
 
       const printWindow = window.open('', '_blank');
@@ -101,7 +313,7 @@ export default function DataList({
       });
 
       let rowsHtml = '';
-      filteredData.forEach((row, rowIndex) => {
+      data.forEach((row, rowIndex) => {
         rowsHtml += '<tr>';
         columnDefs.forEach(col => {
           if (col.headerName && col.headerName !== 'Action') {
@@ -152,7 +364,7 @@ export default function DataList({
         field: 'sNo',
         headerName: 'S.No',
         minWidth: 95,
-        cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center',
+        cellClass: 'font-mono text-slate-800 dark:text-white font-bold text-center',
         headerClass: 'text-center',
         pinned: 'left'
       },
@@ -161,7 +373,7 @@ export default function DataList({
         headerName: 'Wing',
         flex: 1.5,
         minWidth: 150,
-        cellClass: 'font-bold text-slate-800 dark:text-slate-200',
+        cellClass: 'font-bold text-slate-800 dark:text-white',
         hide: !visibleCols.wing,
         pinned: 'left'
       },
@@ -170,7 +382,7 @@ export default function DataList({
         headerName: 'Division',
         flex: 1.2,
         minWidth: 120,
-        cellClass: 'text-slate-700 dark:text-slate-350',
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
         hide: !visibleCols.division
       },
       {
@@ -178,7 +390,7 @@ export default function DataList({
         headerName: 'Appointment Type',
         flex: 1.2,
         minWidth: 130,
-        cellClass: 'text-slate-600 dark:text-slate-400',
+        cellClass: 'text-slate-700 dark:text-slate-100 font-medium',
         hide: !visibleCols.appointmentType
       },
       {
@@ -193,28 +405,72 @@ export default function DataList({
         field: 'numResources',
         headerName: 'Number of Resources',
         flex: 1,
-        minWidth: 140,
-        cellClass: 'text-center font-bold text-slate-800 dark:text-slate-200',
+        minWidth: 155,
         headerClass: 'text-center',
-        hide: !visibleCols.numResources
-      }
-    ];
-
-    if (canEdit) {
-      cols.push({
-        headerName: 'Action',
-        minWidth: 120,
         cellRenderer: (params) => {
           const row = params.data;
+          const count = params.value || 1;
           return (
             <div className="flex items-center justify-center w-full h-full py-1">
               <button
-                onClick={() => onEdit(row)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
-                title="Update"
+                type="button"
+                onClick={() => setDrilldownAppointment(row)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 hover:bg-blue-100 text-[#0f417a] dark:bg-blue-950/60 dark:hover:bg-blue-900/60 dark:text-blue-300 font-extrabold text-xs rounded-lg border border-blue-200 dark:border-blue-800 transition cursor-pointer shadow-sm hover:scale-105 active:scale-95 group"
+                title="Click to view candidate details & documents"
               >
-                <Edit className="h-4 w-4" />
+                <Users className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400 group-hover:scale-110 transition-transform" />
+                <span>{count}</span>
               </button>
+            </div>
+          );
+        },
+        hide: !visibleCols.numResources
+      },
+      {
+        field: 'lastUpdated',
+        headerName: 'Last Updated',
+        flex: 1.3,
+        minWidth: 165,
+        cellClass: 'font-mono text-slate-700 dark:text-slate-300 text-xs font-semibold text-center',
+        headerClass: 'text-center',
+        hide: !visibleCols.lastUpdated
+      }
+    ];
+
+    if (canEdit || canRemove) {
+      cols.push({
+        headerName: 'Action',
+        width: 110,
+        pinned: 'right',
+        lockPinned: true,
+        suppressMovable: true,
+        headerClass: 'text-center',
+        cellClass: 'text-center',
+        cellRenderer: (params) => {
+          const row = params.data;
+          return (
+            <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
+              {canEdit && (
+                <button
+                  onClick={() => onEdit(row)}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                  title="Update Appointment"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+              )}
+              {canRemove && onDelete && (
+                <button
+                  onClick={async () => {
+                    await onDelete(row);
+                    fetchData();
+                  }}
+                  className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-red-600 dark:text-red-400 transition cursor-pointer"
+                  title="Delete Appointment"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           );
         }
@@ -222,16 +478,54 @@ export default function DataList({
     }
 
     return cols;
-  }, [onEdit, visibleCols, canEdit]);
+  }, [onEdit, onDelete, visibleCols, canEdit, canRemove, fetchData]);
+
+  if (drilldownAppointment) {
+    return (
+      <CandidateDrilldownView
+        appointment={drilldownAppointment}
+        onBack={() => setDrilldownAppointment(null)}
+        triggerNotification={triggerNotification}
+        canEdit={canEdit}
+        canAdd={canAdd}
+        canRemove={canRemove}
+      />
+    );
+  }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 animate-fade-in relative">
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 pb-4">
+    <div className="space-y-6 animate-fade-in relative">
+      {/* Pending / Completed tabs matching YP DataList */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+        <button
+          onClick={() => handleTabChange('pending')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === 'pending'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
+        >
+          PENDING ({pendingCount})
+        </button>
+        <button
+          onClick={() => handleTabChange('completed')}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            activeTab === 'completed'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+          }`}
+        >
+          COMPLETED ({completedCount})
+        </button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6 dark:bg-slate-950 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
           <div className="relative">
             <select
               value={selectedWing}
-              onChange={(e) => setSelectedWing(e.target.value)}
+              onChange={(e) => handleWingChange(e.target.value)}
               className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[120px]"
             >
               <option value="">All Wings</option>
@@ -245,7 +539,7 @@ export default function DataList({
           <div className="relative">
             <select
               value={selectedDivision}
-              onChange={(e) => setSelectedDivision(e.target.value)}
+              onChange={(e) => handleDivisionChange(e.target.value)}
               className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[130px]"
             >
               <option value="">All Divisions</option>
@@ -255,6 +549,23 @@ export default function DataList({
             </select>
             <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           </div>
+
+          {/* Stage filter — only on Pending tab */}
+          {activeTab === 'pending' && (
+            <div className="relative">
+              <select
+                value={selectedStage}
+                onChange={(e) => setSelectedStage(e.target.value)}
+                className="appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 cursor-pointer min-w-[160px]"
+              >
+                <option value="">All Stages</option>
+                {PENDING_STAGES.map(stage => (
+                  <option key={stage} value={stage}>{stage}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            </div>
+          )}
 
           <div className="relative min-w-[160px] max-w-xs flex-1">
             <input
@@ -268,17 +579,17 @@ export default function DataList({
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
 
-          {(selectedWing || selectedDivision) && (
+          {(selectedWing || selectedDivision || searchTerm) && (
             <button
-              onClick={() => { setSelectedWing(''); setSelectedDivision(''); }}
-              className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition"
+              onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSearchTerm(''); setCurrentPage(1); }}
+              className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 transition cursor-pointer"
             >
               <X className="h-3 w-3" />
               Clear filters
@@ -287,9 +598,33 @@ export default function DataList({
         </div>
 
         <div className="flex items-center space-x-2 flex-shrink-0">
-          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-            Total Rows: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{filteredData.length}</span>
+          {/* Rows Limit Select Dropdown */}
+          <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-transparent border-none text-xs font-bold text-slate-755 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+            >
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
           </div>
+
+          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+            Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{totalCount}</span>
+          </div>
+
+          <CopyButton
+            onCopy={() => handleExport('Copy')}
+            color="#0f417a"
+            hoverBg="#f1f5f9"
+          />
 
           <div className="relative" ref={colDropdownRef}>
             <button
@@ -309,13 +644,18 @@ export default function DataList({
                       onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
                       className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
-                    <span>{col === 'appointmentType' ? 'Appointment Type' : col === 'numResources' ? 'Num Resources' : col}</span>
+                    <span>{col === 'appointmentType' ? 'Appointment Type' : col === 'numResources' ? 'Num Resources' : col === 'lastUpdated' ? 'Last Updated' : col}</span>
                   </label>
                 ))}
               </div>
             )}
           </div>
 
+          <CopyButton
+            onCopy={() => handleExport('Copy')}
+            color="#0f417a"
+            hoverBg="#f1f5f9"
+          />
           <ExportDropdown
             onExportExcel={() => handleExport('Excel')}
             onExportPdf={() => handleExport('PDF')}
@@ -325,23 +665,34 @@ export default function DataList({
         </div>
       </div>
 
-      <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+      <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
         <Table
-          rowData={filteredData}
+          rowData={data}
           columnDefs={columnDefs}
           loading={loading}
-          pagination={true}
-          paginationPageSize={10}
-          paginationPageSizeSelector={[10, 20, 50]}
+          pagination={false}
           enableExport={false}
           onGridReady={(params) => setGridApi(params.api)}
           defaultColDef={{
             minWidth: 90,
-            filter: true,
+            filter: false,
             sortable: true,
             resizable: true
           }}
         />
+
+        {/* Server-Side Pagination Bar */}
+        <TablePagination
+          currentPage={currentPage - 1}
+          totalPages={totalPages}
+          totalRows={totalCount}
+          pageSize={pageSize}
+          onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
+          onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+          onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+          color="#0f417a"
+        />
+
         <style dangerouslySetInnerHTML={{
           __html: `
           .ag-theme-quartz.rounded-xl,
@@ -349,51 +700,10 @@ export default function DataList({
             border-radius: 16px !important;
           }
           .ag-theme-quartz .ag-root-wrapper {
-            border-radius: 16px !important;
-          }
-          .ag-theme-quartz .ag-paging-panel {
-            color: #1e293b !important;
-            font-weight: 700 !important;
-            opacity: 1 !important;
-          }
-          .dark .ag-theme-quartz .ag-paging-panel {
-            color: #f1f5f9 !important;
-          }
-          .ag-theme-quartz .ag-paging-button {
-            color: #0f417a !important;
-            opacity: 1 !important;
-          }
-          .dark .ag-theme-quartz .ag-paging-button {
-            color: #3b82f6 !important;
-          }
-          .ag-theme-quartz .ag-paging-panel .ag-icon {
-            color: #0f417a !important;
-            opacity: 1 !important;
-          }
-          .dark .ag-theme-quartz .ag-paging-panel .ag-icon {
-            color: #3b82f6 !important;
-          }
-          .ag-theme-quartz .ag-paging-row-summary-panel select {
-            color: #1e293b !important;
-            background-color: #fff !important;
-            opacity: 1 !important;
-            border: 1px solid #cbd5e1 !important;
-            border-radius: 4px !important;
-          }
-          .dark .ag-theme-quartz .ag-paging-row-summary-panel select {
-            color: #f1f5f9 !important;
-            background-color: #1f2937 !important;
-            border: 1px solid #4b5563 !important;
-          }
-          .ag-theme-quartz select option {
-            color: #1e293b !important;
-            background-color: #ffffff !important;
-          }
-          .dark .ag-theme-quartz select option {
-            color: #f1f5f9 !important;
-            background-color: #1f2937 !important;
+            border-radius: 16px 16px 0 0 !important;
           }
         `}} />
+      </div>
       </div>
     </div>
   );

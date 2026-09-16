@@ -3,6 +3,7 @@ import axios from 'axios';
 import { ClipboardList, Filter, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import PageBanner from '../../../components/PageBanner';
 import Table from '../../../components/Table';
+import { API_BASE_URL } from '../../../config/api';
 
 export default function EmployeeDatabase() {
   const [employees, setEmployees] = useState([]);
@@ -14,7 +15,7 @@ export default function EmployeeDatabase() {
 
   // Load organisations list
   useEffect(() => {
-    axios.get("http://localhost:3000/mmt-dropdown/mmt_organisation")
+    axios.get(`${API_BASE_URL}/mmt-dropdown/mmt_organisation`)
       .then(res => setOrganisations(res.data || []))
       .catch(err => console.error("Error loading organisations:", err));
   }, []);
@@ -23,7 +24,7 @@ export default function EmployeeDatabase() {
   useEffect(() => {
     if (!selectedOrg) return;
     setLoading(true);
-    axios.get(`http://localhost:3000/get-hr-all-employee-data/1/${selectedOrg}`)
+    axios.get(`${API_BASE_URL}/get-hr-all-employee-data/1/${selectedOrg}`)
       .then(res => {
         setEmployees(res.data || []);
       })

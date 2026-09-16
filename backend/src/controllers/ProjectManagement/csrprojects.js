@@ -398,22 +398,21 @@ async function getCsrProjectslist(req, res)
         }
         else {
             const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
-            const organisationID = orgResult.recordset[0].organisation_id;
+            const organisationID = orgResult.recordset[0]?.organisation_id;
+
+            if (!organisationID) {
+                return res.json([]);
+            }
 
             request.input("organisationID", organisationID);
-
-            const usersResult = await request.query(`SELECT user_id FROM tbl_user WHERE organisation_id = @organisationID`);
-            const userIDs = usersResult.recordset.map(user => user.user_id);
 
             const query  = `
             SELECT csr_project_id, tbl_csr_projects.organisation_id, mmt_organisation.organisation_name, csr_focus, 
                 project_name, project_received_from, impact_possible_outcome, target_beneficiaries, project_value, project_status, 
                 financial_year, commenced_on, completed_on, financial_progress, physical_progress, remarks, created_by, project_completion_doc
-
                 FROM tbl_csr_projects 
                 INNER JOIN mmt_organisation ON tbl_csr_projects.organisation_id = mmt_organisation.organisation_id
-
-                WHERE tbl_csr_projects.created_by IN (${userIDs.join(',')})
+                WHERE tbl_csr_projects.organisation_id = @organisationID
                 ORDER BY financial_year DESC, 
                 CASE 
                     WHEN project_status = 'Approved by Board' THEN 1
@@ -421,13 +420,11 @@ async function getCsrProjectslist(req, res)
                     WHEN project_status = 'Project Under implementation' THEN 3
                     WHEN project_status = 'Completed' THEN 4
                     ELSE 5 
-                END 
+                END;
             `;
 
             const result = await request.query(query);
-
             res.json(result.recordset);
-
         }
     } catch (err) {
         console.error('Error fetching CSR projects:', err);
@@ -911,13 +908,14 @@ async function getCsrFundList(req, res) {
         }
         
        else {
-          const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
-           const organisationID = orgResult.recordset[0].organisation_id;
+           const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
+           const organisationID = orgResult.recordset[0]?.organisation_id;
+
+           if (!organisationID) {
+               return res.json([]);
+           }
 
            request.input("organisationID", organisationID);
-
-           const usersResult = await request.query(`SELECT user_id FROM tbl_user WHERE organisation_id = @organisationID`);
-            const userIDs = usersResult.recordset.map(user => user.user_id);
 
            const query  = `  WITH FundExpenditure AS (
                 SELECT 
@@ -950,31 +948,23 @@ async function getCsrFundList(req, res) {
                 opening_balance_csr,
                 csr_fund_alloted_year, 
                 fe.project_expenditure,
-
-                -- Renaming the total_project_expenditure_for_year to csr_fund_balance
                 ROUND(
                     (opening_balance_csr + csr_fund_alloted_year) - 
                     SUM(fe.project_expenditure) OVER (PARTITION BY tbl_csr_fund.organisation_id, tbl_csr_fund.financial_year), 
                     2
-                ) AS csr_fund_balance  -- Renamed here
-
-                
+                ) AS csr_fund_balance
             FROM 
                 tbl_csr_fund
             INNER JOIN mmt_organisation 
                 ON tbl_csr_fund.organisation_id = mmt_organisation.organisation_id 
             LEFT JOIN FundExpenditure fe 
                 ON fe.csr_fund_id = tbl_csr_fund.csr_fund_id
-
-                WHERE tbl_csr_fund.created_by IN (${userIDs.join(',')})
-
-                ORDER BY 
-                    tbl_csr_fund.financial_year DESC;
-
+            WHERE tbl_csr_fund.organisation_id = @organisationID
+            ORDER BY 
+                tbl_csr_fund.financial_year DESC;
             `;
 
            const result = await request.query(query);
-
            res.json(result.recordset);
 
         }
@@ -1096,8 +1086,6 @@ async function csrProjectsAbstractReport(req,res) {
             mmt_organisation org
         LEFT JOIN
             tbl_csr_projects ac ON org.organisation_id = ac.organisation_id
-        WHERE
-            ac.project_status IN ('Approved by Board', 'Project yet to start', 'Project Under implementation', 'Completed')
         GROUP BY
             org.organisation_id, org.organisation_name
         ORDER BY
@@ -1120,8 +1108,7 @@ async function csrProjectsAbstractReport(req,res) {
                 LEFT JOIN
                     tbl_csr_projects ac ON org.organisation_id = ac.organisation_id
                 WHERE
-                    org.organisation_id = @organisation_id AND
-                    ac.project_status IN ('Approved by Board', 'Project yet to start', 'Project Under implementation', 'Completed')
+                    org.organisation_id = @organisation_id
                 GROUP BY
                     org.organisation_id, org.organisation_name
                 ORDER BY
@@ -1129,17 +1116,7 @@ async function csrProjectsAbstractReport(req,res) {
                 `);
         }
 
-        const rowData = result.recordset;
-
-        // console.log("rowData",rowData)
-
-        if(rowData.length === 0 ){
-            return res.status(404).json({ message: 'No data available', columnDefs,rowData })
-        }
-        
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
-        }
+        const rowData = result.recordset || [];
 
         let columnDefs = [
             {
@@ -1195,7 +1172,7 @@ async function csrProjectsAbstractReport(req,res) {
                 ]
             }
         ];
-        res.json({ columnDefs, rowData })
+        return res.json({ columnDefs, rowData });
 
     } catch (error) {
         console.log(error);
@@ -1263,11 +1240,7 @@ async function csrProjectsDetailedReport(req,res) {
         `;
 
         const result = await request.query(query);
-        const rowData = result.recordset;
-
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
-        }
+        const rowData = result.recordset || [];
 
         let columnDefs = [
             {
@@ -1339,18 +1312,15 @@ async function csrProjectsDetailedReport(req,res) {
             {
                 headerName: "Financial Progress",
                 field: "Financial Progress",
-                // width:180,
                 cellStyle: { textAlign: 'center' },
             },
             {
                 headerName: "Physical Progress",
                 field: "Physical Progress",
-                // width:180,
                 cellStyle: { textAlign: 'center' },
             },
-            
         ];
-        res.json({ columnDefs, rowData })
+        return res.json({ columnDefs, rowData });
 
     } catch (error) {
         console.log(error);
@@ -1374,8 +1344,13 @@ async function csrExpenditureReport(req,res) {
         const userID = req.params.userID;
         request.input("userID", userID);
 
-        let financialYear = req.query.financialYear || getCurrentFinancialYear();
-        request.input("financialYear", financialYear);
+        let financialYear = req.query.financialYear;
+        if (financialYear && financialYear !== 'all') {
+            request.input("financialYear", financialYear);
+        } else {
+            financialYear = null;
+            request.input("financialYear", null);
+        }
 
         const userResult = await request.query(` SELECT role_id, organisation_id FROM tbl_user
             WHERE user_id = @userID
@@ -1387,16 +1362,15 @@ async function csrExpenditureReport(req,res) {
         if (role_id === 1 || role_id === 2 || role_id === 3 || role_id === 4 || role_id === 5) {
         result = await request.query(`
           WITH ProjectExpenditure AS (
-            -- Aggregating project expenditure at project level
             SELECT 
-                p.organisation_id,  -- Get organisation_id via tbl_csr_projects
+                p.organisation_id,
                 e.year AS financial_year,  
                 SUM(e.csr_expenditure_cost) AS total_expenditure
             FROM 
                 [sagarmanthan_revamp].[dbo].[tbl_csr_expenditure] e
             JOIN 
                 [sagarmanthan_revamp].[dbo].[tbl_csr_projects] p 
-                ON e.csr_project_id = p.csr_project_id  -- Linking projects to organisations
+                ON e.csr_project_id = p.csr_project_id
             GROUP BY 
                 p.organisation_id, e.year
         ),
@@ -1406,18 +1380,11 @@ async function csrExpenditureReport(req,res) {
                 org.organisation_name AS [Organisation Name],
                 fund.financial_year AS [Financial Year],
                 fund.csr_fund_alloted_year AS [CSR Fund Allotted Year],
-
-                -- Corrected Project Expenditure Calculation
-                ROUND(
-                    COALESCE(SUM(pe.total_expenditure), 0), 2
-                ) AS [Project Expenditure],
-
-                -- Corrected CSR Fund Balance Calculation
+                ROUND(COALESCE(SUM(pe.total_expenditure), 0), 2) AS [Project Expenditure],
                 ROUND(
                     (fund.opening_balance_csr + fund.csr_fund_alloted_year) - 
                     COALESCE(SUM(pe.total_expenditure), 0), 2
                 ) AS [CSR Fund Balance],
-
                 ROW_NUMBER() OVER (PARTITION BY org.organisation_id ORDER BY fund.financial_year DESC) AS rn
             FROM
                 mmt_organisation org
@@ -1429,7 +1396,7 @@ async function csrExpenditureReport(req,res) {
                 ON pe.organisation_id = fund.organisation_id  
                 AND pe.financial_year = fund.financial_year  
             WHERE 
-                fund.financial_year = @financialYear
+                (@financialYear IS NULL OR fund.financial_year = @financialYear)
             GROUP BY
                 org.organisation_id,
                 org.organisation_name,
@@ -1446,25 +1413,22 @@ async function csrExpenditureReport(req,res) {
             [Project Expenditure], 
             [CSR Fund Balance]
         FROM CTE
-       
         ORDER BY organisationID;
-
          `);
      
         }else {
             request.input("organisationID", organisation_id);
             result = await request.query(
                 `WITH ProjectExpenditure AS (
-            -- Aggregating project expenditure at project level
             SELECT 
-                p.organisation_id,  -- Get organisation_id via tbl_csr_projects
+                p.organisation_id,
                 e.year AS financial_year,  
                 SUM(e.csr_expenditure_cost) AS total_expenditure
             FROM 
                 [sagarmanthan_revamp].[dbo].[tbl_csr_expenditure] e
             JOIN 
                 [sagarmanthan_revamp].[dbo].[tbl_csr_projects] p 
-                ON e.csr_project_id = p.csr_project_id  -- Linking projects to organisations
+                ON e.csr_project_id = p.csr_project_id
             GROUP BY 
                 p.organisation_id, e.year
         ),
@@ -1474,18 +1438,11 @@ async function csrExpenditureReport(req,res) {
                 org.organisation_name AS [Organisation Name],
                 fund.financial_year AS [Financial Year],
                 fund.csr_fund_alloted_year AS [CSR Fund Allotted Year],
-
-                -- Corrected Project Expenditure Calculation
-                ROUND(
-                    COALESCE(SUM(pe.total_expenditure), 0), 2
-                ) AS [Project Expenditure],
-
-                -- Corrected CSR Fund Balance Calculation
+                ROUND(COALESCE(SUM(pe.total_expenditure), 0), 2) AS [Project Expenditure],
                 ROUND(
                     (fund.opening_balance_csr + fund.csr_fund_alloted_year) - 
                     COALESCE(SUM(pe.total_expenditure), 0), 2
                 ) AS [CSR Fund Balance],
-
                 ROW_NUMBER() OVER (PARTITION BY org.organisation_id ORDER BY fund.financial_year DESC) AS rn
             FROM
                 mmt_organisation org
@@ -1497,7 +1454,7 @@ async function csrExpenditureReport(req,res) {
                 ON pe.organisation_id = fund.organisation_id  
                 AND pe.financial_year = fund.financial_year  
             WHERE 
-                fund.financial_year = @financialYear AND org.organisation_id = @organisationID
+                (@financialYear IS NULL OR fund.financial_year = @financialYear) AND org.organisation_id = @organisationID
             GROUP BY
                 org.organisation_id,
                 org.organisation_name,
@@ -1517,12 +1474,8 @@ async function csrExpenditureReport(req,res) {
         ORDER BY organisationID;
                    `);
         };
-        //  (ft.csr_fund_alloted_year + ft.net_profit) - ft.opening_balance_csr AS [CSR Fund Balance],
-        const rowData = result.recordset;
 
-        if (rowData.length === 0) {
-            return res.status(404).json({ error: 'No data available' });
-        }
+        const rowData = result.recordset || [];
         
         let columnDefs = [
             {
@@ -1563,7 +1516,7 @@ async function csrExpenditureReport(req,res) {
             },
             
         ];
-        res.json({ columnDefs, rowData })
+        return res.json({ columnDefs, rowData });
         
     } catch (error) {
         console.log(error);
@@ -1605,11 +1558,9 @@ async function getCSRProjectDashboard(req, res) {
         LEFT JOIN tbl_csr_fund tcf ON tc.financial_year = tcf.financial_year AND tc.organisation_id = tcf.organisation_id
         LEFT JOIN tbl_csr_expenditure tce ON tc.csr_project_id = tce.csr_project_id
         INNER JOIN mmt_organisation o ON tc.organisation_id = o.organisation_id
-        INNER JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
         WHERE
-            (@clusterID = 0 OR o.hr_cluster_id = @clusterID) AND
             (@organisationID = 0 OR o.organisation_id = @organisationID) AND
-            (@financialYear IS NULL OR @financialYear = '' OR tc.financial_year = @financialYear)AND 
+            (@financialYear IS NULL OR @financialYear = '' OR tc.financial_year = @financialYear) AND 
             (@focusID = 0 OR tc.csr_focus = @focusID)
         `; 
 
@@ -1644,7 +1595,6 @@ async function getCsrFundAllocatted(req, res) {
     const sqlQuery = `
       SELECT
         tcf.financial_year,
-
         ROUND(SUM(tcf.csr_fund_alloted_year) / 100.0, 2) AS total_fund_allocated,
         ROUND(
             SUM(
@@ -1656,23 +1606,19 @@ async function getCsrFundAllocatted(req, res) {
                 END
             ) / 100.0,
         2) AS total_expenditure
-
     FROM tbl_csr_fund tcf
     LEFT JOIN tbl_csr_projects tc ON tcf.financial_year = tc.financial_year AND tcf.organisation_id = tc.organisation_id
     LEFT JOIN tbl_csr_expenditure tce ON tc.csr_project_id = tce.csr_project_id
-    INNER JOIN mmt_organisation o ON tc.organisation_id = o.organisation_id
+    INNER JOIN mmt_organisation o ON tcf.organisation_id = o.organisation_id
     WHERE
-        (@organisationID = 0 OR tc.organisation_id = @organisationID)
-        AND (@clusterID = 0 OR o.hr_cluster_id = @clusterID)
+        (@organisationID = 0 OR tcf.organisation_id = @organisationID)
         AND (@financialYear IS NULL OR @financialYear = '' OR tcf.financial_year = @financialYear) AND
         (@focusID = 0 OR tc.csr_focus = @focusID)
     GROUP BY tcf.financial_year
     ORDER BY tcf.financial_year;
-
     `;
 
     const { recordset } = await request.query(sqlQuery);
-
     res.status(200).json(recordset);
 
   } catch (err) {
@@ -1704,10 +1650,8 @@ async function getCsrProjectStageWise(req, res) {
     FROM tbl_csr_projects tc
     LEFT JOIN tbl_csr_expenditure tce ON tc.csr_project_id = tce.csr_project_id
     INNER JOIN mmt_organisation o ON tc.organisation_id = o.organisation_id
-    INNER JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
     WHERE
-        (@clusterID = 0 OR cid.hr_cluster_id = @clusterID)
-        AND (@organisationID = 0 OR o.organisation_id = @organisationID)
+        (@organisationID = 0 OR o.organisation_id = @organisationID)
         AND (@financialYear IS NULL OR @financialYear = '' OR tc.financial_year = @financialYear) AND
         (@focusID = 0 OR tc.csr_focus = @focusID)
     GROUP BY tc.project_status
@@ -1715,7 +1659,6 @@ async function getCsrProjectStageWise(req, res) {
     `;
 
     const { recordset } = await request.query(sqlQuery);
-
     res.status(200).json(recordset);
 
   } catch (err) {
@@ -1739,26 +1682,21 @@ async function getCSRProjectCountWise(req, res) {
     request.input("focusID", focusID);
 
     const sqlQuery = `
-    select 
+    SELECT 
 	  o.organisation_id,
 	  o.organisation_name,
-      o.organisation_label,
-      --tcp.financial_year,
-	   COUNT(DISTINCT tcp.csr_project_id) AS Total_Projects,
-       ROUND(ISNULL(SUM(tce.csr_expenditure_cost),0)/100.0,2) AS stage_wise_cost
-
+	  COUNT(DISTINCT tcp.csr_project_id) AS Total_Projects,
+      ROUND(ISNULL(SUM(tce.csr_expenditure_cost),0)/100.0,2) AS stage_wise_cost
 	FROM tbl_csr_projects tcp
     LEFT JOIN tbl_csr_expenditure tce 
-    ON tcp.csr_project_id = tce.csr_project_id
-	  LEFT JOIN mmt_organisation o ON tcp.organisation_id = o.organisation_id
-      LEFT JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
+      ON tcp.csr_project_id = tce.csr_project_id
+	LEFT JOIN mmt_organisation o ON tcp.organisation_id = o.organisation_id
 	WHERE 
-          (@clusterID = 0 OR cid.hr_cluster_id = @clusterID)
-          AND (@organisationID = 0 OR o.organisation_id = @organisationID)
-         AND (@financialYear IS NULL OR @financialYear = '' OR tcp.financial_year = @financialYear) AND
-         (@focusID = 0 OR tcp.csr_focus = @focusID)
-	GROUP BY o.organisation_id,o.organisation_name,o.organisation_label
-     ORDER BY o.organisation_id,o.organisation_name,o.organisation_label;
+      (@organisationID = 0 OR o.organisation_id = @organisationID)
+      AND (@financialYear IS NULL OR @financialYear = '' OR tcp.financial_year = @financialYear) AND
+      (@focusID = 0 OR tcp.csr_focus = @focusID)
+	GROUP BY o.organisation_id, o.organisation_name
+    ORDER BY o.organisation_id, o.organisation_name;
     `;
 
     const { recordset } = await request.query(sqlQuery);
@@ -1802,10 +1740,8 @@ async function getDetailedCSRProjects(req, res) {
           tcp.completed_on
       FROM tbl_csr_projects tcp
       LEFT JOIN mmt_organisation o ON tcp.organisation_id = o.organisation_id
-      LEFT JOIN mmt_hr_cluster cid ON o.hr_cluster_id = cid.hr_cluster_id
       WHERE 
-          (@clusterID = 0 OR cid.hr_cluster_id = @clusterID)
-          AND (@organisationID = 0 OR o.organisation_id = @organisationID)
+          (@organisationID = 0 OR o.organisation_id = @organisationID)
           AND (@financialYear IS NULL OR tcp.financial_year = @financialYear)
           AND (@stage IS NULL OR tcp.project_status = @stage) AND
           (@focusID = 0 OR tcp.csr_focus = @focusID)

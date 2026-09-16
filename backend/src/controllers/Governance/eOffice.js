@@ -2,21 +2,30 @@ import { pool } from "../../db.js";
 import fs from "fs";
 import path from "path";
 import xlsx from "xlsx";
+import sql from "mssql";
 
 async function findEofficeFileRecord(conn, id) {
-  let res = await conn.query(`SELECT File_name, 'File_Pendancy' as folder, 'tbl_file_pendancy' as detailTable FROM tbl_eoffice_file_pendancy_file WHERE id = ${id}`);
+  // id comes straight from a URL route param (/file-pendancy/download/:id
+  // etc.) with no prior validation, so it must never be string-interpolated
+  // into SQL -- previously every query below built its WHERE clause with
+  // raw template-literal interpolation of `id`, letting anyone hitting the
+  // download endpoint inject arbitrary SQL through the URL.
+  const request = conn.request();
+  request.input('id', sql.Int, id);
+
+  let res = await request.query(`SELECT File_name, 'File_Pendancy' as folder, 'tbl_file_pendancy' as detailTable FROM tbl_eoffice_file_pendancy_file WHERE id = @id`);
   if (res.recordset && res.recordset.length > 0) return res.recordset[0];
 
-  res = await conn.query(`SELECT File_name, 'Receipt_Pendancy' as folder, 'tbl_receipt_pendency' as detailTable FROM tbl_eoffice_receipt_pendency_file WHERE id = ${id}`);
+  res = await request.query(`SELECT File_name, 'Receipt_Pendancy' as folder, 'tbl_receipt_pendency' as detailTable FROM tbl_eoffice_receipt_pendency_file WHERE id = @id`);
   if (res.recordset && res.recordset.length > 0) return res.recordset[0];
 
-  res = await conn.query(`SELECT File_name, 'File_Disposal' as folder, 'tbl_file_disposal' as detailTable FROM tbl_eoffice_file_disposal_file WHERE id = ${id}`);
+  res = await request.query(`SELECT File_name, 'File_Disposal' as folder, 'tbl_file_disposal' as detailTable FROM tbl_eoffice_file_disposal_file WHERE id = @id`);
   if (res.recordset && res.recordset.length > 0) return res.recordset[0];
 
-  res = await conn.query(`SELECT file_name AS File_name, 'pendency' as folder, 'pendencydata' as detailTable FROM tbl_pendency WHERE id = ${id}`);
+  res = await request.query(`SELECT file_name AS File_name, 'pendency' as folder, 'pendencydata' as detailTable FROM tbl_pendency WHERE id = @id`);
   if (res.recordset && res.recordset.length > 0) return res.recordset[0];
 
-  res = await conn.query(`SELECT file_name AS File_name, 'disposal' as folder, 'filedata' as detailTable FROM tbl_disposal WHERE id = ${id}`);
+  res = await request.query(`SELECT file_name AS File_name, 'disposal' as folder, 'filedata' as detailTable FROM tbl_disposal WHERE id = @id`);
   if (res.recordset && res.recordset.length > 0) return res.recordset[0];
 
   return null;
@@ -25,6 +34,14 @@ async function findEofficeFileRecord(conn, id) {
 async function handleEofficeDownload(req, res) {
   try {
     const id = req.params.id;
+
+    // Reject non-numeric ids up front with a clean 400 rather than letting
+    // an invalid value reach sql.Int binding, which would throw and fall
+    // through to the generic 500 handler below.
+    if (!/^\d+$/.test(String(id))) {
+      return res.status(400).send({ message: "Invalid id" });
+    }
+
     const conn = await pool;
 
     const record = await findEofficeFileRecord(conn, id);
@@ -52,10 +69,16 @@ async function handleEofficeDownload(req, res) {
       }
     }
 
+    // detailTable is always one of a fixed set of literal strings assigned
+    // by findEofficeFileRecord above (never derived from user input), so
+    // string-interpolating it here is safe -- SQL Server can't parameterize
+    // identifiers/table names anyway, only values. Only `id` needs binding.
     const detailTable = record.detailTable || 'tbl_file_pendancy';
     let rows = [];
     try {
-      const dataResult = await conn.query(`SELECT * FROM ${detailTable} WHERE File_ID = ${id} OR file_id = ${id}`);
+      const dataRequest = conn.request();
+      dataRequest.input('id', sql.Int, id);
+      const dataResult = await dataRequest.query(`SELECT * FROM ${detailTable} WHERE File_ID = @id OR file_id = @id`);
       rows = dataResult.recordset || [];
     } catch (dbErr) {
       console.warn("Detail table query notice:", dbErr.message);
@@ -90,12 +113,64 @@ async function downloadFileDisposal(req, res) {
   return handleEofficeDownload(req, res);
 }
 
+// Static sample template downloads, one per KPI type -- these are fixed
+// reference files (not a DB-backed record lookup like the functions
+// above), matching Attendance's downloadSampleDocument pattern. Each
+// KPI's template has genuinely different required columns (confirmed
+// from the requiredHeaders checks in the 3 KPI upload controllers), so a
+// single combined template isn't used here.
+function sendSampleDocument(fileName, res) {
+  const samplePath = path.join(process.cwd(), "eoffice_document", fileName);
+  if (!fs.existsSync(samplePath)) {
+    console.error(`Sample document not found: ${samplePath}`);
+    return res.status(404).send({ message: "Sample document not found" });
+  }
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+  res.setHeader("Content-Length", fs.statSync(samplePath).size);
+  const fileStream = fs.createReadStream(samplePath);
+  fileStream.pipe(res);
+}
+
+async function downloadFilePendancySample(req, res) {
+  try {
+    sendSampleDocument("File_Pendency_Sample.xlsx", res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: err.message });
+  }
+}
+
+async function downloadReceiptPendencySample(req, res) {
+  try {
+    sendSampleDocument("Receipt_Pendency_Sample.xlsx", res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: err.message });
+  }
+}
+
+async function downloadFileDisposalSample(req, res) {
+  try {
+    sendSampleDocument("File_Disposal_Sample.xlsx", res);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: err.message });
+  }
+}
+
 async function deleteFilePendency(req, res) {
   try {
     const id = req.params.id;
+    if (!/^\d+$/.test(String(id))) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
     const conn = await pool;
-    await conn.query(`DELETE FROM tbl_file_pendancy WHERE File_ID = ${id}`);
-    await conn.query(`DELETE FROM tbl_eoffice_file_pendancy_file WHERE id = ${id}`);
+    const request = conn.request();
+    request.input('id', sql.Int, id);
+    await request.query(`DELETE FROM tbl_file_pendancy WHERE File_ID = @id`);
+    await request.query(`DELETE FROM tbl_eoffice_file_pendancy_file WHERE id = @id`);
     res.json({ message: "File and related records deleted successfully" });
   } catch (err) {
     console.error("deleteFilePendency error:", err.message);
@@ -106,9 +181,14 @@ async function deleteFilePendency(req, res) {
 async function deleteReceiptPendency(req, res) {
   try {
     const id = req.params.id;
+    if (!/^\d+$/.test(String(id))) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
     const conn = await pool;
-    await conn.query(`DELETE FROM tbl_receipt_pendency WHERE File_ID = ${id}`);
-    await conn.query(`DELETE FROM tbl_eoffice_receipt_pendency_file WHERE id = ${id}`);
+    const request = conn.request();
+    request.input('id', sql.Int, id);
+    await request.query(`DELETE FROM tbl_receipt_pendency WHERE File_ID = @id`);
+    await request.query(`DELETE FROM tbl_eoffice_receipt_pendency_file WHERE id = @id`);
     res.json({ message: "File and related records deleted successfully" });
   } catch (err) {
     console.error("deleteReceiptPendency error:", err.message);
@@ -119,16 +199,20 @@ async function deleteReceiptPendency(req, res) {
 async function deleteFileDisposal(req, res) {
   try {
     const id = req.params.id;
+    if (!/^\d+$/.test(String(id))) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
     const conn = await pool;
-    await conn.query(`DELETE FROM tbl_file_disposal WHERE File_ID = ${id}`);
-    await conn.query(`DELETE FROM tbl_eoffice_file_disposal_file WHERE id = ${id}`);
+    const request = conn.request();
+    request.input('id', sql.Int, id);
+    await request.query(`DELETE FROM tbl_file_disposal WHERE File_ID = @id`);
+    await request.query(`DELETE FROM tbl_eoffice_file_disposal_file WHERE id = @id`);
     res.json({ message: "File and related records deleted successfully" });
   } catch (err) {
     console.error("deleteFileDisposal error:", err.message);
     res.status(500).send("Internal Server Error");
   }
 }
-
 async function getFilePendenceReport(req, res) {
     try {
         const year = req.params.Year;
@@ -787,5 +871,6 @@ export default {
   getFilePendencyHistory, getReceiptPendencyHistory, getFileDisposalHistory,
   getFilePendancyChart, getReceiptPendancyChart, getFileDisposalChart,
   downloadFilePendancy, downloadReceiptPendency, downloadFileDisposal,
+  downloadFilePendancySample, downloadReceiptPendencySample, downloadFileDisposalSample,
   deleteFilePendency, deleteReceiptPendency, deleteFileDisposal
 };

@@ -118,7 +118,7 @@ app.post('/upload', upload.array('files', 10), (req, res) => {
     res.status(200).json({ message: 'Files uploaded successfully' });
 });
 
-//app.use('/assets', express.static(path.join(__dirname, 'fileuploads', 'Project_Documents', 'project_images')));
+app.use('/fileuploads', express.static(path.join(__dirname, 'fileuploads')));
 app.use('/fileuploads/Project_Documents/project_images', express.static(path.join(__dirname, 'fileuploads', 'Project_Documents', 'project_images')));
 
 // Fetch images endpoint

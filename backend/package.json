@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -29,7 +29,11 @@
     "node-cron": "^4.2.1",
     "node-forge": "^1.3.1",
     "nodemailer": "^6.9.13",
+    "nodemon": "^3.1.14",
     "require": "^2.4.20",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }
