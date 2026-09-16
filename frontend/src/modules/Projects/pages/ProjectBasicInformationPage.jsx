@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import ProjectStageWorkbench from '../components/ProjectStageWorkbench';
 import {
   createProjectBasicInformation,
@@ -14,13 +15,24 @@ import {
   uploadProjectDocuments,
   deleteProjectDocumentByName,
   downloadProjectDocumentFile,
-  fetchTotalExpenditureValue,
-  fetchExpenditureMainFinancialYear,
-  submitExpenditureDetail,
+  fetchPlanningCheckPoints,
+  fetchUnderTenderingCheckPoints,
+  fetchUnderImplementationCheckPoints,
 } from '../api';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 import { getProjectIdentity, mapProjectBasicInfoPayload } from '../utils/mapProject';
-import { yearForMonth } from '../utils/stageMappers';
+import {
+  formatFileSize,
+  getProjectDocumentTypeConfig,
+  getProjectDocumentTypeLabel,
+} from '../utils/constants';
+import {
+  isImplementationCheckpointMet,
+  isPlanningCheckpointMet,
+  isTenderingCheckpointMet,
+  nextActiveStageAfterSave,
+  stageLabelFromStageId,
+} from '../utils/stageProgress';
 
 function toBit(value) {
   return value ? 1 : 0;
@@ -40,15 +52,32 @@ function computePlanningStageId(payload) {
   return '0';
 }
 
-function numOrZero(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
 function normalizeDocumentName(docOrName) {
   if (!docOrName) return '';
   if (typeof docOrName === 'string') return docOrName;
   return docOrName.document_name || docOrName.name || docOrName.file_name || '';
+}
+
+function buildEditDataFromRow(row, previous = null) {
+  const stageId = row?.current_project_stage_id;
+  const stageLabel =
+    stageLabelFromStageId(stageId) ||
+    previous?.stage ||
+    previous?.raw?.stage_name ||
+    'Project Initiated';
+
+  return {
+    ...(previous || {}),
+    stage: stageLabel,
+    selectedStage: stageLabel,
+    raw: {
+      ...(previous?.raw || {}),
+      ...row,
+      stage_name: stageLabel,
+      project_stage: stageLabel,
+      current_project_stage_id: stageId,
+    },
+  };
 }
 
 export default function ProjectBasicInformationPage({
@@ -66,6 +95,11 @@ export default function ProjectBasicInformationPage({
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [uploadingDocuments, setUploadingDocuments] = useState(false);
   const [stageRefreshKey, setStageRefreshKey] = useState(0);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState({
+    open: false,
+    documentName: '',
+  });
+  const [deletingDocument, setDeletingDocument] = useState(false);
 
   const identity = getProjectIdentity(editData || initialData || {});
   const isUpdateMode = Boolean(
@@ -136,10 +170,7 @@ export default function ProjectBasicInformationPage({
         if (!mounted) return;
 
         if (row) {
-          setEditData({
-            ...(initialData || {}),
-            raw: { ...(initialData?.raw || {}), ...row },
-          });
+          setEditData(buildEditDataFromRow(row, initialData || null));
         } else {
           setEditData(initialData || null);
         }
@@ -178,6 +209,50 @@ export default function ProjectBasicInformationPage({
       return;
     }
 
+    const docConfig = getProjectDocumentTypeConfig(folderName);
+    if (!docConfig) {
+      notify?.('Invalid document type. Allowed: Project PPT, PERT Chart, Project Images.', 'error');
+      return;
+    }
+
+    if (files.length > docConfig.maxFiles) {
+      notify?.(
+        `${docConfig.label}: maximum ${docConfig.maxFiles} files can be uploaded at once.`,
+        'error'
+      );
+      return;
+    }
+
+    for (const file of files) {
+      const name = String(file?.name || '').toLowerCase();
+      const ext = name.includes('.') ? `.${name.split('.').pop()}` : '';
+      const allowedByExt = docConfig.acceptExtensions.includes(ext);
+      const allowedByMime =
+        folderName === 'project_images'
+          ? String(file?.type || '').startsWith('image/')
+          : folderName === 'project_ppt'
+            ? ['application/pdf', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'].includes(
+                String(file?.type || '')
+              ) || allowedByExt
+            : String(file?.type || '') === 'application/pdf' || allowedByExt;
+
+      if (!allowedByExt && !allowedByMime) {
+        notify?.(
+          `${docConfig.label}: invalid file "${file.name}". Allowed: ${docConfig.acceptExtensions.join(', ')}`,
+          'error'
+        );
+        return;
+      }
+
+      if (file.size > docConfig.maxBytes) {
+        notify?.(
+          `${docConfig.label}: "${file.name}" (${formatFileSize(file.size)}) exceeds 20 MB limit.`,
+          'error'
+        );
+        return;
+      }
+    }
+
     setUploadingDocuments(true);
     try {
       const formData = new FormData();
@@ -187,7 +262,7 @@ export default function ProjectBasicInformationPage({
       files.forEach((file) => formData.append('projectDocument', file));
 
       await uploadProjectDocuments(formData);
-      notify?.('Project document(s) uploaded successfully.', 'success');
+      notify?.(`${getProjectDocumentTypeLabel(folderName)} uploaded successfully.`, 'success');
       await loadDocuments();
     } catch (error) {
       console.error(error);
@@ -197,23 +272,39 @@ export default function ProjectBasicInformationPage({
     }
   };
 
-  const handleDeleteDocument = async (docOrName) => {
+  const closeDeleteConfirmModal = () => {
+    if (deletingDocument) return;
+    setDeleteConfirmModal({ open: false, documentName: '' });
+  };
+
+  const handleDeleteDocument = (docOrName) => {
     if (!permissions.canEdit || readOnly) {
       notify?.('You do not have permission to delete documents.', 'error');
       return;
     }
     const documentName = normalizeDocumentName(docOrName);
     if (!documentName) return;
-    const ok = window.confirm('Are you sure you want to delete this document?');
-    if (!ok) return;
+    setDeleteConfirmModal({ open: true, documentName });
+  };
+
+  const confirmDeleteDocument = async () => {
+    const documentName = deleteConfirmModal.documentName;
+    if (!documentName) {
+      closeDeleteConfirmModal();
+      return;
+    }
 
     try {
+      setDeletingDocument(true);
       await deleteProjectDocumentByName(identity.projectID, identity.subProjectID, documentName);
       notify?.('Project document deleted successfully.', 'success');
+      setDeleteConfirmModal({ open: false, documentName: '' });
       await loadDocuments();
     } catch (error) {
       console.error(error);
       notify?.(error?.response?.data?.message || 'Failed to delete project document.', 'error');
+    } finally {
+      setDeletingDocument(false);
     }
   };
 
@@ -314,6 +405,69 @@ export default function ProjectBasicInformationPage({
     }
   };
 
+  const refreshProjectStageState = async (projectID, subProjectID) => {
+    const response = await fetchEditProjectData(projectID, subProjectID);
+    const row = Array.isArray(response?.data) ? response.data[0] : null;
+    if (!row) {
+      return { stageId: null };
+    }
+    setEditData((prev) => buildEditDataFromRow(row, prev || initialData));
+    return { stageId: row.current_project_stage_id };
+  };
+
+  const syncWorkbenchAfterStageSave = async (savedStageId, projectID, subProjectID) => {
+    setStageRefreshKey((prev) => prev + 1);
+
+    let planningUnlocked = false;
+    let tenderingUnlocked = false;
+    let implementationUnlocked = false;
+
+    try {
+      if (savedStageId === 'planning') {
+        const res = await fetchPlanningCheckPoints(projectID, subProjectID);
+        planningUnlocked = isPlanningCheckpointMet(res?.data);
+      } else if (savedStageId === 'tendering') {
+        const res = await fetchUnderTenderingCheckPoints(projectID, subProjectID);
+        tenderingUnlocked = isTenderingCheckpointMet(res?.data);
+      } else if (savedStageId === 'implementation') {
+        const res = await fetchUnderImplementationCheckPoints(projectID, subProjectID);
+        implementationUnlocked = isImplementationCheckpointMet(res?.data);
+      } else if (savedStageId === 'completion') {
+        implementationUnlocked = true;
+      }
+    } catch (error) {
+      console.error(error);
+    }
+
+    await refreshProjectStageState(projectID, subProjectID);
+
+    const nextTab = nextActiveStageAfterSave(savedStageId, {
+      planningUnlocked,
+      tenderingUnlocked,
+      implementationUnlocked,
+    });
+    setActiveStage(nextTab);
+
+    if (savedStageId === 'planning' && !planningUnlocked) {
+      notify?.(
+        'Planning saved. Complete Admin/Chairman approval with sanctioned cost to unlock Under Tendering.',
+        'info'
+      );
+    } else if (savedStageId === 'tendering' && !tenderingUnlocked) {
+      notify?.(
+        'Tendering saved. Contract signed actual date and awarded project cost are required to unlock Under Implementation.',
+        'info'
+      );
+    } else if (savedStageId === 'implementation' && !implementationUnlocked) {
+      notify?.(
+        'Implementation saved. Final milestone actual end date is required to unlock Completion.',
+        'info'
+      );
+    }
+
+    return nextTab;
+  };
+
   const handleStageSubmit = async (stageId, stageData = {}) => {
     if (!canSubmit) {
       notify?.('You do not have permission to submit stage details.', 'error');
@@ -371,17 +525,7 @@ export default function ProjectBasicInformationPage({
         payload.selectedStage = computePlanningStageId(payload);
         await submitPlanningSanctioning(payload);
         notify?.('Planning & Sanctioning details updated successfully.', 'success');
-        setStageRefreshKey((prev) => prev + 1);
-        setActiveStage('tendering');
-        setEditData((prev) => ({
-          ...(prev || {}),
-          stage: 'Under Tendering',
-          raw: {
-            ...(prev?.raw || {}),
-            stage_name: 'Under Tendering',
-            project_stage: 'Under Tendering',
-          },
-        }));
+        await syncWorkbenchAfterStageSave('planning', liveIdentity.projectID, liveIdentity.subProjectID);
         return true;
       }
 
@@ -444,17 +588,7 @@ export default function ProjectBasicInformationPage({
         });
 
         notify?.('Under Tendering details updated successfully.', 'success');
-        setStageRefreshKey((prev) => prev + 1);
-        setActiveStage('implementation');
-        setEditData((prev) => ({
-          ...(prev || {}),
-          stage: 'Under Implementation',
-          raw: {
-            ...(prev?.raw || {}),
-            stage_name: 'Under Implementation',
-            project_stage: 'Under Implementation',
-          },
-        }));
+        await syncWorkbenchAfterStageSave('tendering', liveIdentity.projectID, liveIdentity.subProjectID);
         return true;
       }
 
@@ -495,99 +629,27 @@ export default function ProjectBasicInformationPage({
           tentativeInaugurationDate: stageData.tentativeInaugurationDate || '',
         });
 
-        const components = stageData.components || {};
-        const hasAnyComponentValue = Object.values(components).some(
-          (v) => String(v || '').trim() !== ''
-        );
-        const hasAnyExpenditureField =
-          Boolean(stageData.financialYear) || Boolean(stageData.month) || hasAnyComponentValue;
-        if (hasAnyExpenditureField && (!stageData.financialYear || !stageData.month)) {
-          notify?.('Select both Financial Year and Month for expenditure entry.', 'error');
-          return false;
-        }
-        const hasExpenditureInput =
-          Boolean(stageData.financialYear) &&
-          Boolean(stageData.month) &&
-          hasAnyComponentValue;
-
-        if (hasExpenditureInput) {
-          const checkRes = await fetchExpenditureMainFinancialYear(
-            liveIdentity.projectID,
-            liveIdentity.subProjectID,
-            stageData.financialYear,
-            stageData.month
-          );
-          const yearCount = Number(checkRes?.data?.[0]?.yearCount || 0);
-          if (yearCount >= 1) {
-            notify?.(
-              'Expenditure log already present for the selected financial year and month.',
-              'error'
-            );
-            return false;
-          }
-
-          const totalRes = await fetchTotalExpenditureValue(
-            liveIdentity.projectID,
-            liveIdentity.subProjectID
-          );
-          const totalExpenditure = numOrZero(totalRes?.data?.[0]?.total_expenditure);
-          const added =
-            numOrZero(components.gbsComponents) +
-            numOrZero(components.iebrComponents) +
-            numOrZero(components.pppComponents) +
-            numOrZero(components.loansComponents) +
-            numOrZero(components.multilateralComponents) +
-            numOrZero(components.stateGovFundComponents) +
-            numOrZero(components.pmmsyComponents) +
-            numOrZero(components.sagarmalaComponents) +
-            numOrZero(components.otherSourceFunding);
-          const calculatedTotal = totalExpenditure + added;
-          const awardCost = numOrZero(stageData.awardProjectCost);
-
-          if (awardCost > 0 && calculatedTotal > awardCost) {
-            notify?.('Total expenditure should not exceed the awarded project cost.', 'error');
-            return false;
-          }
-
-          const financialProgress = awardCost > 0 ? (calculatedTotal / awardCost) * 100 : 0;
-          await submitExpenditureDetail({
-            projectID: liveIdentity.projectID,
-            subProjectID: liveIdentity.subProjectID,
-            financialYear: yearForMonth(stageData.month, stageData.financialYear),
-            financialYearOriginal: stageData.financialYear,
-            month: stageData.month,
-            gbsComponents: components.gbsComponents || 0,
-            iebrComponents: components.iebrComponents || 0,
-            pppComponents: components.pppComponents || 0,
-            loansComponents: components.loansComponents || 0,
-            multilateralComponents: components.multilateralComponents || 0,
-            stateGovFundComponents: components.stateGovFundComponents || 0,
-            pmmsyComponents: components.pmmsyComponents || 0,
-            sagarmalaComponents: components.sagarmalaComponents || 0,
-            otherSourceFunding: components.otherSourceFunding || 0,
-            financialProgress,
-          });
-        }
-
         notify?.('Under Implementation details updated successfully.', 'success');
-        setStageRefreshKey((prev) => prev + 1);
-        setActiveStage('completion');
-        setEditData((prev) => ({
-          ...(prev || {}),
-          stage: 'Completed',
-          raw: { ...(prev?.raw || {}), stage_name: 'Completed', project_stage: 'Completed' },
-        }));
+        await syncWorkbenchAfterStageSave(
+          'implementation',
+          liveIdentity.projectID,
+          liveIdentity.subProjectID
+        );
         return true;
       }
 
       if (stageId === 'completion') {
         if (!String(stageData.actualCompletionDate || '').trim()) {
-          notify?.('Actual completion date is required.', 'error');
+          notify?.('Please enter a actual completion date', 'error');
+          return false;
+        }
+        if (!String(stageData.closureCost || '').trim()) {
+          notify?.('Please enter a closure cost ', 'error');
           return false;
         }
         const closureCost = Number(stageData.closureCost);
-        if (!String(stageData.closureCost || '').trim() || Number.isNaN(closureCost) || closureCost <= 0) {
-          notify?.('Closure cost must be greater than 0.', 'error');
+        if (Number.isNaN(closureCost)) {
+          notify?.('Please enter a closure cost ', 'error');
           return false;
         }
         await submitProjectCompletion({
@@ -598,12 +660,7 @@ export default function ProjectBasicInformationPage({
           projectStageID: 14,
         });
         notify?.('Project completion details updated successfully.', 'success');
-        setStageRefreshKey((prev) => prev + 1);
-        setEditData((prev) => ({
-          ...(prev || {}),
-          stage: 'Completed',
-          raw: { ...(prev?.raw || {}), stage_name: 'Completed', project_stage: 'Completed' },
-        }));
+        await syncWorkbenchAfterStageSave('completion', liveIdentity.projectID, liveIdentity.subProjectID);
         onSuccess?.();
         return true;
       }
@@ -630,36 +687,72 @@ export default function ProjectBasicInformationPage({
     : 'new-project-basic-info';
 
   return (
-    <ProjectStageWorkbench
-      key={workbenchKey}
-      initialData={editData || initialData}
-      activeStage={activeStage}
-      onActiveStageChange={setActiveStage}
-      canSubmit={canSubmit}
-      readOnly={readOnly}
-      loading={saving || hydrating}
-      onBack={onBack}
-      onSubmit={handleSubmit}
-      onSubmitStage={handleStageSubmit}
-      notify={notify}
-      stageRefreshKey={stageRefreshKey}
-      documentRows={documents}
-      documentsLoading={documentsLoading}
-      uploadingDocuments={uploadingDocuments}
-      onUploadDocuments={handleUploadDocuments}
-      onDeleteDocument={handleDeleteDocument}
-      onDownloadDocument={handleDownloadDocument}
-      outlayProps={
-        isUpdateMode
-          ? {
-              projectID: liveIdentity.projectID,
-              subProjectID: liveIdentity.subProjectID,
-              canSubmit,
-              readOnly,
-              notify,
-            }
-          : null
-      }
-    />
+    <>
+      <ProjectStageWorkbench
+        key={workbenchKey}
+        initialData={editData || initialData}
+        activeStage={activeStage}
+        onActiveStageChange={setActiveStage}
+        canSubmit={canSubmit}
+        readOnly={readOnly}
+        loading={saving || hydrating}
+        onBack={onBack}
+        onSubmit={handleSubmit}
+        onSubmitStage={handleStageSubmit}
+        notify={notify}
+        stageRefreshKey={stageRefreshKey}
+        documentRows={documents}
+        documentsLoading={documentsLoading}
+        uploadingDocuments={uploadingDocuments}
+        onUploadDocuments={handleUploadDocuments}
+        onDeleteDocument={handleDeleteDocument}
+        onDownloadDocument={handleDownloadDocument}
+        outlayProps={
+          isUpdateMode
+            ? {
+                projectID: liveIdentity.projectID,
+                subProjectID: liveIdentity.subProjectID,
+                canSubmit,
+                readOnly,
+                notify,
+              }
+            : null
+        }
+      />
+
+      {deleteConfirmModal.open
+        ? createPortal(
+            <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6">
+              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl animate-scale-up">
+                <div className="px-5 py-4 border-b border-slate-200">
+                  <h3 className="text-sm font-black text-slate-800">Delete Document</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Are you sure you want to delete this document?
+                  </p>
+                </div>
+                <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeDeleteConfirmModal}
+                    disabled={deletingDocument}
+                    className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDeleteDocument}
+                    disabled={deletingDocument}
+                    className="px-3 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60"
+                  >
+                    {deletingDocument ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </>
   );
 }

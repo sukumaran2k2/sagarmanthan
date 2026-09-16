@@ -12,6 +12,10 @@ import {
 } from '../api';
 import { getProjectIdentity } from '../utils/mapProject';
 import {
+  formatFileSize,
+  PROJECT_UPLOAD_MAX_BYTES,
+} from '../utils/constants';
+import {
   buildDefaultTenderRows,
   mapTenderMetaFromCostApi,
   mapTenderRowsFromApi,
@@ -74,6 +78,7 @@ export default function UnderTenderingStage({
   const [foundationTentativeDate, setFoundationTentativeDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploadingByRowId, setUploadingByRowId] = useState({});
+  const [uploadPreviewByRowId, setUploadPreviewByRowId] = useState({});
   const [docFoldersPresent, setDocFoldersPresent] = useState(new Set());
   const [revisionModal, setRevisionModal] = useState({
     open: false,
@@ -88,6 +93,15 @@ export default function UnderTenderingStage({
     title: '',
     rows: [],
   });
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState({
+    open: false,
+    rowId: null,
+  });
+  const [deletingDocument, setDeletingDocument] = useState(false);
+  const [preponeConfirmModal, setPreponeConfirmModal] = useState({
+    open: false,
+  });
+  const [pendingRevisionPayload, setPendingRevisionPayload] = useState(null);
 
   const disabled = !canSubmit || readOnly;
   const nominationMode = onNominationBasisAwarded === '1';
@@ -158,10 +172,90 @@ export default function UnderTenderingStage({
       .split(/\s+/)
       .filter(Boolean).length;
 
+  const MAX_PDF_BYTES = PROJECT_UPLOAD_MAX_BYTES;
+
+  /** Mirrors legacy checkActualDate() — previous stage must have planned + actual before later dates. */
+  const checkActualDateChain = (sourceRows, nominationValue) => {
+    const byId = (id) => sourceRows.find((row) => Number(row.id) === id) || {};
+    const r1 = byId(1);
+    const r2 = byId(2);
+    const r3 = byId(3);
+    const r4 = byId(4);
+    const r5 = byId(5);
+    const r6 = byId(6);
+    const r7 = byId(7);
+    const r8 = byId(8);
+    const isNomination = String(nominationValue) === '1';
+
+    if (!isNomination) {
+      if (!r1.notApplicable && (!r1.plannedDate || !r1.actualDate) && (r2.plannedDate || r2.actualDate)) {
+        notify?.('Please enter the technical sanction - actual date.', 'error');
+        return false;
+      }
+      if (!r2.notApplicable && (!r2.plannedDate || !r2.actualDate) && (r3.plannedDate || r3.actualDate)) {
+        notify?.('Please enter the tender document approved - actual date.', 'error');
+        return false;
+      }
+      if (!r3.notApplicable && (!r3.plannedDate || !r3.actualDate) && (r4.plannedDate || r4.actualDate)) {
+        notify?.('Please enter the tender notice issued - actual date.', 'error');
+        return false;
+      }
+      if (!r4.notApplicable && (!r4.plannedDate || !r4.actualDate) && (r5.plannedDate || r5.actualDate)) {
+        notify?.('Please enter the technical evaluation completed - actual date.', 'error');
+        return false;
+      }
+      if (!r5.notApplicable && (!r5.plannedDate || !r5.actualDate) && (r6.plannedDate || r6.actualDate)) {
+        notify?.('Please enter the financial evaluation completed - actual date.', 'error');
+        return false;
+      }
+      if ((!r6.plannedDate || !r6.actualDate) && (r7.plannedDate || r7.actualDate)) {
+        notify?.(
+          'Please enter the sanction of competent authority obtained for award - actual date.',
+          'error'
+        );
+        return false;
+      }
+    }
+
+    if ((!r7.plannedDate || !r7.actualDate) && (r8.plannedDate || r8.actualDate)) {
+      notify?.('Please enter the work awarded / LOA issued - actual date.', 'error');
+      return false;
+    }
+    return true;
+  };
+
+  const handleActualDateChange = (rowId, value) => {
+    const nextRows = rows.map((row) =>
+      Number(row.id) === Number(rowId) ? { ...row, actualDate: value } : row
+    );
+    updateRow(rowId, { actualDate: value });
+    checkActualDateChain(nextRows, onNominationBasisAwarded);
+  };
+
   const onUploadForRow = async (rowId, file) => {
     if (!file || !projectID) return;
     const folderName = DOC_FOLDER_BY_ROW_ID[rowId];
     if (!folderName) return;
+
+    const isPdf =
+      /\.pdf$/i.test(file.name) ||
+      String(file.type || '').toLowerCase() === 'application/pdf';
+    if (!isPdf) {
+      notify?.('Only PDF files are allowed.', 'error');
+      return;
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      notify?.(
+        `"${file.name}" (${formatFileSize(file.size)}) exceeds 20 MB limit.`,
+        'error'
+      );
+      return;
+    }
+
+    setUploadPreviewByRowId((prev) => ({
+      ...prev,
+      [rowId]: { name: file.name, size: file.size },
+    }));
     setUploadingByRowId((prev) => ({ ...prev, [rowId]: true }));
     try {
       const formData = new FormData();
@@ -200,17 +294,35 @@ export default function UnderTenderingStage({
     }
   };
 
-  const onDeleteForRow = async (rowId) => {
+  const closeDeleteConfirmModal = () => {
+    if (deletingDocument) return;
+    setDeleteConfirmModal({ open: false, rowId: null });
+  };
+
+  const onDeleteForRow = (rowId) => {
     const folderName = DOC_FOLDER_BY_ROW_ID[rowId];
     if (!folderName || !docKey) return;
-    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    setDeleteConfirmModal({ open: true, rowId });
+  };
+
+  const confirmDeleteForRow = async () => {
+    const rowId = deleteConfirmModal.rowId;
+    const folderName = DOC_FOLDER_BY_ROW_ID[rowId];
+    if (!folderName || !docKey) {
+      closeDeleteConfirmModal();
+      return;
+    }
     try {
+      setDeletingDocument(true);
       await deleteUnderTenderingDocument(folderName, docKey);
       notify?.('Tendering document deleted successfully.', 'success');
+      setDeleteConfirmModal({ open: false, rowId: null });
       await refreshExistingDocs();
     } catch (error) {
       console.error(error);
       notify?.('Failed to delete tendering document.', 'error');
+    } finally {
+      setDeletingDocument(false);
     }
   };
 
@@ -220,7 +332,7 @@ export default function UnderTenderingStage({
       const historyRes = await fetchUnderTenderingRevisionHistory(projectID, uiIdToSubStageId(rowId), subProjectID);
       const historyRows = Array.isArray(historyRes?.data) ? historyRes.data : [];
       if (historyRows.length >= 3) {
-        notify?.('Maximum number of revisions (3) has been reached. This sub-stage cannot be revised further.', 'error');
+        notify?.('Maximum number of revisions (3) has been reached. This sub-stage cannot be revised further', 'error');
         return;
       }
 
@@ -234,6 +346,32 @@ export default function UnderTenderingStage({
     } catch (error) {
       console.error(error);
       notify?.('Failed to save revision.', 'error');
+    }
+  };
+
+  const executeRevisionSave = async ({ rowId, revisedDate, remarks }) => {
+    try {
+      setRevisionSaving(true);
+      await saveUnderTenderingRevision({
+        projectID,
+        subProjectID,
+        projectSubStageID: uiIdToSubStageId(rowId),
+        revisionStartDate: revisedDate,
+        revisionRemarks: remarks,
+      });
+      updateRow(rowId, { revisedDate });
+      notify?.('Project dates updated successfully.', 'success');
+      setRevisionModal({ open: false, rowId: null, date: '', remarks: '', error: '' });
+      setPreponeConfirmModal({ open: false });
+      setPendingRevisionPayload(null);
+    } catch (error) {
+      console.error(error);
+      setRevisionModal((prev) => ({
+        ...prev,
+        error: 'Something went wrong while updating the project dates. Please try later.',
+      }));
+    } finally {
+      setRevisionSaving(false);
     }
   };
 
@@ -251,38 +389,39 @@ export default function UnderTenderingStage({
     if (countWords(remarks) > 20) {
       setRevisionModal((prev) => ({
         ...prev,
-        error: 'Revision remarks should not exceed 20 words.',
+        error: 'Revision remarks should not exceed 20 words',
       }));
       return;
     }
 
+    const payload = {
+      rowId: revisionModal.rowId,
+      revisedDate,
+      remarks,
+    };
+
     const row = rows.find((r) => r.id === revisionModal.rowId);
     if (row?.plannedDate && new Date(row.plannedDate) > new Date(revisedDate)) {
-      const ok = window.confirm('Do you want to preponed the Planned Date?');
-      if (!ok) return;
+      setPendingRevisionPayload(payload);
+      setPreponeConfirmModal({ open: true });
+      return;
     }
 
-    try {
-      setRevisionSaving(true);
-      await saveUnderTenderingRevision({
-        projectID,
-        subProjectID,
-        projectSubStageID: uiIdToSubStageId(revisionModal.rowId),
-        revisionStartDate: revisedDate,
-        revisionRemarks: remarks,
-      });
-      updateRow(revisionModal.rowId, { revisedDate });
-      notify?.('Project dates updated successfully.', 'success');
-      setRevisionModal({ open: false, rowId: null, date: '', remarks: '', error: '' });
-    } catch (error) {
-      console.error(error);
-      setRevisionModal((prev) => ({
-        ...prev,
-        error: 'Something went wrong while updating the project dates. Please try later.',
-      }));
-    } finally {
-      setRevisionSaving(false);
+    await executeRevisionSave(payload);
+  };
+
+  const confirmPreponeRevision = async () => {
+    if (!pendingRevisionPayload) {
+      setPreponeConfirmModal({ open: false });
+      return;
     }
+    await executeRevisionSave(pendingRevisionPayload);
+  };
+
+  const closePreponeConfirmModal = () => {
+    if (revisionSaving) return;
+    setPreponeConfirmModal({ open: false });
+    setPendingRevisionPayload(null);
   };
 
   const onShowHistory = async (rowId) => {
@@ -413,6 +552,10 @@ export default function UnderTenderingStage({
       notify?.('Please fill the work awarded target Date.', 'error');
       return false;
     }
+    if (!r7.actualDate && r8.actualDate) {
+      notify?.('Please fill the work awarded actual dates.', 'error');
+      return false;
+    }
     if (compareDates(r7.plannedDate, r6.plannedDate)) {
       notify?.('Work Awarded Planned Date cannot be less than Sanction Competent Authority Planned Date.', 'error');
       return false;
@@ -464,16 +607,19 @@ export default function UnderTenderingStage({
         </div>
       </div>
 
-      <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white">
+      <div className="border border-slate-200 rounded-2xl bg-white">
         <table className="min-w-full text-xs">
-          <thead className="bg-[#0f417a] text-white">
+          <thead
+            className="sticky z-30 bg-[#0f417a] text-white shadow-sm"
+            style={{ top: 'var(--stage-table-sticky-top, 42px)' }}
+          >
             <tr>
-              <th className="text-left px-3 py-2.5">Stage</th>
-              <th className="text-left px-3 py-2.5">Targeted Completion Date</th>
-              <th className="text-left px-3 py-2.5">Revised Date</th>
-              <th className="text-center px-3 py-2.5">Revise</th>
-              <th className="text-center px-3 py-2.5">History</th>
-              <th className="text-left px-3 py-2.5">Actual Date</th>
+              <th className="text-left px-3 py-2.5 bg-[#0f417a]">Stage</th>
+              <th className="text-left px-3 py-2.5 bg-[#0f417a]">Targeted Completion Date</th>
+              <th className="text-left px-3 py-2.5 bg-[#0f417a]">Revised Date</th>
+              <th className="text-center px-3 py-2.5 bg-[#0f417a]">Revise</th>
+              <th className="text-center px-3 py-2.5 bg-[#0f417a]">History</th>
+              <th className="text-left px-3 py-2.5 bg-[#0f417a]">Actual Date</th>
             </tr>
           </thead>
           <tbody>
@@ -484,12 +630,12 @@ export default function UnderTenderingStage({
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <label className="inline-flex items-center gap-2 text-[11px] text-slate-600 font-semibold">
                       <span className="px-2 py-1 rounded border border-slate-200 bg-slate-50">
-                        Upload PDF
+                        Upload PDF (max 20 MB)
                       </span>
                       <input
                         type="file"
-                        accept=".pdf"
-                      disabled={disabled || uploadingByRowId[row.id] || (nominationMode && row.id <= 6)}
+                        accept=".pdf,application/pdf"
+                        disabled={disabled || uploadingByRowId[row.id] || (nominationMode && row.id <= 6)}
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) onUploadForRow(row.id, file);
@@ -515,6 +661,12 @@ export default function UnderTenderingStage({
                       Delete
                     </button>
                   </div>
+                  {uploadPreviewByRowId[row.id] ? (
+                    <p className="mt-1 text-[11px] font-semibold text-slate-500 truncate" title={`${uploadPreviewByRowId[row.id].name} (${formatFileSize(uploadPreviewByRowId[row.id].size)})`}>
+                      {uploadingByRowId[row.id] ? 'Uploading: ' : 'Selected: '}
+                      {uploadPreviewByRowId[row.id].name} ({formatFileSize(uploadPreviewByRowId[row.id].size)})
+                    </p>
+                  ) : null}
                   {row.id >= 2 && row.id <= 6 ? (
                     <label className="inline-flex items-center gap-2 mt-2 text-[11px] text-slate-600 font-semibold">
                       <input
@@ -545,14 +697,14 @@ export default function UnderTenderingStage({
                 <td className="px-3 py-3"><input type="date" value={row.revisedDate} disabled className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-100" /></td>
                 <td className="px-3 py-3 text-center"><button type="button" disabled={rowDisabled(row)} onClick={() => onReviseRow(row.id)} className="px-2 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold disabled:opacity-50">Revise</button></td>
                 <td className="px-3 py-3 text-center"><button type="button" disabled={rowDisabled(row)} onClick={() => onShowHistory(row.id)} className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold disabled:opacity-50">History</button></td>
-                <td className="px-3 py-3"><input type="date" value={row.actualDate} max={today} disabled={rowDisabled(row)} onChange={(e) => updateRow(row.id, { actualDate: e.target.value })} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" /></td>
+                <td className="px-3 py-3"><input type="date" value={row.actualDate} max={today} disabled={rowDisabled(row)} onChange={(e) => handleActualDateChange(row.id, e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" /></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <div className="border border-slate-200 rounded-xl bg-white p-4 space-y-3">
+      <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-3">
         <p className="text-xs font-bold text-slate-800">Whether project foundation is Laid?</p>
         <div className="flex gap-6 text-xs font-semibold text-slate-700">
           <label className="inline-flex items-center gap-2"><input type="radio" value="yes" checked={foundationLaid === 'yes'} disabled={disabled} onChange={(e) => setFoundationLaid(e.target.value)} /> Yes</label>
@@ -562,14 +714,14 @@ export default function UnderTenderingStage({
         {foundationLaid === 'yes' && (
           <div>
             <label className="block text-[11px] font-bold text-slate-600 mb-1">Date of laying of foundation</label>
-            <input type="date" value={foundationLaidDate} disabled={disabled} onChange={(e) => setFoundationLaidDate(e.target.value)} className="w-full md:w-72 text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
+            <input type="date" value={foundationLaidDate} disabled={disabled} onChange={(e) => setFoundationLaidDate(e.target.value)} className="w-full md:w-72 text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white" />
           </div>
         )}
 
         {foundationLaid === 'no' && (
           <div>
             <label className="block text-[11px] font-bold text-slate-600 mb-1">Tentative date of laying of foundation</label>
-            <input type="date" value={foundationTentativeDate} disabled={disabled} onChange={(e) => setFoundationTentativeDate(e.target.value)} className="w-full md:w-72 text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" />
+            <input type="date" value={foundationTentativeDate} disabled={disabled} onChange={(e) => setFoundationTentativeDate(e.target.value)} className="w-full md:w-72 text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white" />
           </div>
         )}
       </div>
@@ -702,6 +854,72 @@ export default function UnderTenderingStage({
           </div>
         </div>
       ) : null}
+
+      {deleteConfirmModal.open
+        ? renderInBody(
+            <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6">
+              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl animate-scale-up">
+                <div className="px-5 py-4 border-b border-slate-200">
+                  <h3 className="text-sm font-black text-slate-800">Delete Document</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Are you sure you want to delete this document?
+                  </p>
+                </div>
+                <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeDeleteConfirmModal}
+                    disabled={deletingDocument}
+                    className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDeleteForRow}
+                    disabled={deletingDocument}
+                    className="px-3 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60"
+                  >
+                    {deletingDocument ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        : null}
+
+      {preponeConfirmModal.open
+        ? renderInBody(
+            <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6">
+              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl animate-scale-up">
+                <div className="px-5 py-4 border-b border-slate-200">
+                  <h3 className="text-sm font-black text-slate-800">Prepone Planned Date</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Do you want to prepone the Planned Date?
+                  </p>
+                </div>
+                <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closePreponeConfirmModal}
+                    disabled={revisionSaving}
+                    className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmPreponeRevision}
+                    disabled={revisionSaving}
+                    className="px-3 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {revisionSaving ? 'Saving...' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        : null}
     </div>
   );
 }

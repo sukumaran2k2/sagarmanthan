@@ -10,8 +10,10 @@ import {
   FUNDING_SOURCE_OPTIONS,
   IMPLEMENTATION_TYPE_OPTIONS,
   PROJECT_CATEGORY_OPTIONS,
+  PROJECT_DOCUMENT_TYPES,
   PROJECT_TYPE_OPTIONS,
   PROJECT_STAGE_OPTIONS,
+  formatFileSize,
 } from '../utils/constants';
 import { fetchMmtDropdown } from '../api';
 import {
@@ -82,7 +84,7 @@ const EMPTY_FORM = {
 
 const FORM_SECTIONS = [
   { id: 'basic', number: '01', title: 'General Details', subtitle: 'Core Project Fields', icon: Briefcase },
-  { id: 'cost', number: '02', title: 'Source of Funding', subtitle: 'Funding Split & Outlay', icon: DollarSign },
+  { id: 'cost', number: '02', title: 'Source of Funding', subtitle: 'Funding Split & Target Expenditure', icon: DollarSign },
   { id: 'location', number: '03', title: 'Project Location', subtitle: 'Location & Land Detail', icon: MapPin },
   { id: 'docs', number: '04', title: 'Others', subtitle: 'Documents & Attachments', icon: FileText },
 ];
@@ -382,8 +384,23 @@ export default function ProjectBasicInfoForm({
   const [activeSection, setActiveSection] = useState('basic');
   const [draftMeta, setDraftMeta] = useState(null);
   const [savingDraft, setSavingDraft] = useState(false);
-  const [documentType, setDocumentType] = useState('project_ppt');
-  const [documentFiles, setDocumentFiles] = useState([]);
+  const [pendingFilesByType, setPendingFilesByType] = useState(() =>
+    Object.fromEntries(PROJECT_DOCUMENT_TYPES.map((item) => [item.folderName, []]))
+  );
+  const [documentInputKeyByType, setDocumentInputKeyByType] = useState(() =>
+    Object.fromEntries(PROJECT_DOCUMENT_TYPES.map((item) => [item.folderName, 0]))
+  );
+
+  const documentsByType = useMemo(() => {
+    const grouped = Object.fromEntries(PROJECT_DOCUMENT_TYPES.map((item) => [item.folderName, []]));
+    const other = [];
+    (documentRows || []).forEach((doc) => {
+      const type = doc.document_type || doc.folder_name || '';
+      if (grouped[type]) grouped[type].push(doc);
+      else other.push(doc);
+    });
+    return { grouped, other };
+  }, [documentRows]);
 
   const [stateOptions, setStateOptions] = useState([]);
   const [districtOptions, setDistrictOptions] = useState([]);
@@ -857,14 +874,88 @@ export default function ProjectBasicInfoForm({
     ? new Date(draftMeta.savedAt).toLocaleString()
     : null;
 
-  const handleDocumentUploadSubmit = (e) => {
-    e.preventDefault();
-    if (!documentFiles.length) return;
-    onUploadDocuments?.({
-      folderName: documentType,
-      files: documentFiles,
-    });
-    setDocumentFiles([]);
+  const validatePickedDocument = (file, config) => {
+    const name = String(file?.name || '').toLowerCase();
+    const ext = name.includes('.') ? `.${name.split('.').pop()}` : '';
+    const allowedByExt = config.acceptExtensions.includes(ext);
+    const allowedByMime =
+      config.folderName === 'project_images'
+        ? String(file?.type || '').startsWith('image/')
+        : config.folderName === 'project_ppt'
+          ? [
+              'application/pdf',
+              'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            ].includes(String(file?.type || '')) || allowedByExt
+          : String(file?.type || '') === 'application/pdf' || allowedByExt;
+
+    if (!allowedByExt && !allowedByMime) {
+      notify?.(
+        `${config.label}: invalid file "${file.name}". Allowed: ${config.acceptExtensions.join(', ')}`,
+        'error'
+      );
+      return false;
+    }
+
+    if (file.size > config.maxBytes) {
+      notify?.(
+        `${config.label}: "${file.name}" (${formatFileSize(file.size)}) exceeds 20 MB limit.`,
+        'error'
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleDocumentFilesChange = (folderName, event) => {
+    const config =
+      PROJECT_DOCUMENT_TYPES.find((item) => item.folderName === folderName) || PROJECT_DOCUMENT_TYPES[0];
+    const picked = Array.from(event.target.files || []);
+    if (!picked.length) return;
+
+    const existing = pendingFilesByType[folderName] || [];
+    const next = [...existing];
+
+    for (const file of picked) {
+      if (!validatePickedDocument(file, config)) continue;
+      const alreadyQueued = next.some(
+        (item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified
+      );
+      if (alreadyQueued) continue;
+      next.push(file);
+    }
+
+    if (next.length > config.maxFiles) {
+      notify?.(`${config.label}: maximum ${config.maxFiles} file(s) allowed per upload.`, 'error');
+    }
+
+    setPendingFilesByType((prev) => ({
+      ...prev,
+      [folderName]: next.slice(0, config.maxFiles),
+    }));
+    event.target.value = '';
+  };
+
+  const removePendingDocument = (folderName, index) => {
+    setPendingFilesByType((prev) => ({
+      ...prev,
+      [folderName]: (prev[folderName] || []).filter((_, i) => i !== index),
+    }));
+  };
+
+  const clearPendingDocuments = (folderName) => {
+    setPendingFilesByType((prev) => ({ ...prev, [folderName]: [] }));
+    setDocumentInputKeyByType((prev) => ({
+      ...prev,
+      [folderName]: (prev[folderName] || 0) + 1,
+    }));
+  };
+
+  const uploadPendingDocuments = (folderName) => {
+    const files = pendingFilesByType[folderName] || [];
+    if (!files.length) return;
+    onUploadDocuments?.({ folderName, files });
+    clearPendingDocuments(folderName);
   };
 
   const completedSections = useMemo(() => {
@@ -1481,7 +1572,7 @@ export default function ProjectBasicInfoForm({
                 <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
                   Source of Funding
                 </h3>
-                <p className="text-xs text-slate-500">Source components, funding agencies, and target expenditure outlay</p>
+                <p className="text-xs text-slate-500">Source components, funding agencies, and target expenditure</p>
               </div>
             </div>
 
@@ -2146,113 +2237,192 @@ export default function ProjectBasicInfoForm({
             </div>
 
             {canInteract && isEditMode && (
-              <div className="p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-700 space-y-3">
-                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Upload New Project Document
-                </h4>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                  <div>
-                    <Label>Document Category</Label>
-                    <select
-                      value={documentType}
-                      onChange={(e) => setDocumentType(e.target.value)}
-                      className="w-full p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold"
-                    >
-                      <option value="project_ppt">Project PPT / Presentation</option>
-                      <option value="detailed_project_report">Detailed Project Report (DPR)</option>
-                      <option value="sanction_order">Sanction Order</option>
-                      <option value="tender_document">Tender Document</option>
-                      <option value="progress_report">Progress Report</option>
-                      <option value="other_document">Other Supporting Document</option>
-                    </select>
-                  </div>
+              <p className="text-[11px] font-semibold text-slate-500">
+                Choose files under each type below. You can remove a wrong selection before uploading. Max 20 MB per file.
+              </p>
+            )}
 
-                  <div>
-                    <Label>Select File(s)</Label>
-                    <input
-                      type="file"
-                      multiple
-                      onChange={(e) => setDocumentFiles(Array.from(e.target.files || []))}
-                      className="w-full p-1.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-500"
-                    />
-                  </div>
-
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!documentFiles.length) return;
-                        onUploadDocuments?.({ folderName: documentType, files: documentFiles });
-                        setDocumentFiles([]);
-                      }}
-                      disabled={uploadingDocuments || !documentFiles.length}
-                      className="w-full flex items-center justify-center space-x-1.5 px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      <span>{uploadingDocuments ? 'Uploading...' : 'Upload Files'}</span>
-                    </button>
-                  </div>
-                </div>
+            {!isEditMode && (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-xs text-slate-500 font-semibold">
+                Save basic information first to upload Project PPT, PERT Chart, and project images.
               </div>
             )}
 
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Uploaded Project Attachments ({documentRows.length})
-              </h4>
-              
-              {documentsLoading ? (
-                <div className="py-8 text-center text-xs text-slate-400">Loading project documents...</div>
-              ) : documentRows.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                  No documents uploaded for this project yet.
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-slate-50 dark:bg-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      <tr>
-                        <th className="p-3">File Name</th>
-                        <th className="p-3">Category</th>
-                        <th className="p-3">Uploaded Date</th>
-                        <th className="p-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
-                      {documentRows.map((doc, idx) => (
-                        <tr key={doc.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          <td className="p-3 text-slate-800 dark:text-slate-100">{doc.document_name || doc.name || doc.file_name}</td>
-                          <td className="p-3 text-slate-500">{doc.document_type || doc.folder_name || 'Document'}</td>
-                          <td className="p-3 text-slate-500">{doc.created_date ? String(doc.created_date).slice(0, 10) : '-'}</td>
-                          <td className="p-3 text-right space-x-1.5">
-                            {onDownloadDocument && (
-                              <button
-                                type="button"
-                                onClick={() => onDownloadDocument(doc.document_name || doc)}
-                                className="p-1 hover:bg-blue-50 text-blue-600 rounded"
-                                title="Download"
+            <div className="space-y-4">
+              {PROJECT_DOCUMENT_TYPES.map((docType) => {
+                const pending = pendingFilesByType[docType.folderName] || [];
+                const uploaded = documentsByType.grouped[docType.folderName] || [];
+                return (
+                  <div
+                    key={docType.folderName}
+                    className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 overflow-hidden"
+                  >
+                    <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wide text-[#0f417a] dark:text-blue-300">
+                            {docType.label}
+                          </h4>
+                          <p className="mt-0.5 text-[11px] text-slate-500 font-medium">{docType.hint}</p>
+                        </div>
+                        <span className="shrink-0 text-[10px] font-bold text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full px-2 py-0.5">
+                          {uploaded.length} saved
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 space-y-3">
+                      {canInteract && isEditMode ? (
+                        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                          <div className="flex-1 min-w-0">
+                            <Label>Select file(s)</Label>
+                            <input
+                              key={`${docType.folderName}-${documentInputKeyByType[docType.folderName] || 0}`}
+                              type="file"
+                              multiple
+                              accept={docType.accept}
+                              onChange={(e) => handleDocumentFilesChange(docType.folderName, e)}
+                              className="w-full p-1.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-500"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => uploadPendingDocuments(docType.folderName)}
+                            disabled={uploadingDocuments || pending.length === 0}
+                            className="flex items-center justify-center space-x-1.5 px-4 py-2.5 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50 shrink-0"
+                          >
+                            <Upload className="h-3.5 w-3.5" />
+                            <span>
+                              {uploadingDocuments
+                                ? 'Uploading...'
+                                : pending.length
+                                  ? `Upload (${pending.length})`
+                                  : 'Upload'}
+                            </span>
+                          </button>
+                        </div>
+                      ) : null}
+
+                      {pending.length > 0 ? (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                              Ready to upload ({pending.length})
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => clearPendingDocuments(docType.folderName)}
+                              className="text-[10px] font-bold text-amber-800 hover:text-amber-950 underline"
+                            >
+                              Clear all
+                            </button>
+                          </div>
+                          <ul className="space-y-1">
+                            {pending.map((file, index) => (
+                              <li
+                                key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                                className="flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-700"
                               >
-                                <Download className="h-4 w-4" />
-                              </button>
-                            )}
-                            {canInteract && onDeleteDocument && (
-                              <button
-                                type="button"
-                                onClick={() => onDeleteDocument(doc.document_name || doc)}
-                                className="p-1 hover:bg-rose-50 text-rose-600 rounded"
-                                title="Delete"
+                                <span className="truncate" title={`${file.name} (${formatFileSize(file.size)})`}>
+                                  {file.name} ({formatFileSize(file.size)})
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removePendingDocument(docType.folderName, index)}
+                                  className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-rose-600 hover:bg-rose-50"
+                                  title="Remove from selection"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                  <span>Remove</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+
+                      {documentsLoading ? (
+                        <p className="text-[11px] text-slate-400 font-semibold">Loading...</p>
+                      ) : uploaded.length === 0 ? (
+                        <p className="text-[11px] text-slate-400 font-semibold border border-dashed border-slate-200 rounded-lg px-3 py-3 text-center">
+                          No {docType.label.toLowerCase()} uploaded yet.
+                        </p>
+                      ) : (
+                        <ul className="divide-y divide-slate-100 dark:divide-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                          {uploaded.map((doc, idx) => {
+                            const name = doc.document_name || doc.name || doc.file_name;
+                            return (
+                              <li
+                                key={doc.id || `${docType.folderName}-${name}-${idx}`}
+                                className="flex items-center justify-between gap-2 px-3 py-2 text-[11px] font-semibold bg-white dark:bg-slate-900/30"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <div className="min-w-0">
+                                  <p className="truncate text-slate-800 dark:text-slate-100" title={name}>
+                                    {name}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400">
+                                    {doc.created_date ? String(doc.created_date).slice(0, 10) : '-'}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {onDownloadDocument ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => onDownloadDocument(name || doc)}
+                                      className="p-1 hover:bg-blue-50 text-blue-600 rounded"
+                                      title="Download"
+                                    >
+                                      <Download className="h-3.5 w-3.5" />
+                                    </button>
+                                  ) : null}
+                                  {canInteract && onDeleteDocument ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => onDeleteDocument(name || doc)}
+                                      className="p-1 hover:bg-rose-50 text-rose-600 rounded"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {documentsByType.other.length > 0 ? (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-2">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Other attachments</h4>
+                  <ul className="space-y-1">
+                    {documentsByType.other.map((doc, idx) => {
+                      const name = doc.document_name || doc.name || doc.file_name;
+                      return (
+                        <li key={doc.id || `other-${name}-${idx}`} className="flex items-center justify-between gap-2 text-[11px] font-semibold">
+                          <span className="truncate">{name}</span>
+                          <div className="flex items-center gap-1">
+                            {onDownloadDocument ? (
+                              <button type="button" onClick={() => onDownloadDocument(name || doc)} className="p-1 text-blue-600">
+                                <Download className="h-3.5 w-3.5" />
                               </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            ) : null}
+                            {canInteract && onDeleteDocument ? (
+                              <button type="button" onClick={() => onDeleteDocument(name || doc)} className="p-1 text-rose-600">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </div>
-              )}
+              ) : null}
             </div>
 
             <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">

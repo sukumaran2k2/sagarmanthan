@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
   FileText, Check, Layers, Clock, 
   TrendingUp, AlertCircle, Save, Briefcase,
@@ -10,6 +10,9 @@ import UnderTenderingStage from './UnderTenderingStage';
 import UnderImplementationStage from './UnderImplementationStage';
 import ProjectCompletionStage from './ProjectCompletionStage';
 import { getProjectIdentity } from '../utils/mapProject';
+import { resolveWorkbenchLevel } from '../utils/stageProgress';
+
+const NAV_STICKY_OFFSET_PX = 42;
 
 const STAGES = [
   { id: 'basic', label: 'Basic Info', title: 'Basic Info', desc: 'Details & Geography' },
@@ -26,15 +29,6 @@ function stageFromName(name) {
   if (text.includes('implement')) return 'implementation';
   if (text.includes('complete')) return 'completion';
   return 'basic';
-}
-
-function getStageLevel(stageName) {
-  const text = String(stageName || '').toLowerCase();
-  if (text.includes('complete')) return 4;
-  if (text.includes('implement')) return 3;
-  if (text.includes('tender')) return 2;
-  if (text.includes('plan') || text.includes('sanction')) return 1;
-  return 0;
 }
 
 export default function ProjectStageWorkbench({
@@ -78,8 +72,40 @@ export default function ProjectStageWorkbench({
   };
 
   const [warningMsg, setWarningMsg] = useState(null);
+  const stickyHeaderRef = useRef(null);
+  const [stageTableStickyTop, setStageTableStickyTop] = useState(NAV_STICKY_OFFSET_PX);
 
-  const currentProjectLevel = useMemo(() => getStageLevel(stage), [stage]);
+  const currentProjectLevel = useMemo(
+    () =>
+      resolveWorkbenchLevel({
+        stageId: raw.current_project_stage_id,
+        stageName: stage,
+      }),
+    [raw.current_project_stage_id, stage]
+  );
+
+  useEffect(() => {
+    if (!isUpdateMode) {
+      setStageTableStickyTop(NAV_STICKY_OFFSET_PX);
+      return undefined;
+    }
+
+    const el = stickyHeaderRef.current;
+    if (!el) return undefined;
+
+    const syncStickyTop = () => {
+      setStageTableStickyTop(NAV_STICKY_OFFSET_PX + el.offsetHeight);
+    };
+
+    syncStickyTop();
+    const observer = new ResizeObserver(syncStickyTop);
+    observer.observe(el);
+    window.addEventListener('resize', syncStickyTop);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', syncStickyTop);
+    };
+  }, [isUpdateMode, projectName, subProjectName, stage]);
 
   const handleTabClick = (stageId) => {
     if (!isUpdateMode) return;
@@ -103,18 +129,9 @@ export default function ProjectStageWorkbench({
     return ok;
   };
 
+  // Page owns next-tab / stage-label sync via checkpoints — do not double-advance here.
   const handleMilestoneSubmit = async (stageId, stageData) => {
-    const ok = await onSubmitStage?.(stageId, stageData);
-    if (ok) {
-      if (stageId === 'planning') {
-        setActiveStage('tendering');
-      } else if (stageId === 'tendering') {
-        setActiveStage('implementation');
-      } else if (stageId === 'implementation') {
-        setActiveStage('completion');
-      }
-    }
-    return ok;
+    return onSubmitStage?.(stageId, stageData);
   };
 
   const stageCommon = {
@@ -137,8 +154,12 @@ export default function ProjectStageWorkbench({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm text-slate-800 dark:text-slate-100 animate-fade-in">
+    <div
+      className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sm text-slate-800 dark:text-slate-100 animate-fade-in"
+      style={{ '--stage-table-sticky-top': `${stageTableStickyTop}px` }}
+    >
       <div
+        ref={stickyHeaderRef}
         className={`bg-gradient-to-r from-[#0f417a] via-[#164e8a] to-[#0284c7] p-5 text-white select-none border-b border-white/10 space-y-4 ${
           isUpdateMode
             ? 'sticky top-[42px] z-40 shadow-lg supports-[backdrop-filter]:backdrop-blur-xs'

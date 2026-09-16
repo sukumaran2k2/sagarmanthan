@@ -50,7 +50,7 @@ export default function ProjectExpenditureOutlay({
         }
       } catch (error) {
         console.error(error);
-        notify?.('Failed to load expenditure outlay.', 'error');
+        notify?.('Failed to load target expenditure.', 'error');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -80,7 +80,7 @@ export default function ProjectExpenditureOutlay({
     );
 
     if (!validRows.length) {
-      notify?.('Add at least one year and outlay value.', 'error');
+      notify?.('Add at least one year and target expenditure value.', 'error');
       return;
     }
 
@@ -101,10 +101,10 @@ export default function ProjectExpenditureOutlay({
           expenditureOutlayValue: row.expenditureOutlayValue,
         });
       }
-      notify?.('Expenditure outlay saved successfully.', 'success');
+      notify?.('Target expenditure saved successfully.', 'success');
     } catch (error) {
       console.error(error);
-      notify?.(error?.response?.data?.message || 'Failed to save expenditure outlay.', 'error');
+      notify?.(error?.response?.data?.message || 'Failed to save target expenditure.', 'error');
     } finally {
       setSaving(false);
     }
@@ -114,7 +114,7 @@ export default function ProjectExpenditureOutlay({
     <div className="border border-slate-200 rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-xs font-black text-[#0f417a] uppercase tracking-wide">
-          Target Expenditure Outlay
+          Target Expenditure
         </h3>
         <button
           type="button"
@@ -128,7 +128,7 @@ export default function ProjectExpenditureOutlay({
       </div>
 
       {loading ? (
-        <p className="text-xs text-slate-500">Loading outlay...</p>
+        <p className="text-xs text-slate-500">Loading target expenditure...</p>
       ) : (
         <div className="space-y-2">
           {rows.map((row, index) => (
@@ -153,7 +153,7 @@ export default function ProjectExpenditureOutlay({
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                  Outlay (₹ Cr)
+                  Target Expenditure (In Cr.)
                 </label>
                 <input
                   type="number"
@@ -186,7 +186,7 @@ export default function ProjectExpenditureOutlay({
           disabled={disabled || saving}
           className="px-4 py-2 text-xs font-black text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg disabled:opacity-60"
         >
-          {saving ? 'Saving Outlay...' : 'Save Expenditure Outlay'}
+          {saving ? 'Saving...' : 'Save Target Expenditure'}
         </button>
       </div>
     </div>

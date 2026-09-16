@@ -192,9 +192,24 @@ export default function PlanningSanctioningStage({
     }
 
     const maxWords = 20;
+    const remarksMessages = {
+      preFeasibility: `Preliminary Feasibility remarks should not exceed ${maxWords} words`,
+      dpr: `DPR remarks should not exceed ${maxWords} words`,
+      submittedToMinistry: `Submitted to Ministry remarks should not exceed ${maxWords} words`,
+      daConcurrence: `DA concurrence remarks should not exceed ${maxWords} words`,
+      ifwConcurrence: `IFW concurrence remarks should not exceed ${maxWords} words`,
+      imcApproval: `Circulated for IMC approval remarks should not exceed ${maxWords} words`,
+      responseComments: `Response to Comments received remarks should not exceed ${maxWords} words`,
+      approvedSfc: `Approved by SFC remarks should not exceed ${maxWords} words`,
+      adminApproval: `Administrative approval remarks should not exceed ${maxWords} words`,
+      chairmanApproval: `Chairman remarks should not exceed ${maxWords} words`,
+    };
     for (const row of visibleRows) {
       if (countWords(row.remarks) > maxWords) {
-        notify?.(`${row.label} remarks should not exceed ${maxWords} words`, 'error');
+        notify?.(
+          remarksMessages[row.key] || `${row.label} remarks should not exceed ${maxWords} words`,
+          'error'
+        );
         return false;
       }
     }
@@ -213,13 +228,16 @@ export default function PlanningSanctioningStage({
         <div className="text-xs font-semibold text-slate-500">Loading planning details...</div>
       ) : null}
 
-      <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white">
+      <div className="border border-slate-200 rounded-2xl bg-white">
         <table className="min-w-full text-xs">
-          <thead className="bg-[#0f417a] text-white">
+          <thead
+            className="sticky z-30 bg-[#0f417a] text-white shadow-sm"
+            style={{ top: 'var(--stage-table-sticky-top, 42px)' }}
+          >
             <tr>
-              <th className="text-left px-3 py-2.5">Stages</th>
-              <th className="text-left px-3 py-2.5">Actual Date</th>
-              <th className="text-left px-3 py-2.5">Remarks</th>
+              <th className="text-left px-3 py-2.5 bg-[#0f417a]">Stages</th>
+              <th className="text-left px-3 py-2.5 bg-[#0f417a]">Actual Date</th>
+              <th className="text-left px-3 py-2.5 bg-[#0f417a]">Remarks</th>
             </tr>
           </thead>
           <tbody>

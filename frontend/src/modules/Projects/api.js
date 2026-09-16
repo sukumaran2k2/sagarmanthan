@@ -241,6 +241,22 @@ export function fetchProjectCompletion(projectID, subProjectID) {
   return api.get(`/completionpage/${projectID}/${subProjectID}`);
 }
 
+export function fetchBasicInfoCheckPoints(projectID, subProjectID) {
+  return api.get(`/bi-check-points/${projectID}/${subProjectID}`);
+}
+
+export function fetchPlanningCheckPoints(projectID, subProjectID) {
+  return api.get(`/ps-check-points/${projectID}/${subProjectID}`);
+}
+
+export function fetchUnderTenderingCheckPoints(projectID, subProjectID) {
+  return api.get(`/ut-check-points/${projectID}/${subProjectID}`);
+}
+
+export function fetchUnderImplementationCheckPoints(projectID, subProjectID) {
+  return api.get(`/ui-check-points/${projectID}/${subProjectID}`);
+}
+
 export function fetchProjectDocuments(projectID, subProjectID) {
   return api.get(`/get-project-documents/${projectID}/${subProjectID}`);
 }

@@ -56,6 +56,20 @@ export default function ProjectCompletionStage({
     };
   }, [projectID, subProjectID, refreshKey, notify]);
 
+  const today = new Date().toISOString().slice(0, 10);
+
+  const handleCompletionSubmit = () => {
+    if (!String(actualCompletionDate || '').trim()) {
+      notify?.('Please enter a actual completion date', 'error');
+      return;
+    }
+    if (!String(closureCost || '').trim()) {
+      notify?.('Please enter a closure cost ', 'error');
+      return;
+    }
+    onSubmitStage?.('completion', { actualCompletionDate, closureCost });
+  };
+
   return (
     <div className="space-y-5">
       {loading ? (
@@ -70,6 +84,7 @@ export default function ProjectCompletionStage({
           <input
             type="date"
             value={actualCompletionDate}
+            max={today}
             onChange={(e) => setActualCompletionDate(e.target.value)}
             disabled={disabled}
             className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50"
@@ -94,7 +109,7 @@ export default function ProjectCompletionStage({
         <button
           type="button"
           disabled={disabled}
-          onClick={() => onSubmitStage?.('completion', { actualCompletionDate, closureCost })}
+          onClick={handleCompletionSubmit}
           className="px-4 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-60"
         >
           Submit Completion
