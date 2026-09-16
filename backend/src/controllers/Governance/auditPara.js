@@ -105,7 +105,27 @@ async function getAuditPara (req, res)
 
     try 
     {
-        const result = await conn.query(`SELECT audit_para_id, stage_id, para_number, subject, 
+        const userID = req.query.userID;
+        let scopeClause = '';
+        const request = conn.request();
+
+        // MOPSW admin/other-user/wing-head/division-head roles see everything
+        // (matching 2.0's intended behaviour, now enforced server-side rather
+        // than only in the frontend rendering loop). Any other role
+        // (organisation-level users) is scoped to their own wing, or to
+        // records they personally created.
+        if (userID) {
+            const userResult = await request.query(`SELECT role_id, wing_id FROM tbl_user WHERE user_id = ${userID}`);
+            const { role_id, wing_id } = userResult.recordset[0] || {};
+            const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
+            if (!isMopswRole) {
+                request.input("userWingId", wing_id);
+                request.input("requestingUserId", userID);
+                scopeClause = `WHERE (tbl_audit_para.wing = @userWingId OR tbl_audit_para.created_by = @requestingUserId)`;
+            }
+        }
+
+        const result = await request.query(`SELECT audit_para_id, stage_id, para_number, subject, 
         wing, division, wing_name, division_name, category, 
         received_at_ministry, date_of_receipt, comments_sought, comments_sought_date, comments_rec, comments_rec_date,
         under_clarification, comments_furnished, comments_furnished_date, cag_accepted, cag_accepted_date, disposed,
@@ -114,6 +134,7 @@ async function getAuditPara (req, res)
         INNER JOIN mmt_division ON tbl_audit_para.division = mmt_division.division_id
         INNER JOIN mmt_wings ON tbl_audit_para.wing = mmt_wings.wing_id
         INNER JOIN mmt_audit_para_stage ON mmt_audit_para_stage.audit_para_stage_id = tbl_audit_para.stage_id
+        ${scopeClause}
         ORDER BY audit_para_stage_id ASC
         ;`);
         res.json(result.recordset);

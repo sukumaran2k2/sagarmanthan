@@ -6,6 +6,7 @@ import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { useBillsPermissions } from './hooks/useBillsPermissions';
 import { fetchBills, fetchWings, fetchDivisions } from './api';
+import { getCurrentUserId } from '../../utils/authSession';
 
 export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabProp, setActiveSubTab: setActiveSubTabProp, triggerNotification }) {
   const permissions = useBillsPermissions();
@@ -70,7 +71,7 @@ export default function BillsPreConstitutionsView({ activeSubTab: activeSubTabPr
 
   const fetchData = () => {
     setLoading(true);
-    fetchBills()
+    fetchBills(getCurrentUserId())
       .then((res) => setRowData(res.data || []))
       .catch((err) => console.error('Error loading Bills data list:', err))
       .finally(() => setLoading(false));
