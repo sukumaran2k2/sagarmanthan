@@ -15,17 +15,12 @@ import {
   getUserIdFromToken
 } from '../api';
 import { FINANCIAL_YEARS } from '../utils/constants';
-import { getDataScopeCode, getSessionClaims, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
+import { isOrganisationUser, getSessionOrganisationId, getSessionOrganisationName } from '../../../utils/authSession';
 
 export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotification }) {
   const isOrgUser = useMemo(() => {
     if (typeof isOrgUserProp === 'boolean') return isOrgUserProp;
-    const scope = String(getDataScopeCode() || '').toUpperCase();
-    if (scope === 'ORGANISATION') return true;
-    if (scope === 'MINISTRY' || scope === 'MASTER') return false;
-    const claims = getSessionClaims();
-    const roleId = Number(claims?.roleId || claims?.role_id || claims?.role || 1);
-    return roleId === 6 || roleId === 7;
+    return isOrganisationUser();
   }, [isOrgUserProp]);
 
   const userOrgId = getSessionOrganisationId();
@@ -35,14 +30,24 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
   const [organisations, setOrganisations] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Column Visibility state
+  const [colDropdownOpen, setColDropdownOpen] = useState(false);
+  const colDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
+        setColDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Filters
   const [selectedOrg, setSelectedOrg] = useState(() => (isOrgUser && userOrgId ? String(userOrgId) : ''));
   const [selectedFY, setSelectedFY] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Column visibility checklist dropdown
-  const [colDropdownOpen, setColDropdownOpen] = useState(false);
-  const colDropdownRef = useRef(null);
 
   // Organisation + Financial Year filters dropdown
   const [filtersDropdownOpen, setFiltersDropdownOpen] = useState(false);
@@ -57,16 +62,6 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     csr_fund_balance: true,
     actions: true,
   });
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
-        setColDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Pagination & Grid
   const [currentPage, setCurrentPage] = useState(1);
@@ -239,19 +234,25 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     {
       headerName: "S.No",
       field: "sno",
-      width: 70,
-      minWidth: 60,
+      width: 75,
+      minWidth: 65,
+      flex: 0.6,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
       hide: !visibleCols.sno,
-      valueGetter: (params) => (currentPage - 1) * pageSize + params.node.rowIndex + 1
+      valueGetter: (params) => (currentPage - 1) * pageSize + params.node.rowIndex + 1,
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-bold">
+          {params.value}
+        </div>
+      )
     },
     ...(!isOrgUser ? [{
       headerName: "Organisation",
       field: "organisation_name",
-      minWidth: 220,
-      flex: 2,
+      minWidth: 200,
+      flex: 2.2,
       cellStyle: { fontWeight: 700, color: '#0f417a' },
       hide: !visibleCols.org,
       valueGetter: (params) => params.data?.organisation_name || `Org ID: ${params.data?.organisation_id}`
@@ -259,74 +260,107 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     {
       headerName: "Financial Year",
       field: "financial_year",
-      flex: 1,
-      minWidth: 110,
-      hide: !visibleCols.financial_year,
+      minWidth: 120,
+      flex: 1.2,
       headerClass: 'text-center',
       cellClass: 'text-center',
-      cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' }
+      cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
+      hide: !visibleCols.financial_year,
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-semibold">
+          {params.value || '-'}
+        </div>
+      )
     },
     {
       headerName: "Net Profit (₹ Cr)",
       field: "net_profit",
-      flex: 1,
-      minWidth: 120,
-      hide: !visibleCols.net_profit,
+      minWidth: 130,
+      flex: 1.3,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      hide: !visibleCols.net_profit,
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-semibold">
+          {params.value != null ? Number(params.value).toFixed(2) : '-'}
+        </div>
+      )
     },
     {
       headerName: "CSR Allotted (₹ Cr)",
       field: "csr_fund_alloted_year",
-      flex: 1,
-      minWidth: 130,
-      hide: !visibleCols.csr_fund_alloted_year,
+      minWidth: 140,
+      flex: 1.4,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 800, color: '#0f417a', justifyContent: 'center' },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      hide: !visibleCols.csr_fund_alloted_year,
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-extrabold text-[#0f417a] dark:text-blue-400">
+          {params.value != null ? Number(params.value).toFixed(2) : '-'}
+        </div>
+      )
     },
     {
       headerName: "Opening Bal (₹ Cr)",
       field: "opening_balance_csr",
-      flex: 1,
-      minWidth: 120,
-      hide: !visibleCols.opening_balance_csr,
+      minWidth: 140,
+      flex: 1.3,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      hide: !visibleCols.opening_balance_csr,
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-semibold">
+          {params.value != null ? Number(params.value).toFixed(2) : '-'}
+        </div>
+      )
     },
     {
       headerName: "Expenditure (₹ Cr)",
       field: "project_expenditure",
-      flex: 1,
-      minWidth: 120,
-      hide: !visibleCols.project_expenditure,
+      minWidth: 140,
+      flex: 1.3,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 800, color: '#d97706', justifyContent: 'center' },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '0.00'
+      hide: !visibleCols.project_expenditure,
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '0.00',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-extrabold text-amber-600">
+          {params.value != null ? Number(params.value).toFixed(2) : '0.00'}
+        </div>
+      )
     },
     {
       headerName: "Fund Balance (₹ Cr)",
       field: "csr_fund_balance",
-      flex: 1,
-      minWidth: 130,
-      hide: !visibleCols.csr_fund_balance,
+      minWidth: 140,
+      flex: 1.4,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 800, color: '#059669', justifyContent: 'center' },
-      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-'
+      hide: !visibleCols.csr_fund_balance,
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-extrabold text-emerald-600">
+          {params.value != null ? Number(params.value).toFixed(2) : '-'}
+        </div>
+      )
     },
     ...(isOrgUser ? [{
       headerName: "Actions",
       field: "actions",
-      width: 100,
-      minWidth: 90,
+      width: 90,
+      minWidth: 80,
+      flex: 0.8,
       pinned: 'right',
+      headerClass: 'text-center',
+      cellClass: 'text-center',
       hide: !visibleCols.actions,
       cellRenderer: (params) => {
         const f = params.data;

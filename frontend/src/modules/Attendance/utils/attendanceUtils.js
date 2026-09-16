@@ -160,3 +160,107 @@ export function validateAttendanceHeaders(firstRow) {
 
   return { valid: missing.length === 0, missing };
 }
+
+// Finds the actual column key in a row object that matches one of the
+// canonical field names, since uploaded sheets can use varying header
+// text ("Emp Id", "EmpId", "Employee ID", etc).
+function findKey(row, candidates) {
+  const rowKeys = Object.keys(row);
+  for (const candidate of candidates) {
+    const normCandidate = candidate.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const match = rowKeys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === normCandidate);
+    if (match) return match;
+  }
+  // fallback: partial match on the first (most specific) candidate's core term
+  const core = candidates[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+  return rowKeys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '').includes(core));
+}
+
+// Row-level validation mirroring the backend's exact checks in
+// createEmpAttendance/updateEmpAttendance: numeric Emp Id, no duplicate
+// Emp Ids across the file, and HH:MM:SS time format for In/Out/Working
+// Hours. Returns every distinct failing condition found in the file
+// (not just the first), each itemized with the specific row(s) affected,
+// so the person can see everything wrong with their file at once rather
+// than fixing issues one upload attempt at a time.
+export function validateAttendanceRows(rows) {
+  const issues = [];
+  if (!rows || rows.length === 0) return issues;
+
+  const empIdKey = findKey(rows[0], ['Emp Id', 'EmpId', 'Employee ID']);
+  const inTimeKey = findKey(rows[0], ['In Time Avg', 'InTimeAvg', 'In Time']);
+  const outTimeKey = findKey(rows[0], ['Out Time Avg', 'OutTimeAvg', 'Out Time']);
+  const workHoursKey = findKey(rows[0], ['Average Working Hours', 'Working Hours', 'WorkingHours']);
+
+  const timeRegex = /^\d{2}:\d{2}:\d{2}$/;
+
+  const invalidEmpIdRows = [];
+  const invalidInTimeRows = [];
+  const invalidOutTimeRows = [];
+  const invalidWorkHoursRows = [];
+  const seenEmpIds = new Map(); // empId -> first row number seen
+  const duplicateEmpIds = new Set();
+
+  rows.forEach((row, idx) => {
+    const rowNum = idx + 2; // +1 for 0-index, +1 for header row, matching what a person sees in Excel
+
+    const empIdRaw = empIdKey ? row[empIdKey] : undefined;
+    if (empIdRaw === undefined || empIdRaw === null || empIdRaw === '' || isNaN(Number(empIdRaw))) {
+      invalidEmpIdRows.push(rowNum);
+    } else {
+      const empIdStr = String(empIdRaw).trim();
+      if (seenEmpIds.has(empIdStr)) {
+        duplicateEmpIds.add(empIdStr);
+      } else {
+        seenEmpIds.set(empIdStr, rowNum);
+      }
+    }
+
+    const inTimeFormatted = formatTimeStr(inTimeKey ? row[inTimeKey] : undefined);
+    if (!timeRegex.test(inTimeFormatted)) invalidInTimeRows.push(rowNum);
+
+    const outTimeFormatted = formatTimeStr(outTimeKey ? row[outTimeKey] : undefined);
+    if (!timeRegex.test(outTimeFormatted)) invalidOutTimeRows.push(rowNum);
+
+    const workHoursFormatted = formatTimeStr(workHoursKey ? row[workHoursKey] : undefined);
+    if (!timeRegex.test(workHoursFormatted)) invalidWorkHoursRows.push(rowNum);
+  });
+
+  const summarizeRows = (rowNums, max = 8) => {
+    if (rowNums.length <= max) return rowNums.join(', ');
+    return `${rowNums.slice(0, max).join(', ')} and ${rowNums.length - max} more`;
+  };
+
+  if (invalidEmpIdRows.length > 0) {
+    issues.push({
+      field: 'Emp Id',
+      message: `Emp Id must be a number. Invalid in row(s): ${summarizeRows(invalidEmpIdRows)}.`,
+    });
+  }
+  if (duplicateEmpIds.size > 0) {
+    issues.push({
+      field: 'Emp Id (duplicates)',
+      message: `Duplicate Emp Id(s) found: ${summarizeRows([...duplicateEmpIds])}. Each Emp Id must appear only once.`,
+    });
+  }
+  if (invalidInTimeRows.length > 0) {
+    issues.push({
+      field: 'In Time Avg',
+      message: `Must be in HH:MM:SS format. Invalid in row(s): ${summarizeRows(invalidInTimeRows)}.`,
+    });
+  }
+  if (invalidOutTimeRows.length > 0) {
+    issues.push({
+      field: 'Out Time Avg',
+      message: `Must be in HH:MM:SS format. Invalid in row(s): ${summarizeRows(invalidOutTimeRows)}.`,
+    });
+  }
+  if (invalidWorkHoursRows.length > 0) {
+    issues.push({
+      field: 'Average Working Hours',
+      message: `Must be in HH:MM:SS format. Invalid in row(s): ${summarizeRows(invalidWorkHoursRows)}.`,
+    });
+  }
+
+  return issues;
+}

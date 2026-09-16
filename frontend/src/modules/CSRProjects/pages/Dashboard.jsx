@@ -13,8 +13,12 @@ import {
   fetchClusters
 } from '../api';
 import { CSR_FOCUS_AREAS, FINANCIAL_YEARS, STATUS_COLORS } from '../utils/constants';
+import { isOrganisationUser, getSessionOrganisationId } from '../../../utils/authSession';
 
 export default function Dashboard({ triggerNotification }) {
+  const isOrgUser = useMemo(() => isOrganisationUser(), []);
+  const userOrgId = getSessionOrganisationId();
+
   const [loading, setLoading] = useState(true);
   const [clusters, setClusters] = useState([]);
   const [organisations, setOrganisations] = useState([]);
@@ -49,14 +53,17 @@ export default function Dashboard({ triggerNotification }) {
     loadMasters();
   }, []);
 
+  const effectiveOrgId = isOrgUser ? (userOrgId || 0) : selectedOrg;
+  const effectiveClusterId = isOrgUser ? 0 : selectedCluster;
+
   const loadDashboardData = async () => {
     setLoading(true);
     try {
       const [summary, stageWise, fund, countWise] = await Promise.all([
-        fetchCsrDashboard(selectedCluster, selectedOrg, selectedFY, selectedFocus),
-        fetchCsrProjectStageWise(selectedCluster, selectedOrg, selectedFY, selectedFocus),
-        fetchCsrFundAllocated(selectedCluster, selectedOrg, selectedFY, selectedFocus),
-        fetchCsrProjectCountWise(selectedCluster, selectedOrg, selectedFY, selectedFocus),
+        fetchCsrDashboard(effectiveClusterId, effectiveOrgId, selectedFY, selectedFocus),
+        fetchCsrProjectStageWise(effectiveClusterId, effectiveOrgId, selectedFY, selectedFocus),
+        fetchCsrFundAllocated(effectiveClusterId, effectiveOrgId, selectedFY, selectedFocus),
+        fetchCsrProjectCountWise(effectiveClusterId, effectiveOrgId, selectedFY, selectedFocus),
       ]);
       setSummaryData(summary || {});
       setStageWiseData(Array.isArray(stageWise) ? stageWise : []);
@@ -72,15 +79,15 @@ export default function Dashboard({ triggerNotification }) {
 
   useEffect(() => {
     loadDashboardData();
-  }, [selectedCluster, selectedOrg, selectedFY, selectedFocus]);
+  }, [effectiveClusterId, effectiveOrgId, selectedFY, selectedFocus]);
 
   const loadDrilldown = async (stage = 'all') => {
     setSelectedDrilldownStage(stage);
     setLoadingDetails(true);
     try {
       const res = await fetchDetailedCsrProjects(
-        selectedCluster, 
-        selectedOrg, 
+        effectiveClusterId, 
+        effectiveOrgId, 
         selectedFY, 
         stage, 
         selectedFocus
@@ -96,7 +103,7 @@ export default function Dashboard({ triggerNotification }) {
 
   useEffect(() => {
     loadDrilldown('all');
-  }, [selectedCluster, selectedOrg, selectedFY, selectedFocus]);
+  }, [effectiveClusterId, effectiveOrgId, selectedFY, selectedFocus]);
 
   // Aggregate KPI Calculations
   const totalProjects = useMemo(() => {
@@ -130,7 +137,7 @@ export default function Dashboard({ triggerNotification }) {
     setSelectedFocus(0);
   };
 
-  const hasActiveFilters = selectedCluster !== 0 || selectedOrg !== 0 || selectedFY !== 'all' || selectedFocus !== 0;
+  const hasActiveFilters = (!isOrgUser && selectedCluster !== 0) || (!isOrgUser && selectedOrg !== 0) || selectedFY !== 'all' || selectedFocus !== 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -145,7 +152,7 @@ export default function Dashboard({ triggerNotification }) {
 
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Cluster Filter */}
-            {clusters.length > 0 && (
+            {!isOrgUser && clusters.length > 0 && (
               <select
                 value={selectedCluster}
                 onChange={e => setSelectedCluster(Number(e.target.value))}
@@ -159,16 +166,18 @@ export default function Dashboard({ triggerNotification }) {
             )}
 
             {/* Organisation Filter */}
-            <select
-              value={selectedOrg}
-              onChange={e => setSelectedOrg(Number(e.target.value))}
-              className="text-xs px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#0f417a] cursor-pointer"
-            >
-              <option value={0}>All Organisations</option>
-              {organisations.map(o => (
-                <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
-              ))}
-            </select>
+            {!isOrgUser && (
+              <select
+                value={selectedOrg}
+                onChange={e => setSelectedOrg(Number(e.target.value))}
+                className="text-xs px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#0f417a] cursor-pointer"
+              >
+                <option value={0}>All Organisations</option>
+                {organisations.map(o => (
+                  <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
+                ))}
+              </select>
+            )}
 
             {/* Financial Year Filter */}
             <select
