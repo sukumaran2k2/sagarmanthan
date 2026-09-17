@@ -271,7 +271,9 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
         {/* Financial Year, Month & Organisation selectors */}
         <div className={`grid grid-cols-1 ${hideOrgSelect ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-5`}>
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Financial Year*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+              Financial Year<span className="text-red-500 font-bold ml-0.5">*</span>
+            </label>
             <select
               value={financialYear}
               onChange={(e) => setFinancialYear(e.target.value)}
@@ -283,7 +285,9 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Month*</label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+              Month<span className="text-red-500 font-bold ml-0.5">*</span>
+            </label>
             <select
               value={month}
               onChange={(e) => setMonth(e.target.value)}
@@ -296,7 +300,9 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
           </div>
           {!hideOrgSelect && (
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Organisation*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+                Organisation<span className="text-red-500 font-bold ml-0.5">*</span>
+              </label>
               <select
                 value={organisationId}
                 onChange={(e) => setOrganisationId(e.target.value)}
