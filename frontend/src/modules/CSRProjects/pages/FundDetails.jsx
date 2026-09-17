@@ -448,6 +448,7 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
                 <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
               )}
             </button>
+            </div>
 
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
             {/* Search Box on Right */}
@@ -771,3 +772,4 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     </div>
   );
 }
+

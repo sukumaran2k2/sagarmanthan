@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useMemo,
   useCallback,
+  useRef,   
 } from 'react';
 
 import {
@@ -91,7 +92,6 @@ const REPORT_TABS = [
   },
 ];
 
-
 /* =========================================================
    FORMATTERS
 ========================================================= */
@@ -179,7 +179,12 @@ const percentageCellStyle = (params) => {
   };
 };
 
-
+const centerCellStyle = () => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  textAlign: 'center',
+});
 /* =========================================================
    COMMON STAGE COLUMNS
 ========================================================= */
@@ -193,6 +198,7 @@ const stageColumns = [
       'text-center text-slate-700',
     headerClass: 'text-center',
     valueFormatter: numberFormatter,
+    cellStyle: centerCellStyle,
   },
 
   {
@@ -286,6 +292,14 @@ export default function GMISReports({
 
   const [isExportOpen, setIsExportOpen] =
     useState(false);
+
+  const gridApiRef = useRef(null);
+
+  const onGridReady = useCallback((params) => {
+    gridApiRef.current = params.api;
+    params.api.autoSizeAllColumns();
+  }, []);
+
 
 
   /* =======================================================
@@ -417,7 +431,15 @@ export default function GMISReports({
     loadReportData();
   }, [loadReportData]);
 
+  useEffect(() => {
+    if (gridApiRef.current && reportData.length) {
+      setTimeout(() => {
+        gridApiRef.current.autoSizeAllColumns();
+      }, 0);
+    }
+  }, [reportData, selectedReport]);
 
+ 
   /* =======================================================
      SEARCHED DATA
   ======================================================= */
@@ -445,6 +467,7 @@ export default function GMISReports({
     reportData,
     quickFilter,
   ]);
+  
 
 
   /* =======================================================
@@ -514,7 +537,6 @@ export default function GMISReports({
     buildTabularExport,
     triggerNotification,
   ]);
-
 
   const handleExportCSV = useCallback(() => {
 
@@ -625,7 +647,7 @@ export default function GMISReports({
 
       {
         headerName: 'Total Cost (₹ Cr.)',
-        field: 'Total Cost',
+        field: 'Total Amount',
         width: 180,
 
         cellClass:
@@ -940,7 +962,7 @@ export default function GMISReports({
           'No. of MoUs',
 
         field:
-          'No. of MoUs',
+          'Total MoUs',
 
         width: 140,
 
@@ -1352,7 +1374,7 @@ export default function GMISReports({
             'Total MoUs':
               totalStats.count,
 
-            'Total Cost (₹ Cr.)':
+            'Total Amount':
               Number(
                 totalStats.amount.toFixed(2)
               ),
@@ -1437,7 +1459,7 @@ export default function GMISReports({
             'MoU Category':
               'Total',
 
-            'No. of MoUs':
+            'Total MoUs':
               totalStats.count,
 
             'Total Amount':
@@ -1494,6 +1516,7 @@ export default function GMISReports({
         cellStyle: {
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'center',
         },
       }),
       []
@@ -2819,6 +2842,7 @@ export default function GMISReports({
             totalLabel={
               'Total Rows'
             }
+            onGridReady={onGridReady} 
           />
 
         </div>

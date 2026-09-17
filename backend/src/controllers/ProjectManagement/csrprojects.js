@@ -1815,7 +1815,22 @@ async function getDetailedCSRProjects(req, res) {
 
 async function getCsrProjectsFocusWiseSummary(req, res) {
   try {
-    const organisationId = req.params.orgId && req.params.orgId !== 'all' ? req.params.orgId : null;
+    const userID = req.query.userID;
+    let organisationId = req.params.orgId && req.params.orgId !== 'all' ? req.params.orgId : null;
+
+    // organisationId is optional (NULL = all-org MOPSW view). An
+    // organisation user must never get that all-org view -- force their
+    // own organisation_id instead, same reasoning as Report 1.4.
+    if (userID) {
+      const userRequest0 = (await pool).request();
+      userRequest0.input("userID", userID);
+      const userResult0 = await userRequest0.query(`SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`);
+      const { role_id, organisation_id } = userResult0.recordset[0] || {};
+      const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
+      if (!isMopswRole) {
+        organisationId = organisation_id ? String(organisation_id) : null;
+      }
+    }
 
     const conn = await pool;
     const request = conn.request();
@@ -1857,8 +1872,22 @@ async function getCsrProjectsFocusWiseSummary(req, res) {
 
 async function getCsrProjectsOrgWiseSummary(req, res) {
   try {
+    const userID = req.query.userID;
     const conn = await pool;
     const request = conn.request();
+
+    // Report 1.5 is a cross-organisation summary (one row per org) --
+    // MOPSW/ministry-only by design, same reasoning as Reports 1.1/1.2.
+    if (userID) {
+      const userRequest = conn.request();
+      userRequest.input("userID", userID);
+      const userResult = await userRequest.query(`SELECT role_id FROM tbl_user WHERE user_id = @userID`);
+      const role_id = userResult.recordset[0]?.role_id;
+      const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
+      if (!isMopswRole) {
+        return res.status(200).json([]);
+      }
+    }
 
     // Report 1.5 - Organisation-wise CSR Projects Summary.
     // One row per organisation with a total project count and the 4
@@ -1889,7 +1918,22 @@ async function getCsrProjectsOrgWiseSummary(req, res) {
 
 async function getCsrProjectsYearWiseSummary(req, res) {
   try {
-    const organisationId = req.params.orgId && req.params.orgId !== 'all' ? req.params.orgId : null;
+    const userID = req.query.userID;
+    let organisationId = req.params.orgId && req.params.orgId !== 'all' ? req.params.orgId : null;
+
+    // organisationId is optional (NULL = all-org MOPSW view). An
+    // organisation user must never get that all-org view, even if they
+    // pass 'all' or omit orgId -- force their own organisation_id instead.
+    if (userID) {
+      const userRequest0 = (await pool).request();
+      userRequest0.input("userID", userID);
+      const userResult0 = await userRequest0.query(`SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`);
+      const { role_id, organisation_id } = userResult0.recordset[0] || {};
+      const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
+      if (!isMopswRole) {
+        organisationId = organisation_id ? String(organisation_id) : null;
+      }
+    }
 
     const conn = await pool;
     const request = conn.request();
@@ -1955,7 +1999,23 @@ async function getCsrProjectsYearWiseSummary(req, res) {
 
 async function getCsrFundOrgTrendReport(req, res) {
   try {
-    const organisationId = req.params.orgId && req.params.orgId !== 'all' ? req.params.orgId : null;
+    const userID = req.query.userID;
+    let organisationId = req.params.orgId && req.params.orgId !== 'all' ? req.params.orgId : null;
+
+    // Report 1.3 is org-facing (matches Organisation-sheet report 1.1) --
+    // an organisation user can request any org via the URL param, so we
+    // override whatever was requested with their own organisation_id.
+    // MOPSW/ministry roles keep whatever org they explicitly asked for.
+    if (userID) {
+      const userRequest0 = (await pool).request();
+      userRequest0.input("userID", userID);
+      const userResult0 = await userRequest0.query(`SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID`);
+      const { role_id, organisation_id } = userResult0.recordset[0] || {};
+      const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
+      if (!isMopswRole) {
+        organisationId = organisation_id ? String(organisation_id) : null;
+      }
+    }
 
     if (!organisationId) {
       // Report 1.3 explicitly requires an organisation to be selected first
@@ -2010,11 +2070,25 @@ async function getCsrFundOrgTrendReport(req, res) {
 
 async function getCsrFundOrgWiseReport(req, res) {
   try {
+    const userID = req.query.userID;
     const financialYear = req.params.fy && req.params.fy !== 'all' ? req.params.fy : null;
 
     const conn = await pool;
     const request = conn.request();
     request.input("financialYear", financialYear);
+
+    // Report 1.2 is a cross-organisation summary (one row per org) --
+    // MOPSW/ministry-only by design, same reasoning as Report 1.1.
+    if (userID) {
+      const userRequest = conn.request();
+      userRequest.input("userID", userID);
+      const userResult = await userRequest.query(`SELECT role_id FROM tbl_user WHERE user_id = @userID`);
+      const role_id = userResult.recordset[0]?.role_id;
+      const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
+      if (!isMopswRole) {
+        return res.status(200).json([]);
+      }
+    }
 
     // Report 1.2 - CSR Fund Organisation Wise Report.
     // One row per organisation, for the selected financial year (the UI
@@ -2061,11 +2135,28 @@ async function getCsrFundOrgWiseReport(req, res) {
 
 async function getCsrFundYearWiseReport(req, res) {
   try {
+    const userID = req.query.userID;
     const financialYear = req.params.fy && req.params.fy !== 'all' ? req.params.fy : null;
 
     const conn = await pool;
     const request = conn.request();
     request.input("financialYear", financialYear);
+
+    // Report 1.1 is a cross-organisation summary (No_of_Organisations, sums
+    // across every org) -- MOPSW/ministry-only by design, matching the
+    // Organisation-sheet numbering where org users only see Reports 1.3/1.4/1.6.
+    // Server-side check (not just a frontend restriction) since this report
+    // has no organisation filter to scope by at all.
+    if (userID) {
+      const userRequest = conn.request();
+      userRequest.input("userID", userID);
+      const userResult = await userRequest.query(`SELECT role_id FROM tbl_user WHERE user_id = @userID`);
+      const role_id = userResult.recordset[0]?.role_id;
+      const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
+      if (!isMopswRole) {
+        return res.status(200).json([]);
+      }
+    }
 
     // Report 1.1 - CSR Fund Year Wise Report.
     // No. of Organisations counts distinct orgs that have a fund record for

@@ -63,8 +63,8 @@ export function fetchDivisions() {
   return api.get('/mmt-dropdown/mmt_division');
 }
 
-export function fetchBills() {
-  return api.get('/bill');
+export function fetchBills(userID) {
+  return api.get('/bill', { params: { userID } });
 }
 
 export function createBill(payload) {
