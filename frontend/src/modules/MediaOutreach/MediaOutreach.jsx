@@ -24,16 +24,23 @@ export default function MediaOutreachView({ triggerNotification }) {
   const currentMediaType = useMemo(() => {
     const path = location.pathname.toLowerCase();
     if (path.includes('/add_details') || path.includes('/input-form')) return 'add_details';
-    if (path.includes('/print')) return 'print';
+    if (path.includes('/print_media') || path.includes('/print')) return 'print_media';
     if (path.includes('/online')) return 'online';
-    if (path.includes('/social')) return 'social';
+    if (path.includes('/social_media') || path.includes('/social')) return 'social_media';
     return 'broadcast';
   }, [location.pathname]);
 
+  const [prevMediaType, setPrevMediaType] = useState('broadcast');
   const [editData, setEditData] = useState(null);
   const [rowData, setRowData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [organisations, setOrganisations] = useState([]);
+
+  useEffect(() => {
+    if (currentMediaType !== 'add_details') {
+      setPrevMediaType(currentMediaType);
+    }
+  }, [currentMediaType]);
 
   useEffect(() => {
     fetchOrganisations()
@@ -64,7 +71,7 @@ export default function MediaOutreachView({ triggerNotification }) {
   const handleEdit = (row) => {
     if (!permissions.canEdit) return;
     setEditData(row);
-    navigate('/governance/media-outreach/add_details', { state: { item: row } });
+    navigate('/governance/media-outreach/add_details', { state: { item: row, activeMediaType: currentMediaType } });
   };
 
   const handleDelete = (row) => {
@@ -90,13 +97,13 @@ export default function MediaOutreachView({ triggerNotification }) {
 
   const handleBack = () => {
     setEditData(null);
-    navigate('/governance/media-outreach/broadcast');
+    navigate(`/governance/media-outreach/${prevMediaType || 'broadcast'}`);
   };
 
   const handleSuccess = () => {
     fetchData();
     setEditData(null);
-    navigate('/governance/media-outreach/broadcast');
+    navigate(`/governance/media-outreach/${prevMediaType || 'broadcast'}`);
     if (triggerNotification) triggerNotification(editData ? 'Record updated successfully!' : 'Record created successfully!');
   };
 
@@ -131,7 +138,7 @@ export default function MediaOutreachView({ triggerNotification }) {
             onSuccess={handleSuccess}
             triggerNotification={triggerNotification}
             editData={editData}
-            activeMediaType="broadcast"
+            activeMediaType={location.state?.activeMediaType || prevMediaType || 'broadcast'}
             organisations={organisations}
             getOrgName={getOrgName}
             permissions={permissions}

@@ -143,7 +143,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
         updatePayload.updateBroadcastNational = Number(broadcastNational) || 0;
         updatePayload.updateBroadcastRegional = Number(broadcastRegional) || 0;
         updatePayload.updateBroadcastOverall = broadcastOverall;
-      } else if (activeMediaType === 'print_media') {
+      } else if (activeMediaType === 'print_media' || activeMediaType === 'print') {
         updatePayload.type = 'print';
         updatePayload.updateprintMediaNational = Number(printNational) || 0;
         updatePayload.updateprintMediaRegional = Number(printRegional) || 0;
@@ -153,7 +153,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
         updatePayload.updateEnglishdata = Number(onlineEnglish) || 0;
         updatePayload.updateVernacular = Number(onlineVernacular) || 0;
         updatePayload.updateonlineOverall = onlineOverall;
-      } else if (activeMediaType === 'social_media') {
+      } else if (activeMediaType === 'social_media' || activeMediaType === 'social') {
         updatePayload.type = 'social';
         updatePayload.updateTwitterPosts = Number(socialData.twitter.posts) || 0;
         updatePayload.updateTwitterImpression = Number(socialData.twitter.impression) || 0;
@@ -363,7 +363,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
           </div>
         )}
 
-        {(isEdit ? activeMediaType === 'print_media' : currentStep === 1) && (
+        {(isEdit ? (activeMediaType === 'print_media' || activeMediaType === 'print') : currentStep === 1) && (
           <div className="space-y-4 animate-fade-in">
             <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wide border-b border-slate-200 pb-2">
               Print Media
@@ -389,7 +389,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
           </div>
         )}
 
-        {(isEdit ? activeMediaType === 'social_media' : currentStep === 3) && (
+        {(isEdit ? (activeMediaType === 'social_media' || activeMediaType === 'social') : currentStep === 3) && (
           <div className="space-y-5 animate-fade-in">
             <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wide border-b border-slate-200 pb-2">
               Social Media Channels

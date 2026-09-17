@@ -258,7 +258,7 @@ export default function DataList({
         { field: 'broadcast_regional', headerName: 'REGIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
         { field: 'broadcast_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
-    } else if (activeMediaType === 'print_media') {
+    } else if (activeMediaType === 'print_media' || activeMediaType === 'print') {
       dataCols = [
         { field: 'print_media_national', headerName: 'NATIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
         { field: 'print_media_regional', headerName: 'REGIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
@@ -270,7 +270,7 @@ export default function DataList({
         { field: 'online_vernacular', headerName: 'VERNACULAR', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
         { field: 'online_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
-    } else if (activeMediaType === 'social_media') {
+    } else if (activeMediaType === 'social_media' || activeMediaType === 'social') {
       const channelConfigs = [
         { key: 'facebook', label: 'FACEBOOK', visible: visibleCols.facebook },
         { key: 'instagram', label: 'INSTAGRAM', visible: visibleCols.instagram },
