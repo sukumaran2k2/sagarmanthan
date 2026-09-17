@@ -571,7 +571,12 @@ export default function App() {
             )}
 
             {['Cabinet Notes - Other Ministries', 'Cabinet Notes-Other Ministry'].includes(activeTab) && (
-              <CabinetNotesOther activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
+              <CabinetNotesOther
+                activeSubTab={activeTab}
+                setActiveSubTab={setActiveTab}
+                onGoHome={() => goToTab('landing')}
+                triggerNotification={triggerNotification}
+              />
             )}
 
             {activeTab === 'Parliamentary Issue' && (
