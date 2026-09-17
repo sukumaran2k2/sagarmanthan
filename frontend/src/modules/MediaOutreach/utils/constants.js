@@ -29,9 +29,9 @@ export const STEPS = [
 ];
 
 export const MEDIA_TABS_ALL = [
+  { id: 'add_details', label: 'Input Form' },
   { id: 'broadcast', label: 'Broadcast / TV Media' },
   { id: 'print_media', label: 'Print Media' },
   { id: 'online', label: 'Online' },
   { id: 'social_media', label: 'Social Media' },
-  { id: 'add_details', label: 'Input Form' },
 ];

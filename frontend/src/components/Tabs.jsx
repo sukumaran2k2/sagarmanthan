@@ -306,11 +306,11 @@ export default function Tabs({ activeTab, setActiveTab }) {
           label: 'Media Outreach', icon: Globe,
           targetTab: 'Media Outreach',
           subItems: [
+            { label: 'Input Form', tab: 'Media Outreach', mediaType: 'add_details', icon: FileEdit },
             { label: 'Broadcast / TV Media', tab: 'Media Outreach', mediaType: 'broadcast', icon: FileText },
             { label: 'Print Media', tab: 'Media Outreach', mediaType: 'print_media', icon: FileText },
             { label: 'Online', tab: 'Media Outreach', mediaType: 'online', icon: Globe },
             { label: 'Social Media', tab: 'Media Outreach', mediaType: 'social_media', icon: Network },
-            { label: 'Input Form', tab: 'Media Outreach', mediaType: 'add_details', icon: FileEdit },
           ]
         }),
         m('AUDIT_PARAS', { label: 'Audit Paras', icon: CheckCircle }),
