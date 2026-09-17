@@ -531,7 +531,9 @@ export default function InputForm({
 
             {/* Subject Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Subject*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Name of the Subject<span className="text-red-500 font-bold ml-0.5">*</span>
+              </label>
               <input
                 type="text"
                 value={subject}
@@ -548,7 +550,9 @@ export default function InputForm({
 
             {/* Ministry Name Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Name of the Ministry*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Name of the Ministry<span className="text-red-500 font-bold ml-0.5">*</span>
+              </label>
               <select
                 value={ministryId}
                 onChange={e => {
@@ -576,7 +580,9 @@ export default function InputForm({
 
             {/* E-Office File Number Field */}
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">E-Office File Number*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                E-Office File Number<span className="text-red-500 font-bold ml-0.5">*</span>
+              </label>
               <input
                 type="text"
                 value={eofficeFileNumber}

@@ -271,51 +271,13 @@ export default function App() {
                 onAddProject={handleAddProject}
                 onAddSubProject={handleAddSubProject}
                 triggerNotification={triggerNotification}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
               />
-            )}
-
-            {activeTab === 'Major Ports Dashboard' && (
-              <PortsDashboardView />
-            )}
-
-            {['Capex', 'capex', 'Capex Dashboard', 'Capex Datalist', 'Capex Input Form', 'Estimate Values', 'Capex Reports'].includes(activeTab) && (
-              <CapexView />
-            )}
-
-            {activeTab === 'Major Ports Input Form' && (
-              <PortsInputFormView />
-            )}
-
-            {activeTab === 'Major Ports Reports' && (
-              <PortsReportsView />
-            )}
-
-            {activeTab === 'E Office' && (
-              <EOfficeView key={eOfficeKpi} initialKpi={eOfficeKpi} />
-            )}
-
-            {activeTab === 'Attendance' && (
-              <AttendanceView />
-            )}
-
-            {activeTab === 'CPGRAMS' && (
-              <CPGRAMSView />
-            )}
-
-            {['Cabinet Notes - MoPSW', 'Cabinet Notes-MoPSW'].includes(activeTab) && (
-              <CabinetNotes activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
-            )}
-
-            {['Cabinet Notes - Other Ministries', 'Cabinet Notes-Other Ministry'].includes(activeTab) && (
-              <CabinetNotesOther activeSubTab={activeTab} setActiveSubTab={setActiveTab} />
-            )}
-
-            {activeTab === 'Parliamentary Issue' && (
-              <ParliamentaryIssues
-                activeSubTab={activeTab}
-                onGoHome={() => goToTab('landing')}
+            } />
+            <Route path="projects/project/reports" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
                 triggerNotification={triggerNotification}
               />
             } />
@@ -354,7 +316,7 @@ export default function App() {
             <Route path="governance/attendance/*" element={<AttendanceView />} />
             <Route path="governance/cpgrams" element={<CPGRAMSView />} />
             <Route path="governance/cabinet-notes/*" element={<CabinetNotes triggerNotification={triggerNotification} />} />
-            <Route path="governance/cabinet-notes-other-ministry/*" element={<CabinetNotesOther />} />
+            <Route path="governance/cabinet-notes-other-ministry/*" element={<CabinetNotesOther triggerNotification={triggerNotification} />} />
             <Route path="governance/vip-reference/*" element={<VIPReferenceView triggerNotification={triggerNotification} />} />
             <Route path="governance/media-outreach/*" element={<MediaOutreachView triggerNotification={triggerNotification} />} />
             <Route path="governance/parliamentary-issue/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
