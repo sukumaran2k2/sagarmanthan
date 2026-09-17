@@ -755,19 +755,19 @@ export default function ReportTable({
           border-radius: 3px;
         }
         /* ── PINNED BOTTOM TOTAL ROW ── */
-        .${themeClass} .ag-floating-bottom {
-          background-color: #f1f5f9 !important;
-          font-weight: 800 !important;
-          border-top: 2px solid var(--theme-primary-color) !important;
-        }
+        .${themeClass} .ag-floating-bottom,
+        .${themeClass} .ag-floating-bottom-container,
         .${themeClass} .ag-floating-bottom .ag-row {
-          background-color: #f1f5f9 !important;
+          background-color: var(--theme-accent-color, #f5eeea) !important;
           font-weight: 800 !important;
-          color: var(--theme-primary-color) !important;
+          color: var(--theme-primary-color, #4b2424) !important;
+          border-top: 2px solid var(--theme-primary-color, #4b2424) !important;
         }
         .${themeClass} .ag-floating-bottom .ag-cell {
+          background-color: var(--theme-accent-color, #f5eeea) !important;
           font-weight: 800 !important;
-          color: var(--theme-primary-color) !important;
+          color: var(--theme-primary-color, #4b2424) !important;
+          border-right: 1px solid rgba(75, 36, 36, 0.15) !important;
         }
         .${themeClass} .ag-floating-bottom .ag-cell.text-center {
           text-align: center !important;
