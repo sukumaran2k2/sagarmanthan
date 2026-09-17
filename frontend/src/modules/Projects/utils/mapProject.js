@@ -287,10 +287,8 @@ export function mapProjectBasicInfoPayload(form, options = {}) {
     subProjectsTab: Array.isArray(normalized.subProjectsTab) ? normalized.subProjectsTab : [],
   };
 
-  if (isUpdate) {
-    payload.projectID = identity.projectID;
-    payload.subProjectID = identity.subProjectID;
-  }
+  payload.projectID = form.projectID || identity.projectID || '';
+  payload.subProjectID = form.subProjectID || identity.subProjectID || '-1';
 
   return payload;
 }

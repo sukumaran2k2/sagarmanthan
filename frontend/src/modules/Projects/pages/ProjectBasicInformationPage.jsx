@@ -128,15 +128,29 @@ export default function ProjectBasicInformationPage({
     return 'basic';
   });
 
-  const loadDocuments = async () => {
-    if (!isUpdateMode || !identity.projectID) {
+  const loadDocuments = async (customProjectID, customSubProjectID) => {
+    const pId =
+      customProjectID ||
+      identity.projectID ||
+      editData?.projectId ||
+      initialData?.project_id ||
+      initialData?.projectId;
+    const sId =
+      customSubProjectID ||
+      identity.subProjectID ||
+      editData?.subProjectId ||
+      initialData?.sub_project_id ||
+      initialData?.subProjectId ||
+      '-1';
+
+    if (!pId) {
       setDocuments([]);
       return;
     }
 
     setDocumentsLoading(true);
     try {
-      const response = await fetchProjectDocuments(identity.projectID, identity.subProjectID);
+      const response = await fetchProjectDocuments(pId, sId);
       setDocuments(Array.isArray(response?.data) ? response.data : []);
     } catch (error) {
       console.error(error);
@@ -194,13 +208,16 @@ export default function ProjectBasicInformationPage({
     };
   }, [initialData, isUpdateMode, identity.projectID, identity.subProjectID, notify]);
 
-  const handleUploadDocuments = async ({ folderName, files }) => {
-    if (!permissions.canEdit || readOnly) {
+  const handleUploadDocuments = async ({ folderName, files, projectID: customProjectId, subProjectID: customSubProjectId } = {}) => {
+    if (!permissions.canEdit && !permissions.canCreate) {
       notify?.('You do not have permission to upload documents.', 'error');
       return;
     }
-    if (!isUpdateMode || !identity.projectID) {
-      notify?.('Please save basic information first before uploading documents.', 'error');
+    const targetProjectId = customProjectId || identity.projectID || editData?.projectId;
+    const targetSubProjectId = customSubProjectId || identity.subProjectID || editData?.subProjectId || '-1';
+
+    if (!targetProjectId) {
+      notify?.('Please fill in Project ID in General Details first before uploading.', 'error');
       return;
     }
 
@@ -256,14 +273,14 @@ export default function ProjectBasicInformationPage({
     setUploadingDocuments(true);
     try {
       const formData = new FormData();
-      formData.append('projectID', identity.projectID);
-      formData.append('subProjectID', identity.subProjectID);
+      formData.append('projectID', targetProjectId);
+      formData.append('subProjectID', targetSubProjectId);
       formData.append('folderName', folderName);
       files.forEach((file) => formData.append('projectDocument', file));
 
       await uploadProjectDocuments(formData);
       notify?.(`${getProjectDocumentTypeLabel(folderName)} uploaded successfully.`, 'success');
-      await loadDocuments();
+      await loadDocuments(targetProjectId, targetSubProjectId);
     } catch (error) {
       console.error(error);
       notify?.(error?.response?.data?.message || 'Failed to upload project document(s).', 'error');
@@ -271,6 +288,15 @@ export default function ProjectBasicInformationPage({
       setUploadingDocuments(false);
     }
   };
+
+  useEffect(() => {
+    if (!deleteConfirmModal.open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [deleteConfirmModal.open]);
 
   const closeDeleteConfirmModal = () => {
     if (deletingDocument) return;
@@ -386,6 +412,24 @@ export default function ProjectBasicInformationPage({
           stage_name: prev?.raw?.stage_name || 'Planning & Sanctioning',
         },
       }));
+
+      if (!isUpdateMode && formData.pendingFilesByType) {
+        for (const [folderName, files] of Object.entries(formData.pendingFilesByType)) {
+          if (Array.isArray(files) && files.length > 0) {
+            try {
+              const uploadFd = new FormData();
+              uploadFd.append('projectID', createdId);
+              uploadFd.append('subProjectID', createdSubId);
+              uploadFd.append('folderName', folderName);
+              files.forEach((file) => uploadFd.append('projectDocument', file));
+              await uploadProjectDocuments(uploadFd);
+            } catch (err) {
+              console.error(`Failed to upload ${folderName}:`, err);
+            }
+          }
+        }
+        await loadDocuments(createdId, createdSubId);
+      }
 
       if (isUpdateMode) {
         setActiveStage('planning');

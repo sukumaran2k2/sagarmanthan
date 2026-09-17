@@ -11,317 +11,284 @@ import nodemailer from "nodemailer";
 
 async function createNewProject(req, res) 
 {
-    let projectID = await getProjectID();
-    const projectName = req.body.projectName;
-    const projectBrief = req.body.projectBrief
-    const estimatedProjectCost = req.body.estimatedProjectCost;
-    const projectType = req.body.projectType;
-    const implementationMode = req.body.implementationMode;
-    const implementationType = req.body.implementationType;
-    const primaryImplementingAgency = req.body.primaryImplementingAgency;
-    let secondaryImplementingAgency = req.body.secondaryImplementingAgency;
-    const newImplementingAgencyCode = req.body.newImplementingAgencyCode;
-    let projectCategory = req.body.projectCategory;
-    const scheme = req.body.scheme;
-    let initiative = req.body.initiative;
-    let projectInitiatedDate = req.body.projectInitiatedDate;
-    let targetCompletionDate = req.body.targetCompletionDate;
-    let projectOutput = req.body.projectOutput;
-    const newProjectOutputUnits = req.body.newProjectOutputUnits;
-    let projectOutcome = req.body.projectOutcome;
-    const newProjectOutcomeUnits = req.body.newProjectOutcomeUnits;
-    const capacityAddition = req.body.capacityAddition;
-    let sourceOfFunding = req.body.sourceOfFunding;
-    let gbsComponents = req.body.gbsComponents;
-    let iebrComponents = req.body.iebrComponents;
-    let pppComponents = req.body.pppComponents;
-    let loansComponents = req.body.loansComponents;
-    let multiFundComponents = req.body.multiFundComponents;
-    let stateGovFundComponents = req.body.stateGovFundComponents;
-    let pmmsyComponents = req.body.pmmsyComponents;
-    let sagarmalaComponents = req.body.sagarmalaComponents;
-
-    let sagarmalaFunding = req.body.sagarmalaFunding;
-    let otherSourceFundingComp = req.body.otherSourceFundingComp;
-    const primaryFundingAgency = req.body.primaryFundingAgency;
-    let secondaryFundingAgency = req.body.secondaryFundingAgency;
-    let state = req.body.state;
-    let district = req.body.district;
-    const taluka = req.body.taluka;
-    const village = req.body.village;
-    let mpConstituency = req.body.mpConstituency;
-    const onLandAcquistion = req.body.onLandAcquistion;
-    const landAreaReq = req.body.landAreaReq;
-    const onAcquisitionCompleted = req.body.onAcquisitionCompleted;
-    const percentLandAcquired = req.body.percentLandAcquired;
-    const selectedStage = req.body.selectedStage;
-
-    const userID = req.body.userID;
-    const organisationID = req.body.organisationID;
-    const wingID = req.body.wingID;
-    // const projectStageID = req.body.projectStageID;
-
-    // Sub projects
-    let onSubProjectAvailable = req.body.onSubProjectAvailable;
-    const subProjectNum = req.body.subProjectNum;
-    const subProjectsTab = req.body.subProjectsTab;
-
-    if (gbsComponents == "") {
-        gbsComponents = null;
-    }
-    if (iebrComponents == "") {
-        iebrComponents = null;
-    }
-    if (pppComponents == "") {
-        pppComponents = null;
-    }
-    if (loansComponents == "") {
-        loansComponents = null;
-    }
-    if (multiFundComponents == "") {
-        multiFundComponents = null;
-    }
-    if (stateGovFundComponents == "") {
-        stateGovFundComponents = null;
-    }
-    if (pmmsyComponents == "") {
-        pmmsyComponents = null;
-    }
-    if (sagarmalaComponents == "") {
-        sagarmalaComponents = null;
-    }   
-    if (otherSourceFundingComp == "") {
-        otherSourceFundingComp = null;
-    }
-    if (targetCompletionDate == "") {
-        targetCompletionDate = null;
-    }
-
-    if (Array.isArray(projectCategory)) {
-        projectCategory = projectCategory.join(",");
-    }
-
-    // console.log(sourceOfFunding) 
-    if (Array.isArray(sourceOfFunding)) {
-        // console.log(Array.isArray(sourceOfFunding))    
-        sourceOfFunding = sourceOfFunding.join(",");
-    }
-
-    if (Array.isArray(state)) {
-        // console.log(Array.isArray(sourceOfFunding))    
-        state = state.join(",");
-    }
-
-    if (Array.isArray(district)) {
-        // console.log(Array.isArray(sourceOfFunding))    
-        district = district.join(",");
-    }
-
-    if (Array.isArray(mpConstituency)) {
-        // console.log(Array.isArray(sourceOfFunding))    
-        mpConstituency = mpConstituency.join(",");
-    }
-    
-    if (Array.isArray(initiative)) {
-        initiative = initiative.join(",");
-    }
-
-    const conn = await pool;
-    const request = conn.request();
-    request.input("projectID", projectID);
-    request.input("projectName", projectName);
-    request.input("projectBrief", projectBrief);
-    request.input("estimatedProjectCost", estimatedProjectCost);
-    request.input("projectType", projectType);
-    request.input("implementationMode", implementationMode);
-    request.input("implementationType", implementationType);
-    request.input("primaryImplementingAgency", primaryImplementingAgency);
-    request.input("secondaryImplementingAgency", secondaryImplementingAgency);
-    request.input("newImplementingAgencyCode", newImplementingAgencyCode);
-    request.input("projectCategory", projectCategory);
-    request.input("scheme", scheme);
-    request.input("initiative", initiative);
-    request.input("projectInitiatedDate", projectInitiatedDate);
-    request.input("targetCompletionDate", targetCompletionDate);
-    request.input("projectOutput", projectOutput);
-    request.input("newProjectOutputUnits", newProjectOutputUnits);
-    request.input("projectOutcome", projectOutcome);
-    request.input("newProjectOutcomeUnits", newProjectOutcomeUnits);
-    request.input("capacityAddition", capacityAddition);
-    request.input("sourceOfFunding", sourceOfFunding);
-    request.input("gbsComponents", gbsComponents);
-    request.input("iebrComponents", iebrComponents);
-    request.input("pppComponents", pppComponents);
-    request.input("loansComponents", loansComponents);
-    request.input("multiFundComponents", multiFundComponents);
-    request.input("stateGovFundComponents", stateGovFundComponents);
-    request.input("pmmsyComponents", pmmsyComponents);
-    request.input("sagarmalaComponents", sagarmalaComponents);
-    request.input("otherSourceFundingComp", otherSourceFundingComp);
-    request.input("primaryFundingAgency", primaryFundingAgency);
-    request.input("secondaryFundingAgency", secondaryFundingAgency);
-    request.input("state", state);
-    request.input("district", district);
-    request.input("taluka", taluka);
-    request.input("village", village);
-    request.input("mpConstituency", mpConstituency);
-    request.input("onLandAcquistion", onLandAcquistion);
-    request.input("landAreaReq", landAreaReq);
-    request.input("onAcquisitionCompleted", onAcquisitionCompleted);
-    request.input("percentLandAcquired", percentLandAcquired);
-    request.input("selectedStage", selectedStage);
-    request.input("userID", userID);
-    request.input("organisationID", organisationID);
-    request.input("wingID", wingID);
-    // request.input("projectStageID", projectStageID);
-    request.input("onSubProjectAvailable", onSubProjectAvailable);
-    request.input("subProjectNum", subProjectNum);
-
-    if (sagarmalaFunding !== null && sagarmalaFunding !== '') {
-        sagarmalaFunding = 1;
-    }
-    else {
-        sagarmalaFunding = 0;
-    }
-
-
-    if (isNaN(secondaryImplementingAgency) && secondaryImplementingAgency) {
-        const query = `
-            INSERT INTO mmt_implementing_agency (ia_name, ia_code) 
-            VALUES (@secondaryImplementingAgency, @newImplementingAgencyCode)
-        `;
-        await request.query(query);
-        const query1 = "SELECT TOP 1 ia_id FROM mmt_implementing_agency ORDER BY ia_id DESC";
-        const result1 = await request.query(query1);
-        secondaryImplementingAgency = result1.recordset[0].ia_id;
-    }
-
-    if (isNaN(secondaryFundingAgency) && secondaryFundingAgency) {    
-        const query = "INSERT into mmt_funding_agency (fa_name) values (@secondaryFundingAgency)";
-        await request.query(query);
-    
-        const query1 = "SELECT TOP 1 fa_id FROM mmt_funding_agency ORDER BY fa_id DESC";
-        const result1 = await request.query(query1);
-        secondaryFundingAgency = result1.recordset[0].fa_id;
-    }
-
-    if (isNaN(projectOutput) && projectOutput) {
-        const query = `
-            INSERT INTO mmt_output (project_output_name, project_output_units) 
-            VALUES (@projectOutput, @newProjectOutputUnits)
-        `;
-        await request.query(query);
-        const query1 = "SELECT TOP 1 project_output_id FROM mmt_output ORDER BY project_output_id DESC";
-        const result1 = await request.query(query1);
-        projectOutput = result1.recordset[0].project_output_id;
-    }
-
-    if (isNaN(projectOutcome) && projectOutcome) {
-        const query = `
-            INSERT INTO mmt_outcome (project_outcome_name, project_outcome_units, project_output_id) 
-            VALUES (@projectOutcome, @newProjectOutcomeUnits, @projectOutput)
-        `;
-        await request.query(query);
-        const query1 = "SELECT TOP 1 project_outcome_id FROM mmt_outcome ORDER BY project_outcome_id DESC";
-        const result1 = await request.query(query1);
-        projectOutcome = result1.recordset[0].project_outcome_id;
-    }
-
-    request.input("sagarmalaFunding", sagarmalaFunding);
-
-    let addProjectQuery;
-
-    if (onSubProjectAvailable == 0) {
-        addProjectQuery = (`INSERT INTO tbl_project (project_id, organisation_id, wing_id, project_name, project_type,
-            on_sub_project_available, sub_projec_num, project_brief, estimated_cost, mode_of_implememtation, implememtation_type, 
-            primary_ia_id, secondary_ia_id, project_category_id, scheme_id, initiative_id, target_completion_date, project_output_id, 
-            project_outcome_id, capacity_addition, source_of_funding_id, is_sagarmala_funded, gbs_components,iebr_components, 
-            ppp_components, loans_components, multilateral_components, state_gov_fund_components, pmmsy_components,
-            sagarmala_components, other_source_funding_comp, primary_funding_agency_id, secondary_funding_agency_id, state_id, 
-            district_id, taluka_id, village_id, mp_constituency_id, on_land_acquisition, land_area_req, on_acquisition_completed, 
-            project_stage_id, current_project_stage_id, project_intiated_date, percent_land_acq, submitted_by ) 
-            OUTPUT INSERTED.id, INSERTED.project_id, INSERTED.on_sub_project_available
-            VALUES (@projectID, @organisationID, @wingID, @projectName, @projectType, @onSubProjectAvailable, @subProjectNum, @projectBrief, 
-            @estimatedProjectCost, @implementationMode, @implementationType, @primaryImplementingAgency, 
-            @secondaryImplementingAgency,  @projectCategory, @scheme, @initiative, @targetCompletionDate,
-            @projectOutput, @projectOutcome, @capacityAddition, @sourceOfFunding,@sagarmalaFunding, @gbsComponents, @iebrComponents,
-            @pppComponents, @loansComponents, @multiFundComponents, @stateGovFundComponents, @pmmsyComponents, @sagarmalaComponents,         
-            @otherSourceFundingComp, @primaryFundingAgency, @secondaryFundingAgency, @state, @district, @taluka, @village, 
-            @mpConstituency, @onLandAcquistion, @landAreaReq, @onAcquisitionCompleted, @selectedStage, @selectedStage, @projectInitiatedDate,
-            @percentLandAcquired, @userID  )`
-            //project_stage_id - @projectStageID removed
-        )
-    }
-    else {
-        addProjectQuery = (`INSERT INTO tbl_project (project_id, organisation_id, wing_id, project_name, 
-        on_sub_project_available, sub_projec_num ) 
-        OUTPUT INSERTED.id, INSERTED.project_id, INSERTED.on_sub_project_available
-        VALUES (@projectID, @organisationID, @wingID, @projectName,  @onSubProjectAvailable, @subProjectNum )`)
-
-    }
-
     try 
     {
-        console.log("projectOutput,projectOutcome",projectOutput,projectOutcome);
-        const result = await request.query(addProjectQuery);
-        console.log("END");
+        const normalizeStr = (v) => (v !== undefined && v !== null && String(v).trim() !== '' ? String(v).trim() : null);
+        const normalizeNum = (v) => {
+            if (v === undefined || v === null || String(v).trim() === '') return null;
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+        };
+        const normalizeArr = (v) => (Array.isArray(v) ? v.join(',') : normalizeStr(v));
 
-        // console.log(result.insertId);
-        // const { id, project_id } = result.recordset[0];
-        // res.status(200).json({ id, project_id });
+        let projectID = normalizeStr(req.body.projectID) || (await getProjectID());
+        const projectName = normalizeStr(req.body.projectName);
+        const projectBrief = normalizeStr(req.body.projectBrief);
+        const estimatedProjectCost = normalizeNum(req.body.estimatedProjectCost);
+        const projectType = normalizeStr(req.body.projectType);
+        const implementationMode = normalizeStr(req.body.implementationMode);
+        const implementationType = normalizeStr(req.body.implementationType);
+        const primaryImplementingAgency = normalizeStr(req.body.primaryImplementingAgency);
+        let secondaryImplementingAgency = normalizeStr(req.body.secondaryImplementingAgency);
+        const newImplementingAgencyCode = normalizeStr(req.body.newImplementingAgencyCode);
+        let projectCategory = normalizeArr(req.body.projectCategory);
+        const scheme = normalizeStr(req.body.scheme);
+        let initiative = normalizeArr(req.body.initiative);
+        let projectInitiatedDate = normalizeStr(req.body.projectInitiatedDate);
+        let targetCompletionDate = normalizeStr(req.body.targetCompletionDate);
+        let projectOutput = normalizeStr(req.body.projectOutput);
+        const newProjectOutputUnits = normalizeStr(req.body.newProjectOutputUnits);
+        let projectOutcome = normalizeStr(req.body.projectOutcome);
+        const newProjectOutcomeUnits = normalizeStr(req.body.newProjectOutcomeUnits);
+        const capacityAddition = normalizeNum(req.body.capacityAddition);
+        let sourceOfFunding = normalizeArr(req.body.sourceOfFunding);
+        let gbsComponents = normalizeNum(req.body.gbsComponents);
+        let iebrComponents = normalizeNum(req.body.iebrComponents);
+        let pppComponents = normalizeNum(req.body.pppComponents);
+        let loansComponents = normalizeNum(req.body.loansComponents);
+        let multiFundComponents = normalizeNum(req.body.multiFundComponents);
+        let stateGovFundComponents = normalizeNum(req.body.stateGovFundComponents);
+        let pmmsyComponents = normalizeNum(req.body.pmmsyComponents);
+        let sagarmalaComponents = normalizeNum(req.body.sagarmalaComponents);
 
-        projectID = result.recordset[0].project_id; // Get the ID from the result 
-        let on_sub_project_available = result.recordset[0].on_sub_project_available;
+        let sagarmalaFunding = (req.body.sagarmalaFunding !== null && req.body.sagarmalaFunding !== '' && req.body.sagarmalaFunding !== undefined && req.body.sagarmalaFunding !== 0 && req.body.sagarmalaFunding !== '0') ? 1 : 0;
+        let otherSourceFundingComp = normalizeNum(req.body.otherSourceFundingComp);
+        const primaryFundingAgency = normalizeStr(req.body.primaryFundingAgency);
+        let secondaryFundingAgency = normalizeStr(req.body.secondaryFundingAgency);
+        let state = normalizeArr(req.body.state);
+        let district = normalizeArr(req.body.district);
+        const taluka = normalizeStr(req.body.taluka);
+        const village = normalizeStr(req.body.village);
+        let mpConstituency = normalizeArr(req.body.mpConstituency);
+        const onLandAcquistion = normalizeNum(req.body.onLandAcquistion);
+        const landAreaReq = normalizeNum(req.body.landAreaReq);
+        const onAcquisitionCompleted = normalizeNum(req.body.onAcquisitionCompleted);
+        const percentLandAcquired = normalizeNum(req.body.percentLandAcquired);
+        const selectedStage = normalizeNum(req.body.selectedStage) ?? 0;
 
-        let subProjectID;
-        for (let p = 0; p < subProjectsTab.length; p++) {
-            subProjectID = await getLastSubPrjectID();
-            let subProjectName = subProjectsTab[p].subProjectName
+        const userID = normalizeStr(req.body.userID);
+        const organisationID = normalizeStr(req.body.organisationID);
+        const wingID = normalizeStr(req.body.wingID);
 
-            
-            
-            request.input(`subProjectName_${p}`, subProjectName);
-            request.input(`subProjectID_${p}`, subProjectID);
+        let onSubProjectAvailable = normalizeNum(req.body.onSubProjectAvailable) ?? 0;
+        const subProjectNum = normalizeNum(req.body.subProjectNum) ?? 0;
+        const subProjectsTab = Array.isArray(req.body.subProjectsTab) ? req.body.subProjectsTab : [];
 
-            // console.log(subProjectName)
-            const result = await request.query(`INSERT INTO tbl_sub_project (project_id, sub_project_id, sub_organisation_id, sub_wing_id,
-                sub_project_name, sub_project_type, sub_project_brief, sub_estimated_cost, sub_mode_of_implememtation,
-                sub_implememtation_type, sub_primary_ia_id, sub_secondary_ia_id, sub_project_category_id,
-                sub_scheme_id, sub_initiative_id, sub_target_completion_date, sub_project_output_id,                    
-                sub_project_outcome_id, sub_capacity_addition, sub_source_of_funding_id, sub_is_sagarmala_funded, sub_gbs_components,
-                sub_iebr_components, sub_ppp_components, sub_loans_components, sub_multilateral_components, 
-                sub_state_gov_fund_components, sub_pmmsy_components, sub_sagarmala_components, sub_other_source_funding_comp,
-                sub_primary_funding_agency_id, sub_secondary_funding_agency_id, sub_state_id, sub_district_id, sub_taluka_id, sub_village_id,
-                sub_mp_constituency_id, sub_on_land_acquisition, sub_land_area_req, 
-                sub_on_acquisition_completed, sub_percent_land_acq, sub_submitted_by, sub_project_stage_id, sub_current_project_stage_id,
-                sub_project_intiated_date            
-                ) 
-                VALUES (@projectID, @subProjectID_${p}, @organisationID, @wingID, @subProjectName_${p}, @projectType, @projectBrief, 
+        const conn = await pool;
+
+        if (secondaryImplementingAgency && isNaN(secondaryImplementingAgency)) {
+            const reqIa = conn.request();
+            reqIa.input("secondaryImplementingAgency", secondaryImplementingAgency);
+            reqIa.input("newImplementingAgencyCode", newImplementingAgencyCode || null);
+            const query = `
+                INSERT INTO mmt_implementing_agency (ia_name, ia_code) 
+                VALUES (@secondaryImplementingAgency, @newImplementingAgencyCode)
+            `;
+            await reqIa.query(query);
+            const result1 = await conn.query("SELECT TOP 1 ia_id FROM mmt_implementing_agency ORDER BY ia_id DESC");
+            secondaryImplementingAgency = result1.recordset?.[0]?.ia_id || null;
+        }
+
+        if (secondaryFundingAgency && isNaN(secondaryFundingAgency)) {    
+            const reqFa = conn.request();
+            reqFa.input("secondaryFundingAgency", secondaryFundingAgency);
+            const query = "INSERT into mmt_funding_agency (fa_name) values (@secondaryFundingAgency)";
+            await reqFa.query(query);
+            const result1 = await conn.query("SELECT TOP 1 fa_id FROM mmt_funding_agency ORDER BY fa_id DESC");
+            secondaryFundingAgency = result1.recordset?.[0]?.fa_id || null;
+        }
+
+        if (projectOutput && isNaN(projectOutput)) {
+            const reqOut = conn.request();
+            reqOut.input("projectOutput", projectOutput);
+            reqOut.input("newProjectOutputUnits", newProjectOutputUnits || null);
+            const query = `
+                INSERT INTO mmt_output (project_output_name, project_output_units) 
+                VALUES (@projectOutput, @newProjectOutputUnits)
+            `;
+            await reqOut.query(query);
+            const result1 = await conn.query("SELECT TOP 1 project_output_id FROM mmt_output ORDER BY project_output_id DESC");
+            projectOutput = result1.recordset?.[0]?.project_output_id || null;
+        }
+
+        if (projectOutcome && isNaN(projectOutcome)) {
+            const reqOutc = conn.request();
+            reqOutc.input("projectOutcome", projectOutcome);
+            reqOutc.input("newProjectOutcomeUnits", newProjectOutcomeUnits || null);
+            reqOutc.input("projectOutputId", projectOutput || null);
+            const query = `
+                INSERT INTO mmt_outcome (project_outcome_name, project_outcome_units, project_output_id) 
+                VALUES (@projectOutcome, @newProjectOutcomeUnits, @projectOutputId)
+            `;
+            await reqOutc.query(query);
+            const result1 = await conn.query("SELECT TOP 1 project_outcome_id FROM mmt_outcome ORDER BY project_outcome_id DESC");
+            projectOutcome = result1.recordset?.[0]?.project_outcome_id || null;
+        }
+
+        const request = conn.request();
+        request.input("projectID", projectID);
+        request.input("projectName", projectName);
+        request.input("projectBrief", projectBrief);
+        request.input("estimatedProjectCost", estimatedProjectCost);
+        request.input("projectType", projectType);
+        request.input("implementationMode", implementationMode);
+        request.input("implementationType", implementationType);
+        request.input("primaryImplementingAgency", primaryImplementingAgency);
+        request.input("secondaryImplementingAgency", secondaryImplementingAgency);
+        request.input("newImplementingAgencyCode", newImplementingAgencyCode);
+        request.input("projectCategory", projectCategory);
+        request.input("scheme", scheme);
+        request.input("initiative", initiative);
+        request.input("projectInitiatedDate", projectInitiatedDate);
+        request.input("targetCompletionDate", targetCompletionDate);
+        request.input("projectOutput", projectOutput);
+        request.input("newProjectOutputUnits", newProjectOutputUnits);
+        request.input("projectOutcome", projectOutcome);
+        request.input("newProjectOutcomeUnits", newProjectOutcomeUnits);
+        request.input("capacityAddition", capacityAddition);
+        request.input("sourceOfFunding", sourceOfFunding);
+        request.input("gbsComponents", gbsComponents);
+        request.input("iebrComponents", iebrComponents);
+        request.input("pppComponents", pppComponents);
+        request.input("loansComponents", loansComponents);
+        request.input("multiFundComponents", multiFundComponents);
+        request.input("stateGovFundComponents", stateGovFundComponents);
+        request.input("pmmsyComponents", pmmsyComponents);
+        request.input("sagarmalaComponents", sagarmalaComponents);
+        request.input("otherSourceFundingComp", otherSourceFundingComp);
+        request.input("primaryFundingAgency", primaryFundingAgency);
+        request.input("secondaryFundingAgency", secondaryFundingAgency);
+        request.input("state", state);
+        request.input("district", district);
+        request.input("taluka", taluka);
+        request.input("village", village);
+        request.input("mpConstituency", mpConstituency);
+        request.input("onLandAcquistion", onLandAcquistion);
+        request.input("landAreaReq", landAreaReq);
+        request.input("onAcquisitionCompleted", onAcquisitionCompleted);
+        request.input("percentLandAcquired", percentLandAcquired);
+        request.input("selectedStage", selectedStage);
+        request.input("userID", userID);
+        request.input("organisationID", organisationID);
+        request.input("wingID", wingID);
+        request.input("onSubProjectAvailable", onSubProjectAvailable);
+        request.input("subProjectNum", subProjectNum);
+        request.input("sagarmalaFunding", sagarmalaFunding);
+
+        let addProjectQuery;
+
+        if (onSubProjectAvailable == 0) {
+            addProjectQuery = (`INSERT INTO tbl_project (project_id, organisation_id, wing_id, project_name, project_type,
+                on_sub_project_available, sub_projec_num, project_brief, estimated_cost, mode_of_implememtation, implememtation_type, 
+                primary_ia_id, secondary_ia_id, project_category_id, scheme_id, initiative_id, target_completion_date, project_output_id, 
+                project_outcome_id, capacity_addition, source_of_funding_id, is_sagarmala_funded, gbs_components,iebr_components, 
+                ppp_components, loans_components, multilateral_components, state_gov_fund_components, pmmsy_components,
+                sagarmala_components, other_source_funding_comp, primary_funding_agency_id, secondary_funding_agency_id, state_id, 
+                district_id, taluka_id, village_id, mp_constituency_id, on_land_acquisition, land_area_req, on_acquisition_completed, 
+                project_stage_id, current_project_stage_id, project_intiated_date, percent_land_acq, submitted_by ) 
+                OUTPUT INSERTED.id, INSERTED.project_id, INSERTED.on_sub_project_available
+                VALUES (@projectID, @organisationID, @wingID, @projectName, @projectType, @onSubProjectAvailable, @subProjectNum, @projectBrief, 
                 @estimatedProjectCost, @implementationMode, @implementationType, @primaryImplementingAgency, 
                 @secondaryImplementingAgency,  @projectCategory, @scheme, @initiative, @targetCompletionDate,
-                @projectOutput, @projectOutcome, @capacityAddition, @sourceOfFunding, @sagarmalaFunding, @gbsComponents, @iebrComponents,
-                @pppComponents, @loansComponents, @multiFundComponents, @stateGovFundComponents, @pmmsyComponents,
-                @sagarmalaComponents, @otherSourceFundingComp,  @primaryFundingAgency, @secondaryFundingAgency, @state, @district, 
-                @taluka, @village, @mpConstituency, @onLandAcquistion, @landAreaReq, @onAcquisitionCompleted, 
-                @percentLandAcquired, @userID, @selectedStage, @selectedStage, @projectInitiatedDate )`);
-
-        }
-        // res.sendStatus(200);
-        // res.status(200).json({ projectID, on_sub_project_available });
-
-        if (onSubProjectAvailable == 0) // is not sub proposal 
-        {
-            subProjectID = -1;
-            res.json({ projectID, subProjectID });
+                @projectOutput, @projectOutcome, @capacityAddition, @sourceOfFunding,@sagarmalaFunding, @gbsComponents, @iebrComponents,
+                @pppComponents, @loansComponents, @multiFundComponents, @stateGovFundComponents, @pmmsyComponents, @sagarmalaComponents,         
+                @otherSourceFundingComp, @primaryFundingAgency, @secondaryFundingAgency, @state, @district, @taluka, @village, 
+                @mpConstituency, @onLandAcquistion, @landAreaReq, @onAcquisitionCompleted, @selectedStage, @selectedStage, @projectInitiatedDate,
+                @percentLandAcquired, @userID  )`);
         }
         else {
-            res.json({ projectID, subProjectID });
+            addProjectQuery = (`INSERT INTO tbl_project (project_id, organisation_id, wing_id, project_name, 
+                on_sub_project_available, sub_projec_num ) 
+                OUTPUT INSERTED.id, INSERTED.project_id, INSERTED.on_sub_project_available
+                VALUES (@projectID, @organisationID, @wingID, @projectName,  @onSubProjectAvailable, @subProjectNum )`);
         }
 
+        const result = await request.query(addProjectQuery);
+
+        projectID = result.recordset?.[0]?.project_id || projectID;
+        const id = result.recordset?.[0]?.id;
+
+        let subProjectID = -1;
+        if (onSubProjectAvailable != 0 && Array.isArray(subProjectsTab) && subProjectsTab.length > 0) {
+            for (let p = 0; p < subProjectsTab.length; p++) {
+                subProjectID = await getLastSubPrjectID();
+                let subProjectName = subProjectsTab[p]?.subProjectName;
+                
+                const subReq = conn.request();
+                subReq.input("projectID", projectID);
+                subReq.input("subProjectID", subProjectID);
+                subReq.input("organisationID", organisationID);
+                subReq.input("wingID", wingID);
+                subReq.input("subProjectName", subProjectName);
+                subReq.input("projectType", projectType);
+                subReq.input("projectBrief", projectBrief);
+                subReq.input("estimatedProjectCost", estimatedProjectCost);
+                subReq.input("implementationMode", implementationMode);
+                subReq.input("implementationType", implementationType);
+                subReq.input("primaryImplementingAgency", primaryImplementingAgency);
+                subReq.input("secondaryImplementingAgency", secondaryImplementingAgency);
+                subReq.input("projectCategory", projectCategory);
+                subReq.input("scheme", scheme);
+                subReq.input("initiative", initiative);
+                subReq.input("targetCompletionDate", targetCompletionDate);
+                subReq.input("projectOutput", projectOutput);
+                subReq.input("projectOutcome", projectOutcome);
+                subReq.input("capacityAddition", capacityAddition);
+                subReq.input("sourceOfFunding", sourceOfFunding);
+                subReq.input("sagarmalaFunding", sagarmalaFunding);
+                subReq.input("gbsComponents", gbsComponents);
+                subReq.input("iebrComponents", iebrComponents);
+                subReq.input("pppComponents", pppComponents);
+                subReq.input("loansComponents", loansComponents);
+                subReq.input("multiFundComponents", multiFundComponents);
+                subReq.input("stateGovFundComponents", stateGovFundComponents);
+                subReq.input("pmmsyComponents", pmmsyComponents);
+                subReq.input("sagarmalaComponents", sagarmalaComponents);
+                subReq.input("otherSourceFundingComp", otherSourceFundingComp);
+                subReq.input("primaryFundingAgency", primaryFundingAgency);
+                subReq.input("secondaryFundingAgency", secondaryFundingAgency);
+                subReq.input("state", state);
+                subReq.input("district", district);
+                subReq.input("taluka", taluka);
+                subReq.input("village", village);
+                subReq.input("mpConstituency", mpConstituency);
+                subReq.input("onLandAcquistion", onLandAcquistion);
+                subReq.input("landAreaReq", landAreaReq);
+                subReq.input("onAcquisitionCompleted", onAcquisitionCompleted);
+                subReq.input("percentLandAcquired", percentLandAcquired);
+                subReq.input("userID", userID);
+                subReq.input("selectedStage", selectedStage);
+                subReq.input("projectInitiatedDate", projectInitiatedDate);
+
+                await subReq.query(`INSERT INTO tbl_sub_project (project_id, sub_project_id, sub_organisation_id, sub_wing_id,
+                    sub_project_name, sub_project_type, sub_project_brief, sub_estimated_cost, sub_mode_of_implememtation,
+                    sub_implememtation_type, sub_primary_ia_id, sub_secondary_ia_id, sub_project_category_id,
+                    sub_scheme_id, sub_initiative_id, sub_target_completion_date, sub_project_output_id,                    
+                    sub_project_outcome_id, sub_capacity_addition, sub_source_of_funding_id, sub_is_sagarmala_funded, sub_gbs_components,
+                    sub_iebr_components, sub_ppp_components, sub_loans_components, sub_multilateral_components, 
+                    sub_state_gov_fund_components, sub_pmmsy_components, sub_sagarmala_components, sub_other_source_funding_comp,
+                    sub_primary_funding_agency_id, sub_secondary_funding_agency_id, sub_state_id, sub_district_id, sub_taluka_id, sub_village_id,
+                    sub_mp_constituency_id, sub_on_land_acquisition, sub_land_area_req, 
+                    sub_on_acquisition_completed, sub_percent_land_acq, sub_submitted_by, sub_project_stage_id, sub_current_project_stage_id,
+                    sub_project_intiated_date            
+                    ) 
+                    VALUES (@projectID, @subProjectID, @organisationID, @wingID, @subProjectName, @projectType, @projectBrief, 
+                    @estimatedProjectCost, @implementationMode, @implementationType, @primaryImplementingAgency, 
+                    @secondaryImplementingAgency,  @projectCategory, @scheme, @initiative, @targetCompletionDate,
+                    @projectOutput, @projectOutcome, @capacityAddition, @sourceOfFunding, @sagarmalaFunding, @gbsComponents, @iebrComponents,
+                    @pppComponents, @loansComponents, @multiFundComponents, @stateGovFundComponents, @pmmsyComponents,
+                    @sagarmalaComponents, @otherSourceFundingComp,  @primaryFundingAgency, @secondaryFundingAgency, @state, @district, 
+                    @taluka, @village, @mpConstituency, @onLandAcquistion, @landAreaReq, @onAcquisitionCompleted, 
+                    @percentLandAcquired, @userID, @selectedStage, @selectedStage, @projectInitiatedDate )`);
+            }
+        }
+
+        return res.status(200).json({ id, project_id: projectID, projectID, subProjectID: onSubProjectAvailable == 0 ? -1 : subProjectID });
     }
-    catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+    catch (err) 
+    {
+        console.error("Error in createNewProject:", err);
+        return res.status(500).json({ message: err?.message || 'Internal server error' });
     }
 };
 

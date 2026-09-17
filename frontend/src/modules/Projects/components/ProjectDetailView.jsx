@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Edit, Calendar, DollarSign, Building2, Briefcase, FileText,
   CheckCircle2, AlertTriangle, Layers, Users, TrendingUp, Download, Eye,
   MapPin, Landmark, Coins, ShieldCheck, Clock, ArrowRight, ExternalLink,
-  Anchor, ChevronDown, ChevronUp, Image, File, Check, X, Camera, RefreshCw,
+  Anchor, ChevronDown, ChevronUp, ChevronLeft, Image, File, Check, X, Camera, RefreshCw,
   Maximize2, ZoomIn, ZoomOut
 } from 'lucide-react';
 import {
@@ -15,6 +16,7 @@ import {
   fetchProjectDocuments,
   downloadProjectDocumentFile
 } from '../api';
+import ProjectLocationMap from './ProjectLocationMap';
 
 // Map coordinates lookup for Indian maritime states / major districts
 const STATE_COORDINATES = {
@@ -58,8 +60,29 @@ function formatCost(val) {
   return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatCostWithUnit(val) {
+  if (val === undefined || val === null || val === '' || val === '-' || isNaN(Number(val)) || Number(val) === 0) {
+    return '(in Cr)';
+  }
+  return `${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (in Cr)`;
+}
+
+function formatDateYMD(dateStr) {
+  if (!dateStr || dateStr === 'N/A' || dateStr === '-' || dateStr === 'null' || dateStr === 'undefined') return '-';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr).slice(0, 10);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch {
+    return String(dateStr).slice(0, 10);
+  }
+}
+
 function formatDate(dateStr) {
-  if (!dateStr || dateStr === 'N/A' || dateStr === '-') return 'N/A';
+  if (!dateStr || dateStr === 'N/A' || dateStr === '-' || dateStr === 'null' || dateStr === 'undefined') return '-';
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return String(dateStr);
@@ -77,12 +100,35 @@ export default function ProjectDetailView({
   onEdit,
   canEdit = false,
 }) {
-  const pid = project?.projectId || project?.project_id || propProjectId;
-  const rawSubId = project?.subProjectId || project?.sub_project_id || propSubProjectId;
-  const subId = rawSubId && rawSubId !== '-' ? rawSubId : '-1';
+  const { id: paramId, projectId: paramProjectId, subProjectId: paramSubProjectId } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const queryPid = searchParams.get('projectId') || searchParams.get('id');
+  const querySubId = searchParams.get('subProjectId') || searchParams.get('subId');
+
+  const pid = project?.projectId || project?.project_id || project?.raw?.project_id || propProjectId || paramProjectId || paramId || queryPid;
+  const rawSubId = project?.subProjectId || project?.sub_project_id || project?.raw?.sub_project_id || propSubProjectId || paramSubProjectId || querySubId;
+  const subId = rawSubId && rawSubId !== '-' && rawSubId !== 'null' ? String(rawSubId) : '-1';
+
+  const handleBack = () => {
+    if (typeof onBack === 'function') {
+      onBack();
+    } else {
+      navigate('/projects/project/project-list');
+    }
+  };
+
+  const handleEdit = (proj) => {
+    if (typeof onEdit === 'function') {
+      onEdit(proj);
+    } else {
+      navigate('/projects/project/input-form', { state: { editData: proj } });
+    }
+  };
 
   const [loading, setLoading] = useState(true);
-  const [projectData, setProjectData] = useState(project?.raw || project || null);
+  const [projectData, setProjectData] = useState(null);
   const [tenderDates, setTenderDates] = useState([]);
   const [milestones, setMilestones] = useState([]);
   const [imagesData, setImagesData] = useState({ images: [], ppt: [], pert: [] });
@@ -140,10 +186,10 @@ export default function ProjectDetailView({
     };
   }, [pid, subId]);
 
-  const p = projectData || project || {};
+  const p = { ...(project?.raw || {}), ...(project || {}), ...(projectData || {}) };
 
-  const projectName = p.project_name || p.projectName || p.sub_project_name || p.subProjectName || 'Project Details';
-  const stageName = p.stage_name || p.stage || p.project_stage || 'Project Initiated';
+  const projectName = p.project_name || p.projectName || p.sub_project_name || p.subProjectName || project?.name || 'Project Details';
+  const stageName = p.stage_name || p.stage || p.project_stage || p.projectStageName || 'Project Initiated';
   const stageLower = String(stageName).toLowerCase();
   
   const isSagarmala = Boolean(
@@ -159,22 +205,22 @@ export default function ProjectDetailView({
   );
 
   const sagarmalaId = p.sagarmala_project_id || p.sagarmalaProjectId || '-';
-  const projectType = p.project_type || p.projectType || 'EPC';
-  const implementationType = p.implememtation_type || p.implementationType || 'Single Funded';
-  const projectCategory = p.project_category_names || p.project_category || p.category || '-';
-  const schemeName = p.scheme_name || p.scheme || 'No Scheme';
+  const projectType = p.project_type || p.projectType || p.project_type_name || 'Port Level Approval';
+  const implementationType = p.implememtation_type || p.implementationType || p.implementation_type || 'Single Funded';
+  const projectCategory = p.project_category_names || p.project_category || p.category || p.projectCategory || '-';
+  const schemeName = p.scheme_name || p.scheme || 'Other Scheme';
   const initiativeName = p.initiative_names || p.initiative || 'others';
-  const modeOfImplementation = p.mode_of_implememtation || p.modeOfImplementation || p.implementationMode || 'PPP';
-  const implementingAgency = p.primary_ia_name || p.primaryImplementingAgency || p.ia_name || p.organisation_name || p.organisationName || '-';
-  const initiatedDate = p.project_intiated_date || p.projectInitiatedDate || '-';
+  const modeOfImplementation = p.mode_of_implememtation || p.modeOfImplementation || p.implementationMode || 'EPC';
+  const implementingAgency = p.primary_ia_name || p.primaryImplementingAgency || p.ia_name || p.organisation_name || p.organisationName || p.agency || '-';
+  const initiatedDate = p.project_intiated_date || p.projectInitiatedDate || p.project_initiated_date || '-';
   const targetCompletionDate = p.target_completion_date || p.targetCompletionDate || '-';
-  const lastUpdated = p.last_updated || p.lastUpdated || '-';
+  const lastUpdated = p.last_updated || p.lastUpdated || initiatedDate || '-';
   const projectBrief = p.project_brief || p.projectBrief || p.remarks || p.drop_remarks || '';
 
   const physicalProgress = Number(p.physical_progress ?? p.physicalProgress ?? 0);
   const financialProgress = Number(p.financial_progress ?? p.financialProgress ?? 0);
 
-  const estimatedCost = p.estimated_cost ?? p.estimatedCost;
+  const estimatedCost = p.estimated_cost ?? p.estimatedCost ?? p.project_cost ?? p.cost;
   const sanctionedCost = p.sanctioned_cost ?? p.sanctionedCost;
   const awardedCost = p.award_project_cost ?? p.awarded_cost ?? p.awardedCost;
   const closureCost = p.closure_cost ?? p.closureCost;
@@ -189,19 +235,19 @@ export default function ProjectDetailView({
   // State Map Center
   const mapCenter = STATE_COORDINATES[stateName] || [13.0827, 80.2707];
 
-  const sourceOfFundingName = p.source_of_funding_names || p.sourceOfFunding || 'PPP-Private Component';
+  const sourceOfFundingName = p.source_of_funding_names || p.sourceOfFunding || 'IEBR (Own Fund)';
 
   // Funding Breakdown
-  const gbs = p.gbs_components;
-  const multilateral = p.multilateral_components;
-  const sagarmalaComp = p.sagarmala_components;
-  const iwtf = p.loans_components;
-  const pmgsy = p.pmmsy_components;
-  const stateFund = p.state_gov_fund_components;
-  const cess = p.other_source_funding_comp;
-  const pppComp = p.ppp_components;
-  const iebr = p.iebr_components;
-  const totalExp = p.total_expenditure ?? p.expenditure_till_date;
+  const gbs = p.gbs_components ?? p.gbsComponents;
+  const multilateral = p.multilateral_components ?? p.multilateralComponents ?? p.multiFundComponents;
+  const sagarmalaComp = p.sagarmala_components ?? p.sagarmalaComponents;
+  const iwtf = p.loans_components ?? p.loansComponents;
+  const pmgsy = p.pmmsy_components ?? p.pmmsyComponents;
+  const stateFund = p.state_gov_fund_components ?? p.stateGovFundComponents;
+  const cess = p.other_source_funding_comp ?? p.otherSourceFundingComp;
+  const pppComp = p.ppp_components ?? p.pppComponents;
+  const iebr = p.iebr_components ?? p.iebrComponents;
+  const totalExp = p.total_expenditure ?? p.expenditure_till_date ?? p.expenditureTillDate;
 
   const getStageBadgeStyle = (s) => {
     const norm = String(s || '').toLowerCase();
@@ -228,470 +274,573 @@ export default function ProjectDetailView({
     }
   };
 
+  const projectDocsOnly = useMemo(() => {
+    return (documents || []).filter((doc) => {
+      const type = String(doc.document_type || doc.folder_name || '').toLowerCase();
+      const name = String(doc.document_name || doc.name || doc.file_name || '').toLowerCase();
+      const isImage =
+        type === 'project_images' ||
+        type === 'images' ||
+        type === 'photo' ||
+        /\.(jpg|jpeg|png|webp|gif|bmp|svg)$/i.test(name);
+      return !isImage;
+    });
+  }, [documents]);
+
+  const projectPhotosOnly = useMemo(() => {
+    const list = Array.isArray(imagesData?.images) ? [...imagesData.images] : [];
+    (documents || []).forEach((doc) => {
+      const type = String(doc.document_type || doc.folder_name || '').toLowerCase();
+      const docName = doc.document_name || doc.name || doc.file_name;
+      const isImage =
+        type === 'project_images' ||
+        type === 'images' ||
+        type === 'photo' ||
+        /\.(jpg|jpeg|png|webp|gif|bmp|svg)$/i.test(String(docName || '').toLowerCase());
+      if (isImage && docName) {
+        const alreadyExists = list.some((item) => (item.name || item.document_name) === docName);
+        if (!alreadyExists) {
+          list.push({
+            name: docName,
+            document_name: docName,
+            createdDate: doc.created_date,
+            url: `${API_BASE}/download-project-document/${pid}/${subId}/${encodeURIComponent(docName)}`,
+            data: doc.data || null,
+          });
+        }
+      }
+    });
+    return list;
+  }, [imagesData, documents, pid, subId]);
+
   return (
-    <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100 pb-12">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in text-slate-800 dark:text-slate-100 mb-12">
       
-      {/* Top Breadcrumb & Actions Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 px-6 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs select-none">
-        <div className="flex items-center space-x-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#0f417a] dark:text-blue-400 rounded-xl transition cursor-pointer flex items-center justify-center shrink-0 shadow-2xs"
-            title="Back to Projects List"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+      {/* Module Header UI with Dark Blue Gradient Background & White Text */}
+      <div className="relative flex flex-wrap items-center justify-between gap-4 px-[26px] py-5 border-b border-[#0a2d55]/40 bg-gradient-to-r from-[#0f417a] via-[#154b87] to-[#1c5999] text-white shadow-xs select-none">
+        <div className="flex items-center gap-3.5 flex-1 min-w-[300px]">
           <div>
-            <h1 className="text-lg font-black text-[#0f417a] dark:text-blue-400 uppercase tracking-wide flex items-center gap-2">
-              <span>View Project Details</span>
-            </h1>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-              Comprehensive overview of milestones, funding breakdown, physical progress, and telemetry.
-            </p>
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp size={14} className="text-blue-200" strokeWidth={2.5} />
+              <span className="text-[10.5px] uppercase tracking-[0.12em] font-extrabold text-blue-200">
+                Projects Module • View Project Details
+              </span>
+            </div>
+            <h3 className="m-0 text-xl font-black tracking-wide text-white uppercase leading-tight">
+              {projectName}
+            </h3>
+            <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs font-medium text-blue-100/90">
+              <span>Ministry of Ports, Shipping and Waterways</span>
+              <span className="text-blue-200/60">•</span>
+              <span>Project ID: <strong className="text-white font-mono font-bold">{pid}</strong></span>
+              {subId !== '-1' && subId !== '' && (
+                <>
+                  <span className="text-blue-200/60">•</span>
+                  <span>Sub Project ID: <strong className="text-white font-mono font-bold">{subId}</strong></span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             type="button"
-            onClick={onBack}
-            className="px-3.5 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 rounded-xl transition cursor-pointer flex items-center space-x-1.5 shadow-2xs"
+            onClick={handleBack}
+            className="px-4 py-2 text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-3.5 w-3.5 text-blue-100" />
             <span>Back to List</span>
           </button>
 
           {canEdit && (
             <button
               type="button"
-              onClick={() => onEdit?.(p)}
-              className="px-4 py-2 bg-[#0f417a] hover:bg-[#1a5596] text-white text-xs font-bold rounded-xl shadow transition cursor-pointer flex items-center space-x-1.5"
+              onClick={() => handleEdit(p)}
+              className="px-4 py-2 bg-white hover:bg-blue-50 text-[#0f417a] text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer"
             >
-              <Edit className="h-3.5 w-3.5" />
+              <Edit className="h-3.5 w-3.5 text-[#0f417a]" />
               <span>Edit Project</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Main Top Grid (Left: Overview, Right: Sidebar with Map, Photos, Docs) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left 8 Cols: Project Main Details Container */}
-        <div className="lg:col-span-8 space-y-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+      {/* Main Content Body: Contains All Sections */}
+      <div className="p-6 space-y-6">
+
+        {/* Row 1: Project Details (Left 8 Cols) & Project Location (Right 4 Cols) - Exact matching height */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
           
-          {/* Top Row IDs and Stage Badge */}
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 text-xs">
-              <div>
-                <span className="text-slate-500 dark:text-slate-400 font-semibold mr-1.5">Project ID:</span>
-                <strong className="text-[#0f417a] dark:text-blue-400 font-black font-mono tracking-wide">{pid}</strong>
+          {/* Left 8 Cols: Card 1: Project Details (Spacious layout with increased height) */}
+          <div className="lg:col-span-8 flex flex-col">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden h-full flex flex-col justify-between">
+              
+              {/* Blue Header UI matching YP Input Form */}
+              <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-3.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-white" />
+                  <h3 className="text-xs font-black uppercase tracking-wider">
+                    Project Details
+                  </h3>
+                </div>
               </div>
-              <div>
-                <span className="text-slate-500 dark:text-slate-400 font-semibold mr-1.5">Sub Project ID:</span>
-                <strong className="text-slate-800 dark:text-slate-200 font-mono">{subId !== '-1' ? subId : '-'}</strong>
-              </div>
-              <div>
-                <span className="text-slate-500 dark:text-slate-400 font-semibold mr-1.5">Sagarmala Project ID:</span>
-                <strong className="text-slate-800 dark:text-slate-200 font-mono">{sagarmalaId}</strong>
-              </div>
-            </div>
 
-            <div className="flex items-center space-x-2">
-              {isSagarmala && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-50 text-[#0f417a] border border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800 shadow-xs">
-                  <Anchor className="h-3 w-3 text-[#0f417a] dark:text-sky-300 shrink-0" />
-                  <span>Sagarmala</span>
-                </span>
-              )}
-              <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider border shadow-2xs ${getStageBadgeStyle(stageName)}`}>
-                {stageName}
-              </span>
-            </div>
-          </div>
+              <div className="p-6 sm:p-7 space-y-5 flex-1 flex flex-col justify-between">
+                <div className="space-y-4">
+                  {/* Line 1: Project Title on Left, Top Row IDs & Stage Badge on Right */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight uppercase">
+                      {projectName}
+                    </h2>
 
-          {/* Project Title & Scope/Remarks */}
-          <div>
-            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-snug">
-              {projectName}
-            </h2>
-            {projectBrief && (
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1.5 leading-relaxed bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                {projectBrief}
-              </p>
-            )}
-            <div className="mt-1.5 text-[11px] text-slate-400 font-medium">
-              Last Updated on: <span className="font-semibold text-slate-600 dark:text-slate-300">{formatDate(lastUpdated)}</span>
-            </div>
-          </div>
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs shrink-0">
+                      <div>
+                        <span className="text-slate-600 dark:text-slate-400 font-medium mr-1.5">Project ID:</span>
+                        <span className="text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer">{pid}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-600 dark:text-slate-400 font-medium mr-1.5">Sub Project ID:</span>
+                        <span className="text-slate-800 dark:text-slate-200 font-medium">{subId !== '-1' && subId !== '' ? subId : ''}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-600 dark:text-slate-400 font-medium mr-1.5">Sagarmala Project ID:</span>
+                        <span className="text-slate-800 dark:text-slate-200 font-medium">{sagarmalaId !== '-' ? sagarmalaId : ''}</span>
+                      </div>
+                      {isSagarmala && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-sky-50 text-[#0f417a] border border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800">
+                          <Anchor className="h-3 w-3 text-[#0f417a] dark:text-sky-300 shrink-0" />
+                          <span>Sagarmala</span>
+                        </span>
+                      )}
+                      <span className="px-3.5 py-1 rounded-full text-xs font-bold text-white bg-[#6f42c1] shadow-2xs">
+                        {stageName}
+                      </span>
+                    </div>
+                  </div>
 
-          {/* Progress Indicators */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2 border-y border-slate-100 dark:border-slate-800">
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-black text-[#0f417a] dark:text-blue-400 uppercase text-[11px] tracking-wide">
-                  Physical Progress: <span className="text-slate-900 dark:text-white font-mono">{physicalProgress > 0 ? `${physicalProgress}%` : '-%'}</span>
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                <div 
-                  className="bg-blue-600 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, Math.max(0, physicalProgress))}%` }}
-                />
-              </div>
-            </div>
+                  {/* Line 2: Scope/Brief on Left, Physical & Financial Progress on Right */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs pt-1 pb-1">
+                    <p className="font-bold text-slate-800 dark:text-slate-200 leading-normal uppercase">
+                      {projectBrief || projectName}
+                    </p>
 
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-black text-[#0f417a] dark:text-blue-400 uppercase text-[11px] tracking-wide">
-                  Financial Progress: <span className="text-slate-900 dark:text-white font-mono">{financialProgress > 0 ? `${financialProgress}%` : '-%'}</span>
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                <div 
-                  className="bg-emerald-600 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, Math.max(0, financialProgress))}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Metadata Grid (Matching legacy view format) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs pt-1">
-            <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Project Type</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate" title={projectType}>{projectType}</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Implementation Type</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate" title={implementationType}>{implementationType}</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Project Category</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate" title={projectCategory}>{projectCategory}</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Scheme</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate" title={schemeName}>{schemeName}</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Initiative</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate" title={initiativeName}>{initiativeName}</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Mode of Implementation</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate" title={modeOfImplementation}>{modeOfImplementation}</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 col-span-2">
-              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Implementing Agency</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate" title={implementingAgency}>{implementingAgency}</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Project Initiated Date</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate">{formatDate(initiatedDate)}</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Targeted Completion Date</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate">{formatDate(targetCompletionDate)}</span>
-            </div>
-          </div>
-
-          {/* Costs Strip (Light cyan/slate box matching screenshot) */}
-          <div className="bg-cyan-50/60 dark:bg-cyan-950/20 border border-cyan-200/80 dark:border-cyan-900/50 rounded-xl p-3.5 grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs shadow-2xs">
-            <div>
-              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block">Estimated Cost:</span>
-              <strong className="text-emerald-700 dark:text-emerald-400 font-black font-mono text-sm mt-0.5 block">
-                {estimatedCost ? `${formatCost(estimatedCost)} (in Cr)` : '- (in Cr)'}
-              </strong>
-            </div>
-
-            <div>
-              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block">Sanctioned Cost:</span>
-              <strong className="text-slate-800 dark:text-slate-200 font-black font-mono text-sm mt-0.5 block">
-                {sanctionedCost ? `${formatCost(sanctionedCost)} (in Cr)` : '- (in Cr)'}
-              </strong>
-            </div>
-
-            <div>
-              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block">Awarded Cost:</span>
-              <strong className="text-slate-800 dark:text-slate-200 font-black font-mono text-sm mt-0.5 block">
-                {awardedCost ? `${formatCost(awardedCost)} (in Cr)` : '- (in Cr)'}
-              </strong>
-            </div>
-
-            <div>
-              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block">Closure Cost:</span>
-              <strong className="text-slate-800 dark:text-slate-200 font-black font-mono text-sm mt-0.5 block">
-                {closureCost ? `${formatCost(closureCost)} (in Cr)` : '- (in Cr)'}
-              </strong>
-            </div>
-
-            <div>
-              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block">Technical Sanctioned Cost:</span>
-              <strong className="text-slate-800 dark:text-slate-200 font-black font-mono text-sm mt-0.5 block">
-                {techSanctionCost ? `${formatCost(techSanctionCost)} (in Cr)` : '- (in Cr)'}
-              </strong>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Right 4 Cols: Project Location Map, Photos, Documents */}
-        <div className="lg:col-span-4 space-y-4">
-          
-          {/* Card 1: Project Location */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
-            <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400 flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
-                <span>Project Location</span>
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full font-mono">
-                {stateName}
-              </span>
-            </div>
-
-            {/* Map Preview View */}
-            <div className="relative w-full h-44 bg-slate-100 dark:bg-slate-800 overflow-hidden group">
-              <iframe
-                title="Project Location Map"
-                src={`https://www.openstreetmap.org/export/embed.html?bbox=${mapCenter[1] - 0.25}%2C${mapCenter[0] - 0.25}%2C${mapCenter[1] + 0.25}%2C${mapCenter[0] + 0.25}&layer=mapnik&marker=${mapCenter[0]}%2C${mapCenter[1]}`}
-                className="w-full h-full border-0 pointer-events-auto"
-                loading="lazy"
-              />
-              <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
-                <a
-                  href={`https://www.openstreetmap.org/?mlat=${mapCenter[0]}&mlon=${mapCenter[1]}#map=12/${mapCenter[0]}/${mapCenter[1]}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-1.5 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 rounded-lg shadow hover:bg-white text-xs"
-                  title="Open in OpenStreetMap"
-                >
-                  <Maximize2 className="h-3.5 w-3.5" />
-                </a>
-              </div>
-            </div>
-
-            {/* Location tags footer */}
-            <div className="p-3 bg-slate-50/60 dark:bg-slate-950/40 text-[11px] font-semibold space-y-1 text-slate-700 dark:text-slate-300 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex justify-between">
-                <span className="text-slate-400 font-bold">State(s)</span>
-                <span className="font-bold text-slate-800 dark:text-slate-100">{stateName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400 font-bold">District(s)</span>
-                <span className="font-bold text-slate-800 dark:text-slate-100">{districtName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400 font-bold">Taluk(s)</span>
-                <span className="font-bold text-slate-800 dark:text-slate-100">{talukName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400 font-bold">Village(s)</span>
-                <span className="font-bold text-slate-800 dark:text-slate-100">{villageName}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Project Photos */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
-            <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400 flex items-center gap-1.5">
-                <Camera className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
-                <span>Project Photos</span>
-              </span>
-              {imagesData.images.length > 0 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full font-mono">
-                  {imagesData.images.length} Photos
-                </span>
-              )}
-            </div>
-
-            <div className="p-3">
-              {imagesData.images && imagesData.images.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {imagesData.images.map((img, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => setPhotoModalImg(img)}
-                      className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer group aspect-video bg-slate-100 dark:bg-slate-800"
-                    >
-                      <img
-                        src={`data:image/jpeg;base64,${img.data}`}
-                        alt={img.name || `Photo ${idx + 1}`}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                      />
-                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold">
-                        <Eye className="h-4 w-4" />
+                    <div className="flex items-center gap-x-6 gap-y-1 font-bold text-blue-600 dark:text-blue-400 shrink-0">
+                      <div>
+                        Physical Progress: <span className="font-bold ml-1">{physicalProgress > 0 ? `${physicalProgress} %` : '0 %'}</span>
+                      </div>
+                      <div>
+                        Financial Progress: <span className="font-bold ml-1">{financialProgress > 0 ? `${Number(financialProgress).toFixed(2)} %` : '0 %'}</span>
                       </div>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Line 3: Last updated date */}
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-normal pb-1">
+                    Last Updated on: <span className="text-slate-600 dark:text-slate-300 font-medium">{formatDateYMD(lastUpdated)}</span>
+                  </div>
+
+                  {/* Metadata Grid (Structured cards with comfortable height) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs p-4 bg-slate-50/80 dark:bg-slate-950/40 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between min-h-[58px]">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold uppercase tracking-wider leading-tight">Project Type</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 mt-1 block text-xs break-words leading-tight">{projectType}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between min-h-[58px]">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold uppercase tracking-wider leading-tight">Implementation Type</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 mt-1 block text-xs break-words leading-tight">{implementationType}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between min-h-[58px]">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold uppercase tracking-wider leading-tight">Project Category</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 mt-1 block text-xs break-words leading-tight">{projectCategory}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between min-h-[58px]">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold uppercase tracking-wider leading-tight">Scheme</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 mt-1 block text-xs break-words leading-tight">{schemeName}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between min-h-[58px]">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold uppercase tracking-wider leading-tight">Initiative</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 mt-1 block text-xs break-words leading-tight">{initiativeName}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between min-h-[58px]">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold uppercase tracking-wider leading-tight">Mode of Implementation</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 mt-1 block text-xs break-words leading-tight">{modeOfImplementation}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between min-h-[58px]">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold uppercase tracking-wider leading-tight">Implementing Agency</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 mt-1 block text-xs break-words leading-tight">{implementingAgency}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between min-h-[58px]">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold uppercase tracking-wider leading-tight">Project Initiated Date</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 mt-1 block text-xs break-words leading-tight">{formatDateYMD(initiatedDate)}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between min-h-[58px]">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold uppercase tracking-wider leading-tight">Targeted Completion Date</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 mt-1 block text-xs break-words leading-tight">{formatDateYMD(targetCompletionDate)}</span>
+                    </div>
+
+                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between min-h-[58px]">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold uppercase tracking-wider leading-tight">Land Requirement</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100 mt-1 block text-xs break-words leading-tight">
+                        {p.land_area_req ? `${p.land_area_req} Ha` : 'Not Required'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2 py-3 px-4 bg-rose-500/90 text-white rounded-xl text-xs font-bold text-center shadow-xs">
-                  <Camera className="h-4 w-4 shrink-0" />
-                  <span>No project photos available.</span>
+
+                {/* Costs Strip (Light cyan/aqua box matching screenshot exactly) */}
+                <div className="bg-gradient-to-r from-[#e0f7fa]/80 to-[#b2ebf2]/40 dark:bg-cyan-950/20 border border-[#b2ebf2] dark:border-cyan-900/50 rounded-xl p-4.5 sm:p-5 grid grid-cols-1 sm:grid-cols-3 gap-y-3.5 gap-x-6 text-xs shadow-2xs mt-2">
+                  <div className="space-y-2">
+                    <div className="text-slate-700 dark:text-slate-300">
+                      <span className="font-normal text-slate-600 dark:text-slate-400">Estimated Cost : </span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-bold font-mono">
+                        {formatCostWithUnit(estimatedCost)}
+                      </strong>
+                    </div>
+                    <div className="text-slate-700 dark:text-slate-300">
+                      <span className="font-normal text-slate-600 dark:text-slate-400">Awarded Cost : </span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-bold font-mono">
+                        {formatCostWithUnit(awardedCost)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-slate-700 dark:text-slate-300">
+                      <span className="font-normal text-slate-600 dark:text-slate-400">Sanctioned Cost : </span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-bold font-mono">
+                        {formatCostWithUnit(sanctionedCost)}
+                      </strong>
+                    </div>
+                    <div className="text-slate-700 dark:text-slate-300">
+                      <span className="font-normal text-slate-600 dark:text-slate-400">Closure Cost : </span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-bold font-mono">
+                        {formatCostWithUnit(closureCost)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-slate-700 dark:text-slate-300">
+                      <span className="font-normal text-slate-600 dark:text-slate-400">Technical Sanctioned Cost : </span>
+                      <strong className="text-slate-800 dark:text-slate-200 font-bold font-mono">
+                        {formatCostWithUnit(techSanctionCost)}
+                      </strong>
+                    </div>
+                  </div>
                 </div>
-              )}
+
+              </div>
             </div>
           </div>
 
-          {/* Card 3: Project Documents */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
-            <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-[#0f417a] dark:text-blue-400 flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
-                <span>Project Documents</span>
-              </span>
-              {documents.length > 0 && (
-                <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full font-mono">
-                  {documents.length} Files
+          {/* Right 4 Cols: Card 1: Project Location - Matches exact height of Project Details */}
+          <div className="lg:col-span-4 flex flex-col">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden h-full flex flex-col justify-between">
+              <div className="px-5 py-3.5 bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] text-white flex items-center justify-between border-b border-[#0a2d55]/20 shrink-0">
+                <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-white" />
+                  <span>Project Location</span>
                 </span>
-              )}
-            </div>
+              </div>
 
-            <div className="p-3">
-              {documents.length > 0 ? (
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {documents.map((doc, idx) => {
-                    const docName = doc.document_name || doc.name || `Document ${idx + 1}`;
-                    return (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 text-xs hover:bg-slate-100 transition"
-                      >
-                        <div className="flex items-center space-x-2 min-w-0 pr-2">
-                          <File className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                          <span className="font-semibold text-slate-700 dark:text-slate-200 truncate text-[11px]" title={docName}>
-                            {docName}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadDoc(docName)}
-                          className="p-1 hover:bg-white dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 rounded-md transition cursor-pointer"
-                          title="Download document"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
+              <div className="p-4 sm:p-5 flex-1 flex flex-col space-y-3.5 justify-between">
+                {/* Location Details Box */}
+                <div className="p-3 bg-slate-50/80 dark:bg-slate-950/40 rounded-xl border border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2.5 text-xs font-medium text-slate-600 dark:text-slate-300 shrink-0">
+                  <div className="flex flex-col pb-1.5 border-b border-slate-200/60 dark:border-slate-800/60">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">State(s)</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-100 truncate mt-0.5" title={stateName}>{stateName}</span>
+                  </div>
+                  <div className="flex flex-col pb-1.5 border-b border-slate-200/60 dark:border-slate-800/60">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">District(s)</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-100 truncate mt-0.5" title={districtName}>{districtName}</span>
+                  </div>
+                  <div className="flex flex-col pt-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Taluka(s)</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-100 truncate mt-0.5" title={talukName}>{talukName}</span>
+                  </div>
+                  <div className="flex flex-col pt-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Village(s)</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-100 truncate mt-0.5" title={villageName}>{villageName}</span>
+                  </div>
                 </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2 py-3 px-4 bg-rose-500/90 text-white rounded-xl text-xs font-bold text-center shadow-xs">
-                  <FileText className="h-4 w-4 shrink-0" />
-                  <span>No project view documents available.</span>
+
+                {/* Interactive Leaflet Map: Stretches to fill remaining card height */}
+                <div className="flex-1 w-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 min-h-[260px]">
+                  <ProjectLocationMap
+                    project={p}
+                    stateName={stateName}
+                    districtName={districtName}
+                    talukName={talukName}
+                    villageName={villageName}
+                    projectName={projectName}
+                    stageName={stageName}
+                    cost={estimatedCost || sanctionedCost || awardedCost}
+                    height="100%"
+                    className="h-full w-full"
+                  />
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
         </div>
 
-      </div>
+        {/* Row 2: Funding Details (Left 8 Cols) & Photos / Documents (Right 4 Cols) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+          
+          {/* Left 8 Cols: Card 2: Funding Details (Natural compact height) */}
+          <div className="lg:col-span-8">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setFundingOpen(!fundingOpen)}
+                className="w-full px-5 py-3 bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] text-white flex items-center justify-between text-left cursor-pointer transition select-none border-b border-[#0a2d55]/20"
+              >
+                <div className="flex items-center gap-2">
+                  <Coins className="h-4 w-4 text-white" />
+                  <span className="text-xs font-black uppercase tracking-wider">
+                    Funding Details
+                  </span>
+                </div>
+                <div className="text-white">
+                  {fundingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </div>
+              </button>
 
-      {/* Section: Funding Details (Collapsible) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setFundingOpen(!fundingOpen)}
-          className="w-full px-6 py-3.5 bg-gradient-to-r from-slate-50 via-cyan-50/40 to-slate-50 dark:from-slate-800/80 dark:via-cyan-950/20 dark:to-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-left cursor-pointer transition select-none"
-        >
-          <span className="text-sm font-black uppercase tracking-wide text-[#0f417a] dark:text-blue-400 flex items-center gap-2">
-            <Coins className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-            <span>Funding Details</span>
-          </span>
-          <div className="p-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-500">
-            {fundingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </div>
-        </button>
+              {fundingOpen && (
+                <div className="p-6 space-y-5 animate-fade-in text-xs">
+                  {/* Top Source of Funding Line */}
+                  <div className="text-xs">
+                    <span className="font-bold text-[#d9534f] dark:text-orange-400">Source of funding: </span>
+                    <strong className="font-bold text-[#d9534f] dark:text-orange-400">{sourceOfFundingName || 'IEBR (Own Fund)'}</strong>
+                  </div>
 
-        {fundingOpen && (
-          <div className="p-6 space-y-4 animate-fade-in text-xs">
-            <div className="flex items-center space-x-2">
-              <span className="font-bold text-slate-500 dark:text-slate-400">Source of Funding:</span>
-              <strong className="text-amber-700 dark:text-amber-400 font-extrabold text-sm">{sourceOfFundingName}</strong>
+                  {/* 3 Columns Grid with Dotted Dividers */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 gap-x-8 pt-1">
+                    
+                    {/* Column 1 */}
+                    <div className="space-y-4 pr-4">
+                      <div>
+                        <div className="text-slate-700 dark:text-slate-300 font-semibold text-xs">Central Grant GIA</div>
+                        <div className="text-slate-500 dark:text-slate-400 font-medium text-xs mt-0.5 font-mono">
+                          {formatCostWithUnit(gbs)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-slate-700 dark:text-slate-300 font-semibold text-xs">Multilateral Funding</div>
+                        <div className="text-slate-500 dark:text-slate-400 font-medium text-xs mt-0.5 font-mono">
+                          {formatCostWithUnit(multilateral)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-slate-700 dark:text-slate-300 font-semibold text-xs">Sagarmala</div>
+                        <div className="text-slate-500 dark:text-slate-400 font-medium text-xs mt-0.5 font-mono">
+                          {formatCostWithUnit(sagarmalaComp)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Column 2 (Divided by vertical dotted line) */}
+                    <div className="space-y-4 md:border-l md:border-dotted md:border-slate-300 dark:md:border-slate-700 md:pl-6">
+                      <div>
+                        <div className="text-slate-700 dark:text-slate-300 font-semibold text-xs">IEBR (Own Fund)</div>
+                        <div className="text-slate-800 dark:text-slate-200 font-bold text-xs mt-0.5 font-mono">
+                          {formatCostWithUnit(iebr || (String(sourceOfFundingName || '').includes('IEBR') ? (estimatedCost || sanctionedCost || awardedCost) : null))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-slate-700 dark:text-slate-300 font-semibold text-xs">PMMSY</div>
+                        <div className="text-slate-500 dark:text-slate-400 font-medium text-xs mt-0.5 font-mono">
+                          {formatCostWithUnit(pmgsy)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-slate-700 dark:text-slate-300 font-semibold text-xs">State Govt Fund</div>
+                        <div className="text-slate-500 dark:text-slate-400 font-medium text-xs mt-0.5 font-mono">
+                          {formatCostWithUnit(stateFund)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Column 3 (Divided by vertical dotted line) */}
+                    <div className="space-y-4 md:border-l md:border-dotted md:border-slate-300 dark:md:border-slate-700 md:pl-6">
+                      <div>
+                        <div className="text-slate-700 dark:text-slate-300 font-semibold text-xs">Loans</div>
+                        <div className="text-slate-500 dark:text-slate-400 font-medium text-xs mt-0.5 font-mono">
+                          {formatCostWithUnit(iwtf)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-slate-700 dark:text-slate-300 font-semibold text-xs">PPP Private Component</div>
+                        <div className="text-slate-500 dark:text-slate-400 font-medium text-xs mt-0.5 font-mono">
+                          {formatCostWithUnit(pppComp)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-slate-700 dark:text-slate-300 font-semibold text-xs">Others</div>
+                        <div className="text-slate-500 dark:text-slate-400 font-medium text-xs mt-0.5 font-mono">
+                          {formatCostWithUnit(cess)}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Bottom Row: Expenditure done till date */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+                    <span className="font-bold text-[#d9534f] dark:text-orange-400">Expenditure done till date: </span>
+                    <strong className="font-bold text-[#d9534f] dark:text-orange-400 font-mono">
+                      {formatCostWithUnit(totalExp)}
+                    </strong>
+                  </div>
+                </div>
+              )}
             </div>
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-3.5 gap-x-8 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-1.5">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">Central Grant GIA:</span>
-                <span className="font-black text-slate-800 dark:text-slate-100 font-mono">{gbs ? `${formatCost(gbs)} (in Cr)` : '- (in Cr)'}</span>
+          {/* Right 4 Cols: Side-by-side Grid: Project Photos & Project Documents - Matching height */}
+          <div className="lg:col-span-4 flex flex-col">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 h-full items-stretch flex-1">
+              {/* Card 2: Project Photos */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col h-full justify-between">
+                <div className="px-4 py-2.5 bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] text-white flex items-center justify-between border-b border-[#0a2d55]/20 shrink-0">
+                  <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                    <Camera className="h-3.5 w-3.5 text-white" />
+                    <span>Project Photos</span>
+                  </span>
+                  {projectPhotosOnly?.length > 0 && (
+                    <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                      {projectPhotosOnly.length} {projectPhotosOnly.length === 1 ? 'Photo' : 'Photos'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="p-3 flex-1 flex flex-col w-full h-full min-h-0 justify-center">
+                  {projectPhotosOnly && projectPhotosOnly.length > 0 ? (
+                    projectPhotosOnly.length === 1 ? (
+                      <div
+                        onClick={() => setPhotoModalImg(projectPhotosOnly[0])}
+                        className="relative w-full h-full flex-1 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer group bg-slate-100 dark:bg-slate-800 min-h-[150px]"
+                      >
+                        <img
+                          src={projectPhotosOnly[0].data ? `data:image/jpeg;base64,${projectPhotosOnly[0].data}` : projectPhotosOnly[0].url}
+                          alt={projectPhotosOnly[0].name || 'Project Photo'}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold gap-1">
+                          <Eye className="h-4 w-4" />
+                          <span>View Full Photo</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 h-full flex-1 w-full min-h-0 overflow-y-auto">
+                        {projectPhotosOnly.map((img, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => setPhotoModalImg(img)}
+                            className="relative w-full h-full min-h-[100px] rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 cursor-pointer group bg-slate-100 dark:bg-slate-800"
+                          >
+                            <img
+                              src={img.data ? `data:image/jpeg;base64,${img.data}` : img.url}
+                              alt={img.name || `Photo ${idx + 1}`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                            />
+                            <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold">
+                              <Eye className="h-4 w-4" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 py-3 px-3 bg-[#d9534f] text-white rounded-xl text-xs font-medium text-center shadow-xs my-auto">
+                      <Camera className="h-3.5 w-3.5 shrink-0" />
+                      <span>No project photos available.</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-1.5">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">IWTF (Bond Fund):</span>
-                <span className="font-black text-slate-800 dark:text-slate-100 font-mono">{iwtf ? `${formatCost(iwtf)} (in Cr)` : '- (in Cr)'}</span>
-              </div>
+              {/* Card 3: Project Documents */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col h-full justify-between">
+                <div className="px-4 py-2.5 bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] text-white flex items-center justify-between border-b border-[#0a2d55]/20 shrink-0">
+                  <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5 text-white" />
+                    <span>Project Documents</span>
+                  </span>
+                </div>
 
-              <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-1.5">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">CESS:</span>
-                <span className="font-black text-slate-800 dark:text-slate-100 font-mono">{cess ? `${formatCost(cess)} (in Cr)` : '- (in Cr)'}</span>
-              </div>
-
-              <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-1.5">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">Multilateral Funding:</span>
-                <span className="font-black text-slate-800 dark:text-slate-100 font-mono">{multilateral ? `${formatCost(multilateral)} (in Cr)` : '- (in Cr)'}</span>
-              </div>
-
-              <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-1.5">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">PMGSY / PMMSY:</span>
-                <span className="font-black text-slate-800 dark:text-slate-100 font-mono">{pmgsy ? `${formatCost(pmgsy)} (in Cr)` : '- (in Cr)'}</span>
-              </div>
-
-              <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-1.5 bg-amber-50/50 dark:bg-amber-950/20 px-2 rounded-lg">
-                <span className="text-amber-800 dark:text-amber-300 font-bold">PPP Private Component:</span>
-                <span className="font-black text-amber-700 dark:text-amber-400 font-mono">{pppComp ? `${formatCost(pppComp)} (in Cr)` : (estimatedCost ? `${formatCost(estimatedCost)} (in Cr)` : '- (in Cr)')}</span>
-              </div>
-
-              <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-1.5">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">Sagarmala:</span>
-                <span className="font-black text-slate-800 dark:text-slate-100 font-mono">{sagarmalaComp ? `${formatCost(sagarmalaComp)} (in Cr)` : '- (in Cr)'}</span>
-              </div>
-
-              <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-1.5">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">State Devt. Fund:</span>
-                <span className="font-black text-slate-800 dark:text-slate-100 font-mono">{stateFund ? `${formatCost(stateFund)} (in Cr)` : '- (in Cr)'}</span>
-              </div>
-
-              <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-1.5">
-                <span className="text-slate-500 dark:text-slate-400 font-semibold">Others:</span>
-                <span className="font-black text-slate-800 dark:text-slate-100 font-mono">{cess ? `${formatCost(cess)} (in Cr)` : '- (in Cr)'}</span>
+                <div className="p-3.5 flex-1 flex flex-col justify-center">
+                  {projectDocsOnly.length > 0 ? (
+                    <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1 flex-1">
+                      {projectDocsOnly.map((doc, idx) => {
+                        const docName = doc.document_name || doc.name || `Document ${idx + 1}`;
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 text-xs hover:bg-slate-100 transition"
+                          >
+                            <div className="flex items-center space-x-2 min-w-0 pr-2">
+                              <File className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                              <span className="font-semibold text-slate-700 dark:text-slate-200 truncate text-[11px]" title={docName}>
+                                {docName}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadDoc(docName)}
+                              className="p-1 hover:bg-white dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 rounded-md transition cursor-pointer"
+                              title="Download document"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 py-2 px-3 bg-[#d9534f] text-white rounded-lg text-xs font-medium text-center shadow-xs my-auto">
+                      <FileText className="h-3.5 w-3.5 shrink-0" />
+                      <span>No project documents available.</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
 
-            <div className="pt-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-              Expenditure done till date: <span className="font-black text-emerald-700 dark:text-emerald-400 font-mono text-sm ml-1">{totalExp ? `₹ ${formatCost(totalExp)} (in Cr)` : '- (in Cr)'}</span>
+        </div>
+
+        {/* Section: Timeline (Collapsible) */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setTimelineOpen(!timelineOpen)}
+            className="w-full px-6 py-3.5 bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] text-white flex items-center justify-between text-left cursor-pointer transition select-none border-b border-[#0a2d55]/20"
+          >
+            <span className="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-white" />
+              <span>Timeline</span>
+            </span>
+            <div className="text-white">
+              {timelineOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Section: Timeline (Collapsible) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setTimelineOpen(!timelineOpen)}
-          className="w-full px-6 py-3.5 bg-gradient-to-r from-slate-50 via-cyan-50/40 to-slate-50 dark:from-slate-800/80 dark:via-cyan-950/20 dark:to-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-left cursor-pointer transition select-none"
-        >
-          <span className="text-sm font-black uppercase tracking-wide text-[#0f417a] dark:text-blue-400 flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-            <span>Timeline</span>
-          </span>
-          <div className="p-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-500">
-            {timelineOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </div>
-        </button>
+          </button>
 
         {timelineOpen && (
           <div className="p-6 space-y-6 animate-fade-in">
@@ -835,6 +984,8 @@ export default function ProjectDetailView({
         )}
       </div>
 
+      </div>
+
       {/* Photo Zoom Modal */}
       {photoModalImg && (
         <div
@@ -857,7 +1008,7 @@ export default function ProjectDetailView({
             </div>
             <div className="p-4 flex items-center justify-center max-h-[75vh] overflow-hidden bg-slate-950">
               <img
-                src={`data:image/jpeg;base64,${photoModalImg.data}`}
+                src={photoModalImg.data ? `data:image/jpeg;base64,${photoModalImg.data}` : photoModalImg.url}
                 alt={photoModalImg.name}
                 className="max-h-[70vh] w-auto object-contain rounded-lg"
               />

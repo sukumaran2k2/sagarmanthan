@@ -22,6 +22,7 @@ export default function ProjectListPage({
   notify,
   onOpenBasicInfo,
   onAddNew,
+  onOpenProjectDetail,
 }) {
   const permissions = useProjectsPermissions();
   const claims = getSessionClaims() || {};
@@ -235,6 +236,15 @@ export default function ProjectListPage({
     }
   };
 
+  useEffect(() => {
+    if (!dropConfirmModal.open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [dropConfirmModal.open]);
+
   return (
     <>
       <ProjectsListTable
@@ -253,13 +263,15 @@ export default function ProjectListPage({
         categoryOptions={categories?.length ? categories : PROJECT_CATEGORY_OPTIONS}
         organisations={organisations}
         states={states}
-        canAdd={permissions.canAdd}
+        canAdd={permissions.isOrganisationUser && permissions.canAdd}
         canEdit={permissions.canEdit}
         canView={permissions.canView}
         canDropProject={permissions.canRemove}
+        isOrganisationUser={permissions.isOrganisationUser}
         dropBusyId={dropBusyId}
         onAddNew={onAddNew}
         onOpenBasicInfo={onOpenBasicInfo}
+        onOpenProjectDetail={onOpenProjectDetail}
         onDropProject={handleDropProject}
         onPageChange={setPage}
         onPageSizeChange={(nextSize) => {
@@ -271,8 +283,14 @@ export default function ProjectListPage({
 
       {dropConfirmModal.open
         ? createPortal(
-            <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6">
-              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl animate-scale-up">
+            <div
+              className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-hidden"
+              onClick={closeDropConfirmModal}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl animate-scale-up my-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="px-5 py-4 border-b border-slate-200">
                   <h3 className="text-sm font-black text-slate-800">Request Drop Project</h3>
                   <p className="text-xs text-slate-500 mt-1">

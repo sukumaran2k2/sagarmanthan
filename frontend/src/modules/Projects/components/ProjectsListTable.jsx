@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Edit, Eye, Search, X, List, BarChart3, Building2, ChevronDown, Filter, 
   Trash2, Plus, Layers, TrendingUp, DollarSign, Calendar, Check, Ban, File, Minus, Anchor,
@@ -9,8 +10,7 @@ import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
-import ProjectDetailModal from './ProjectDetailModal';
-import ProjectDetailView from './ProjectDetailView';
+import { isOrganisationUser as checkIsOrganisationUser } from '../../../utils/authSession';
 
 const STATUS_COLORS = {
   'Under Implementation': '#0284c7',
@@ -19,8 +19,6 @@ const STATUS_COLORS = {
   'Completed': '#10b981',
   'Dropped': '#ef4444',
 };
-
-
 
 function toAmount(value) {
   const n = Number(value);
@@ -49,6 +47,7 @@ export default function ProjectsListTable({
   canEdit = false,
   canView = false,
   canDropProject = false,
+  isOrganisationUser: propIsOrgUser = undefined,
   dropBusyId = null,
   onAddNew,
   onOpenBasicInfo,
@@ -58,11 +57,27 @@ export default function ProjectsListTable({
   onPageSizeChange,
   exportFileName = 'projects_module_list',
 }) {
+  const isOrgUser = propIsOrgUser !== undefined ? propIsOrgUser : checkIsOrganisationUser();
+  const navigate = useNavigate();
   const [gridApi, setGridApi] = useState(null);
   const [viewMode, setViewMode] = useState('table');
-  const [selectedProjectForView, setSelectedProjectForView] = useState(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const handleOpenDetail = (data) => {
+    if (typeof onOpenProjectDetail === 'function') {
+      onOpenProjectDetail(data);
+      return;
+    }
+    const pid = data?.projectId || data?.project_id || data?.raw?.project_id;
+    const subId = data?.subProjectId || data?.sub_project_id || data?.raw?.sub_project_id;
+    const cleanSub = subId && subId !== '-' && subId !== 'null' ? subId : null;
+    if (pid) {
+      navigate(`/projects/project/view-project/${pid}${cleanSub ? `?subId=${cleanSub}` : ''}`, {
+        state: { project: data },
+      });
+    }
+  };
   const colDropdownRef = useRef(null);
   const [visibleCols, setVisibleCols] = useState({
     sNo: true,
@@ -232,10 +247,7 @@ export default function ProjectsListTable({
           return (
             <div 
               className="flex flex-col items-center justify-center text-center py-1.5 w-full cursor-pointer group select-none"
-              onClick={() => {
-                if (onOpenProjectDetail) onOpenProjectDetail(params.data);
-                else setSelectedProjectForView(params.data);
-              }}
+              onClick={() => handleOpenDetail(params.data)}
               title="Click to view full project details"
             >
               {hasSub ? (
@@ -304,10 +316,7 @@ export default function ProjectsListTable({
           return (
             <div 
               className="flex flex-col text-left py-1.5 w-full cursor-pointer group select-none"
-              onClick={() => {
-                if (onOpenProjectDetail) onOpenProjectDetail(params.data);
-                else setSelectedProjectForView(params.data);
-              }}
+              onClick={() => handleOpenDetail(params.data)}
               title="Click to view full project details"
             >
               {hasSubName ? (
@@ -336,7 +345,7 @@ export default function ProjectsListTable({
       });
     }
 
-    if (visibleCols.primaryImplementingAgency) {
+    if (!isOrgUser && visibleCols.primaryImplementingAgency) {
       cols.push({
         field: 'primaryImplementingAgency',
         headerName: 'Primary Implementing Agency',
@@ -714,10 +723,7 @@ export default function ProjectsListTable({
               ) : canView ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (onOpenProjectDetail) onOpenProjectDetail(row);
-                    else setSelectedProjectForView(row);
-                  }}
+                  onClick={() => handleOpenDetail(row)}
                   title="View Project Details"
                   className="p-1.5 hover:bg-blue-50 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-lg transition cursor-pointer"
                 >
@@ -855,24 +861,6 @@ export default function ProjectsListTable({
       printWindow.document.close();
     }
   };
-
-  if (selectedProjectForView) {
-    return (
-      <ProjectDetailView
-        project={selectedProjectForView}
-        onBack={() => setSelectedProjectForView(null)}
-        onEdit={
-          canEdit
-            ? (row) => {
-                setSelectedProjectForView(null);
-                onOpenBasicInfo?.(row, { readOnly: false });
-              }
-            : undefined
-        }
-        canEdit={canEdit}
-      />
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fade-in relative text-slate-800 dark:text-slate-100">
@@ -1027,7 +1015,9 @@ export default function ProjectsListTable({
                     { key: 'sNo', label: 'S.No' },
                     { key: 'projectId', label: 'Project ID / Sub Project ID' },
                     { key: 'projectName', label: 'Project Name' },
-                    { key: 'primaryImplementingAgency', label: 'Primary Implementing Agency' },
+                    ...(!isOrgUser
+                      ? [{ key: 'primaryImplementingAgency', label: 'Primary Implementing Agency' }]
+                      : []),
                     { key: 'sanctionedCost', label: 'Sanctioned Cost (₹ Cr)' },
                     { key: 'physicalProgress', label: 'Physical Progress' },
                     { key: 'financialProgress', label: 'Financial Progress' },

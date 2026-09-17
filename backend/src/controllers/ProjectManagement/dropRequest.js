@@ -8,83 +8,98 @@ import { sendEmail } from "../sendNotification.js";
 // --------------------------------------------- Drop Project ---------------------------------------------
 async function deleteProjectRequest(req, res) 
 {
-    const projectID = req.body.projectID;
-    let userID = req.body.userID;
-    let email = req.body.email;
-    let reason = req.body.reason;
-    let subProjectID = req.body.subProjectID;
+    try 
+    {
+        const projectID = req.body.projectID ? String(req.body.projectID).trim() : null;
+        let userID = req.body.userID || req.user?.id || 1;
+        let email = req.body.email;
+        let reason = req.body.reason ? String(req.body.reason).trim() : null;
+        let rawSubProjectID = req.body.subProjectID;
+        let subProjectID = (!rawSubProjectID || rawSubProjectID === '-1' || rawSubProjectID === '-' || rawSubProjectID === 'null') ? '-1' : String(rawSubProjectID).trim();
 
-    const conn = await pool;
-    const request = conn.request();
-    request.input("projectID", projectID);
-    request.input("subProjectID", subProjectID);
-    request.input("userID", userID);
-    request.input("email", email);
-    request.input("reason", reason);
-
-    console.log(projectID, subProjectID, "projectID, subProjectID")
-    let todayDate = new Date();
-    let currentDate = moment(todayDate, 'MM-DD-YYYY',true).format("DD-MM-YYYY");
-        try 
-        {
-            const result = await request.query(`INSERT INTO tbl_project_drop_request (project_id, sub_project_id,
-                submitted_by, remarks) VALUES (@projectID, @subProjectID, @userID, @reason )`);
-
-            // Email Notification
-            try {
-                let CommonProjectIdLabel, CommonProjectNameLabel, CommonProjectID, CommonProjectName;
-                if(subProjectID == '-1' || subProjectID == '-' || !subProjectID)
-                {
-                    const query1 = await request.query('SELECT project_name from tbl_project where project_id = @projectID');
-                    const userProjectNameData = (query1.recordset && query1.recordset[0]) || {};
-
-                    CommonProjectIdLabel = "Project ID";
-                    CommonProjectNameLabel = "Project Name";
-                    CommonProjectID = projectID;
-                    CommonProjectName = userProjectNameData.project_name || projectID;
-                }
-                else
-                {
-                    const query1 = await request.query('SELECT sub_project_name from tbl_sub_project where sub_project_id = @subProjectID');
-                    const userProjectNameData = (query1.recordset && query1.recordset[0]) || {};
-
-                    CommonProjectIdLabel = "Sub Project ID";
-                    CommonProjectNameLabel = "Sub Project Name";
-                    CommonProjectID = subProjectID;
-                    CommonProjectName = userProjectNameData.sub_project_name || subProjectID;
-                }
-               
-                let subject = "Drop Project Request Submission";
-                let body = `Dear User,
-                            <br><br>
-                            Your drop request for the <b> ${CommonProjectIdLabel}: ${CommonProjectID} </b> has been successfully submitted to 
-                            the Ministry Admin on ${currentDate}
-                            <br><br>
-                            <strong>${CommonProjectIdLabel}: ${CommonProjectID}</strong>
-                            <br>
-                            <strong>${CommonProjectNameLabel}: ${CommonProjectName}</strong>
-                            <br>
-                            <strong>Date of Submission: ${currentDate}</strong>`;
-                        
-                if (email) {
-                    await sendEmail(email, null, subject, body, req, res);
-                } else if (!res.headersSent) {
-                    return res.sendStatus(200);
-                }
-            } catch (notifyErr) {
-                console.error("Email notification sending failed:", notifyErr);
-                if (!res.headersSent) {
-                    return res.sendStatus(200);
-                }
-            }
-        } 
-        catch (err) 
-        {
-            console.log(err);
-            if (!res.headersSent) {
-                return res.sendStatus(500);
-            }
+        if (!projectID) {
+            return res.status(400).json({ message: "Project ID is required for drop request." });
         }
+        if (!reason) {
+            return res.status(400).json({ message: "Reason is required for drop request." });
+        }
+
+        const conn = await pool;
+        const request = conn.request();
+        request.input("projectID", projectID);
+        request.input("subProjectID", subProjectID);
+        request.input("userID", userID);
+        request.input("reason", reason);
+
+        await request.query(`INSERT INTO tbl_project_drop_request (project_id, sub_project_id,
+            submitted_by, remarks) VALUES (@projectID, @subProjectID, @userID, @reason)`);
+
+        // Send email asynchronously if possible without failing the HTTP response
+        if (email) {
+            (async () => {
+                try {
+                    let CommonProjectIdLabel, CommonProjectNameLabel, CommonProjectID, CommonProjectName;
+                    const reqInfo = conn.request();
+                    reqInfo.input("projectID", projectID);
+                    reqInfo.input("subProjectID", subProjectID);
+
+                    if (subProjectID === '-1' || subProjectID === '-' || !subProjectID) {
+                        const q1 = await reqInfo.query('SELECT project_name from tbl_project where project_id = @projectID');
+                        const data = (q1.recordset && q1.recordset[0]) || {};
+                        CommonProjectIdLabel = "Project ID";
+                        CommonProjectNameLabel = "Project Name";
+                        CommonProjectID = projectID;
+                        CommonProjectName = data.project_name || projectID;
+                    } else {
+                        const q1 = await reqInfo.query('SELECT sub_project_name from tbl_sub_project where sub_project_id = @subProjectID');
+                        const data = (q1.recordset && q1.recordset[0]) || {};
+                        CommonProjectIdLabel = "Sub Project ID";
+                        CommonProjectNameLabel = "Sub Project Name";
+                        CommonProjectID = subProjectID;
+                        CommonProjectName = data.sub_project_name || subProjectID;
+                    }
+
+                    const currentDate = moment().format("DD-MM-YYYY");
+                    const subject = "Drop Project Request Submission";
+                    const body = `Dear User,
+                                <br><br>
+                                Your drop request for the <b> ${CommonProjectIdLabel}: ${CommonProjectID} </b> has been successfully submitted to 
+                                the Ministry Admin on ${currentDate}
+                                <br><br>
+                                <strong>${CommonProjectIdLabel}: ${CommonProjectID}</strong>
+                                <br>
+                                <strong>${CommonProjectNameLabel}: ${CommonProjectName}</strong>
+                                <br>
+                                <strong>Date of Submission: ${currentDate}</strong>`;
+
+                    const transporter = nodemailer.createTransport({
+                        host: "smtp.office365.com",
+                        port: 587,
+                        auth: {
+                            user: "sagarmanthansupport@ntcpwc.iitm.ac.in",
+                            pass: "Sagarmanthan@123",
+                        },
+                    });
+                    const mailOptions = {
+                        from: "sagarmanthansupport@ntcpwc.iitm.ac.in",
+                        to: email,
+                        subject: subject,
+                        html: body,
+                    };
+                    await transporter.sendMail(mailOptions);
+                } catch (emailErr) {
+                    console.log("Optional drop request email notification skipped or failed:", emailErr?.message);
+                }
+            })();
+        }
+
+        return res.status(200).json({ message: "Drop project request submitted successfully." });
+    } 
+    catch (err) 
+    {
+        console.error("Error in deleteProjectRequest:", err);
+        return res.status(500).json({ message: err?.message || "Internal server error" });
+    }
 };
 
 async function viewDropProjectList(req, res) {

@@ -3,7 +3,7 @@ import { ChevronDown, Globe, Type, Sun, Moon, Bell } from 'lucide-react';
 import sagarmanthanLogo from '../assets/sagarmanthan_logo.png';
 import { useTheme } from '../context/ThemeContext.jsx';
 import axios from 'axios';
-import { isOrgSeniorOfficer, getCurrentUserId } from '../utils/authSession';
+import { isOrgSeniorOfficer, getCurrentUserId, isOrganisationUser } from '../utils/authSession';
 import { TAB_USER_MODULE_PERMISSION } from '../utils/moduleAccess';
 import { API_BASE_URL } from '../config/api';
 import NotificationPanel from './NotificationPanel';
@@ -88,6 +88,11 @@ export default function Header({ onLogout, onProfileClick, onUserManagementClick
     let isMounted = true;
     const loadGlobalNotifCount = async () => {
       try {
+        if (isOrganisationUser()) {
+          if (isMounted) setDropCount(0);
+          return;
+        }
+
         const uid = getCurrentUserId() || 1;
         const res = await axios.get(`${API_BASE_URL}/viewdrop-projectlist/${uid}`);
         const data = res.data || [];

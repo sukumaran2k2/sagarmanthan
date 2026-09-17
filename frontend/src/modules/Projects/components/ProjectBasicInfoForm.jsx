@@ -29,7 +29,7 @@ import ProjectExpenditureOutlay from './ProjectExpenditureOutlay';
 
 const EMPTY_FORM = {
   projectID: '',
-  subProjectID: '-1',
+  subProjectID: '',
   projectName: '',
   projectBrief: '',
   estimatedProjectCost: '',
@@ -100,19 +100,20 @@ function getInitialForm(initialData) {
   const raw = initialData.raw || {};
 
   const projectID = initialData.projectId || initialData.projectID || raw.project_id || '';
-  const subProjectID =
+  const rawSubId =
     initialData.subProjectId ||
     initialData.subProjectID ||
-    raw.sub_project_id ||
-    (String(raw.sub_project_id || '').trim() ? raw.sub_project_id : '-1');
+    raw.sub_project_id;
+  const subProjectID =
+    rawSubId && String(rawSubId).trim() !== '-1' ? String(rawSubId).trim() : '';
 
   const sourceOfFunding =
     initialData.sourceOfFunding || raw.source_of_funding_id || raw.source_of_funding_names || '';
 
   return {
     ...EMPTY_FORM,
-    projectID: String(projectID || ''),
-    subProjectID: String(subProjectID || '-1'),
+    projectID: String(projectID || '').replace(/-/g, ''),
+    subProjectID: String(subProjectID || '').replace(/-/g, ''),
     projectName: initialData.projectName || raw.project_name || '',
     projectBrief: initialData.projectBrief || raw.project_brief || '',
     estimatedProjectCost:
@@ -303,12 +304,15 @@ function countWords(text) {
 }
 
 function isPositiveCost(value) {
+  if (value === '' || value == null) return false;
+  if (String(value).includes('-')) return false;
   const n = Number(value);
-  return value !== '' && value != null && Number.isFinite(n) && n > 0;
+  return Number.isFinite(n) && n > 0;
 }
 
 function resolveSectionForErrors(nextErrors) {
   if (
+    nextErrors.projectID ||
     nextErrors.projectName ||
     nextErrors.projectBrief ||
     nextErrors.primaryImplementingAgency ||
@@ -546,6 +550,28 @@ export default function ProjectBasicInfoForm({
     const nextErrors = {};
 
     if (sectionId === 'basic') {
+      const rawPid = String(formData.projectID || '').trim();
+      if (!rawPid) {
+        nextErrors.projectID = 'Project ID is required';
+      } else if (rawPid.includes('-') || Number(rawPid) < 0) {
+        nextErrors.projectID = 'Negative or hyphen (-) values are not accepted for Project ID';
+      } else if (rawPid.length < 2) {
+        nextErrors.projectID = 'Project ID must be at least 2 characters';
+      } else if (rawPid.length > 50) {
+        nextErrors.projectID = 'Project ID should not exceed 50 characters';
+      } else if (!/^[A-Za-z0-9_\/]+$/.test(rawPid)) {
+        nextErrors.projectID = 'Project ID can only contain letters, numbers, slashes, and underscores (no - values accepted)';
+      }
+
+      const rawSubPid = String(formData.subProjectID || '').trim();
+      if (rawSubPid) {
+        if (rawSubPid.includes('-') || Number(rawSubPid) < 0) {
+          nextErrors.subProjectID = 'Negative or hyphen (-) values are not accepted for Sub Project ID';
+        } else if (!/^[A-Za-z0-9_\/]+$/.test(rawSubPid)) {
+          nextErrors.subProjectID = 'Sub Project ID can only contain letters, numbers, slashes, and underscores';
+        }
+      }
+
       if (!String(formData.projectName || '').trim()) {
         nextErrors.projectName = 'Project name is required';
       } else if (countWords(formData.projectName) > 15) {
@@ -592,8 +618,14 @@ export default function ProjectBasicInfoForm({
       }
 
       if (!isEditMode && Number(formData.onSubProjectAvailable) === 1) {
-        if (!formData.subProjectNum || Number(formData.subProjectNum) < 2) {
-          nextErrors.subProjectNum = 'Enter at least two sub-projects';
+        const subCount = Number(formData.subProjectNum);
+        if (
+          !formData.subProjectNum ||
+          String(formData.subProjectNum).includes('-') ||
+          Number.isNaN(subCount) ||
+          subCount < 1
+        ) {
+          nextErrors.subProjectNum = 'Enter at least 1 sub-project (no negative values)';
         }
         const missingSubProject = (formData.subProjectsTab || []).some(
           (item) => !String(item?.subProjectName || '').trim()
@@ -609,10 +641,11 @@ export default function ProjectBasicInfoForm({
       if (
         formData.estimatedProjectCost === '' ||
         formData.estimatedProjectCost == null ||
+        String(formData.estimatedProjectCost).includes('-') ||
         Number.isNaN(cost) ||
-        cost < 0
+        cost <= 0
       ) {
-        nextErrors.estimatedProjectCost = 'Invalid estimated project cost';
+        nextErrors.estimatedProjectCost = 'Estimated project cost must be greater than 0 (no negative values)';
       }
 
       if (!selectedFundingSourceIds.length) {
@@ -669,8 +702,13 @@ export default function ProjectBasicInfoForm({
 
       if (formData.onLandAcquistion === 1) {
         const area = Number(formData.landAreaReq);
-        if (!String(formData.landAreaReq || '').trim() || Number.isNaN(area) || area <= 0) {
-          nextErrors.landAreaReq = 'Enter a valid land area required';
+        if (
+          !String(formData.landAreaReq || '').trim() ||
+          String(formData.landAreaReq).includes('-') ||
+          Number.isNaN(area) ||
+          area <= 0
+        ) {
+          nextErrors.landAreaReq = 'Enter a valid land area required (greater than 0, no negative values)';
         }
       }
 
@@ -679,11 +717,12 @@ export default function ProjectBasicInfoForm({
         if (
           formData.percentLandAcquired === '' ||
           formData.percentLandAcquired == null ||
+          String(formData.percentLandAcquired).includes('-') ||
           Number.isNaN(pct) ||
           pct < 0 ||
           pct > 100
         ) {
-          nextErrors.percentLandAcquired = 'Enter land acquired percentage between 0 and 100';
+          nextErrors.percentLandAcquired = 'Enter land acquired percentage between 0 and 100 (no negative values)';
         }
       }
     }
@@ -779,7 +818,7 @@ export default function ProjectBasicInfoForm({
       return;
     }
 
-    const saved = await onSubmit?.(formData);
+    const saved = await onSubmit?.({ ...formData, pendingFilesByType });
     if (!isEditMode && saved === true) {
       clearProjectBasicInfoDraft();
       setDraftMeta(null);
@@ -954,8 +993,25 @@ export default function ProjectBasicInfoForm({
   const uploadPendingDocuments = (folderName) => {
     const files = pendingFilesByType[folderName] || [];
     if (!files.length) return;
-    onUploadDocuments?.({ folderName, files });
-    clearPendingDocuments(folderName);
+    if (isEditMode) {
+      onUploadDocuments?.({ folderName, files });
+      clearPendingDocuments(folderName);
+    } else {
+      if (formData.projectID && String(formData.projectID).trim()) {
+        onUploadDocuments?.({
+          folderName,
+          files,
+          projectID: String(formData.projectID).trim(),
+          subProjectID: String(formData.subProjectID || '-1').trim(),
+        });
+        clearPendingDocuments(folderName);
+      } else {
+        notify?.(
+          'Files queued for upload. They will be uploaded automatically when you save the project, or enter Project ID first.',
+          'info'
+        );
+      }
+    }
   };
 
   const completedSections = useMemo(() => {
@@ -984,7 +1040,7 @@ export default function ProjectBasicInfoForm({
     Object.keys(errors).forEach((key) => {
       if (!errors[key]) return;
       if ([
-        'projectName', 'projectBrief', 'primaryImplementingAgency', 'newImplementingAgency',
+        'projectID', 'projectName', 'projectBrief', 'primaryImplementingAgency', 'newImplementingAgency',
         'newImplementingAgencyCode', 'projectCategory', 'scheme', 'projectType',
         'implementationType', 'onSubProjectAvailable', 'subProjectNum', 'subProjectsTab'
       ].includes(key)) counts.basic++;
@@ -1118,19 +1174,41 @@ export default function ProjectBasicInfoForm({
                 <input
                   type="text"
                   value={formData.projectID || ''}
-                  disabled
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-700"
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/-/g, '');
+                    handleInputChange('projectID', cleanVal);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === '-' || e.key === 'Subtract') {
+                      e.preventDefault();
+                    }
+                  }}
+                  disabled={!canInteract}
+                  placeholder="Enter project ID"
+                  className={getInputClass('projectID')}
                 />
+                <FieldError error={errors.projectID} />
               </div>
 
               <div>
-                <Label required>Sub Project ID</Label>
+                <Label>Sub Project ID</Label>
                 <input
                   type="text"
                   value={formData.subProjectID || ''}
-                  disabled
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-700"
+                  onChange={(e) => {
+                    const cleanVal = e.target.value.replace(/-/g, '');
+                    handleInputChange('subProjectID', cleanVal);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === '-' || e.key === 'Subtract') {
+                      e.preventDefault();
+                    }
+                  }}
+                  disabled={!canInteract}
+                  placeholder="Enter sub project ID"
+                  className={getInputClass('subProjectID')}
                 />
+                <FieldError error={errors.subProjectID} />
               </div>
               
               <div className="md:col-span-2">
@@ -1164,8 +1242,17 @@ export default function ProjectBasicInfoForm({
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
                   value={formData.estimatedProjectCost}
-                  onChange={(e) => handleInputChange('estimatedProjectCost', e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/-/g, '');
+                    handleInputChange('estimatedProjectCost', val);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                      e.preventDefault();
+                    }
+                  }}
                   disabled={!canInteract}
                   placeholder="0.00"
                   className={getInputClass('estimatedProjectCost')}
@@ -1497,7 +1584,7 @@ export default function ProjectBasicInfoForm({
                         disabled={!canInteract}
                         onChange={() => {
                           handleInputChange('onSubProjectAvailable', 1);
-                          if (Number(formData.subProjectNum) < 2) setSubProjectCount(2);
+                          if (Number(formData.subProjectNum) < 1) setSubProjectCount(1);
                         }}
                       />
                       Yes
@@ -1522,10 +1609,18 @@ export default function ProjectBasicInfoForm({
                       <Label required>Number of Sub-projects</Label>
                       <input
                         type="number"
-                        min="2"
+                        min="1"
                         value={formData.subProjectNum || ''}
                         disabled={!canInteract}
-                        onChange={(e) => setSubProjectCount(e.target.value)}
+                        onChange={(e) => {
+                          const cleanVal = e.target.value.replace(/-/g, '');
+                          setSubProjectCount(cleanVal);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                            e.preventDefault();
+                          }
+                        }}
                         className={getInputClass('subProjectNum', 'w-40')}
                       />
                       <FieldError error={errors.subProjectNum} />
@@ -1674,8 +1769,17 @@ export default function ProjectBasicInfoForm({
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={formData.gbsComponents}
-                      onChange={(e) => handleInputChange('gbsComponents', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/-/g, '');
+                        handleInputChange('gbsComponents', val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                          e.preventDefault();
+                        }
+                      }}
                       placeholder="0.00"
                       className={getInputClass('gbsComponents')}
                     />
@@ -1688,8 +1792,17 @@ export default function ProjectBasicInfoForm({
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={formData.iebrComponents}
-                      onChange={(e) => handleInputChange('iebrComponents', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/-/g, '');
+                        handleInputChange('iebrComponents', val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                          e.preventDefault();
+                        }
+                      }}
                       placeholder="0.00"
                       className={getInputClass('iebrComponents')}
                     />
@@ -1702,8 +1815,17 @@ export default function ProjectBasicInfoForm({
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={formData.pppComponents}
-                      onChange={(e) => handleInputChange('pppComponents', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/-/g, '');
+                        handleInputChange('pppComponents', val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                          e.preventDefault();
+                        }
+                      }}
                       placeholder="0.00"
                       className={getInputClass('pppComponents')}
                     />
@@ -1716,8 +1838,17 @@ export default function ProjectBasicInfoForm({
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={formData.loansComponents}
-                      onChange={(e) => handleInputChange('loansComponents', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/-/g, '');
+                        handleInputChange('loansComponents', val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                          e.preventDefault();
+                        }
+                      }}
                       placeholder="0.00"
                       className={getInputClass('loansComponents')}
                     />
@@ -1730,8 +1861,17 @@ export default function ProjectBasicInfoForm({
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={formData.sagarmalaComponents}
-                      onChange={(e) => handleInputChange('sagarmalaComponents', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/-/g, '');
+                        handleInputChange('sagarmalaComponents', val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                          e.preventDefault();
+                        }
+                      }}
                       placeholder="0.00"
                       className={getInputClass('sagarmalaComponents')}
                     />
@@ -1744,8 +1884,17 @@ export default function ProjectBasicInfoForm({
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={formData.stateGovFundComponents}
-                      onChange={(e) => handleInputChange('stateGovFundComponents', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/-/g, '');
+                        handleInputChange('stateGovFundComponents', val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                          e.preventDefault();
+                        }
+                      }}
                       placeholder="0.00"
                       className={getInputClass('stateGovFundComponents')}
                     />
@@ -1758,8 +1907,17 @@ export default function ProjectBasicInfoForm({
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={formData.multiFundComponents}
-                      onChange={(e) => handleInputChange('multiFundComponents', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/-/g, '');
+                        handleInputChange('multiFundComponents', val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                          e.preventDefault();
+                        }
+                      }}
                       placeholder="0.00"
                       className={getInputClass('multiFundComponents')}
                     />
@@ -1772,8 +1930,17 @@ export default function ProjectBasicInfoForm({
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={formData.pmmsyComponents}
-                      onChange={(e) => handleInputChange('pmmsyComponents', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/-/g, '');
+                        handleInputChange('pmmsyComponents', val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                          e.preventDefault();
+                        }
+                      }}
                       placeholder="0.00"
                       className={getInputClass('pmmsyComponents')}
                     />
@@ -1786,8 +1953,17 @@ export default function ProjectBasicInfoForm({
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={formData.otherSourceFundingComp}
-                      onChange={(e) => handleInputChange('otherSourceFundingComp', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/-/g, '');
+                        handleInputChange('otherSourceFundingComp', val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === '-' || e.key === 'Subtract' || e.key === 'e' || e.key === 'E') {
+                          e.preventDefault();
+                        }
+                      }}
                       placeholder="0.00"
                       className={getInputClass('otherSourceFundingComp')}
                     />
@@ -2236,16 +2412,10 @@ export default function ProjectBasicInfoForm({
               </div>
             </div>
 
-            {canInteract && isEditMode && (
+            {canInteract && (
               <p className="text-[11px] font-semibold text-slate-500">
                 Choose files under each type below. You can remove a wrong selection before uploading. Max 20 MB per file.
               </p>
-            )}
-
-            {!isEditMode && (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-xs text-slate-500 font-semibold">
-                Save basic information first to upload Project PPT, PERT Chart, and project images.
-              </div>
             )}
 
             <div className="space-y-4">
@@ -2272,7 +2442,7 @@ export default function ProjectBasicInfoForm({
                     </div>
 
                     <div className="p-4 space-y-3">
-                      {canInteract && isEditMode ? (
+                      {canInteract ? (
                         <div className="flex flex-col sm:flex-row sm:items-end gap-3">
                           <div className="flex-1 min-w-0">
                             <Label>Select file(s)</Label>

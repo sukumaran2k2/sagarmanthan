@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { FolderKanban } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import ProjectBasicInformationPage from './pages/ProjectBasicInformationPage';
 import DropRequestsPage from './pages/DropRequestsPage';
+import ProjectDetailView from './components/ProjectDetailView';
 import { useProjectsPermissions } from './hooks/useProjectsPermissions';
 import { resolveProjectsListView } from './views';
 import { fetchDropRequests } from './api';
@@ -12,10 +13,13 @@ import { getCurrentUserId } from '../../utils/authSession';
 
 const INIT_TAB_KEY = 'projectsInitTab';
 
-function resolveSubTabId(label, canAdd) {
+function resolveSubTabId(label, canAdd, isOrgUser = false) {
   const key = String(label || '').toLowerCase().trim();
-  if (key.includes('basic') || key.includes('input')) return canAdd ? 'basic-info' : 'list';
-  if (key.includes('drop') || key === 'view-drop-request' || key === 'projects-droprequests') return 'drop-requests';
+  if (key.includes('view-project') || key.includes('detail')) return 'view-project';
+  if (key.includes('basic') || key.includes('input')) return (canAdd && isOrgUser) ? 'basic-info' : 'list';
+  if (key.includes('drop') || key === 'view-drop-request' || key === 'projects-droprequests') {
+    return isOrgUser ? 'list' : 'drop-requests';
+  }
   return 'list';
 }
 
@@ -25,6 +29,8 @@ export default function Projects({
   triggerNotification,
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { id: routeId } = useParams();
   const permissions = useProjectsPermissions();
   const ListView = useMemo(
     () => resolveProjectsListView(permissions.uiViewCode),
@@ -35,12 +41,19 @@ export default function Projects({
     const init = sessionStorage.getItem(INIT_TAB_KEY);
     if (init) {
       sessionStorage.removeItem(INIT_TAB_KEY);
-      return resolveSubTabId(init, permissions.canAdd);
+      return resolveSubTabId(init, permissions.canAdd, permissions.isOrganisationUser);
     }
-    if (location.pathname.includes('view-drop-request') || location.pathname.includes('projects-dropRequests')) {
-      return 'drop-requests';
+    const path = String(location.pathname || '').toLowerCase();
+    if (path.includes('view-project') || path.includes('/detail')) {
+      return 'view-project';
     }
-    return resolveSubTabId(activeSubTabProp, permissions.canAdd);
+    if (path.includes('view-drop-request') || path.includes('drop-request')) {
+      return permissions.isOrganisationUser ? 'list' : 'drop-requests';
+    }
+    if (path.includes('input-form') || path.includes('basic-info') || path.includes('add-project')) {
+      return (permissions.canAdd && permissions.isOrganisationUser) ? 'basic-info' : 'list';
+    }
+    return resolveSubTabId(activeSubTabProp, permissions.canAdd, permissions.isOrganisationUser);
   });
   const [dropRequestCount, setDropRequestCount] = useState(0);
   const [listRefreshKey, setListRefreshKey] = useState(0);
@@ -49,6 +62,9 @@ export default function Projects({
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
+    // Only fetch drop request counts for Ministry users (not Organisation view)
+    if (permissions.isOrganisationUser) return;
+
     let isMounted = true;
     const fetchCount = async () => {
       try {
@@ -75,7 +91,7 @@ export default function Projects({
       clearInterval(interval);
       window.removeEventListener('drop-request-updated', fetchCount);
     };
-  }, []);
+  }, [permissions.isOrganisationUser]);
 
   const notify = useCallback(
     (message, type = 'success') => {
@@ -91,45 +107,63 @@ export default function Projects({
   );
 
   useEffect(() => {
-    if (location.pathname.includes('view-drop-request') || location.pathname.includes('projects-dropRequests')) {
+    const path = String(location.pathname || '').toLowerCase();
+    if (path.includes('view-project') || path.includes('/detail')) {
+      setManualSubTab('view-project');
+    } else if (path.includes('view-drop-request') || path.includes('drop-request')) {
       setEditingRecord(null);
       setFormReadOnly(false);
-      setManualSubTab('drop-requests');
+      setManualSubTab(permissions.isOrganisationUser ? 'list' : 'drop-requests');
+    } else if (path.includes('input-form') || path.includes('basic-info') || path.includes('add-project')) {
+      setEditingRecord(null);
+      setFormReadOnly(false);
+      setManualSubTab((permissions.canAdd && permissions.isOrganisationUser) ? 'basic-info' : 'list');
+    } else if (path.includes('project-list') || path.includes('data-list')) {
+      setEditingRecord(null);
+      setFormReadOnly(false);
+      setManualSubTab('list');
     }
-  }, [location.pathname]);
+  }, [location.pathname, permissions.canAdd, permissions.isOrganisationUser]);
 
   useEffect(() => {
     const onMenu = (event) => {
       setEditingRecord(null);
       setFormReadOnly(false);
-      setManualSubTab(resolveSubTabId(event.detail, permissions.canAdd));
+      setManualSubTab(resolveSubTabId(event.detail, permissions.canAdd, permissions.isOrganisationUser));
     };
 
     window.addEventListener('projects-subtab', onMenu);
     return () => window.removeEventListener('projects-subtab', onMenu);
-  }, [permissions.canAdd]);
+  }, [permissions.canAdd, permissions.isOrganisationUser]);
 
   const tabs = useMemo(() => {
     const items = [{ id: 'list', label: 'Data List' }];
-    if (permissions.canAdd) {
+    // Input Form tab only for Organisation view, NOT on ministry view
+    if (permissions.isOrganisationUser && permissions.canAdd) {
       items.push({ id: 'basic-info', label: 'Input Form' });
     }
-    items.push({
-      id: 'drop-requests',
-      label: 'Drop Requests',
-      count: dropRequestCount,
-    });
+    // Drop Requests tab only for Ministry view, NOT on organisation view
+    if (!permissions.isOrganisationUser) {
+      items.push({
+        id: 'drop-requests',
+        label: 'Drop Requests',
+        count: dropRequestCount,
+      });
+    }
     return items;
-  }, [permissions.canAdd, dropRequestCount]);
+  }, [permissions.canAdd, permissions.isOrganisationUser, dropRequestCount]);
 
   const activeSubTab = useMemo(() => {
-    if (editingRecord) return 'basic-info';
-    const base = manualSubTab ?? resolveSubTabId(activeSubTabProp, permissions.canAdd);
-    if (base === 'basic-info' && !permissions.canAdd) {
+    if (editingRecord && manualSubTab !== 'view-project') return 'basic-info';
+    const base = manualSubTab ?? resolveSubTabId(activeSubTabProp, permissions.canAdd, permissions.isOrganisationUser);
+    if (base === 'basic-info' && (!permissions.canAdd || !permissions.isOrganisationUser)) {
+      return 'list';
+    }
+    if (base === 'drop-requests' && permissions.isOrganisationUser) {
       return 'list';
     }
     return base;
-  }, [manualSubTab, activeSubTabProp, permissions.canAdd, editingRecord]);
+  }, [manualSubTab, activeSubTabProp, permissions.canAdd, permissions.isOrganisationUser, editingRecord]);
 
   if (!permissions.canView) {
     return (
@@ -137,6 +171,29 @@ export default function Projects({
         moduleName="Projects"
         onGoHome={onGoHome}
       />
+    );
+  }
+
+  // When directly viewing a project via route/subtab
+  if (activeSubTab === 'view-project') {
+    return (
+      <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
+        <ProjectDetailView
+          projectId={routeId || editingRecord?.projectId || editingRecord?.project_id}
+          project={editingRecord || location.state?.project}
+          canEdit={permissions.canEdit}
+          onBack={() => {
+            setEditingRecord(null);
+            setManualSubTab('list');
+            navigate('/projects/project/project-list');
+          }}
+          onEdit={(proj) => {
+            setEditingRecord(proj);
+            setManualSubTab('basic-info');
+            navigate('/projects/project/input-form');
+          }}
+        />
+      </div>
     );
   }
 
@@ -187,6 +244,7 @@ export default function Projects({
               setEditingRecord(null);
               setFormReadOnly(false);
               setManualSubTab('basic-info');
+              navigate('/projects/project/input-form');
             }}
             onOpenBasicInfo={(row, options = {}) => {
               setEditingRecord(row);
@@ -194,6 +252,17 @@ export default function Projects({
                 Boolean(options.readOnly) || (!permissions.canEdit && permissions.canView)
               );
               setManualSubTab('basic-info');
+              navigate('/projects/project/input-form');
+            }}
+            onOpenProjectDetail={(row) => {
+              setEditingRecord(row);
+              setManualSubTab('view-project');
+              const pid = row?.projectId || row?.project_id || row?.raw?.project_id;
+              const subId = row?.subProjectId || row?.sub_project_id || row?.raw?.sub_project_id;
+              const cleanSub = subId && subId !== '-' && subId !== 'null' ? subId : null;
+              if (pid) {
+                navigate(`/projects/project/view-project/${pid}${cleanSub ? `?subId=${cleanSub}` : ''}`, { state: { project: row } });
+              }
             }}
           />
         ) : null}
@@ -217,7 +286,7 @@ export default function Projects({
           />
         ) : null}
 
-        {activeSubTab === 'drop-requests' ? (
+        {activeSubTab === 'drop-requests' && !permissions.isOrganisationUser ? (
           <DropRequestsPage notify={notify} />
         ) : null}
       </div>

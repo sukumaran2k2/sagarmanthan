@@ -19,12 +19,22 @@ export const ROUTE_MAP = {
   'landing': '',
   'profile': 'profile',
 
+  'projects': 'projects/project/project-list',
   'projects-dashboard': 'projects/project/project-dashboard',
   'projects-list': 'projects/project/project-list',
+  'projects-input-form': 'projects/project/input-form',
+  'projects-basic-info': 'projects/project/basic-info',
   'projects-less5cr': 'projects/project/projects-less-than-5-cr',
   'projects-lumpsum': 'projects/project/lumpsum-iwai',
   'projects-dropRequests': 'projects/project/view-drop-request',
+  'projects-drop-requests': 'projects/project/view-drop-request',
   'projects-reports': 'projects/project/reports',
+  'Project List': 'projects/project/project-list',
+  'Projects Less Than 5 Cr': 'projects/project/projects-less-than-5-cr',
+  'Lumpsum - IWAI': 'projects/project/lumpsum-iwai',
+  'View Drop Request': 'projects/project/view-drop-request',
+  'Projects Input Form': 'projects/project/input-form',
+  'Projects Reports': 'projects/project/reports',
 
   // CSR Projects nested routes
   'CSR Dashboard': 'projects/csr-projects/dashboard',
@@ -173,6 +183,15 @@ export const getTabFromSlug = (slug) => {
   if (!cleanSlug || cleanSlug === 'landing') return 'landing';
   
   if (cleanSlug.startsWith('projects/csr-projects') || cleanSlug.startsWith('projects/csr-project')) return 'CSR Projects';
+  if (cleanSlug.startsWith('projects/project/view-drop-request') || cleanSlug.startsWith('projects/project/drop-requests') || cleanSlug.startsWith('projects/view-drop-request') || cleanSlug.startsWith('projects/drop-requests')) return 'projects-dropRequests';
+  if (cleanSlug.startsWith('projects/project/project-dashboard') || cleanSlug.startsWith('projects/project/dashboard') || cleanSlug.startsWith('projects/project-dashboard') || cleanSlug.startsWith('projects/dashboard')) return 'projects-dashboard';
+  if (cleanSlug.startsWith('projects/project/projects-less-than-5-cr') || cleanSlug.startsWith('projects/projects-less-than-5-cr')) return 'projects-less5cr';
+  if (cleanSlug.startsWith('projects/project/lumpsum-iwai') || cleanSlug.startsWith('projects/lumpsum-iwai')) return 'projects-lumpsum';
+  if (cleanSlug.startsWith('projects/project/reports') || cleanSlug.startsWith('projects/reports')) return 'projects-reports';
+  if (cleanSlug.startsWith('projects/project/input-form') || cleanSlug.startsWith('projects/project/basic-info') || cleanSlug.startsWith('projects/input-form') || cleanSlug.startsWith('projects/basic-info')) return 'projects-input-form';
+  if (cleanSlug.startsWith('projects/project/view-project') || cleanSlug.startsWith('projects/view-project') || cleanSlug.startsWith('projects/project/detail')) return 'projects-view-project';
+  if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
+
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
@@ -208,6 +227,8 @@ const getBreadcrumbs = (tab) => {
 
   if (tab === 'projects-dashboard') return ['Home', 'Projects', 'Project', 'Project Dashboard'];
   if (tab === 'projects-list') return ['Home', 'Projects', 'Project', 'Project List'];
+  if (tab === 'projects-input-form' || tab === 'projects-basic-info') return ['Home', 'Projects', 'Project', 'Input Form'];
+  if (tab === 'projects-view-project') return ['Home', 'Projects', 'Project', 'View Project Details'];
   if (tab === 'projects-less5cr') return ['Home', 'Projects', 'Project', 'Projects Less Than 5 Cr'];
   if (tab === 'projects-lumpsum') return ['Home', 'Projects', 'Project', 'Lumpsum - IWAI'];
   if (tab === 'projects-dropRequests') return ['Home', 'Projects', 'Project', 'View Drop Request'];

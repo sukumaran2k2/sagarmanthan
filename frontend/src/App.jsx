@@ -241,13 +241,75 @@ export default function App() {
             <Route path="profile" element={<ProfileView triggerNotification={triggerNotification} />} />
 
             {/* Projects Routes */}
+            <Route path="projects" element={<Navigate to="/projects/project/project-list" replace />} />
+            <Route path="projects/project" element={<Navigate to="/projects/project/project-list" replace />} />
             <Route path="projects/project/project-dashboard" element={<DashboardView projects={projects} />} />
+            <Route path="projects/project/dashboard" element={<DashboardView projects={projects} />} />
+            <Route path="projects/project-dashboard" element={<DashboardView projects={projects} />} />
+            <Route path="projects/dashboard" element={<DashboardView projects={projects} />} />
+
             <Route path="projects/project/project-list" element={
               <Projects
                 onGoHome={() => navigate('/')}
                 triggerNotification={triggerNotification}
               />
             } />
+            <Route path="projects/project/data-list" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project/list" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project-list" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/data-list" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/list" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
+            <Route path="projects/project/input-form" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project/basic-info" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/input-form" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/basic-info" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
             <Route path="projects/project/projects-less-than-5-cr" element={
               <Projects
                 projects={projects}
@@ -256,6 +318,15 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
+            <Route path="projects/projects-less-than-5-cr" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
             <Route path="projects/project/lumpsum-iwai" element={
               <Projects
                 projects={projects}
@@ -264,6 +335,15 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
+            <Route path="projects/lumpsum-iwai" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
             <Route path="projects/project/view-drop-request" element={
               <Projects
                 projects={projects}
@@ -272,11 +352,81 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
+            <Route path="projects/project/drop-requests" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/view-drop-request" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/drop-requests" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
             <Route path="projects/project/reports" element={
               <Projects
                 projects={projects}
                 onAddProject={handleAddProject}
                 onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/reports" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
+            <Route path="projects/project/view-project/:id/:subProjectId" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project/view-project/:id" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project/view-project" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/view-project/:id/:subProjectId" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/view-project/:id" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/view-project" element={
+              <Projects
+                onGoHome={() => navigate('/')}
                 triggerNotification={triggerNotification}
               />
             } />

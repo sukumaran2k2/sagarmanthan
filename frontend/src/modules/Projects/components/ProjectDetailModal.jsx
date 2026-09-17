@@ -6,6 +6,7 @@ import {
   Clock, ArrowRight, ExternalLink, Edit, Anchor
 } from 'lucide-react';
 import { API_BASE, downloadProjectDocumentFile } from '../api';
+import ProjectLocationMap from './ProjectLocationMap';
 
 export default function ProjectDetailModal({ project, onClose, onEdit }) {
   if (!project) return null;
@@ -253,6 +254,19 @@ export default function ProjectDetailModal({ project, onClose, onEdit }) {
                   <span className="text-[10px] text-slate-400 font-bold block">MP Constituency</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-200">{raw.mp_constituency_names || raw.mpConstituency || '-'}</span>
                 </div>
+              </div>
+
+              {/* Leaflet Map Preview */}
+              <div className="pt-2">
+                <ProjectLocationMap
+                  project={project}
+                  stateName={stateName}
+                  districtName={districtName}
+                  projectName={projectName}
+                  stageName={stage}
+                  cost={cost}
+                  height="160px"
+                />
               </div>
             </div>
 
