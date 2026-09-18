@@ -15,6 +15,7 @@ import {
   uploadProjectDocuments,
   deleteProjectDocumentByName,
   downloadProjectDocumentFile,
+  fetchBasicInfoCheckPoints,
   fetchPlanningCheckPoints,
   fetchUnderTenderingCheckPoints,
   fetchUnderImplementationCheckPoints,
@@ -27,8 +28,12 @@ import {
   getProjectDocumentTypeLabel,
 } from '../utils/constants';
 import {
+  DEFAULT_STAGE_UNLOCK,
+  buildStageUnlockState,
+  isBasicInfoCheckpointMet,
   isImplementationCheckpointMet,
   isPlanningCheckpointMet,
+  isStageUnlocked,
   isTenderingCheckpointMet,
   nextActiveStageAfterSave,
   stageLabelFromStageId,
@@ -36,6 +41,12 @@ import {
 
 function toBit(value) {
   return value ? 1 : 0;
+}
+
+function getApiErrorMessage(error, fallbackMessage) {
+  const data = error?.response?.data;
+  if (typeof data === 'string' && data.trim()) return data.trim();
+  return data?.message || data?.error || fallbackMessage;
 }
 
 function computePlanningStageId(payload) {
@@ -68,6 +79,21 @@ function buildEditDataFromRow(row, previous = null) {
 
   return {
     ...(previous || {}),
+    // Prefer numeric FK ids from edit API over display names from the list row.
+    primaryImplementingAgency: row?.primary_ia_id ?? previous?.primaryImplementingAgency,
+    secondaryImplementingAgency: row?.secondary_ia_id ?? previous?.secondaryImplementingAgency,
+    primaryFundingAgency: row?.primary_funding_agency_id ?? previous?.primaryFundingAgency,
+    secondaryFundingAgency: row?.secondary_funding_agency_id ?? previous?.secondaryFundingAgency,
+    scheme: row?.scheme_id ?? previous?.scheme,
+    projectCategory: row?.project_category_id ?? previous?.projectCategory,
+    projectOutput: row?.project_output_id ?? previous?.projectOutput,
+    projectOutcome: row?.project_outcome_id ?? previous?.projectOutcome,
+    sourceOfFunding: row?.source_of_funding_id ?? previous?.sourceOfFunding,
+    state: row?.state_id ?? previous?.state,
+    district: row?.district_id ?? previous?.district,
+    mpConstituency: row?.mp_constituency_id ?? previous?.mpConstituency,
+    projectInitiatedDate: row?.project_intiated_date || row?.project_initiated_date || previous?.projectInitiatedDate,
+    targetCompletionDate: row?.target_completion_date || previous?.targetCompletionDate,
     stage: stageLabel,
     selectedStage: stageLabel,
     raw: {
@@ -95,6 +121,7 @@ export default function ProjectBasicInformationPage({
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [uploadingDocuments, setUploadingDocuments] = useState(false);
   const [stageRefreshKey, setStageRefreshKey] = useState(0);
+  const [stageUnlock, setStageUnlock] = useState(DEFAULT_STAGE_UNLOCK);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState({
     open: false,
     documentName: '',
@@ -109,7 +136,8 @@ export default function ProjectBasicInformationPage({
   const canSubmit =
     !forceReadOnly &&
     !permissions.isViewOnlyAdmin &&
-    ((isUpdateMode && permissions.canEdit) || (!isUpdateMode && permissions.canAdd));
+    ((isUpdateMode && permissions.canEdit) ||
+      (!isUpdateMode && permissions.canAdd && permissions.viewMode === 'org'));
   const readOnly = forceReadOnly || permissions.isViewOnlyAdmin || !canSubmit;
 
   const [activeStage, setActiveStage] = useState(() => {
@@ -161,6 +189,38 @@ export default function ProjectBasicInformationPage({
     }
   };
 
+  /** Same field checkpoints as old portal Next-button unlock (no Clearances). */
+  const refreshStageUnlock = async (projectID, subProjectID) => {
+    if (!projectID) {
+      setStageUnlock(DEFAULT_STAGE_UNLOCK);
+      return DEFAULT_STAGE_UNLOCK;
+    }
+
+    const subId = subProjectID || '-1';
+
+    try {
+      const [biRes, psRes, utRes, uiRes] = await Promise.all([
+        fetchBasicInfoCheckPoints(projectID, subId),
+        fetchPlanningCheckPoints(projectID, subId),
+        fetchUnderTenderingCheckPoints(projectID, subId),
+        fetchUnderImplementationCheckPoints(projectID, subId),
+      ]);
+
+      const nextUnlock = buildStageUnlockState({
+        basicMet: isBasicInfoCheckpointMet(biRes?.data),
+        planningMet: isPlanningCheckpointMet(psRes?.data),
+        tenderingMet: isTenderingCheckpointMet(utRes?.data),
+        implementationMet: isImplementationCheckpointMet(uiRes?.data),
+      });
+      setStageUnlock(nextUnlock);
+      return nextUnlock;
+    } catch (error) {
+      console.error(error);
+      setStageUnlock(DEFAULT_STAGE_UNLOCK);
+      return DEFAULT_STAGE_UNLOCK;
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -168,14 +228,16 @@ export default function ProjectBasicInformationPage({
       if (!isUpdateMode) {
         setEditData(initialData || null);
         setDocuments([]);
+        setStageUnlock(DEFAULT_STAGE_UNLOCK);
         return;
       }
 
       setHydrating(true);
       try {
-        const [response, docsResponse] = await Promise.all([
+        const [response, docsResponse, unlock] = await Promise.all([
           fetchEditProjectData(identity.projectID, identity.subProjectID),
           fetchProjectDocuments(identity.projectID, identity.subProjectID),
+          refreshStageUnlock(identity.projectID, identity.subProjectID),
         ]);
 
         const row = Array.isArray(response?.data) ? response.data[0] : null;
@@ -190,11 +252,22 @@ export default function ProjectBasicInformationPage({
         }
 
         setDocuments(docs);
+
+        // If URL/list stage points at a locked tab, fall back to highest unlocked.
+        setActiveStage((prev) => {
+          if (isStageUnlocked(prev, unlock)) return prev;
+          if (unlock.completion) return 'completion';
+          if (unlock.implementation) return 'implementation';
+          if (unlock.tendering) return 'tendering';
+          if (unlock.planning) return 'planning';
+          return 'basic';
+        });
       } catch (error) {
         console.error(error);
         if (!mounted) return;
         setEditData(initialData || null);
         setDocuments([]);
+        setStageUnlock(DEFAULT_STAGE_UNLOCK);
         notify?.('Failed to load full project details for update. Showing available data.', 'error');
       } finally {
         if (mounted) setHydrating(false);
@@ -447,7 +520,14 @@ export default function ProjectBasicInformationPage({
       }
 
       if (isUpdateMode) {
-        setActiveStage('planning');
+        const unlock = await refreshStageUnlock(createdId, createdSubId);
+        setActiveStage(unlock.planning ? 'planning' : 'basic');
+        if (!unlock.planning) {
+          notify?.(
+            'Basic information saved. Project Type is required to unlock Planning & Sanctioning.',
+            'info'
+          );
+        }
       } else {
         onSuccess?.();
       }
@@ -455,7 +535,9 @@ export default function ProjectBasicInformationPage({
     } catch (error) {
       console.error(error);
       notify?.(
-        error?.response?.data?.message || 'Unable to save project details. Please try again.',
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          'Unable to save project details. Please try again.',
         'error'
       );
       return false;
@@ -474,50 +556,38 @@ export default function ProjectBasicInformationPage({
     return { stageId: row.current_project_stage_id };
   };
 
+  const handleRevisedTargetSaved = async ({ projectID, subProjectID } = {}) => {
+    const liveIdentity = getProjectIdentity(editData || initialData || {});
+    const nextProjectID = projectID || liveIdentity.projectID;
+    const nextSubProjectID = subProjectID || liveIdentity.subProjectID || '-1';
+    if (!nextProjectID) return;
+    await refreshProjectStageState(nextProjectID, nextSubProjectID);
+  };
+
   const syncWorkbenchAfterStageSave = async (savedStageId, projectID, subProjectID) => {
     setStageRefreshKey((prev) => prev + 1);
 
-    let planningUnlocked = false;
-    let tenderingUnlocked = false;
-    let implementationUnlocked = false;
-
-    try {
-      if (savedStageId === 'planning') {
-        const res = await fetchPlanningCheckPoints(projectID, subProjectID);
-        planningUnlocked = isPlanningCheckpointMet(res?.data);
-      } else if (savedStageId === 'tendering') {
-        const res = await fetchUnderTenderingCheckPoints(projectID, subProjectID);
-        tenderingUnlocked = isTenderingCheckpointMet(res?.data);
-      } else if (savedStageId === 'implementation') {
-        const res = await fetchUnderImplementationCheckPoints(projectID, subProjectID);
-        implementationUnlocked = isImplementationCheckpointMet(res?.data);
-      } else if (savedStageId === 'completion') {
-        implementationUnlocked = true;
-      }
-    } catch (error) {
-      console.error(error);
-    }
-
+    const unlock = await refreshStageUnlock(projectID, subProjectID);
     await refreshProjectStageState(projectID, subProjectID);
 
     const nextTab = nextActiveStageAfterSave(savedStageId, {
-      planningUnlocked,
-      tenderingUnlocked,
-      implementationUnlocked,
+      planningUnlocked: unlock.tendering,
+      tenderingUnlocked: unlock.implementation,
+      implementationUnlocked: unlock.completion,
     });
     setActiveStage(nextTab);
 
-    if (savedStageId === 'planning' && !planningUnlocked) {
+    if (savedStageId === 'planning' && !unlock.tendering) {
       notify?.(
         'Planning saved. Complete Admin/Chairman approval with sanctioned cost to unlock Under Tendering.',
         'info'
       );
-    } else if (savedStageId === 'tendering' && !tenderingUnlocked) {
+    } else if (savedStageId === 'tendering' && !unlock.implementation) {
       notify?.(
         'Tendering saved. Contract signed actual date and awarded project cost are required to unlock Under Implementation.',
         'info'
       );
-    } else if (savedStageId === 'implementation' && !implementationUnlocked) {
+    } else if (savedStageId === 'implementation' && !unlock.completion) {
       notify?.(
         'Implementation saved. Final milestone actual end date is required to unlock Completion.',
         'info'
@@ -592,59 +662,75 @@ export default function ProjectBasicInformationPage({
         const rows = stageData.rows || [];
         const byId = (id) => rows.find((row) => Number(row.id) === id) || {};
 
-        await submitUnderTenderingDates({
-          projectID: liveIdentity.projectID,
-          subProjectID: liveIdentity.subProjectID,
-          userID: permissions.userId,
-          onNominationBasisAwarded: stageData.onNominationBasisAwarded || '0',
+        try {
+          await submitUnderTenderingDates({
+            projectID: liveIdentity.projectID,
+            subProjectID: liveIdentity.subProjectID,
+            userID: permissions.userId,
+            onNominationBasisAwarded: stageData.onNominationBasisAwarded || '0',
 
-          isTechSancNotApplicable: toBit(byId(1).notApplicable),
-          techSanctionPlannedDate: byId(1).plannedDate || '',
-          techSanctionActualDate: byId(1).actualDate || '',
+            isTechSancNotApplicable: toBit(byId(1).notApplicable),
+            techSanctionPlannedDate: byId(1).plannedDate || '',
+            techSanctionActualDate: byId(1).actualDate || '',
 
-          isTenderDocAppNotApplicable: toBit(byId(2).notApplicable),
-          tenderDocumentPlannedDate: byId(2).plannedDate || '',
-          tenderDocumentActualDate: byId(2).actualDate || '',
+            isTenderDocAppNotApplicable: toBit(byId(2).notApplicable),
+            tenderDocumentPlannedDate: byId(2).plannedDate || '',
+            tenderDocumentActualDate: byId(2).actualDate || '',
 
-          isTenderNotIssNotApplicable: toBit(byId(3).notApplicable),
-          tenderNoticePlannedDate: byId(3).plannedDate || '',
-          tenderNoticeActualDate: byId(3).actualDate || '',
+            isTenderNotIssNotApplicable: toBit(byId(3).notApplicable),
+            tenderNoticePlannedDate: byId(3).plannedDate || '',
+            tenderNoticeActualDate: byId(3).actualDate || '',
 
-          isTechEvaCompNotApplicable: toBit(byId(4).notApplicable),
-          techEvalPlannedDate: byId(4).plannedDate || '',
-          techEvalActualDate: byId(4).actualDate || '',
+            isTechEvaCompNotApplicable: toBit(byId(4).notApplicable),
+            techEvalPlannedDate: byId(4).plannedDate || '',
+            techEvalActualDate: byId(4).actualDate || '',
 
-          isFinEvaCompNotApplicable: toBit(byId(5).notApplicable),
-          finEvalPlannedDate: byId(5).plannedDate || '',
-          finEvalActualDate: byId(5).actualDate || '',
+            isFinEvaCompNotApplicable: toBit(byId(5).notApplicable),
+            finEvalPlannedDate: byId(5).plannedDate || '',
+            finEvalActualDate: byId(5).actualDate || '',
 
-          isSocAuthorityNotApplicable: toBit(byId(6).notApplicable),
-          sanctCompetentAuthPlannedDate: byId(6).plannedDate || '',
-          sanctCompetentAuthActualDate: byId(6).actualDate || '',
+            isSocAuthorityNotApplicable: toBit(byId(6).notApplicable),
+            sanctCompetentAuthPlannedDate: byId(6).plannedDate || '',
+            sanctCompetentAuthActualDate: byId(6).actualDate || '',
 
-          workAwardedPlannedDate: byId(7).plannedDate || '',
-          workAwardedActualDate: byId(7).actualDate || '',
+            workAwardedPlannedDate: byId(7).plannedDate || '',
+            workAwardedActualDate: byId(7).actualDate || '',
 
-          contractSignedPlannedDate: byId(8).plannedDate || '',
-          contractSignedActualDate: byId(8).actualDate || '',
-        });
+            contractSignedPlannedDate: byId(8).plannedDate || '',
+            contractSignedActualDate: byId(8).actualDate || '',
+          });
+        } catch (error) {
+          notify?.(
+            'Please check required Under Tendering date fields and their sequence, then try again.',
+            'error'
+          );
+          return false;
+        }
 
-        await submitUnderTenderingCostAndCalls({
-          projectID: liveIdentity.projectID,
-          subProjectID: liveIdentity.subProjectID,
-          techSanctionCost: byId(1).cost || '',
-          awardProjectCost: byId(7).cost || '',
-          noOfTenderCalls: stageData.numberOfTenderCalls || '',
-          onNominationBasisAwarded: stageData.onNominationBasisAwarded || '0',
-          foundationLaid:
-            stageData.foundationLaid === 'yes'
-              ? 1
-              : stageData.foundationLaid === 'no'
-                ? 0
-                : null,
-          foundationLaidDate: stageData.foundationLaidDate || '',
-          foundationTentativeDate: stageData.foundationTentativeDate || '',
-        });
+        try {
+          await submitUnderTenderingCostAndCalls({
+            projectID: liveIdentity.projectID,
+            subProjectID: liveIdentity.subProjectID,
+            techSanctionCost: byId(1).cost || '',
+            awardProjectCost: byId(7).cost || '',
+            noOfTenderCalls: stageData.numberOfTenderCalls || '',
+            onNominationBasisAwarded: stageData.onNominationBasisAwarded || '0',
+            foundationLaid:
+              stageData.foundationLaid === 'yes'
+                ? 1
+                : stageData.foundationLaid === 'no'
+                  ? 0
+                  : null,
+            foundationLaidDate: stageData.foundationLaidDate || '',
+            foundationTentativeDate: stageData.foundationTentativeDate || '',
+          });
+        } catch (error) {
+          notify?.(
+            'Please check required tendering cost/calls details (especially Awarded Project Cost), then try again.',
+            'error'
+          );
+          return false;
+        }
 
         notify?.('Under Tendering details updated successfully.', 'success');
         await syncWorkbenchAfterStageSave('tendering', liveIdentity.projectID, liveIdentity.subProjectID);
@@ -728,8 +814,14 @@ export default function ProjectBasicInformationPage({
       return false;
     } catch (error) {
       console.error(error);
+      const fallbackByStage = {
+        planning: 'Unable to save planning & sanctioning details. Please try again.',
+        tendering: 'Please complete required Under Tendering fields and try again.',
+        implementation: 'Unable to save under implementation details. Please try again.',
+        completion: 'Unable to save project completion details. Please try again.',
+      };
       notify?.(
-        error?.response?.data?.message || 'Unable to save stage details. Please try again.',
+        getApiErrorMessage(error, fallbackByStage[stageId] || 'Unable to save stage details. Please try again.'),
         'error'
       );
       return false;
@@ -752,6 +844,7 @@ export default function ProjectBasicInformationPage({
         initialData={editData || initialData}
         activeStage={activeStage}
         onActiveStageChange={setActiveStage}
+        stageUnlock={stageUnlock}
         canSubmit={canSubmit}
         readOnly={readOnly}
         loading={saving || hydrating}
@@ -759,6 +852,7 @@ export default function ProjectBasicInformationPage({
         onSubmit={handleSubmit}
         onSubmitStage={handleStageSubmit}
         notify={notify}
+        onRevisedTargetSaved={handleRevisedTargetSaved}
         stageRefreshKey={stageRefreshKey}
         documentRows={documents}
         documentsLoading={documentsLoading}

@@ -32,6 +32,11 @@ export default function Projects({
   const navigate = useNavigate();
   const { id: routeId } = useParams();
   const permissions = useProjectsPermissions();
+  const viewMode = permissions.viewMode;
+  // Capex-style: keep CRUD raw in hook; gate Input Form by org view at page level.
+  // Projects Input Form is organisation-only (Capex Input Form is ministry-only).
+  const showInputForm = Boolean(permissions.canAdd && (permissions.isOrganisationUser || viewMode === 'org'));
+
   const ListView = useMemo(
     () => resolveProjectsListView(permissions.uiViewCode),
     [permissions.uiViewCode]
@@ -136,10 +141,16 @@ export default function Projects({
     return () => window.removeEventListener('projects-subtab', onMenu);
   }, [permissions.canAdd, permissions.isOrganisationUser]);
 
+  useEffect(() => {
+    if (manualSubTab === 'basic-info' && !showInputForm && !editingRecord) {
+      setManualSubTab('list');
+    }
+  }, [manualSubTab, showInputForm, editingRecord]);
+
   const tabs = useMemo(() => {
     const items = [{ id: 'list', label: 'Data List' }];
     // Input Form tab only for Organisation view, NOT on ministry view
-    if (permissions.isOrganisationUser && permissions.canAdd) {
+    if (showInputForm) {
       items.push({ id: 'basic-info', label: 'Input Form' });
     }
     // Drop Requests tab only for Ministry view, NOT on organisation view
@@ -151,7 +162,7 @@ export default function Projects({
       });
     }
     return items;
-  }, [permissions.canAdd, permissions.isOrganisationUser, dropRequestCount]);
+  }, [showInputForm, permissions.isOrganisationUser, dropRequestCount]);
 
   const activeSubTab = useMemo(() => {
     if (editingRecord && manualSubTab !== 'view-project') return 'basic-info';
@@ -223,13 +234,17 @@ export default function Projects({
         <InternalNavigation
           tabs={tabs}
           currentTab={
-            activeSubTab === 'basic-info' && editingRecord && !permissions.canAdd
+            activeSubTab === 'basic-info' && editingRecord && !showInputForm
               ? 'list'
               : activeSubTab
           }
           onTabChange={(tab) => {
             setEditingRecord(null);
             setFormReadOnly(false);
+            if (tab === 'basic-info' && !showInputForm) {
+              setManualSubTab('list');
+              return;
+            }
             setManualSubTab(tab);
           }}
         />
@@ -240,12 +255,16 @@ export default function Projects({
           <ListView
             key={listRefreshKey}
             notify={notify}
-            onAddNew={() => {
-              setEditingRecord(null);
-              setFormReadOnly(false);
-              setManualSubTab('basic-info');
-              navigate('/projects/project/input-form');
-            }}
+            onAddNew={
+              showInputForm
+                ? () => {
+                    setEditingRecord(null);
+                    setFormReadOnly(false);
+                    setManualSubTab('basic-info');
+                    navigate('/projects/project/input-form');
+                  }
+                : undefined
+            }
             onOpenBasicInfo={(row, options = {}) => {
               setEditingRecord(row);
               setFormReadOnly(

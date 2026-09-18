@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { fetchProjectList, requestDropProject, fetchMmtDropdown } from '../api';
+import { FileSpreadsheet } from 'lucide-react';
+import { fetchProjectList, fetchProjectAllData, requestDropProject, fetchMmtDropdown } from '../api';
 import ProjectsListTable from '../components/ProjectsListTable';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 import {
   PROJECT_CATEGORY_OPTIONS,
   PROJECT_STAGE_OPTIONS,
 } from '../utils/constants';
+import { downloadProjectAllDataExcel } from '../utils/exportProjectAllData';
 import { mapProjectListRow } from '../utils/mapProject';
 import { getSessionClaims } from '../../../utils/authSession';
 
@@ -58,6 +60,7 @@ export default function ProjectListPage({
     reason: '',
   });
   const [refreshTick, setRefreshTick] = useState(0);
+  const [exportingAllData, setExportingAllData] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -186,9 +189,11 @@ export default function ProjectListPage({
     setDropConfirmModal({ open: false, row: null, reason: '' });
   };
 
+  const canRequestDrop = Boolean(permissions.canRemove && permissions.viewMode === 'org');
+
   const handleDropProject = (row) => {
-    if (!permissions.canRemove) {
-      notify?.('You do not have permission to request project drop.', 'error');
+    if (!canRequestDrop) {
+      notify?.('Only organisation users can request a project drop.', 'error');
       return;
     }
     if (!row?.projectId) return;
@@ -245,8 +250,59 @@ export default function ProjectListPage({
     };
   }, [dropConfirmModal.open]);
 
+  const handleExportAllData = async () => {
+    if (!permissions.canView || !permissions.userId) {
+      notify?.('You do not have permission to export project data.', 'error');
+      return;
+    }
+    if (exportingAllData) return;
+
+    setExportingAllData(true);
+    notify?.('Preparing All Data export. This may take a moment...', 'info');
+
+    try {
+      const response = await fetchProjectAllData(permissions.userId);
+      const rows = Array.isArray(response?.data) ? response.data : [];
+      if (!rows.length) {
+        notify?.('No project data available to export.', 'info');
+        return;
+      }
+
+      const rowCount = downloadProjectAllDataExcel(rows);
+      notify?.(`Exported ${rowCount} project row(s) successfully.`, 'success');
+    } catch (error) {
+      console.error(error);
+      const timeoutMessage =
+        error?.code === 'ECONNABORTED'
+          ? 'All Data export timed out. Please try again.'
+          : null;
+      notify?.(
+        timeoutMessage ||
+          error?.response?.data?.message ||
+          error?.message ||
+          'Failed to export All Data. Please try again.',
+        'error'
+      );
+    } finally {
+      setExportingAllData(false);
+    }
+  };
+
   return (
     <>
+      <div className="mb-3 flex items-center justify-end">
+        <button
+          type="button"
+          onClick={handleExportAllData}
+          disabled={!permissions.canView || exportingAllData}
+          title="Export All Data"
+          className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-50 to-green-50 px-4 py-2 text-xs font-bold text-emerald-700 shadow-sm transition hover:from-emerald-100 hover:to-green-100 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          <span>{exportingAllData ? 'Exporting All Data...' : 'Export All Data'}</span>
+        </button>
+      </div>
+
       <ProjectsListTable
         rows={rows}
         loading={loading}
@@ -263,16 +319,20 @@ export default function ProjectListPage({
         categoryOptions={categories?.length ? categories : PROJECT_CATEGORY_OPTIONS}
         organisations={organisations}
         states={states}
-        canAdd={permissions.isOrganisationUser && permissions.canAdd}
+        canAdd={Boolean(permissions.canAdd && (permissions.isOrganisationUser || permissions.viewMode === 'org'))}
         canEdit={permissions.canEdit}
         canView={permissions.canView}
-        canDropProject={permissions.canRemove}
+        canDropProject={canRequestDrop}
         isOrganisationUser={permissions.isOrganisationUser}
         dropBusyId={dropBusyId}
-        onAddNew={onAddNew}
+        onAddNew={
+          permissions.canAdd && (permissions.isOrganisationUser || permissions.viewMode === 'org')
+            ? onAddNew
+            : undefined
+        }
         onOpenBasicInfo={onOpenBasicInfo}
         onOpenProjectDetail={onOpenProjectDetail}
-        onDropProject={handleDropProject}
+        onDropProject={canRequestDrop ? handleDropProject : undefined}
         onPageChange={setPage}
         onPageSizeChange={(nextSize) => {
           setPageSize(nextSize);

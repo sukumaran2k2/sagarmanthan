@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ArrowLeft, Download, Save, Trash2, Upload, Briefcase, 
   Building2, DollarSign, Calendar, MapPin, Landmark, 
   TrendingUp, Layers, CheckCircle2, AlertTriangle, FileText, 
   ChevronRight, ChevronLeft, ChevronDown, Plus, X, Eye, Sparkles, Check,
-  Info
+  Info, Pencil, History
 } from 'lucide-react';
 import {
   FUNDING_SOURCE_OPTIONS,
@@ -15,7 +16,11 @@ import {
   PROJECT_STAGE_OPTIONS,
   formatFileSize,
 } from '../utils/constants';
-import { fetchMmtDropdown } from '../api';
+import {
+  addRevisedTargetCompletionDate,
+  fetchMmtDropdown,
+  fetchRevisedTargetCompletionHistory,
+} from '../api';
 import {
   deriveImplementationMode,
   deriveSagarmalaFunding,
@@ -89,10 +94,81 @@ const FORM_SECTIONS = [
   { id: 'docs', number: '04', title: 'Others', subtitle: 'Documents & Attachments', icon: FileText },
 ];
 
+function normalizeDocumentTypeKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
+function resolveDocumentFolderName(value) {
+  const normalized = normalizeDocumentTypeKey(value);
+  if (!normalized) return '';
+
+  const direct = PROJECT_DOCUMENT_TYPES.find((item) => item.folderName === normalized);
+  if (direct) return direct.folderName;
+
+  if (['ppt', 'projectppt', 'project_ppts'].includes(normalized)) return 'project_ppt';
+  if (['pert', 'pert_chart', 'projectpert', 'project_pert_chart'].includes(normalized)) {
+    return 'project_pert';
+  }
+  if (
+    ['project_image', 'project_images', 'images', 'image', 'latest_project_image'].includes(
+      normalized
+    )
+  ) {
+    return 'project_images';
+  }
+
+  return normalized;
+}
+
 function toRadioValue(value) {
   if (value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'yes') return 1;
   if (value === false || value === 0 || value === '0' || String(value).toLowerCase() === 'no') return 0;
   return null;
+}
+
+/** Prefer numeric FK ids for selects — list/display names must never be submitted to int columns. */
+function firstNumericId(...values) {
+  for (const value of values) {
+    if (value == null || value === '' || value === '-') continue;
+    if (Array.isArray(value)) {
+      const ids = value
+        .map((item) => String(item ?? '').trim())
+        .filter((item) => /^-?\d+$/.test(item));
+      if (ids.length) return ids.join(',');
+      continue;
+    }
+    const text = String(value).trim();
+    if (/^-?\d+$/.test(text)) return text;
+    if (/^\d+(\s*,\s*\d+)+$/.test(text)) return text.replace(/\s+/g, '');
+  }
+  return '';
+}
+
+/** Normalize any date-ish value to YYYY-MM-DD for <input type="date"> / SQL, else ''. */
+function toInputDate(...values) {
+  for (const value of values) {
+    if (value == null || value === '' || value === '-') continue;
+    const text = String(value).trim();
+    if (!text || text === '-' || text.toLowerCase() === 'null' || text.toLowerCase() === 'invalid date') {
+      continue;
+    }
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+    if (text.includes('T')) {
+      const sliced = text.slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(sliced)) return sliced;
+    }
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+      const yyyy = parsed.getFullYear();
+      const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+      const dd = String(parsed.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+  return '';
 }
 
 function getInitialForm(initialData) {
@@ -107,8 +183,11 @@ function getInitialForm(initialData) {
   const subProjectID =
     rawSubId && String(rawSubId).trim() !== '-1' ? String(rawSubId).trim() : '';
 
-  const sourceOfFunding =
-    initialData.sourceOfFunding || raw.source_of_funding_id || raw.source_of_funding_names || '';
+  const sourceOfFunding = firstNumericId(
+    raw.source_of_funding_id,
+    initialData.sourceOfFunding,
+    raw.source_of_funding_names
+  );
 
   return {
     ...EMPTY_FORM,
@@ -124,24 +203,34 @@ function getInitialForm(initialData) {
       raw.mode_of_implememtation ||
       deriveImplementationMode(sourceOfFunding),
     implementationType: initialData.implementationType || raw.implememtation_type || '',
-    primaryImplementingAgency:
-      initialData.primaryImplementingAgency || initialData.organisationName || raw.primary_ia_id || '',
-    secondaryImplementingAgency:
-      initialData.secondaryImplementingAgency || raw.secondary_ia_id || raw.sec_imp_agency || '',
-    projectCategory:
-      initialData.projectCategory || raw.project_category_id || raw.project_category_names || initialData.category || '',
-    scheme: initialData.scheme || raw.scheme_id || raw.scheme_name || '',
-    initiative: initialData.initiative || raw.initiative_id || raw.initiative_names || '',
-    projectInitiatedDate:
-      initialData.projectInitiatedDate || (raw.project_intiated_date ? String(raw.project_intiated_date).slice(0, 10) : ''),
-    targetCompletionDate:
-      initialData.targetCompletionDate || (raw.target_completion_date ? String(raw.target_completion_date).slice(0, 10) : ''),
-    revisedTargetCompletionDate: raw.latest_revised_target_completion_date
-      ? String(raw.latest_revised_target_completion_date).slice(0, 10)
-      : '',
-    projectOutput: initialData.projectOutput || raw.project_output_id || raw.project_output_name || '',
+    primaryImplementingAgency: firstNumericId(
+      raw.primary_ia_id,
+      initialData.primaryImplementingAgency
+    ),
+    secondaryImplementingAgency: firstNumericId(
+      raw.secondary_ia_id,
+      initialData.secondaryImplementingAgency
+    ),
+    projectCategory: firstNumericId(
+      raw.project_category_id,
+      initialData.projectCategory,
+      raw.project_category_names
+    ),
+    scheme: firstNumericId(raw.scheme_id, initialData.scheme),
+    initiative: firstNumericId(raw.initiative_id, initialData.initiative, raw.initiative_names),
+    projectInitiatedDate: toInputDate(
+      raw.project_intiated_date,
+      raw.project_initiated_date,
+      initialData.projectInitiatedDate
+    ),
+    targetCompletionDate: toInputDate(
+      raw.target_completion_date,
+      initialData.targetCompletionDate
+    ),
+    revisedTargetCompletionDate: toInputDate(raw.latest_revised_target_completion_date),
+    projectOutput: firstNumericId(raw.project_output_id, initialData.projectOutput),
     newProjectOutputUnits: initialData.newProjectOutputUnits || raw.project_output_units || '',
-    projectOutcome: initialData.projectOutcome || raw.project_outcome_id || raw.project_outcome_name || '',
+    projectOutcome: firstNumericId(raw.project_outcome_id, initialData.projectOutcome),
     newProjectOutcomeUnits: initialData.newProjectOutcomeUnits || raw.project_outcome_units || '',
     capacityAddition: initialData.capacityAddition || raw.capacity_addition || '',
     sourceOfFunding,
@@ -155,15 +244,37 @@ function getInitialForm(initialData) {
     pmmsyComponents: raw.pmmsy_components || '',
     sagarmalaComponents: raw.sagarmala_components || '',
     otherSourceFundingComp: raw.other_source_funding_comp || '',
-    primaryFundingAgency: initialData.primaryFundingAgency || raw.primary_funding_agency_id || '',
-    secondaryFundingAgency: initialData.secondaryFundingAgency || raw.secondary_funding_agency_id || '',
-    state: initialData.state || raw.state_id || raw.sub_state_id || raw.state_names || raw.sub_state_names || '',
-    district:
-      initialData.district || raw.district_id || raw.sub_district_id || raw.district_names || raw.sub_district_names || '',
-    taluka: initialData.taluka || raw.taluka_id || '',
-    village: initialData.village || raw.village_id || '',
-    mpConstituency:
-      initialData.mpConstituency || raw.mp_constituency_id || raw.sub_mp_constituency_id || raw.mp_constituency_names || raw.sub_mp_constituency_names || '',
+    primaryFundingAgency: firstNumericId(
+      raw.primary_funding_agency_id,
+      initialData.primaryFundingAgency
+    ),
+    secondaryFundingAgency: firstNumericId(
+      raw.secondary_funding_agency_id,
+      initialData.secondaryFundingAgency
+    ),
+    state: firstNumericId(
+      raw.state_id,
+      raw.sub_state_id,
+      initialData.state,
+      raw.state_names,
+      raw.sub_state_names
+    ),
+    district: firstNumericId(
+      raw.district_id,
+      raw.sub_district_id,
+      initialData.district,
+      raw.district_names,
+      raw.sub_district_names
+    ),
+    taluka: firstNumericId(raw.taluka_id, initialData.taluka),
+    village: firstNumericId(raw.village_id, initialData.village),
+    mpConstituency: firstNumericId(
+      raw.mp_constituency_id,
+      raw.sub_mp_constituency_id,
+      initialData.mpConstituency,
+      raw.mp_constituency_names,
+      raw.sub_mp_constituency_names
+    ),
     onLandAcquistion: toRadioValue(raw.on_land_acquisition),
     landAreaReq: raw.land_area_req || '',
     onAcquisitionCompleted: toRadioValue(raw.on_acquisition_completed),
@@ -315,6 +426,7 @@ function resolveSectionForErrors(nextErrors) {
     nextErrors.projectID ||
     nextErrors.projectName ||
     nextErrors.projectBrief ||
+    nextErrors.estimatedProjectCost ||
     nextErrors.primaryImplementingAgency ||
     nextErrors.newImplementingAgency ||
     nextErrors.newImplementingAgencyCode ||
@@ -322,6 +434,12 @@ function resolveSectionForErrors(nextErrors) {
     nextErrors.scheme ||
     nextErrors.projectType ||
     nextErrors.implementationType ||
+    nextErrors.projectInitiatedDate ||
+    nextErrors.targetCompletionDate ||
+    nextErrors.newProjectOutput ||
+    nextErrors.newProjectOutcome ||
+    nextErrors.newProjectOutputUnits ||
+    nextErrors.newProjectOutcomeUnits ||
     nextErrors.onSubProjectAvailable ||
     nextErrors.subProjectNum ||
     nextErrors.subProjectsTab
@@ -329,7 +447,6 @@ function resolveSectionForErrors(nextErrors) {
     return 'basic';
   }
   if (
-    nextErrors.estimatedProjectCost ||
     nextErrors.sourceOfFunding ||
     nextErrors.primaryFundingAgency ||
     nextErrors.newFundingAgency ||
@@ -349,22 +466,68 @@ function resolveSectionForErrors(nextErrors) {
     nextErrors.state ||
     nextErrors.district ||
     nextErrors.mpConstituency ||
+    nextErrors.onLandAcquistion ||
     nextErrors.landAreaReq ||
+    nextErrors.onAcquisitionCompleted ||
     nextErrors.percentLandAcquired
   ) {
     return 'location';
   }
-  if (
-    nextErrors.projectInitiatedDate ||
-    nextErrors.targetCompletionDate ||
-    nextErrors.newProjectOutput ||
-    nextErrors.newProjectOutcome ||
-    nextErrors.newProjectOutputUnits ||
-    nextErrors.newProjectOutcomeUnits
-  ) {
-    return 'basic';
-  }
   return 'basic';
+}
+
+const FIELD_ERROR_LABELS = {
+  projectName: 'Project name',
+  projectBrief: 'Project brief',
+  estimatedProjectCost: 'Estimated project cost',
+  projectType: 'Project type',
+  implementationType: 'Implementation type',
+  projectCategory: 'Project category',
+  primaryImplementingAgency: 'Primary implementing agency',
+  newImplementingAgency: 'New implementing agency',
+  newImplementingAgencyCode: 'New implementing agency code',
+  scheme: 'Scheme',
+  sourceOfFunding: 'Source of funding',
+  primaryFundingAgency: 'Primary funding agency',
+  newFundingAgency: 'New funding agency',
+  state: 'State',
+  district: 'District',
+  mpConstituency: 'MP constituency',
+  onLandAcquistion: 'Land acquisition needed',
+  landAreaReq: 'Land area required',
+  onAcquisitionCompleted: 'Acquisition completed',
+  percentLandAcquired: '% Land acquired',
+  projectInitiatedDate: 'Project initiated date',
+  targetCompletionDate: 'Target completion date',
+  newProjectOutput: 'New project output',
+  newProjectOutputUnits: 'New project output units',
+  newProjectOutcome: 'New project outcome',
+  newProjectOutcomeUnits: 'New project outcome units',
+  onSubProjectAvailable: 'Sub-projects selection',
+  subProjectNum: 'Number of sub-projects',
+  subProjectsTab: 'Sub-project names',
+  gbsComponents: 'GBS component',
+  iebrComponents: 'IEBR component',
+  pppComponents: 'PPP component',
+  loansComponents: 'Loan component',
+  multiFundComponents: 'Multilateral funding',
+  stateGovFundComponents: 'State govt fund',
+  otherSourceFundingComp: 'Other sources',
+  sagarmalaComponents: 'Sagarmala component',
+  pmmsyComponents: 'PMMSY component',
+};
+
+function formatValidationToast(nextErrors) {
+  const keys = Object.keys(nextErrors || {}).filter((k) => nextErrors[k]);
+  if (!keys.length) return 'Please fix the highlighted validation errors before submitting.';
+  const labels = keys.slice(0, 3).map((k) => FIELD_ERROR_LABELS[k] || k);
+  const more = keys.length > 3 ? ` (+${keys.length - 3} more)` : '';
+  return `Please fill required fields: ${labels.join(', ')}${more}. Missing fields are highlighted in red.`;
+}
+
+function renderInBody(node) {
+  if (typeof document === 'undefined') return null;
+  return createPortal(node, document.body);
 }
 
 export default function ProjectBasicInfoForm({
@@ -375,6 +538,7 @@ export default function ProjectBasicInfoForm({
   onBack,
   onSubmit,
   notify,
+  onRevisedTargetSaved,
   documentRows = [],
   documentsLoading = false,
   uploadingDocuments = false,
@@ -394,12 +558,23 @@ export default function ProjectBasicInfoForm({
   const [documentInputKeyByType, setDocumentInputKeyByType] = useState(() =>
     Object.fromEntries(PROJECT_DOCUMENT_TYPES.map((item) => [item.folderName, 0]))
   );
+  const [targetRevisionModal, setTargetRevisionModal] = useState({
+    open: false,
+    date: '',
+    error: '',
+  });
+  const [targetHistoryModal, setTargetHistoryModal] = useState({
+    open: false,
+    rows: [],
+    loading: false,
+  });
+  const [revisionSaving, setRevisionSaving] = useState(false);
 
   const documentsByType = useMemo(() => {
     const grouped = Object.fromEntries(PROJECT_DOCUMENT_TYPES.map((item) => [item.folderName, []]));
     const other = [];
     (documentRows || []).forEach((doc) => {
-      const type = doc.document_type || doc.folder_name || '';
+      const type = resolveDocumentFolderName(doc.document_type || doc.folder_name || doc.documentType);
       if (grouped[type]) grouped[type].push(doc);
       else other.push(doc);
     });
@@ -424,6 +599,100 @@ export default function ProjectBasicInfoForm({
   const canInteract = canSubmit && !readOnly && !loading;
   const isProjectTypeLocked = isEditMode && hasLockedProjectTypeValue(formData.projectType);
   const isTargetDateLocked = isEditMode && Boolean(formData.targetCompletionDate);
+  const canReviseTargetDate = isEditMode && isTargetDateLocked && canInteract;
+  const canViewTargetDateHistory = isEditMode && isTargetDateLocked;
+
+  const openTargetRevisionModal = () => {
+    setTargetRevisionModal({
+      open: true,
+      date: formData.revisedTargetCompletionDate || '',
+      error: '',
+    });
+  };
+
+  const closeTargetRevisionModal = () => {
+    if (revisionSaving) return;
+    setTargetRevisionModal({ open: false, date: '', error: '' });
+  };
+
+  const submitTargetRevision = async () => {
+    const revisedTargetCompletionDate = String(targetRevisionModal.date || '').trim();
+    if (!revisedTargetCompletionDate) {
+      setTargetRevisionModal((prev) => ({
+        ...prev,
+        error: 'Please enter the revised target completion date',
+      }));
+      return;
+    }
+
+    const projectID = formData.projectID;
+    const subProjectID = formData.subProjectID || '-1';
+    if (!projectID) {
+      setTargetRevisionModal((prev) => ({
+        ...prev,
+        error: 'Project ID is missing. Please reload and try again.',
+      }));
+      return;
+    }
+
+    setRevisionSaving(true);
+    try {
+      await addRevisedTargetCompletionDate({
+        projectID,
+        subProjectID,
+        revisedTargetCompletionDate,
+      });
+
+      setFormData((prev) => ({
+        ...prev,
+        revisedTargetCompletionDate,
+      }));
+      setTargetRevisionModal({ open: false, date: '', error: '' });
+      notify?.('Project target completion date revised successfully', 'success');
+      await onRevisedTargetSaved?.({
+        projectID,
+        subProjectID,
+        revisedTargetCompletionDate,
+      });
+    } catch (error) {
+      console.error(error);
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to revise target completion date';
+      setTargetRevisionModal((prev) => ({ ...prev, error: message }));
+      notify?.(message, 'error');
+    } finally {
+      setRevisionSaving(false);
+    }
+  };
+
+  const openTargetHistoryModal = async () => {
+    const projectID = formData.projectID;
+    const subProjectID = formData.subProjectID || '-1';
+    if (!projectID) {
+      notify?.('Project ID is missing. Please reload and try again.', 'error');
+      return;
+    }
+
+    setTargetHistoryModal({ open: true, rows: [], loading: true });
+    try {
+      const response = await fetchRevisedTargetCompletionHistory(projectID, subProjectID);
+      const rows = Array.isArray(response?.data) ? response.data : [];
+      setTargetHistoryModal({ open: true, rows, loading: false });
+    } catch (error) {
+      console.error(error);
+      setTargetHistoryModal({ open: false, rows: [], loading: false });
+      notify?.(
+        error?.response?.data?.message || error?.message || 'Failed to load revision history',
+        'error'
+      );
+    }
+  };
+
+  const closeTargetHistoryModal = () => {
+    setTargetHistoryModal({ open: false, rows: [], loading: false });
+  };
 
   const selectedStageOptions = useMemo(
     () => PROJECT_STAGE_OPTIONS.filter((item) => item !== 'All'),
@@ -613,6 +882,16 @@ export default function ProjectBasicInfoForm({
         nextErrors.scheme = 'Scheme is required';
       }
 
+      const cost = Number(formData.estimatedProjectCost);
+      if (
+        formData.estimatedProjectCost === '' ||
+        formData.estimatedProjectCost == null ||
+        Number.isNaN(cost) ||
+        cost < 0
+      ) {
+        nextErrors.estimatedProjectCost = 'Invalid estimated project cost';
+      }
+
       if (!isEditMode && formData.onSubProjectAvailable !== 0 && formData.onSubProjectAvailable !== 1) {
         nextErrors.onSubProjectAvailable = 'Please select whether this project has sub-projects';
       }
@@ -700,6 +979,10 @@ export default function ProjectBasicInfoForm({
         nextErrors.mpConstituency = 'MP constituency is required';
       }
 
+      if (formData.onLandAcquistion !== 0 && formData.onLandAcquistion !== 1) {
+        nextErrors.onLandAcquistion = 'Please select whether land acquisition is needed';
+      }
+
       if (formData.onLandAcquistion === 1) {
         const area = Number(formData.landAreaReq);
         if (
@@ -710,19 +993,23 @@ export default function ProjectBasicInfoForm({
         ) {
           nextErrors.landAreaReq = 'Enter a valid land area required (greater than 0, no negative values)';
         }
-      }
 
-      if (formData.onLandAcquistion === 1 && formData.onAcquisitionCompleted === 0) {
-        const pct = Number(formData.percentLandAcquired);
-        if (
-          formData.percentLandAcquired === '' ||
-          formData.percentLandAcquired == null ||
-          String(formData.percentLandAcquired).includes('-') ||
-          Number.isNaN(pct) ||
-          pct < 0 ||
-          pct > 100
-        ) {
-          nextErrors.percentLandAcquired = 'Enter land acquired percentage between 0 and 100 (no negative values)';
+        if (formData.onAcquisitionCompleted !== 0 && formData.onAcquisitionCompleted !== 1) {
+          nextErrors.onAcquisitionCompleted = 'Please select whether acquisition is completed';
+        }
+
+        if (formData.onAcquisitionCompleted === 0) {
+          const pct = Number(formData.percentLandAcquired);
+          if (
+            formData.percentLandAcquired === '' ||
+            formData.percentLandAcquired == null ||
+            String(formData.percentLandAcquired).includes('-') ||
+            Number.isNaN(pct) ||
+            pct < 0 ||
+            pct > 100
+          ) {
+            nextErrors.percentLandAcquired = 'Enter land acquired percentage between 0 and 100 (no negative values)';
+          }
         }
       }
     }
@@ -814,7 +1101,13 @@ export default function ProjectBasicInfoForm({
     const nextErrors = validate();
     if (Object.keys(nextErrors).length) {
       setActiveSection(resolveSectionForErrors(nextErrors));
-      notify?.('Please fix the highlighted validation errors before submitting.', 'error');
+      notify?.(formatValidationToast(nextErrors), 'error');
+      setTimeout(() => {
+        const firstInvalid = document.querySelector(
+          '#project-basic-info-form .border-rose-400, #project-basic-info-form [class*="border-rose-"]'
+        );
+        firstInvalid?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      }, 80);
       return;
     }
 
@@ -1030,18 +1323,21 @@ export default function ProjectBasicInfoForm({
     Object.keys(errors).forEach((key) => {
       if (!errors[key]) return;
       if ([
-        'projectID', 'projectName', 'projectBrief', 'primaryImplementingAgency', 'newImplementingAgency',
+        'projectID', 'projectName', 'projectBrief', 'estimatedProjectCost', 'primaryImplementingAgency', 'newImplementingAgency',
         'newImplementingAgencyCode', 'projectCategory', 'scheme', 'projectType',
-        'implementationType', 'onSubProjectAvailable', 'subProjectNum', 'subProjectsTab'
+        'implementationType', 'projectInitiatedDate', 'targetCompletionDate',
+        'newProjectOutput', 'newProjectOutcome', 'newProjectOutputUnits', 'newProjectOutcomeUnits',
+        'onSubProjectAvailable', 'subProjectNum', 'subProjectsTab'
       ].includes(key)) counts.basic++;
       else if ([
-        'estimatedProjectCost', 'sourceOfFunding', 'primaryFundingAgency', 'newFundingAgency',
+        'sourceOfFunding', 'primaryFundingAgency', 'newFundingAgency',
         'gbsComponents', 'iebrComponents', 'pppComponents', 'loansComponents',
         'multiFundComponents', 'stateGovFundComponents', 'otherSourceFundingComp',
         'sagarmalaComponents', 'pmmsyComponents'
       ].includes(key)) counts.cost++;
       else if ([
-        'state', 'district', 'mpConstituency', 'landAreaReq', 'percentLandAcquired'
+        'state', 'district', 'mpConstituency', 'onLandAcquistion', 'landAreaReq',
+        'onAcquisitionCompleted', 'percentLandAcquired'
       ].includes(key)) counts.location++;
       else if ([
         'projectInitiatedDate', 'targetCompletionDate', 'newProjectOutput',
@@ -1316,28 +1612,52 @@ export default function ProjectBasicInfoForm({
                 <FieldError error={errors.projectInitiatedDate} />
               </div>
 
-              <div>
-                <Label required>Targeted Completion Date</Label>
-                <input
-                  type="date"
-                  value={formData.targetCompletionDate}
-                  onChange={(e) => handleInputChange('targetCompletionDate', e.target.value)}
-                  disabled={!canInteract || isTargetDateLocked}
-                  className={getInputClass('targetCompletionDate', isTargetDateLocked ? 'opacity-75' : '')}
-                />
-                <FieldError error={errors.targetCompletionDate} />
-              </div>
-
-              <div>
-                <Label>Revised Targeted Completion Date</Label>
-                <input
-                  type="date"
-                  value={formData.revisedTargetCompletionDate}
-                  onChange={(e) => handleInputChange('revisedTargetCompletionDate', e.target.value)}
-                  disabled={!canInteract}
-                  className={getInputClass('revisedTargetCompletionDate')}
-                />
-              </div>
+              {!isTargetDateLocked ? (
+                <div>
+                  <Label required>Targeted Completion Date</Label>
+                  <input
+                    type="date"
+                    value={formData.targetCompletionDate}
+                    onChange={(e) => handleInputChange('targetCompletionDate', e.target.value)}
+                    disabled={!canInteract}
+                    className={getInputClass('targetCompletionDate')}
+                  />
+                  <FieldError error={errors.targetCompletionDate} />
+                </div>
+              ) : (
+                <div className="md:col-span-2">
+                  <Label required>Revised Targeted Completion Date</Label>
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                    <input
+                      type="date"
+                      value={
+                        formData.revisedTargetCompletionDate || formData.targetCompletionDate || ''
+                      }
+                      disabled
+                      className={getInputClass('revisedTargetCompletionDate', 'opacity-75 flex-1 max-w-md')}
+                    />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={openTargetRevisionModal}
+                        disabled={!canReviseTargetDate}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Revise
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openTargetHistoryModal}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold hover:bg-emerald-100"
+                      >
+                        <History className="h-3.5 w-3.5" />
+                        History
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <Label required>Primary Implementing Agency (IA)</Label>
@@ -2093,14 +2413,21 @@ export default function ProjectBasicInfoForm({
               
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                 <div>
-                  <Label>Land Acquisition Needed?</Label>
-                  <div className="flex items-center space-x-4 mt-2">
+                  <Label required>Land Acquisition Needed?</Label>
+                  <div
+                    className={`flex items-center space-x-4 mt-2 rounded-xl px-2 py-1.5 ${
+                      errors.onLandAcquistion
+                        ? 'border border-rose-400 bg-rose-50/30 dark:bg-rose-950/20'
+                        : ''
+                    }`}
+                  >
                     <label className="flex items-center space-x-1.5 cursor-pointer">
                       <input
                         type="radio"
                         name="onLandAcquisition"
                         checked={formData.onLandAcquistion === 1}
                         onChange={() => handleInputChange('onLandAcquistion', 1)}
+                        disabled={!canInteract}
                         className="text-blue-600"
                       />
                       <span>Yes</span>
@@ -2111,11 +2438,13 @@ export default function ProjectBasicInfoForm({
                         name="onLandAcquisition"
                         checked={formData.onLandAcquistion === 0}
                         onChange={() => handleInputChange('onLandAcquistion', 0)}
+                        disabled={!canInteract}
                         className="text-blue-600"
                       />
                       <span>No</span>
                     </label>
                   </div>
+                  <FieldError error={errors.onLandAcquistion} />
                 </div>
 
                 {formData.onLandAcquistion === 1 && (
@@ -2128,20 +2457,28 @@ export default function ProjectBasicInfoForm({
                         value={formData.landAreaReq}
                         onChange={(e) => handleInputChange('landAreaReq', e.target.value)}
                         placeholder="Area in Acres"
+                        disabled={!canInteract}
                         className={getInputClass('landAreaReq')}
                       />
                       <FieldError error={errors.landAreaReq} />
                     </div>
 
                     <div>
-                      <Label>Acquisition Completed?</Label>
-                      <div className="flex items-center space-x-4 mt-2">
+                      <Label required>Acquisition Completed?</Label>
+                      <div
+                        className={`flex items-center space-x-4 mt-2 rounded-xl px-2 py-1.5 ${
+                          errors.onAcquisitionCompleted
+                            ? 'border border-rose-400 bg-rose-50/30 dark:bg-rose-950/20'
+                            : ''
+                        }`}
+                      >
                         <label className="flex items-center space-x-1.5 cursor-pointer">
                           <input
                             type="radio"
                             name="onAcquisitionCompleted"
                             checked={formData.onAcquisitionCompleted === 1}
                             onChange={() => handleInputChange('onAcquisitionCompleted', 1)}
+                            disabled={!canInteract}
                             className="text-blue-600"
                           />
                           <span>Yes</span>
@@ -2152,26 +2489,31 @@ export default function ProjectBasicInfoForm({
                             name="onAcquisitionCompleted"
                             checked={formData.onAcquisitionCompleted === 0}
                             onChange={() => handleInputChange('onAcquisitionCompleted', 0)}
+                            disabled={!canInteract}
                             className="text-blue-600"
                           />
                           <span>No</span>
                         </label>
                       </div>
+                      <FieldError error={errors.onAcquisitionCompleted} />
                     </div>
 
-                    <div>
-                      <Label required>% Land Acquired</Label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        max="100"
-                        value={formData.percentLandAcquired}
-                        onChange={(e) => handleInputChange('percentLandAcquired', e.target.value)}
-                        placeholder="e.g. 75"
-                        className={getInputClass('percentLandAcquired')}
-                      />
-                      <FieldError error={errors.percentLandAcquired} />
-                    </div>
+                    {formData.onAcquisitionCompleted === 0 && (
+                      <div>
+                        <Label required>% Land Acquired</Label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          max="100"
+                          value={formData.percentLandAcquired}
+                          onChange={(e) => handleInputChange('percentLandAcquired', e.target.value)}
+                          placeholder="e.g. 75"
+                          disabled={!canInteract}
+                          className={getInputClass('percentLandAcquired')}
+                        />
+                        <FieldError error={errors.percentLandAcquired} />
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -2226,29 +2568,53 @@ export default function ProjectBasicInfoForm({
                 <FieldError error={errors.projectInitiatedDate} />
               </div>
 
-              <div>
-                <Label required>Target Completion Date</Label>
-                <input
-                  type="date"
-                  value={formData.targetCompletionDate}
-                  onChange={(e) => handleInputChange('targetCompletionDate', e.target.value)}
-                  disabled={!canInteract || isTargetDateLocked}
-                  className={getInputClass('targetCompletionDate', isTargetDateLocked ? 'opacity-75' : '')}
-                />
-                <FieldError error={errors.targetCompletionDate} />
-              </div>
-
-              <div>
-                <Label>Revised Target Completion Date</Label>
-                <input
-                  type="date"
-                  value={formData.revisedTargetCompletionDate}
-                  onChange={(e) => handleInputChange('revisedTargetCompletionDate', e.target.value)}
-                  disabled={!canInteract}
-                  className={getInputClass('revisedTargetCompletionDate')}
-                />
-                <FieldError error={errors.revisedTargetCompletionDate} />
-              </div>
+              {!isTargetDateLocked ? (
+                <div>
+                  <Label required>Target Completion Date</Label>
+                  <input
+                    type="date"
+                    value={formData.targetCompletionDate}
+                    onChange={(e) => handleInputChange('targetCompletionDate', e.target.value)}
+                    disabled={!canInteract}
+                    className={getInputClass('targetCompletionDate')}
+                  />
+                  <FieldError error={errors.targetCompletionDate} />
+                </div>
+              ) : (
+                <div className="md:col-span-2">
+                  <Label required>Revised Target Completion Date</Label>
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                    <input
+                      type="date"
+                      value={
+                        formData.revisedTargetCompletionDate || formData.targetCompletionDate || ''
+                      }
+                      disabled
+                      className={getInputClass('revisedTargetCompletionDate', 'opacity-75 flex-1 max-w-md')}
+                    />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={openTargetRevisionModal}
+                        disabled={!canReviseTargetDate}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Revise
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openTargetHistoryModal}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold hover:bg-emerald-100"
+                      >
+                        <History className="h-3.5 w-3.5" />
+                        History
+                      </button>
+                    </div>
+                  </div>
+                  <FieldError error={errors.revisedTargetCompletionDate} />
+                </div>
+              )}
 
               <div>
                 <Label>Capacity Addition (MTPA / Units)</Label>
@@ -2627,6 +2993,150 @@ export default function ProjectBasicInfoForm({
         )}
 
       </form>
+
+      {targetRevisionModal.open
+        ? renderInBody(
+            <div className="fixed inset-0 z-[9999] bg-slate-900/45 flex items-center justify-center p-4">
+              <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800">Revise Target Completion Date</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Enter the revised targeted completion date for this project.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeTargetRevisionModal}
+                    disabled={revisionSaving}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Revised Date <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={targetRevisionModal.date}
+                      onChange={(e) =>
+                        setTargetRevisionModal((prev) => ({
+                          ...prev,
+                          date: e.target.value,
+                          error: '',
+                        }))
+                      }
+                      disabled={revisionSaving}
+                      className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg bg-white"
+                    />
+                  </div>
+                  {targetRevisionModal.error ? (
+                    <p className="text-xs font-semibold text-rose-600">{targetRevisionModal.error}</p>
+                  ) : null}
+                </div>
+                <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeTargetRevisionModal}
+                    disabled={revisionSaving}
+                    className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 text-slate-700 disabled:opacity-60"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitTargetRevision}
+                    disabled={revisionSaving}
+                    className="px-3 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white disabled:opacity-60"
+                  >
+                    {revisionSaving ? 'Saving...' : 'Submit'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        : null}
+
+      {targetHistoryModal.open
+        ? renderInBody(
+            <div className="fixed inset-0 z-[9999] bg-slate-900/45 flex items-center justify-center p-4">
+              <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800">Revision History</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Revised targeted completion date history
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeTargetHistoryModal}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="p-5">
+                  {targetHistoryModal.loading ? (
+                    <p className="text-xs font-semibold text-slate-500">Loading history...</p>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                      <table className="min-w-full text-xs">
+                        <thead className="bg-slate-50 text-slate-700">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Sl. No.</th>
+                            <th className="px-3 py-2 text-left">Revised Target Completion Date</th>
+                            <th className="px-3 py-2 text-left">Revised On</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {targetHistoryModal.rows.length ? (
+                            targetHistoryModal.rows.map((item, idx) => (
+                              <tr
+                                key={`${idx}-${item.revised_on || item.revised_target_completion_date || ''}`}
+                                className="border-t border-slate-100"
+                              >
+                                <td className="px-3 py-2">{idx + 1}</td>
+                                <td className="px-3 py-2">
+                                  {item.revised_target_completion_date
+                                    ? String(item.revised_target_completion_date).slice(0, 10)
+                                    : '-'}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {item.revised_on ? String(item.revised_on).slice(0, 10) : '-'}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={3} className="px-3 py-6 text-center text-slate-500">
+                                No revision history found.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+                <div className="px-5 py-4 border-t border-slate-200 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={closeTargetHistoryModal}
+                    className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 text-slate-700"
+                  >
+                    Exit
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        : null}
 
     </div>
   );

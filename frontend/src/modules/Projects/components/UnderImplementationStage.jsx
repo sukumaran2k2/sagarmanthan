@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, Columns3, DollarSign, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Activity, Columns3, DollarSign, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import {
   deleteExpenditureLogRow,
   editExpenditureComponentsDetails,
@@ -13,8 +13,10 @@ import {
   fetchTotalExpenditureValue,
   fetchUnderImplementationMilestones,
   submitExpenditureDetail,
+  submitUnderImplementationProgress,
 } from '../api';
 import { getProjectIdentity } from '../utils/mapProject';
+import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 import {
   DEFAULT_MILESTONES,
   mapMilestonesFromApi,
@@ -82,6 +84,7 @@ export default function UnderImplementationStage({
   notify,
   refreshKey = 0,
 }) {
+  const permissions = useProjectsPermissions();
   const identity = useMemo(() => {
     if (projectIDProp) {
       return {
@@ -98,6 +101,7 @@ export default function UnderImplementationStage({
   const [previousProgressValue, setPreviousProgressValue] = useState(null);
   const [progressLocked, setProgressLocked] = useState(true);
   const [progressSnapshot, setProgressSnapshot] = useState({ date: '', value: '0' });
+  const [progressSaving, setProgressSaving] = useState(false);
   const [delayReason, setDelayReason] = useState('');
   const [inauguration, setInauguration] = useState('');
   const [inaugurationDate, setInaugurationDate] = useState('');
@@ -169,7 +173,8 @@ export default function UnderImplementationStage({
       });
       return {
         sNo: index + 1,
-        financialYear: row.year || row.financial_year || '-',
+        // Prefer financial_year (e.g. 2024-2025). `year` is calendar year from month mapping.
+        financialYear: row.financial_year || row.year || '-',
         month: displayMonth(row.month),
         components: toComponentsText(source) || '-',
         rawFinancialYear: row.financial_year || row.year || '',
@@ -440,37 +445,69 @@ export default function UnderImplementationStage({
 
   const today = new Date().toISOString().slice(0, 10);
 
-  const handleSubmit = () => {
-    const progressNum = Number(progressValue);
-    const hasProgressValue = String(progressValue || '').trim() !== '';
+  /** Separate save for physical progress % — same as legacy addPhysicalProgress(). */
+  const savePhysicalProgress = async () => {
+    if (disabled || progressLocked || progressSaving) return;
+    if (!projectID) {
+      notify?.('Project details are missing. Please reload and try again.', 'error');
+      return;
+    }
 
-    // Legacy addPhysicalProgress always required the as-on date when saving progress.
-    if (!progressDate && hasProgressValue && String(progressValue) !== '0') {
+    const progressNum = Number(progressValue);
+
+    if (!String(progressDate || '').trim()) {
       notify?.('Please select a physical progress as on date', 'error');
       return;
     }
 
-    if (progressDate) {
-      if (Number.isNaN(progressNum) || progressNum > 100 || progressNum < 0) {
-        notify?.('The physical progress must be less than or equal to 100 %.', 'error');
-        return;
-      }
-      if (
-        previousProgressValue != null &&
-        !Number.isNaN(previousProgressValue) &&
-        progressNum <= Number(previousProgressValue)
-      ) {
-        notify?.(
-          'The physical progress percentage must always be greater the previous value.',
-          'error'
-        );
-        return;
-      }
+    if (Number.isNaN(progressNum) || progressNum > 100 || progressNum < 0) {
+      notify?.('The physical progress must be less than or equal to 100 %.', 'error');
+      return;
     }
 
+    if (
+      previousProgressValue != null &&
+      !Number.isNaN(Number(previousProgressValue)) &&
+      progressNum <= Number(previousProgressValue)
+    ) {
+      notify?.(
+        'The physical progress percentage must always be greater the previous value.',
+        'error'
+      );
+      return;
+    }
+
+    setProgressSaving(true);
+    try {
+      await submitUnderImplementationProgress({
+        projectID,
+        subProjectID: subProjectID || '-1',
+        userID: permissions.userId,
+        progressDate,
+        progressValue,
+      });
+
+      setPreviousProgressValue(progressNum);
+      setProgressSnapshot({ date: progressDate, value: String(progressValue) });
+      setProgressLocked(true);
+      notify?.('Physical progress submitted successfully', 'success');
+    } catch (error) {
+      console.error(error);
+      notify?.(
+        error?.response?.data?.message ||
+          'Unable to save physical progress. Please try again.',
+        'error'
+      );
+    } finally {
+      setProgressSaving(false);
+    }
+  };
+
+  /** Saves milestones + inauguration only. Physical progress has its own Save button. */
+  const handleSubmit = () => {
     onSubmitStage?.('implementation', {
-      progressDate,
-      progressValue: progressDate ? progressValue : '',
+      progressDate: '',
+      progressValue: '',
       milestones,
       delayReason,
       inauguration,
@@ -775,29 +812,39 @@ export default function UnderImplementationStage({
                   }`}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={disabled || !progressLocked}
+                  disabled={disabled || !progressLocked || progressSaving}
                   onClick={() => {
                     setProgressSnapshot({ date: progressDate, value: progressValue });
                     setProgressLocked(false);
                   }}
-                  className="px-3 py-2 text-xs font-bold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-60"
                 >
+                  <Pencil className="h-3.5 w-3.5" />
                   Edit
                 </button>
                 <button
                   type="button"
-                  disabled={disabled || progressLocked}
+                  disabled={disabled || progressLocked || progressSaving}
                   onClick={() => {
                     setProgressDate(progressSnapshot.date);
                     setProgressValue(progressSnapshot.value);
                     setProgressLocked(true);
                   }}
-                  className="px-3 py-2 text-xs font-bold rounded-lg border border-rose-200 text-rose-700 bg-rose-50 disabled:opacity-60"
+                  className="px-3 py-2 text-xs font-bold rounded-lg border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-60"
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={disabled || progressLocked || progressSaving}
+                  onClick={savePhysicalProgress}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border border-emerald-200 text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {progressSaving ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </div>

@@ -174,8 +174,8 @@ export default function UnderTenderingStage({
 
   const MAX_PDF_BYTES = PROJECT_UPLOAD_MAX_BYTES;
 
-  /** Mirrors legacy checkActualDate() — previous stage must have planned + actual before later dates. */
-  const checkActualDateChain = (sourceRows, nominationValue) => {
+  /** Mirrors legacy checkActualDate() — only previous stages for the row being edited. */
+  const checkActualDateChain = (sourceRows, nominationValue, changedRowId) => {
     const byId = (id) => sourceRows.find((row) => Number(row.id) === id) || {};
     const r1 = byId(1);
     const r2 = byId(2);
@@ -186,29 +186,62 @@ export default function UnderTenderingStage({
     const r7 = byId(7);
     const r8 = byId(8);
     const isNomination = String(nominationValue) === '1';
+    const upTo = Number(changedRowId) || 8;
 
     if (!isNomination) {
-      if (!r1.notApplicable && (!r1.plannedDate || !r1.actualDate) && (r2.plannedDate || r2.actualDate)) {
+      // When editing row N, only validate prerequisite links up to N
+      // (avoids false errors from later rows that already have leftover dates).
+      if (
+        upTo >= 2 &&
+        !r1.notApplicable &&
+        (!r1.plannedDate || !r1.actualDate) &&
+        (r2.plannedDate || r2.actualDate)
+      ) {
         notify?.('Please enter the technical sanction - actual date.', 'error');
         return false;
       }
-      if (!r2.notApplicable && (!r2.plannedDate || !r2.actualDate) && (r3.plannedDate || r3.actualDate)) {
+      if (
+        upTo >= 3 &&
+        !r2.notApplicable &&
+        (!r2.plannedDate || !r2.actualDate) &&
+        (r3.plannedDate || r3.actualDate)
+      ) {
         notify?.('Please enter the tender document approved - actual date.', 'error');
         return false;
       }
-      if (!r3.notApplicable && (!r3.plannedDate || !r3.actualDate) && (r4.plannedDate || r4.actualDate)) {
+      if (
+        upTo >= 4 &&
+        !r3.notApplicable &&
+        (!r3.plannedDate || !r3.actualDate) &&
+        (r4.plannedDate || r4.actualDate)
+      ) {
         notify?.('Please enter the tender notice issued - actual date.', 'error');
         return false;
       }
-      if (!r4.notApplicable && (!r4.plannedDate || !r4.actualDate) && (r5.plannedDate || r5.actualDate)) {
+      if (
+        upTo >= 5 &&
+        !r4.notApplicable &&
+        (!r4.plannedDate || !r4.actualDate) &&
+        (r5.plannedDate || r5.actualDate)
+      ) {
         notify?.('Please enter the technical evaluation completed - actual date.', 'error');
         return false;
       }
-      if (!r5.notApplicable && (!r5.plannedDate || !r5.actualDate) && (r6.plannedDate || r6.actualDate)) {
+      if (
+        upTo >= 6 &&
+        !r5.notApplicable &&
+        (!r5.plannedDate || !r5.actualDate) &&
+        (r6.plannedDate || r6.actualDate)
+      ) {
         notify?.('Please enter the financial evaluation completed - actual date.', 'error');
         return false;
       }
-      if ((!r6.plannedDate || !r6.actualDate) && (r7.plannedDate || r7.actualDate)) {
+      if (
+        upTo >= 7 &&
+        !r6.notApplicable &&
+        (!r6.plannedDate || !r6.actualDate) &&
+        (r7.plannedDate || r7.actualDate)
+      ) {
         notify?.(
           'Please enter the sanction of competent authority obtained for award - actual date.',
           'error'
@@ -217,7 +250,11 @@ export default function UnderTenderingStage({
       }
     }
 
-    if ((!r7.plannedDate || !r7.actualDate) && (r8.plannedDate || r8.actualDate)) {
+    if (
+      upTo >= 8 &&
+      (!r7.plannedDate || !r7.actualDate) &&
+      (r8.plannedDate || r8.actualDate)
+    ) {
       notify?.('Please enter the work awarded / LOA issued - actual date.', 'error');
       return false;
     }
@@ -229,7 +266,9 @@ export default function UnderTenderingStage({
       Number(row.id) === Number(rowId) ? { ...row, actualDate: value } : row
     );
     updateRow(rowId, { actualDate: value });
-    checkActualDateChain(nextRows, onNominationBasisAwarded);
+    // Legacy underTendering.html: Tech. Sanction has no onchange chain check.
+    if (Number(rowId) <= 1) return;
+    checkActualDateChain(nextRows, onNominationBasisAwarded, rowId);
   };
 
   const onUploadForRow = async (rowId, file) => {
@@ -514,35 +553,35 @@ export default function UnderTenderingStage({
         notify?.('Tender Document Actual Date cannot be less than Tech Sanction Actual Date.', 'error');
         return false;
       }
-      if (compareDates(r3.plannedDate, r2.plannedDate)) {
+      if (!r2.notApplicable && compareDates(r3.plannedDate, r2.plannedDate)) {
         notify?.('Tender Notice Planned Date cannot be less than Tender Document Planned Date.', 'error');
         return false;
       }
-      if (compareDates(r3.actualDate, r2.actualDate)) {
+      if (!r2.notApplicable && compareDates(r3.actualDate, r2.actualDate)) {
         notify?.('Tender Notice Actual Date cannot be less than Tender Document Actual Date.', 'error');
         return false;
       }
-      if (compareDates(r4.plannedDate, r3.plannedDate)) {
+      if (!r3.notApplicable && compareDates(r4.plannedDate, r3.plannedDate)) {
         notify?.('Tech Evaluation Planned Date cannot be less than Tender Notice Planned Date.', 'error');
         return false;
       }
-      if (compareDates(r4.actualDate, r3.actualDate)) {
+      if (!r3.notApplicable && compareDates(r4.actualDate, r3.actualDate)) {
         notify?.('Tech Evaluation Actual Date cannot be less than Tender Notice Actual Date.', 'error');
         return false;
       }
-      if (compareDates(r5.plannedDate, r4.plannedDate)) {
+      if (!r4.notApplicable && compareDates(r5.plannedDate, r4.plannedDate)) {
         notify?.('Financial Evaluation Planned Date cannot be less than Tech Evaluation Planned Date.', 'error');
         return false;
       }
-      if (compareDates(r5.actualDate, r4.actualDate)) {
+      if (!r4.notApplicable && compareDates(r5.actualDate, r4.actualDate)) {
         notify?.('Financial Evaluation Actual Date cannot be less than Tech Evaluation Actual Date.', 'error');
         return false;
       }
-      if (compareDates(r6.plannedDate, r5.plannedDate)) {
+      if (!r5.notApplicable && compareDates(r6.plannedDate, r5.plannedDate)) {
         notify?.('Sanction Competent Authority Planned Date cannot be less than Financial Evaluation Planned Date.', 'error');
         return false;
       }
-      if (compareDates(r6.actualDate, r5.actualDate)) {
+      if (!r5.notApplicable && compareDates(r6.actualDate, r5.actualDate)) {
         notify?.('Sanction Competent Authority Actual Date cannot be less than Financial Evaluation Actual Date.', 'error');
         return false;
       }
@@ -556,13 +595,16 @@ export default function UnderTenderingStage({
       notify?.('Please fill the work awarded actual dates.', 'error');
       return false;
     }
-    if (compareDates(r7.plannedDate, r6.plannedDate)) {
-      notify?.('Work Awarded Planned Date cannot be less than Sanction Competent Authority Planned Date.', 'error');
-      return false;
-    }
-    if (compareDates(r7.actualDate, r6.actualDate)) {
-      notify?.('Work Awarded Actual Date cannot be less than Sanction Competent Authority Actual Date.', 'error');
-      return false;
+    // Skip order checks against Sanction of Competent Authority when that row is N/A or nomination mode.
+    if (!nominationMode && !r6.notApplicable) {
+      if (compareDates(r7.plannedDate, r6.plannedDate)) {
+        notify?.('Work Awarded Planned Date cannot be less than Sanction Competent Authority Planned Date.', 'error');
+        return false;
+      }
+      if (compareDates(r7.actualDate, r6.actualDate)) {
+        notify?.('Work Awarded Actual Date cannot be less than Sanction Competent Authority Actual Date.', 'error');
+        return false;
+      }
     }
     if (compareDates(r8.plannedDate, r7.plannedDate)) {
       notify?.('Contract Signed Planned Date cannot be less than Work Awarded Planned Date.', 'error');

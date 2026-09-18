@@ -35,6 +35,26 @@ function nullIfInvalidNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Normalize date for API/SQL: YYYY-MM-DD or null (never '-' / display text). */
+export function toSqlDate(value) {
+  if (value == null || value === '' || value === '-') return null;
+  const text = String(value).trim();
+  if (!text || text === '-' || text.toLowerCase() === 'null' || text.toLowerCase() === 'invalid date') {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  if (text.includes('T')) {
+    const sliced = text.slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(sliced)) return sliced;
+  }
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const yyyy = parsed.getFullYear();
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  const dd = String(parsed.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function getProjectIdentity(input = {}) {
   const projectId = input.projectId || input.projectID || input?.raw?.project_id || '';
   const subProjectId =
@@ -120,6 +140,8 @@ export function normalizeProjectFormForSubmit(form = {}) {
 
   next.implementationMode = deriveImplementationMode(next.sourceOfFunding);
   next.sagarmalaFunding = deriveSagarmalaFunding(next.sourceOfFunding);
+  next.projectInitiatedDate = toSqlDate(next.projectInitiatedDate);
+  next.targetCompletionDate = toSqlDate(next.targetCompletionDate);
 
   return next;
 }

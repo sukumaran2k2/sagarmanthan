@@ -197,7 +197,11 @@ const FILTER_TABS = [
 
 export default function DropRequestsPage({ notify }) {
   const permissions = useProjectsPermissions();
-  const isMinistry = !permissions.isOrganisationUser && (permissions.viewMode === 'ministry' || permissions.viewMode === 'standard' || !permissions.viewMode);
+  const isMinistry =
+    !permissions.isOrganisationUser &&
+    (permissions.viewMode === 'ministry' ||
+      permissions.viewMode === 'standard' ||
+      !permissions.viewMode);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);

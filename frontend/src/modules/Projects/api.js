@@ -106,6 +106,17 @@ export function fetchProjectList({ userId, ...params }, config = {}) {
   });
 }
 
+export function fetchProjectAllData(userId, config = {}) {
+  if (!userId) {
+    throw new Error('User ID is required to export project data.');
+  }
+
+  return api.get(`/project-list-data/${userId}`, {
+    timeout: config.timeout ?? 180000,
+    ...config,
+  });
+}
+
 export function createProjectBasicInformation(payload) {
   return api.post('/add-newproject', payload);
 }
@@ -116,6 +127,14 @@ export function updateProjectBasicInformation(payload) {
 
 export function fetchEditProjectData(projectID, subProjectID) {
   return api.get(`/get-editprojectdata/${projectID}/${subProjectID}`);
+}
+
+export function addRevisedTargetCompletionDate(payload) {
+  return api.post('/add-revised-date', payload);
+}
+
+export function fetchRevisedTargetCompletionHistory(projectID, subProjectID) {
+  return api.get(`/get-revised-date/${projectID}/${subProjectID}`);
 }
 
 export function submitPlanningSanctioning(payload) {

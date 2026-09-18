@@ -466,7 +466,10 @@ async function utProjectDatesAction(req, res)
     }
     catch (err) {
         console.log(err);
-        return res.sendStatus(500);
+        return res.status(500).json({
+            message: err?.message || 'Unable to save under tendering stage details.',
+            error: 'UNDER_TENDERING_SAVE_FAILED',
+        });
     }
 };
 
@@ -495,7 +498,10 @@ async function getDisplayUtProjectDates(req, res) {
     }
     catch (err) {
         console.log(err);
-        return res.sendStatus(500);
+        return res.status(500).json({
+            message: err?.message || 'Unable to save under tendering cost and calls details.',
+            error: 'UNDER_TENDERING_COST_SAVE_FAILED',
+        });
     }
 };
 

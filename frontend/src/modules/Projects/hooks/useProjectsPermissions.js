@@ -22,6 +22,10 @@ export function useProjectsPermissions() {
   const crud = getModuleCrud(MODULE_CODE);
   const dataScopeCode = getDataScopeCode();
   const uiViewCode = getUiViewCode() || 'STANDARD';
+  const isOrgUser = isOrganisationUser();
+  const viewMode = resolveViewMode(dataScopeCode);
+  // Capex/GEM-style alias: organisation data scope (also true when role marks org user).
+  const isOrgScope = viewMode === 'org' || isOrgUser;
 
   return {
     moduleCode: MODULE_CODE,
@@ -32,9 +36,10 @@ export function useProjectsPermissions() {
     canView: crud.read,
     uiViewCode,
     dataScopeCode,
-    viewMode: resolveViewMode(dataScopeCode),
+    viewMode: isOrgScope ? 'org' : viewMode === 'ministry' ? 'ministry' : 'standard',
     isViewOnlyAdmin: isViewOnlyAdmin(),
-    isOrganisationUser: isOrganisationUser(),
+    isOrganisationUser: isOrgUser,
+    isOrgScope,
     isStandardView: String(uiViewCode).toUpperCase() === 'STANDARD',
     userId: getCurrentUserId(),
     organisationId: getSessionOrganisationId(),
