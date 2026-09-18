@@ -38,10 +38,13 @@ export default function ProjectsListTable({
   stageCounts,
   filters,
   onFiltersChange,
-  stageOptions = [],
   categoryOptions = [],
+  schemeOptions = [],
+  implementationModeOptions = [],
+  implementationTypeOptions = [],
   organisations = [],
   states = [],
+  districts = [],
 
   canAdd = false,
   canEdit = false,
@@ -107,9 +110,19 @@ export default function ProjectsListTable({
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (filters?.organisationId) count++;
+    if ((filters?.search || '').trim()) count++;
     if (filters?.projectCategory && filters.projectCategory !== 'All') count++;
+    if (filters?.schemeId && filters.schemeId !== 'All') count++;
+    if (filters?.isSagarmalaFunded && filters.isSagarmalaFunded !== 'All') count++;
+    if (filters?.organisationId) count++;
+    if (filters?.implementationMode && filters.implementationMode !== 'All') count++;
+    if (filters?.implementationType && filters.implementationType !== 'All') count++;
     if (filters?.state) count++;
+    if (filters?.district) count++;
+    if (filters?.physicalProgressMin !== '' && filters?.physicalProgressMin != null) count++;
+    if (filters?.physicalProgressMax !== '' && filters?.physicalProgressMax != null) count++;
+    if (filters?.financialProgressMin !== '' && filters?.financialProgressMin != null) count++;
+    if (filters?.financialProgressMax !== '' && filters?.financialProgressMax != null) count++;
     return count;
   }, [filters]);
 
@@ -120,11 +133,31 @@ export default function ProjectsListTable({
   const clearFilters = () => {
     onFiltersChange?.({ 
       ...filters,
+      search: '',
       projectCategory: 'All', 
+      schemeId: 'All',
+      isSagarmalaFunded: 'All',
       organisationId: '',
-      state: ''
+      implementationMode: 'All',
+      implementationType: 'All',
+      state: '',
+      district: '',
+      physicalProgressMin: '',
+      physicalProgressMax: '',
+      financialProgressMin: '',
+      financialProgressMax: '',
     });
   };
+
+  const filteredDistricts = useMemo(() => {
+    if (!filters?.state) return districts;
+    const selectedState = states.find(
+      (st) => String(st?.state_name || st?.name || st?.state_names || '') === String(filters.state)
+    );
+    const selectedStateId = selectedState?.state_id ?? selectedState?.id;
+    if (!selectedStateId) return districts;
+    return districts.filter((d) => String(d?.state_id || d?.stateId || '') === String(selectedStateId));
+  }, [districts, states, filters?.state]);
 
   const counts = useMemo(() => {
     const src = stageCounts || pagination?.counts;
@@ -188,6 +221,23 @@ export default function ProjectsListTable({
 
   const columnDefs = useMemo(() => {
     const cols = [];
+    const selectedStage = filters?.projectStage || 'All';
+    const isAllProjectsTab = selectedStage === 'All';
+    const isDroppedTab = selectedStage === 'Dropped';
+    const isInitiatedTab = selectedStage === 'Project Initiated';
+    const isTenderingTab = selectedStage === 'Under Tendering';
+    const isImplementationTab = selectedStage === 'Under Implementation';
+    const isCompletedTab = selectedStage === 'Completed';
+
+    const costHeader = isInitiatedTab
+      ? 'Estimated Cost (₹ Cr)'
+      : isTenderingTab
+        ? 'Sanctioned Cost (₹ Cr)'
+        : isImplementationTab
+          ? 'Awarded Cost (₹ Cr)'
+          : isCompletedTab
+            ? 'Closure Cost (₹ Cr)'
+            : 'Cost (₹ Cr)';
 
     if (visibleCols.sNo) {
       cols.push({
@@ -374,7 +424,7 @@ export default function ProjectsListTable({
     if (visibleCols.sanctionedCost) {
       cols.push({
         field: 'sanctionedCost',
-        headerName: 'Sanctioned Cost (₹ Cr)',
+        headerName: costHeader,
         width: 150,
         cellClass: 'font-bold text-emerald-600 dark:text-emerald-400 text-center font-mono text-xs flex items-center justify-center',
         headerClass: 'text-center',
@@ -385,7 +435,23 @@ export default function ProjectsListTable({
           textAlign: 'center',
         },
         cellRenderer: (params) => {
-          const val = params.data?.sanctionedCost ?? params.data?.cost ?? params.value;
+          const row = params.data || {};
+          const stageText = String(row.stage || '').toLowerCase();
+          // In ALL tab derive by row stage; in stage tabs use the selected stage mapping.
+          const effectiveStage = isAllProjectsTab
+            ? stageText
+            : String(selectedStage || '').toLowerCase();
+
+          let val;
+          if (effectiveStage.includes('complete')) {
+            val = row.closureCost ?? row.awardedCost ?? row.sanctionedCost ?? row.estimatedCost ?? row.cost;
+          } else if (effectiveStage.includes('implement')) {
+            val = row.awardedCost ?? row.sanctionedCost ?? row.estimatedCost ?? row.cost;
+          } else if (effectiveStage.includes('tender')) {
+            val = row.sanctionedCost ?? row.estimatedCost ?? row.cost;
+          } else {
+            val = row.estimatedCost ?? row.sanctionedCost ?? row.cost;
+          }
           return (
             <div className="w-full flex items-center justify-center text-center">
               <span>
@@ -399,7 +465,7 @@ export default function ProjectsListTable({
       });
     }
 
-    if (visibleCols.physicalProgress) {
+    if (visibleCols.physicalProgress && !isInitiatedTab && !isTenderingTab) {
       cols.push({
         field: 'physicalProgress',
         headerName: 'Physical Progress',
@@ -421,7 +487,7 @@ export default function ProjectsListTable({
       });
     }
 
-    if (visibleCols.financialProgress) {
+    if (visibleCols.financialProgress && !isInitiatedTab && !isTenderingTab) {
       cols.push({
         field: 'financialProgress',
         headerName: 'Financial Progress',
@@ -442,9 +508,6 @@ export default function ProjectsListTable({
         },
       });
     }
-
-    const isAllProjectsTab = !filters?.projectStage || filters.projectStage === 'All';
-    const isDroppedTab = filters?.projectStage === 'Dropped';
 
     // Status / Stage column: ONLY needed in the "ALL PROJECTS" tab
     if (isAllProjectsTab && visibleCols.stage) {
@@ -872,7 +935,20 @@ export default function ProjectsListTable({
             return (
               <button
                 key={tab.id}
-                onClick={() => setFilter('projectStage', tab.id)}
+                onClick={() =>
+                  onFiltersChange?.({
+                    ...filters,
+                    projectStage: tab.id,
+                    ...(tab.id === 'Project Initiated' || tab.id === 'Under Tendering'
+                      ? {
+                          physicalProgressMin: '',
+                          physicalProgressMax: '',
+                          financialProgressMin: '',
+                          financialProgressMax: '',
+                        }
+                      : {}),
+                  })
+                }
                 className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   isSelected
                     ? tab.id === 'Dropped'
@@ -1018,9 +1094,13 @@ export default function ProjectsListTable({
                     ...(!isOrgUser
                       ? [{ key: 'primaryImplementingAgency', label: 'Primary Implementing Agency' }]
                       : []),
-                    { key: 'sanctionedCost', label: 'Sanctioned Cost (₹ Cr)' },
-                    { key: 'physicalProgress', label: 'Physical Progress' },
-                    { key: 'financialProgress', label: 'Financial Progress' },
+                    { key: 'sanctionedCost', label: 'Cost (₹ Cr)' },
+                    ...((filters?.projectStage === 'Project Initiated' || filters?.projectStage === 'Under Tendering')
+                      ? []
+                      : [
+                          { key: 'physicalProgress', label: 'Physical Progress' },
+                          { key: 'financialProgress', label: 'Financial Progress' },
+                        ]),
                     ...((!filters?.projectStage || filters.projectStage === 'All')
                       ? [{ key: 'stage', label: 'Status / Stage' }]
                       : []),
@@ -1097,14 +1177,14 @@ export default function ProjectsListTable({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                  Lead Organisation
+                  Primary Implementing Agency (IA)
                 </label>
                 <select
                   value={filters?.organisationId || ''}
                   onChange={(e) => setFilter('organisationId', e.target.value)}
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
-                  <option value="">All Organisations ({organisations.length})</option>
+                  <option value="">All Primary Implementing Agencies</option>
                   {organisations.map((org) => {
                     const orgId = org.organisation_id || org.id;
                     const orgName = org.organisation_name || org.name;
@@ -1142,17 +1222,62 @@ export default function ProjectsListTable({
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                  State / Region
+                  Scheme
+                </label>
+                <select
+                  value={filters?.schemeId || 'All'}
+                  onChange={(e) => setFilter('schemeId', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="All">All Schemes</option>
+                  {schemeOptions.map((sch, idx) => {
+                    const value = String(sch?.scheme_id ?? sch?.id ?? idx);
+                    const label = sch?.scheme_name || sch?.name || value;
+                    return (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Is Sagarmala Funded
+                </label>
+                <select
+                  value={filters?.isSagarmalaFunded || 'All'}
+                  onChange={(e) => setFilter('isSagarmalaFunded', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="All">All</option>
+                  <option value="1">Yes</option>
+                  <option value="0">No</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  State
                 </label>
                 <select
                   value={filters?.state || ''}
-                  onChange={(e) => setFilter('state', e.target.value)}
+                  onChange={(e) =>
+                    onFiltersChange?.({
+                      ...filters,
+                      state: e.target.value,
+                      district: '',
+                    })
+                  }
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
-                  <option value="">All States ({states.length})</option>
+                  <option value="">All States</option>
                   {states.map((st) => {
+                    const stId = st.state_id || st.id;
                     const stName = st.state_name || st.name || st.state_names;
-                    const stId = st.state_id || st.id || stName;
                     return (
                       <option key={stId} value={stName}>
                         {stName}
@@ -1161,7 +1286,115 @@ export default function ProjectsListTable({
                   })}
                 </select>
               </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  District
+                </label>
+                <select
+                  value={filters?.district || ''}
+                  onChange={(e) => setFilter('district', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">All Districts</option>
+                  {filteredDistricts.map((dt) => {
+                    const dtId = dt.district_id || dt.id;
+                    const dtName = dt.district_name || dt.name;
+                    return (
+                      <option key={dtId} value={dtName}>
+                        {dtName}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Implementation Mode
+                </label>
+                <select
+                  value={filters?.implementationMode || 'All'}
+                  onChange={(e) => setFilter('implementationMode', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  {implementationModeOptions.map((mode) => (
+                    <option key={mode} value={mode}>{mode}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Implementation Type
+                </label>
+                <select
+                  value={filters?.implementationType || 'All'}
+                  onChange={(e) => setFilter('implementationType', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  {implementationTypeOptions.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+
+            {filters?.projectStage !== 'Project Initiated' && filters?.projectStage !== 'Under Tendering' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                    Physical Progress (%)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Min"
+                      value={filters?.physicalProgressMin ?? ''}
+                      onChange={(e) => setFilter('physicalProgressMin', e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Max"
+                      value={filters?.physicalProgressMax ?? ''}
+                      onChange={(e) => setFilter('physicalProgressMax', e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                    Financial Progress (%)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Min"
+                      value={filters?.financialProgressMin ?? ''}
+                      onChange={(e) => setFilter('financialProgressMin', e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Max"
+                      value={filters?.financialProgressMax ?? ''}
+                      onChange={(e) => setFilter('financialProgressMax', e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
 

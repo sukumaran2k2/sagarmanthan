@@ -21,8 +21,11 @@ async function projectFolderDownloadLog(req, res)
    
     try {
      
-            const query = ` INSERT INTO tbl_project_folder_download_log ( user_id, email_id, requested_datetime) 
-            VALUES ( @userID, @emailId, CURRENT_TIMESTAMP ) `;
+            // Same flow as previous portal: queue the request here.
+            // Offline job `backend/projectMediaFileDownload.py` picks status=0 rows,
+            // builds the ZIP, emails the download link, then sets status=1.
+            const query = ` INSERT INTO tbl_project_folder_download_log ( user_id, email_id, requested_datetime, status) 
+            VALUES ( @userID, @emailId, CURRENT_TIMESTAMP, 0 ) `;
 
         const result = await request.query(query);
 
@@ -97,10 +100,24 @@ async function getProjectList(req, res) {
     const offset = (page - 1) * limit;
 
     const search = String(req.query.search || '').trim();
+    const includeCounts = String(req.query.includeCounts || '0') === '1';
     const projectStage = String(req.query.projectStage || '').trim();
     const projectCategory = String(req.query.projectCategory || '').trim();
+    const schemeId = Number.parseInt(req.query.schemeId, 10);
+    const isSagarmalaFundedRaw = String(req.query.isSagarmalaFunded ?? '').trim();
+    const implementationMode = String(req.query.implementationMode || '').trim();
+    const implementationType = String(req.query.implementationType || '').trim();
     const state = String(req.query.state || '').trim();
+    const district = String(req.query.district || '').trim();
     const organisationId = Number.parseInt(req.query.organisationId, 10);
+    const physicalProgressMinRaw = req.query.physicalProgressMin;
+    const physicalProgressMaxRaw = req.query.physicalProgressMax;
+    const financialProgressMinRaw = req.query.financialProgressMin;
+    const financialProgressMaxRaw = req.query.financialProgressMax;
+    const physicalProgressMin = physicalProgressMinRaw === '' || physicalProgressMinRaw == null ? null : Number(physicalProgressMinRaw);
+    const physicalProgressMax = physicalProgressMaxRaw === '' || physicalProgressMaxRaw == null ? null : Number(physicalProgressMaxRaw);
+    const financialProgressMin = financialProgressMinRaw === '' || financialProgressMinRaw == null ? null : Number(financialProgressMinRaw);
+    const financialProgressMax = financialProgressMaxRaw === '' || financialProgressMaxRaw == null ? null : Number(financialProgressMaxRaw);
 
     try {
         const roleRequest = conn.request();
@@ -148,14 +165,24 @@ async function getProjectList(req, res) {
                         FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_project_category_id, p.project_category_id))), ',') x
                         JOIN mmt_project_category pc ON TRY_CAST(x.value AS int) = pc.project_category_id
                     ) AS project_category_names,
+                    ISNULL(sp.sub_scheme_id, p.scheme_id) AS scheme_id,
+                    sch.scheme_name,
                     ISNULL(sp.sub_state_id, p.state_id) AS state_id,
                     (
                         SELECT STRING_AGG(st.state_name, ', ')
                         FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_state_id, p.state_id))), ',') x
                         JOIN mmt_state st ON TRY_CAST(x.value AS int) = st.state_id
                     ) AS state_names,
+                    ISNULL(sp.sub_district_id, p.district_id) AS district_id,
+                    (
+                        SELECT STRING_AGG(dt.district_name, ', ')
+                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_district_id, p.district_id))), ',') x
+                        JOIN mmt_district dt ON TRY_CAST(x.value AS int) = dt.district_id
+                    ) AS district_names,
                     ISNULL(sp.sub_organisation_id, p.organisation_id) AS organisation_id,
                     org.organisation_name,
+                    ISNULL(sp.sub_mode_of_implememtation, p.mode_of_implememtation) AS mode_of_implememtation,
+                    ISNULL(sp.sub_implememtation_type, p.implememtation_type) AS implememtation_type,
                     ISNULL(sp.sub_status, p.status) AS project_status,
                     CASE
                         WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 99
@@ -205,6 +232,7 @@ async function getProjectList(req, res) {
                 LEFT JOIN tbl_sub_project sp ON sp.project_id = p.project_id
                 LEFT JOIN mmt_organisation org ON org.organisation_id = ISNULL(sp.sub_organisation_id, p.organisation_id)
                 LEFT JOIN mmt_implementing_agency ia ON ia.ia_id = ISNULL(sp.sub_primary_ia_id, p.primary_ia_id)
+                LEFT JOIN mmt_scheme sch ON sch.scheme_id = ISNULL(sp.sub_scheme_id, p.scheme_id)
                 LEFT JOIN tbl_project_stage stage ON stage.stage_id = ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
                 OUTER APPLY (
                     SELECT TOP 1
@@ -301,14 +329,45 @@ async function getProjectList(req, res) {
                 OR ISNULL(organisation_name, '') LIKE @search
                 OR ISNULL(primary_ia_name, '') LIKE @search
                 OR ISNULL(state_names, '') LIKE @search
+                OR ISNULL(district_names, '') LIKE @search
+                OR ISNULL(scheme_name, '') LIKE @search
+                OR ISNULL(mode_of_implememtation, '') LIKE @search
+                OR ISNULL(implememtation_type, '') LIKE @search
                 OR ISNULL(project_category_names, '') LIKE @search
             )`);
         }
         if (projectCategory && projectCategory !== 'All') {
             filterWhereClauses.push('ISNULL(project_category_names, \'\') LIKE @projectCategory');
         }
+        if (Number.isFinite(schemeId) && schemeId > 0) {
+            filterWhereClauses.push('scheme_id = @schemeId');
+        }
+        if (isSagarmalaFundedRaw === '0' || isSagarmalaFundedRaw === '1') {
+            filterWhereClauses.push('COALESCE(is_sagarmala_funded, 0) = @isSagarmalaFunded');
+        }
+        if (implementationMode && implementationMode !== 'All') {
+            filterWhereClauses.push('ISNULL(mode_of_implememtation, \'\') LIKE @implementationMode');
+        }
+        if (implementationType && implementationType !== 'All') {
+            filterWhereClauses.push('ISNULL(implememtation_type, \'\') LIKE @implementationType');
+        }
         if (state) {
             filterWhereClauses.push('ISNULL(state_names, \'\') LIKE @state');
+        }
+        if (district) {
+            filterWhereClauses.push('ISNULL(district_names, \'\') LIKE @district');
+        }
+        if (Number.isFinite(physicalProgressMin)) {
+            filterWhereClauses.push('COALESCE(physical_progress, 0) >= @physicalProgressMin');
+        }
+        if (Number.isFinite(physicalProgressMax)) {
+            filterWhereClauses.push('COALESCE(physical_progress, 0) <= @physicalProgressMax');
+        }
+        if (Number.isFinite(financialProgressMin)) {
+            filterWhereClauses.push('COALESCE(financial_progress, 0) >= @financialProgressMin');
+        }
+        if (Number.isFinite(financialProgressMax)) {
+            filterWhereClauses.push('COALESCE(financial_progress, 0) <= @financialProgressMax');
         }
 
         const whereClauses = [...filterWhereClauses];
@@ -338,6 +397,15 @@ async function getProjectList(req, res) {
             countRequest.input('organisationId', organisationId);
             dataRequest.input('organisationId', organisationId);
         }
+        if (Number.isFinite(schemeId) && schemeId > 0) {
+            countRequest.input('schemeId', schemeId);
+            dataRequest.input('schemeId', schemeId);
+        }
+        if (isSagarmalaFundedRaw === '0' || isSagarmalaFundedRaw === '1') {
+            const sagarmalaFlag = Number(isSagarmalaFundedRaw);
+            countRequest.input('isSagarmalaFunded', sagarmalaFlag);
+            dataRequest.input('isSagarmalaFunded', sagarmalaFlag);
+        }
         if (search) {
             const searchLike = `%${search}%`;
             countRequest.input('search', searchLike);
@@ -354,53 +422,86 @@ async function getProjectList(req, res) {
             countRequest.input('projectCategory', categoryLike);
             dataRequest.input('projectCategory', categoryLike);
         }
+        if (implementationMode && implementationMode !== 'All') {
+            const implementationModeLike = `%${implementationMode}%`;
+            countRequest.input('implementationMode', implementationModeLike);
+            dataRequest.input('implementationMode', implementationModeLike);
+        }
+        if (implementationType && implementationType !== 'All') {
+            const implementationTypeLike = `%${implementationType}%`;
+            countRequest.input('implementationType', implementationTypeLike);
+            dataRequest.input('implementationType', implementationTypeLike);
+        }
         if (state) {
             const stateLike = `%${state}%`;
             countRequest.input('state', stateLike);
             dataRequest.input('state', stateLike);
         }
+        if (district) {
+            const districtLike = `%${district}%`;
+            countRequest.input('district', districtLike);
+            dataRequest.input('district', districtLike);
+        }
+        if (Number.isFinite(physicalProgressMin)) {
+            countRequest.input('physicalProgressMin', physicalProgressMin);
+            dataRequest.input('physicalProgressMin', physicalProgressMin);
+        }
+        if (Number.isFinite(physicalProgressMax)) {
+            countRequest.input('physicalProgressMax', physicalProgressMax);
+            dataRequest.input('physicalProgressMax', physicalProgressMax);
+        }
+        if (Number.isFinite(financialProgressMin)) {
+            countRequest.input('financialProgressMin', financialProgressMin);
+            dataRequest.input('financialProgressMin', financialProgressMin);
+        }
+        if (Number.isFinite(financialProgressMax)) {
+            countRequest.input('financialProgressMax', financialProgressMax);
+            dataRequest.input('financialProgressMax', financialProgressMax);
+        }
 
         dataRequest.input('offset', offset);
         dataRequest.input('limit', limit);
 
-        const countResult = await countRequest.query(`${baseQuery} SELECT COUNT(1) AS total FROM base ${outerWhere};`);
-        const total = Number(countResult.recordset?.[0]?.total || 0);
-
-        const countsResult = await countRequest.query(`
-            ${baseQuery}
-            SELECT
-                COUNT(1) AS allCount,
-                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL) THEN 1 ELSE 0 END) AS planningCount,
-                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%') THEN 1 ELSE 0 END) AS tenderingCount,
-                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%') THEN 1 ELSE 0 END) AS uiCount,
-                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%') THEN 1 ELSE 0 END) AS completedCount,
-                SUM(CASE WHEN stage_name = 'Dropped' OR current_project_stage_id = 99 THEN 1 ELSE 0 END) AS droppedCount
-            FROM base
-            ${countsWhere};
-        `);
-        const cRow = countsResult.recordset?.[0] || {};
-        const counts = {
-            all: Number(cRow.allCount || 0),
-            planning: Number(cRow.planningCount || 0),
-            tendering: Number(cRow.tenderingCount || 0),
-            ui: Number(cRow.uiCount || 0),
-            completed: Number(cRow.completedCount || 0),
-            dropped: Number(cRow.droppedCount || 0),
-        };
+        let counts = null;
+        if (includeCounts) {
+            const countsResult = await countRequest.query(`
+                ${baseQuery}
+                SELECT
+                    COUNT(1) AS allCount,
+                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL) THEN 1 ELSE 0 END) AS planningCount,
+                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%') THEN 1 ELSE 0 END) AS tenderingCount,
+                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%') THEN 1 ELSE 0 END) AS uiCount,
+                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%') THEN 1 ELSE 0 END) AS completedCount,
+                    SUM(CASE WHEN stage_name = 'Dropped' OR current_project_stage_id = 99 THEN 1 ELSE 0 END) AS droppedCount
+                FROM base
+                ${countsWhere};
+            `);
+            const cRow = countsResult.recordset?.[0] || {};
+            counts = {
+                all: Number(cRow.allCount || 0),
+                planning: Number(cRow.planningCount || 0),
+                tendering: Number(cRow.tenderingCount || 0),
+                ui: Number(cRow.uiCount || 0),
+                completed: Number(cRow.completedCount || 0),
+                dropped: Number(cRow.droppedCount || 0),
+            };
+        }
 
         const dataResult = await dataRequest.query(`
             ${baseQuery}
-            SELECT *
+            SELECT *, COUNT(1) OVER() AS total_count
             FROM base
             ${outerWhere}
             ORDER BY current_project_stage_id, project_id DESC
             OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
         `);
 
+        const total = Number(dataResult.recordset?.[0]?.total_count || 0);
+        const data = dataResult.recordset.map(({ total_count, ...row }) => row);
         const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
 
         return res.json({
-            data: dataResult.recordset,
+            data,
             pagination: {
                 total,
                 page,
