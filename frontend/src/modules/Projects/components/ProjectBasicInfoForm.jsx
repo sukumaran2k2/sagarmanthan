@@ -1469,10 +1469,13 @@ export default function ProjectBasicInfoForm({
                       e.preventDefault();
                     }
                   }}
-                  disabled={!canInteract}
+                  disabled={!canInteract || isEditMode}
                   placeholder="Enter project ID"
                   className={getInputClass('projectID')}
                 />
+                {isEditMode ? (
+                  <p className="mt-1 text-[10px] font-semibold text-slate-500">Project ID is locked in edit mode.</p>
+                ) : null}
                 <FieldError error={errors.projectID} />
               </div>
 
@@ -1490,10 +1493,13 @@ export default function ProjectBasicInfoForm({
                       e.preventDefault();
                     }
                   }}
-                  disabled={!canInteract}
+                  disabled={!canInteract || isEditMode}
                   placeholder="Enter sub project ID"
                   className={getInputClass('subProjectID')}
                 />
+                {isEditMode ? (
+                  <p className="mt-1 text-[10px] font-semibold text-slate-500">Sub Project ID is locked in edit mode.</p>
+                ) : null}
                 <FieldError error={errors.subProjectID} />
               </div>
               

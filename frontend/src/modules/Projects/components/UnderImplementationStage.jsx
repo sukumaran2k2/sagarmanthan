@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Activity, Columns3, DollarSign, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import {
@@ -503,8 +503,8 @@ export default function UnderImplementationStage({
     }
   };
 
-  /** Saves milestones + inauguration only. Physical progress has its own Save button. */
-  const handleSubmit = () => {
+  /** Save physical-section details (milestones, delay, inauguration). */
+  const savePhysicalDetails = () => {
     onSubmitStage?.('implementation', {
       progressDate: '',
       progressValue: '',
@@ -900,6 +900,18 @@ export default function UnderImplementationStage({
               )}
             </div>
           </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={savePhysicalDetails}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-lg border border-emerald-200 text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
+            >
+              <Save className="h-3.5 w-3.5" />
+              Save Physical Progress
+            </button>
+          </div>
         </>
       )}
 
@@ -1048,16 +1060,7 @@ export default function UnderImplementationStage({
           >
             Continue to Financial Progress
           </button>
-        ) : (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={handleSubmit}
-            className="px-4 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg disabled:opacity-60"
-          >
-            Submit Under Implementation
-          </button>
-        )}
+        ) : null}
       </div>
 
       {financialModalOpen

@@ -204,6 +204,10 @@ export default function ProjectsListTable({
     ];
   }, [counts]);
 
+  const selectedStage = filters?.projectStage || 'All';
+  const isAllProjectsTab = selectedStage === 'All';
+  const isDroppedTab = selectedStage === 'Dropped';
+
   const STATUS_TABS = [
     { id: 'All', label: 'ALL PROJECTS', count: counts.all },
     { id: 'Project Initiated', label: 'PROJECT INITIATED', count: counts.planning },
@@ -222,9 +226,6 @@ export default function ProjectsListTable({
 
   const columnDefs = useMemo(() => {
     const cols = [];
-    const selectedStage = filters?.projectStage || 'All';
-    const isAllProjectsTab = selectedStage === 'All';
-    const isDroppedTab = selectedStage === 'Dropped';
     const isInitiatedTab = selectedStage === 'Project Initiated';
     const isTenderingTab = selectedStage === 'Under Tendering';
     const isImplementationTab = selectedStage === 'Under Implementation';

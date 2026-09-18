@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { FolderKanban } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
@@ -16,6 +16,7 @@ const INIT_TAB_KEY = 'projectsInitTab';
 function resolveSubTabId(label, canAdd, isOrgUser = false) {
   const key = String(label || '').toLowerCase().trim();
   if (key.includes('view-project') || key.includes('detail')) return 'view-project';
+  if (key.includes('edit')) return 'edit-info';
   if (key.includes('basic') || key.includes('input')) return (canAdd && isOrgUser) ? 'basic-info' : 'list';
   if (key.includes('drop') || key === 'view-drop-request' || key === 'projects-droprequests') {
     return isOrgUser ? 'list' : 'drop-requests';
@@ -65,6 +66,7 @@ export default function Projects({
   const [editingRecord, setEditingRecord] = useState(null);
   const [formReadOnly, setFormReadOnly] = useState(false);
   const [toast, setToast] = useState(null);
+  const initialOrgRouteHandledRef = useRef(false);
 
   useEffect(() => {
     // Only fetch drop request counts for Ministry users (not Organisation view)
@@ -113,6 +115,24 @@ export default function Projects({
 
   useEffect(() => {
     const path = String(location.pathname || '').toLowerCase();
+    if (!initialOrgRouteHandledRef.current) {
+      initialOrgRouteHandledRef.current = true;
+      const isInputFormRoute =
+        path.includes('input-form') || path.includes('basic-info') || path.includes('add-project');
+      const hasExplicitEditIntent = Boolean(
+        location.state?.project || location.state?.editData || location.state?.fromList
+      );
+
+      // Org users should land on Data List by default on initial module load.
+      if (permissions.isOrganisationUser && isInputFormRoute && !hasExplicitEditIntent) {
+        setEditingRecord(null);
+        setFormReadOnly(false);
+        setManualSubTab('list');
+        navigate('/projects/project/project-list', { replace: true });
+        return;
+      }
+    }
+
     if (path.includes('view-project') || path.includes('/detail')) {
       setManualSubTab('view-project');
     } else if (path.includes('view-drop-request') || path.includes('drop-request')) {
@@ -120,15 +140,23 @@ export default function Projects({
       setFormReadOnly(false);
       setManualSubTab(permissions.isOrganisationUser ? 'list' : 'drop-requests');
     } else if (path.includes('input-form') || path.includes('basic-info') || path.includes('add-project')) {
-      setEditingRecord(null);
-      setFormReadOnly(false);
-      setManualSubTab((permissions.canAdd && permissions.isOrganisationUser) ? 'basic-info' : 'list');
+      const navProject = location.state?.project || location.state?.editData || null;
+      const isEditFlow = Boolean(location.state?.fromEdit || navProject);
+
+      if (isEditFlow) {
+        if (navProject) setEditingRecord(navProject);
+        setManualSubTab('edit-info');
+      } else {
+        setEditingRecord(null);
+        setFormReadOnly(false);
+        setManualSubTab((permissions.canAdd && permissions.isOrganisationUser) ? 'basic-info' : 'list');
+      }
     } else if (path.includes('project-list') || path.includes('data-list')) {
       setEditingRecord(null);
       setFormReadOnly(false);
       setManualSubTab('list');
     }
-  }, [location.pathname, permissions.canAdd, permissions.isOrganisationUser]);
+  }, [location.pathname, location.state, permissions.canAdd, permissions.isOrganisationUser]);
 
   useEffect(() => {
     const onMenu = (event) => {
@@ -165,8 +193,9 @@ export default function Projects({
   }, [showInputForm, permissions.isOrganisationUser, dropRequestCount]);
 
   const activeSubTab = useMemo(() => {
-    if (editingRecord && manualSubTab !== 'view-project') return 'basic-info';
+    if (editingRecord && !['view-project', 'edit-info'].includes(manualSubTab)) return 'edit-info';
     const base = manualSubTab ?? resolveSubTabId(activeSubTabProp, permissions.canAdd, permissions.isOrganisationUser);
+    if (base === 'edit-info' && !editingRecord) return 'list';
     if (base === 'basic-info' && (!permissions.canAdd || !permissions.isOrganisationUser)) {
       return 'list';
     }
@@ -234,13 +263,13 @@ export default function Projects({
         <InternalNavigation
           tabs={tabs}
           currentTab={
-            activeSubTab === 'basic-info' && editingRecord && !showInputForm
-              ? 'list'
-              : activeSubTab
+            activeSubTab === 'edit-info' ? 'list' : activeSubTab
           }
           onTabChange={(tab) => {
-            setEditingRecord(null);
-            setFormReadOnly(false);
+            if (tab !== 'edit-info') {
+              setEditingRecord(null);
+              setFormReadOnly(false);
+            }
             if (tab === 'basic-info' && !showInputForm) {
               setManualSubTab('list');
               return;
@@ -270,8 +299,8 @@ export default function Projects({
               setFormReadOnly(
                 Boolean(options.readOnly) || (!permissions.canEdit && permissions.canView)
               );
-              setManualSubTab('basic-info');
-              navigate('/projects/project/input-form');
+              setManualSubTab('edit-info');
+              navigate('/projects/project/input-form', { state: { project: row, fromEdit: true } });
             }}
             onOpenProjectDetail={(row) => {
               setEditingRecord(row);
@@ -286,7 +315,7 @@ export default function Projects({
           />
         ) : null}
 
-        {activeSubTab === 'basic-info' ? (
+        {activeSubTab === 'basic-info' || activeSubTab === 'edit-info' ? (
           <ProjectBasicInformationPage
             initialData={editingRecord}
             notify={notify}
