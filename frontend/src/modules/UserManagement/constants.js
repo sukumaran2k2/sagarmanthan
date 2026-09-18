@@ -19,13 +19,12 @@ export const ORG_LIST = [
 ];
 
 export const FULL_MODULE_LIST = [
-  'Dashboard', 'User List', 'Role Authorization', 'Assign Projects', 'User Activity', 'Master Management', 'Set Alerts', 'Escalation Matrix', 'Proposal List', 'Project List', 'View Proposals- MoPSW', 'View Project Drop Requests', 'Budget', 'Capex', 'KPI-Major Ports', 'KPI - IWAI', 'HR Management', 'Young Professionals', 'Consultant Appointment', 'Asset Management', 'File and Receipt Pendency', 'File Disposal', 'Attendance', 'GEM Procurements', 'CPGRAMS', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'VIP Reference', 'Media Outreach', 'Parlimentary Issues', 'Audit Paras', 'Court Cases', 'Bills/Pre-Constitution Act', 'MIV 2030', 'Amrit Kaal Vision 2047', 'Reports', 'View Proposal Drop Request', 'IWAI Master', 'Issues Tracking', 'Expenditure', 'E Office', 'Knowledge Repository', 'Project Report', 'One Vision One Document', 'Official Foreign Visit', 'Cruise Shipping', 'Flagged Ships', 'GMIS-MoU', 'Import On FOB Basis', 'Acts & Rules', 'MoM of PSW Meetings', 'User Management', 'KPI - DGLL', 'KPI - CSL', 'KPI - IMU', 'KPI - SCI', 'KPI - CMEC', 'KPI - DGS', 'Inter State & Inter Ministerial', 'Module Management', 'Form Builder', 'Review Items', 'MoPSW Tracker'
+  'Dashboard', 'User List', 'Role Authorization', 'Assign Projects', 'User Activity', 'Master Management', 'Set Alerts', 'Escalation Matrix', 'Proposal List', 'Project List', 'View Proposals- MoPSW', 'View Project Drop Requests', 'Budget', 'Capex', 'KPI-Major Ports', 'HR Management', 'Young Professionals', 'Consultant Appointment', 'Asset Management', 'File and Receipt Pendency', 'File Disposal', 'Attendance', 'Cabinet Notes - MoPSW', 'Cabinet Notes - Other Ministries', 'VIP Reference', 'Media Outreach', 'Parlimentary Issues', 'Audit Paras', 'Court Cases', 'Bills/Pre-Constitution Act', 'MIV 2030', 'Amrit Kaal Vision 2047', 'Reports', 'View Proposal Drop Request', 'Issues Tracking', 'E Office', 'Knowledge Repository', 'Project Report', 'One Vision One Document', 'Official Foreign Visit', 'GMIS-MoU', 'Acts & Rules', 'User Management', 'KPI - DGLL', 'KPI - CSL', 'KPI - IMU', 'KPI - SCI', 'KPI - CMEC', 'KPI - DGS', 'Inter State & Inter Ministerial', 'Module Management', 'Form Builder', 'MoPSW Tracker'
 ];
 
 export const MODULES_MASTER = [
   {id:'attendance', name:'Attendance'},
   {id:'gem', name:'GEM Procurements'},
-  {id:'cpgrams', name:'CPGRAMS'},
   {id:'cn_mopsw', name:'Cabinet Notes - MoPSW'},
   {id:'cn_other', name:'Cabinet Notes - Other Ministries'},
   {id:'vip', name:'VIP Reference'},
@@ -34,11 +33,7 @@ export const MODULES_MASTER = [
   {id:'parl', name:'Parliamentary Issues'},
   {id:'audit', name:'Audit Paras'},
   {id:'interstate', name:'Inter State & Inter Ministerial'},
-  {id:'foreign', name:'Foreign Visit'},
-  {id:'cruise', name:'Cruise Shipping'},
-  {id:'flagged', name:'Flagged Ships / FOB Basis'},
-  {id:'mom', name:'MOM Of PSW Meetings'},
-  {id:'review', name:'Review Items'}
+  {id:'foreign', name:'Foreign Visit'}
 ];
 
 export const PERMS = ['create','read','update','delete'];

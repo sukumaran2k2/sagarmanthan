@@ -125,7 +125,7 @@ const KNOWLEDGE_BASE = [
 **Core Pillars:**
 * 🚢 **Projects**: Project Monitoring, CSR Projects, Drop Requests.
 * 📊 **KPI Tracking**: Major Ports operational performance, Berth productivity.
-* 🏛️ **Governance**: VIP References, Cabinet Notes, Parliamentary Issues, GeM Procurement, CPGRAMS, E-Office.
+* 🏛️ **Governance**: VIP References, Cabinet Notes, Parliamentary Issues, GeM Procurement, E-Office.
 * 🎯 **Strategies**: Maritime India Vision 2030 (MIV), GMIS MoUs, Vision 2047.
 * ⚖️ **Legal & Rules**: Court Cases, Acts & Pre-Constitutions Rules.`,
     link: '/',

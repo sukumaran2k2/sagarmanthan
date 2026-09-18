@@ -84,14 +84,6 @@ export const MODULE_PAGES = {
     ],
   },
 
-  EXPENDITURE: {
-    tabs: [
-      'Input Form - Estimate Values',
-      'Expenditure Reports',
-      'Expenditure',
-    ],
-  },
-
   KPI_MAJOR_PORTS: {
     tabs: [
       'Major Ports Dashboard',
@@ -108,15 +100,6 @@ export const MODULE_PAGES = {
 
   KPI_DGS: {
     tabs: ['MMD Master', 'DSG Input Form', 'DSG Reports'],
-  },
-
-  KPI_IWAI: {
-    tabs: [
-      'IWAI Master',
-      'National Waterways',
-      'Terminal/Jetties',
-      'Digital Portals',
-    ],
   },
 
   KPI_DGLL: {
@@ -146,11 +129,6 @@ export const MODULE_PAGES = {
   ATTENDANCE: {
     tabs: ['Attendance'],
     uiTabs: ['Attendance'],
-  },
-
-  CPGRAMS: {
-    tabs: ['CPGRAMS'],
-    uiTabs: ['CPGRAMS'],
   },
 
   CABINET_NOTES_OTHER_MINISTRIES: {
@@ -214,22 +192,6 @@ export const MODULE_PAGES = {
 
   FOREIGN_VISIT: {
     tabs: ['Foreign Visit'],
-  },
-
-  CRUISE_SHIPPING: {
-    tabs: ['Cruise Shipping'],
-  },
-
-  FLAGSHIP_FOB_BASIS: {
-    tabs: ['Flagged Ships / FOB Basis'],
-  },
-
-  MOM_MINISTRY_MEETINGS: {
-    tabs: ['MOM Of PSW Meetings'],
-  },
-
-  REVIEW_ITEMS: {
-    tabs: ['Review Items'],
   },
 
   HR_MANAGEMENT: {

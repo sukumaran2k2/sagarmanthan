@@ -193,14 +193,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
             m('CAPEX', { label: 'Capex Reports', icon: FilePieChart, tab: 'Capex Reports' }),
           ],
         },
-        {
-          title: 'Expenditure',
-          icon: DollarSign,
-          items: [
-            m('EXPENDITURE', { label: 'Input Form - Estimate Values', icon: FileText }),
-            m('EXPENDITURE', { label: 'Expenditure Reports', icon: FilePieChart }),
-          ]
-        }
       ]
     },
     {
@@ -226,16 +218,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
             m('KPI_DGS', { label: 'MMD Master', icon: ClipboardList }),
             m('KPI_DGS', { label: 'DSG Input Form', icon: FileEdit }),
             m('KPI_DGS', { label: 'DSG Reports', icon: FilePieChart }),
-          ]
-        },
-        {
-          title: 'IWAI',
-          icon: Ship,
-          items: [
-            m('KPI_IWAI', { label: 'IWAI Master', icon: ClipboardList }),
-            m('KPI_IWAI', { label: 'National Waterways', icon: Milestone }),
-            m('KPI_IWAI', { label: 'Terminal/Jetties', icon: Anchor }),
-            m('KPI_IWAI', { label: 'Digital Portals', icon: Globe }),
           ]
         },
         {
@@ -289,7 +271,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
       gridCols: 'grid-cols-2',
       items: [
         m('ATTENDANCE', { label: 'Attendance', icon: UserCheck }),
-        m('CPGRAMS', { label: 'CPGRAMS', icon: PhoneCall }),
         m('CABINET_NOTES_OTHER_MINISTRIES', {
           label: 'Cabinet Notes - Other Ministries', icon: FileText,
           targetTab: 'Cabinet Notes - Other Ministries',
@@ -347,10 +328,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
         m('AUDIT_PARAS', { label: 'Audit Paras', icon: CheckCircle }),
         m('INTERSTATE_INTERMINISTERIAL', { label: 'Inter State & Inter Ministerial', icon: Network }),
         m('FOREIGN_VISIT', { label: 'Foreign Visit', icon: Globe }),
-        m('CRUISE_SHIPPING', { label: 'Cruise Shipping', icon: Ship }),
-        m('FLAGSHIP_FOB_BASIS', { label: 'Flagged Ships / FOB Basis', icon: Shield }),
-        m('MOM_MINISTRY_MEETINGS', { label: 'MOM Of PSW Meetings', icon: FileText }),
-        m('REVIEW_ITEMS', { label: 'Review Items', icon: ClipboardList }),
       ]
     },
     {

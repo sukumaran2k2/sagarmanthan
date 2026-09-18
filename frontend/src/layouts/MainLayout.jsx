@@ -241,10 +241,6 @@ const getBreadcrumbs = (tab) => {
     'MMD Master': ['KPI', 'DSG'],
     'DSG Input Form': ['KPI', 'DSG'],
     'DSG Reports': ['KPI', 'DSG'],
-    'IWAI Master': ['KPI', 'IWAI'],
-    'National Waterways': ['KPI', 'IWAI'],
-    'Terminal/Jetties': ['KPI', 'IWAI'],
-    'Digital Portals': ['KPI', 'IWAI'],
     'DGLL Input Form': ['KPI', 'DGLL'],
     'DGLL Reports': ['KPI', 'DGLL'],
     'CSL Input Form': ['KPI', 'CSL'],
@@ -280,11 +276,10 @@ const getBreadcrumbs = (tab) => {
   if (hrItems[tab]) return ['Home', ...hrItems[tab], tab];
 
   const governanceItems = [
-    'Attendance', 'CPGRAMS', 'Cabinet Notes - Other Ministries', 'E Office',
+    'Attendance', 'Cabinet Notes - Other Ministries', 'E Office',
     'Parliamentary Issues', 'GEM Procurements', 'Cabinet Notes - MoPSW',
     'VIP Reference', 'Media Outreach', 'Audit Paras',
-    'Inter State & Inter Ministerial', 'Foreign Visit', 'Cruise Shipping',
-    'Flagged Ships / FOB Basis', 'MOM Of PSW Meetings', 'Review Items'
+    'Inter State & Inter Ministerial', 'Foreign Visit'
   ];
   if (tab === 'Media Outreach') return ['Home', 'Media Outreach - (Input Form)'];
   if (governanceItems.includes(tab)) return ['Home', 'Governance', tab];
