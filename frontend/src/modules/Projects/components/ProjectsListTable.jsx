@@ -11,6 +11,7 @@ import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { isOrganisationUser as checkIsOrganisationUser } from '../../../utils/authSession';
+import { pickPresentCost } from '../utils/mapProject';
 
 const STATUS_COLORS = {
   'Under Implementation': '#0284c7',
@@ -421,7 +422,7 @@ export default function ProjectsListTable({
       });
     }
 
-    if (visibleCols.sanctionedCost) {
+    if (visibleCols.sanctionedCost && !isAllProjectsTab && !isDroppedTab) {
       cols.push({
         field: 'sanctionedCost',
         headerName: costHeader,
@@ -442,20 +443,41 @@ export default function ProjectsListTable({
             ? stageText
             : String(selectedStage || '').toLowerCase();
 
-          let val;
+          let val = null;
           if (effectiveStage.includes('complete')) {
-            val = row.closureCost ?? row.awardedCost ?? row.sanctionedCost ?? row.estimatedCost ?? row.cost;
+            val = pickPresentCost(
+              row.closureCost,
+              row.awardedCost,
+              row.sanctionedCost,
+              row.estimatedCost,
+              row.cost
+            );
           } else if (effectiveStage.includes('implement')) {
-            val = row.awardedCost ?? row.sanctionedCost ?? row.estimatedCost ?? row.cost;
+            val = pickPresentCost(
+              row.awardedCost,
+              row.sanctionedCost,
+              row.estimatedCost,
+              row.cost
+            );
           } else if (effectiveStage.includes('tender')) {
-            val = row.sanctionedCost ?? row.estimatedCost ?? row.cost;
+            val = pickPresentCost(row.sanctionedCost, row.estimatedCost, row.cost);
+          } else if (isAllProjectsTab || isDroppedTab) {
+            val = pickPresentCost(
+              row.cost,
+              row.estimatedCost,
+              row.sanctionedCost,
+              row.awardedCost,
+              row.closureCost
+            );
           } else {
-            val = row.estimatedCost ?? row.sanctionedCost ?? row.cost;
+            // Project Initiated (and similar early stages)
+            val = pickPresentCost(row.estimatedCost, row.sanctionedCost, row.cost);
           }
+
           return (
             <div className="w-full flex items-center justify-center text-center">
               <span>
-                {val !== undefined && val !== null && val !== ''
+                {val !== null && val !== undefined && val !== ''
                   ? `₹ ${toAmount(val)}`
                   : '-'}
               </span>
@@ -1094,7 +1116,7 @@ export default function ProjectsListTable({
                     ...(!isOrgUser
                       ? [{ key: 'primaryImplementingAgency', label: 'Primary Implementing Agency' }]
                       : []),
-                    { key: 'sanctionedCost', label: 'Cost (₹ Cr)' },
+                    ...(!isAllProjectsTab && !isDroppedTab ? [{ key: 'sanctionedCost', label: 'Cost (₹ Cr)' }] : []),
                     ...((filters?.projectStage === 'Project Initiated' || filters?.projectStage === 'Under Tendering')
                       ? []
                       : [

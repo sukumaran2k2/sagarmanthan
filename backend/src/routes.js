@@ -949,7 +949,7 @@ router.get("/project-pert-document/:projectID", addNewProjectTab.getProjectPertD
 router.get("/project-image-document/:projectID", addNewProjectTab.getProjectImageDocument);
 
 // Project list
-router.get("/project-list/:userID", projectListTab.getProjectList);
+router.get("/project-list/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectList);
 router.get("/project-list-data/:userID", projectListTab.getProjectAllData);
 router.get("/project-folder-download/:userID/:emailId", projectListTab.projectFolderDownloadLog);
 router.get("/project-media-files-download/:fileName", projectListTab.projectMediaLinkDownload)

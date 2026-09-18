@@ -2,6 +2,7 @@ import { pool } from "../../db.js";
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { getDataScope } from "../../middleware/dataScope.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -93,7 +94,9 @@ async function projectMediaLinkDownload(req, res) {
 
 async function getProjectList(req, res) {
     const conn = await pool;
-    const userID = Number(req.params.userID);
+    const requestedUserID = Number(req.params.userID);
+    const tokenUserID = Number(req.user?.userId || req.user?.user_id);
+    const userID = Number.isFinite(tokenUserID) && tokenUserID > 0 ? tokenUserID : requestedUserID;
 
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
@@ -109,7 +112,7 @@ async function getProjectList(req, res) {
     const implementationType = String(req.query.implementationType || '').trim();
     const state = String(req.query.state || '').trim();
     const district = String(req.query.district || '').trim();
-    const organisationId = Number.parseInt(req.query.organisationId, 10);
+    const requestedOrganisationId = Number.parseInt(req.query.organisationId, 10);
     const physicalProgressMinRaw = req.query.physicalProgressMin;
     const physicalProgressMaxRaw = req.query.physicalProgressMax;
     const financialProgressMinRaw = req.query.financialProgressMin;
@@ -128,26 +131,32 @@ async function getProjectList(req, res) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const { role_id, organisation_id } = userResult.recordset[0];
-        const privilegedRoles = new Set([2, 3, 4, 5, 8]);
+        const { organisation_id } = userResult.recordset[0];
+        const dataScope = getDataScope(req.user || {});
+        const jwtOrgId = Number(dataScope.organisationId);
 
-        let submittedByFilter = '';
-        if (!privilegedRoles.has(Number(role_id))) {
-            const usersRequest = conn.request();
-            usersRequest.input('organisationID', organisation_id);
-            const usersResult = await usersRequest.query('SELECT user_id FROM tbl_user WHERE organisation_id = @organisationID');
-            const userIds = usersResult.recordset
-                .map((row) => Number(row.user_id))
-                .filter((n) => Number.isFinite(n));
+        // Scope by JWT data view:
+        // - ORGANISATION users always see their own organisation.
+        // - MASTER/MINISTRY users may optionally filter by query organisationId.
+        let effectiveOrganisationId = Number.isFinite(requestedOrganisationId) && requestedOrganisationId > 0
+            ? requestedOrganisationId
+            : null;
 
-            if (!userIds.length) {
+        if (dataScope.isOrganisation) {
+            const fallbackOrgId = Number(organisation_id);
+            effectiveOrganisationId = Number.isFinite(jwtOrgId) && jwtOrgId > 0
+                ? jwtOrgId
+                : (Number.isFinite(fallbackOrgId) && fallbackOrgId > 0 ? fallbackOrgId : null);
+
+            if (!Number.isFinite(effectiveOrganisationId) || effectiveOrganisationId <= 0) {
                 return res.json({ data: [], pagination: { total: 0, page, limit, totalPages: 0, counts: { all: 0, planning: 0, tendering: 0, ui: 0, completed: 0 } } });
             }
-
-            submittedByFilter = ` AND ISNULL(sp.sub_submitted_by, p.submitted_by) IN (${userIds.join(',')})`;
+        } else if (!dataScope.isWide && Number.isFinite(jwtOrgId) && jwtOrgId > 0) {
+            // Defensive fallback for non-wide custom scopes.
+            effectiveOrganisationId = jwtOrgId;
         }
 
-        const scopeByOrganisation = Number.isFinite(organisationId) && organisationId > 0
+        const scopeByOrganisation = Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0
             ? ' AND ISNULL(sp.sub_organisation_id, p.organisation_id) = @organisationId'
             : '';
 
@@ -196,6 +205,9 @@ async function getProjectList(req, res) {
                     END AS stage_name,
                     ISNULL(sp.sub_estimated_cost, p.estimated_cost) AS estimated_cost,
                     ISNULL(sp.sub_sanctioned_cost, p.sanctioned_cost) AS sanctioned_cost,
+                    ISNULL(sp.sub_technical_sanction_cost, p.technical_sanction_cost) AS technical_sanction_cost,
+                    ISNULL(sp.sub_award_project_cost, p.award_project_cost) AS award_project_cost,
+                    ISNULL(sp.sub_closure_cost, p.closure_cost) AS closure_cost,
                     ISNULL(sp.sub_primary_ia_id, p.primary_ia_id) AS primary_ia_id,
                     ISNULL(ia.ia_name, '') AS primary_ia_name,
                     physicalProgress.physical_progress,
@@ -314,7 +326,6 @@ async function getProjectList(req, res) {
                     GROUP BY e.sub_project_id, sp2.sub_award_project_cost
                 ) AS financialProgress ON financialProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
                 WHERE 1=1
-                ${submittedByFilter}
                 ${scopeByOrganisation}
             )
         `;
@@ -393,9 +404,9 @@ async function getProjectList(req, res) {
         const countRequest = conn.request();
         const dataRequest = conn.request();
 
-        if (Number.isFinite(organisationId) && organisationId > 0) {
-            countRequest.input('organisationId', organisationId);
-            dataRequest.input('organisationId', organisationId);
+        if (Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0) {
+            countRequest.input('organisationId', effectiveOrganisationId);
+            dataRequest.input('organisationId', effectiveOrganisationId);
         }
         if (Number.isFinite(schemeId) && schemeId > 0) {
             countRequest.input('schemeId', schemeId);

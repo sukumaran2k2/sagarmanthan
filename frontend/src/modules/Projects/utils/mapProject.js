@@ -35,6 +35,16 @@ function nullIfInvalidNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+/** First finite number among candidates; skips null/undefined/''. Keeps legitimate 0. */
+export function pickPresentCost(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === '') continue;
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
 /** Normalize date for API/SQL: YYYY-MM-DD or null (never '-' / display text). */
 export function toSqlDate(value) {
   if (value == null || value === '' || value === '-') return null;
@@ -176,13 +186,18 @@ export function mapProjectListRow(raw = {}, index = 0) {
 
   const stageLower = String(stage).toLowerCase();
 
-  let cost = estimatedCost;
-  if (stageLower.includes('complete')) cost = closureCost ?? awardedCost ?? sanctionedCost ?? estimatedCost;
-  else if (stageLower.includes('implementation')) cost = awardedCost ?? sanctionedCost ?? estimatedCost;
-  else if (stageLower.includes('tender')) cost = sanctionedCost ?? estimatedCost;
-  else cost = estimatedCost ?? sanctionedCost;
+  let cost = null;
+  if (stageLower.includes('complete')) {
+    cost = pickPresentCost(closureCost, awardedCost, sanctionedCost, estimatedCost);
+  } else if (stageLower.includes('implementation')) {
+    cost = pickPresentCost(awardedCost, sanctionedCost, estimatedCost);
+  } else if (stageLower.includes('tender')) {
+    cost = pickPresentCost(sanctionedCost, estimatedCost);
+  } else {
+    cost = pickPresentCost(estimatedCost, sanctionedCost);
+  }
 
-  cost = cost ?? nullIfInvalidNumber(raw.project_cost || raw.cost) ?? 0;
+  cost = pickPresentCost(cost, raw.project_cost, raw.cost) ?? 0;
 
   return {
     id: raw.id || raw.project_details_id || `${projectId}-${subProjectId}-${index}`,
@@ -196,10 +211,13 @@ export function mapProjectListRow(raw = {}, index = 0) {
     ),
     organisationName: textOrDash(raw.organisation_name || raw.organisationName || raw.agency),
     stateName: textOrDash(stateName),
-    estimatedCost: estimatedCost ?? 0,
-    sanctionedCost: sanctionedCost ?? 0,
-    awardedCost: awardedCost ?? 0,
-    closureCost: closureCost ?? 0,
+    estimatedCost,
+    sanctionedCost,
+    awardedCost,
+    closureCost,
+    technicalSanctionCost: nullIfInvalidNumber(
+      raw.technical_sanction_cost ?? raw.technicalSanctionCost
+    ),
     cost,
     projectInitiatedDate: textOrDash(
       raw.project_intiated_date || raw.project_initiated_date || raw.projectInitiatedDate
@@ -210,9 +228,6 @@ export function mapProjectListRow(raw = {}, index = 0) {
     actualCompletionDate: textOrDash(
       raw.actual_date_of_completion || raw.actualCompletionDate
     ),
-    sanctionedCost: (raw.sanctioned_cost !== undefined && raw.sanctioned_cost !== null && raw.sanctioned_cost !== '')
-      ? safeNumber(raw.sanctioned_cost)
-      : (raw.cost !== undefined && raw.cost !== null ? safeNumber(raw.cost) : null),
     primaryImplementingAgency: textOrDash(
       raw.primary_ia_name || raw.primaryImplementingAgency || raw.primary_ia || raw.primaryImplementingAgencyName || raw.ia_name
     ),
