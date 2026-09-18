@@ -15,9 +15,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-app.use(express.json({ limit: "50mb", extended: true }));
+
+// Enable CORS as the first middleware
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+}));
+app.options("*", cors());
+
+app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }));
-app.use(cors({ origin: "*" }));
 
 // cron.schedule('0 9 * * *', async () => {
 //   const today = new Date();
@@ -65,10 +73,14 @@ cron.schedule('0 1 * * *', async () => {
 });
 
 
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "ok", message: "Sagarmanthan API is running" });
+});
+
 app.use(router);
 
-const port = process.env.PORT;
-app.listen(port, () => console.log("Sagarmanthan Backend started successfully"));
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Sagarmanthan Backend started successfully on port ${port}`));
 
 // chatbot email
 app.use(bodyParser.json());
