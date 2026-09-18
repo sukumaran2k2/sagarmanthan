@@ -992,13 +992,13 @@ router.put("/viewproject-update", editProjectTab.updateViewProjectDetails);
 router.get("/bi-check-points/:projectID/:subProjectID", editProjectTab.getBasicInformationCheckPoints);
 
 router.post("/revisionDate", revisionDateTab.saveRevisionDate);
-router.post("/add-basic-project-document-uploader", addNewProjectTab.upload.array('projectDocument'), editProjectTab.addProjectDocumentUploader);
+router.post("/add-basic-project-document-uploader", editProjectTab.upload.array('projectDocument'), editProjectTab.addProjectDocumentUploader);
 router.get("/get-project-documents/:projectID/:subProjectID", editProjectTab.getProjectDocuments);
 router.delete("/delete-project-document/:projectID/:subProjectID/:documentName", editProjectTab.deleteProjectDocument);
 router.get("/download-project-document/:projectID/:subProjectID/:documentName", editProjectTab.downloadProjectDocument);
 router.get("/download-project-error-log-document", editProjectTab.downloadErrorLogFile);
 
-router.post("/add-basic-project-document-uploader-edit", addNewProjectTab.upload.array('projectDocument'), editProjectTab.editProjectDocumentUploader);
+router.post("/add-basic-project-document-uploader-edit", editProjectTab.upload.array('projectDocument'), editProjectTab.editProjectDocumentUploader);
 
 //Planning and Sanctioning
 router.post("/planning-sanctioning", planningSanctioningTab.updatePlanningSanctionedData);

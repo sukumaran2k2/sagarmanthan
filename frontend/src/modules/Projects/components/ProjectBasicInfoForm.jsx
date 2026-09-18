@@ -997,20 +997,10 @@ export default function ProjectBasicInfoForm({
       onUploadDocuments?.({ folderName, files });
       clearPendingDocuments(folderName);
     } else {
-      if (formData.projectID && String(formData.projectID).trim()) {
-        onUploadDocuments?.({
-          folderName,
-          files,
-          projectID: String(formData.projectID).trim(),
-          subProjectID: String(formData.subProjectID || '-1').trim(),
-        });
-        clearPendingDocuments(folderName);
-      } else {
-        notify?.(
-          'Files queued for upload. They will be uploaded automatically when you save the project, or enter Project ID first.',
-          'info'
-        );
-      }
+      notify?.(
+        `${files.length} file(s) staged. They will be uploaded automatically when you click Complete & Save Project.`,
+        'info'
+      );
     }
   };
 
@@ -2465,9 +2455,13 @@ export default function ProjectBasicInfoForm({
                             <span>
                               {uploadingDocuments
                                 ? 'Uploading...'
-                                : pending.length
-                                  ? `Upload (${pending.length})`
-                                  : 'Upload'}
+                                : isEditMode
+                                  ? pending.length
+                                    ? `Upload (${pending.length})`
+                                    : 'Upload'
+                                  : pending.length
+                                    ? `Staged (${pending.length})`
+                                    : 'Stage File'}
                             </span>
                           </button>
                         </div>
@@ -2477,7 +2471,7 @@ export default function ProjectBasicInfoForm({
                         <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 space-y-1.5">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                              Ready to upload ({pending.length})
+                              {isEditMode ? `Ready to upload (${pending.length})` : `Staged to save with project (${pending.length})`}
                             </p>
                             <button
                               type="button"

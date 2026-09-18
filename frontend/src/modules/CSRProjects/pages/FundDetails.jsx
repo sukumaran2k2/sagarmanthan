@@ -428,7 +428,6 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           
           <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0 w-full">
-            
             {/* Filters Toggle */}
             <button
               type="button"
@@ -448,6 +447,30 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
                 <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
               )}
             </button>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition cursor-pointer"
+                title="Reset Filters"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Reset</span>
+              </button>
+            )}
+
+            {isOrgUser && (
+              <button
+                type="button"
+                onClick={handleOpenAddModal}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add CSR Fund</span>
+              </button>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
             {/* Search Box on Right */}
@@ -588,41 +611,6 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Collapsible Filter Panel matching CSR Projects DataList */}
-        {showFilterPanel && (
-          <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {!isOrgUser && (
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">Organization</label>
-                  <select
-                    value={selectedOrg}
-                    onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
-                    className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
-                  >
-                    <option value="">All Organisations ({organisations.length})</option>
-                    {organisations.map((org) => (
-                      <option key={org.organisation_id} value={org.organisation_id}>{org.organisation_name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">Financial Year</label>
-                <select
-                  value={selectedFY}
-                  onChange={(e) => { setSelectedFY(e.target.value); setCurrentPage(1); }}
-                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
-                >
-                  <option value="">All Financial Years</option>
-                  {FINANCIAL_YEARS.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
-                </select>
               </div>
             </div>
           </div>

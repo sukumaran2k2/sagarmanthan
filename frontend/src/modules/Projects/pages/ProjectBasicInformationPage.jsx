@@ -386,12 +386,17 @@ export default function ProjectBasicInformationPage({
       }
 
       const createdId =
-        res?.data?.project_id || res?.data?.projectId || res?.data?.id || payload.projectID;
+        String(res?.data?.project_id || res?.data?.projectID || res?.data?.id || payload.projectID || '').trim();
       const createdSubId =
-        res?.data?.sub_project_id ||
-        res?.data?.subProjectId ||
-        payload.subProjectID ||
-        '-1';
+        res?.data?.sub_project_id != null
+          ? String(res.data.sub_project_id)
+          : res?.data?.subProjectID != null
+            ? String(res.data.subProjectID)
+            : res?.data?.subProjectId != null
+              ? String(res.data.subProjectId)
+              : payload.subProjectID
+                ? String(payload.subProjectID)
+                : '-1';
 
       setEditData((prev) => ({
         ...(prev || {}),
@@ -414,19 +419,29 @@ export default function ProjectBasicInformationPage({
       }));
 
       if (!isUpdateMode && formData.pendingFilesByType) {
+        let uploadSuccessCount = 0;
+        let uploadErrorCount = 0;
         for (const [folderName, files] of Object.entries(formData.pendingFilesByType)) {
           if (Array.isArray(files) && files.length > 0) {
             try {
               const uploadFd = new FormData();
               uploadFd.append('projectID', createdId);
-              uploadFd.append('subProjectID', createdSubId);
+              uploadFd.append('subProjectID', String(createdSubId || '-1'));
               uploadFd.append('folderName', folderName);
               files.forEach((file) => uploadFd.append('projectDocument', file));
               await uploadProjectDocuments(uploadFd);
+              uploadSuccessCount += files.length;
             } catch (err) {
               console.error(`Failed to upload ${folderName}:`, err);
+              uploadErrorCount++;
             }
           }
+        }
+        if (uploadSuccessCount > 0) {
+          notify?.(`${uploadSuccessCount} document(s) uploaded successfully.`, 'success');
+        }
+        if (uploadErrorCount > 0) {
+          notify?.('Some document(s) failed to upload. You can re-upload them in edit mode.', 'warning');
         }
         await loadDocuments(createdId, createdSubId);
       }
