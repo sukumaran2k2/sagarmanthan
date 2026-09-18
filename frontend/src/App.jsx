@@ -465,7 +465,7 @@ export default function App() {
             <Route path="governance/attendance/*" element={<AttendanceView />} />
             <Route path="governance/cpgrams" element={<CPGRAMSView />} />
             <Route path="governance/cabinet-notes/*" element={<CabinetNotes triggerNotification={triggerNotification} />} />
-            <Route path="governance/cabinet-notes-other-ministry/*" element={<CabinetNotesOther />} />
+            <Route path="governance/cabinet-notes-other-ministry/*" element={<CabinetNotesOther triggerNotification={triggerNotification} />} />
             <Route path="governance/vip-reference/*" element={<VIPReferenceView triggerNotification={triggerNotification} />} />
             <Route path="governance/media-outreach/*" element={<MediaOutreachView triggerNotification={triggerNotification} />} />
             <Route path="governance/parliamentary-issue/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />

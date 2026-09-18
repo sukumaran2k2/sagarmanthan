@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import TableWithToolbar from '../../../components/TableWithToolbar';
 import { Edit, Trash2, SlidersHorizontal, ChevronDown, Landmark, Anchor, Building } from 'lucide-react';
-import { SOCIAL_CHANNELS_KEYS, SOCIAL_METRICS } from '../utils/constants';
+import { SOCIAL_CHANNELS_KEYS, SOCIAL_METRICS, MONTHS, FINANCIAL_YEARS } from '../utils/constants';
 import { getOrgCategory, calculateCategoryCounts } from '../utils/categoryHelpers';
 import { aggregateYearWiseData } from '../utils/dataTransformers';
 import { copyTableToClipboard, exportTableCSV, printTablePDF } from '../utils/exportHelpers';
@@ -91,17 +91,6 @@ export default function DataList({
     youTube: true,
     action: true
   });
-
-  // Unique lists for filters derived from data
-  const financialYears = useMemo(() => {
-    const years = rowData.map(r => r.financial_year).filter(Boolean);
-    return [...new Set(years)].sort();
-  }, [rowData]);
-
-  const months = useMemo(() => {
-    const mList = rowData.map(r => r.month).filter(Boolean);
-    return [...new Set(mList)];
-  }, [rowData]);
 
   // Category counts computed based on current filters (except activeCategory itself)
   const categoryCounts = useMemo(() => {
@@ -202,6 +191,8 @@ export default function DataList({
     });
   }, [rowData, showYearWise, financialYearFilter, monthFilter, organisationFilter, searchTerm, getOrgName, activeCategory, organisations, selectedSubOrgId]);
 
+  const isOrgView = isStandardView || permissions?.isStandardView;
+
   // Define table columns
   const columnDefs = useMemo(() => {
     const baseCols = [
@@ -217,8 +208,11 @@ export default function DataList({
         cellClass: 'font-semibold text-slate-700 dark:text-slate-200 text-center',
         valueGetter: (params) => params.node ? params.node.rowIndex + 1 : '',
         hide: !visibleCols.sNo
-      },
-      {
+      }
+    ];
+
+    if (!isOrgView) {
+      baseCols.push({
         field: 'organisation_id',
         headerName: 'ORGANISATION NAME',
         minWidth: 200,
@@ -231,17 +225,18 @@ export default function DataList({
           return getOrgName(params.data.organisation_id ?? params.data.organisation);
         },
         hide: !visibleCols.organisation
-      },
-      {
-        field: 'financial_year',
-        headerName: 'FINANCIAL YEAR',
-        minWidth: 130,
-        flex: 1,
-        headerClass: 'font-bold text-white',
-        cellClass: 'font-semibold text-slate-700 dark:text-slate-300 text-center',
-        hide: !visibleCols.financialYear
-      }
-    ];
+      });
+    }
+
+    baseCols.push({
+      field: 'financial_year',
+      headerName: 'FINANCIAL YEAR',
+      minWidth: 130,
+      flex: 1,
+      headerClass: 'font-bold text-white',
+      cellClass: 'font-semibold text-slate-700 dark:text-slate-300 text-center',
+      hide: !visibleCols.financialYear
+    });
 
     if (!showYearWise) {
       baseCols.push({
@@ -259,23 +254,23 @@ export default function DataList({
 
     if (activeMediaType === 'broadcast') {
       dataCols = [
-        { field: 'broadcast_national', headerName: 'NATIONAL', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'broadcast_regional', headerName: 'REGIONAL', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'broadcast_overall', headerName: 'OVERALL', minWidth: 110, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
+        { field: 'broadcast_national', headerName: 'NATIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'broadcast_regional', headerName: 'REGIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'broadcast_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
-    } else if (activeMediaType === 'print_media') {
+    } else if (activeMediaType === 'print_media' || activeMediaType === 'print') {
       dataCols = [
-        { field: 'print_media_national', headerName: 'NATIONAL', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'print_media_regional', headerName: 'REGIONAL', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'print_media_overall', headerName: 'OVERALL', minWidth: 110, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
+        { field: 'print_media_national', headerName: 'NATIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'print_media_regional', headerName: 'REGIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'print_media_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
     } else if (activeMediaType === 'online') {
       dataCols = [
-        { field: 'online_english', headerName: 'ENGLISH', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'online_vernacular', headerName: 'VERNACULAR', minWidth: 110, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'online_overall', headerName: 'OVERALL', minWidth: 110, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
+        { field: 'online_english', headerName: 'ENGLISH', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'online_vernacular', headerName: 'VERNACULAR', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'online_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
-    } else if (activeMediaType === 'social_media') {
+    } else if (activeMediaType === 'social_media' || activeMediaType === 'social') {
       const channelConfigs = [
         { key: 'facebook', label: 'FACEBOOK', visible: visibleCols.facebook },
         { key: 'instagram', label: 'INSTAGRAM', visible: visibleCols.instagram },
@@ -293,7 +288,7 @@ export default function DataList({
               {
                 field: `${config.key}_posts`,
                 headerName: 'NO. OF POSTS',
-                minWidth: 110,
+                minWidth: 135,
                 cellClass: 'text-center font-medium',
                 headerClass: 'text-center-header text-[10px] font-bold text-white',
                 valueFormatter: (p) => p.value ?? 0
@@ -301,7 +296,7 @@ export default function DataList({
               {
                 field: `${config.key}_impression`,
                 headerName: 'IMPRESSION',
-                minWidth: 110,
+                minWidth: 135,
                 cellClass: 'text-center font-medium',
                 headerClass: 'text-center-header text-[10px] font-bold text-white',
                 valueFormatter: (p) => p.value ?? 0
@@ -309,7 +304,7 @@ export default function DataList({
               {
                 field: `${config.key}_engagement`,
                 headerName: 'ENGAGEMENT',
-                minWidth: 110,
+                minWidth: 135,
                 cellClass: 'text-center font-medium',
                 headerClass: 'text-center-header text-[10px] font-bold text-white',
                 valueFormatter: (p) => p.value ?? 0
@@ -340,7 +335,7 @@ export default function DataList({
               {canEdit && (
                 <button
                   onClick={() => onEdit(item)}
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+                  className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-amber-500 hover:text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
                   title="Edit Note"
                 >
                   <Edit className="h-4 w-4" />
@@ -365,7 +360,7 @@ export default function DataList({
     }
 
     return [...baseCols, ...dataCols];
-  }, [activeMediaType, getOrgName, onEdit, onDelete, visibleCols, showYearWise, permissions]);
+  }, [activeMediaType, getOrgName, onEdit, onDelete, visibleCols, showYearWise, permissions, isOrgView]);
 
   const defaultColDef = useMemo(() => ({
     sortable: true,
@@ -386,6 +381,7 @@ export default function DataList({
       activeMediaType,
       getOrgName,
       showYearWise,
+      isOrgView,
       triggerNotification
     });
   };
@@ -399,7 +395,8 @@ export default function DataList({
       filteredRowData,
       activeMediaType,
       getOrgName,
-      showYearWise
+      showYearWise,
+      isOrgView
     });
   };
 
@@ -416,157 +413,161 @@ export default function DataList({
 
 
       {/* KPI Card Style Tabs (Glassmorphism effect with Landmark/Anchor/Building Icons) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Ministry Category Card */}
-        <div
-          onClick={() => setActiveCategory(prev => prev === 'ministry' ? 'all' : 'ministry')}
-          className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
-            activeCategory === 'ministry'
-              ? 'bg-amber-500/15 border-amber-500/50 shadow-md ring-2 ring-amber-500/30 transform scale-[1.02]'
-              : 'bg-amber-50/60 hover:bg-amber-50/90 border-amber-200/60 shadow-sm hover:shadow-md hover:scale-[1.01] dark:bg-amber-950/20 dark:hover:bg-amber-950/35 dark:border-amber-900/40'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
-              activeCategory === 'ministry' ? 'bg-amber-600 text-white shadow-sm' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400'
-            }`}>
-              <Landmark className="h-4 w-4" />
-            </div>
-            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'ministry' ? 'text-amber-900 dark:text-amber-300' : 'text-amber-800 dark:text-amber-400'}`}>
-              Ministry
-            </h3>
-          </div>
-          <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
-            activeCategory === 'ministry'
-              ? 'bg-amber-600 text-white shadow-sm scale-105'
-              : 'bg-amber-100 text-amber-700 border border-amber-200/70 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-800/50'
-          }`}>
-            {categoryCounts.ministry}
-          </div>
-        </div>
-
-        {/* Major Port Category Card */}
-        <div
-          onClick={() => setActiveCategory(prev => prev === 'major_port' ? 'all' : 'major_port')}
-          className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
-            activeCategory === 'major_port'
-              ? 'bg-emerald-500/15 border-emerald-500/50 shadow-md ring-2 ring-emerald-500/30 transform scale-[1.02]'
-              : 'bg-emerald-50/60 hover:bg-emerald-50/90 border-emerald-200/60 shadow-sm hover:shadow-md hover:scale-[1.01] dark:bg-emerald-950/20 dark:hover:bg-emerald-950/35 dark:border-emerald-900/40'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
-              activeCategory === 'major_port' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400'
-            }`}>
-              <Anchor className="h-4 w-4" />
-            </div>
-            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'major_port' ? 'text-emerald-900 dark:text-emerald-300' : 'text-emerald-800 dark:text-emerald-400'}`}>
-              Major Port Organisations
-            </h3>
-          </div>
-          <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
-            activeCategory === 'major_port'
-              ? 'bg-emerald-600 text-white shadow-sm scale-105'
-              : 'bg-emerald-100 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800/50'
-          }`}>
-            {categoryCounts.majorPort}
-          </div>
-        </div>
-
-        {/* Non-Port Category Card */}
-        <div
-          onClick={() => setActiveCategory(prev => prev === 'non_port' ? 'all' : 'non_port')}
-          className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
-            activeCategory === 'non_port'
-              ? 'bg-indigo-500/15 border-indigo-500/50 shadow-md ring-2 ring-indigo-500/30 transform scale-[1.02]'
-              : 'bg-indigo-50/60 hover:bg-indigo-50/90 border-indigo-200/60 shadow-sm hover:shadow-md hover:scale-[1.01] dark:bg-indigo-950/20 dark:hover:bg-indigo-950/35 dark:border-indigo-900/40'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
-              activeCategory === 'non_port' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400'
-            }`}>
-              <Building className="h-4 w-4" />
-            </div>
-            <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'non_port' ? 'text-indigo-900 dark:text-indigo-300' : 'text-indigo-800 dark:text-indigo-400'}`}>
-              Non-Port Organisations
-            </h3>
-          </div>
-          <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
-            activeCategory === 'non_port'
-              ? 'bg-indigo-600 text-white shadow-sm scale-105'
-              : 'bg-indigo-100 text-indigo-700 border border-indigo-200/70 dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-800/50'
-          }`}>
-            {categoryCounts.nonPort}
-          </div>
-        </div>
-      </div>
-
-      {/* Deep-down Organisation Selector */}
-      {activeCategory !== 'all' && activeCategory !== 'ministry' && subOrganisations.length > 0 && (
-        <div className={`border rounded-2xl p-5 space-y-3.5 backdrop-blur-md animate-fade-in shadow-xs transition-all duration-300 dark:bg-slate-900/10 dark:border-slate-800/80 ${
-          activeCategory === 'major_port'
-            ? 'bg-emerald-50/15 border-emerald-255/30 border-l-4 border-l-emerald-500'
-            : activeCategory === 'ministry'
-              ? 'bg-amber-50/15 border-amber-255/30 border-l-4 border-l-amber-500'
-              : 'bg-indigo-50/15 border-indigo-255/30 border-l-4 border-l-indigo-500'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${
-                activeCategory === 'major_port' ? 'bg-emerald-500 animate-pulse' : activeCategory === 'ministry' ? 'bg-amber-500 animate-pulse' : 'bg-indigo-500 animate-pulse'
-              }`} />
-              <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
-                activeCategory === 'major_port' ? 'text-emerald-700 dark:text-emerald-455' : activeCategory === 'ministry' ? 'text-amber-700 dark:text-amber-455' : 'text-indigo-700 dark:text-indigo-405'
-              }`}>
-                Filter by {activeCategory === 'major_port' ? 'Major Port' : activeCategory === 'ministry' ? 'Ministry' : 'Non-Port'} Organisation
-              </span>
-            </div>
-            {selectedSubOrgId && (
-              <button
-                onClick={() => setSelectedSubOrgId('')}
-                className="text-[10px] font-black text-[#28408f] dark:text-blue-400 hover:underline uppercase tracking-wide cursor-pointer flex items-center gap-1"
-              >
-                Clear Selection
-              </button>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
-            <button
-              onClick={() => setSelectedSubOrgId('')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
-                !selectedSubOrgId
-                  ? 'bg-slate-800 text-white border-slate-800 shadow-sm transform scale-[1.02] dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-350 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
+      {!isOrgView && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Ministry Category Card */}
+            <div
+              onClick={() => setActiveCategory(prev => prev === 'ministry' ? 'all' : 'ministry')}
+              className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
+                activeCategory === 'ministry'
+                  ? 'bg-amber-500/15 border-amber-500/50 shadow-md ring-2 ring-amber-500/30 transform scale-[1.02]'
+                  : 'bg-amber-50/60 hover:bg-amber-50/90 border-amber-200/60 shadow-sm hover:shadow-md hover:scale-[1.01] dark:bg-amber-950/20 dark:hover:bg-amber-950/35 dark:border-amber-900/40'
               }`}
             >
-              All {activeCategory === 'major_port' ? 'Major Ports' : activeCategory === 'ministry' ? 'Ministries' : 'Non-Ports'}
-            </button>
-            {subOrganisations.map(org => {
-              const isSelected = String(org.organisation_id) === String(selectedSubOrgId);
-              let activeColorClass = 'bg-emerald-600 border-emerald-600 text-white shadow-md transform scale-[1.02]';
-              if (activeCategory === 'ministry') {
-                activeColorClass = 'bg-amber-600 border-amber-600 text-white shadow-md transform scale-[1.02]';
-              } else if (activeCategory === 'non_port') {
-                activeColorClass = 'bg-indigo-600 border-indigo-600 text-white shadow-md transform scale-[1.02]';
-              }
-              
-              return (
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
+                  activeCategory === 'ministry' ? 'bg-amber-600 text-white shadow-sm' : 'bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400'
+                }`}>
+                  <Landmark className="h-4 w-4" />
+                </div>
+                <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'ministry' ? 'text-amber-900 dark:text-amber-300' : 'text-amber-800 dark:text-amber-400'}`}>
+                  Ministry
+                </h3>
+              </div>
+              <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
+                activeCategory === 'ministry'
+                  ? 'bg-amber-600 text-white shadow-sm scale-105'
+                  : 'bg-amber-100 text-amber-700 border border-amber-200/70 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-800/50'
+              }`}>
+                {categoryCounts.ministry}
+              </div>
+            </div>
+
+            {/* Major Port Category Card */}
+            <div
+              onClick={() => setActiveCategory(prev => prev === 'major_port' ? 'all' : 'major_port')}
+              className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
+                activeCategory === 'major_port'
+                  ? 'bg-emerald-500/15 border-emerald-500/50 shadow-md ring-2 ring-emerald-500/30 transform scale-[1.02]'
+                  : 'bg-emerald-50/60 hover:bg-emerald-50/90 border-emerald-200/60 shadow-sm hover:shadow-md hover:scale-[1.01] dark:bg-emerald-950/20 dark:hover:bg-emerald-950/35 dark:border-emerald-900/40'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
+                  activeCategory === 'major_port' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400'
+                }`}>
+                  <Anchor className="h-4 w-4" />
+                </div>
+                <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'major_port' ? 'text-emerald-900 dark:text-emerald-300' : 'text-emerald-800 dark:text-emerald-400'}`}>
+                  Major Port Organisations
+                </h3>
+              </div>
+              <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
+                activeCategory === 'major_port'
+                  ? 'bg-emerald-600 text-white shadow-sm scale-105'
+                  : 'bg-emerald-100 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800/50'
+              }`}>
+                {categoryCounts.majorPort}
+              </div>
+            </div>
+
+            {/* Non-Port Category Card */}
+            <div
+              onClick={() => setActiveCategory(prev => prev === 'non_port' ? 'all' : 'non_port')}
+              className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
+                activeCategory === 'non_port'
+                  ? 'bg-indigo-500/15 border-indigo-500/50 shadow-md ring-2 ring-indigo-500/30 transform scale-[1.02]'
+                  : 'bg-indigo-50/60 hover:bg-indigo-50/90 border-indigo-200/60 shadow-sm hover:shadow-md hover:scale-[1.01] dark:bg-indigo-950/20 dark:hover:bg-indigo-950/35 dark:border-indigo-900/40'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl transition-colors duration-350 ${
+                  activeCategory === 'non_port' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400'
+                }`}>
+                  <Building className="h-4 w-4" />
+                </div>
+                <h3 className={`text-sm font-bold tracking-wide ${activeCategory === 'non_port' ? 'text-indigo-900 dark:text-indigo-300' : 'text-indigo-800 dark:text-indigo-400'}`}>
+                  Non-Port Organisations
+                </h3>
+              </div>
+              <div className={`text-sm font-extrabold font-mono px-3.5 py-1.5 rounded-lg transition-all duration-300 ${
+                activeCategory === 'non_port'
+                  ? 'bg-indigo-600 text-white shadow-sm scale-105'
+                  : 'bg-indigo-100 text-indigo-700 border border-indigo-200/70 dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-800/50'
+              }`}>
+                {categoryCounts.nonPort}
+              </div>
+            </div>
+          </div>
+
+          {/* Deep-down Organisation Selector */}
+          {activeCategory !== 'all' && activeCategory !== 'ministry' && subOrganisations.length > 0 && (
+            <div className={`border rounded-2xl p-5 space-y-3.5 backdrop-blur-md animate-fade-in shadow-xs transition-all duration-300 dark:bg-slate-900/10 dark:border-slate-800/80 ${
+              activeCategory === 'major_port'
+                ? 'bg-emerald-50/15 border-emerald-255/30 border-l-4 border-l-emerald-500'
+                : activeCategory === 'ministry'
+                  ? 'bg-amber-50/15 border-amber-255/30 border-l-4 border-l-amber-500'
+                  : 'bg-indigo-50/15 border-indigo-255/30 border-l-4 border-l-indigo-500'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className={`h-1.5 w-1.5 rounded-full ${
+                    activeCategory === 'major_port' ? 'bg-emerald-500 animate-pulse' : activeCategory === 'ministry' ? 'bg-amber-500 animate-pulse' : 'bg-indigo-500 animate-pulse'
+                  }`} />
+                  <span className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                    activeCategory === 'major_port' ? 'text-emerald-700 dark:text-emerald-455' : activeCategory === 'ministry' ? 'text-amber-700 dark:text-amber-455' : 'text-indigo-700 dark:text-indigo-405'
+                  }`}>
+                    Filter by {activeCategory === 'major_port' ? 'Major Port' : activeCategory === 'ministry' ? 'Ministry' : 'Non-Port'} Organisation
+                  </span>
+                </div>
+                {selectedSubOrgId && (
+                  <button
+                    onClick={() => setSelectedSubOrgId('')}
+                    className="text-[10px] font-black text-[#28408f] dark:text-blue-400 hover:underline uppercase tracking-wide cursor-pointer flex items-center gap-1"
+                  >
+                    Clear Selection
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
                 <button
-                  key={org.organisation_id}
-                  onClick={() => setSelectedSubOrgId(prev => String(prev) === String(org.organisation_id) ? '' : org.organisation_id)}
+                  onClick={() => setSelectedSubOrgId('')}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
-                    isSelected
-                      ? activeColorClass
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-355 hover:scale-[1.01] dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
+                    !selectedSubOrgId
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-sm transform scale-[1.02] dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-350 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
                   }`}
                 >
-                  {org.organisation_name}
+                  All {activeCategory === 'major_port' ? 'Major Ports' : activeCategory === 'ministry' ? 'Ministries' : 'Non-Ports'}
                 </button>
-              );
-            })}
-          </div>
-        </div>
+                {subOrganisations.map(org => {
+                  const isSelected = String(org.organisation_id) === String(selectedSubOrgId);
+                  let activeColorClass = 'bg-emerald-600 border-emerald-600 text-white shadow-md transform scale-[1.02]';
+                  if (activeCategory === 'ministry') {
+                    activeColorClass = 'bg-amber-600 border-amber-600 text-white shadow-md transform scale-[1.02]';
+                  } else if (activeCategory === 'non_port') {
+                    activeColorClass = 'bg-indigo-600 border-indigo-600 text-white shadow-md transform scale-[1.02]';
+                  }
+                  
+                  return (
+                    <button
+                      key={org.organisation_id}
+                      onClick={() => setSelectedSubOrgId(prev => String(prev) === String(org.organisation_id) ? '' : org.organisation_id)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
+                        isSelected
+                          ? activeColorClass
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-355 hover:scale-[1.01] dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      {org.organisation_name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Unified Filters Card Panel */}
@@ -597,7 +598,7 @@ export default function DataList({
                 className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
               >
                 <option value="">Show All</option>
-                {financialYears.map(fy => <option key={fy} value={fy}>{fy}</option>)}
+                {FINANCIAL_YEARS.map(fy => <option key={fy} value={fy}>{fy}</option>)}
               </select>
             </div>
 
@@ -610,7 +611,7 @@ export default function DataList({
                 className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
               >
                 <option value="">{showYearWise ? 'N/A - Year Wise' : 'Show All'}</option>
-                {!showYearWise && months.map(m => <option key={m} value={m}>{m}</option>)}
+                {!showYearWise && MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
 
@@ -693,6 +694,8 @@ export default function DataList({
           text-align: center !important;
           font-weight: bold !important;
           color: white !important;
+          white-space: nowrap !important;
+          word-break: normal !important;
         }
         .text-center-header {
           background-color: #0f417a !important;
@@ -707,6 +710,8 @@ export default function DataList({
         .ag-header-cell-text {
           color: white !important;
           font-weight: bold !important;
+          white-space: nowrap !important;
+          word-break: normal !important;
         }
         .ag-header-group-cell {
           background-color: #0f417a !important;

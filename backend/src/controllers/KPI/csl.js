@@ -30,9 +30,9 @@ import fs from 'fs';
             request.input("userID", userID);
 
             const insertResult = await request.query(`
-                INSERT INTO tbl_csl_vessels_built (financial_year, no_of_vessels_built, tonnage_of_vessels_built, value_of_vessels_built, created_by)
+                INSERT INTO tbl_csl_vessels_built (financial_year, no_of_vessels_built, tonnage_of_vessels_built, value_of_vessels_built, created_by, created_date)
                 OUTPUT INSERTED.csl_vessel_id
-                VALUES (@financialYear, @vesselsBuilt, @tonnageVessels, @valueofVessels, @userID)
+                VALUES (@financialYear, @vesselsBuilt, @tonnageVessels, @valueofVessels, @userID, GETDATE())
             `);
 
             res.status(201).json({ insertedYPId: insertResult.recordset[0].csl_vessel_id });
@@ -182,10 +182,10 @@ import fs from 'fs';
     
             const insertResult = await request.query(`
                 INSERT INTO tbl_csl_ship_building_orders 
-                    (financial_year, financial_quater, ship_orders_received, value_of_ship_orders_received, created_by)
+                    (financial_year, financial_quater, ship_orders_received, value_of_ship_orders_received, created_by, created_date)
                 OUTPUT INSERTED.csl_shipbuilding_id
                 VALUES 
-                    (@financialYear, @financialQuater, @shipOrdersreceived, @valueOfshipOrder, @userID)
+                    (@financialYear, @financialQuater, @shipOrdersreceived, @valueOfshipOrder, @userID, GETDATE())
             `);
     
             const insertedId = insertResult.recordset[0].csl_shipbuilding_id;
@@ -352,10 +352,10 @@ import fs from 'fs';
     
             const insertResult = await request.query(`
                 INSERT INTO tbl_csl_ship_delivery_performance 
-                    (financial_year, financial_quater, total_no_ship_orders_received, no_of_ships_delivered, created_by)
+                    (financial_year, financial_quater, total_no_ship_orders_received, no_of_ships_delivered, created_by, created_date)
                 OUTPUT INSERTED.csl_shipdelivery_id
                 VALUES 
-                    (@financialYear, @financialQuater, @noOfshipsReceived, @noOfshipsDeleivered, @userID)
+                    (@financialYear, @financialQuater, @noOfshipsReceived, @noOfshipsDeleivered, @userID, GETDATE())
             `);
     
             const insertedId = insertResult.recordset[0].csl_shipdelivery_id;
@@ -522,9 +522,9 @@ import fs from 'fs';
                 request.input("userID", userID);
         
                 const result = await request.query(`
-                    INSERT INTO tbl_csl_capacity_utilization (financial_year, total_shipbuilding_capacity, tonnage_of_vessels, created_by)
+                    INSERT INTO tbl_csl_capacity_utilization (financial_year, total_shipbuilding_capacity, tonnage_of_vessels, created_by, created_date)
                     OUTPUT INSERTED.csl_capacity_utilization_id
-                    VALUES (@financialYear, @shipbuildingCapacity, @tonnageOfVesselsBuilt, @userID)
+                    VALUES (@financialYear, @shipbuildingCapacity, @tonnageOfVesselsBuilt, @userID, GETDATE())
                 `);
         
                 const insertedYPId = result.recordset[0].csl_capacity_utilization_id;
@@ -832,10 +832,10 @@ import fs from 'fs';
                 // Insert into tbl_csl_ship_building_orders
                 const insertResult = await request.query(`
                     INSERT INTO tbl_csl_ships_repaired  
-                        (financial_year, financial_quater, no_of_ships_repaired,value_of_ships_repaired, created_by)
+                        (financial_year, financial_quater, no_of_ships_repaired,value_of_ships_repaired, created_by, created_date)
                     OUTPUT INSERTED.csl_ships_reapired_id
                     VALUES 
-                        (@financialYear, @financialQuater, @noOfshipsrepaired, @valueOfshipsrepaired, @userID)
+                        (@financialYear, @financialQuater, @noOfshipsrepaired, @valueOfshipsrepaired, @userID, GETDATE())
                 `);
         
                 const insertedId = insertResult.recordset[0].csl_ships_reapired_id;

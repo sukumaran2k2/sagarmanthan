@@ -55,8 +55,8 @@ api.interceptors.response.use(
   }
 );
 
-export function fetchAuditParas() {
-  return api.get('/audit-para');
+export function fetchAuditParas(userID) {
+  return api.get('/audit-para', { params: { userID } });
 }
 
 export function createAuditPara(payload) {

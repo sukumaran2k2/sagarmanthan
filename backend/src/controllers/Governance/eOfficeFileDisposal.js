@@ -220,13 +220,14 @@ async function addFileDisposal(req, res) {
                 rowInsertRequest.input(`year${i}`, sql.Int, Year);
                 rowInsertRequest.input(`week${i}`, sql.Int, week);
                 rowInsertRequest.input(`fileId${i}`, sql.Int, fileId);
+                rowInsertRequest.input(`createdBy${i}`, sql.Int, userID);
 
-                return `(@empId${i}, @countTransactions${i}, @countFiles${i}, @avgResponseTime${i}, @year${i}, @month${i}, @week${i}, @fileId${i})`;
+                return `(@empId${i}, @countTransactions${i}, @countFiles${i}, @avgResponseTime${i}, @year${i}, @month${i}, @week${i}, @fileId${i}, @createdBy${i}, GETDATE())`;
             });
 
             await rowInsertRequest.query(`
                 INSERT INTO tbl_file_disposal 
-                ([Emp Id], [Count of Transactions], [Counts of Files], [Average Response Time], [Year], [Month], [week], [File_ID]) 
+                ([Emp Id], [Count of Transactions], [Counts of Files], [Average Response Time], [Year], [Month], [week], [File_ID], [created_by], [created_date]) 
                 VALUES ${valueClauses.join(', ')}
             `);
         }
@@ -428,13 +429,14 @@ async function updateFileDisposal(req, res) {
                 rowInsertRequest.input(`year${i}`, sql.Int, Number(Year));
                 rowInsertRequest.input(`week${i}`, sql.Int, Number(week));
                 rowInsertRequest.input(`fileId${i}`, sql.Int, fileId);
+                rowInsertRequest.input(`createdBy${i}`, sql.Int, Number(userID));
 
-                return `(@empId${i}, @countTransactions${i}, @countFiles${i}, @avgResponseTime${i}, @year${i}, @month${i}, @week${i}, @fileId${i})`;
+                return `(@empId${i}, @countTransactions${i}, @countFiles${i}, @avgResponseTime${i}, @year${i}, @month${i}, @week${i}, @fileId${i}, @createdBy${i}, GETDATE())`;
             });
 
             await rowInsertRequest.query(`
                 INSERT INTO tbl_file_disposal 
-                ([Emp Id], [Count of Transactions], [Counts of Files], [Average Response Time], [Year], [Month], [week], [File_ID]) 
+                ([Emp Id], [Count of Transactions], [Counts of Files], [Average Response Time], [Year], [Month], [week], [File_ID], [created_by], [created_date]) 
                 VALUES ${valueClauses.join(', ')}
             `);
         }

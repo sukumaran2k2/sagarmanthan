@@ -154,6 +154,7 @@ export const MODULE_PAGES = {
 
   GEM_PROCUREMENT: {
     tabs: ['GEM Procurements'],
+    uiTabs: ['GEM Procurements', 'GEM Procurement', 'GEM', 'gem'],
   },
 
   CABINET_NOTES_MOPSW: {

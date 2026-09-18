@@ -936,9 +936,9 @@ async function getimuResearchYear(req,res) {
             insertReq.input("userID", userID);
 
             const insertResult = await insertReq.query(`
-                INSERT INTO tbl_imu_k_5_1_1 (programme, batch, appeared, passed, pass_percentage, created_by)
+                INSERT INTO tbl_imu_k_5_1_1 (programme, batch, appeared, passed, pass_percentage, created_by, created_date)
                 OUTPUT INSERTED.id
-                VALUES (@programme, @Batch, @appeared, @passed, @passPercentage, @userID)
+                VALUES (@programme, @Batch, @appeared, @passed, @passPercentage, @userID, GETDATE())
             `);
 
             return res.status(201).json({ id: insertResult.recordset[0].id, message: "Record inserted successfully" });

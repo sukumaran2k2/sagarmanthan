@@ -257,7 +257,7 @@ export default function Reports({ wings = [], triggerNotification }) {
         brandColorHover="#6b3535"
         accentColor="#f3f7f5ff"
         oddRowColor="#f8faf6"
-        totalLabel="Total Rows"
+        totalLabel="Total"
       />
     </div>
   );

@@ -13,7 +13,6 @@ import {
 import ExportDropdown from '../../../../components/ExportDropdown';
 import CopyButton from '../../../../components/CopyButton';
 import { fetchCapexYoYReport } from '../../api';
-import { getCapexReportAsOnMeta } from '../../utils/capexUtils';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -56,11 +55,7 @@ export default function CapexMinistryYoYReport({ showToast }) {
   const [isFilterOpen, setIsFilterOpen] = useState(true);
   const [loading, setLoading] = useState(false);
 
-  const currentFy = financialYears[financialYears.length - 1] || '';
-  const { asOnDateStr, reportMonthStr } = useMemo(
-    () => getCapexReportAsOnMeta(currentFy),
-    [currentFy]
-  );
+  const reportCoverageLabel = 'Data reflects all available entries for each financial year shown.';
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -221,11 +216,7 @@ export default function CapexMinistryYoYReport({ showToast }) {
               style={{ color: BRAND_SOFT }}
             >
               <span>
-                As on date: <strong style={{ color: BRAND }}>{asOnDateStr}</strong>
-              </span>
-              <span style={{ color: '#eadede' }}>•</span>
-              <span>
-                Report for the month — <strong style={{ color: BRAND }}>{reportMonthStr}</strong>
+                <strong style={{ color: BRAND }}>Data Coverage:</strong> {reportCoverageLabel}
               </span>
               {financialYears.length ? (
                 <>

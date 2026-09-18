@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  Search, X, Plus, Edit, ChevronDown, 
-  Coins, TrendingUp, Save, Filter, RotateCcw
+  Search, X, Plus, Edit, ChevronDown, ChevronUp,
+  Coins, Building2, Calendar, TrendingUp, Filter, RotateCcw, Save
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
@@ -33,11 +33,6 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
   // Column Visibility state
   const [colDropdownOpen, setColDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
-  const [visibleCols, setVisibleCols] = useState({
-    sno: true, org: true, financial_year: true, net_profit: true,
-    csr_fund_alloted_year: true, opening_balance_csr: true,
-    project_expenditure: true, csr_fund_balance: true, actions: true,
-  });
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -49,12 +44,26 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter Panel state matching CSR Projects DataList
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [selectedOrg, setSelectedOrg] = useState('');
+  // Filters
+  const [selectedOrg, setSelectedOrg] = useState(() => (isOrgUser && userOrgId ? String(userOrgId) : ''));
   const [selectedFY, setSelectedFY] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Organisation + Financial Year filters dropdown
+  const [filtersDropdownOpen, setFiltersDropdownOpen] = useState(false);
+  const [visibleCols, setVisibleCols] = useState({
+    sno: true,
+    org: true,
+    financial_year: true,
+    net_profit: true,
+    csr_fund_alloted_year: true,
+    opening_balance_csr: true,
+    project_expenditure: true,
+    csr_fund_balance: true,
+    actions: true,
+  });
+
+  // Pagination & Grid
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [gridApi, setGridApi] = useState(null);
@@ -203,28 +212,33 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
   };
 
   const clearFilters = () => {
-    setSelectedOrg('');
+    if (!isOrgUser) setSelectedOrg('');
     setSelectedFY('');
     setSearchTerm('');
     setCurrentPage(1);
     triggerNotification?.('Filters have been reset', 'info');
   };
 
+  const hasActiveFilters = (isOrgUser ? false : !!selectedOrg) || selectedFY || searchTerm;
+
+  // Blue Themed AG Grid Column Definitions
   const columnDefs = useMemo(() => [
     {
       headerName: "S.No",
       field: "sno",
-      width: 80,
-      minWidth: 80,
-      maxWidth: 80,
-      suppressSizeToFit: true,
-      pinned: 'left',
+      width: 75,
+      minWidth: 65,
+      flex: 0.6,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 700, justifyContent: 'center' },
       hide: !visibleCols.sno,
-      valueGetter: (p) => (currentPage - 1) * pageSize + p.node.rowIndex + 1,
-      cellRenderer: (p) => <div className="w-full flex items-center justify-center text-center font-bold">{p.value}</div>
+      valueGetter: (params) => (currentPage - 1) * pageSize + params.node.rowIndex + 1,
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-bold">
+          {params.value}
+        </div>
+      )
     },
     ...(!isOrgUser ? [{
       headerName: "Organization Name",
@@ -253,15 +267,17 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     {
       headerName: "Financial Year",
       field: "financial_year",
-      width: 140,
-      minWidth: 140,
-      maxWidth: 140,
-      suppressSizeToFit: true,
+      minWidth: 120,
+      flex: 1.2,
       headerClass: 'text-center',
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
       hide: !visibleCols.financial_year,
-      cellRenderer: (p) => <div className="w-full flex items-center justify-center text-center font-semibold">{p.value || '-'}</div>
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-semibold">
+          {params.value || '-'}
+        </div>
+      )
     },
     {
       headerName: "Net Profit (₹ Cr)",
@@ -272,8 +288,12 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
       hide: !visibleCols.net_profit,
-      valueFormatter: (p) => (p.value != null ? Number(p.value).toFixed(2) : '-'),
-      cellRenderer: (p) => <div className="w-full flex items-center justify-center text-center font-semibold">{p.value != null ? Number(p.value).toFixed(2) : '-'}</div>
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-semibold">
+          {params.value != null ? Number(params.value).toFixed(2) : '-'}
+        </div>
+      )
     },
     {
       headerName: "CSR Allotted (₹ Cr)",
@@ -300,8 +320,12 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       cellClass: 'text-center',
       cellStyle: { textAlign: 'center', fontWeight: 600, justifyContent: 'center' },
       hide: !visibleCols.opening_balance_csr,
-      valueFormatter: (p) => (p.value != null ? Number(p.value).toFixed(2) : '-'),
-      cellRenderer: (p) => <div className="w-full flex items-center justify-center text-center font-semibold">{p.value != null ? Number(p.value).toFixed(2) : '-'}</div>
+      valueFormatter: (params) => params.value != null ? Number(params.value).toFixed(2) : '-',
+      cellRenderer: (params) => (
+        <div className="w-full flex items-center justify-center text-center font-semibold">
+          {params.value != null ? Number(params.value).toFixed(2) : '-'}
+        </div>
+      )
     },
     {
       headerName: "Expenditure (₹ Cr)",
@@ -402,38 +426,28 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
         {/* Toolbar */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
-          <div className="flex items-center gap-2.5 w-full lg:w-auto">
-            {/* Filter Toggle Button */}
+          
+          <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0 w-full">
+            
+            {/* Filters Toggle */}
             <button
               type="button"
-              onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200'
-              }`}
+              onClick={() => setFiltersDropdownOpen(!filtersDropdownOpen)}
+              className="inline-flex items-center gap-2.5 px-4 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100/60 transition dark:bg-slate-950/50 dark:border-slate-800 dark:hover:bg-slate-800/60"
             >
-              <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
-              <span>Filter</span>
-              {activeFiltersCount > 0 && (
-                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
-                  {activeFiltersCount}
+              <Filter className="h-3.5 w-3.5 text-slate-500" />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Filters</span>
+              {((isOrgUser ? false : !!selectedOrg) || selectedFY) && (
+                <span className="text-[10px] font-bold text-blue-700 bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded-full dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+                  {[isOrgUser ? null : selectedOrg, selectedFY].filter(Boolean).length}
                 </span>
               )}
-              <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+              {filtersDropdownOpen ? (
+                <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              )}
             </button>
-
-            {/* Clear/Reset Button */}
-            {activeFiltersCount > 0 && (
-              <button
-                onClick={clearFilters}
-                className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 px-2.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/40 dark:hover:bg-rose-950/30 transition cursor-pointer"
-              >
-                <X className="h-3 w-3" />
-                <span>Reset Filters</span>
-              </button>
-            )}
-          </div>
 
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
             {/* Search Box on Right */}
@@ -514,20 +528,70 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
               )}
             </div>
 
-            <CopyButton data={filteredFunds} columns={exportColumns} color="#0f417a" triggerNotification={triggerNotification} />
-            <ExportDropdown data={filteredFunds} columns={exportColumns} fileName="CSR_Fund_Details" title="CSR Fund Details" color="#0f417a" hoverColor="#1e5ea8" triggerNotification={triggerNotification} />
+            <CopyButton
+              data={filteredFunds}
+              columns={exportColumns}
+              color="#0f417a"
+              triggerNotification={triggerNotification}
+            />
 
-            {isOrgUser && (
-              <button
-                onClick={handleOpenAddModal}
-                className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer select-none"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Fund Details</span>
-              </button>
-            )}
+            <ExportDropdown
+              data={filteredFunds}
+              columns={exportColumns}
+              fileName="CSR_Fund_Details"
+              title="CSR Fund Details"
+              color="#0f417a"
+              hoverColor="#1e5ea8"
+              triggerNotification={triggerNotification}
+            />
           </div>
+
         </div>
+
+        {filtersDropdownOpen && (
+          <div className="bg-slate-50/70 border border-slate-200 rounded-2xl shadow-xs dark:bg-slate-950/50 dark:border-slate-800">
+            <div className="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-in">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Organisation
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedOrg}
+                    onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
+                    disabled={isOrgUser}
+                    className="appearance-none w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
+                  >
+                    <option value="">All Organisations</option>
+                    {organisations.map((o) => (
+                      <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Financial Year
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedFY}
+                    onChange={(e) => { setSelectedFY(e.target.value); setCurrentPage(1); }}
+                    className="appearance-none w-full text-xs px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer shadow-2xs"
+                  >
+                    <option value="">All Years</option>
+                    {FINANCIAL_YEARS.map((fy) => (
+                      <option key={fy} value={fy}>{fy}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Collapsible Filter Panel matching CSR Projects DataList */}
         {showFilterPanel && (
@@ -677,22 +741,28 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex items-center space-x-1.5 px-5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
-                >
-                  <Save className="h-4 w-4" />
-                  <span>{submitting ? 'Saving...' : modalMode === 'edit' ? 'Update Fund' : 'Save Fund'}</span>
-                </button>
+              {/* Modal Footer */}
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <p className="text-[10px] text-slate-400 italic">
+                  Fields marked with <span className="text-red-500">*</span> are mandatory
+                </p>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex items-center space-x-1.5 px-5 py-2 bg-[#0f417a] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>{submitting ? 'Saving...' : modalMode === 'edit' ? 'Update Fund' : 'Save Fund'}</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

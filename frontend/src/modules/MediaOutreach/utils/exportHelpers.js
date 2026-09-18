@@ -3,7 +3,7 @@ import { SOCIAL_CHANNELS_KEYS, SOCIAL_METRICS } from './constants';
 /**
   Copies the filtered table data as Tab-Separated Values (TSV) to the clipboard
  */
-export function copyTableToClipboard({ gridApi, columnDefs, filteredRowData, activeMediaType, getOrgName, showYearWise, triggerNotification }) {
+export function copyTableToClipboard({ gridApi, columnDefs, filteredRowData, activeMediaType, getOrgName, showYearWise, isOrgView, triggerNotification }) {
   if (!gridApi && !Array.isArray(filteredRowData)) return;
 
   let tsv = '';
@@ -20,21 +20,21 @@ export function copyTableToClipboard({ gridApi, columnDefs, filteredRowData, act
   tsv += headers.join('\t') + '\n';
   
   filteredRowData.forEach((row, idx) => {
-    const line = [
-      idx + 1,
-      getOrgName(row.organisation_id),
-      row.financial_year
-    ];
+    const line = [idx + 1];
+    if (!isOrgView) {
+      line.push(getOrgName(row.organisation_id ?? row.organisation));
+    }
+    line.push(row.financial_year);
     if (!showYearWise) {
       line.push(row.month);
     }
     if (activeMediaType === 'broadcast') {
       line.push(row.broadcast_national ?? 0, row.broadcast_regional ?? 0, row.broadcast_overall ?? 0);
-    } else if (activeMediaType === 'print_media') {
+    } else if (activeMediaType === 'print_media' || activeMediaType === 'print') {
       line.push(row.print_media_national ?? 0, row.print_media_regional ?? 0, row.print_media_overall ?? 0);
     } else if (activeMediaType === 'online') {
       line.push(row.online_english ?? 0, row.online_vernacular ?? 0, row.online_overall ?? 0);
-    } else if (activeMediaType === 'social_media') {
+    } else if (activeMediaType === 'social_media' || activeMediaType === 'social') {
       SOCIAL_CHANNELS_KEYS.forEach(channel => {
         SOCIAL_METRICS.forEach(metric => {
           line.push(row[`${channel}_${metric}`] ?? 0);
@@ -70,20 +70,22 @@ export function exportTableCSV(gridApi, activeMediaType) {
 /**
   Opens printable window with styled HTML table for PDF saving or printing
  */
-export function printTablePDF({ filteredRowData, activeMediaType, getOrgName, showYearWise }) {
+export function printTablePDF({ filteredRowData, activeMediaType, getOrgName, showYearWise, isOrgView }) {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
 
-  const title = `Media Outreach - ${activeMediaType === 'broadcast' ? 'Broadcast' : activeMediaType === 'print_media' ? 'Print Media' : activeMediaType === 'online' ? 'Online' : 'Social Media'}`;
+  const isPrint = activeMediaType === 'print_media' || activeMediaType === 'print';
+  const isSocial = activeMediaType === 'social_media' || activeMediaType === 'social';
+  const title = `Media Outreach - ${activeMediaType === 'broadcast' ? 'Broadcast' : isPrint ? 'Print Media' : activeMediaType === 'online' ? 'Online' : 'Social Media'}`;
   
-  let tableHeaders = `<th>S.No</th><th>Organisation</th><th>Financial Year</th>${showYearWise ? '' : '<th>Month</th>'}`;
+  let tableHeaders = `<th>S.No</th>${isOrgView ? '' : '<th>Organisation</th>'}<th>Financial Year</th>${showYearWise ? '' : '<th>Month</th>'}`;
   if (activeMediaType === 'broadcast') {
     tableHeaders += '<th>National</th><th>Regional</th><th>Overall</th>';
-  } else if (activeMediaType === 'print_media') {
+  } else if (isPrint) {
     tableHeaders += '<th>National</th><th>Regional</th><th>Overall</th>';
   } else if (activeMediaType === 'online') {
     tableHeaders += '<th>English</th><th>Vernacular</th><th>Overall</th>';
-  } else if (activeMediaType === 'social_media') {
+  } else if (isSocial) {
     SOCIAL_CHANNELS_KEYS.forEach(ch => {
       const label = ch.charAt(0).toUpperCase() + ch.slice(1);
       SOCIAL_METRICS.forEach(m => {
@@ -96,7 +98,9 @@ export function printTablePDF({ filteredRowData, activeMediaType, getOrgName, sh
   filteredRowData.forEach((row, idx) => {
     tableRows += '<tr>';
     tableRows += `<td>${idx + 1}</td>`;
-    tableRows += `<td>${getOrgName(row.organisation_id)}</td>`;
+    if (!isOrgView) {
+      tableRows += `<td>${getOrgName(row.organisation_id ?? row.organisation)}</td>`;
+    }
     tableRows += `<td>${row.financial_year || ''}</td>`;
     if (!showYearWise) {
       tableRows += `<td>${row.month || ''}</td>`;
@@ -104,11 +108,11 @@ export function printTablePDF({ filteredRowData, activeMediaType, getOrgName, sh
     
     if (activeMediaType === 'broadcast') {
       tableRows += `<td>${row.broadcast_national ?? 0}</td><td>${row.broadcast_regional ?? 0}</td><td>${row.broadcast_overall ?? 0}</td>`;
-    } else if (activeMediaType === 'print_media') {
+    } else if (isPrint) {
       tableRows += `<td>${row.print_media_national ?? 0}</td><td>${row.print_media_regional ?? 0}</td><td>${row.print_media_overall ?? 0}</td>`;
     } else if (activeMediaType === 'online') {
       tableRows += `<td>${row.online_english ?? 0}</td><td>${row.online_vernacular ?? 0}</td><td>${row.online_overall ?? 0}</td>`;
-    } else if (activeMediaType === 'social_media') {
+    } else if (isSocial) {
       SOCIAL_CHANNELS_KEYS.forEach(ch => {
         SOCIAL_METRICS.forEach(m => {
           tableRows += `<td>${row[`${ch}_${m}`] ?? 0}</td>`;

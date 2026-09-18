@@ -27,9 +27,9 @@ async function addLightsHouseMaster(req, res)
     request.input("userID", userID);
 
     const result = await request.query(`
-        INSERT INTO tbl_light_house_master (alol,light_house_name,light_status,commisioned_date,state_id,district_id,latitude,longitude,created_by)
+        INSERT INTO tbl_light_house_master (alol,light_house_name,light_status,commisioned_date,state_id,district_id,latitude,longitude,created_by,created_date)
         OUTPUT INSERTED.lights_house_id
-        VALUES (@alol, @lightsName, @status, @dateOfCommissioning, @state, @district, @latitude, @longitude, @userID)
+        VALUES (@alol, @lightsName, @status, @dateOfCommissioning, @state, @district, @latitude, @longitude, @userID, GETDATE())
     `);
 
     const insertedYPId = result.recordset[0].lights_house_id;
@@ -194,9 +194,9 @@ async function addVtmsIntegration(req, res) {
             request.input("userID", userID);
 
             const insertResult = await request.query(`
-                INSERT INTO tbl_vtms_integration (financial_year, no_of_ports_vtms_integrated, created_by)
+                INSERT INTO tbl_vtms_integration (financial_year, no_of_ports_vtms_integrated, created_by, created_date)
                 OUTPUT INSERTED.vtms_id
-                VALUES (@financialYear, @vtmsIntegration, @userID)
+                VALUES (@financialYear, @vtmsIntegration, @userID, GETDATE())
             `);
 
             res.sendStatus(201);
@@ -349,9 +349,9 @@ async function addNaisUptime(req, res) {
         request.input("userID", userID);
 
         const insertResult = await request.query(`
-            INSERT INTO tbl_nais_uptime (financial_year, availability_of_nais, created_by)
+            INSERT INTO tbl_nais_uptime (financial_year, availability_of_nais, created_by, created_date)
             OUTPUT INSERTED.nais_id
-            VALUES (@financialYear, @naisAvailability, @userID)
+            VALUES (@financialYear, @naisAvailability, @userID, GETDATE())
         `);
 
         res.status(201).json({ insertedId: insertResult.recordset[0].nais_id });
@@ -505,9 +505,9 @@ async function addNaisUptime(req, res) {
                 request.input("userID", userID);
         
                 const insertResult = await request.query(`
-                    INSERT INTO tbl_nais_integration (financial_year, nais_integrated_with_nmda, no_of_nais_upgraded, created_by)
+                    INSERT INTO tbl_nais_integration (financial_year, nais_integrated_with_nmda, no_of_nais_upgraded, created_by, created_date)
                     OUTPUT INSERTED.nais_integration_id
-                    VALUES (@financialYear, @NAISintegration, @NAISupgraded, @userID)
+                    VALUES (@financialYear, @NAISintegration, @NAISupgraded, @userID, GETDATE())
                 `);
         
                 res.status(201).json({ insertedId: insertResult.recordset[0].nais_integration_id });
@@ -659,9 +659,9 @@ async function addNaisUptime(req, res) {
                 request.input("userID", userID);
 
                 const insertResult = await request.query (`
-                    INSERT INTO tbl_kpi_dgll_3_5_1 (finacial_year, no_lighthouses_developed_tourist_destination, annual_tourist_footfall, created_by)
+                    INSERT INTO tbl_kpi_dgll_3_5_1 (finacial_year, no_lighthouses_developed_tourist_destination, annual_tourist_footfall, created_by, created_date)
                     OUTPUT INSERTED.tourist_destination_id
-                    VALUES (@financialYears, @lighthouseDeveloped, @annualTourist, @userID)
+                    VALUES (@financialYears, @lighthouseDeveloped, @annualTourist, @userID, GETDATE())
                     `);
                     res.status(201).json({insertedID: insertResult.recordset[0].tourist_destination_id})
             
@@ -713,9 +713,9 @@ async function addNaisUptime(req, res) {
             request.input("userID", userID);
 
             const insertresult = await request.query (`
-                INSERT INTO tbl_kpi_dgll_3_5_2 (year, collection_of_light_dues, footfall_in_the_lighthouses, created_by)
+                INSERT INTO tbl_kpi_dgll_3_5_2 (year, collection_of_light_dues, footfall_in_the_lighthouses, created_by, created_date)
                 OUTPUT INSERTED.tourist_destination_target_id
-                VALUES (@year, @collectionLightDue, @footFallLighthouse, @userID)
+                VALUES (@year, @collectionLightDue, @footFallLighthouse, @userID, GETDATE())
                 `);
                 res.status(201).json({insertedID: insertresult.recordset[0].tourist_destination_id})
         } 
