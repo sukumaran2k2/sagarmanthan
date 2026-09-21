@@ -240,7 +240,7 @@ export default function CabinetNotesMopswDashboard() {
               <tbody>
                 {longPending.map((row, i) => (
                   <tr key={row.cabinet_notes_mopsw_id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
-                    <td className="px-2.5 py-2 text-slate-700 dark:text-slate-200 max-w-[180px] truncate" title={row.subject}>{row.subject}</td>
+                    <td className="px-2.5 py-2 text-slate-700 dark:text-slate-200 min-w-[180px] max-w-[260px] whitespace-normal break-words align-top">{row.subject}</td>
                     <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.wing_name}</td>
                     <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.current_stage}</td>
                     <td className="px-2.5 py-2 text-right"><PendingDays days={row.pending_days} /></td>
