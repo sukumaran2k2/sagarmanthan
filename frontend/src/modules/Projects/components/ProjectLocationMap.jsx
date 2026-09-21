@@ -8,9 +8,7 @@ import {
   LocateFixed, Loader2, AlertCircle
 } from 'lucide-react';
 
-// Comprehensive coordinates lookup for Indian maritime states, coastal regions, and inland states
 const REGION_COORDINATES = {
-  // Coastal & Maritime States / UTs
   'Tamil Nadu': [13.0827, 80.2707],
   'Maharashtra': [18.9220, 72.8347],
   'Gujarat': [22.2587, 71.1924],
@@ -25,8 +23,6 @@ const REGION_COORDINATES = {
   'Lakshadweep': [10.5667, 72.6417],
   'Daman and Diu': [20.4283, 72.8397],
   'Dadra and Nagar Haveli': [20.1809, 73.0169],
-
-  // Inland States & Major UTs
   'Delhi': [28.6139, 77.2090],
   'Uttar Pradesh': [26.8467, 80.9462],
   'Bihar': [25.5941, 85.1376],
@@ -50,8 +46,6 @@ const REGION_COORDINATES = {
   'Arunachal Pradesh': [27.0844, 93.6053],
   'Sikkim': [27.5330, 88.5122],
   'Chandigarh': [30.7333, 76.7794],
-
-  // Key Maritime Districts & Port Towns
   'Chennai': [13.0827, 80.2707],
   'Mumbai': [18.9220, 72.8347],
   'Navi Mumbai': [18.9500, 72.9500],
@@ -160,13 +154,9 @@ export default function ProjectLocationMap({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
-
-  // Compute resolved coordinates
   const explicitLat = project?.latitude ?? project?.lat ?? project?.raw?.latitude;
   const explicitLng = project?.longitude ?? project?.lng ?? project?.raw?.longitude;
   const coordinates = resolveCoordinates(stateName, districtName, explicitLat, explicitLng);
-
-  // Custom project marker with glowing pulse ring
   const createPulseIcon = useCallback(() => {
     return L.divIcon({
       className: 'sagarmanthan-leaflet-marker',
@@ -217,8 +207,6 @@ export default function ProjectLocationMap({
       popupAnchor: [0, -40],
     });
   }, []);
-
-  // User Current Location Icon
   const createUserLocationIcon = useCallback(() => {
     return L.divIcon({
       className: 'sagarmanthan-user-marker',
@@ -248,8 +236,6 @@ export default function ProjectLocationMap({
       popupAnchor: [0, -14],
     });
   }, []);
-
-  // Initialize and update Inline Leaflet Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -294,8 +280,6 @@ export default function ProjectLocationMap({
       marker.bindPopup(popupHtml);
       markerRef.current = marker;
       mapInstanceRef.current = map;
-
-      // Invalidate size cleanly
       setTimeout(() => {
         map.invalidateSize();
       }, 200);
@@ -307,8 +291,6 @@ export default function ProjectLocationMap({
       }
     }
   }, [coordinates, createPulseIcon, projectName, stateName, districtName, talukName, villageName, cost]);
-
-  // Handle ResizeObserver to keep inline map strictly sized
   useEffect(() => {
     if (!mapContainerRef.current) return;
     const resizeObserver = new ResizeObserver(() => {
@@ -319,8 +301,6 @@ export default function ProjectLocationMap({
     resizeObserver.observe(mapContainerRef.current);
     return () => resizeObserver.disconnect();
   }, []);
-
-  // Teardown inline map on unmount
   useEffect(() => {
     return () => {
       if (mapInstanceRef.current) {
@@ -329,8 +309,6 @@ export default function ProjectLocationMap({
       }
     };
   }, []);
-
-  // Update inline tile layer when activeLayer changes
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
@@ -603,7 +581,6 @@ export default function ProjectLocationMap({
   );
 }
 
-// Fullscreen Component rendered at document.body level via React Portal
 function PureFullscreenMap({
   onClose,
   coordinates,
@@ -630,8 +607,6 @@ function PureFullscreenMap({
 
   useEffect(() => {
     if (!fullMapContainerRef.current) return;
-
-    // Prevent body scrolling while in full screen
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -675,8 +650,6 @@ function PureFullscreenMap({
 
     marker.bindPopup(popupHtml).openPopup();
     fullMapInstanceRef.current = map;
-
-    // Immediately size correctly
     setTimeout(() => {
       map.invalidateSize();
     }, 100);
@@ -687,8 +660,6 @@ function PureFullscreenMap({
       fullMapInstanceRef.current = null;
     };
   }, [coordinates, createPulseIcon, projectName, stateName, districtName, talukName, villageName, cost]);
-
-  // Update tile layer in fullscreen
   useEffect(() => {
     if (!fullMapInstanceRef.current) return;
     const map = fullMapInstanceRef.current;
@@ -705,8 +676,6 @@ function PureFullscreenMap({
 
     fullTileLayerRef.current = newTile;
   }, [activeLayer]);
-
-  // Handle ESC key
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -722,8 +691,6 @@ function PureFullscreenMap({
     fullMapInstanceRef.current?.flyTo(coordinates, 13, { duration: 0.8 });
     fullMarkerRef.current?.openPopup();
   };
-
-  // Find user's live current GPS location
   const handleLocateCurrentLocation = () => {
     if (!navigator.geolocation) {
       setGeoError('Geolocation is not supported by your browser.');

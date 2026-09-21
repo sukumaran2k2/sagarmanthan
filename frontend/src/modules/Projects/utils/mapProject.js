@@ -35,7 +35,6 @@ function nullIfInvalidNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-/** First finite number among candidates; skips null/undefined/''. Keeps legitimate 0. */
 export function pickPresentCost(...values) {
   for (const value of values) {
     if (value === null || value === undefined || value === '') continue;
@@ -45,7 +44,6 @@ export function pickPresentCost(...values) {
   return null;
 }
 
-/** Normalize date for API/SQL: YYYY-MM-DD or null (never '-' / display text). */
 export function toSqlDate(value) {
   if (value == null || value === '' || value === '-') return null;
   const text = String(value).trim();
@@ -328,8 +326,13 @@ export function mapProjectBasicInfoPayload(form, options = {}) {
     subProjectsTab: Array.isArray(normalized.subProjectsTab) ? normalized.subProjectsTab : [],
   };
 
-  payload.projectID = form.projectID || identity.projectID || '';
-  payload.subProjectID = form.subProjectID || identity.subProjectID || '-1';
+  if (isUpdate) {
+    payload.projectID = form.projectID || identity.projectID || '';
+    payload.subProjectID = form.subProjectID || identity.subProjectID || '-1';
+  } else {
+    payload.projectID = '';
+    payload.subProjectID = '-1';
+  }
 
   return payload;
 }

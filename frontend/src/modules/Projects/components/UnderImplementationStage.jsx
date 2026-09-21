@@ -173,7 +173,6 @@ export default function UnderImplementationStage({
       });
       return {
         sNo: index + 1,
-        // Prefer financial_year (e.g. 2024-2025). `year` is calendar year from month mapping.
         financialYear: row.financial_year || row.year || '-',
         month: displayMonth(row.month),
         components: toComponentsText(source) || '-',
@@ -445,7 +444,6 @@ export default function UnderImplementationStage({
 
   const today = new Date().toISOString().slice(0, 10);
 
-  /** Separate save for physical progress % — same as legacy addPhysicalProgress(). */
   const savePhysicalProgress = async () => {
     if (disabled || progressLocked || progressSaving) return;
     if (!projectID) {
@@ -503,7 +501,6 @@ export default function UnderImplementationStage({
     }
   };
 
-  /** Save physical-section details (milestones, delay, inauguration). */
   const savePhysicalDetails = () => {
     onSubmitStage?.('implementation', {
       progressDate: '',

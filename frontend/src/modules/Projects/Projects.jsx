@@ -34,8 +34,6 @@ export default function Projects({
   const { id: routeId } = useParams();
   const permissions = useProjectsPermissions();
   const viewMode = permissions.viewMode;
-  // Capex-style: keep CRUD raw in hook; gate Input Form by org view at page level.
-  // Projects Input Form is organisation-only (Capex Input Form is ministry-only).
   const showInputForm = Boolean(permissions.canAdd && (permissions.isOrganisationUser || viewMode === 'org'));
 
   const ListView = useMemo(
@@ -69,7 +67,6 @@ export default function Projects({
   const initialOrgRouteHandledRef = useRef(false);
 
   useEffect(() => {
-    // Only fetch drop request counts for Ministry users (not Organisation view)
     if (permissions.isOrganisationUser) return;
 
     let isMounted = true;
@@ -123,7 +120,6 @@ export default function Projects({
         location.state?.project || location.state?.editData || location.state?.fromList
       );
 
-      // Org users should land on Data List by default on initial module load.
       if (permissions.isOrganisationUser && isInputFormRoute && !hasExplicitEditIntent) {
         setEditingRecord(null);
         setFormReadOnly(false);
@@ -177,11 +173,9 @@ export default function Projects({
 
   const tabs = useMemo(() => {
     const items = [{ id: 'list', label: 'Data List' }];
-    // Input Form tab only for Organisation view, NOT on ministry view
     if (showInputForm) {
       items.push({ id: 'basic-info', label: 'Input Form' });
     }
-    // Drop Requests tab only for Ministry view, NOT on organisation view
     if (!permissions.isOrganisationUser) {
       items.push({
         id: 'drop-requests',
@@ -214,7 +208,6 @@ export default function Projects({
     );
   }
 
-  // When directly viewing a project via route/subtab
   if (activeSubTab === 'view-project') {
     return (
       <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">

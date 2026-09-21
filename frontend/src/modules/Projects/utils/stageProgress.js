@@ -6,7 +6,6 @@ export const WORKBENCH_STAGES = [
   'completion',
 ];
 
-/** Default unlock: only Basic Info is open until checkpoints pass. */
 export const DEFAULT_STAGE_UNLOCK = {
   basic: true,
   planning: false,
@@ -52,7 +51,6 @@ export function resolveWorkbenchLevel({ stageId, stageName } = {}) {
   return Math.max(fromId, fromName);
 }
 
-/** Old portal `/bi-check-points`: project_type must be present. */
 export function isBasicInfoCheckpointMet(rows = []) {
   const row = Array.isArray(rows) ? rows[0] : rows;
   if (!row) return false;
@@ -60,7 +58,7 @@ export function isBasicInfoCheckpointMet(rows = []) {
   return type !== null && type !== undefined && String(type).trim() !== '';
 }
 
-/** Old portal `/ps-check-points`: admin OR chairman date + sanctioned cost. */
+/** Requires sanctioned cost and admin or chairman approval date. */
 export function isPlanningCheckpointMet(rows = []) {
   const row = Array.isArray(rows) ? rows[0] : rows;
   if (!row) return false;
@@ -71,7 +69,7 @@ export function isPlanningCheckpointMet(rows = []) {
   return hasCost && (hasAdmin || hasChairman);
 }
 
-/** Old portal `/ut-check-points`: contract signed actual (sub_stage 10) + award cost. */
+/** Requires contract-signed actual date and award cost. */
 export function isTenderingCheckpointMet(rows = []) {
   const row = Array.isArray(rows) ? rows[0] : rows;
   if (!row) return false;
@@ -80,17 +78,13 @@ export function isTenderingCheckpointMet(rows = []) {
   return Boolean(row.actualDate) && hasCost;
 }
 
-/** Old portal `/ui-check-points`: final milestone (milestone_id 5) end_date. */
+/** Requires final milestone (id 5) end date. */
 export function isImplementationCheckpointMet(rows = []) {
   const row = Array.isArray(rows) ? rows[0] : rows;
   if (!row) return false;
   return Boolean(row.end_date);
 }
 
-/**
- * Progressive unlock matching old edit-project Next buttons (no Clearances tab).
- * Basic → Planning → Tendering → Implementation → Completion
- */
 export function buildStageUnlockState({
   basicMet = false,
   planningMet = false,
@@ -131,7 +125,6 @@ export function getStageLockMessage(stageId) {
   return messages[stageId] || 'Please complete the previous stage before proceeding.';
 }
 
-/** Highest unlocked workbench index (0=basic … 4=completion). */
 export function maxUnlockedStageIndex(unlockState = DEFAULT_STAGE_UNLOCK) {
   let max = 0;
   WORKBENCH_STAGES.forEach((id, idx) => {

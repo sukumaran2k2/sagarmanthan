@@ -174,7 +174,6 @@ export default function UnderTenderingStage({
 
   const MAX_PDF_BYTES = PROJECT_UPLOAD_MAX_BYTES;
 
-  /** Mirrors legacy checkActualDate() — only previous stages for the row being edited. */
   const checkActualDateChain = (sourceRows, nominationValue, changedRowId) => {
     const byId = (id) => sourceRows.find((row) => Number(row.id) === id) || {};
     const r1 = byId(1);
@@ -188,74 +187,86 @@ export default function UnderTenderingStage({
     const isNomination = String(nominationValue) === '1';
     const upTo = Number(changedRowId) || 8;
 
+    const requirePrior = (prior, next, priorNotApplicable, messages) => {
+      if (priorNotApplicable) return true;
+      if (next.actualDate && !prior.actualDate) {
+        notify?.(messages.actual, 'error');
+        return false;
+      }
+      if (next.plannedDate && !prior.plannedDate) {
+        notify?.(messages.planned, 'error');
+        return false;
+      }
+      return true;
+    };
+
     if (!isNomination) {
-      // When editing row N, only validate prerequisite links up to N
-      // (avoids false errors from later rows that already have leftover dates).
+      // Only check prerequisites up to the row being edited.
       if (
         upTo >= 2 &&
-        !r1.notApplicable &&
-        (!r1.plannedDate || !r1.actualDate) &&
-        (r2.plannedDate || r2.actualDate)
+        !requirePrior(r1, r2, r1.notApplicable, {
+          actual: 'Please enter the technical sanction - actual date.',
+          planned: 'Please enter the technical sanction - target date.',
+        })
       ) {
-        notify?.('Please enter the technical sanction - actual date.', 'error');
         return false;
       }
       if (
         upTo >= 3 &&
-        !r2.notApplicable &&
-        (!r2.plannedDate || !r2.actualDate) &&
-        (r3.plannedDate || r3.actualDate)
+        !requirePrior(r2, r3, r2.notApplicable, {
+          actual: 'Please enter the tender document approved - actual date.',
+          planned: 'Please enter the tender document approved - target date.',
+        })
       ) {
-        notify?.('Please enter the tender document approved - actual date.', 'error');
         return false;
       }
       if (
         upTo >= 4 &&
-        !r3.notApplicable &&
-        (!r3.plannedDate || !r3.actualDate) &&
-        (r4.plannedDate || r4.actualDate)
+        !requirePrior(r3, r4, r3.notApplicable, {
+          actual: 'Please enter the tender notice issued - actual date.',
+          planned: 'Please enter the tender notice issued - target date.',
+        })
       ) {
-        notify?.('Please enter the tender notice issued - actual date.', 'error');
         return false;
       }
       if (
         upTo >= 5 &&
-        !r4.notApplicable &&
-        (!r4.plannedDate || !r4.actualDate) &&
-        (r5.plannedDate || r5.actualDate)
+        !requirePrior(r4, r5, r4.notApplicable, {
+          actual: 'Please enter the technical evaluation completed - actual date.',
+          planned: 'Please enter the technical evaluation completed - target date.',
+        })
       ) {
-        notify?.('Please enter the technical evaluation completed - actual date.', 'error');
         return false;
       }
       if (
         upTo >= 6 &&
-        !r5.notApplicable &&
-        (!r5.plannedDate || !r5.actualDate) &&
-        (r6.plannedDate || r6.actualDate)
+        !requirePrior(r5, r6, r5.notApplicable, {
+          actual: 'Please enter the financial evaluation completed - actual date.',
+          planned: 'Please enter the financial evaluation completed - target date.',
+        })
       ) {
-        notify?.('Please enter the financial evaluation completed - actual date.', 'error');
         return false;
       }
       if (
         upTo >= 7 &&
-        !r6.notApplicable &&
-        (!r6.plannedDate || !r6.actualDate) &&
-        (r7.plannedDate || r7.actualDate)
+        !requirePrior(r6, r7, r6.notApplicable, {
+          actual:
+            'Please enter the sanction of competent authority obtained for award - actual date.',
+          planned:
+            'Please enter the sanction of competent authority obtained for award - target date.',
+        })
       ) {
-        notify?.(
-          'Please enter the sanction of competent authority obtained for award - actual date.',
-          'error'
-        );
         return false;
       }
     }
 
     if (
       upTo >= 8 &&
-      (!r7.plannedDate || !r7.actualDate) &&
-      (r8.plannedDate || r8.actualDate)
+      !requirePrior(r7, r8, false, {
+        actual: 'Please enter the work awarded / LOA issued - actual date.',
+        planned: 'Please enter the work awarded / LOA issued - target date.',
+      })
     ) {
-      notify?.('Please enter the work awarded / LOA issued - actual date.', 'error');
       return false;
     }
     return true;
@@ -266,7 +277,6 @@ export default function UnderTenderingStage({
       Number(row.id) === Number(rowId) ? { ...row, actualDate: value } : row
     );
     updateRow(rowId, { actualDate: value });
-    // Legacy underTendering.html: Tech. Sanction has no onchange chain check.
     if (Number(rowId) <= 1) return;
     checkActualDateChain(nextRows, onNominationBasisAwarded, rowId);
   };
@@ -494,6 +504,15 @@ export default function UnderTenderingStage({
     const r7 = byId(7);
     const r8 = byId(8);
 
+    if (!nominationMode && !String(r1.cost ?? '').trim()) {
+      notify?.('Please enter Tech. Sanction Cost (In Cr).', 'error');
+      return false;
+    }
+    if (!String(r7.cost ?? '').trim()) {
+      notify?.('Please enter Awarded Project Cost (In Cr).', 'error');
+      return false;
+    }
+
     if (!nominationMode) {
       if (!r1.notApplicable && !r1.plannedDate && r2.plannedDate) {
         notify?.('Please fill the technical sanction obtained target dates.', 'error');
@@ -595,7 +614,6 @@ export default function UnderTenderingStage({
       notify?.('Please fill the work awarded actual dates.', 'error');
       return false;
     }
-    // Skip order checks against Sanction of Competent Authority when that row is N/A or nomination mode.
     if (!nominationMode && !r6.notApplicable) {
       if (compareDates(r7.plannedDate, r6.plannedDate)) {
         notify?.('Work Awarded Planned Date cannot be less than Sanction Competent Authority Planned Date.', 'error');
@@ -661,7 +679,9 @@ export default function UnderTenderingStage({
               <th className="text-left px-3 py-2.5 bg-[#0f417a]">Revised Date</th>
               <th className="text-center px-3 py-2.5 bg-[#0f417a]">Revise</th>
               <th className="text-center px-3 py-2.5 bg-[#0f417a]">History</th>
-              <th className="text-left px-3 py-2.5 bg-[#0f417a]">Actual Date</th>
+              <th className="text-left px-3 py-2.5 bg-[#0f417a]">
+                Actual Date<span className="text-rose-300">*</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -731,6 +751,7 @@ export default function UnderTenderingStage({
                     <div className="mt-2 max-w-[220px]">
                       <label className="block text-[11px] font-bold text-slate-600 mb-1">
                         {row.id === 1 ? 'Tech. Sanction Cost (In Cr)' : 'Awarded Project Cost (In Cr)'}
+                        <span className="text-rose-600"> *</span>
                       </label>
                       <input
                         type="number"

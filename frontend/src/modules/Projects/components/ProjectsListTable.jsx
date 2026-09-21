@@ -503,7 +503,6 @@ export default function ProjectsListTable({
         cellRenderer: (params) => {
           const row = params.data || {};
           const stageText = String(row.stage || '').toLowerCase();
-          // In ALL tab derive by row stage; in stage tabs use the selected stage mapping.
           const effectiveStage = isAllProjectsTab
             ? stageText
             : String(selectedStage || '').toLowerCase();
@@ -535,7 +534,6 @@ export default function ProjectsListTable({
               row.closureCost
             );
           } else {
-            // Project Initiated (and similar early stages)
             val = pickPresentCost(row.estimatedCost, row.sanctionedCost, row.cost);
           }
 
@@ -596,7 +594,6 @@ export default function ProjectsListTable({
       });
     }
 
-    // Status / Stage column: ONLY needed in the "ALL PROJECTS" tab
     if (isAllProjectsTab && visibleCols.stage) {
       cols.push({
         field: 'stage',
@@ -661,7 +658,6 @@ export default function ProjectsListTable({
       });
     }
 
-    // Drop Req At column: ONLY shown in the "DROPPED" tab
     if (isDroppedTab && visibleCols.dropReqAt !== false) {
       cols.push({
         field: 'dropReqAt',
@@ -702,8 +698,6 @@ export default function ProjectsListTable({
         },
       });
     }
-
-    // Drop Requested By column: ONLY shown in the "DROPPED" tab
     if (isDroppedTab && visibleCols.dropRequestedBy !== false) {
       cols.push({
         field: 'dropRequestedBy',
@@ -741,8 +735,6 @@ export default function ProjectsListTable({
         },
       });
     }
-
-    // Drop Req Approved At column: ONLY shown in the "DROPPED" tab
     if (isDroppedTab && visibleCols.dropReqApprovedAt !== false) {
       cols.push({
         field: 'dropReqApprovedAt',
@@ -787,8 +779,6 @@ export default function ProjectsListTable({
         },
       });
     }
-
-    // Drop Approved By column: ONLY shown in the "DROPPED" tab
     if (isDroppedTab && visibleCols.dropApprovedBy !== false) {
       cols.push({
         field: 'dropApprovedBy',
@@ -826,8 +816,6 @@ export default function ProjectsListTable({
         },
       });
     }
-
-    // Drop Reason column: ONLY shown in the "DROPPED" tab
     if (isDroppedTab && visibleCols.dropRemarks !== false) {
       cols.push({
         field: 'dropRemarks',
@@ -864,8 +852,6 @@ export default function ProjectsListTable({
         },
       });
     }
-
-    // Drop Status column: ONLY shown in the "DROPPED" tab
     if (isDroppedTab && visibleCols.dropStatus !== false) {
       cols.push({
         field: 'dropStatus',
@@ -919,8 +905,6 @@ export default function ProjectsListTable({
         },
       });
     }
-
-    // Action column: NOT shown in the "DROPPED" tab
     if (!isDroppedTab && visibleCols.actions) {
       cols.push({
         headerName: 'Action',

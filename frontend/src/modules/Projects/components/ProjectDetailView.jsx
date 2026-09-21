@@ -18,7 +18,6 @@ import {
 } from '../api';
 import ProjectLocationMap from './ProjectLocationMap';
 
-// Map coordinates lookup for Indian maritime states / major districts
 const STATE_COORDINATES = {
   'Tamil Nadu': [13.0827, 80.2707],
   'Maharashtra': [18.9220, 72.8347],
@@ -134,8 +133,7 @@ export default function ProjectDetailView({
   const [imagesData, setImagesData] = useState({ images: [], ppt: [], pert: [] });
   const [documents, setDocuments] = useState([]);
   const [activeTimelineStage, setActiveTimelineStage] = useState('under_tendering');
-  
-  // Section collapses
+
   const [fundingOpen, setFundingOpen] = useState(true);
   const [timelineOpen, setTimelineOpen] = useState(true);
   const [photoModalImg, setPhotoModalImg] = useState(null);
@@ -226,18 +224,15 @@ export default function ProjectDetailView({
   const closureCost = p.closure_cost ?? p.closureCost;
   const techSanctionCost = p.technical_sanction_cost ?? p.technicalSanctionCost;
 
-  // Location details
   const stateName = p.state_names || p.state_name || p.state || 'Tamil Nadu';
   const districtName = p.district_names || p.district_name || p.district || 'Chennai';
   const talukName = p.taluka_names || p.taluk || p.taluka_id || 'Purasawalkam';
   const villageName = p.village_names || p.village || p.village_id || 'VOC Nagar';
 
-  // State Map Center
   const mapCenter = STATE_COORDINATES[stateName] || [13.0827, 80.2707];
 
   const sourceOfFundingName = p.source_of_funding_names || p.sourceOfFunding || 'IEBR (Own Fund)';
 
-  // Funding Breakdown
   const gbs = p.gbs_components ?? p.gbsComponents;
   const multilateral = p.multilateral_components ?? p.multilateralComponents ?? p.multiFundComponents;
   const sagarmalaComp = p.sagarmala_components ?? p.sagarmalaComponents;

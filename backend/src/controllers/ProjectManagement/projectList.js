@@ -135,9 +135,6 @@ async function getProjectList(req, res) {
         const dataScope = getDataScope(req.user || {});
         const jwtOrgId = Number(dataScope.organisationId);
 
-        // Scope by JWT data view:
-        // - ORGANISATION users always see their own organisation.
-        // - MASTER/MINISTRY users may optionally filter by query organisationId.
         let effectiveOrganisationId = Number.isFinite(requestedOrganisationId) && requestedOrganisationId > 0
             ? requestedOrganisationId
             : null;
@@ -152,7 +149,6 @@ async function getProjectList(req, res) {
                 return res.json({ data: [], pagination: { total: 0, page, limit, totalPages: 0, counts: { all: 0, planning: 0, tendering: 0, ui: 0, completed: 0 } } });
             }
         } else if (!dataScope.isWide && Number.isFinite(jwtOrgId) && jwtOrgId > 0) {
-            // Defensive fallback for non-wide custom scopes.
             effectiveOrganisationId = jwtOrgId;
         }
 
@@ -1398,10 +1394,16 @@ async function getProjectAllData(req, res) {
         }
         else {
             const orgResult = await conn.query(`SELECT organisation_id FROM tbl_user WHERE user_id = ${userID}`);
-            const organisationID = orgResult.recordset[0].organisation_id;
+            const organisationID = Number(orgResult.recordset?.[0]?.organisation_id);
+            const dataScope = getDataScope(req.user || {});
+            const jwtOrgId = Number(dataScope.organisationId);
+            const effectiveOrgId = Number.isFinite(jwtOrgId) && jwtOrgId > 0
+                ? jwtOrgId
+                : organisationID;
 
-            const usersResult = await conn.query(`SELECT user_id FROM tbl_user WHERE organisation_id = ${organisationID}`);
-            const userIDs = usersResult.recordset.map(user => user.user_id);
+            if (!Number.isFinite(effectiveOrgId) || effectiveOrgId <= 0) {
+                return res.json([]);
+            }
 
             // const result = await conn.query (organsationBased );
 
@@ -1787,7 +1789,7 @@ async function getProjectAllData(req, res) {
             LEFT JOIN ExpenditureTillPreviousFY expenditurePreviousFY ON PD.project_id = expenditurePreviousFY.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(expenditurePreviousFY.sub_project_id, -1)
             LEFT JOIN RevisedTargetDates RTD ON PD.project_id = RTD.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(RTD.sub_project_id, -1)
 
-            WHERE ISNULL(PD.sub_submitted_by, PD.submitted_by)  IN (${userIDs.join(',')}) AND 
+            WHERE PD.organisation_id = ${effectiveOrgId} AND 
                 ((PD.sub_project_id IS NOT NULL AND PD.sub_status = 1) OR (PD.sub_project_id IS NULL AND PD.status = 1));        
             `);
 
@@ -1927,12 +1929,20 @@ async function getExpLogsData(req, res) {
         }
         else {
             const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
-            const organisationID = orgResult.recordset[0].organisation_id;
+            const organisationID = Number(orgResult.recordset?.[0]?.organisation_id);
+            const dataScope = getDataScope(req.user || {});
+            const jwtOrgId = Number(dataScope.organisationId);
+            const effectiveOrgId = Number.isFinite(jwtOrgId) && jwtOrgId > 0
+                ? jwtOrgId
+                : organisationID;
 
-            const usersResult = await conn.query(`SELECT user_id FROM tbl_user WHERE organisation_id = ${organisationID}`);
-            const userIDs = usersResult.recordset.map(user => user.user_id);
+            if (!Number.isFinite(effectiveOrgId) || effectiveOrgId <= 0) {
+                return res.json([]);
+            }
 
-            const result = await conn.query(`  SELECT
+            const expRequest = conn.request();
+            expRequest.input('organisationId', effectiveOrgId);
+            const result = await expRequest.query(`  SELECT
                     ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) AS [Organization ID], 
                     mmt_organisation.organisation_name AS [Organization Name],
                     tbl_project_expenditure.project_id AS [Project Id],
@@ -1973,9 +1983,9 @@ async function getExpLogsData(req, res) {
 
                     LEFT JOIN tbl_project ON tbl_project_expenditure.project_id = tbl_project.project_id
                     LEFT JOIN tbl_sub_project ON tbl_project_expenditure.sub_project_id = tbl_sub_project.sub_project_id
-                    INNER JOIN  mmt_organisation ON tbl_project.organisation_id = mmt_organisation.organisation_id
+                    INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id)
                     
-                    WHERE ISNULL(tbl_sub_project.sub_submitted_by, tbl_project.submitted_by)  IN (${userIDs.join(',')}) 
+                    WHERE ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) = @organisationId
                     ORDER BY tbl_project_expenditure.project_id, tbl_project_expenditure.sub_project_id, tbl_project_expenditure.expenditure_date                 
               ;        
             `);

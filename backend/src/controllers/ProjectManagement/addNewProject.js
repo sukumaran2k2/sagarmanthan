@@ -21,7 +21,7 @@ async function createNewProject(req, res)
         };
         const normalizeArr = (v) => (Array.isArray(v) ? v.join(',') : normalizeStr(v));
 
-        let projectID = normalizeStr(req.body.projectID) || (await getProjectID());
+        let projectID = await getProjectID();
         const projectName = normalizeStr(req.body.projectName);
         const projectBrief = normalizeStr(req.body.projectBrief);
         const estimatedProjectCost = normalizeNum(req.body.estimatedProjectCost);

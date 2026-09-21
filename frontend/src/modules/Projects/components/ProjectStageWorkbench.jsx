@@ -132,11 +132,9 @@ export default function ProjectStageWorkbench({
 
   const handleBasicSubmit = async (formData) => {
     const ok = await onSubmit?.(formData);
-    // Page refreshes checkpoints and moves to Planning when unlocked.
     return ok;
   };
 
-  // Page owns next-tab / stage-label sync via checkpoints — do not double-advance here.
   const handleMilestoneSubmit = async (stageId, stageData) => {
     return onSubmitStage?.(stageId, stageData);
   };

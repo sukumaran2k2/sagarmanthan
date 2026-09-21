@@ -79,7 +79,6 @@ function buildEditDataFromRow(row, previous = null) {
 
   return {
     ...(previous || {}),
-    // Prefer numeric FK ids from edit API over display names from the list row.
     primaryImplementingAgency: row?.primary_ia_id ?? previous?.primaryImplementingAgency,
     secondaryImplementingAgency: row?.secondary_ia_id ?? previous?.secondaryImplementingAgency,
     primaryFundingAgency: row?.primary_funding_agency_id ?? previous?.primaryFundingAgency,
@@ -189,7 +188,6 @@ export default function ProjectBasicInformationPage({
     }
   };
 
-  /** Same field checkpoints as old portal Next-button unlock (no Clearances). */
   const refreshStageUnlock = async (projectID, subProjectID) => {
     if (!projectID) {
       setStageUnlock(DEFAULT_STAGE_UNLOCK);
@@ -253,7 +251,6 @@ export default function ProjectBasicInformationPage({
 
         setDocuments(docs);
 
-        // If URL/list stage points at a locked tab, fall back to highest unlocked.
         setActiveStage((prev) => {
           if (isStageUnlocked(prev, unlock)) return prev;
           if (unlock.completion) return 'completion';

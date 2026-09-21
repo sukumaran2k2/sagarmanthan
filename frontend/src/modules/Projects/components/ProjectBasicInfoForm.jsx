@@ -129,7 +129,6 @@ function toRadioValue(value) {
   return null;
 }
 
-/** Prefer numeric FK ids for selects — list/display names must never be submitted to int columns. */
 function firstNumericId(...values) {
   for (const value of values) {
     if (value == null || value === '' || value === '-') continue;
@@ -147,7 +146,6 @@ function firstNumericId(...values) {
   return '';
 }
 
-/** Normalize any date-ish value to YYYY-MM-DD for <input type="date"> / SQL, else ''. */
 function toInputDate(...values) {
   for (const value of values) {
     if (value == null || value === '' || value === '-') continue;
@@ -718,12 +716,12 @@ export default function ProjectBasicInfoForm({
   }, [formData.state]);
 
   const filteredDistrictOptions = useMemo(() => {
-    if (!selectedStateIds.length) return districtOptions;
+    if (!selectedStateIds.length) return [];
     return districtOptions.filter((item) => selectedStateIds.includes(String(item.state_id)));
   }, [districtOptions, selectedStateIds]);
 
   const filteredMpOptions = useMemo(() => {
-    if (!selectedStateIds.length) return mpOptions;
+    if (!selectedStateIds.length) return [];
     return mpOptions.filter((item) => selectedStateIds.includes(String(item.state_id)));
   }, [mpOptions, selectedStateIds]);
 
@@ -819,25 +817,10 @@ export default function ProjectBasicInfoForm({
     const nextErrors = {};
 
     if (sectionId === 'basic') {
-      const rawPid = String(formData.projectID || '').trim();
-      if (!rawPid) {
-        nextErrors.projectID = 'Project ID is required';
-      } else if (rawPid.includes('-') || Number(rawPid) < 0) {
-        nextErrors.projectID = 'Negative or hyphen (-) values are not accepted for Project ID';
-      } else if (rawPid.length < 2) {
-        nextErrors.projectID = 'Project ID must be at least 2 characters';
-      } else if (rawPid.length > 50) {
-        nextErrors.projectID = 'Project ID should not exceed 50 characters';
-      } else if (!/^[A-Za-z0-9_\/]+$/.test(rawPid)) {
-        nextErrors.projectID = 'Project ID can only contain letters, numbers, slashes, and underscores (no - values accepted)';
-      }
-
-      const rawSubPid = String(formData.subProjectID || '').trim();
-      if (rawSubPid) {
-        if (rawSubPid.includes('-') || Number(rawSubPid) < 0) {
-          nextErrors.subProjectID = 'Negative or hyphen (-) values are not accepted for Sub Project ID';
-        } else if (!/^[A-Za-z0-9_\/]+$/.test(rawSubPid)) {
-          nextErrors.subProjectID = 'Sub Project ID can only contain letters, numbers, slashes, and underscores';
+      if (isEditMode) {
+        const rawPid = String(formData.projectID || '').trim();
+        if (!rawPid) {
+          nextErrors.projectID = 'Project ID is missing. Please reload and try again.';
         }
       }
 
@@ -1450,59 +1433,38 @@ export default function ProjectBasicInfoForm({
                 <h3 className="text-sm font-black text-[#0f417a] dark:text-blue-300 uppercase tracking-wide">
                   General Details
                 </h3>
-                <p className="text-xs text-slate-500">Keep fields in the same sequence as the legacy project form</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label required>Project ID</Label>
-                <input
-                  type="text"
-                  value={formData.projectID || ''}
-                  onChange={(e) => {
-                    const cleanVal = e.target.value.replace(/-/g, '');
-                    handleInputChange('projectID', cleanVal);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === '-' || e.key === 'Subtract') {
-                      e.preventDefault();
-                    }
-                  }}
-                  disabled={!canInteract || isEditMode}
-                  placeholder="Enter project ID"
-                  className={getInputClass('projectID')}
-                />
-                {isEditMode ? (
-                  <p className="mt-1 text-[10px] font-semibold text-slate-500">Project ID is locked in edit mode.</p>
-                ) : null}
-                <FieldError error={errors.projectID} />
-              </div>
+              {isEditMode ? (
+                <>
+                  <div>
+                    <Label>Project ID</Label>
+                    <input
+                      type="text"
+                      value={formData.projectID || ''}
+                      disabled
+                      className={getInputClass('projectID')}
+                    />
+                    <p className="mt-1 text-[10px] font-semibold text-slate-500">Project ID is locked in edit mode.</p>
+                    <FieldError error={errors.projectID} />
+                  </div>
 
-              <div>
-                <Label>Sub Project ID</Label>
-                <input
-                  type="text"
-                  value={formData.subProjectID || ''}
-                  onChange={(e) => {
-                    const cleanVal = e.target.value.replace(/-/g, '');
-                    handleInputChange('subProjectID', cleanVal);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === '-' || e.key === 'Subtract') {
-                      e.preventDefault();
-                    }
-                  }}
-                  disabled={!canInteract || isEditMode}
-                  placeholder="Enter sub project ID"
-                  className={getInputClass('subProjectID')}
-                />
-                {isEditMode ? (
-                  <p className="mt-1 text-[10px] font-semibold text-slate-500">Sub Project ID is locked in edit mode.</p>
-                ) : null}
-                <FieldError error={errors.subProjectID} />
-              </div>
-              
+                  <div>
+                    <Label>Sub Project ID</Label>
+                    <input
+                      type="text"
+                      value={formData.subProjectID || ''}
+                      disabled
+                      className={getInputClass('subProjectID')}
+                    />
+                    <p className="mt-1 text-[10px] font-semibold text-slate-500">Sub Project ID is locked in edit mode.</p>
+                    <FieldError error={errors.subProjectID} />
+                  </div>
+                </>
+              ) : null}
+
               <div className="md:col-span-2">
                 <Label required>Project Name</Label>
                 <input

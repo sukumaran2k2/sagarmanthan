@@ -24,7 +24,6 @@ export function useProjectsPermissions() {
   const uiViewCode = getUiViewCode() || 'STANDARD';
   const isOrgUser = isOrganisationUser();
   const viewMode = resolveViewMode(dataScopeCode);
-  // Capex/GEM-style alias: organisation data scope (also true when role marks org user).
   const isOrgScope = viewMode === 'org' || isOrgUser;
 
   return {
