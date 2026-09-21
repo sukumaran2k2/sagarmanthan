@@ -32,6 +32,7 @@ import pendencyTab from "./controllers/Governance/pendency.js";
 import pendencyDataTab from "./controllers/Governance/pendencyData.js";
 import vipReferenceTab from "./controllers/Governance/vipReference.js";
 import cabinetMopswTab from "./controllers/Governance/mopswCabinetNotes.js";
+import cabinetMopswDashboard from "./controllers/Governance/cabinetMopswDashboard.js";
 import mopswDocumentTab from "./controllers/Governance/mopswDocumentUploader.js";
 import cabinetBillTab from "./controllers/Governance/ministryCabinetNotes.js";
 import parliamentaryIssueTab from "./controllers/Governance/parliamentaryIssue.js";
@@ -478,6 +479,12 @@ router.post("/pendency/storecsv/:id", pendencyTab.storePendanceData);
 // viewData-pendency
 router.get("/pendencyData", pendencyDataTab.getPendencyData);
 // Cabinet Notes - MoPSW
+router.get(
+  "/cabinet-mopsw-dashboard",
+  auth,
+  requireModulePermission("CABINET_NOTES_MOPSW", "read"),
+  cabinetMopswDashboard.getCabinetMopswDashboard
+);
 router.get(
   "/cabinet-mopsw",
   auth,
