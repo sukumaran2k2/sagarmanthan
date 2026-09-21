@@ -183,7 +183,7 @@ export default function CabinetNotesMopswDashboard() {
           <div className="overflow-x-auto">
             <table className="w-full text-[11px] border-collapse">
               <thead>
-                <tr className="bg-[#0f417a] text-white">
+                <tr className="bg-[#0f417a] text-white shadow-[0_2px_4px_rgba(0,0,0,0.15)] relative z-10">
                   {['Stage','Count','Avg days','Max days','SLA status'].map((h) => (
                     <th key={h} className="px-3 py-2 text-left font-semibold tracking-wide whitespace-nowrap">{h}</th>
                   ))}
@@ -231,7 +231,7 @@ export default function CabinetNotesMopswDashboard() {
           <div className="overflow-x-auto">
             <table className="w-full text-[11px] border-collapse">
               <thead>
-                <tr className="bg-[#0f417a] text-white">
+                <tr className="bg-[#0f417a] text-white shadow-[0_2px_4px_rgba(0,0,0,0.15)] relative z-10">
                   {['Subject','Wing','Current stage','Days'].map((h) => (
                     <th key={h} className="px-2.5 py-2 text-left font-semibold tracking-wide whitespace-nowrap">{h}</th>
                   ))}
