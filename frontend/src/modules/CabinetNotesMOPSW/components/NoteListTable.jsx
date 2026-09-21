@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Edit,
   Trash2,
-  Plus,
   Search,
   X,
   ChevronDown,
-  Columns3,
+  Filter,
   FileText,
 } from 'lucide-react';
 import Table from '../../../components/Table';
@@ -46,6 +45,7 @@ export default function NoteListTable({
   const [gridApi, setGridApi] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const [visibleCols, setVisibleCols] = useState({
     subject: true,
     wing: true,
@@ -295,9 +295,6 @@ export default function NoteListTable({
     }
   };
 
-  const selectClass =
-    'appearance-none text-xs pl-3 pr-7 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 cursor-pointer min-w-[120px]';
-
   return (
     <div className="space-y-6 animate-fade-in relative">
       <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
@@ -328,60 +325,33 @@ export default function NoteListTable({
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 pb-4">
           <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-            <div className="relative">
-              <select
-                value={filters.wingId === 'All' ? '' : filters.wingId}
-                onChange={(e) =>
-                  onFiltersChange?.({
-                    ...filters,
-                    wingId: e.target.value || 'All',
-                    divisionId: 'All',
-                  })
-                }
-                className={selectClass}
-              >
-                <option value="">All Wings</option>
-                {wings.map((w) => (
-                  <option key={w.wing_id} value={w.wing_id}>
-                    {w.wing_name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
+            <button
+              type="button"
+              onClick={() => setFilterDropdownOpen((o) => !o)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 border rounded-xl text-xs font-bold cursor-pointer transition ${
+                filterDropdownOpen || hasActiveFilters
+                  ? 'bg-blue-50 border-blue-300 text-[#0f417a]'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <Filter className="h-4 w-4 text-[#0f417a]" />
+              <span>Filter</span>
+              {hasActiveFilters && (
+                <span className="bg-[#0f417a] text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                  {[filters.wingId !== 'All', filters.divisionId !== 'All', filters.status !== 'All'].filter(Boolean).length}
+                </span>
+              )}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${filterDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-            <div className="relative">
-              <select
-                value={filters.divisionId === 'All' ? '' : filters.divisionId}
-                onChange={(e) => setFilter('divisionId', e.target.value || 'All')}
-                className={`${selectClass} min-w-[130px]`}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 rounded-xl border border-rose-200 transition cursor-pointer"
               >
-                <option value="">All Divisions</option>
-                {filteredDivisions.map((d) => (
-                  <option key={d.division_id} value={d.division_id}>
-                    {d.division_name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
-
-            {category === 'active' && (
-              <div className="relative">
-                <select
-                  value={filters.status === 'All' ? '' : filters.status}
-                  onChange={(e) => setFilter('status', e.target.value || 'All')}
-                  className={`${selectClass} min-w-[140px]`}
-                >
-                  <option value="">All Stages</option>
-                  {statusOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
+                Reset
+              </button>
             )}
 
             <div className="relative min-w-[160px] max-w-xs flex-1">
@@ -402,16 +372,6 @@ export default function NoteListTable({
                 </button>
               ) : null}
             </div>
-
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="text-xs font-bold text-slate-500 hover:text-[#0f417a] px-2 py-2"
-              >
-                Clear
-              </button>
-            )}
           </div>
 
           <div className="flex items-center space-x-2 flex-shrink-0">
@@ -434,26 +394,14 @@ export default function NoteListTable({
               Total: {pagination.total}
             </div>
 
-            <CopyButton
-              onCopy={() => handleExport('Copy')}
-              color="#0f417a"
-              hoverBg="#f1f5f9"
-            />
-            <ExportDropdown
-              onExportExcel={() => handleExport('Excel')}
-              onExportPdf={() => handleExport('PDF')}
-              color="#0f417a"
-              hoverColor="#1d5594"
-            />
-
             <div className="relative" ref={colDropdownRef}>
               <button
                 type="button"
                 onClick={() => setDropdownOpen((o) => !o)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-[#0f417a] hover:bg-slate-50"
               >
-                <Columns3 className="h-3.5 w-3.5" />
-                Columns
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
               </button>
               {dropdownOpen && (
                 <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1">
@@ -480,18 +428,89 @@ export default function NoteListTable({
               )}
             </div>
 
-            {canCreate && (
-              <button
-                type="button"
-                onClick={onAdd}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0f417a] hover:bg-[#1d5594] text-white text-xs font-bold rounded-lg shadow-sm"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Notes
-              </button>
-            )}
+            <CopyButton
+              onCopy={() => handleExport('Copy')}
+              color="#0f417a"
+              hoverBg="#f1f5f9"
+            />
+            <ExportDropdown
+              onExportExcel={() => handleExport('Excel')}
+              onExportPdf={() => handleExport('PDF')}
+              color="#0f417a"
+              hoverColor="#1d5594"
+            />
+
           </div>
         </div>
+
+        {filterDropdownOpen && (
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Wing</label>
+              <div className="relative">
+                <select
+                  value={filters.wingId === 'All' ? '' : filters.wingId}
+                  onChange={(e) =>
+                    onFiltersChange?.({
+                      ...filters,
+                      wingId: e.target.value || 'All',
+                      divisionId: 'All',
+                    })
+                  }
+                  className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 cursor-pointer"
+                >
+                  <option value="">All Wings</option>
+                  {wings.map((w) => (
+                    <option key={w.wing_id} value={w.wing_id}>
+                      {w.wing_name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Division</label>
+              <div className="relative">
+                <select
+                  value={filters.divisionId === 'All' ? '' : filters.divisionId}
+                  onChange={(e) => setFilter('divisionId', e.target.value || 'All')}
+                  className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 cursor-pointer"
+                >
+                  <option value="">All Divisions</option>
+                  {filteredDivisions.map((d) => (
+                    <option key={d.division_id} value={d.division_id}>
+                      {d.division_name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
+
+            {category === 'active' && (
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Stage</label>
+                <div className="relative">
+                  <select
+                    value={filters.status === 'All' ? '' : filters.status}
+                    onChange={(e) => setFilter('status', e.target.value || 'All')}
+                    className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 cursor-pointer"
+                  >
+                    <option value="">All Stages</option>
+                    {statusOptions.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <Table
