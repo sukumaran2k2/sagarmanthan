@@ -17,15 +17,18 @@ function SlaBadge({ status }) {
   return <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-full border ${map[status] || ''}`}>{status}</span>;
 }
 
-function KpiCard({ label, value, icon: Icon, colorClass }) {
+function KpiCard({ label, value, subtext, icon: Icon, valueColorClass, iconWrapClass, subtextColorClass }) {
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center gap-3">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${colorClass}`}>
-        <Icon size={18} />
-      </div>
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-sm">
       <div>
-        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{label}</p>
-        <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 leading-tight mt-0.5">{value ?? '—'}</p>
+        <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">{label}</span>
+        <span className={`text-2xl font-black block mt-1 ${valueColorClass}`}>{value ?? '—'}</span>
+        {subtext && (
+          <span className={`text-[10px] font-semibold block mt-0.5 ${subtextColorClass}`}>{subtext}</span>
+        )}
+      </div>
+      <div className={`p-3.5 rounded-xl border flex-shrink-0 ${iconWrapClass}`}>
+        <Icon className="h-5 w-5" />
       </div>
     </div>
   );
@@ -184,7 +187,7 @@ function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' 
         type="button"
         onClick={() => setIsOpen((v) => !v)}
         title="Export options"
-        className="flex items-center justify-center w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+        className="flex items-center justify-center w-8 h-8 rounded-lg bg-transparent border-none text-white/90 hover:bg-white/10 transition cursor-pointer"
       >
         <MoreVertical className="h-4 w-4" />
       </button>
@@ -281,17 +284,49 @@ export default function CabinetNotesMopswDashboard() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard label="Total cabinet notes"            value={kpi?.total}      icon={Layers}    colorClass="bg-blue-50 dark:bg-blue-950/40 text-[#0f417a] dark:text-blue-400" />
-        <KpiCard label="Active cabinet notes"           value={kpi?.active}     icon={TrendingUp} colorClass="bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400" />
-        <KpiCard label="Completed"                      value={kpi?.completed}  icon={BarChart3} colorClass="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" />
-        <KpiCard label="Avg age of active notes (days)" value={kpi?.avgAgeDays} icon={Clock}     colorClass="bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400" />
+        <KpiCard
+          label="Total cabinet notes"
+          value={kpi?.total}
+          subtext="Across all wings"
+          icon={Layers}
+          valueColorClass="text-[#0f417a] dark:text-blue-400"
+          subtextColorClass="text-blue-600 dark:text-blue-400"
+          iconWrapClass="bg-blue-50 dark:bg-blue-950/40 text-[#0f417a] dark:text-blue-400 border-blue-100 dark:border-blue-900"
+        />
+        <KpiCard
+          label="Active cabinet notes"
+          value={kpi?.active}
+          subtext="Currently in progress"
+          icon={TrendingUp}
+          valueColorClass="text-amber-700 dark:text-amber-400"
+          subtextColorClass="text-amber-600 dark:text-amber-400"
+          iconWrapClass="bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900"
+        />
+        <KpiCard
+          label="Completed"
+          value={kpi?.completed}
+          subtext="Finalized notes"
+          icon={BarChart3}
+          valueColorClass="text-emerald-700 dark:text-emerald-400"
+          subtextColorClass="text-emerald-600 dark:text-emerald-400"
+          iconWrapClass="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900"
+        />
+        <KpiCard
+          label="Avg age of active notes (days)"
+          value={kpi?.avgAgeDays}
+          subtext="For notes still active"
+          icon={Clock}
+          valueColorClass="text-teal-700 dark:text-teal-400"
+          subtextColorClass="text-teal-600 dark:text-teal-400"
+          iconWrapClass="bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-900"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-[#0f417a] dark:text-blue-400">1.</span> Stage-wise heat map
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between">
+            <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-blue-200">1.</span> Stage-wise heat map
             </h3>
             <TableExportMenu
               headers={['Stage', 'Count', 'Avg days', 'Max days', 'SLA status']}
@@ -300,10 +335,11 @@ export default function CabinetNotesMopswDashboard() {
               title="Stage-wise Heat Map"
             />
           </div>
-          <div className="overflow-x-auto">
+          <div className="p-5">
+            <div className="overflow-auto rounded-xl border border-slate-200 dark:border-slate-800">
             <table className="w-full text-[11px] border-collapse">
               <thead>
-                <tr className="bg-[#0f417a] text-white shadow-[0_2px_4px_rgba(0,0,0,0.15)] relative z-10">
+                <tr className="bg-gradient-to-r from-blue-900 to-[#0f417a] text-white shadow-[0_2px_4px_rgba(0,0,0,0.15)] relative z-10">
                   {['Stage','Count','Avg days','Max days','SLA status'].map((h) => (
                     <th key={h} className="px-3 py-2 text-left font-semibold tracking-wide whitespace-nowrap">{h}</th>
                   ))}
@@ -321,39 +357,44 @@ export default function CabinetNotesMopswDashboard() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-[#0f417a] dark:text-blue-400">2.</span> Current stage distribution
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between">
+            <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-blue-200">2.</span> Current stage distribution
             </h3>
-            <ChartExportMenu chartRoot={distChartRoot} fileName="stage_distribution_chart" color="#0f417a" />
+            <ChartExportMenu chartRoot={distChartRoot} fileName="stage_distribution_chart" color="#0f417a" variant="plain" />
           </div>
-          <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
-          <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
+          <div className="p-5">
+            <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
+            <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-[#0f417a] dark:text-blue-400">3.</span> Wing-wise pending cabinet notes (active)
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between">
+            <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-blue-200">3.</span> Wing-wise pending cabinet notes (active)
             </h3>
-            <ChartExportMenu chartRoot={wingChartRoot} fileName="wing_wise_pending_chart" color="#0f417a" />
+            <ChartExportMenu chartRoot={wingChartRoot} fileName="wing_wise_pending_chart" color="#0f417a" variant="plain" />
           </div>
-          <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
-          <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
-          <WingWiseLegend />
+          <div className="p-5">
+            <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
+            <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
+            <WingWiseLegend />
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-[#0f417a] dark:text-blue-400">4.</span> Long pending cabinet notes
-              <span className="text-[10px] font-medium text-slate-400 ml-1">(Top 10)</span>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between">
+            <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-blue-200">4.</span> Long pending cabinet notes
+              <span className="text-[10px] font-medium text-blue-200/80 ml-1">(Top 10)</span>
             </h3>
             <TableExportMenu
               headers={['Subject', 'Wing', 'Current stage', 'Days']}
@@ -362,10 +403,11 @@ export default function CabinetNotesMopswDashboard() {
               title="Long Pending Cabinet Notes (Top 10)"
             />
           </div>
-          <div className="overflow-x-auto">
+          <div className="p-5">
+            <div className="overflow-auto rounded-xl border border-slate-200 dark:border-slate-800">
             <table className="w-full text-[11px] border-collapse">
               <thead>
-                <tr className="bg-[#0f417a] text-white shadow-[0_2px_4px_rgba(0,0,0,0.15)] relative z-10">
+                <tr className="bg-gradient-to-r from-blue-900 to-[#0f417a] text-white shadow-[0_2px_4px_rgba(0,0,0,0.15)] relative z-10">
                   {['Subject','Wing','Current stage','Days'].map((h) => (
                     <th key={h} className="px-2.5 py-2 text-left font-semibold tracking-wide whitespace-nowrap">{h}</th>
                   ))}
@@ -385,6 +427,7 @@ export default function CabinetNotesMopswDashboard() {
                 )}
               </tbody>
             </table>
+            </div>
             <p className="text-[9px] text-slate-400 mt-2">Days calculated from date of entry into current stage till today.</p>
           </div>
         </div>
