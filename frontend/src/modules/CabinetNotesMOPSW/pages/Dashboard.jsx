@@ -56,11 +56,18 @@ function StageDistributionChart({ data }) {
     chart.appear(600, 100);
     return () => root.dispose();
   }, [data]);
-  return <div ref={divRef} style={{ width: '100%', height: 280 }} />;
+  return <div ref={divRef} style={{ width: '100%', height: 280, overflow: 'hidden' }} />;
 }
+
+const WING_WISE_LEGEND = [
+  { name: 'In Progress', color: '#1e4d8c' },
+  { name: 'Cabinet Approved', color: '#3b8a4a' },
+  { name: 'On Hold', color: '#b0bec5' },
+];
 
 function WingWiseChart({ data }) {
   const divRef = useRef(null);
+  const chartHeight = Math.max(200, 70 * (data?.length || 0) + 70);
   const rootRef = useRef(null);
   useLayoutEffect(() => {
     if (!divRef.current || !data?.length) return;
@@ -91,13 +98,23 @@ function WingWiseChart({ data }) {
     const s2 = makeSeries('cabinet_approved', 'Cabinet Approved', 0x3b8a4a);
     const s3 = makeSeries('on_hold', 'On Hold', 0xb0bec5);
     yAxis.data.setAll(data);
-    const legend = chart.children.push(am5.Legend.new(root, { centerX: am5.p50, x: am5.p50, marginTop: 8 }));
-    legend.labels.template.setAll({ fontSize: 11, fill: am5.color(0x475569) });
-    legend.data.setAll([s1, s2, s3]);
     chart.appear(600, 100);
     return () => root.dispose();
   }, [data]);
-  return <div ref={divRef} style={{ width: '100%', height: 260 }} />;
+  return <div ref={divRef} style={{ width: '100%', height: chartHeight, overflow: 'hidden' }} />;
+}
+
+function WingWiseLegend() {
+  return (
+    <div className="flex items-center justify-center gap-5 mt-3">
+      {WING_WISE_LEGEND.map((item) => (
+        <div key={item.name} className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: item.color }} />
+          <span className="text-[11px] text-slate-600 dark:text-slate-300">{item.name}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function PendingDays({ days }) {
@@ -134,7 +151,7 @@ export default function CabinetNotesMopswDashboard() {
     </div>
   );
 
-  const { kpi, heatMap = [], wingWise = [], longPending = [] } = data || {};
+  const { kpi, lastDataUpdate, heatMap = [], wingWise = [], longPending = [] } = data || {};
   // Exclude On Hold (9), Completed (10), DCM Been Approved (11 — unconfirmed stage, not in reference)
   const distData = heatMap.filter((s) => ![9, 10, 11].includes(s.stage_id));
 
@@ -142,7 +159,9 @@ export default function CabinetNotesMopswDashboard() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-          Last updated: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+          Last data update: {lastDataUpdate
+            ? new Date(lastDataUpdate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            : '—'}
         </p>
         <button onClick={load} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-[#0f417a] dark:hover:text-blue-400 transition cursor-pointer">
           <RefreshCw size={13} /> Refresh
@@ -190,7 +209,7 @@ export default function CabinetNotesMopswDashboard() {
             <span className="text-[#0f417a] dark:text-blue-400">2.</span> Current stage distribution
           </h3>
           <StageDistributionChart data={distData} />
-          <p className="text-[9px] text-slate-400 text-right mt-1">Number of notes →</p>
+          <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
         </div>
       </div>
 
@@ -200,7 +219,8 @@ export default function CabinetNotesMopswDashboard() {
             <span className="text-[#0f417a] dark:text-blue-400">3.</span> Wing-wise pending cabinet notes (active)
           </h3>
           <WingWiseChart data={wingWise} />
-          <p className="text-[9px] text-slate-400 text-right mt-1">Number of notes →</p>
+          <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
+          <WingWiseLegend />
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">

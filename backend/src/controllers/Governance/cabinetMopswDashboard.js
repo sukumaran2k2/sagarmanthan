@@ -64,7 +64,8 @@ async function getCabinetMopswDashboard(req, res) {
             WHEN NOT ${COMPLETED_CONDITION}
             THEN CAST(DATEDIFF(day, notes.created_date, GETDATE()) AS FLOAT)
           END)
-        AS INT)                                                         AS avg_age_active_days
+        AS INT)                                                         AS avg_age_active_days,
+        MAX(notes.updated_date)                                         AS last_data_update
       FROM tbl_cabinet_notes_mopsw AS notes
       INNER JOIN mmt_cabinet_mopsw_stage AS stage
         ON stage.mopsw_stage_id = notes.stage_id
@@ -201,6 +202,7 @@ async function getCabinetMopswDashboard(req, res) {
         completed: Number(kpi.completed_notes)     || 0,
         avgAgeDays: kpi.avg_age_active_days != null ? Number(kpi.avg_age_active_days) : null,
       },
+      lastDataUpdate: kpi.last_data_update || null,
       heatMap,
       wingWise:    wingResult.recordset,
       longPending: longPendingResult.recordset,
