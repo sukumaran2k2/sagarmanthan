@@ -368,15 +368,8 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
     ];
 
     if (permissions.canEdit) {
-      const updateHeaderLabel =
-        viewMode === 'ministry'
-          ? 'Update Target'
-          : viewMode === 'org'
-            ? 'Update Actuals'
-            : 'Update';
-
       allDefs.push({
-        headerName: updateHeaderLabel,
+        headerName: 'Update',
         flex: 1,
         minWidth: 110,
         maxWidth: 120,

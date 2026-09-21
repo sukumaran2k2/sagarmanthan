@@ -4141,7 +4141,7 @@ async function getEventWiseSummary(req, res) {
             SELECT
                 event_name AS [GMIS Event],
                 COUNT(*) AS [Total MoUs],
-                SUM(ISNULL(amount, 0)) AS [Total Cost],
+                SUM(ISNULL(amount, 0)) AS [Total Amount],
                 SUM(
                     CASE
                         WHEN LOWER(LTRIM(RTRIM(present_status)))
@@ -4701,7 +4701,7 @@ async function getCategoryWiseSummary(req,res) {
            SELECT
             mou.mou_category_name AS [MoU Category],
             COUNT(*) AS [Total MoUs],
-            SUM(ISNULL(amount, 0)) AS [Total Cost],
+            SUM(ISNULL(amount, 0)) AS [Total Amount],
             SUM(CASE
                 WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%yet%start%'
                 THEN 1 ELSE 0

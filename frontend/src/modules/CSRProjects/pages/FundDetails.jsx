@@ -759,3 +759,4 @@ export default function FundDetails({ isOrgUser: isOrgUserProp, triggerNotificat
     </div>
   );
 }
+

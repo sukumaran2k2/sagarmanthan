@@ -14,7 +14,6 @@ import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { fetchCapexReport } from '../api';
 import { getSessionOrganisationId } from '../../../utils/authSession';
-import { getCapexReportAsOnMeta, getCapexStatusMeta } from '../utils/capexUtils';
 
 const BRAND = '#4b2424';
 const BRAND_HOVER = '#6b3535';
@@ -171,8 +170,6 @@ function processCategoryData(itemsList, defaultList, { orgScoped, selectedOrgFil
 }
 
 function CategoryTotalRow({ label, totals }) {
-  const statusMeta = getCapexStatusMeta(totals.categoryTotalPct);
-
   return (
     <tr className="bg-[#f5eeea] font-black text-[#4b2424] border-y border-[#d7c4b7]">
       <td className="p-2 border border-[#d7c4b7]" />
@@ -187,16 +184,12 @@ function CategoryTotalRow({ label, totals }) {
       <td className="p-2 border border-[#d7c4b7] text-right">{fmt(totals.totalPppSum)}</td>
       <td className="p-2 border border-[#d7c4b7] text-right">{fmt(totals.categoryPPPpct)}</td>
       <td className="p-2 border border-[#d7c4b7] text-right">{fmt(totals.totalGbsIebrPppSum)}</td>
-      <td className={`p-2 border border-[#d7c4b7] text-right ${statusMeta.bg}`}>
-        <span className={`font-black ${statusMeta.text}`}>{fmt(totals.categoryTotalPct)}</span>
-      </td>
+      <td className="p-2 border border-[#d7c4b7] text-right">{fmt(totals.categoryTotalPct)}</td>
     </tr>
   );
 }
 
 function DataRow({ sNo, row }) {
-  const statusMeta = getCapexStatusMeta(row.expPct);
-
   return (
     <tr className="hover:bg-[#fcf9f7] transition border-b border-[#eadede]">
       <td className="p-2 border border-[#eadede] text-center font-semibold text-slate-700">
@@ -219,8 +212,8 @@ function DataRow({ sNo, row }) {
       <td className="p-2 border border-[#eadede] text-right font-extrabold text-[#4b2424]">
         {fmt(row.expTotal)}
       </td>
-      <td className={`p-2 border border-[#eadede] text-right ${statusMeta.bg}`}>
-        <span className={`font-black ${statusMeta.text}`}>{fmt(row.expPct)}</span>
+      <td className="p-2 border border-[#eadede] text-right font-black text-[#4b2424] bg-[#f7f3f3]">
+        {fmt(row.expPct)}
       </td>
     </tr>
   );
@@ -345,7 +338,21 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
     otherCategory.totals.totalGbsIebrPppSum;
   const grandTotalPct = grandTotalBE > 0 ? (grandTotalExp * 100) / grandTotalBE : 0;
 
-  const reportMeta = useMemo(() => getCapexReportAsOnMeta(selectedYear), [selectedYear]);
+  // As-on date: last day of previous calendar month; year from FY start (legacy capexReport.html).
+  const { asOnDate, asOnDateStr, reportMonthStr } = useMemo(() => {
+    const today = new Date();
+    const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDayOfPrevMonth = new Date(firstDayOfCurrentMonth - 1);
+    const day = String(lastDayOfPrevMonth.getDate()).padStart(2, '0');
+    const month = String(lastDayOfPrevMonth.getMonth() + 1).padStart(2, '0');
+    const startYear = String(selectedYear || '').split('-')[0] || String(today.getFullYear());
+    const monthName = lastDayOfPrevMonth.toLocaleString('en-IN', { month: 'long' });
+    return {
+      asOnDate: `${day}/${month}/${startYear}`,
+      asOnDateStr: `${day}-${month}-${startYear}`,
+      reportMonthStr: `${monthName} ${startYear}`,
+    };
+  }, [selectedYear]);
 
   const allCapexOrgNames = useMemo(() => {
     const fromApi = [
@@ -427,14 +434,12 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
               style={{ color: BRAND_SOFT }}
             >
               <span>
-                As on date: <strong style={{ color: BRAND }}>{reportMeta.asOnDateStr}</strong>
+                As on date: <strong style={{ color: BRAND }}>{asOnDateStr}</strong>
               </span>
               <span style={{ color: '#eadede' }}>•</span>
               <span>
-                {reportMeta.reportPeriodLabel} —{' '}
-                <strong style={{ color: BRAND }}>{reportMeta.reportPeriodValue}</strong>
+                Report for the month — <strong style={{ color: BRAND }}>{reportMonthStr}</strong>
               </span>
-
             </div>
           </div>
         </div>
@@ -620,7 +625,7 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
                   Total Budget Estimate (In Crores)
                 </th>
                 <th className="p-2.5 border border-[#6b3535]" colSpan={6}>
-                  {`Actual Expenditure (In Crores) (Upto ${reportMeta.asOnDate})`}
+                  Actual Expenditure(In Crores) (Upto {asOnDate})
                 </th>
                 <th className="p-2.5 border border-[#6b3535]" rowSpan={2}>
                   % of BE Achieved
@@ -736,21 +741,6 @@ export default function CapexForm32Report({ showToast, orgScoped = false }) {
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="flex flex-wrap gap-3 text-[11px] text-slate-600">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> 75–100% Good
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-yellow-500" /> 50–&lt;75% Moderate
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> &lt;50% Low
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> &gt;100% Above BE
-        </span>
       </div>
     </div>
   );
