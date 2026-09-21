@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { RefreshCw, TrendingUp, BarChart3, Layers, Clock } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 import { fetchCabinetMopswDashboard } from '../api';
+import ChartExportMenu from '../../../components/ChartExportMenu';
+import { MoreVertical, FileSpreadsheet, Printer } from 'lucide-react';
 
 function SlaBadge({ status }) {
   if (!status) return <span className="text-slate-400 text-[10px]">—</span>;
@@ -29,7 +31,7 @@ function KpiCard({ label, value, icon: Icon, colorClass }) {
   );
 }
 
-function StageDistributionChart({ data }) {
+function StageDistributionChart({ data, onRootReady }) {
   const divRef = useRef(null);
   const rootRef = useRef(null);
   useLayoutEffect(() => {
@@ -37,6 +39,7 @@ function StageDistributionChart({ data }) {
     if (rootRef.current) rootRef.current.dispose();
     const root = am5.Root.new(divRef.current);
     rootRef.current = root;
+    onRootReady?.(root);
     root.setThemes([am5themes_Animated.new(root)]);
     const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingRight: 20 }));
     const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10 });
@@ -54,7 +57,7 @@ function StageDistributionChart({ data }) {
     yAxis.data.setAll(sorted);
     series.data.setAll(sorted);
     chart.appear(600, 100);
-    return () => root.dispose();
+    return () => { root.dispose(); onRootReady?.(null); };
   }, [data]);
   return <div ref={divRef} style={{ width: '100%', height: 280, overflow: 'hidden' }} />;
 }
@@ -65,7 +68,7 @@ const WING_WISE_LEGEND = [
   { name: 'On Hold', color: '#b0bec5' },
 ];
 
-function WingWiseChart({ data }) {
+function WingWiseChart({ data, onRootReady }) {
   const divRef = useRef(null);
   const chartHeight = Math.max(200, 70 * (data?.length || 0) + 70);
   const rootRef = useRef(null);
@@ -74,6 +77,7 @@ function WingWiseChart({ data }) {
     if (rootRef.current) rootRef.current.dispose();
     const root = am5.Root.new(divRef.current);
     rootRef.current = root;
+    onRootReady?.(root);
     root.setThemes([am5themes_Animated.new(root)]);
     const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingRight: 20 }));
     const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10 });
@@ -99,7 +103,7 @@ function WingWiseChart({ data }) {
     const s3 = makeSeries('on_hold', 'On Hold', 0xb0bec5);
     yAxis.data.setAll(data);
     chart.appear(600, 100);
-    return () => root.dispose();
+    return () => { root.dispose(); onRootReady?.(null); };
   }, [data]);
   return <div ref={divRef} style={{ width: '100%', height: chartHeight, overflow: 'hidden' }} />;
 }
@@ -122,10 +126,98 @@ function PendingDays({ days }) {
   return <span className={`font-bold text-xs ${cls}`}>{days}</span>;
 }
 
+function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) setIsOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleExcel = () => {
+    setIsOpen(false);
+    if (!data?.length) return;
+    let csv = '\uFEFF' + headers.map((h) => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\r\n';
+    data.forEach((row) => {
+      csv += Object.values(row).map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',') + '\r\n';
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    setIsOpen(false);
+    if (!data?.length) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const headHtml = headers.map((h) => `<th style="border:1px solid #cbd5e1;padding:8px 10px;text-align:left;background:#0f417a;color:#fff;font-size:11px;font-weight:bold;text-transform:uppercase;">${h}</th>`).join('');
+    const rowsHtml = data.map((row, i) => {
+      const bg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+      const cells = Object.values(row).map((v) => `<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11px;">${String(v ?? '')}</td>`).join('');
+      return `<tr style="background:${bg};">${cells}</tr>`;
+    }).join('');
+    printWindow.document.write(`
+      <!DOCTYPE html><html><head><title>${title}</title>
+      <style>body{font-family:-apple-system,sans-serif;color:#1e293b;padding:24px}h1{font-size:16px;color:#0f417a;margin-bottom:4px;font-weight:800;text-transform:uppercase}p{font-size:11px;color:#64748b;margin-top:0;margin-bottom:16px}table{width:100%;border-collapse:collapse;margin-top:12px}@media print{body{padding:0}}</style>
+      </head><body><h1>${title}</h1><p>Generated on: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+      <table><thead><tr>${headHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
+      <script>window.onload=function(){setTimeout(function(){window.print();},300);}</script>
+      </body></html>
+    `);
+    printWindow.document.close();
+  };
+
+  return (
+    <div className="relative inline-block" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        title="Export options"
+        className="flex items-center justify-center w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+          <button
+            type="button"
+            onClick={handleExcel}
+            className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span>CSV (Excel)</span>
+          </button>
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer border-none bg-transparent text-left border-t border-slate-100 dark:border-slate-800"
+          >
+            <Printer className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            <span>Print / PDF</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CabinetNotesMopswDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [distChartRoot, setDistChartRoot] = useState(null);
+  const [wingChartRoot, setWingChartRoot] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -137,6 +229,13 @@ export default function CabinetNotesMopswDashboard() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const { kpi, lastDataUpdate, heatMap = [], wingWise = [], longPending = [] } = data || {};
+  // Exclude On Hold (9), Completed (10), DCM Been Approved (11 — unconfirmed stage, not in reference)
+  // Memoized: a fresh array reference on every render would re-trigger StageDistributionChart's
+  // effect (which calls onRootReady -> setState), causing a render loop.
+  // Must stay above the loading/error early returns below (Rules of Hooks: same hooks, same order, every render).
+  const distData = useMemo(() => heatMap.filter((s) => ![9, 10, 11].includes(s.stage_id)), [heatMap]);
 
   if (loading) return (
     <div className="flex items-center justify-center py-20 text-slate-400 text-sm">
@@ -151,9 +250,22 @@ export default function CabinetNotesMopswDashboard() {
     </div>
   );
 
-  const { kpi, lastDataUpdate, heatMap = [], wingWise = [], longPending = [] } = data || {};
-  // Exclude On Hold (9), Completed (10), DCM Been Approved (11 — unconfirmed stage, not in reference)
-  const distData = heatMap.filter((s) => ![9, 10, 11].includes(s.stage_id));
+  const heatMapExportData = heatMap
+    .filter((row) => row.stage_id !== 11)
+    .map((row) => ({
+      Stage: row.stage_name,
+      Count: row.note_count,
+      'Avg days': row.note_count ? row.avg_days : '—',
+      'Max days': row.note_count ? row.max_days : '—',
+      'SLA status': row.sla_status || '—',
+    }));
+
+  const longPendingExportData = longPending.map((row) => ({
+    Subject: row.subject,
+    Wing: row.wing_name,
+    'Current stage': row.current_stage,
+    Days: row.pending_days,
+  }));
 
   return (
     <div className="space-y-5">
@@ -177,9 +289,17 @@ export default function CabinetNotesMopswDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-          <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <span className="text-[#0f417a] dark:text-blue-400">1.</span> Stage-wise heat map
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-[#0f417a] dark:text-blue-400">1.</span> Stage-wise heat map
+            </h3>
+            <TableExportMenu
+              headers={['Stage', 'Count', 'Avg days', 'Max days', 'SLA status']}
+              data={heatMapExportData}
+              fileName="stage_wise_heat_map"
+              title="Stage-wise Heat Map"
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[11px] border-collapse">
               <thead>
@@ -205,29 +325,43 @@ export default function CabinetNotesMopswDashboard() {
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-          <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <span className="text-[#0f417a] dark:text-blue-400">2.</span> Current stage distribution
-          </h3>
-          <StageDistributionChart data={distData} />
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-[#0f417a] dark:text-blue-400">2.</span> Current stage distribution
+            </h3>
+            <ChartExportMenu chartRoot={distChartRoot} fileName="stage_distribution_chart" color="#0f417a" />
+          </div>
+          <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
           <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-          <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <span className="text-[#0f417a] dark:text-blue-400">3.</span> Wing-wise pending cabinet notes (active)
-          </h3>
-          <WingWiseChart data={wingWise} />
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-[#0f417a] dark:text-blue-400">3.</span> Wing-wise pending cabinet notes (active)
+            </h3>
+            <ChartExportMenu chartRoot={wingChartRoot} fileName="wing_wise_pending_chart" color="#0f417a" />
+          </div>
+          <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
           <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
           <WingWiseLegend />
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-          <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <span className="text-[#0f417a] dark:text-blue-400">4.</span> Long pending cabinet notes
-            <span className="text-[10px] font-medium text-slate-400 ml-1">(Top 10)</span>
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-[#0f417a] dark:text-blue-400">4.</span> Long pending cabinet notes
+              <span className="text-[10px] font-medium text-slate-400 ml-1">(Top 10)</span>
+            </h3>
+            <TableExportMenu
+              headers={['Subject', 'Wing', 'Current stage', 'Days']}
+              data={longPendingExportData}
+              fileName="long_pending_cabinet_notes"
+              title="Long Pending Cabinet Notes (Top 10)"
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[11px] border-collapse">
               <thead>
