@@ -371,8 +371,8 @@ export function fetchDropRequests(userId) {
   return api.get(`/viewdrop-projectlist/${userId}`);
 }
 
-export function acceptDropRequest(projectId, subProjectId) {
-  return api.put(`/delete-project/${projectId}/${subProjectId}`);
+export function acceptDropRequest(projectId, subProjectId, payload = {}) {
+  return api.put(`/delete-project/${projectId}/${subProjectId}`, payload);
 }
 
 export function rejectDropProject(payload) {

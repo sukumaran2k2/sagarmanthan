@@ -30,6 +30,68 @@ function toAmount(value) {
   });
 }
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatDropTimestamp(val) {
+  if (!val || val === '-' || val === 'null' || val === 'undefined') return null;
+
+  let year, month, day, hours, minutes, seconds;
+
+  if (typeof val === 'string') {
+    const s = val.trim();
+    // Match 'YYYY-MM-DD' or 'YYYY-MM-DD HH:mm:ss' or 'YYYY-MM-DDTHH:mm:ss...'
+    const match = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (match) {
+      year = parseInt(match[1], 10);
+      month = parseInt(match[2], 10) - 1;
+      day = parseInt(match[3], 10);
+      hours = match[4] !== undefined ? parseInt(match[4], 10) : 0;
+      minutes = match[5] !== undefined ? parseInt(match[5], 10) : 0;
+      seconds = match[6] !== undefined ? parseInt(match[6], 10) : 0;
+    }
+  }
+
+  if (year === undefined) {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return { date: String(val), time: null };
+
+    // If it came with 'Z' (UTC timestamp from tedious/mssql), use UTC components to get exact DB timestamp
+    if (typeof val === 'string' && val.includes('Z')) {
+      year = d.getUTCFullYear();
+      month = d.getUTCMonth();
+      day = d.getUTCDate();
+      hours = d.getUTCHours();
+      minutes = d.getUTCMinutes();
+      seconds = d.getUTCSeconds();
+    } else {
+      year = d.getFullYear();
+      month = d.getMonth();
+      day = d.getDate();
+      hours = d.getHours();
+      minutes = d.getMinutes();
+      seconds = d.getSeconds();
+    }
+  }
+
+  const dayStr = String(day).padStart(2, '0');
+  const monthStr = MONTH_NAMES[month] || 'Jan';
+  const dateStr = `${dayStr} ${monthStr} ${year}`;
+
+  // If time is 00:00:00 (pure date without time), return only the date
+  if (hours === 0 && minutes === 0 && seconds === 0) {
+    return { date: dateStr, time: null };
+  }
+
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  const hourStr = String(hour12).padStart(2, '0');
+  const minStr = String(minutes).padStart(2, '0');
+  const secStr = String(seconds).padStart(2, '0');
+  const timeStr = `${hourStr}:${minStr}:${secStr} ${ampm}`;
+
+  return { date: dateStr, time: timeStr };
+}
+
 export default function ProjectsListTable({
   rows = [],
   loading = false,
@@ -94,6 +156,8 @@ export default function ProjectsListTable({
     stage: true,
     dropReqAt: true,
     dropReqApprovedAt: true,
+    dropRequestedBy: true,
+    dropApprovedBy: true,
     dropRemarks: true,
     dropStatus: true,
     actions: true,
@@ -602,8 +666,8 @@ export default function ProjectsListTable({
       cols.push({
         field: 'dropReqAt',
         headerName: 'Drop Req At',
-        width: 185,
-        minWidth: 165,
+        width: 175,
+        minWidth: 155,
         cellClass: 'text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
         headerClass: 'text-center',
         cellStyle: {
@@ -614,24 +678,63 @@ export default function ProjectsListTable({
         },
         valueGetter: (params) => {
           const val = params.data?.dropReqAt || params.data?.raw?.drop_req_at || params.data?.raw?.submitted_on || params.data?.dropDate || params.data?.raw?.drop_date || params.value;
-          if (!val || val === '-') return '-';
-          const d = new Date(val);
-          if (isNaN(d.getTime())) return String(val);
-          return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+          const res = formatDropTimestamp(val);
+          if (!res) return '-';
+          return res.time ? `${res.date}, ${res.time}` : res.date;
         },
         cellRenderer: (params) => {
           const val = params.data?.dropReqAt || params.data?.raw?.drop_req_at || params.data?.raw?.submitted_on || params.data?.dropDate || params.data?.raw?.drop_date || params.value;
-          if (!val || val === '-') return <div className="w-full flex items-center justify-center text-center"><span className="text-slate-400 font-mono text-xs">-</span></div>;
-          const d = new Date(val);
-          if (isNaN(d.getTime())) return <div className="w-full flex items-center justify-center text-center"><span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{val}</span></div>;
+          const res = formatDropTimestamp(val);
+          if (!res) return <div className="w-full flex items-center justify-center text-center"><span className="text-slate-400 font-mono text-xs">-</span></div>;
 
           return (
             <div className="flex flex-col items-center justify-center text-center py-1 w-full leading-tight">
               <span className="font-bold text-slate-800 dark:text-slate-200 font-mono text-xs">
-                {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                {res.date}
               </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                {d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+              {res.time && (
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                  {res.time}
+                </span>
+              )}
+            </div>
+          );
+        },
+      });
+    }
+
+    // Drop Requested By column: ONLY shown in the "DROPPED" tab
+    if (isDroppedTab && visibleCols.dropRequestedBy !== false) {
+      cols.push({
+        field: 'dropRequestedBy',
+        headerName: 'Requested By',
+        width: 180,
+        minWidth: 150,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-xs text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
+        headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: '1.35',
+        },
+        valueGetter: (params) => {
+          const reqUser = params.data?.dropRequestedByName || params.data?.raw?.drop_requested_by_name || params.data?.raw?.name || '';
+          return reqUser || '-';
+        },
+        cellRenderer: (params) => {
+          const reqUser = params.data?.dropRequestedByName || params.data?.raw?.drop_requested_by_name || params.data?.raw?.name || '';
+          if (!reqUser) return <span className="text-slate-400 font-mono text-xs">-</span>;
+
+          return (
+            <div className="flex flex-col items-center justify-center text-center py-1.5 w-full">
+              <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs whitespace-normal break-words leading-snug">
+                {reqUser}
               </span>
             </div>
           );
@@ -644,8 +747,8 @@ export default function ProjectsListTable({
       cols.push({
         field: 'dropReqApprovedAt',
         headerName: 'Drop Req Approved At',
-        width: 195,
-        minWidth: 175,
+        width: 175,
+        minWidth: 155,
         cellClass: 'text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
         headerClass: 'text-center',
         cellStyle: {
@@ -657,25 +760,66 @@ export default function ProjectsListTable({
         valueGetter: (params) => {
           const isApproved = String(params.data?.dropStatus || params.data?.raw?.drop_status || '').toLowerCase().includes('approve') || params.data?.project_status === 0 || params.data?.raw?.status === 0;
           const val = params.data?.dropReqApprovedAt || params.data?.raw?.drop_req_approved_at || (isApproved ? (params.data?.dropDate || params.data?.raw?.drop_date) : null) || params.value;
-          if (!val) return '-';
-          const d = new Date(val);
-          if (isNaN(d.getTime())) return String(val);
-          return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+          if (!val || !isApproved) return '-';
+          const res = formatDropTimestamp(val);
+          if (!res) return '-';
+          return res.time ? `${res.date}, ${res.time}` : res.date;
         },
         cellRenderer: (params) => {
           const isApproved = String(params.data?.dropStatus || params.data?.raw?.drop_status || '').toLowerCase().includes('approve') || params.data?.project_status === 0 || params.data?.raw?.status === 0;
           const val = params.data?.dropReqApprovedAt || params.data?.raw?.drop_req_approved_at || (isApproved ? (params.data?.dropDate || params.data?.raw?.drop_date) : null) || params.value;
           if (!val || !isApproved) return <div className="w-full flex items-center justify-center text-center"><span className="text-slate-400 font-mono text-xs italic">-</span></div>;
-          const d = new Date(val);
-          if (isNaN(d.getTime())) return <div className="w-full flex items-center justify-center text-center"><span className="text-xs font-mono font-semibold text-emerald-600">{val}</span></div>;
+          const res = formatDropTimestamp(val);
+          if (!res) return <div className="w-full flex items-center justify-center text-center"><span className="text-slate-400 font-mono text-xs italic">-</span></div>;
 
           return (
             <div className="flex flex-col items-center justify-center text-center py-1 w-full leading-tight">
               <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono text-xs">
-                {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                {res.date}
               </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                {d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+              {res.time && (
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                  {res.time}
+                </span>
+              )}
+            </div>
+          );
+        },
+      });
+    }
+
+    // Drop Approved By column: ONLY shown in the "DROPPED" tab
+    if (isDroppedTab && visibleCols.dropApprovedBy !== false) {
+      cols.push({
+        field: 'dropApprovedBy',
+        headerName: 'Approved By',
+        width: 180,
+        minWidth: 150,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-xs text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
+        headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: '1.35',
+        },
+        valueGetter: (params) => {
+          const appUser = params.data?.dropApprovedByName || params.data?.raw?.drop_approved_by_name || '';
+          return appUser || '-';
+        },
+        cellRenderer: (params) => {
+          const appUser = params.data?.dropApprovedByName || params.data?.raw?.drop_approved_by_name || '';
+          if (!appUser) return <span className="text-slate-400 font-mono text-xs">-</span>;
+
+          return (
+            <div className="flex flex-col items-center justify-center text-center py-1.5 w-full">
+              <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-xs whitespace-normal break-words leading-snug">
+                {appUser}
               </span>
             </div>
           );
@@ -726,18 +870,15 @@ export default function ProjectsListTable({
       cols.push({
         field: 'dropStatus',
         headerName: 'Drop Status',
-        width: 220,
-        minWidth: 190,
-        autoHeight: true,
-        wrapText: true,
-        cellClass: 'text-xs font-semibold text-center flex items-center justify-center py-2',
+        width: 165,
+        minWidth: 145,
+        cellClass: 'text-xs font-semibold text-center flex items-center justify-center',
         headerClass: 'text-center',
         cellStyle: {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           textAlign: 'center',
-          minHeight: '48px',
         },
         valueGetter: (params) => {
           return params.data?.dropStatus || params.data?.raw?.drop_status || params.value || 'Approved';
@@ -749,33 +890,29 @@ export default function ProjectsListTable({
           let statusBadge;
           if (s.includes('wait') || s.includes('pending')) {
             statusBadge = (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 shadow-xs tracking-tight whitespace-nowrap min-h-[28px]">
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                </span>
-                <Clock className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 tracking-tight whitespace-nowrap shadow-xs">
+                <Clock className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />
                 <span>Waiting for Approval</span>
               </span>
             );
           } else if (s.includes('reject')) {
             statusBadge = (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 shadow-xs tracking-tight whitespace-nowrap min-h-[28px]">
-                <XCircle className="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 tracking-tight whitespace-nowrap shadow-xs">
+                <XCircle className="h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" />
                 <span>Rejected</span>
               </span>
             );
           } else {
             statusBadge = (
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 shadow-xs tracking-tight whitespace-nowrap min-h-[28px]">
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 tracking-tight whitespace-nowrap shadow-xs">
+                <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 <span>Approved</span>
               </span>
             );
           }
 
           return (
-            <div className="w-full flex items-center justify-center text-center py-1">
+            <div className="w-full flex items-center justify-center text-center">
               {statusBadge}
             </div>
           );
@@ -1130,7 +1267,9 @@ export default function ProjectsListTable({
                     ...(filters?.projectStage === 'Dropped'
                       ? [
                           { key: 'dropReqAt', label: 'Drop Req At' },
+                          { key: 'dropRequestedBy', label: 'Requested By' },
                           { key: 'dropReqApprovedAt', label: 'Drop Req Approved At' },
+                          { key: 'dropApprovedBy', label: 'Approved By' },
                           { key: 'dropRemarks', label: 'Drop Reason' },
                           { key: 'dropStatus', label: 'Drop Status' },
                         ]

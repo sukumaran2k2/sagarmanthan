@@ -253,6 +253,10 @@ export function mapProjectListRow(raw = {}, index = 0) {
     dropDate: raw.drop_date || raw.dropDate || raw.raw?.drop_date || null,
     dropRemarks: textOrDash(raw.drop_remarks || raw.dropRemarks || raw.remarks || raw.raw?.drop_remarks),
     dropStatus: deriveDropStatus(raw),
+    dropRequestedById: raw.drop_requested_by_id || raw.submitted_by || null,
+    dropRequestedByName: raw.drop_requested_by_name || raw.name || null,
+    dropApprovedById: raw.drop_approved_by_id || raw.approved_by || null,
+    dropApprovedByName: raw.drop_approved_by_name || null,
     raw,
   };
 }

@@ -7,11 +7,63 @@ import {
 import { fetchDropRequests, acceptDropRequest, rejectDropProject } from '../api';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function fmtDateTime(val) {
+  if (!val || val === '-' || val === 'null' || val === 'undefined') return '-';
+  let year, month, day, hours, minutes, seconds;
+
+  if (typeof val === 'string') {
+    const s = val.trim();
+    const match = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (match) {
+      year = parseInt(match[1], 10);
+      month = parseInt(match[2], 10) - 1;
+      day = parseInt(match[3], 10);
+      hours = match[4] !== undefined ? parseInt(match[4], 10) : 0;
+      minutes = match[5] !== undefined ? parseInt(match[5], 10) : 0;
+      seconds = match[6] !== undefined ? parseInt(match[6], 10) : 0;
+    }
+  }
+
+  if (year === undefined) {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return String(val);
+    if (typeof val === 'string' && val.includes('Z')) {
+      year = d.getUTCFullYear();
+      month = d.getUTCMonth();
+      day = d.getUTCDate();
+      hours = d.getUTCHours();
+      minutes = d.getUTCMinutes();
+      seconds = d.getUTCSeconds();
+    } else {
+      year = d.getFullYear();
+      month = d.getMonth();
+      day = d.getDate();
+      hours = d.getHours();
+      minutes = d.getMinutes();
+      seconds = d.getSeconds();
+    }
+  }
+
+  const dayStr = String(day).padStart(2, '0');
+  const monthStr = MONTH_NAMES[month] || 'Jan';
+  const dateStr = `${dayStr} ${monthStr} ${year}`;
+
+  if (hours === 0 && minutes === 0 && seconds === 0) {
+    return dateStr;
+  }
+
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  const hourStr = String(hour12).padStart(2, '0');
+  const minStr = String(minutes).padStart(2, '0');
+  const secStr = String(seconds).padStart(2, '0');
+  return `${dateStr}, ${hourStr}:${minStr}:${secStr} ${ampm}`;
+}
+
 function fmt(dateStr) {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  if (isNaN(d)) return '-';
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return fmtDateTime(dateStr);
 }
 
 function StatusBadge({ row }) {
@@ -95,6 +147,11 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
     ? 'border-amber-200 dark:border-amber-900/40 bg-gradient-to-b from-white to-amber-50/20 dark:from-slate-900 dark:to-amber-950/10'
     : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900';
 
+  const reqUser = row.name || row.submitted_by_name || '';
+  const reqId = row.submitted_by || '';
+  const appUser = row.approved_by_name || '';
+  const appId = row.approved_by || '';
+
   return (
     <div className={`border rounded-2xl shadow-sm p-4.5 space-y-3.5 transition hover:shadow-md ${borderCls}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -132,11 +189,11 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
         {row.stage_name && (
           <span className="flex items-center gap-1"><FolderOpen className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />{row.stage_name}</span>
         )}
-        {row.name && (
-          <span className="flex items-center gap-1"><User className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />{row.name}</span>
+        {reqUser && (
+          <span className="flex items-center gap-1"><User className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />Req by: {reqUser}</span>
         )}
         {row.submitted_on && (
-          <span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />Submitted {fmt(row.submitted_on)}</span>
+          <span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />Submitted: {fmtDateTime(row.submitted_on)}</span>
         )}
         {row.sanctioned_cost && (
           <span>₹{Number(row.sanctioned_cost).toLocaleString('en-IN')} Cr</span>
@@ -163,7 +220,7 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
 
       {isDropped && row.drop_date && (
         <p className="text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
-          <CheckCheck className="h-3.5 w-3.5" /> Dropped on {fmt(row.drop_date)}
+          <CheckCheck className="h-3.5 w-3.5" /> Dropped on {fmtDateTime(row.drop_date)} {appUser ? `(Approved by: ${appUser})` : ''}
         </p>
       )}
 
@@ -252,7 +309,7 @@ export default function DropRequestsPage({ notify }) {
     try {
       const row = acceptModal;
       const subId = row.sub_project_id && row.sub_project_id !== '' ? row.sub_project_id : '-1';
-      await acceptDropRequest(row.project_id, subId);
+      await acceptDropRequest(row.project_id, subId, { approvedBy: permissions.userId });
       if (notify) notify('Project dropped successfully.', 'success');
       window.dispatchEvent(new Event('drop-request-updated'));
       window.dispatchEvent(new Event('notifications-updated'));

@@ -235,6 +235,10 @@ async function getProjectList(req, res) {
                     END AS drop_status,
                     dropReq.drop_request_status,
                     dropReq.reject_request_status,
+                    dropReq.drop_requested_by_id,
+                    dropReq.drop_requested_by_name,
+                    dropReq.drop_approved_by_id,
+                    dropReq.drop_approved_by_name,
                     ISNULL(sp.sub_is_sagarmala_funded, p.is_sagarmala_funded) AS is_sagarmala_funded,
                     ISNULL(sp.sub_source_of_funding_id, p.source_of_funding_id) AS source_of_funding_id,
                     ISNULL(sp.sub_sagarmala_components, p.sagarmala_components) AS sagarmala_components,
@@ -252,6 +256,10 @@ async function getProjectList(req, res) {
                         dr.drop_date AS drop_req_approved_at,
                         COALESCE(dr.drop_date, dr.submitted_on) AS drop_date,
                         COALESCE(NULLIF(CAST(dr.remarks AS nvarchar(1000)), ''), NULLIF(CAST(dr.drop_rejected_remarks AS nvarchar(1000)), ''), '-') AS drop_remarks,
+                        dr.submitted_by AS drop_requested_by_id,
+                        uReq.name AS drop_requested_by_name,
+                        dr.approved_by AS drop_approved_by_id,
+                        uApp.name AS drop_approved_by_name,
                         dr.status AS drop_request_status,
                         dr.reject_request_status,
                         dr.drop_rejected_remarks,
@@ -262,6 +270,8 @@ async function getProjectList(req, res) {
                             ELSE NULL
                         END AS drop_status
                     FROM tbl_project_drop_request dr
+                    LEFT JOIN tbl_user uReq ON uReq.user_id = dr.submitted_by
+                    LEFT JOIN tbl_user uApp ON uApp.user_id = dr.approved_by
                     WHERE dr.project_id = p.project_id
                       AND (
                           (sp.sub_project_id IS NOT NULL AND (
