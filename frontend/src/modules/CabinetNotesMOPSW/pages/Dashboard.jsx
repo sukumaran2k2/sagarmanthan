@@ -108,7 +108,13 @@ function WingWiseChart({ data, onRootReady }) {
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
   }, [data]);
-  return <div ref={divRef} style={{ width: '100%', height: chartHeight, overflow: 'hidden' }} />;
+  const VISIBLE_ROWS = 5;
+  const capHeight = VISIBLE_ROWS * 70 + 70;
+  return (
+    <div style={{ maxHeight: capHeight, overflowY: (data?.length || 0) > VISIBLE_ROWS ? 'auto' : 'visible' }}>
+      <div ref={divRef} style={{ width: '100%', height: chartHeight, overflow: 'hidden' }} />
+    </div>
+  );
 }
 
 function WingWiseLegend() {
@@ -322,7 +328,7 @@ export default function CabinetNotesMopswDashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
           <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
@@ -335,13 +341,12 @@ export default function CabinetNotesMopswDashboard() {
               title="Stage-wise Heat Map"
             />
           </div>
-          <div className="p-5">
-            <div className="overflow-auto rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="overflow-auto">
             <table className="w-full text-[11px] border-collapse">
               <thead>
-                <tr className="bg-gradient-to-r from-blue-900 to-[#0f417a] text-white shadow-[0_2px_4px_rgba(0,0,0,0.15)] relative z-10">
+                <tr className="bg-[#0d396b] text-white relative z-10">
                   {['Stage','Count','Avg days','Max days','SLA status'].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left font-semibold tracking-wide whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2 text-center font-semibold tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -357,7 +362,6 @@ export default function CabinetNotesMopswDashboard() {
                 ))}
               </tbody>
             </table>
-            </div>
           </div>
         </div>
 
@@ -375,7 +379,7 @@ export default function CabinetNotesMopswDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
           <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
@@ -403,13 +407,12 @@ export default function CabinetNotesMopswDashboard() {
               title="Long Pending Cabinet Notes (Top 10)"
             />
           </div>
-          <div className="p-5">
-            <div className="overflow-auto rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="overflow-auto" style={{ maxHeight: longPending.length > 5 ? 280 : undefined }}>
             <table className="w-full text-[11px] border-collapse">
-              <thead>
-                <tr className="bg-gradient-to-r from-blue-900 to-[#0f417a] text-white shadow-[0_2px_4px_rgba(0,0,0,0.15)] relative z-10">
+              <thead className="sticky top-0 z-20">
+                <tr className="bg-[#0d396b] text-white relative z-10">
                   {['Subject','Wing','Current stage','Days'].map((h) => (
-                    <th key={h} className="px-2.5 py-2 text-left font-semibold tracking-wide whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-2.5 py-2 text-center font-semibold tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -427,9 +430,8 @@ export default function CabinetNotesMopswDashboard() {
                 )}
               </tbody>
             </table>
-            </div>
-            <p className="text-[9px] text-slate-400 mt-2">Days calculated from date of entry into current stage till today.</p>
           </div>
+          <p className="text-[9px] text-slate-400 px-5 py-2">Days calculated from date of entry into current stage till today.</p>
         </div>
       </div>
     </div>
