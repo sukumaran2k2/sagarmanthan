@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Building2 } from 'lucide-react';
 import api, { API_BASE } from '../api';
 import ReportTable from '../../../components/ReportTable';
+import { useAICopilot } from '../../../context/AICopilotContext';
 
 export default function Reports({ triggerNotification }) {
+  const { registerReport, clearReport } = useAICopilot();
   const [reportView, setReportView] = useState('all');
 
   const [drillDownPath, setDrillDownPath] = useState([
@@ -435,6 +437,24 @@ export default function Reports({ triggerNotification }) {
     cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
   }), []);
 
+  useEffect(() => {
+    if (aggregatedData && aggregatedData.length > 0) {
+      registerReport?.({
+        moduleName: 'Young Professionals',
+        reportTitle: currentView.title,
+        activeView: currentView.type === 'summary' ? `Summary (${reportView})` : 'Drilldown List',
+        columns: columns,
+        data: aggregatedData,
+        rowCount: aggregatedData.length,
+        pinnedBottom: pinnedBottomRowData,
+        autoOpen: false
+      });
+    }
+    return () => {
+      clearReport?.();
+    };
+  }, [aggregatedData, currentView, columns, reportView, registerReport, clearReport, pinnedBottomRowData]);
+
   const subtitle = useMemo(() => (
     <>
       <span>As on date: <strong style={{ color: '#4b2424' }}>15-07-2026</strong></span>
@@ -470,7 +490,6 @@ export default function Reports({ triggerNotification }) {
       </div>
     );
   }
-
   return (
     <div className="space-y-6">
       <ReportTable

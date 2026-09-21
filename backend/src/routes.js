@@ -12,6 +12,7 @@ import userTable from "./controllers/UserManagement/createUser.js";
 import orgModulePermission from "./controllers/RBAC/orgModulePermission.js";
 import userModuleCrud from "./controllers/RBAC/userModuleCrud.js";
 import { getOrgModulePermissionLog, getUserModuleCrudLog } from "./controllers/RBAC/rbacAudit.js";
+import * as sagarbotPermissionTab from "./controllers/RBAC/sagarbotPermission.js";
 
 
 import terminalImageUploaderTab from "./controllers/MasterManagement/terminalImageUploader.js";
@@ -991,13 +992,13 @@ router.put("/viewproject-update", editProjectTab.updateViewProjectDetails);
 router.get("/bi-check-points/:projectID/:subProjectID", editProjectTab.getBasicInformationCheckPoints);
 
 router.post("/revisionDate", revisionDateTab.saveRevisionDate);
-router.post("/add-basic-project-document-uploader", addNewProjectTab.upload.array('projectDocument'), editProjectTab.addProjectDocumentUploader);
+router.post("/add-basic-project-document-uploader", editProjectTab.upload.array('projectDocument'), editProjectTab.addProjectDocumentUploader);
 router.get("/get-project-documents/:projectID/:subProjectID", editProjectTab.getProjectDocuments);
 router.delete("/delete-project-document/:projectID/:subProjectID/:documentName", editProjectTab.deleteProjectDocument);
 router.get("/download-project-document/:projectID/:subProjectID/:documentName", editProjectTab.downloadProjectDocument);
 router.get("/download-project-error-log-document", editProjectTab.downloadErrorLogFile);
 
-router.post("/add-basic-project-document-uploader-edit", addNewProjectTab.upload.array('projectDocument'), editProjectTab.editProjectDocumentUploader);
+router.post("/add-basic-project-document-uploader-edit", editProjectTab.upload.array('projectDocument'), editProjectTab.editProjectDocumentUploader);
 
 //Planning and Sanctioning
 router.post("/planning-sanctioning", planningSanctioningTab.updatePlanningSanctionedData);
@@ -2730,6 +2731,13 @@ router.put('/rbac/user-module-crud', auth, userModuleCrud.saveUserModuleCrud);
 router.get('/rbac/org-module-permission-log', getOrgModulePermissionLog);
 router.get('/rbac/user-module-crud-log', getUserModuleCrudLog);
 
+// SagarBot AI Copilot Permissions (Super Admin CRUD)
+router.get('/rbac/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
+router.put('/rbac/sagarbot-permissions', auth, sagarbotPermissionTab.updateSagarbotPermissions);
+router.post('/rbac/sagarbot-permissions/reset', auth, sagarbotPermissionTab.resetSagarbotPermissions);
+router.get('/api/sagarbot-permissions', sagarbotPermissionTab.getSagarbotPermissions);
+router.put('/api/sagarbot-permissions', sagarbotPermissionTab.updateSagarbotPermissions);
+
 router.get("/project-proposal", getProjectProposal);
 router.get("/project-clearance", getProjectClearance);
 router.get("/traffic-kpi-targets", getKpiTrafficTarget);
@@ -2793,8 +2801,8 @@ router.get('/get-FormBuilder-Report/:data', formBuilderInputTab.getFormBuilderRe
 router.get('/get-form-builder-status/:data/:code', formBuilderInputTab.getFormBuilderSatus); //req //get created forms
 router.get('/get-form-builder-user-wise-data/:data/:userID', formBuilderInputTab.getFormBuilderUserWiseData); //req //get created forms
 router.get('/get-user-edit-Form-Data/:userID/:currentPage', formBuilderInputTab.getUserEditFormData); //not required //get created forms data for only one data retrival for one form
-router.post('/edit-FormBuilder-data', formBuilderInputTab.editFormBuilderData); //req generic Create 
-router.post('/clone-FormBuilder', formBuilderInputTab.cloneMmtFormBuilder); //req generic clone 
-
+// AI Report Copilot (OpenAI / Vercel AI SDK)
+import reportCopilotTab from "./controllers/ai/reportCopilot.js";
+router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
 
 export default router;

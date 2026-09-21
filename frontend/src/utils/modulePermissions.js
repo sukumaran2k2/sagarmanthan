@@ -45,11 +45,20 @@ export function getModuleCrud(moduleCode) {
     return false;
   });
 
-  if (!match) return { ...EMPTY };
+  if (!match) {
+    return {
+      create: false,
+      read: true,
+      update: false,
+      delete: false,
+    };
+  }
 
   return {
     create: !!match.create || !!match.canCreate || !!match.can_create,
-    read: !!match.read || !!match.canRead || !!match.can_read,
+    read: match.read !== undefined || match.canRead !== undefined || match.can_read !== undefined
+      ? (!!match.read || !!match.canRead || !!match.can_read)
+      : true,
     update: !!match.update || !!match.canUpdate || !!match.can_update,
     delete: !!match.delete || !!match.canDelete || !!match.can_delete,
   };
@@ -70,3 +79,4 @@ export function canUpdateModule(moduleCode) {
 export function canDeleteModule(moduleCode) {
   return getModuleCrud(moduleCode).delete;
 }
+

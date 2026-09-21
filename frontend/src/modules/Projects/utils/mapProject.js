@@ -1,0 +1,294 @@
+function safeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function textOrDash(value) {
+  if (value == null) return '-';
+  const s = String(value).trim();
+  return s ? s : '-';
+}
+
+function normalizeSubProjectId(value) {
+  if (value == null) return '-1';
+  const text = String(value).trim();
+  if (!text || text === '-') return '-1';
+  return text;
+}
+
+function normalizeMulti(value) {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  if (value == null || value === '') return [];
+  return String(value)
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function toTitleCase(value) {
+  return String(value || '').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function nullIfInvalidNumber(value) {
+  if (value === '' || value == null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function getProjectIdentity(input = {}) {
+  const projectId = input.projectId || input.projectID || input?.raw?.project_id || '';
+  const subProjectId =
+    input.subProjectId || input.subProjectID || input?.raw?.sub_project_id || '-1';
+
+  return {
+    projectID: String(projectId || '').trim(),
+    subProjectID: normalizeSubProjectId(subProjectId),
+  };
+}
+
+export function resolveStageId(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return '0';
+
+  if (/^\d+$/.test(normalized)) return normalized;
+
+  if (normalized.includes('completed')) return '14';
+  if (normalized.includes('under implementation')) return '13';
+  if (normalized.includes('under tendering')) return '12';
+  if (normalized.includes('project initiated')) return '0';
+
+  return '0';
+}
+
+export function deriveImplementationMode(sourceOfFunding) {
+  const ids = normalizeMulti(sourceOfFunding);
+  return ids.includes('3') ? 'PPP' : 'EPC';
+}
+
+export function deriveSagarmalaFunding(sourceOfFunding) {
+  const ids = normalizeMulti(sourceOfFunding);
+  return ids.includes('8') ? '1' : '';
+}
+
+export function deriveDropStatus(raw = {}) {
+  const explicit = raw.drop_status || raw.dropStatus;
+  if (explicit && explicit !== '-' && explicit !== 'null' && explicit !== 'undefined') {
+    const s = String(explicit).toLowerCase().trim();
+    if (s.includes('reject')) return 'Rejected';
+    if (s.includes('wait') || s.includes('pending')) return 'Waiting for Approval';
+    if (s.includes('approve') || s.includes('drop')) return 'Approved';
+  }
+
+  const rejectStatus = raw.reject_request_status ?? raw.raw?.reject_request_status;
+  if (rejectStatus === 0 || rejectStatus === '0') {
+    return 'Rejected';
+  }
+
+  const reqStatus = raw.drop_request_status ?? raw.dropRequestStatus ?? raw.raw?.drop_request_status;
+  const dropDate = raw.drop_date || raw.dropDate || raw.raw?.drop_date;
+  const projStatus = raw.project_status ?? raw.projectStatus ?? raw.status ?? raw.raw?.status;
+
+  if (projStatus === 0 || projStatus === '0' || (reqStatus === 0 && dropDate)) {
+    return 'Approved';
+  }
+
+  if (reqStatus === 1 || reqStatus === '1') {
+    return 'Waiting for Approval';
+  }
+
+  return null;
+}
+
+export function normalizeProjectFormForSubmit(form = {}) {
+  const next = { ...form };
+
+  if (String(next.secondaryImplementingAgency) === 'Others') {
+    next.secondaryImplementingAgency = toTitleCase(next.newImplementingAgency);
+  }
+
+  if (String(next.secondaryFundingAgency) === 'Others') {
+    next.secondaryFundingAgency = toTitleCase(next.newFundingAgency);
+  }
+
+  if (String(next.projectOutput) === 'Others') {
+    next.projectOutput = toTitleCase(next.newProjectOutput);
+  }
+
+  if (String(next.projectOutcome) === 'Others') {
+    next.projectOutcome = toTitleCase(next.newProjectOutcome);
+  }
+
+  next.implementationMode = deriveImplementationMode(next.sourceOfFunding);
+  next.sagarmalaFunding = deriveSagarmalaFunding(next.sourceOfFunding);
+
+  return next;
+}
+
+export function mapProjectListRow(raw = {}, index = 0) {
+  const projectId = raw.project_id || raw.projectId || '-';
+  const subProjectId = raw.sub_project_id || raw.subProjectId || '-';
+
+  const stateName =
+    raw.sub_state_names || raw.state_names || raw.state_name || raw.state || raw.stateName;
+
+  const estimatedCost = nullIfInvalidNumber(
+    raw.estimated_cost ?? raw.estimatedProjectCost ?? raw.estimatedCost
+  );
+  const sanctionedCost = nullIfInvalidNumber(
+    raw.sanctioned_cost ?? raw.sanctionedCost
+  );
+  const awardedCost = nullIfInvalidNumber(
+    raw.award_project_cost ?? raw.awarded_cost ?? raw.awardedCost
+  );
+  const closureCost = nullIfInvalidNumber(raw.closure_cost ?? raw.closureCost);
+
+  const dropStatus = deriveDropStatus(raw);
+  let stage = textOrDash(
+    raw.project_stage || raw.projectStageName || raw.stage || raw.stage_name
+  );
+  if (dropStatus === 'Waiting for Approval' || dropStatus === 'Approved') {
+    stage = 'Dropped';
+  } else if (dropStatus === 'Rejected' && String(stage).toLowerCase() === 'dropped') {
+    stage = 'Under Implementation';
+  }
+
+  const stageLower = String(stage).toLowerCase();
+
+  let cost = estimatedCost;
+  if (stageLower.includes('complete')) cost = closureCost ?? awardedCost ?? sanctionedCost ?? estimatedCost;
+  else if (stageLower.includes('implementation')) cost = awardedCost ?? sanctionedCost ?? estimatedCost;
+  else if (stageLower.includes('tender')) cost = sanctionedCost ?? estimatedCost;
+  else cost = estimatedCost ?? sanctionedCost;
+
+  cost = cost ?? nullIfInvalidNumber(raw.project_cost || raw.cost) ?? 0;
+
+  return {
+    id: raw.id || raw.project_details_id || `${projectId}-${subProjectId}-${index}`,
+    projectId: textOrDash(projectId),
+    subProjectId: textOrDash(subProjectId),
+    projectName: textOrDash(raw.project_name || raw.projectName),
+    subProjectName: textOrDash(raw.sub_project_name || raw.subProjectName),
+    stage,
+    category: textOrDash(
+      raw.project_category || raw.projectCategory || raw.category || raw.project_category_names
+    ),
+    organisationName: textOrDash(raw.organisation_name || raw.organisationName || raw.agency),
+    stateName: textOrDash(stateName),
+    estimatedCost: estimatedCost ?? 0,
+    sanctionedCost: sanctionedCost ?? 0,
+    awardedCost: awardedCost ?? 0,
+    closureCost: closureCost ?? 0,
+    cost,
+    projectInitiatedDate: textOrDash(
+      raw.project_intiated_date || raw.project_initiated_date || raw.projectInitiatedDate
+    ),
+    targetCompletionDate: textOrDash(
+      raw.target_completion_date || raw.targetCompletionDate
+    ),
+    actualCompletionDate: textOrDash(
+      raw.actual_date_of_completion || raw.actualCompletionDate
+    ),
+    sanctionedCost: (raw.sanctioned_cost !== undefined && raw.sanctioned_cost !== null && raw.sanctioned_cost !== '')
+      ? safeNumber(raw.sanctioned_cost)
+      : (raw.cost !== undefined && raw.cost !== null ? safeNumber(raw.cost) : null),
+    primaryImplementingAgency: textOrDash(
+      raw.primary_ia_name || raw.primaryImplementingAgency || raw.primary_ia || raw.primaryImplementingAgencyName || raw.ia_name
+    ),
+    physicalProgress: safeNumber(raw.physical_progress || raw.physicalProgress),
+    financialProgress: safeNumber(raw.financial_progress || raw.financialProgress),
+    isSagarmalaFunded: Boolean(
+      raw.is_sagarmala_funded === 1 ||
+      raw.is_sagarmala_funded === '1' ||
+      raw.is_sagarmala_funded === true ||
+      raw.sub_is_sagarmala_funded === 1 ||
+      raw.sub_is_sagarmala_funded === '1' ||
+      raw.sub_is_sagarmala_funded === true ||
+      raw.sagarmalaFunding === '1' ||
+      raw.sagarmalaFunding === 1 ||
+      raw.isSagarmalaFunded ||
+      deriveSagarmalaFunding(raw.source_of_funding_id || raw.sourceOfFunding) === '1' ||
+      (raw.sagarmala_project_id && String(raw.sagarmala_project_id).trim() !== '' && String(raw.sagarmala_project_id).trim() !== '-') ||
+      Number(raw.sagarmala_components || raw.sagarmalaComponents) > 0
+    ),
+    sagarmalaProjectId: textOrDash(raw.sagarmala_project_id || raw.sagarmalaProjectId),
+    dropReqAt: raw.drop_req_at || raw.submitted_on || raw.drop_requested_at || raw.drop_date || raw.dropDate || raw.sub_last_updated || raw.last_updated || null,
+    dropReqApprovedAt: raw.drop_req_approved_at || (deriveDropStatus(raw) === 'Approved' ? (raw.drop_date || raw.dropDate || raw.sub_last_updated || raw.last_updated) : null) || null,
+    dropDate: raw.drop_date || raw.dropDate || raw.raw?.drop_date || null,
+    dropRemarks: textOrDash(raw.drop_remarks || raw.dropRemarks || raw.remarks || raw.raw?.drop_remarks),
+    dropStatus: deriveDropStatus(raw),
+    raw,
+  };
+}
+
+export function mapProjectBasicInfoPayload(form, options = {}) {
+  const {
+    userId,
+    organisationId,
+    wingId = null,
+    isUpdate = false,
+    initialData = null,
+  } = options;
+  const identity = getProjectIdentity(initialData || {});
+  const normalized = normalizeProjectFormForSubmit(form);
+
+  const payload = {
+    projectName: normalized.projectName,
+    projectBrief: normalized.projectBrief,
+    estimatedProjectCost: normalized.estimatedProjectCost,
+    projectType: normalized.projectType,
+    implementationMode: normalized.implementationMode,
+    implementationType: normalized.implementationType,
+    primaryImplementingAgency: normalized.primaryImplementingAgency,
+    secondaryImplementingAgency: normalized.secondaryImplementingAgency,
+    newImplementingAgencyCode:
+      String(form.secondaryImplementingAgency) === 'Others'
+        ? form.newImplementingAgencyCode || ''
+        : '',
+    projectCategory: normalized.projectCategory,
+    scheme: normalized.scheme,
+    initiative: normalized.initiative,
+    projectInitiatedDate: normalized.projectInitiatedDate,
+    targetCompletionDate: normalized.targetCompletionDate,
+    projectOutput: normalized.projectOutput,
+    newProjectOutputUnits: normalized.newProjectOutputUnits || '',
+    projectOutcome: normalized.projectOutcome,
+    newProjectOutcomeUnits: normalized.newProjectOutcomeUnits || '',
+    capacityAddition: nullIfInvalidNumber(normalized.capacityAddition),
+    sourceOfFunding: normalized.sourceOfFunding,
+    primaryFundingAgency: normalized.primaryFundingAgency,
+    secondaryFundingAgency: normalized.secondaryFundingAgency,
+    state: normalized.state,
+    district: normalized.district,
+    taluka: normalized.taluka,
+    village: normalized.village,
+    mpConstituency: normalized.mpConstituency,
+    selectedStage: isUpdate ? resolveStageId(normalized.selectedStage) : '0',
+
+    gbsComponents: normalized.gbsComponents || '',
+    iebrComponents: normalized.iebrComponents || '',
+    pppComponents: normalized.pppComponents || '',
+    loansComponents: normalized.loansComponents || '',
+    multiFundComponents: normalized.multiFundComponents || '',
+    stateGovFundComponents: normalized.stateGovFundComponents || '',
+    pmmsyComponents: normalized.pmmsyComponents || '',
+    sagarmalaComponents: normalized.sagarmalaComponents || '',
+    otherSourceFundingComp: normalized.otherSourceFundingComp || '',
+    sagarmalaFunding: normalized.sagarmalaFunding || '',
+    onLandAcquistion: normalized.onLandAcquistion ?? null,
+    landAreaReq: normalized.landAreaReq || null,
+    onAcquisitionCompleted: normalized.onAcquisitionCompleted ?? null,
+    percentLandAcquired: normalized.percentLandAcquired || null,
+
+    userID: userId,
+    organisationID: organisationId,
+    wingID: wingId,
+    onSubProjectAvailable: Number(normalized.onSubProjectAvailable || 0),
+    subProjectNum: Number(normalized.subProjectNum || 0),
+    subProjectsTab: Array.isArray(normalized.subProjectsTab) ? normalized.subProjectsTab : [],
+  };
+
+  payload.projectID = form.projectID || identity.projectID || '';
+  payload.subProjectID = form.subProjectID || identity.subProjectID || '-1';
+
+  return payload;
+}

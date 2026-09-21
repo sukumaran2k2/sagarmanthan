@@ -12,6 +12,7 @@ import ModulePermissionsTab from './components/ModulePermissionsTab';
 import ModulePermissionListTab from './components/ModulePermissionListTab';
 import UserListTab from './components/UserListTab';
 import UserFormModal from './components/UserFormModal';
+import SagarBotPermissionsTab from './components/SagarBotPermissionsTab';
 import {
   draftFromCrudRows,
   emptyCrudDraft,
@@ -39,6 +40,13 @@ const PERMISSION_NAV = [
       { key: 'module_permission_list', label: 'List', hint: 'View module access' },
     ],
   },
+  {
+    id: 'sagarbot',
+    label: 'SagarBot AI',
+    items: [
+      { key: 'sagarbot_permissions', label: 'Copilot Settings', hint: 'Turn Copilot on/off per module' },
+    ],
+  },
 ];
 
 const TAB_META = {
@@ -57,6 +65,10 @@ const TAB_META = {
   userlist: {
     title: 'User Directory',
     note: 'Filter by organisation or role. Use Access to view permissions, or Edit for profile details.',
+  },
+  sagarbot_permissions: {
+    title: 'SagarBot AI Copilot Permissions',
+    note: 'Enable or disable SagarBot AI Assistant for the Main Dashboard and specific modules.',
   },
 };
 
@@ -1067,6 +1079,10 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
                   : undefined
               }
             />
+          )}
+
+          {activeMainTab === 'sagarbot_permissions' && (
+            <SagarBotPermissionsTab triggerNotification={triggerNotification || showToast} />
           )}
         </div>
 

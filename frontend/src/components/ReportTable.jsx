@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ChevronLeft, FileSpreadsheet, Download, Search, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
 import TablePagination from './TablePagination';
+import { useAICopilot } from '../context/AICopilotContext';
 
 export default function ReportTable({
   title,
@@ -29,6 +30,8 @@ export default function ReportTable({
   autoHeaderHeight = false,
   showColumnVisibility = true,
 }) {
+  const { registerReport, clearReport } = useAICopilot();
+
   // Detail titles with "|" keep the full string in the eyebrow (legacy Form 8.2).
   // Summary titles use the segment before " - ".
   const eyebrowText =
@@ -92,6 +95,23 @@ export default function ReportTable({
   const [totalPages, setTotalPages] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
   const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    if (title && (viewData.length > 0 || rawData.length > 0)) {
+      registerReport({
+        reportTitle: title,
+        eyebrow: eyebrowText,
+        columns: columns,
+        data: viewData.length > 0 ? viewData : rawData,
+        rowCount: viewData.length || rawData.length,
+        pinnedBottom: pinnedBottomRowData,
+        autoOpen: true
+      });
+    }
+    return () => {
+      clearReport();
+    };
+  }, [title, viewData, rawData, columns, registerReport, clearReport, eyebrowText, pinnedBottomRowData]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -755,19 +775,19 @@ export default function ReportTable({
           border-radius: 3px;
         }
         /* ── PINNED BOTTOM TOTAL ROW ── */
-        .${themeClass} .ag-floating-bottom {
-          background-color: #f1f5f9 !important;
-          font-weight: 800 !important;
-          border-top: 2px solid var(--theme-primary-color) !important;
-        }
+        .${themeClass} .ag-floating-bottom,
+        .${themeClass} .ag-floating-bottom-container,
         .${themeClass} .ag-floating-bottom .ag-row {
-          background-color: #f1f5f9 !important;
+          background-color: var(--theme-accent-color, #f5eeea) !important;
           font-weight: 800 !important;
-          color: var(--theme-primary-color) !important;
+          color: var(--theme-primary-color, #4b2424) !important;
+          border-top: 2px solid var(--theme-primary-color, #4b2424) !important;
         }
         .${themeClass} .ag-floating-bottom .ag-cell {
+          background-color: var(--theme-accent-color, #f5eeea) !important;
           font-weight: 800 !important;
-          color: var(--theme-primary-color) !important;
+          color: var(--theme-primary-color, #4b2424) !important;
+          border-right: 1px solid rgba(75, 36, 36, 0.15) !important;
         }
         .${themeClass} .ag-floating-bottom .ag-cell.text-center {
           text-align: center !important;
