@@ -38,7 +38,7 @@ function StageDistributionChart({ data }) {
     const root = am5.Root.new(divRef.current);
     rootRef.current = root;
     root.setThemes([am5themes_Animated.new(root)]);
-    const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout }));
+    const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingRight: 20 }));
     const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10 });
     yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x64748b), maxWidth: 180, oversizedBehavior: 'truncate' });
     yRenderer.grid.template.set('visible', false);
@@ -68,7 +68,7 @@ function WingWiseChart({ data }) {
     const root = am5.Root.new(divRef.current);
     rootRef.current = root;
     root.setThemes([am5themes_Animated.new(root)]);
-    const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout }));
+    const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingRight: 20 }));
     const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10 });
     yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x64748b), maxWidth: 120, oversizedBehavior: 'truncate' });
     yRenderer.grid.template.set('visible', false);
@@ -80,7 +80,10 @@ function WingWiseChart({ data }) {
     const makeSeries = (field, name, color) => {
       const s = chart.series.push(am5xy.ColumnSeries.new(root, { name, xAxis, yAxis, valueXField: field, categoryYField: 'wing_name', stacked: true, tooltip: am5.Tooltip.new(root, { labelText: `${name}: [bold]{valueX}[/]` }) }));
       s.columns.template.setAll({ fill: am5.color(color), stroke: am5.color(color), height: am5.percent(60) });
-      s.bullets.push(() => am5.Bullet.new(root, { sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(0xffffff), centerY: am5.p50, centerX: am5.p50, fontSize: 10, fontWeight: '600', populateText: true }) }));
+      s.bullets.push((root, series, dataItem) => {
+        if (!dataItem.get('valueX')) return undefined;
+        return am5.Bullet.new(root, { sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(0xffffff), centerY: am5.p50, centerX: am5.p50, fontSize: 10, fontWeight: '600', populateText: true }) });
+      });
       s.data.setAll(data);
       return s;
     };
