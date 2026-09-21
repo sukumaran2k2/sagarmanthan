@@ -8,7 +8,7 @@ import * as am5exporting from '@amcharts/amcharts5/plugins/exporting';
 // already knows how to rasterize itself correctly (fonts, gradients, etc.)
 // amCharts5's exporting plugin does not support SVG output, only PNG/JPG --
 // confirmed against its type definitions -- so this menu is PNG/JPG/Copy only.
-export default function ChartExportMenu({ chartRoot, fileName = 'chart', color = '#0f417a' }) {
+export default function ChartExportMenu({ chartRoot, fileName = 'chart', color = '#0f417a', variant = 'default' }) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef(null);
@@ -73,7 +73,11 @@ export default function ChartExportMenu({ chartRoot, fileName = 'chart', color =
         type="button"
         onClick={() => setIsOpen((v) => !v)}
         title="Chart options"
-        className="flex items-center justify-center w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+        className={
+          variant === 'plain'
+            ? 'flex items-center justify-center w-8 h-8 rounded-lg bg-transparent border-none text-white/90 hover:bg-white/10 transition cursor-pointer'
+            : 'flex items-center justify-center w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer'
+        }
       >
         <MoreVertical className="h-4 w-4" />
       </button>
