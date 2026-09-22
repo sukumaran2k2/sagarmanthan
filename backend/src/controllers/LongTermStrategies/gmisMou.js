@@ -4594,7 +4594,7 @@ async function getVibascellWiseSummary(req, res) {
                             ELSE 0
                         END
                     AS DECIMAL(10, 2))
-                    AS [Implementation Progress Value]
+                    AS [Implementation Progress]
 
                 FROM VibhasSummary
             )
@@ -4611,13 +4611,13 @@ async function getVibascellWiseSummary(req, res) {
                 [Dropped],
 
                 CONCAT(
-                    [Implementation Progress Value],
+                    [Implementation Progress],
                     '%'
                 ) AS [Implementation Progress (%)],
 
                 RANK() OVER (
                     ORDER BY
-                        [Implementation Progress Value] DESC
+                        [Implementation Progress] DESC
                 ) AS [Performance Rank]
 
             FROM CalculatedProgress
