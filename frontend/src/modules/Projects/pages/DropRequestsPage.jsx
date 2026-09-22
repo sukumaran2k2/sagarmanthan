@@ -135,7 +135,7 @@ function ConfirmModal({ open, title, message, confirmLabel, confirmColor, onConf
   );
 }
 
-function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
+function RequestCard({ row, canReview, onAccept, onReject, busy }) {
   const isPending = row.reject_request_status !== 0 && !row.drop_date;
   const isDropped = row.status === 0 && !!row.drop_date;
   const isRejected = row.reject_request_status === 0;
@@ -224,7 +224,7 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
         </p>
       )}
 
-      {isMinistry && isPending && (
+      {canReview && isPending && (
         <div className="flex gap-2 pt-2 border-t border-slate-150 dark:border-slate-800">
           <button
             disabled={busy}
@@ -259,6 +259,8 @@ export default function DropRequestsPage({ notify }) {
     (permissions.viewMode === 'ministry' ||
       permissions.viewMode === 'standard' ||
       !permissions.viewMode);
+  const canViewDrops = Boolean(permissions.canView && isMinistry);
+  const canReviewDrops = Boolean(permissions.canEdit && isMinistry);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -270,7 +272,7 @@ export default function DropRequestsPage({ notify }) {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    if (!isMinistry) return;
+    if (!canViewDrops) return;
     setLoading(true);
     try {
       const res = await fetchDropRequests(permissions.userId);
@@ -281,15 +283,15 @@ export default function DropRequestsPage({ notify }) {
     } finally {
       setLoading(false);
     }
-  }, [permissions.userId, isMinistry, notify]);
+  }, [permissions.userId, canViewDrops, notify]);
 
   useEffect(() => { 
-    if (isMinistry) {
+    if (canViewDrops) {
       load(); 
     }
-  }, [load, isMinistry]);
+  }, [load, canViewDrops]);
 
-  if (!isMinistry) {
+  if (!canViewDrops) {
     return (
       <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs animate-fade-in">
         <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3">
@@ -297,14 +299,14 @@ export default function DropRequestsPage({ notify }) {
         </div>
         <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Ministry View Only</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 max-w-md mx-auto">
-          The Drop Requests review section is exclusively available for Ministry View.
+          The Drop Requests review section is exclusively available for Ministry View with read access.
         </p>
       </div>
     );
   }
 
   const handleAccept = async () => {
-    if (!acceptModal) return;
+    if (!acceptModal || !canReviewDrops) return;
     setBusy(true);
     try {
       const row = acceptModal;
@@ -324,7 +326,7 @@ export default function DropRequestsPage({ notify }) {
   };
 
   const handleReject = async () => {
-    if (!rejectModal) return;
+    if (!rejectModal || !canReviewDrops) return;
     const reason = rejectReason.trim();
     if (!reason) { if (notify) notify('Please enter a rejection reason.', 'error'); return; }
     setBusy(true);
@@ -423,7 +425,7 @@ export default function DropRequestsPage({ notify }) {
             <RequestCard
               key={`${row.project_id}-${row.sub_project_id}-${idx}`}
               row={row}
-              isMinistry={isMinistry}
+              canReview={canReviewDrops}
               busy={busy}
               onAccept={(r) => setAcceptModal(r)}
               onReject={(r) => { setRejectModal(r); setRejectReason(''); }}

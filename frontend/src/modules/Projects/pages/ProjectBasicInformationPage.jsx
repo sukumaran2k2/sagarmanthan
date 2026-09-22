@@ -279,7 +279,7 @@ export default function ProjectBasicInformationPage({
   }, [initialData, isUpdateMode, identity.projectID, identity.subProjectID, notify]);
 
   const handleUploadDocuments = async ({ folderName, files, projectID: customProjectId, subProjectID: customSubProjectId } = {}) => {
-    if (!permissions.canEdit && !permissions.canCreate) {
+    if (!permissions.canEdit && !permissions.canAdd) {
       notify?.('You do not have permission to upload documents.', 'error');
       return;
     }

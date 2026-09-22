@@ -379,6 +379,24 @@ export function rejectDropProject(payload) {
   return api.post('/reject-project-drop-request', payload);
 }
 
+export function fetchCapexProjectsData() {
+  return api.get('/get-capex-projects-data');
+}
+
+export function fetchUpdateCapexProjectsData({ financialYear, organisationId } = {}) {
+  return api.get('/get-update-capex-projects-data', {
+    params: { financialYear, organisationId },
+  });
+}
+
+export function submitCapexProjectData(payload) {
+  return api.post('/submit-capex-project-data', payload);
+}
+
+export function updateCapexProjectData(payload) {
+  return api.post('/update-capex-project-data', payload);
+}
+
 export function fetchViewProjectData(projectID, subProjectID = '-1') {
   return api.get(`/view-projectdata/${projectID}/${subProjectID}`);
 }

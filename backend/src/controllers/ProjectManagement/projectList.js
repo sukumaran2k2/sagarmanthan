@@ -2501,119 +2501,260 @@ async function getUnderImplementationDate(req, res) {
     }
 }
 
+function resolveCapexActor(req) {
+    const dataScope = getDataScope(req.user || {});
+    const jwtUserId = Number(req.user?.userId || req.user?.user_id);
+    const jwtOrgId = Number(dataScope.organisationId);
+    return { dataScope, jwtUserId, jwtOrgId };
+}
+
+function parseRequiredCapexFields(body = {}) {
+    const financialYear = String(body.financialYear || '').trim();
+    const capexProjects = Number(body.capexProjects);
+    const totalExpenditure = Number(body.totalExpenditure);
+    const expenditureTillDate = Number(body.expenditureTillDate);
+
+    if (!financialYear) {
+        return { error: 'Financial year is required.' };
+    }
+    if (!Number.isFinite(capexProjects) || capexProjects < 0) {
+        return { error: 'Number of CAPEX projects must be a valid non-negative number.' };
+    }
+    if (!Number.isFinite(totalExpenditure) || totalExpenditure < 0) {
+        return { error: 'Total expenditure planned must be a valid non-negative number.' };
+    }
+    if (!Number.isFinite(expenditureTillDate) || expenditureTillDate < 0) {
+        return { error: 'Expenditure till date must be a valid non-negative number.' };
+    }
+
+    return { financialYear, capexProjects, totalExpenditure, expenditureTillDate };
+}
+
 async function submitCapexProjectData(req, res) {
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const capexProjects = req.body.capexProjects;
-    const totalExpenditure = req.body.totalExpenditure;
-    const expenditureTillDate = req.body.expenditureTillDate;
-    const userId = req.body.userId;
+    const { dataScope, jwtUserId, jwtOrgId } = resolveCapexActor(req);
+    const parsed = parseRequiredCapexFields(req.body);
+    if (parsed.error) {
+        return res.status(400).json({ message: parsed.error });
+    }
+
+    const userId = Number.isFinite(jwtUserId) && jwtUserId > 0
+        ? jwtUserId
+        : Number(req.body.userId);
+
+    if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ message: 'Valid user is required.' });
+    }
+
+    let organisationId = Number(req.body.organisationId);
+    if (dataScope.isOrganisation) {
+        if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+            return res.status(403).json({ message: 'Organisation scope is required.' });
+        }
+        organisationId = jwtOrgId;
+    } else if (!Number.isFinite(organisationId) || organisationId <= 0) {
+        return res.status(400).json({ message: 'Organisation is required.' });
+    }
 
     const conn = await pool;
-    const request = conn.request();
-
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("capexProjects", capexProjects);
-    request.input("totalExpenditure", totalExpenditure);
-    request.input("expenditureTillDate", expenditureTillDate);
-    request.input("userId", userId);
 
     try {
-        const result = await request.query(`INSERT INTO tbl_project_capex (financial_year, organisation_id, projects_less_than_5cr, total_expenditure_planned, expenditure_till_date, created_by, created_date)
-        VALUES (@financialYear, @organisationId, @capexProjects, @totalExpenditure, @expenditureTillDate, @userId, getDate());`);
-        
-        res.sendStatus(201); 
+        const checkRequest = conn.request();
+        checkRequest.input('financialYear', parsed.financialYear);
+        checkRequest.input('organisationId', organisationId);
+        const existing = await checkRequest.query(`
+            SELECT TOP 1 financial_year
+            FROM tbl_project_capex
+            WHERE financial_year = @financialYear AND organisation_id = @organisationId;
+        `);
+
+        if (existing.recordset?.length) {
+            return res.status(409).json({
+                message: 'Data for this Financial Year already exists.',
+            });
+        }
+
+        const insertRequest = conn.request();
+        insertRequest.input('financialYear', parsed.financialYear);
+        insertRequest.input('organisationId', organisationId);
+        insertRequest.input('capexProjects', parsed.capexProjects);
+        insertRequest.input('totalExpenditure', parsed.totalExpenditure);
+        insertRequest.input('expenditureTillDate', parsed.expenditureTillDate);
+        insertRequest.input('userId', userId);
+
+        await insertRequest.query(`
+            INSERT INTO tbl_project_capex (
+                financial_year,
+                organisation_id,
+                projects_less_than_5cr,
+                total_expenditure_planned,
+                expenditure_till_date,
+                created_by,
+                created_date
+            )
+            VALUES (
+                @financialYear,
+                @organisationId,
+                @capexProjects,
+                @totalExpenditure,
+                @expenditureTillDate,
+                @userId,
+                getDate()
+            );
+        `);
+
+        return res.sendStatus(201);
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);
     }
-};
+}
 
 async function getCapexProjectsData(req, res) {
+    const { dataScope, jwtOrgId } = resolveCapexActor(req);
     const conn = await pool;
     const request = conn.request();
 
     try {
+        let whereSql = '';
+        if (dataScope.isOrganisation) {
+            if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+                return res.json([]);
+            }
+            request.input('dataScopeOrgId', jwtOrgId);
+            whereSql = ' WHERE tbl_project_capex.organisation_id = @dataScopeOrgId ';
+        } else if (!dataScope.isWide) {
+            return res.json([]);
+        }
+
         const result = await request.query(`
-           SELECT 
-            tbl_project_capex.financial_year,
-            tbl_project_capex.organisation_id,
-            mmt_organisation.organisation_name,
-            tbl_project_capex.projects_less_than_5cr,
-            tbl_project_capex.total_expenditure_planned,
-            tbl_project_capex.expenditure_till_date
-        FROM 
-            tbl_project_capex
-        INNER JOIN 
-            mmt_organisation ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id;
-
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.log(err);
-        res.sendStatus(500);
-    }
-};
-
-async function getUpdateCapexProjectsData(req, res) {
-    const { financialYear, organisationId } = req.query;
-    const conn = await pool;
-    const request = conn.request();
-
-    try {
-        const query = `
-            SELECT 
+            SELECT
                 tbl_project_capex.financial_year,
                 tbl_project_capex.organisation_id,
                 mmt_organisation.organisation_name,
                 tbl_project_capex.projects_less_than_5cr,
                 tbl_project_capex.total_expenditure_planned,
-                tbl_project_capex.expenditure_till_date
-            FROM 
-                tbl_project_capex
-            INNER JOIN 
-                mmt_organisation ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id
-            WHERE 
-                tbl_project_capex.financial_year = @financialYear AND tbl_project_capex.organisation_id = @organisationId;
-        `;
+                tbl_project_capex.expenditure_till_date,
+                tbl_project_capex.updated_date,
+                tbl_project_capex.created_date
+            FROM tbl_project_capex
+            INNER JOIN mmt_organisation
+                ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id
+            ${whereSql}
+            ORDER BY tbl_project_capex.financial_year DESC, mmt_organisation.organisation_name ASC;
+        `);
 
-        request.input('financialYear', financialYear);
-        request.input('organisationId', organisationId);
-        const result = await request.query(query);
-
-        res.json(result.recordset);
+        return res.json(result.recordset);
     } catch (err) {
         console.log(err);
-        res.sendStatus(500);
+        return res.sendStatus(500);
     }
 }
 
-async function updateCapexProjectData(req, res) {
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const capexProjects = req.body.capexProjects;
-    const totalExpenditure = req.body.totalExpenditure;
-    const expenditureTillDate = req.body.expenditureTillDate;
-    const userId = req.body.userId;
+async function getUpdateCapexProjectsData(req, res) {
+    const { dataScope, jwtOrgId } = resolveCapexActor(req);
+    const financialYear = String(req.query.financialYear || '').trim();
+    let organisationId = Number(req.query.organisationId);
+
+    if (!financialYear) {
+        return res.status(400).json({ message: 'Financial year is required.' });
+    }
+
+    if (dataScope.isOrganisation) {
+        if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+            return res.status(403).json({ message: 'Organisation scope is required.' });
+        }
+        organisationId = jwtOrgId;
+    } else if (!dataScope.isWide) {
+        return res.json([]);
+    } else if (!Number.isFinite(organisationId) || organisationId <= 0) {
+        return res.status(400).json({ message: 'Organisation is required.' });
+    }
 
     const conn = await pool;
     const request = conn.request();
 
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("capexProjects", capexProjects);
-    request.input("totalExpenditure", totalExpenditure);
-    request.input("expenditureTillDate", expenditureTillDate);
-    request.input("userId", userId);
+    try {
+        request.input('financialYear', financialYear);
+        request.input('organisationId', organisationId);
+
+        const result = await request.query(`
+            SELECT
+                tbl_project_capex.financial_year,
+                tbl_project_capex.organisation_id,
+                mmt_organisation.organisation_name,
+                tbl_project_capex.projects_less_than_5cr,
+                tbl_project_capex.total_expenditure_planned,
+                tbl_project_capex.expenditure_till_date,
+                tbl_project_capex.updated_date,
+                tbl_project_capex.created_date
+            FROM tbl_project_capex
+            INNER JOIN mmt_organisation
+                ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id
+            WHERE tbl_project_capex.financial_year = @financialYear
+              AND tbl_project_capex.organisation_id = @organisationId;
+        `);
+
+        return res.json(result.recordset);
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
+async function updateCapexProjectData(req, res) {
+    const { dataScope, jwtUserId, jwtOrgId } = resolveCapexActor(req);
+    const parsed = parseRequiredCapexFields(req.body);
+    if (parsed.error) {
+        return res.status(400).json({ message: parsed.error });
+    }
+
+    const userId = Number.isFinite(jwtUserId) && jwtUserId > 0
+        ? jwtUserId
+        : Number(req.body.userId);
+
+    if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ message: 'Valid user is required.' });
+    }
+
+    let organisationId = Number(req.body.organisationId);
+    if (dataScope.isOrganisation) {
+        if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+            return res.status(403).json({ message: 'Organisation scope is required.' });
+        }
+        organisationId = jwtOrgId;
+    } else if (!Number.isFinite(organisationId) || organisationId <= 0) {
+        return res.status(400).json({ message: 'Organisation is required.' });
+    }
+
+    const conn = await pool;
+    const request = conn.request();
+
+    request.input('financialYear', parsed.financialYear);
+    request.input('organisationId', organisationId);
+    request.input('capexProjects', parsed.capexProjects);
+    request.input('totalExpenditure', parsed.totalExpenditure);
+    request.input('expenditureTillDate', parsed.expenditureTillDate);
+    request.input('userId', userId);
 
     try {
-        const result = await request.query(`UPDATE tbl_project_capex
-        SET projects_less_than_5cr = @capexProjects, total_expenditure_planned = @totalExpenditure,
-        expenditure_till_date = @expenditureTillDate, updated_by = @userId, updated_date = getDate() WHERE financial_year = @financialYear AND organisation_id = @organisationId;`);
-        
-        res.sendStatus(201); 
+        const result = await request.query(`
+            UPDATE tbl_project_capex
+            SET
+                projects_less_than_5cr = @capexProjects,
+                total_expenditure_planned = @totalExpenditure,
+                expenditure_till_date = @expenditureTillDate,
+                updated_by = @userId,
+                updated_date = getDate()
+            WHERE financial_year = @financialYear
+              AND organisation_id = @organisationId;
+        `);
+
+        const rowsAffected = Number(result?.rowsAffected?.[0] || 0);
+        if (rowsAffected === 0) {
+            return res.status(404).json({ message: 'Record not found.' });
+        }
+
+        return res.sendStatus(201);
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);

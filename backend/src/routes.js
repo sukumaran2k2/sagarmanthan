@@ -933,93 +933,92 @@ router.get('/get-csr-projects-focus-wise-summary/:orgId',csrProjectTab.getCsrPro
 router.get('/get-csr-project-stage-wise/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCsrProjectStageWise);
 router.get('/get-csr-project-count-wise/:clusterID/:organisationID/:fy/:focusID',csrProjectTab.getCSRProjectCountWise);
 router.get('/get-detailed-csr-projects/:clusterID/:organisationID/:fy/:stage/:focusID',csrProjectTab.getDetailedCSRProjects);
-// Drop Project
-router.post("/dropproject-request", dropRequestTab.deleteProjectRequest);
-router.get("/viewdrop-projectlist/:userID", dropRequestTab.viewDropProjectList);
-router.put("/delete-project/:projectID/:subProjectID", dropRequestTab.deleteProject);
-router.post("/reject-project-drop-request", dropRequestTab.rejectProjectDropRequest);
+// Drop Project (soft-drop workflow — not CRUD delete)
+router.post("/dropproject-request", auth, requireModulePermission("PROJECTS", "update"), dropRequestTab.deleteProjectRequest);
+router.get("/viewdrop-projectlist/:userID", auth, requireModulePermission("PROJECTS", "read"), dropRequestTab.viewDropProjectList);
+router.put("/delete-project/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "update"), dropRequestTab.deleteProject);
+router.post("/reject-project-drop-request", auth, requireModulePermission("PROJECTS", "update"), dropRequestTab.rejectProjectDropRequest);
 
 
 // crct but delete in add new project page
 // router.post("/add-project-document-uploader", addNewProjectTab.upload.array('projectDocument'),addNewProjectTab.addProjectDocumentUploader);
 
 
-router.get("/project-ppt-document/:projectID", addNewProjectTab.getProjectPptDocument);
-router.get("/project-pert-document/:projectID", addNewProjectTab.getProjectPertDocument);
-router.get("/project-image-document/:projectID", addNewProjectTab.getProjectImageDocument);
+router.get("/project-ppt-document/:projectID", auth, requireModulePermission("PROJECTS", "read"), addNewProjectTab.getProjectPptDocument);
+router.get("/project-pert-document/:projectID", auth, requireModulePermission("PROJECTS", "read"), addNewProjectTab.getProjectPertDocument);
+router.get("/project-image-document/:projectID", auth, requireModulePermission("PROJECTS", "read"), addNewProjectTab.getProjectImageDocument);
 
 // Project list
 router.get("/project-list/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectList);
-router.get("/project-list-data/:userID", projectListTab.getProjectAllData);
-router.get("/project-folder-download/:userID/:emailId", projectListTab.projectFolderDownloadLog);
+router.get("/project-list-data/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectAllData);
+router.get("/project-folder-download/:userID/:emailId", auth, requireModulePermission("PROJECTS", "read"), projectListTab.projectFolderDownloadLog);
+// Email link download — keep public (tokenised filename)
 router.get("/project-media-files-download/:fileName", projectListTab.projectMediaLinkDownload)
 
-router.get("/project-list-expenditurelogs/:userID", projectListTab.getExpLogsData);
-router.get("/get-project-category-name/:projectCategoryID", projectListTab.getProjectCategoryName);
-router.get("/get-project-initiative-name/:projectInitiativeID", projectListTab.getProjectInitiativeName);
-router.get("/get-sof-name/:sourceOfFundingID", projectListTab.getSourceOfFundingName);
-router.post('/submit-capex-project-data', projectListTab.submitCapexProjectData);
-router.get('/get-capex-projects-data', projectListTab.getCapexProjectsData);
-router.get('/get-update-capex-projects-data', projectListTab.getUpdateCapexProjectsData);
-router.post('/update-capex-project-data', projectListTab.updateCapexProjectData);
+router.get("/project-list-expenditurelogs/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getExpLogsData);
+router.get("/get-project-category-name/:projectCategoryID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectCategoryName);
+router.get("/get-project-initiative-name/:projectInitiativeID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectInitiativeName);
+router.get("/get-sof-name/:sourceOfFundingID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getSourceOfFundingName);
+router.post('/submit-capex-project-data', auth, requireModulePermission("PROJECTS", "create"), projectListTab.submitCapexProjectData);
+router.get('/get-capex-projects-data', auth, requireModulePermission("PROJECTS", "read"), projectListTab.getCapexProjectsData);
+router.get('/get-update-capex-projects-data', auth, requireModulePermission("PROJECTS", "read"), projectListTab.getUpdateCapexProjectsData);
+router.post('/update-capex-project-data', auth, requireModulePermission("PROJECTS", "update"), projectListTab.updateCapexProjectData);
 
-router.get("/project-id-dropdown/:organisationID/:tid", masterTable.getDropDownProjectList);
-router.get("/subproject-id-dropdown/:organisationID/:tid/:projectId", masterTable.getDropDownSubProjectList);
+router.get("/project-id-dropdown/:organisationID/:tid", auth, requireModulePermission("PROJECTS", "read"), masterTable.getDropDownProjectList);
+router.get("/subproject-id-dropdown/:organisationID/:tid/:projectId", auth, requireModulePermission("PROJECTS", "read"), masterTable.getDropDownSubProjectList);
 
-router.get("/view-projectdata/:projectID/:subProjectID", projectListTab.viewProjectData);
-router.get("/view-projectimages/:projectID/:subProjectID", projectListTab.viewProjectImages);
+router.get("/view-projectdata/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.viewProjectData);
+router.get("/view-projectimages/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.viewProjectImages);
 
-router.get("/project/user-manual", userManualMenu.projectManual);
+router.get("/project/user-manual", auth, requireModulePermission("PROJECTS", "read"), userManualMenu.projectManual);
 
-router.get("/view-projectdata/:projectID/:subProjectID", projectListTab.viewProjectData);
-router.get("/viewproject-milestone-data/:projectID/:subProjectID", projectListTab.getUnderImplementationDate);
-router.get("/viewproject-tender-data/:projectID/:subProjectID", projectListTab.getUnderTenderingDate);
-router.get("/view-projectimages/:projectID/:subProjectID", projectListTab.viewProjectImages);
+router.get("/viewproject-milestone-data/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getUnderImplementationDate);
+router.get("/viewproject-tender-data/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getUnderTenderingDate);
 // router.get("/get-viewproject-documents/:projectID/:subProjectID", viewProjectDataTab.getViewProjectDocuments);
 
 // Edit Project
 
-router.get("/get-editprojectdata/:projectID/:subProjectID", editProjectTab.getEdiProjectData);
-router.get("/get-expenditure-outlay/:projectID/:subProjectID", expenditureTab.getExpenditureOutlayCost);
-router.post("/add-expenditure-outlay", expenditureTab.addExpenditureOutlay);
-router.get("/sum-expenditure-outlay/:projectID/:subProjectID/:year",expenditureTab.sumOfExpIncurredFy)
+router.get("/get-editprojectdata/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getEdiProjectData);
+router.get("/get-expenditure-outlay/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getExpenditureOutlayCost);
+router.post("/add-expenditure-outlay", auth, requireModulePermission("PROJECTS", "update"), expenditureTab.addExpenditureOutlay);
+router.get("/sum-expenditure-outlay/:projectID/:subProjectID/:year", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.sumOfExpIncurredFy)
 
-router.post("/add-revised-date", editProjectTab.addRevisedDate);
-router.get("/get-revised-date/:projectID/:subProjectID", editProjectTab.getRevisedDate);
+router.post("/add-revised-date", auth, requireModulePermission("PROJECTS", "update"), editProjectTab.addRevisedDate);
+router.get("/get-revised-date/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getRevisedDate);
 
-router.put("/viewproject-update", editProjectTab.updateViewProjectDetails);
+router.put("/viewproject-update", auth, requireModulePermission("PROJECTS", "update"), editProjectTab.updateViewProjectDetails);
 // router.post("/viewproject", documentUploaderTab.upload.single('file'), documentUploaderTab.projectDocumentUploader);
-router.get("/bi-check-points/:projectID/:subProjectID", editProjectTab.getBasicInformationCheckPoints);
+router.get("/bi-check-points/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getBasicInformationCheckPoints);
 
-router.post("/revisionDate", revisionDateTab.saveRevisionDate);
-router.post("/add-basic-project-document-uploader", editProjectTab.upload.array('projectDocument'), editProjectTab.addProjectDocumentUploader);
-router.get("/get-project-documents/:projectID/:subProjectID", editProjectTab.getProjectDocuments);
-router.delete("/delete-project-document/:projectID/:subProjectID/:documentName", editProjectTab.deleteProjectDocument);
-router.get("/download-project-document/:projectID/:subProjectID/:documentName", editProjectTab.downloadProjectDocument);
-router.get("/download-project-error-log-document", editProjectTab.downloadErrorLogFile);
+router.post("/revisionDate", auth, requireModulePermission("PROJECTS", "update"), revisionDateTab.saveRevisionDate);
+router.post("/add-basic-project-document-uploader", auth, requireAnyModulePermission("PROJECTS", ["create", "update"]), editProjectTab.upload.array('projectDocument'), editProjectTab.addProjectDocumentUploader);
+router.get("/get-project-documents/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.getProjectDocuments);
+router.delete("/delete-project-document/:projectID/:subProjectID/:documentName", auth, requireModulePermission("PROJECTS", "update"), editProjectTab.deleteProjectDocument);
+router.get("/download-project-document/:projectID/:subProjectID/:documentName", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.downloadProjectDocument);
+router.get("/download-project-error-log-document", auth, requireModulePermission("PROJECTS", "read"), editProjectTab.downloadErrorLogFile);
 
-router.post("/add-basic-project-document-uploader-edit", editProjectTab.upload.array('projectDocument'), editProjectTab.editProjectDocumentUploader);
+router.post("/add-basic-project-document-uploader-edit", auth, requireModulePermission("PROJECTS", "update"), editProjectTab.upload.array('projectDocument'), editProjectTab.editProjectDocumentUploader);
 
 //Planning and Sanctioning
-router.post("/planning-sanctioning", planningSanctioningTab.updatePlanningSanctionedData);
-router.get("/planning-sanctioning/:projectID/:subProjectID", planningSanctioningTab.getPlanningSanctioningData);
-router.get("/ps-check-points/:projectID/:subProjectID", planningSanctioningTab.getPlanningCheckPoints);
+router.post("/planning-sanctioning", auth, requireModulePermission("PROJECTS", "update"), planningSanctioningTab.updatePlanningSanctionedData);
+router.get("/planning-sanctioning/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), planningSanctioningTab.getPlanningSanctioningData);
+router.get("/ps-check-points/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), planningSanctioningTab.getPlanningCheckPoints);
 
 // Under Tendering
-router.post("/undertendering", underTenderingTab.utProjectDatesAction);
-router.get("/undertendering/:projectID/:subProjectID", underTenderingTab.getDisplayUtProjectDates);
-router.get("/undertendering-revision/:projectID/:projectSubStageID/:subProjectID", underTenderingTab.getRevisionHistory);
-router.post("/awardofcontract-cost", underTenderingTab.addUtCostandCalls);
-router.get("/awardofcontract-cost/:subProjectID/:projectID", underTenderingTab.getUtCostandCallsData);
+router.post("/undertendering", auth, requireModulePermission("PROJECTS", "update"), underTenderingTab.utProjectDatesAction);
+router.get("/undertendering/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.getDisplayUtProjectDates);
+router.get("/undertendering-revision/:projectID/:projectSubStageID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.getRevisionHistory);
+router.post("/awardofcontract-cost", auth, requireModulePermission("PROJECTS", "update"), underTenderingTab.addUtCostandCalls);
+router.get("/awardofcontract-cost/:subProjectID/:projectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.getUtCostandCallsData);
 
-router.post("/project-document-uploader", underTenderingTab.upload.array('projectDocument'), underTenderingTab.utProjectDocumentUploader);
-router.get("/check-file-exists", underTenderingTab.fileCheck);
+router.post("/project-document-uploader", auth, requireAnyModulePermission("PROJECTS", ["create", "update"]), underTenderingTab.upload.array('projectDocument'), underTenderingTab.utProjectDocumentUploader);
+router.get("/check-file-exists", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.fileCheck);
 
-router.get("/checkstageid/:subProjectID/:projectID", underTenderingTab.checkProjectStageID);
-router.get("/ut-check-points/:projectID/:subProjectID", underTenderingTab.getUnderTenderingCheckPoints);
-router.get("/ui-check-points/:projectID/:subProjectID", underTenderingTab.getUnderImplementationCheckPoints);
-router.get("/download-file", underTenderingTab.fileDownload);
-router.delete("/delete-file", underTenderingTab.fileDelete);
+router.get("/checkstageid/:subProjectID/:projectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.checkProjectStageID);
+router.get("/ut-check-points/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.getUnderTenderingCheckPoints);
+router.get("/ui-check-points/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.getUnderImplementationCheckPoints);
+router.get("/download-file", auth, requireModulePermission("PROJECTS", "read"), underTenderingTab.fileDownload);
+router.delete("/delete-file", auth, requireModulePermission("PROJECTS", "update"), underTenderingTab.fileDelete);
 // router.get("/checkstageid/:subProjectID/:projectID", updateProjectStageTab.checkProjectStage);
 
 // router.post("/undertendering-revision/", underTenderingTab.getRevisionHistory);
@@ -1030,40 +1029,39 @@ router.delete("/delete-file", underTenderingTab.fileDelete);
 // router.get("/awardofcontract-cost/:projectID", awardOfContractTab.getAwardofCotractCost);
 
 // Clearance
-router.post("/addclearance", clearanceTab.addClearanceDetails);
-router.get("/clearance/:projectID/:subProjectID", clearanceTab.getClearanceData);
-router.post("/clearancedocument", clearanceDocumentUploaderTab.upload.single('file'), clearanceDocumentUploaderTab.clearanceDocumentUploader);
-router.get("/clearancedocument/:documentName", clearanceDocumentUploaderTab.downloadClearanceDocument);
+router.post("/addclearance", auth, requireModulePermission("PROJECTS", "update"), clearanceTab.addClearanceDetails);
+router.get("/clearance/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), clearanceTab.getClearanceData);
+router.post("/clearancedocument", auth, requireAnyModulePermission("PROJECTS", ["create", "update"]), clearanceDocumentUploaderTab.upload.single('file'), clearanceDocumentUploaderTab.clearanceDocumentUploader);
+router.get("/clearancedocument/:documentName", auth, requireModulePermission("PROJECTS", "read"), clearanceDocumentUploaderTab.downloadClearanceDocument);
 
 // Activity -Milestone
-router.post("/milestone", activityTab.addActivityData);
-router.get("/milestone/:projectID/:subProjectID", activityTab.getActivityData);
-router.get("/get-delay-reason/:projectID/:subProjectID", activityTab.getDelayReason);
-router.post("/add-physical-progress", activityTab.addPhysicalProgress);
-router.get("/get-progress-value/:projectID/:subProjectID", activityTab.getProgressValue);
-router.get("/get-inauguration-dates/:projectID/:subProjectID", activityTab.getInaugurationDate);
+router.post("/milestone", auth, requireModulePermission("PROJECTS", "update"), activityTab.addActivityData);
+router.get("/milestone/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), activityTab.getActivityData);
+router.get("/get-delay-reason/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), activityTab.getDelayReason);
+router.post("/add-physical-progress", auth, requireModulePermission("PROJECTS", "update"), activityTab.addPhysicalProgress);
+router.get("/get-progress-value/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), activityTab.getProgressValue);
+router.get("/get-inauguration-dates/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), activityTab.getInaugurationDate);
 
 //Expenditure Logs
-router.get("/get-component/:projectID/:subProjectID", expenditureTab.getSourceOfFundingComponent);
-router.post("/add-expenditure-detail", expenditureTab.addExpenditureDetails);
-router.get("/get-expenditure-detail/:projectID/:subProjectID", expenditureTab.getExpenditureDetails);
-router.get("/get-total-expenditure-detail/:projectID/:subProjectID", expenditureTab.getTotalExpenditureDetails);
-router.get("/get-total-expenditure-value/:projectID/:subProjectID", expenditureTab.getTotalExpenditureValue);
+router.get("/get-component/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getSourceOfFundingComponent);
+router.post("/add-expenditure-detail", auth, requireModulePermission("PROJECTS", "update"), expenditureTab.addExpenditureDetails);
+router.get("/get-expenditure-detail/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getExpenditureDetails);
+router.get("/get-total-expenditure-detail/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getTotalExpenditureDetails);
+router.get("/get-total-expenditure-value/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getTotalExpenditureValue);
 // router.post("/edit-expenditure-outlay", expenditureTab.editExpenditureOutlay);
 // router.get("/get-expenditure-outlay/:projectID/:subProjectID", expenditureTab.getExpenditureOutlay);
-router.get("/get-expenditure-financial-year/:projectID/:subProjectID/:financialYear", expenditureTab.getExpenditureFinancialYear);
-router.get("/get-expenditure-main-financial-year/:projectID/:subProjectID/:financialYear/:month", expenditureTab.getExpenditureMainFinancialYear);
-router.post('/edit-expenditure-components-details', expenditureTab.editExpenditureComponentsDetails);
-router.post("/delete-expenditure-log-row", expenditureTab.deleteExpenditureLogRow);
+router.get("/get-expenditure-financial-year/:projectID/:subProjectID/:financialYear", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getExpenditureFinancialYear);
+router.get("/get-expenditure-main-financial-year/:projectID/:subProjectID/:financialYear/:month", auth, requireModulePermission("PROJECTS", "read"), expenditureTab.getExpenditureMainFinancialYear);
+router.post('/edit-expenditure-components-details', auth, requireModulePermission("PROJECTS", "update"), expenditureTab.editExpenditureComponentsDetails);
+router.post("/delete-expenditure-log-row", auth, requireModulePermission("PROJECTS", "update"), expenditureTab.deleteExpenditureLogRow);
 
 // Completion page
-router.post("/completionpage", completionTab.addCompletionDate);
-router.get("/completionpage/:projectID/:subProjectID", completionTab.getCompletionPageData);
+router.post("/completionpage", auth, requireModulePermission("PROJECTS", "update"), completionTab.addCompletionDate);
+router.get("/completionpage/:projectID/:subProjectID", auth, requireModulePermission("PROJECTS", "read"), completionTab.getCompletionPageData);
 
 // ADD PROJECT MODULE
-router.post("/add-newproject", addNewProjectTab.createNewProject);
-router.post("/update-subproject", addNewProjectTab.updateSubProject);
-
+router.post("/add-newproject", auth, requireModulePermission("PROJECTS", "create"), addNewProjectTab.createNewProject);
+router.post("/update-subproject", auth, requireModulePermission("PROJECTS", "update"), addNewProjectTab.updateSubProject);
 
 //young professionals
 router.get("/young-professional", auth, requireModulePermission("YOUNG_PROFESSIONAL", "read"), youngProfessionalsTab.getYoungProfessional);

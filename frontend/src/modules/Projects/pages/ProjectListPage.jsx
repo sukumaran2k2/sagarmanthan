@@ -246,11 +246,11 @@ export default function ProjectListPage({
     setDropConfirmModal({ open: false, row: null, reason: '' });
   };
 
-  const canRequestDrop = Boolean(permissions.canRemove && permissions.viewMode === 'org');
+  const canRequestDrop = Boolean(permissions.canEdit && permissions.viewMode === 'org');
 
   const handleDropProject = (row) => {
     if (!canRequestDrop) {
-      notify?.('Only organisation users can request a project drop.', 'error');
+      notify?.('You do not have permission to request a project drop.', 'error');
       return;
     }
     if (!row?.projectId) return;
