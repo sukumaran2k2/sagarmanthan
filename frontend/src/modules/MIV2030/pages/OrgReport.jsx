@@ -161,7 +161,12 @@ export default function MIVReports({ triggerNotification }) {
           progressOn: Number(item['In Progress - On Time'] ?? item.ProgressOn ?? item.progress_on ?? item.progressOn ?? 0),
           progressDelayed: Number(item['In Progress - Delayed'] ?? item.ProgressDelayed ?? item.progress_delayed ?? item.progressDelayed ?? 0),
           notStarted: Number(item['Not Started'] ?? item.NotStarted ?? item.not_started ?? item.notStarted ?? 0),
-          performanceScore: item.PerformanceScore ?? item.performance_score ?? item.performanceScore ?? item['Performance Score'] ?? '—'
+           performanceScore:
+      item['Performance Score'] ??
+      item.PerformanceScore ??
+      item.performance_score ??
+      item.performanceScore ??
+      0
         }));
         setReportRows(formatted);
       } else if (activeTab === '1.3') {
@@ -317,7 +322,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'totalInitiatives',
           minWidth: 150,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-[#4b2424] dark:text-amber-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)}
             </span>
           ),
@@ -328,7 +333,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'totalInvestment',
           minWidth: 180,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-emerald-700 dark:text-emerald-400">
+            <span className="p-2  text-right text-slate-700">
               ₹{formatInvestment(p.value)}
             </span>
           ),
@@ -343,7 +348,7 @@ export default function MIVReports({ triggerNotification }) {
               field: 'completed',
               minWidth: 125,
               cellRenderer: (p) => (
-                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="p-2  text-right text-slate-700">
                   {formatNumber(p.value)}
                 </span>
               ),
@@ -354,7 +359,7 @@ export default function MIVReports({ triggerNotification }) {
               field: 'progressOn',
               minWidth: 155,
               cellRenderer: (p) => (
-                <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                <span className="p-2  text-right text-slate-700">
                   {formatNumber(p.value)}
                 </span>
               ),
@@ -365,7 +370,7 @@ export default function MIVReports({ triggerNotification }) {
               field: 'progressDelayed',
               minWidth: 155,
               cellRenderer: (p) => (
-                <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                <span className="p-2  text-right text-slate-700">
                   {formatNumber(p.value)}
                 </span>
               ),
@@ -376,7 +381,7 @@ export default function MIVReports({ triggerNotification }) {
               field: 'notStarted',
               minWidth: 125,
               cellRenderer: (p) => (
-                <span className="font-mono font-bold text-slate-500 dark:text-slate-400">
+                <span className="p-2  text-right text-slate-700">
                   {formatNumber(p.value)}
                 </span>
               ),
@@ -384,22 +389,50 @@ export default function MIVReports({ triggerNotification }) {
             }
           ]
         },
-        {
-          headerName: 'Performance Score',
-          field: 'performanceScore',
-          minWidth: 155,
-          cellRenderer: (p) => {
-            if (p.data?.isTotalRow) return '—';
-            const val = p.value;
-            if (!val || val === '—') return <span className="text-slate-400">—</span>;
-            return (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-50 dark:bg-[#4b2424]/60 text-[#4b2424] dark:text-amber-300 border border-[#8c4242]/30">
-                {val}
-              </span>
-            );
-          },
-          cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
-        }
+      {
+  headerName: 'Performance Score (%)',
+  field: 'performanceScore',
+  width: 180,
+
+  cellRenderer: (params) => {
+    const score = Number(params.value);
+
+    return Number.isFinite(score)
+      ? `${score.toFixed(2)}%`
+      : '—';
+  },
+
+  cellStyle: (params) => {
+    const score = Number(params.value);
+
+    let backgroundColor = '#fee2e2';
+    let color = '#b91c1c';
+
+    if (score > 100) {
+      // Blue
+      backgroundColor = '#dbeafe';
+      color = '#1d4ed8';
+    } else if (score >= 75) {
+      // Green
+      backgroundColor = '#dcfce7';
+      color = '#15803d';
+    } else if (score >= 50) {
+      // Orange
+      backgroundColor = '#ffedd5';
+      color = '#c2410c';
+    }
+
+    return {
+      backgroundColor,
+      color,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    };
+  },
+}
       ];
     }
 
@@ -436,7 +469,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'totalDelayed',
           minWidth: 190,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-rose-600 dark:text-rose-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)}
             </span>
           ),
@@ -447,7 +480,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'delayedLess6',
           minWidth: 165,
           cellRenderer: (p) => (
-            <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)}
             </span>
           ),
@@ -458,7 +491,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'delayed6To12',
           minWidth: 175,
           cellRenderer: (p) => (
-            <span className="font-mono font-bold text-orange-600 dark:text-orange-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)}
             </span>
           ),
@@ -469,7 +502,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'severelyDelayed',
           minWidth: 200,
           cellRenderer: (p) => (
-            <span className="font-mono font-black text-rose-700 dark:text-rose-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)}
             </span>
           ),
@@ -480,7 +513,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'totalCost',
           minWidth: 170,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-emerald-700 dark:text-emerald-400">
+            <span className="p-2  text-right text-slate-700">
               ₹{formatInvestment(p.value)}
             </span>
           ),
@@ -515,7 +548,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'initiativeId',
           minWidth: 135,
           cellRenderer: (p) => (
-            <span className="font-mono font-bold text-[#8c4242] dark:text-amber-300">{p.value}</span>
+            <span className="p-2  text-right text-slate-700">{p.value}</span>
           ),
           cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
         },
@@ -526,14 +559,14 @@ export default function MIVReports({ triggerNotification }) {
           flex: 1,
           wrapText: true,
           autoHeight: true,
-          cellRenderer: (p) => <span className="font-medium text-slate-800 dark:text-slate-200 leading-snug">{p.value}</span>
+          cellRenderer: (p) => <span className="p-2  text-right text-slate-700">{p.value}</span>
         },
         {
           headerName: 'Category',
           field: 'category',
           minWidth: 160,
           cellRenderer: (p) => (
-            <span className="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-lg bg-amber-50 dark:bg-[#4b2424]/40 text-[#4b2424] dark:text-amber-300">
+            <span className="p-2  text-right text-slate-700">
               {p.value}
             </span>
           )
@@ -543,7 +576,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'totalCost',
           minWidth: 155,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-emerald-700 dark:text-emerald-400">
+            <span className="p-2  text-right text-slate-700">
               ₹{formatInvestment(p.value)}
             </span>
           ),
@@ -553,7 +586,7 @@ export default function MIVReports({ triggerNotification }) {
           headerName: 'Expected / Actual Date',
           field: 'expectedActualDate',
           minWidth: 180,
-          cellRenderer: (p) => <span className="font-medium text-slate-700 dark:text-slate-300">{p.value}</span>,
+          cellRenderer: (p) => <span className="p-2  text-right text-slate-700">{p.value}</span>,
           cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
         },
         {
@@ -561,7 +594,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'daysOverdue',
           minWidth: 140,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-rose-600 dark:text-rose-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)} days
             </span>
           ),
@@ -574,7 +607,7 @@ export default function MIVReports({ triggerNotification }) {
           flex: 1,
           wrapText: true,
           autoHeight: true,
-          cellRenderer: (p) => <span className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{p.value}</span>
+          cellRenderer: (p) => <span className="p-2  text-right text-slate-700">{p.value}</span>
         },
         {
           headerName: 'Severity Status',
