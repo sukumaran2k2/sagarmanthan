@@ -108,13 +108,7 @@ function WingWiseChart({ data, onRootReady }) {
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
   }, [data]);
-  const VISIBLE_ROWS = 5;
-  const capHeight = VISIBLE_ROWS * 70 + 70;
-  return (
-    <div style={{ maxHeight: capHeight, overflowY: (data?.length || 0) > VISIBLE_ROWS ? 'auto' : 'visible' }}>
-      <div ref={divRef} style={{ width: '100%', height: chartHeight, overflow: 'hidden' }} />
-    </div>
-  );
+  return <div ref={divRef} style={{ width: '100%', height: chartHeight, overflow: 'hidden' }} />;
 }
 
 function WingWiseLegend() {
@@ -329,8 +323,8 @@ export default function CabinetNotesMopswDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
+          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between flex-shrink-0">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
               <span className="text-blue-200">1.</span> Stage-wise heat map
             </h3>
@@ -341,7 +335,7 @@ export default function CabinetNotesMopswDashboard() {
               title="Stage-wise Heat Map"
             />
           </div>
-          <div className="overflow-auto">
+          <div className="overflow-auto flex-1">
             <table className="w-full text-[11px] border-collapse">
               <thead>
                 <tr className="bg-[#0d396b] text-white relative z-10">
@@ -365,14 +359,14 @@ export default function CabinetNotesMopswDashboard() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
+          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between flex-shrink-0">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
               <span className="text-blue-200">2.</span> Current stage distribution
             </h3>
             <ChartExportMenu chartRoot={distChartRoot} fileName="stage_distribution_chart" color="#0f417a" variant="plain" />
           </div>
-          <div className="p-5">
+          <div className="p-5 flex-1 overflow-auto">
             <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
             <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
           </div>
@@ -380,22 +374,22 @@ export default function CabinetNotesMopswDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
+          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between flex-shrink-0">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
               <span className="text-blue-200">3.</span> Wing-wise pending cabinet notes (active)
             </h3>
             <ChartExportMenu chartRoot={wingChartRoot} fileName="wing_wise_pending_chart" color="#0f417a" variant="plain" />
           </div>
-          <div className="p-5">
+          <div className="p-5 flex-1 overflow-auto">
             <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
             <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
             <WingWiseLegend />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
+          <div className="bg-gradient-to-r from-blue-900 to-[#0f417a] px-5 py-3 flex items-center justify-between flex-shrink-0">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
               <span className="text-blue-200">4.</span> Long pending cabinet notes
               <span className="text-[10px] font-medium text-blue-200/80 ml-1">(Top 10)</span>
@@ -407,7 +401,7 @@ export default function CabinetNotesMopswDashboard() {
               title="Long Pending Cabinet Notes (Top 10)"
             />
           </div>
-          <div className="overflow-auto" style={{ maxHeight: longPending.length > 5 ? 280 : undefined }}>
+          <div className="overflow-auto flex-1">
             <table className="w-full text-[11px] border-collapse">
               <thead className="sticky top-0 z-20">
                 <tr className="bg-[#0d396b] text-white relative z-10">
@@ -431,7 +425,7 @@ export default function CabinetNotesMopswDashboard() {
               </tbody>
             </table>
           </div>
-          <p className="text-[9px] text-slate-400 px-5 py-2">Days calculated from date of entry into current stage till today.</p>
+          <p className="text-[9px] text-slate-400 px-5 py-2 flex-shrink-0">Days calculated from date of entry into current stage till today.</p>
         </div>
       </div>
     </div>
