@@ -271,7 +271,7 @@ export default function CabinetNotesMopswDashboard() {
   }));
 
   return (
-    <div className="space-y-5 bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/40 dark:from-indigo-950/20 dark:via-slate-950 dark:to-purple-950/10 rounded-3xl p-6">
+    <div className="space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-3xl p-6">
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">
           Last updated date: {lastDataUpdate
