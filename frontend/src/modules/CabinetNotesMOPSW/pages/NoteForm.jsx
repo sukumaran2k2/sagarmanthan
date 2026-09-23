@@ -388,7 +388,9 @@ export default function NoteForm({
         </div>
 
         <div className="flex items-center justify-between space-x-3 pt-5 border-t border-slate-100 dark:border-slate-800">
-          <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Fields marked with <span className="text-red-500">*</span> are mandatory.</p>
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
           <div className="flex items-center space-x-3">
           <button
             type="button"
