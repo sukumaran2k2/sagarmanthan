@@ -487,7 +487,9 @@ export default function InputForm({
         {/* Footer actions */}
         {!readOnly && (
           <div className="flex justify-between items-center gap-3 pt-6 mt-6 border-t border-slate-150 dark:border-slate-800">
-            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Fields marked with <span className="text-red-500">*</span> are mandatory.</p>
+            <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
             <div className="flex items-center gap-3">
               <button
                 type="button"
