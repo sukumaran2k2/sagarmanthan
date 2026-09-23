@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
+import { LayoutDashboard, PlusCircle, Layers, FilePieChart } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import { useCabinetNotesPermissions } from './hooks/useCabinetNotesPermissions';
 import { resolveCabinetNotesListView } from './views';
+import Dashboard from './pages/Dashboard';
 import CabinetNotesReports from './pages/Reports';
 import NoteForm from './pages/NoteForm';
 import { fetchCabinetStages, fetchDivisions, fetchWings } from './api';
@@ -56,22 +58,26 @@ export default function CabinetNotesMOPSW({
   }, []);
 
   const tabs = useMemo(() => {
-    const items = [];
+    const items = [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ];
     if (permissions.canAdd) {
-      items.push({ id: 'input-form', label: 'Input Form' });
+      items.push({ id: 'input-form', label: 'Input Form', icon: PlusCircle });
     }
     items.push(
-      { id: 'data-list', label: 'Data List' },
-      { id: 'reports', label: 'Report' }
+      { id: 'data-list', label: 'Data List', icon: Layers },
+      { id: 'reports', label: 'Report', icon: FilePieChart }
     );
     return items;
   }, [permissions.canAdd]);
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
+    if (path.includes('/dashboard')) return 'dashboard';
     if (path.includes('/input-form') || path.includes('/add')) return 'input-form';
     if (path.includes('/reports') || path.includes('/report')) return 'reports';
-    return 'data-list';
+    if (path.includes('/data-list') || path.includes('/list')) return 'data-list';
+    return 'dashboard';
   }, [location.pathname]);
 
   const ListView = useMemo(
@@ -114,7 +120,8 @@ export default function CabinetNotesMOPSW({
           tabs={tabs}
           currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId === 'input-form') navigate('/governance/cabinet-notes/input-form');
+            if (tabId === 'dashboard') navigate('/governance/cabinet-notes/dashboard');
+            else if (tabId === 'input-form') navigate('/governance/cabinet-notes/input-form');
             else if (tabId === 'reports') navigate('/governance/cabinet-notes/reports');
             else navigate('/governance/cabinet-notes/data-list');
           }}
@@ -123,6 +130,7 @@ export default function CabinetNotesMOPSW({
 
       <div className="space-y-8">
         <Routes>
+          <Route path="dashboard" element={<Dashboard />} />
           <Route path="data-list" element={
             <ListView key={listKey} notify={notify} onGoHome={onGoHome} />
           } />
@@ -146,8 +154,8 @@ export default function CabinetNotesMOPSW({
 
           <Route path="reports" element={<CabinetNotesReports notify={notify} />} />
 
-          <Route index element={<Navigate to="data-list" replace />} />
-          <Route path="*" element={<Navigate to="data-list" replace />} />
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
       </div>
     </div>
