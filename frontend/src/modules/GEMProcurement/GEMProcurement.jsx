@@ -103,17 +103,28 @@ export default function GEMProcurementView({
   const [toastVisible, setToastVisible] = useState(false);
 
   const showToast = useCallback(
-    (msg, color = '#10B981') => {
+    (msg, colorOrType = 'success') => {
+      const raw = String(msg || '');
       const isError =
-        color === '#EF4444' ||
-        String(msg || '').includes('❌') ||
-        String(msg || '').toLowerCase().includes('failed');
-      if (typeof triggerNotification === 'function' && !isError) {
-        triggerNotification(msg);
+        colorOrType === 'error' ||
+        String(colorOrType).toLowerCase().includes('ef4444') ||
+        String(colorOrType).toLowerCase().includes('red') ||
+        raw.includes('❌') ||
+        raw.toLowerCase().includes('failed');
+      const type =
+        colorOrType === 'info' || String(colorOrType).toLowerCase().includes('3b82f6')
+          ? 'info'
+          : isError
+            ? 'error'
+            : 'success';
+      const cleanMsg = raw.replace(/^[✅❌📋📊📄]\s*/u, '').trim() || raw;
+
+      if (typeof triggerNotification === 'function') {
+        triggerNotification(cleanMsg, type);
         return;
       }
-      setToastMsg(msg);
-      setToastColor(color);
+      setToastMsg(cleanMsg);
+      setToastColor(isError ? '#EF4444' : '#10B981');
       setToastVisible(true);
       setTimeout(() => setToastVisible(false), 3000);
     },
@@ -384,7 +395,7 @@ export default function GEMProcurementView({
 
     if (canUpdate && activeTab !== 'total') {
       allDefs.push({
-        headerName: viewMode === 'org' ? 'Update Monthly' : 'Update Planned',
+        headerName: viewMode === 'org' ? 'Update Actuals' : 'Update Target',
         flex: 1.15,
         minWidth: 145,
         maxWidth: 155,
@@ -403,7 +414,7 @@ export default function GEMProcurementView({
               <button
                 type="button"
                 onClick={() => (isMinistry ? openTargetPage(row) : openMonthlyPage(row))}
-                className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
+                className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
                 title={isMinistry ? 'Update Planned Procurement' : 'Update Monthly Data'}
                 aria-label={isMinistry ? 'Update Planned Procurement' : 'Update Monthly Data'}
               >
@@ -431,17 +442,21 @@ export default function GEMProcurementView({
     pageSize,
   ]);
 
+  const gemApiErrorMessage = (err, fallback) =>
+    err?.response?.data?.error ||
+    err?.response?.data?.message ||
+    err?.message ||
+    fallback;
+
   const handleAddSubmit = async (payload) => {
     const category = listCategoryForTab(activeTab);
     if (category === 'total') return;
     try {
       await createGemTarget(category, payload);
     } catch (err) {
-      const msg =
-        err?.response?.data?.error ||
-        err.message ||
-        `Failed to add ${categoryTitle} target.`;
-      throw new Error(msg, { cause: err });
+      throw new Error(gemApiErrorMessage(err, `Failed to add ${categoryTitle} target.`), {
+        cause: err,
+      });
     }
   };
 
@@ -451,11 +466,9 @@ export default function GEMProcurementView({
     try {
       await updateGemTarget(category, payload);
     } catch (err) {
-      const msg =
-        err?.response?.data?.error ||
-        err.message ||
-        'Failed to update planned procurement.';
-      throw new Error(msg, { cause: err });
+      throw new Error(gemApiErrorMessage(err, 'Failed to update planned procurement.'), {
+        cause: err,
+      });
     }
   };
 
@@ -569,7 +582,7 @@ export default function GEMProcurementView({
             }
           />
         ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
             <GEMDataListView
               categoryTitle={categoryTitle}
               searchTerm={searchTerm}

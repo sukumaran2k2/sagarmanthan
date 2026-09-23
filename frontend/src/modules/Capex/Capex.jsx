@@ -71,13 +71,27 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
   const [toastVisible, setToastVisible] = useState(false);
 
   const showToast = useCallback(
-    (msg, color = '#10B981') => {
+    (msg, colorOrType = 'success') => {
+      const raw = String(msg || '');
+      const isError =
+        colorOrType === 'error' ||
+        String(colorOrType).toLowerCase().includes('ef4444') ||
+        String(colorOrType).toLowerCase().includes('red') ||
+        raw.includes('❌');
+      const type =
+        colorOrType === 'info' || String(colorOrType).toLowerCase().includes('3b82f6')
+          ? 'info'
+          : isError
+            ? 'error'
+            : 'success';
+      const cleanMsg = raw.replace(/^[✅❌📋📊📄]\s*/u, '').trim() || raw;
+
       if (typeof triggerNotification === 'function') {
-        triggerNotification(msg);
+        triggerNotification(cleanMsg, type);
         return;
       }
-      setToastMsg(msg);
-      setToastColor(color);
+      setToastMsg(cleanMsg);
+      setToastColor(isError ? '#EF4444' : '#10B981');
       setToastVisible(true);
       setTimeout(() => setToastVisible(false), 3000);
     },
@@ -369,10 +383,10 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
 
     if (permissions.canEdit) {
       allDefs.push({
-        headerName: 'Update',
+        headerName: viewMode === 'ministry' ? 'Update Target' : 'Update Actuals',
         flex: 1,
         minWidth: 110,
-        maxWidth: 120,
+        maxWidth: 150,
         pinned: 'right',
         lockPinned: true,
         suppressMovable: true,
@@ -387,7 +401,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
               <button
                 type="button"
                 onClick={() => openUpdatePage(row)}
-                className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
+                className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
                 title={viewMode === 'ministry' ? 'Update Planned Expense' : 'Edit Expenditure'}
               >
                 <Edit className="h-4 w-4" />
@@ -528,7 +542,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
             {/* KPI cards commented out for now
             <CapexKpiCards data={capexData} />
             */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
               <CapexDataListView
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}

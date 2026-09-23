@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Edit,
+  Eye,
   Trash2,
   Search,
   X,
@@ -25,8 +26,8 @@ export default function NoteListTable({
   divisions = [],
   statusOptions = [],
   canEdit = false,
+  canView = false,
   canDelete = false,
-  canCreate = false,
   filters,
   onFiltersChange,
   category = 'active',
@@ -39,13 +40,12 @@ export default function NoteListTable({
   onPageSizeChange,
   onEdit,
   onDelete,
-  onAdd,
   onDocs,
 }) {
   const [gridApi, setGridApi] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const colDropdownRef = useRef(null);
-  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const [visibleCols, setVisibleCols] = useState({
     subject: true,
     wing: true,
@@ -54,6 +54,7 @@ export default function NoteListTable({
     remarks: true,
     docs: true,
     lastUpdated: true,
+    actions: true,
   });
 
   useEffect(() => {
@@ -78,6 +79,16 @@ export default function NoteListTable({
     return rows.map((item, index) => ({ ...item, sNo: start + index + 1 }));
   }, [rows, page, pageSize]);
 
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.wingId && filters.wingId !== 'All') count += 1;
+    if (filters.divisionId && filters.divisionId !== 'All') count += 1;
+    if (filters.status && filters.status !== 'All') count += 1;
+    return count;
+  }, [filters.wingId, filters.divisionId, filters.status]);
+
+  const showActions = (canEdit || canView || canDelete) && visibleCols.actions;
+
   const columnDefs = useMemo(() => {
     const cols = [
       {
@@ -92,7 +103,7 @@ export default function NoteListTable({
         headerName: 'Name of the Subject',
         flex: 1.8,
         minWidth: 200,
-        cellClass: 'font-bold text-slate-800 scrollable-cell',
+        cellClass: 'font-bold text-slate-800',
         hide: !visibleCols.subject,
       },
       {
@@ -100,7 +111,7 @@ export default function NoteListTable({
         headerName: 'Wing',
         flex: 1,
         minWidth: 120,
-        cellClass: 'text-slate-600 font-medium scrollable-cell',
+        cellClass: 'text-slate-600 font-medium',
         hide: !visibleCols.wing,
       },
       {
@@ -108,7 +119,7 @@ export default function NoteListTable({
         headerName: 'Division',
         flex: 1,
         minWidth: 120,
-        cellClass: 'text-slate-600 font-medium scrollable-cell',
+        cellClass: 'text-slate-600 font-medium',
         hide: !visibleCols.division,
       },
       {
@@ -116,7 +127,6 @@ export default function NoteListTable({
         headerName: 'Status',
         flex: 1.2,
         minWidth: 140,
-        cellClass: 'scrollable-cell',
         hide: !visibleCols.status,
         cellRenderer: (params) => (
           <span className="text-xs font-black uppercase text-[#0f417a]">
@@ -129,7 +139,7 @@ export default function NoteListTable({
         headerName: 'Remarks',
         flex: 1.3,
         minWidth: 140,
-        cellClass: 'text-slate-600 scrollable-cell',
+        cellClass: 'text-slate-600',
         hide: !visibleCols.remarks,
       },
       {
@@ -163,32 +173,46 @@ export default function NoteListTable({
       },
     ];
 
-    if (canEdit || canDelete) {
+    if (showActions) {
       cols.push({
         headerName: 'Update',
+        field: 'actions',
         minWidth: 110,
+        width: 110,
+        pinned: 'right',
         sortable: false,
         filter: false,
+        headerClass: 'text-center',
+        cellClass: 'text-center flex items-center justify-center',
         cellRenderer: (params) => {
           const row = params.data;
           if (!row) return null;
           return (
-            <div className="flex items-center justify-center gap-1 w-full h-full py-1">
-              {canEdit && (
+            <div className="flex items-center justify-center space-x-1.5 h-full w-full py-1">
+              {canEdit ? (
                 <button
                   type="button"
                   onClick={() => onEdit?.(row)}
-                  className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
-                  title="Update"
+                  title="Edit Note"
+                  className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
                 >
                   <Edit className="h-4 w-4" />
                 </button>
-              )}
+              ) : canView ? (
+                <button
+                  type="button"
+                  onClick={() => onEdit?.(row)}
+                  title="View Note"
+                  className="p-1.5 hover:bg-blue-50 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-lg transition cursor-pointer"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+              ) : null}
               {canDelete && (
                 <button
                   type="button"
                   onClick={() => onDelete?.(row)}
-                  className="p-1.5 hover:bg-rose-50 rounded text-rose-600 transition cursor-pointer"
+                  className="p-1.5 hover:bg-rose-50 dark:hover:bg-slate-800 text-rose-600 dark:text-rose-400 rounded-lg transition cursor-pointer"
                   title="Delete"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -200,7 +224,7 @@ export default function NoteListTable({
       });
     }
     return cols;
-  }, [canEdit, canDelete, onEdit, onDelete, onDocs, visibleCols]);
+  }, [canEdit, canView, canDelete, onEdit, onDelete, onDocs, visibleCols, showActions]);
 
   const setFilter = (key, value) => {
     onFiltersChange?.({ ...filters, [key]: value });
@@ -208,18 +232,12 @@ export default function NoteListTable({
 
   const clearFilters = () => {
     onFiltersChange?.({
+      ...filters,
       wingId: 'All',
       divisionId: 'All',
       status: 'All',
-      search: '',
     });
   };
-
-  const hasActiveFilters =
-    filters.search ||
-    (filters.wingId && filters.wingId !== 'All') ||
-    (filters.divisionId && filters.divisionId !== 'All') ||
-    (filters.status && filters.status !== 'All');
 
   const handleExport = (type) => {
     if (type === 'Copy') {
@@ -296,16 +314,30 @@ export default function NoteListTable({
     }
   };
 
+  const filterSelectClass =
+    'w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer';
+
+  const visibilityCols = [
+    { key: 'subject', label: 'Name of the Subject' },
+    { key: 'wing', label: 'Wing' },
+    { key: 'division', label: 'Division' },
+    { key: 'status', label: 'Status' },
+    { key: 'remarks', label: 'Remarks' },
+    { key: 'docs', label: 'Docs' },
+    { key: 'lastUpdated', label: 'Last Updated' },
+    ...(canEdit || canView || canDelete ? [{ key: 'actions', label: 'Update' }] : []),
+  ];
+
   return (
-    <div className="space-y-6 animate-fade-in relative">
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+    <div className="space-y-4 animate-fade-in relative text-slate-800 dark:text-slate-100">
+      <div className="flex items-center space-x-1 border-b border-slate-200 dark:border-slate-800 select-none">
         <button
           type="button"
           onClick={() => onCategoryChange?.('active')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             category === 'active'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
           }`}
         >
           Active ({counts.active})
@@ -315,73 +347,78 @@ export default function NoteListTable({
           onClick={() => onCategoryChange?.('completed')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             category === 'completed'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
           }`}
         >
           Completed ({counts.completed})
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-b border-slate-100 pb-4">
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
+          <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
-              onClick={() => setFilterDropdownOpen((o) => !o)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 border rounded-xl text-xs font-bold cursor-pointer transition ${
-                filterDropdownOpen || hasActiveFilters
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a]'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              onClick={() => setShowFilterPanel((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                showFilterPanel || activeFiltersCount > 0
+                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200'
               }`}
             >
-              <Filter className="h-4 w-4 text-[#0f417a]" />
+              <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
               <span>Filter</span>
-              {hasActiveFilters && (
-                <span className="bg-[#0f417a] text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
-                  {[filters.wingId !== 'All', filters.divisionId !== 'All', filters.status !== 'All'].filter(Boolean).length}
+              {activeFiltersCount > 0 && (
+                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFiltersCount}
                 </span>
               )}
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${filterDropdownOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`}
+              />
             </button>
 
-            {hasActiveFilters && (
+            {activeFiltersCount > 0 && (
               <button
                 type="button"
                 onClick={clearFilters}
-                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 rounded-xl border border-rose-200 transition cursor-pointer"
+                className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 px-2.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/40 dark:hover:bg-rose-950/30 transition cursor-pointer"
               >
-                Reset
+                <X className="h-3 w-3" />
+                <span>Reset Filters</span>
               </button>
             )}
+          </div>
 
-            <div className="relative min-w-[160px] max-w-xs flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
+            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
+                type="text"
+                placeholder="Search subject, remarks..."
                 value={filters.search}
                 onChange={(e) => setFilter('search', e.target.value)}
-                placeholder="Search…"
-                className="w-full text-xs pl-8 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700"
+                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
               />
               {filters.search ? (
                 <button
                   type="button"
                   onClick={() => setFilter('search', '')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               ) : null}
             </div>
-          </div>
 
-          <div className="flex items-center space-x-2 flex-shrink-0">
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
-              <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Rows</span>
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
                 value={pageSize}
                 onChange={(e) => onPageSizeChange?.(Number(e.target.value))}
-                className="text-xs font-bold text-slate-700 bg-transparent border-0 focus:outline-none cursor-pointer"
+                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 {[10, 25, 50, 100].map((n) => (
                   <option key={n} value={n}>
@@ -391,25 +428,51 @@ export default function NoteListTable({
               </select>
             </div>
 
-            <div className="px-2.5 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-[10px] font-black uppercase tracking-wider text-[#0f417a]">
-              Total: {pagination.total}
+            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+              Total:{' '}
+              <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">
+                {pagination.total}
+              </span>
             </div>
 
             <div className="relative" ref={colDropdownRef}>
               <button
                 type="button"
                 onClick={() => setDropdownOpen((o) => !o)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-[#0f417a] hover:bg-slate-50"
+                className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800 shadow-xs"
               >
                 <span>Visibility</span>
                 <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
               </button>
               {dropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 space-y-1">
-                  {Object.keys(visibleCols).map((key) => (
+                <div className="absolute right-0 mt-1.5 w-56 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">
+                      Toggle Columns
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVisibleCols({
+                          subject: true,
+                          wing: true,
+                          division: true,
+                          status: true,
+                          remarks: true,
+                          docs: true,
+                          lastUpdated: true,
+                          actions: true,
+                        })
+                      }
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Show All
+                    </button>
+                  </div>
+                  {visibilityCols.map(({ key, label }) => (
                     <label
                       key={key}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                      className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none"
                     >
                       <input
                         type="checkbox"
@@ -417,12 +480,9 @@ export default function NoteListTable({
                         onChange={() =>
                           setVisibleCols((prev) => ({ ...prev, [key]: !prev[key] }))
                         }
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
-                      {key === 'lastUpdated'
-                        ? 'Last Updated'
-                        : key === 'docs'
-                          ? 'Docs'
-                          : key.charAt(0).toUpperCase() + key.slice(1)}
+                      <span>{label}</span>
                     </label>
                   ))}
                 </div>
@@ -438,17 +498,37 @@ export default function NoteListTable({
               onExportExcel={() => handleExport('Excel')}
               onExportPdf={() => handleExport('PDF')}
               color="#0f417a"
-              hoverColor="#1d5594"
+              hoverColor="#1e5ea8"
             />
-
           </div>
         </div>
 
-        {filterDropdownOpen && (
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 animate-fade-in">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Wing</label>
-              <div className="relative">
+        {showFilterPanel && (
+          <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Filter className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                  Filter Notes
+                </span>
+              </div>
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center space-x-1 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Reset All Filters</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Wing
+                </label>
                 <select
                   value={filters.wingId === 'All' ? '' : filters.wingId}
                   onChange={(e) =>
@@ -458,7 +538,7 @@ export default function NoteListTable({
                       divisionId: 'All',
                     })
                   }
-                  className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 cursor-pointer"
+                  className={filterSelectClass}
                 >
                   <option value="">All Wings</option>
                   {wings.map((w) => (
@@ -467,17 +547,16 @@ export default function NoteListTable({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
-            </div>
 
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Division</label>
-              <div className="relative">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Division
+                </label>
                 <select
                   value={filters.divisionId === 'All' ? '' : filters.divisionId}
                   onChange={(e) => setFilter('divisionId', e.target.value || 'All')}
-                  className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 cursor-pointer"
+                  className={filterSelectClass}
                 >
                   <option value="">All Divisions</option>
                   {filteredDivisions.map((d) => (
@@ -486,18 +565,17 @@ export default function NoteListTable({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
-            </div>
 
-            {category === 'active' && (
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Stage</label>
-                <div className="relative">
+              {category === 'active' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                    Stage
+                  </label>
                   <select
                     value={filters.status === 'All' ? '' : filters.status}
                     onChange={(e) => setFilter('status', e.target.value || 'All')}
-                    className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 cursor-pointer"
+                    className={filterSelectClass}
                   >
                     <option value="">All Stages</option>
                     {statusOptions.map((s) => (
@@ -506,14 +584,13 @@ export default function NoteListTable({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
-        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="ag-theme-quartz w-full relative border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
           <Table
             rowData={displayRows}
             columnDefs={columnDefs}
@@ -524,7 +601,7 @@ export default function NoteListTable({
             onGridReady={(params) => setGridApi(params.api)}
             defaultColDef={{
               minWidth: 90,
-              filter: true,
+              filter: false,
               sortable: true,
               resizable: true,
             }}
@@ -541,23 +618,6 @@ export default function NoteListTable({
           )}
         </div>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: `
-        .ag-theme-quartz .ag-cell.scrollable-cell {
-          overflow-x: auto !important;
-          overflow-y: hidden !important;
-          white-space: nowrap !important;
-          text-overflow: clip !important;
-          scrollbar-width: none !important;
-        }
-        .ag-theme-quartz .ag-cell.scrollable-cell .ag-cell-value {
-          overflow: visible !important;
-          text-overflow: clip !important;
-          white-space: nowrap !important;
-        }
-        .ag-theme-quartz .ag-cell.scrollable-cell::-webkit-scrollbar {
-          display: none !important;
-        }
-      `}} />
     </div>
   );
 }
