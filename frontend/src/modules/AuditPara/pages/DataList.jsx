@@ -184,7 +184,7 @@ export default function DataList({
           {canEdit && (
             <button
               onClick={() => onEdit && onEdit(params.data)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+              className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
               title="Update Status Details"
             >
               <Edit className="h-4 w-4" />
