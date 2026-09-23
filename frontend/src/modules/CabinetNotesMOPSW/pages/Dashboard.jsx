@@ -8,7 +8,7 @@ import ChartExportMenu from '../../../components/ChartExportMenu';
 import { MoreVertical, FileSpreadsheet, Printer } from 'lucide-react';
 
 function SlaBadge({ status }) {
-  if (!status) return <span className="text-slate-400 text-[10px]">—</span>;
+  if (!status) return <span className="text-slate-600 text-[10px]">—</span>;
   const map = {
     Good:     'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800',
     'At Risk':'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800',
@@ -117,7 +117,7 @@ function WingWiseLegend() {
       {WING_WISE_LEGEND.map((item) => (
         <div key={item.name} className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: item.color }} />
-          <span className="text-[11px] text-slate-600 dark:text-slate-300">{item.name}</span>
+          <span className="text-[11px] text-slate-700 dark:text-slate-200">{item.name}</span>
         </div>
       ))}
     </div>
@@ -350,8 +350,8 @@ export default function CabinetNotesMopswDashboard() {
                   <tr key={row.stage_id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
                     <td className="px-3 py-2 text-slate-700 dark:text-slate-200 font-medium">{row.stage_name}</td>
                     <td className="px-3 py-2 text-center font-bold text-[#6366f1] dark:text-indigo-400">{row.note_count}</td>
-                    <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300">{row.note_count ? row.avg_days : '—'}</td>
-                    <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300">{row.note_count ? row.max_days : '—'}</td>
+                    <td className="px-3 py-2 text-center text-slate-800 dark:text-slate-200">{row.note_count ? row.avg_days : '—'}</td>
+                    <td className="px-3 py-2 text-center text-slate-800 dark:text-slate-200">{row.note_count ? row.max_days : '—'}</td>
                     <td className="px-3 py-2"><SlaBadge status={row.sla_status} /></td>
                   </tr>
                 ))}
@@ -372,7 +372,7 @@ export default function CabinetNotesMopswDashboard() {
             <div className="flex-1 min-h-0">
               <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
             </div>
-            <p className="text-[9px] text-slate-400 text-center mt-1 flex-shrink-0">Number of notes →</p>
+            <p className="text-[9px] text-slate-600 text-center mt-1 flex-shrink-0">Number of notes →</p>
           </div>
         </div>
       </div>
@@ -389,7 +389,7 @@ export default function CabinetNotesMopswDashboard() {
             <div className="flex-1 min-h-0">
               <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
             </div>
-            <p className="text-[9px] text-slate-400 text-center mt-1 flex-shrink-0">Number of notes →</p>
+            <p className="text-[9px] text-slate-600 text-center mt-1 flex-shrink-0">Number of notes →</p>
             <div className="flex-shrink-0">
               <WingWiseLegend />
             </div>
@@ -423,19 +423,19 @@ export default function CabinetNotesMopswDashboard() {
                 {longPending.map((row, i) => (
                   <tr key={row.cabinet_notes_mopsw_id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
                     <td className="px-2.5 py-2 text-slate-700 dark:text-slate-200 min-w-[180px] max-w-[260px] whitespace-normal break-words align-top">{row.subject}</td>
-                    <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.wing_name}</td>
-                    <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.current_stage}</td>
+                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-200 whitespace-nowrap">{row.wing_name}</td>
+                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-200 whitespace-nowrap">{row.current_stage}</td>
                     <td className="px-2.5 py-2 text-right"><PendingDays days={row.pending_days} /></td>
                   </tr>
                 ))}
                 {!longPending.length && (
-                  <tr><td colSpan={4} className="px-3 py-6 text-center text-slate-400 dark:text-slate-500">No long-pending notes</td></tr>
+                  <tr><td colSpan={4} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">No long-pending notes</td></tr>
                 )}
               </tbody>
             </table>
             </div>
           </div>
-          <p className="text-[9px] text-slate-400 px-5 py-2 flex-shrink-0">Days calculated from date of entry into current stage till today.</p>
+          <p className="text-[9px] text-slate-600 px-5 py-2 flex-shrink-0">Days calculated from date of entry into current stage till today.</p>
         </div>
       </div>
     </div>
