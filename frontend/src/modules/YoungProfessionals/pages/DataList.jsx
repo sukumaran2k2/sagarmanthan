@@ -49,8 +49,7 @@ export default function DataList({
     name: true,
     role: true,
     wing: true,
-    division: true,
-    status: true
+    division: true
   });
 
   // Debounce search input
@@ -406,40 +405,24 @@ export default function DataList({
         }
       },
       {
-        field: 'is_active',
-        headerName: 'Status',
-        width: 120,
-        hide: !visibleCols.status,
-        cellRenderer: (params) => {
-          const isActive = params.value === 1 || params.value === true;
-          return (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
-              isActive
-                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400'
-                : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-400'
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isActive ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-              {isActive ? 'Active' : 'Relieved'}
-            </span>
-          );
-        }
-      },
-      {
         headerName: 'Action',
         width: 110,
         pinned: 'right',
+        headerClass: 'text-center',
+        cellClass: 'text-center flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const item = params.data;
           if (!item) return null;
           const isActive = item.is_active === 1 || item.is_active === true;
 
           return (
-            <div className="flex items-center space-x-1.5 h-full py-1">
+            <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
               {canEdit && (
                 <button
                   onClick={() => onEdit(item)}
                   title="Edit Young Professional"
-                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+                  className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
                 >
                   <Edit className="h-4 w-4" />
                 </button>

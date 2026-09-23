@@ -344,7 +344,7 @@ export default function CandidateDrilldownModal({
                                   setEditingCandidateIndex(idx);
                                   setIsEditModalOpen(true);
                                 }}
-                                className="p-1.5 text-[#0f417a] dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition cursor-pointer"
+                                className="p-1.5 text-orange-500 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
                                 title="Edit Candidate Details"
                               >
                                 <Edit2 className="h-4 w-4" />

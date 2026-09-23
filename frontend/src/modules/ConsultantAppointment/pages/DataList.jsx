@@ -504,7 +504,7 @@ export default function DataList({
               {canEdit && (
                 <button
                   onClick={() => onEdit(row)}
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                  className="p-1.5 hover:bg-orange-50 dark:hover:bg-slate-800 rounded-lg text-orange-500 hover:text-orange-600 dark:text-orange-400 transition cursor-pointer"
                   title="Update Appointment"
                 >
                   <Edit className="h-4 w-4" />

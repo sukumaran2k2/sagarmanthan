@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, Calendar, Upload, File, FileText, CheckCircle, ChevronUp, ChevronDown, X } from 'lucide-react';
 import {
   createConsultantAppointment,
@@ -222,8 +222,28 @@ export default function InputForm({
             }
           });
       }
-    }
   }, [editData]);
+
+  // Dynamically filter divisions based on the selected wing
+  const filteredDivisions = useMemo(() => {
+    if (!wing) return [];
+    return divisions.filter(d => String(d.wing_id) === String(wing));
+  }, [wing, divisions]);
+
+  // Sync division selection if current division is not in filtered list
+  useEffect(() => {
+    if (!wing) {
+      if (division) setDivision('');
+      return;
+    }
+    if (division) {
+      const exists = filteredDivisions.some(d => String(d.division_id) === String(division));
+      if (!exists) {
+        setDivision('');
+      }
+    }
+  }, [wing, filteredDivisions, division]);
+
 
   const isStageAccessible = (index) => {
     if (index === 0) return true;
@@ -535,7 +555,9 @@ export default function InputForm({
                 <select
                   value={wing}
                   onChange={(e) => {
-                    setWing(e.target.value);
+                    const newWing = e.target.value;
+                    setWing(newWing);
+                    setDivision('');
                     handleBlur('wing');
                   }}
                   onBlur={() => handleBlur('wing')}
@@ -559,10 +581,11 @@ export default function InputForm({
                     handleBlur('division');
                   }}
                   onBlur={() => handleBlur('division')}
-                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('division', division) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
+                  disabled={!wing}
+                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('division', division) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200 ${!wing ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
-                  <option value="">Select Division</option>
-                  {divisions.map((d) => (
+                  <option value="">{!wing ? 'Select Wing First' : 'Select Division'}</option>
+                  {filteredDivisions.map((d) => (
                     <option key={d.division_id} value={d.division_id}>
                       {d.division_name}
                     </option>

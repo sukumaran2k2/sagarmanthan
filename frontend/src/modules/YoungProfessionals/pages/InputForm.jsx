@@ -214,6 +214,27 @@ export default function InputForm({
     setTouched({});
   }, [editData]);
 
+  // Dynamically filter divisions based on the selected wing
+  const filteredDivisions = useMemo(() => {
+    if (!wing) return [];
+    return divisions.filter(d => String(d.wing_id) === String(wing));
+  }, [wing, divisions]);
+
+  // Sync division selection if current division is not in filtered list
+  useEffect(() => {
+    if (!wing) {
+      if (division) setDivision('');
+      return;
+    }
+    if (division) {
+      const exists = filteredDivisions.some(d => String(d.division_id) === String(division));
+      if (!exists) {
+        setDivision('');
+      }
+    }
+  }, [wing, filteredDivisions, division]);
+
+
   const isDirty = useMemo(() => {
     if (wing !== initialValues.wing) return true;
     if (division !== initialValues.division) return true;
@@ -365,7 +386,12 @@ export default function InputForm({
             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
             <select
               value={wing}
-              onChange={(e) => { setWing(e.target.value); if (touched.wing) handleBlur('wing'); }}
+              onChange={(e) => { 
+                const newWing = e.target.value;
+                setWing(newWing); 
+                setDivision('');
+                if (touched.wing) handleBlur('wing'); 
+              }}
               onBlur={() => handleBlur('wing')}
               required
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
@@ -381,11 +407,14 @@ export default function InputForm({
               value={division}
               onChange={(e) => { setDivision(e.target.value); if (touched.division) handleBlur('division'); }}
               onBlur={() => handleBlur('division')}
+              disabled={!wing}
               required
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer ${!wing ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
-              <option value="" className="dark:bg-slate-955 dark:text-slate-300">--Select Division--</option>
-              {divisions.map(d => <option key={d.division_id} value={d.division_id} className="dark:bg-slate-955 dark:text-slate-300">{d.division_name}</option>)}
+              <option value="" className="dark:bg-slate-955 dark:text-slate-300">
+                {!wing ? '--Select Wing First--' : '--Select Division--'}
+              </option>
+              {filteredDivisions.map(d => <option key={d.division_id} value={d.division_id} className="dark:bg-slate-955 dark:text-slate-300">{d.division_name}</option>)}
             </select>
           </div>
         </div>
