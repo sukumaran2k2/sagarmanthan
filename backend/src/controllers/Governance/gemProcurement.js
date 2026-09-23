@@ -300,28 +300,28 @@ async function addCategory(req, res, cfg) {
       });
     }
 
-    const insertCols = [cfg.fyCol, cfg.orgCol, cfg.potentialCol];
-    const insertVals = ["@financialYear", "@organisationId", "@potential"];
+    const insertCols = [
+      cfg.fyCol,
+      cfg.orgCol,
+      cfg.potentialCol,
+      "created_by",
+      "created_date",
+      "updated_by",
+      "updated_date",
+    ];
+    const insertVals = [
+      "@financialYear",
+      "@organisationId",
+      "@potential",
+      "@userId",
+      "GETDATE()",
+      "@userId",
+      "GETDATE()",
+    ];
 
     if (columns.has("eight_months_proportional_target")) {
       insertCols.push("eight_months_proportional_target");
       insertVals.push("@eightMonthsProportionalTarget");
-    }
-    if (columns.has("created_by")) {
-      insertCols.push("created_by");
-      insertVals.push("@userId");
-    }
-    if (columns.has("created_date")) {
-      insertCols.push("created_date");
-      insertVals.push("GETDATE()");
-    }
-    if (columns.has("updated_by")) {
-      insertCols.push("updated_by");
-      insertVals.push("@userId");
-    }
-    if (columns.has("updated_date")) {
-      insertCols.push("updated_date");
-      insertVals.push("GETDATE()");
     }
 
     const insert = conn.request();
@@ -370,16 +370,14 @@ async function updateCategory(req, res, cfg) {
 
   try {
     const columns = await getTableColumns(cfg.table);
-    const setParts = [`${cfg.potentialCol} = @potential`];
+    const setParts = [
+      `${cfg.potentialCol} = @potential`,
+      "updated_by = @userId",
+      "updated_date = GETDATE()",
+    ];
 
     if (columns.has("eight_months_proportional_target")) {
       setParts.push("eight_months_proportional_target = @eightMonthsProportionalTarget");
-    }
-    if (columns.has("updated_by")) {
-      setParts.push("updated_by = @userId");
-    }
-    if (columns.has("updated_date")) {
-      setParts.push("updated_date = GETDATE()");
     }
 
     const request = conn.request();
