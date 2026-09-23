@@ -463,27 +463,27 @@ async function getVipReference(req, res) {
         mmt_vip_stage.vip_stage_id,
         mmt_vip_stage.vip_stage_name,
 
-        tbl_vip_reference_change.received_at_ministry,
+        --tbl_vip_reference_change.received_at_ministry,
         tbl_vip_reference_change.received_at_ministry_date,
         tbl_vip_reference_change.vip_received_ministry_remark,
 
-        tbl_vip_reference_change.submitted_for_approval,
+        --tbl_vip_reference_change.submitted_for_approval,
         tbl_vip_reference_change.submitted_for_approval_date,
         tbl_vip_reference_change.vip_submitted_for_approval_remark,
 
-        tbl_vip_reference_change.comments_sought,
+        --tbl_vip_reference_change.comments_sought,
         tbl_vip_reference_change.comments_sought_date,
         tbl_vip_reference_change.vip_comments_sought_remark,
 
-        tbl_vip_reference_change.comments_received,
+        --tbl_vip_reference_change.comments_received,
         tbl_vip_reference_change.comments_received_date,
         tbl_vip_reference_change.vip_comments_received_remark,
 
-        tbl_vip_reference_change.reply_furnished,
+        --tbl_vip_reference_change.reply_furnished,
         tbl_vip_reference_change.reply_furnished_date,
         tbl_vip_reference_change.vip_reply_furnished_remark,
 
-        tbl_vip_reference_change.disposed,
+        --tbl_vip_reference_change.disposed,
         tbl_vip_reference_change.disposed_date,
         tbl_vip_reference_change.vip_disposed_remark,
 
