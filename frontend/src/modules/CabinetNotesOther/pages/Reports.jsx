@@ -216,6 +216,15 @@ export default function Reports({ triggerNotification }) {
     fetchReportData();
   }, [fetchReportData]);
 
+  const defaultColDef = useMemo(() => ({
+    sortable: true,
+    filter: true,
+    resizable: true,
+    suppressMovable: true,
+    wrapHeaderText: true,
+    autoHeaderHeight: true,
+  }), []);
+
   const mapColumnRenderers = useCallback(
     (cols) =>
       cols.map((col) => {
@@ -235,55 +244,100 @@ export default function Reports({ triggerNotification }) {
         };
 
         // Leftmost S.No formatting
-        if (field === 'S No' || field === 'S.No' || header === 'S No' || header === 'S.No') {
+        const isSNo =
+          field === 'S No' ||
+          field === 'S.No' ||
+          field === 'SNO' ||
+          field === 'sNo' ||
+          header === 'S No' ||
+          header === 'S.No' ||
+          header === 'S NO' ||
+          header === 'SNO';
+
+        if (isSNo) {
           return {
             ...baseCol,
             pinned: 'left',
             lockPinned: true,
             suppressMovable: true,
-            width: col.width || 75,
-            minWidth: 65,
+            width: col.width || 80,
+            minWidth: 70,
+            filter: false,
+            headerClass: 'text-center font-bold',
+            cellClass: 'text-center flex items-center justify-center',
+            cellStyle: { textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+            valueGetter: (p) => {
+              if (p.node?.rowPinned === 'bottom') return '';
+              return p.node?.rowIndex != null ? p.node.rowIndex + 1 : (p.data?.['S No'] || p.data?.['S.No'] || '');
+            },
             cellRenderer: (p) => {
-              if (p.node.rowPinned === 'bottom') return '';
+              if (p.node?.rowPinned === 'bottom') return '';
               return (
-                <span
-                  style={{
-                    fontWeight: 800,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    color: '#4b2424',
-                  }}
-                >
+                <div className="w-full flex items-center justify-center text-center font-extrabold text-xs font-mono text-[#4b2424] dark:text-[#eadede]">
                   {p.value}
-                </span>
+                </div>
               );
             },
           };
         }
 
-        // Ministry Name formatting in summary view (Plain text, no drilldown hyperlink matching original report)
-        if (
-          (field === 'Name of the Ministry/Department Received from' ||
-           field === 'Ministry Name' ||
-           header === 'Name of the Ministry/Department Received from' ||
-           header === 'Ministry Name') &&
-          currentView.type === 'summary'
-        ) {
+        // Ministry Name formatting in summary view & detail view (Wrap text completely)
+        const isMinistryCol =
+          field === 'Name of the Ministry/Department Received from' ||
+          field === 'Ministry Name' ||
+          field === 'ministry_name' ||
+          header === 'Name of the Ministry/Department Received from' ||
+          header === 'Ministry Name';
+
+        if (isMinistryCol) {
           return {
             ...baseCol,
             pinned: 'left',
             minWidth: col.minWidth || 280,
-            cellStyle: { textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '12px' },
+            flex: 2,
+            wrapText: true,
+            autoHeight: true,
+            headerClass: 'text-center font-bold',
+            cellClass: 'mopsw-wrap-cell text-left flex items-center justify-start',
+            cellStyle: {
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              paddingLeft: '12px',
+              whiteSpace: 'normal',
+              wordBreak: 'break-word',
+              lineHeight: '1.35',
+            },
             cellRenderer: (p) => {
-              if (p.node.rowPinned === 'bottom' || p.value === 'Total' || p.value === 'TOTAL (C)' || String(p.value).toUpperCase().startsWith('TOTAL')) {
+              if (p.node?.rowPinned === 'bottom' || p.value === 'Total' || p.value === 'TOTAL (C)' || String(p.value).toUpperCase().startsWith('TOTAL')) {
                 return <span className="font-black text-[#4b2424] dark:text-[#eadede] tracking-wider uppercase">TOTAL (C)</span>;
               }
               return (
-                <span className="font-bold text-slate-800 dark:text-slate-200">
+                <div className="w-full text-left font-bold text-slate-800 dark:text-slate-200 whitespace-normal break-words leading-snug py-1.5">
                   {cleanMinistryName(p.value) || '—'}
-                </span>
+                </div>
               );
             },
+          };
+        }
+
+        // Subject Column in Detail Views
+        if (field === 'Subject' || header === 'Subject' || field === 'subject') {
+          return {
+            ...baseCol,
+            minWidth: 260,
+            flex: 2,
+            wrapText: true,
+            autoHeight: true,
+            headerClass: 'text-center font-bold',
+            cellClass: 'mopsw-wrap-cell text-left',
+            cellStyle: { textAlign: 'left', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.35' },
+            cellRenderer: (p) => (
+              <div className="w-full text-left font-bold text-slate-800 dark:text-slate-200 whitespace-normal break-words leading-snug py-1.5">
+                {p.value || '-'}
+              </div>
+            )
           };
         }
 
@@ -291,7 +345,7 @@ export default function Reports({ triggerNotification }) {
         return {
           ...baseCol,
           cellRenderer: (p) => {
-            if (p.node.rowPinned === 'bottom') {
+            if (p.node?.rowPinned === 'bottom') {
               return (
                 <span className="font-black text-[#4b2424] dark:text-[#eadede]">
                   {p.value !== undefined && p.value !== null && p.value !== '' ? p.value : 0}
@@ -339,17 +393,43 @@ export default function Reports({ triggerNotification }) {
   const columns = useMemo(() => {
     const mapped = mapColumnRenderers(reportCols);
     const isSerial = (col) => {
-      const field = col.field || col.key || '';
-      const header = col.headerName || col.label || '';
-      return field === 'S No' || field === 'S.No' || header === 'S No' || header === 'S.No';
+      const field = String(col.field || col.key || '').toLowerCase().replace(/[\s._]/g, '');
+      const header = String(col.headerName || col.label || '').toLowerCase().replace(/[\s._]/g, '');
+      return field === 'sno' || header === 'sno';
     };
     const isMinistryId = (col) => {
-      const field = col.field || col.key || '';
-      const header = col.headerName || col.label || '';
-      return field === 'Ministry Id' || field === 'Ministry ID' || header === 'Ministry Id' || header === 'Ministry ID';
+      const field = String(col.field || col.key || '').toLowerCase();
+      const header = String(col.headerName || col.label || '').toLowerCase();
+      return field.includes('ministry id') || header.includes('ministry id') || field === 'ministry_id';
     };
 
-    const serial = mapped.filter(isSerial);
+    const sNoCol = {
+      headerName: 'S NO',
+      field: 'S No',
+      colId: 'sNo',
+      pinned: 'left',
+      lockPinned: true,
+      suppressMovable: true,
+      width: 80,
+      minWidth: 70,
+      filter: false,
+      headerClass: 'text-center font-bold',
+      cellClass: 'text-center flex items-center justify-center',
+      cellStyle: { textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+      valueGetter: (p) => {
+        if (p.node?.rowPinned === 'bottom') return '';
+        return p.node?.rowIndex != null ? p.node.rowIndex + 1 : (p.data?.['S No'] || p.data?.['S.No'] || '');
+      },
+      cellRenderer: (p) => {
+        if (p.node?.rowPinned === 'bottom') return '';
+        return (
+          <div className="w-full flex items-center justify-center text-center font-extrabold text-xs font-mono text-[#4b2424] dark:text-[#eadede]">
+            {p.value}
+          </div>
+        );
+      },
+    };
+
     const rest = mapped.filter((c) => !isSerial(c) && !isMinistryId(c));
 
     if (currentView.type === 'summary' && reportType === 'pendency') {
@@ -368,7 +448,7 @@ export default function Reports({ triggerNotification }) {
       });
     }
 
-    return [...serial, ...rest];
+    return [sNoCol, ...rest];
   }, [mapColumnRenderers, reportCols, reportType, currentView.type]);
 
   const reportSubtitle = useMemo(() => {
@@ -557,6 +637,7 @@ export default function Reports({ triggerNotification }) {
           viewData={filteredData}
           pinnedBottomRowData={pinnedBottomRowData}
           columns={columns}
+          defaultColDef={defaultColDef}
           loading={loading}
           onRefresh={fetchReportData}
           pagination={true}

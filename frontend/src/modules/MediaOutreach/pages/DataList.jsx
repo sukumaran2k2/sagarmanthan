@@ -1,13 +1,19 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import TableWithToolbar from '../../../components/TableWithToolbar';
-import { Edit, Trash2, SlidersHorizontal, ChevronDown, Landmark, Anchor, Building } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
+import CopyButton from '../../../components/CopyButton';
+import ExportDropdown from '../../../components/ExportDropdown';
+import { 
+  Search, X, Edit, Trash2, Filter, ChevronDown, 
+  Landmark, Anchor, Building 
+} from 'lucide-react';
 import { SOCIAL_CHANNELS_KEYS, SOCIAL_METRICS, MONTHS, FINANCIAL_YEARS } from '../utils/constants';
 import { getOrgCategory, calculateCategoryCounts } from '../utils/categoryHelpers';
 import { aggregateYearWiseData } from '../utils/dataTransformers';
 import { copyTableToClipboard, exportTableCSV, printTablePDF } from '../utils/exportHelpers';
 
 export default function DataList({
-  rowData,
+  rowData = [],
   loading,
   activeMediaType,
   setActiveMediaType,
@@ -16,7 +22,7 @@ export default function DataList({
   onDelete,
   onAddNew,
   onRefresh,
-  organisations,
+  organisations = [],
   getOrgName,
   triggerNotification,
   isStandardView = false,
@@ -25,17 +31,7 @@ export default function DataList({
   const hideOrgFilter = isStandardView || permissions?.isStandardView;
   const [gridApi, setGridApi] = useState(null);
 
-  // Compute current Indian financial year (April–March)
-  const currentFY = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1; // 1-based
-    // FY starts in April (month 4); if Jan–Mar we are still in previous FY
-    const fyStart = month >= 4 ? year : year - 1;
-    return `${fyStart}-${fyStart + 1}`;
-  }, []);
-
-  // States for filters
+  // Filter states
   const [financialYearFilter, setFinancialYearFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [organisationFilter, setOrganisationFilter] = useState('');
@@ -43,7 +39,27 @@ export default function DataList({
   const [showYearWise, setShowYearWise] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all'); // 'all' | 'major_port' | 'ministry' | 'non_port'
   const [selectedSubOrgId, setSelectedSubOrgId] = useState('');
-  const [isFiltersOpen, setIsFiltersOpen] = useState(true);
+  
+  // Filter panel collapse/expand state
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Column visibility checklist dropdown
+  const [colDropdownOpen, setColDropdownOpen] = useState(false);
+  const colDropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
+        setColDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const organisationOptions = useMemo(() => {
     const list = [];
@@ -75,7 +91,7 @@ export default function DataList({
     setSelectedSubOrgId('');
   }, [activeCategory]);
 
-  // Set default visibility for columns depending on media type
+  // Default visibility for columns
   const [visibleCols, setVisibleCols] = useState({
     sNo: true,
     organisation: true,
@@ -91,6 +107,45 @@ export default function DataList({
     youTube: true,
     action: true
   });
+
+  const handleShowAllCols = () => {
+    setVisibleCols({
+      sNo: true,
+      organisation: true,
+      financialYear: true,
+      month: true,
+      national: true,
+      regional: true,
+      overall: true,
+      facebook: true,
+      instagram: true,
+      linkedIn: true,
+      twitter: true,
+      youTube: true,
+      action: true
+    });
+  };
+
+  // Active filters count for badge
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (financialYearFilter) count++;
+    if (!showYearWise && monthFilter) count++;
+    if (!hideOrgFilter && organisationFilter) count++;
+    if (showYearWise) count++;
+    return count;
+  }, [financialYearFilter, monthFilter, organisationFilter, showYearWise, hideOrgFilter]);
+
+  const handleResetFilters = () => {
+    setFinancialYearFilter('');
+    setMonthFilter('');
+    setOrganisationFilter('');
+    setShowYearWise(false);
+    setSelectedSubOrgId('');
+    setSearchTerm('');
+    setCurrentPage(1);
+    triggerNotification?.('Filters have been reset', 'info');
+  };
 
   // Category counts computed based on current filters (except activeCategory itself)
   const categoryCounts = useMemo(() => {
@@ -127,9 +182,9 @@ export default function DataList({
       .map(id => organisations.find(o => o.organisation_id === id))
       .filter(Boolean)
       .sort((a, b) => a.organisation_name.localeCompare(b.organisation_name));
-  }, [rowData, activeCategory, getOrgCategory, organisations]);
+  }, [rowData, activeCategory, organisations]);
 
-  // Filter rowData based on user selections (handles year-wise summation/aggregation, activeCategory and selectedSubOrgId)
+  // Filter rowData based on user selections (handles year-wise aggregation, activeCategory and selectedSubOrgId)
   const filteredRowData = useMemo(() => {
     if (!showYearWise) {
       return rowData.filter(row => {
@@ -191,6 +246,14 @@ export default function DataList({
     });
   }, [rowData, showYearWise, financialYearFilter, monthFilter, organisationFilter, searchTerm, getOrgName, activeCategory, organisations, selectedSubOrgId]);
 
+  // Paginated records for table view
+  const paginatedRowData = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredRowData.slice(startIndex, startIndex + pageSize);
+  }, [filteredRowData, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredRowData.length / pageSize) || 1;
+
   const isOrgView = isStandardView || permissions?.isStandardView;
 
   // Define table columns
@@ -204,9 +267,9 @@ export default function DataList({
         maxWidth: 80,
         pinned: 'left',
         suppressSizeToFit: true,
-        headerClass: 'font-bold text-white',
+        headerClass: 'font-bold text-white text-center-header',
         cellClass: 'font-semibold text-slate-700 dark:text-slate-200 text-center',
-        valueGetter: (params) => params.node ? params.node.rowIndex + 1 : '',
+        valueGetter: (params) => (params.node ? (currentPage - 1) * pageSize + params.node.rowIndex + 1 : ''),
         hide: !visibleCols.sNo
       }
     ];
@@ -215,15 +278,31 @@ export default function DataList({
       baseCols.push({
         field: 'organisation_id',
         headerName: 'ORGANISATION NAME',
-        minWidth: 200,
-        flex: 1.8,
+        minWidth: 220,
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
         pinned: 'left',
-        headerClass: 'font-bold text-white',
-        cellClass: 'font-bold text-slate-800 dark:text-slate-100',
+        headerClass: 'font-bold text-white text-center-header',
+        cellClass: 'mopsw-wrap-cell text-center flex items-center justify-center font-bold text-slate-800 dark:text-slate-100',
+        cellStyle: {
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: '1.35',
+          textAlign: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        },
         valueGetter: (params) => {
           if (!params.data) return '';
           return getOrgName(params.data.organisation_id ?? params.data.organisation);
         },
+        cellRenderer: (p) => (
+          <div className="w-full flex items-center justify-center text-center font-bold text-slate-800 dark:text-slate-100 whitespace-normal break-words py-1.5 leading-snug">
+            {p.value || '-'}
+          </div>
+        ),
         hide: !visibleCols.organisation
       });
     }
@@ -233,7 +312,7 @@ export default function DataList({
       headerName: 'FINANCIAL YEAR',
       minWidth: 130,
       flex: 1,
-      headerClass: 'font-bold text-white',
+      headerClass: 'font-bold text-white text-center-header',
       cellClass: 'font-semibold text-slate-700 dark:text-slate-300 text-center',
       hide: !visibleCols.financialYear
     });
@@ -244,7 +323,7 @@ export default function DataList({
         headerName: 'MONTH',
         minWidth: 110,
         flex: 1,
-        headerClass: 'font-bold text-white',
+        headerClass: 'font-bold text-white text-center-header',
         cellClass: 'font-semibold text-slate-700 dark:text-slate-300 text-center',
         hide: !visibleCols.month
       });
@@ -254,23 +333,23 @@ export default function DataList({
 
     if (activeMediaType === 'broadcast') {
       dataCols = [
-        { field: 'broadcast_national', headerName: 'NATIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'broadcast_regional', headerName: 'REGIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'broadcast_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
+        { field: 'broadcast_national', headerName: 'NATIONAL', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'broadcast_regional', headerName: 'REGIONAL', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'broadcast_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
-    } else if (activeMediaType === 'print_media') {
+    } else if (activeMediaType === 'print_media' || activeMediaType === 'print') {
       dataCols = [
-        { field: 'print_media_national', headerName: 'NATIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'print_media_regional', headerName: 'REGIONAL', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'print_media_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
+        { field: 'print_media_national', headerName: 'NATIONAL', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'print_media_regional', headerName: 'REGIONAL', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'print_media_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
     } else if (activeMediaType === 'online') {
       dataCols = [
-        { field: 'online_english', headerName: 'ENGLISH', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'online_vernacular', headerName: 'VERNACULAR', minWidth: 120, cellClass: 'text-center font-medium', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
-        { field: 'online_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
+        { field: 'online_english', headerName: 'ENGLISH', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.national, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'online_vernacular', headerName: 'VERNACULAR', minWidth: 120, cellClass: 'text-center font-medium', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.regional, valueFormatter: (p) => p.value ?? 0 },
+        { field: 'online_overall', headerName: 'OVERALL', minWidth: 120, cellClass: 'text-center font-bold text-blue-700 dark:text-blue-400', headerClass: 'text-center-header font-bold text-white', hide: !visibleCols.overall, valueFormatter: (p) => p.value ?? 0 }
       ];
-    } else if (activeMediaType === 'social_media') {
+    } else if (activeMediaType === 'social_media' || activeMediaType === 'social') {
       const channelConfigs = [
         { key: 'facebook', label: 'FACEBOOK', visible: visibleCols.facebook },
         { key: 'instagram', label: 'INSTAGRAM', visible: visibleCols.instagram },
@@ -330,6 +409,7 @@ export default function DataList({
         cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const item = params.data;
+          if (!item) return null;
           return (
             <div className="flex items-center justify-center space-x-1.5">
               {canEdit && (
@@ -360,11 +440,49 @@ export default function DataList({
     }
 
     return [...baseCols, ...dataCols];
-  }, [activeMediaType, getOrgName, onEdit, onDelete, visibleCols, showYearWise, permissions, isOrgView]);
+  }, [activeMediaType, getOrgName, onEdit, onDelete, visibleCols, showYearWise, permissions, isOrgView, currentPage, pageSize]);
+
+  // Dynamic list of toggleable columns for Visibility dropdown
+  const toggleableCols = useMemo(() => {
+    const list = [
+      { key: 'sNo', label: 'S.No' },
+      ...(!isOrgView ? [{ key: 'organisation', label: 'Organization Name' }] : []),
+      { key: 'financialYear', label: 'Financial Year' },
+      ...(!showYearWise ? [{ key: 'month', label: 'Month' }] : [])
+    ];
+
+    if (activeMediaType === 'broadcast' || activeMediaType === 'print_media' || activeMediaType === 'print') {
+      list.push(
+        { key: 'national', label: 'National' },
+        { key: 'regional', label: 'Regional' },
+        { key: 'overall', label: 'Overall' }
+      );
+    } else if (activeMediaType === 'online') {
+      list.push(
+        { key: 'national', label: 'English' },
+        { key: 'regional', label: 'Vernacular' },
+        { key: 'overall', label: 'Overall' }
+      );
+    } else if (activeMediaType === 'social_media' || activeMediaType === 'social') {
+      list.push(
+        { key: 'facebook', label: 'Facebook' },
+        { key: 'instagram', label: 'Instagram' },
+        { key: 'linkedIn', label: 'LinkedIn' },
+        { key: 'twitter', label: 'Twitter / X' },
+        { key: 'youTube', label: 'YouTube' }
+      );
+    }
+
+    if (permissions?.canEdit || permissions?.canRemove) {
+      list.push({ key: 'action', label: 'Actions' });
+    }
+
+    return list;
+  }, [activeMediaType, isOrgView, showYearWise, permissions]);
 
   const defaultColDef = useMemo(() => ({
     sortable: true,
-    filter: true,
+    filter: false,
     resizable: true,
     suppressMovable: true,
     flex: 1,
@@ -400,25 +518,19 @@ export default function DataList({
     });
   };
 
-  const handleToggleColumn = (colKey) => {
-    setVisibleCols(prev => ({
-      ...prev,
-      [colKey]: !prev[colKey]
-    }));
-  };
-
   return (
     <div className="space-y-4 font-sans text-black select-none">
       
-
-
       {/* KPI Card Style Tabs (Glassmorphism effect with Landmark/Anchor/Building Icons) */}
       {!isOrgView && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Ministry Category Card */}
             <div
-              onClick={() => setActiveCategory(prev => prev === 'ministry' ? 'all' : 'ministry')}
+              onClick={() => {
+                setActiveCategory(prev => prev === 'ministry' ? 'all' : 'ministry');
+                setCurrentPage(1);
+              }}
               className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
                 activeCategory === 'ministry'
                   ? 'bg-amber-500/15 border-amber-500/50 shadow-md ring-2 ring-amber-500/30 transform scale-[1.02]'
@@ -446,7 +558,10 @@ export default function DataList({
 
             {/* Major Port Category Card */}
             <div
-              onClick={() => setActiveCategory(prev => prev === 'major_port' ? 'all' : 'major_port')}
+              onClick={() => {
+                setActiveCategory(prev => prev === 'major_port' ? 'all' : 'major_port');
+                setCurrentPage(1);
+              }}
               className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
                 activeCategory === 'major_port'
                   ? 'bg-emerald-500/15 border-emerald-500/50 shadow-md ring-2 ring-emerald-500/30 transform scale-[1.02]'
@@ -474,7 +589,10 @@ export default function DataList({
 
             {/* Non-Port Category Card */}
             <div
-              onClick={() => setActiveCategory(prev => prev === 'non_port' ? 'all' : 'non_port')}
+              onClick={() => {
+                setActiveCategory(prev => prev === 'non_port' ? 'all' : 'non_port');
+                setCurrentPage(1);
+              }}
               className={`flex items-center justify-between p-4 border rounded-2xl cursor-pointer transition-all duration-300 backdrop-blur-md ${
                 activeCategory === 'non_port'
                   ? 'bg-indigo-500/15 border-indigo-500/50 shadow-md ring-2 ring-indigo-500/30 transform scale-[1.02]'
@@ -523,8 +641,11 @@ export default function DataList({
                 </div>
                 {selectedSubOrgId && (
                   <button
-                    onClick={() => setSelectedSubOrgId('')}
-                    className="text-[10px] font-black text-[#28408f] dark:text-blue-400 hover:underline uppercase tracking-wide cursor-pointer flex items-center gap-1"
+                    onClick={() => {
+                      setSelectedSubOrgId('');
+                      setCurrentPage(1);
+                    }}
+                    className="text-[10px] font-black text-[#0f417a] dark:text-blue-400 hover:underline uppercase tracking-wide cursor-pointer flex items-center gap-1"
                   >
                     Clear Selection
                   </button>
@@ -532,7 +653,10 @@ export default function DataList({
               </div>
               <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
                 <button
-                  onClick={() => setSelectedSubOrgId('')}
+                  onClick={() => {
+                    setSelectedSubOrgId('');
+                    setCurrentPage(1);
+                  }}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
                     !selectedSubOrgId
                       ? 'bg-slate-800 text-white border-slate-800 shadow-sm transform scale-[1.02] dark:bg-slate-200 dark:text-slate-900 dark:border-slate-200'
@@ -553,7 +677,10 @@ export default function DataList({
                   return (
                     <button
                       key={org.organisation_id}
-                      onClick={() => setSelectedSubOrgId(prev => String(prev) === String(org.organisation_id) ? '' : org.organisation_id)}
+                      onClick={() => {
+                        setSelectedSubOrgId(prev => String(prev) === String(org.organisation_id) ? '' : org.organisation_id);
+                        setCurrentPage(1);
+                      }}
                       className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer border ${
                         isSelected
                           ? activeColorClass
@@ -570,122 +697,272 @@ export default function DataList({
         </>
       )}
 
-      {/* Unified Filters Card Panel */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col transition-all duration-300 border-l-4 border-l-[#28408f] dark:bg-slate-950 dark:border-slate-800 dark:border-l-blue-500">
+      {/* Main Container matching CSR Projects design */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
         
-        {/* Card Header (Title & Toggle Button) */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50/50 dark:bg-slate-900/50">
-          <h2 className="text-xs font-black text-[#28408f] dark:text-blue-400 uppercase tracking-wider">Outreach Reports Filters</h2>
-          <button
-            type="button"
-            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl shadow-xs text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition-all cursor-pointer select-none"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-550" />
-            <span>{isFiltersOpen ? 'Hide Filters' : 'Show Filters'}</span>
-            <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-300 ${isFiltersOpen ? 'rotate-180' : ''}`} />
-          </button>
+        {/* Toolbar matching CSR Projects */}
+        <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
+          
+          {/* Left: Dedicated Filter Button + Reset Filters */}
+          <div className="flex items-center gap-2.5 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel(prev => !prev)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                showFilterPanel || activeFiltersCount > 0
+                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200'
+              }`}
+            >
+              <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
+              <span>Filter</span>
+              {activeFiltersCount > 0 && (
+                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFiltersCount}
+                </span>
+              )}
+              <ChevronDown size={14} className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+            </button>
+
+            {activeFiltersCount > 0 && (
+              <button
+                onClick={handleResetFilters}
+                className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 px-2.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/40 dark:hover:bg-rose-950/30 transition cursor-pointer"
+              >
+                <X className="h-3 w-3" />
+                <span>Reset Filters</span>
+              </button>
+            )}
+          </div>
+
+          {/* Right-aligned Tools: Search bar, Rows, Total, Visibility, Copy, Export */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
+            
+            {/* Search Input */}
+            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search"
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Rows Limit Selector */}
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+              >
+                {[10, 25, 50, 100].map(sz => <option key={sz} value={sz}>{sz}</option>)}
+              </select>
+            </div>
+
+            {/* Total Badge */}
+            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+              Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{filteredRowData.length}</span>
+            </div>
+
+            {/* Visibility Column Toggle Dropdown */}
+            <div className="relative" ref={colDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setColDropdownOpen(!colDropdownOpen)}
+                className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800 shadow-xs"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {colDropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-56 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Toggle Columns</span>
+                    <button
+                      type="button"
+                      onClick={handleShowAllCols}
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Show All
+                    </button>
+                  </div>
+                  {toggleableCols.map(({ key, label }) => (
+                    <label key={key} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[key] !== false}
+                        onChange={() => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }))}
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Copy Button */}
+            <CopyButton
+              onCopy={handleCopy}
+              color="#0f417a"
+              hoverBg="#f1f5f9"
+              triggerNotification={triggerNotification}
+            />
+
+            {/* Export Dropdown */}
+            <ExportDropdown
+              onExportExcel={handleExportCSV}
+              onExportPdf={handlePrintPDF}
+              fileName={`Media_Outreach_${activeMediaType}_Export`}
+              title={`Media Outreach - ${activeMediaType}`}
+              color="#0f417a"
+              hoverColor="#1d5594"
+              triggerNotification={triggerNotification}
+            />
+          </div>
         </div>
 
-        {/* Card Body (Collapsible Filter Fields Grid) */}
-        {isFiltersOpen && (
-          <div className={`px-5 py-4 grid grid-cols-1 ${hideOrgFilter ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-4 animate-fade-in animate-duration-300`}>
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Financial Year</label>
-              <select
-                value={financialYearFilter}
-                onChange={(e) => setFinancialYearFilter(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
-              >
-                <option value="">Show All</option>
-                {FINANCIAL_YEARS.map(fy => <option key={fy} value={fy}>{fy}</option>)}
-              </select>
-            </div>
-
-            <div className={`space-y-1.5 transition-all duration-300 ${showYearWise ? 'opacity-40 pointer-events-none' : ''}`}>
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Month</label>
-              <select
-                value={monthFilter}
-                disabled={showYearWise}
-                onChange={(e) => setMonthFilter(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
-              >
-                <option value="">{showYearWise ? 'N/A - Year Wise' : 'Show All'}</option>
-                {!showYearWise && MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-
-            {!hideOrgFilter && (
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Organisation</label>
+        {/* Collapsible Filter Panel */}
+        {showFilterPanel && (
+          <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-fade-in">
+            <div className={`grid grid-cols-1 ${hideOrgFilter ? 'sm:grid-cols-3' : 'sm:grid-cols-2 md:grid-cols-4'} gap-3`}>
+              
+              {/* Financial Year Filter */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">
+                  Financial Year
+                </label>
                 <select
-                  value={organisationFilter}
-                  onChange={(e) => setOrganisationFilter(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:focus:bg-slate-950 cursor-pointer"
+                  value={financialYearFilter}
+                  onChange={(e) => {
+                    setFinancialYearFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
-                  <option value="">Show All Organisations</option>
-                  {organisationOptions.map(org => (
-                    <option key={org.id} value={org.id}>{org.name}</option>
-                  ))}
+                  <option value="">Show All</option>
+                  {FINANCIAL_YEARS.map(fy => <option key={fy} value={fy}>{fy}</option>)}
                 </select>
               </div>
-            )}
 
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Summary View</label>
-              <div className="flex items-center border border-slate-200 rounded-xl p-1 bg-slate-50 w-full h-[42px] dark:border-slate-800 dark:bg-slate-900">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowYearWise(false);
+              {/* Month Filter */}
+              <div className={showYearWise ? 'opacity-40 pointer-events-none' : ''}>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">
+                  Month
+                </label>
+                <select
+                  value={monthFilter}
+                  disabled={showYearWise}
+                  onChange={(e) => {
+                    setMonthFilter(e.target.value);
+                    setCurrentPage(1);
                   }}
-                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    !showYearWise
-                      ? 'bg-[#28408f] dark:bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-500 hover:text-slate-855 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                 >
-                  Month-Wise
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowYearWise(true);
-                    setMonthFilter('');
-                  }}
-                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    showYearWise
-                      ? 'bg-[#28408f] dark:bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-500 hover:text-slate-855 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  Year-Wise
-                </button>
+                  <option value="">{showYearWise ? 'N/A - Year Wise' : 'Show All'}</option>
+                  {!showYearWise && MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              {/* Organisation Filter */}
+              {!hideOrgFilter && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">
+                    Organisation
+                  </label>
+                  <select
+                    value={organisationFilter}
+                    onChange={(e) => {
+                      setOrganisationFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
+                  >
+                    <option value="">Show All Organisations ({organisationOptions.length})</option>
+                    {organisationOptions.map(org => (
+                      <option key={org.id} value={org.id}>{org.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Summary View Toggle */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">
+                  Summary View
+                </label>
+                <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-xl p-1 bg-white dark:bg-slate-950 w-full h-[38px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowYearWise(false);
+                      setCurrentPage(1);
+                    }}
+                    className={`flex-1 text-center py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      !showYearWise
+                        ? 'bg-[#0f417a] dark:bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Month-Wise
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowYearWise(true);
+                      setMonthFilter('');
+                      setCurrentPage(1);
+                    }}
+                    className={`flex-1 text-center py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      showYearWise
+                        ? 'bg-[#0f417a] dark:bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Year-Wise
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
-      </div>
 
-      <TableWithToolbar
-        rowData={filteredRowData}
-        columnDefs={columnDefs}
-        defaultColDef={defaultColDef}
-        onGridReady={(params) => setGridApi(params.api)}
-        loading={loading}
-        searchPlaceholder="Search media outreach details..."
-        exportFileName={`Media_Outreach_${activeMediaType}_Export`}
-        color="#0f417a"
-        hoverColor="#1d5594"
-        triggerNotification={triggerNotification}
-        onCopy={handleCopy}
-        onExportExcel={handleExportCSV}
-        onExportPdf={handlePrintPDF}
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        visibleCols={visibleCols}
-        onVisibleColsChange={setVisibleCols}
-      />
+        {/* AG Grid Table with Integrated Pagination */}
+        <div className="w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-xs dark:border-slate-800">
+          <Table
+            rowData={paginatedRowData}
+            columnDefs={columnDefs}
+            defaultColDef={defaultColDef}
+            loading={loading}
+            pagination={false}
+            enableExport={false}
+            color="#0f417a"
+            onGridReady={(params) => setGridApi(params.api)}
+          />
+
+          <TablePagination
+            currentPage={currentPage - 1}
+            totalPages={totalPages}
+            totalRows={filteredRowData.length}
+            pageSize={pageSize}
+            onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
+            onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            color="#0f417a"
+          />
+        </div>
+      </div>
 
       {/* Global CSS injection to match the table headers and cell text */}
       <style dangerouslySetInnerHTML={{ __html: `
@@ -737,53 +1014,7 @@ export default function DataList({
         .ag-row-odd {
           background-color: #f8fafc !important;
         }
-        .ag-theme-quartz .ag-paging-panel {
-          color: #1e293b !important;
-          font-weight: 700 !important;
-          opacity: 1 !important;
-        }
-        .ag-theme-quartz .ag-paging-button {
-          color: #0f417a !important;
-          opacity: 1 !important;
-        }
-        .ag-theme-quartz .ag-paging-panel .ag-icon {
-          color: #0f417a !important;
-          opacity: 1 !important;
-        }
-        .ag-theme-quartz .ag-paging-row-summary-panel select {
-          color: #1e293b !important;
-          background-color: #fff !important;
-          opacity: 1 !important;
-          border: 1px solid #cbd5e1 !important;
-          border-radius: 4px !important;
-        }
-        .ag-theme-quartz select option {
-          color: #1e293b !important;
-          background-color: #ffffff !important;
-        }
-        .media-outreach-table-wrapper > div {
-          margin-top: 0 !important;
-        }
-        .media-outreach-table-wrapper .ag-theme-quartz {
-          border: none !important;
-          border-radius: 0 !important;
-          box-shadow: none !important;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 5px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(0, 0, 0, 0.05);
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(0, 0, 0, 0.2);
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(0, 0, 0, 0.3);
-        }
-      ` }} />
+      `}} />
     </div>
   );
 }

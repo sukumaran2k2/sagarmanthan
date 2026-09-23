@@ -120,72 +120,73 @@ export default function InputForm({
   };
 
   if (editData) {
+  initSubject = editData.subject || '';
+  initEofficeFile = editData.eofficeFile || '';
+  initRefNumber = editData.refNumber || '';
+  initReceivedFrom = editData.receivedFrom || '';
+  initRemarks = editData.remarks || '';
+  initDeadline = editData.deadline || '';
 
-    initSubject = editData.subject || '';
-    initEofficeFile = editData.eofficeFile || '';
-    initRefNumber = editData.refNumber || '';
-    initReceivedFrom = editData.receivedFrom || '';
-    initRemarks = editData.remarks || '';
-    initDeadline = editData.deadline || '';
+  const editWingValue = String(editData.wing || '').trim().toLowerCase();
 
-    const matchedWing = wings.find(
-      w =>
-        String(w.wing_id) === String(editData.wing) ||
-        String(w.wing_name).trim().toLowerCase() ===
-          String(editData.wing).trim().toLowerCase()
-    );
+  const matchedWing = wings.find(
+    w =>
+      String(w.wing_id) === String(editData.wing) ||
+      String(w.wing_name || '').trim().toLowerCase() === editWingValue
+  );
 
-    if (matchedWing) {
-      initWing = String(matchedWing.wing_id);
-    }
+  if (matchedWing) {
+    initWing = String(matchedWing.wing_id);
+  }
 
-    const matchedDivision = divisions.find(
-      d =>
+  const editDivisionValue = String(editData.division || '').trim().toLowerCase();
+
+  const matchedDivision = divisions.find(
+    d =>
+      String(d.wing_id) === String(initWing) &&
+      (
         String(d.division_id) === String(editData.division) ||
-        String(d.division_name).trim().toLowerCase() ===
-          String(editData.division).trim().toLowerCase()
-    );
+        String(d.division_name || '').trim().toLowerCase() === editDivisionValue
+      )
+  );
 
-    if (matchedDivision) {
-      initDivision = String(matchedDivision.division_id);
+  if (matchedDivision) {
+    initDivision = String(matchedDivision.division_id);
+  }
+
+  initStages = {
+    1: {
+      date: editData.statusDates?.[1] || '',
+      remark: editData.statusRemarks?.[1] || ''
+    },
+    2: {
+      date: editData.statusDates?.[2] || '',
+      remark: editData.statusRemarks?.[2] || ''
+    },
+    3: {
+      date: editData.statusDates?.[3] || '',
+      remark: editData.statusRemarks?.[3] || ''
+    },
+    4: {
+      date: editData.statusDates?.[4] || '',
+      remark: editData.statusRemarks?.[4] || ''
+    },
+    5: {
+      date: editData.statusDates?.[5] || '',
+      remark: editData.statusRemarks?.[5] || ''
+    },
+    6: {
+      date: editData.statusDates?.[6] || '',
+      remark: editData.statusRemarks?.[6] || ''
     }
+  };
+}else {
 
-    initStages = {
-      1: {
-        date: editData.statusDates?.[1] || '',
-        remark: editData.statusRemarks?.[1] || ''
-      },
-      2: {
-        date: editData.statusDates?.[2] || '',
-        remark: editData.statusRemarks?.[2] || ''
-      },
-      3: {
-        date: editData.statusDates?.[3] || '',
-        remark: editData.statusRemarks?.[3] || ''
-      },
-      4: {
-        date: editData.statusDates?.[4] || '',
-        remark: editData.statusRemarks?.[4] || ''
-      },
-      5: {
-        date: editData.statusDates?.[5] || '',
-        remark: editData.statusRemarks?.[5] || ''
-      },
-      6: {
-        date: editData.statusDates?.[6] || '',
-        remark: editData.statusRemarks?.[6] || ''
-      }
-    };
-  } else {
-
-    initWing = '';
+   initWing = '';
    initDivision = '';
 
     initStages = {
-      1: {
-        date: new Date().toISOString().split('T')[0],
-        remark: ''
-      },
+      1: { date: '', remark: ''},
       2: { date: '', remark: '' },
       3: { date: '', remark: '' },
       4: { date: '', remark: '' },
@@ -249,24 +250,23 @@ export default function InputForm({
 
   useEffect(() => {
   if (!wing) {
-    setDivision('');
+    return;
+  }
+  
+  if (divisions.length === 0) {
     return;
   }
 
-  if (filteredDivisions.length === 0) {
-    setDivision('');
-    return;
-  }
-
-  const divisionExists = filteredDivisions.some(
-    d => String(d.division_id) === String(division)
+  const divisionExists = divisions.some(
+    d =>
+      String(d.wing_id) === String(wing) &&
+      String(d.division_id) === String(division)
   );
 
   if (!divisionExists) {
     setDivision('');
   }
-
-}, [wing, filteredDivisions]);
+}, [wing, division, divisions]);
 
   const handleWingChange = (e) => {
     const selectedWingId = e.target.value;

@@ -139,7 +139,16 @@ async function updateVipReference(req, res) {
     let replyFurnishedDate = req.body.vipReplyFurnishedDate;
     const disposed = req.body.vipDisposed;
     let disposedDate = req.body.vipDisposedDate;
+    
     const remarks = req.body.vipRemarks;
+
+    const vipReceivedMinistryRemark = req.body.vipReceivedMinistryRemark;
+    const vipSubmittedForApprovalRemark = req.body.vipSubmittedForApprovalRemark;
+    const vipCommentsSoughtRemark = req.body.vipCommentsSoughtRemark;
+    const vipCommentsReceivedRemark = req.body.vipCommentsReceivedRemark;
+    const vipReplyFurnishedRemark = req.body.vipReplyFurnishedRemark;
+    const vipDisposedRemark = req.body.vipDisposedRemark;
+
     let selectedStage = req.body.selectedStage;
     let deadline = req.body.deadline;
     const userID = req.body.userID;
@@ -188,6 +197,14 @@ async function updateVipReference(req, res) {
     request.input("disposed", disposed);
     request.input("disposedDate", disposedDate);
     request.input("remarks", remarks);
+
+    request.input("vipReceivedMinistryRemark", vipReceivedMinistryRemark);
+    request.input("vipSubmittedForApprovalRemark", vipSubmittedForApprovalRemark);
+    request.input("vipCommentsSoughtRemark", vipCommentsSoughtRemark);
+    request.input("vipCommentsReceivedRemark", vipCommentsReceivedRemark);
+    request.input("vipReplyFurnishedRemark", vipReplyFurnishedRemark);
+    request.input("vipDisposedRemark", vipDisposedRemark);
+
     request.input("selectedStage", selectedStage);
     request.input("deadline", deadline);
     request.input("userID", userID);
@@ -210,6 +227,12 @@ async function updateVipReference(req, res) {
             reply_furnished_date = @replyFurnishedDate,
             disposed_date = @disposedDate,
             remarks = @remarks,
+            vip_received_ministry_remark= @vipReceivedMinistryRemark,
+            vip_submitted_for_approval_remark= @vipSubmittedForApprovalRemark,
+            vip_comments_sought_remark= @vipCommentsSoughtRemark,
+            vip_comments_received_remark = @vipCommentsReceivedRemark,
+            vip_reply_furnished_remark =@vipReplyFurnishedRemark,
+            vip_disposed_remark = @vipDisposedRemark,
             updated_by = @userID,
             deadline = @deadline,
             updated_date = getDate()

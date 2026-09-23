@@ -134,12 +134,6 @@ export default function IssueListPage({
     return () => controller.abort();
   }, [loadList]);
 
-  const handleAdd = () => {
-    if (!permissions.canAdd) return;
-    setFormData(null);
-    setMode('form');
-  };
-
   const handleEdit = async (row) => {
     if (!permissions.canEdit && !permissions.canView) return;
     try {
@@ -241,8 +235,8 @@ export default function IssueListPage({
         issueTypeOptions={issueTypeOptions}
         stages={stages}
         canEdit={permissions.canEdit}
+        canView={permissions.canView}
         canDelete={permissions.canRemove}
-        canCreate={permissions.canAdd}
         filters={filters}
         onFiltersChange={handleFiltersChange}
         category={category}
@@ -255,7 +249,6 @@ export default function IssueListPage({
         onPageSizeChange={handlePageSizeChange}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        onAdd={handleAdd}
         notify={notify}
       />
 

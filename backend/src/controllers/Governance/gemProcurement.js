@@ -282,52 +282,65 @@ async function addCategory(req, res, cfg) {
   }
 
   const conn = await pool;
-  const request = conn.request();
-  request.input("userId", sql.Int, userId);
-  request.input("financialYear", sql.NVarChar(50), financialYear);
-  request.input("organisationId", sql.Int, Number(organisationId));
-  request.input("potential", sql.Float, potential);
-  request.input("eightMonthsProportionalTarget", sql.Float, eightMonthsProportionalTarget);
 
   try {
-    const check = await request.query(`
+    const columns = await getTableColumns(cfg.table);
+    const check = conn.request();
+    check.input("financialYear", sql.NVarChar(50), financialYear);
+    check.input("organisationId", sql.Int, Number(organisationId));
+    const exists = await check.query(`
       SELECT COUNT(*) AS count
       FROM ${cfg.table}
       WHERE ${cfg.fyCol} = @financialYear
         AND ${cfg.orgCol} = @organisationId
     `);
-    if (check.recordset[0].count > 0) {
+    if (exists.recordset[0].count > 0) {
       return res.status(400).json({
         error: "Record already exists for the specified financialYear and organisationId.",
       });
     }
 
-    await request.query(`
-      INSERT INTO ${cfg.table} (
-        created_by,
-        created_date,
-        updated_by,
-        updated_date,
-        ${cfg.fyCol},
-        ${cfg.orgCol},
-        ${cfg.potentialCol},
-        eight_months_proportional_target
-      )
-      VALUES (
-        @userId,
-        GETDATE(),
-        @userId,
-        GETDATE(),
-        @financialYear,
-        @organisationId,
-        @potential,
-        @eightMonthsProportionalTarget
-      )
+    const insertCols = [cfg.fyCol, cfg.orgCol, cfg.potentialCol];
+    const insertVals = ["@financialYear", "@organisationId", "@potential"];
+
+    if (columns.has("eight_months_proportional_target")) {
+      insertCols.push("eight_months_proportional_target");
+      insertVals.push("@eightMonthsProportionalTarget");
+    }
+    if (columns.has("created_by")) {
+      insertCols.push("created_by");
+      insertVals.push("@userId");
+    }
+    if (columns.has("created_date")) {
+      insertCols.push("created_date");
+      insertVals.push("GETDATE()");
+    }
+    if (columns.has("updated_by")) {
+      insertCols.push("updated_by");
+      insertVals.push("@userId");
+    }
+    if (columns.has("updated_date")) {
+      insertCols.push("updated_date");
+      insertVals.push("GETDATE()");
+    }
+
+    const insert = conn.request();
+    insert.input("userId", sql.Int, userId);
+    insert.input("financialYear", sql.NVarChar(50), financialYear);
+    insert.input("organisationId", sql.Int, Number(organisationId));
+    insert.input("potential", sql.Float, potential);
+    insert.input("eightMonthsProportionalTarget", sql.Float, eightMonthsProportionalTarget);
+
+    await insert.query(`
+      INSERT INTO ${cfg.table} (${insertCols.join(", ")})
+      VALUES (${insertVals.join(", ")})
     `);
-    return res.sendStatus(201);
+    return res.status(201).json({ message: "GeM planned procurement created successfully." });
   } catch (err) {
     console.error(`addCategory(${cfg.key}):`, err);
-    return res.sendStatus(500);
+    return res.status(500).json({
+      error: err?.message || "Failed to create GeM planned procurement.",
+    });
   }
 }
 
@@ -354,33 +367,49 @@ async function updateCategory(req, res, cfg) {
   }
 
   const conn = await pool;
-  const request = conn.request();
-  request.input("userId", sql.Int, userId);
-  request.input("financialYear", sql.NVarChar(50), financialYear);
-  request.input("organisationId", sql.Int, Number(organisationId));
-  request.input("potential", sql.Float, potential);
-  request.input("eightMonthsProportionalTarget", sql.Float, eightMonthsProportionalTarget);
 
   try {
+    const columns = await getTableColumns(cfg.table);
+    const setParts = [`${cfg.potentialCol} = @potential`];
+
+    if (columns.has("eight_months_proportional_target")) {
+      setParts.push("eight_months_proportional_target = @eightMonthsProportionalTarget");
+    }
+    if (columns.has("updated_by")) {
+      setParts.push("updated_by = @userId");
+    }
+    if (columns.has("updated_date")) {
+      setParts.push("updated_date = GETDATE()");
+    }
+
+    const request = conn.request();
+    request.input("userId", sql.Int, userId);
+    request.input("financialYear", sql.NVarChar(50), financialYear);
+    request.input("organisationId", sql.Int, Number(organisationId));
+    request.input("potential", sql.Float, potential);
+    request.input("eightMonthsProportionalTarget", sql.Float, eightMonthsProportionalTarget);
+
     const result = await request.query(`
       UPDATE ${cfg.table}
       SET
-        ${cfg.potentialCol} = @potential,
-        eight_months_proportional_target = @eightMonthsProportionalTarget,
-        updated_by = @userId,
-        updated_date = GETDATE()
+        ${setParts.join(",\n        ")}
       WHERE ${cfg.fyCol} = @financialYear
         AND ${cfg.orgCol} = @organisationId
     `);
-    if (!result.rowsAffected?.[0]) {
+    const affected = Array.isArray(result.rowsAffected)
+      ? Number(result.rowsAffected[0] || 0)
+      : Number(result.rowsAffected || 0);
+    if (!affected) {
       return res.status(404).json({
         error: "Record not found for the specified financialYear and organisationId.",
       });
     }
-    return res.sendStatus(200);
+    return res.status(200).json({ message: "GeM planned procurement updated successfully." });
   } catch (err) {
     console.error(`updateCategory(${cfg.key}):`, err);
-    return res.sendStatus(500);
+    return res.status(500).json({
+      error: err?.message || "Failed to update GeM planned procurement.",
+    });
   }
 }
 

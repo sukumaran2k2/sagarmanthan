@@ -76,7 +76,7 @@ export function deleteCabinetMinistry(id, userId = 1) {
 }
 
 export function fetchMinistryList() {
-  return api.get('/mmt-dropdown/mmt_ministry');
+  return api.get('/allvalue-dropdown/mmt_ministry');
 }
 
 export function fetchWings() {
