@@ -284,7 +284,7 @@ export default function GMISReports({
   const [detailData, setDetailData] = useState([]);
   const [quickFilter, setQuickFilter] = useState('');
   const [selectedOrganisation, setSelectedOrganisation] = useState('');
-  const [isFilterOpen, setIsFilterOpen] = useState(true);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
 
   const gridApiRef = useRef(null);
@@ -376,6 +376,15 @@ export default function GMISReports({
     selectedReport,
     triggerNotification,
   ]);
+
+  useEffect(() => {
+  if (selectedReport === 'report-5') {
+    setIsFilterOpen(true);
+  } else {
+    setIsFilterOpen(false);
+    setSelectedOrganisation('');
+  }
+}, [selectedReport]);
 
   useEffect(() => {
     loadReportData();
@@ -758,11 +767,14 @@ export default function GMISReports({
 
         return {
 
-          headerName: key,
+          headerName: key.toLowerCase() === 'total cost' ? 'Total Cost (₹ Cr.)' : key,
           field: key,
           width: isOrgColumn ? 240 : 160,
           minWidth: isOrgColumn ? 240 : 160,
           pinned: isOrgColumn ? 'left' : undefined,
+
+          wrapText: true,
+          autoHeight: true,
 
           valueFormatter: (params) => {
 
@@ -774,9 +786,14 @@ export default function GMISReports({
               return '-';
             }
 
-            if (
-              typeof params.value === 'number'
-            ) {
+            if (typeof params.value === 'number') {
+              if (key.toLowerCase() === 'total cost') {
+                return `₹ ${params.value.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}`;
+              }
+
               return params.value.toLocaleString();
             }
 
@@ -1085,7 +1102,6 @@ export default function GMISReports({
     []
   );
 
-
   const report6Columns = useMemo(() => {
 
     if (
@@ -1121,8 +1137,7 @@ export default function GMISReports({
       },
 
       ...keys.map((key) => ({
-
-        headerName: key,
+        headerName: key.toLowerCase() === 'amount'? 'Amount (₹ Cr.)': key,
         field: key,
         minWidth: 150,
         flex: 1,
@@ -1137,9 +1152,14 @@ export default function GMISReports({
             return '-';
           }
 
-          if (
-            typeof params.value === 'number'
-          ) {
+          if (typeof params.value === 'number') {
+            if (key.toLowerCase() === 'amount') {
+              return `₹ ${params.value.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`;
+            }
+
             return params.value.toLocaleString();
           }
 
@@ -1323,6 +1343,50 @@ export default function GMISReports({
 
       }
 
+      if (selectedReport === 'report-2') {
+        const totalRow = {
+          __sno: '',
+        };
+
+        if (reportData.length > 0) {
+          Object.keys(reportData[0]).forEach((key) => {
+            const values = reportData.map((row) => row[key]);
+
+            const numericValues = values
+              .map((value) => Number(value))
+              .filter((value) => Number.isFinite(value));
+
+            if (numericValues.length > 0) {
+              const lowerKey = key.toLowerCase();
+
+              if (
+                lowerKey.includes('percentage') ||
+                lowerKey.includes('progress') ||
+                lowerKey.includes('rank')
+              ) {
+                return;
+              }
+
+              totalRow[key] = numericValues.reduce(
+                (sum, value) => sum + value,
+                0
+              );
+            }
+          });
+        }
+
+        const totalLabelKey = Object.keys(reportData[0] || {}).find(
+          (key) =>
+            key.toLowerCase().includes('organisation') ||
+            key.toLowerCase().includes('organization')
+        );
+
+        if (totalLabelKey) {
+          totalRow[totalLabelKey] = 'Total';
+        }
+
+        return [totalRow];
+      }
 
       if (
         selectedReport === 'report-3'
@@ -1411,8 +1475,123 @@ export default function GMISReports({
 
       }
 
+      if (selectedReport === 'report-5') {
+        const totalRow = {
+          sNo: '',
+          Organisation: 'Total',
+          'MoU / Project': '',
+          'Current Status': '',
+        };
 
-      return undefined;
+        totalRow['Original Amount (₹ Cr)'] = reportData.reduce(
+          (sum, row) =>
+            sum + Number(row['Original Amount (₹ Cr)'] || 0),
+          0
+        );
+
+        totalRow['Revised Amount (₹ Cr)'] = reportData.reduce(
+          (sum, row) =>
+            sum + Number(row['Revised Amount (₹ Cr)'] || 0),
+          0
+        );
+
+        const financialValues = reportData
+          .map((row) => Number(row['Financial Progress (%)']))
+          .filter((value) => Number.isFinite(value));
+
+        const physicalValues = reportData
+          .map((row) => Number(row['Physical Progress (%)']))
+          .filter((value) => Number.isFinite(value));
+
+        totalRow['Financial Progress (%)'] =
+          financialValues.length
+            ? Number(
+                (
+                  financialValues.reduce((a, b) => a + b, 0) /
+                  financialValues.length
+                ).toFixed(2)
+              )
+            : 0;
+
+        totalRow['Physical Progress (%)'] =
+          physicalValues.length
+            ? Number(
+                (
+                  physicalValues.reduce((a, b) => a + b, 0) /
+                  physicalValues.length
+                ).toFixed(2)
+              )
+            : 0;
+
+        return [totalRow];
+      }
+
+    if (selectedReport === 'report-6') {
+      const totalRow = {
+        __sno: '',
+      };
+
+      if (reportData.length > 0) {
+        const keys = Object.keys(reportData[0]);
+
+        keys.forEach((key) => {
+          const lowerKey = key.trim().toLowerCase();
+
+          const isTextColumn =
+            lowerKey.includes('first party') ||
+            lowerKey.includes('second party') ||
+            lowerKey.includes('organisation') ||
+            lowerKey.includes('organization') ||
+            lowerKey.includes('mou') ||
+            lowerKey.includes('project') ||
+            lowerKey.includes('status') ||
+            lowerKey.includes('event') ||
+            lowerKey.includes('category');
+
+          const isNonTotalColumn =
+            lowerKey.includes('percentage') ||
+            lowerKey.includes('progress') ||
+            lowerKey.includes('rank');
+
+          if (isTextColumn || isNonTotalColumn) {
+            totalRow[key] = '';
+            return;
+          }
+
+          const numericValues = reportData
+            .map((row) => Number(row[key]))
+            .filter((value) => Number.isFinite(value));
+
+          if (numericValues.length > 0) {
+            totalRow[key] = numericValues.reduce(
+              (sum, value) => sum + value,
+              0
+            );
+          } else {
+            totalRow[key] = '';
+          }
+        });
+
+        // Show "Total" in the first suitable text column
+        const textKey = keys.find((key) => {
+          const lowerKey = key.trim().toLowerCase();
+
+          return (
+            lowerKey.includes('organisation') ||
+            lowerKey.includes('organization') ||
+            lowerKey.includes('mou') ||
+            lowerKey.includes('project')
+          );
+        });
+
+        if (textKey) {
+          totalRow[textKey] = 'Total';
+        }
+      }
+
+      return [totalRow];
+    }
+    return undefined;
 
     }, [
       reportData,
@@ -1426,6 +1605,8 @@ export default function GMISReports({
         sortable: true,
         filter: true,
         resizable: true,
+        wrapText: true,
+        autoHeight: true,
         cellStyle: {
           display: 'flex',
           alignItems: 'center',
@@ -2058,277 +2239,11 @@ export default function GMISReports({
 
           </div>
 
-
-          {/* ACTIONS */}
-
-          <div
-            className="
-              flex
-              items-center
-              gap-2.5
-              flex-wrap
-            "
-          >
-
-            {/* SEARCH */}
-
-            <div
-              className="
-                relative
-                w-60
-              "
-            >
-
-              <Search
-                size={14}
-                className="
-                  absolute
-                  left-3
-                  top-1/2
-                  -translate-y-1/2
-                  pointer-events-none
-                "
-                style={{
-                  color: BRAND_SOFT,
-                }}
-              />
-
-              <input
-                type="text"
-                placeholder="Search report..."
-                value={quickFilter}
-                onChange={(e) =>
-                  setQuickFilter(
-                    e.target.value
-                  )
-                }
-                className="
-                  w-full
-                  pl-9
-                  pr-8
-                  py-2
-                  text-[13.5px]
-                  font-medium
-                  rounded-[9px]
-                  outline-none
-                  border
-                  bg-white
-                  transition
-                  focus:ring-[3px]
-                  focus:ring-[#4b2424]/10
-                "
-                style={{
-                  color: BRAND,
-                  borderColor: '#eadede',
-                }}
-              />
-
-              {quickFilter && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setQuickFilter('')
-                  }
-                  className="
-                    absolute
-                    right-2
-                    top-1/2
-                    -translate-y-1/2
-                    text-slate-400
-                    hover:text-[#4b2424]
-                    cursor-pointer
-                    bg-transparent
-                    border-0
-                  "
-                >
-                  ×
-                </button>
-              )}
-
-            </div>
-
-
-            {/* COPY */}
-
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="
-                inline-flex
-                items-center
-                gap-1.5
-                px-3.5
-                py-2
-                rounded-[9px]
-                bg-white
-                border
-                text-xs
-                font-bold
-                text-slate-600
-                hover:text-[#4b2424]
-                hover:border-[#4b2424]
-                transition
-                cursor-pointer
-              "
-              style={{
-                borderColor: '#eadede',
-              }}
-              title="Copy report data"
-            >
-              <Copy size={14} />
-              Copy
-            </button>
-
-
-            {/* EXPORT */}
-
-            <div className="relative">
-
-              <button
-                type="button"
-                onClick={() =>
-                  setIsExportOpen((open) => !open)
-                }
-                className="
-                  inline-flex
-                  items-center
-                  gap-1.5
-                  px-3.5
-                  py-2
-                  rounded-[9px]
-                  text-xs
-                  font-bold
-                  text-white
-                  transition
-                  cursor-pointer
-                  border
-                "
-                style={{
-                  background: BRAND,
-                  borderColor: BRAND,
-                }}
-                title="Export report"
-              >
-                <Download size={14} />
-                Export
-                <ChevronDown size={13} />
-              </button>
-
-              {isExportOpen && (
-
-                <div
-                  className="
-                    absolute
-                    right-0
-                    mt-1.5
-                    w-40
-                    bg-white
-                    rounded-[10px]
-                    border
-                    shadow-lg
-                    z-10
-                    overflow-hidden
-                  "
-                  style={{
-                    borderColor: '#eadede',
-                  }}
-                >
-
-                  <button
-                    type="button"
-                    onClick={handleExportCSV}
-                    className="
-                      w-full
-                      text-left
-                      px-3.5
-                      py-2.5
-                      text-xs
-                      font-semibold
-                      text-slate-700
-                      hover:bg-[#f5eeea]
-                      cursor-pointer
-                      bg-transparent
-                      border-0
-                    "
-                  >
-                    Export as CSV
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleExportCSV}
-                    className="
-                      w-full
-                      text-left
-                      px-3.5
-                      py-2.5
-                      text-xs
-                      font-semibold
-                      text-slate-700
-                      hover:bg-[#f5eeea]
-                      cursor-pointer
-                      bg-transparent
-                      border-0
-                      border-t
-                    "
-                    style={{
-                      borderColor: '#eadede',
-                    }}
-                  >
-                    Export as Excel
-                  </button>
-
-                </div>
-
-              )}
-
-            </div>
-
-
-            {/* REFRESH */}
-
-            <button
-              type="button"
-              onClick={loadReportData}
-              className="
-                inline-flex
-                items-center
-                justify-center
-                w-9
-                h-9
-                rounded-[9px]
-                bg-white
-                border
-                text-slate-500
-                hover:text-[#4b2424]
-                hover:border-[#4b2424]
-                transition
-                cursor-pointer
-              "
-              style={{
-                borderColor: '#eadede',
-              }}
-              title="Refresh Data"
-            >
-
-              <RefreshCw
-                size={15}
-                className={
-                  loading
-                    ? 'animate-spin'
-                    : ''
-                }
-              />
-
-            </button>
-
-          </div>
-
         </div>
 
 
         {/* ---- Filter panel ---- */}
-
+        {selectedReport === 'report-5' && (
         <div>
 
           <button
@@ -2434,112 +2349,6 @@ export default function GMISReports({
                   gap-4
                 `}
               >
-
-                <div>
-
-                  <label
-                    className="
-                      block
-                      text-[11.5px]
-                      font-extrabold
-                      mb-1.5
-                    "
-                    style={{
-                      color: BRAND,
-                    }}
-                  >
-                    Selected Report
-                  </label>
-
-                  <div
-                    className="
-                      w-full
-                      text-xs
-                      px-3
-                      py-2
-                      rounded-[10px]
-                      font-bold
-                    "
-                    style={{
-                      background:
-                        '#fcf9f7',
-                      border:
-                        '1px solid #d7c4b7',
-                      color: BRAND,
-                    }}
-                  >
-                    {selectedReportMeta.title}
-                  </div>
-
-                </div>
-
-
-                <div>
-
-                  <label
-                    className="
-                      block
-                      text-[11.5px]
-                      font-extrabold
-                      mb-1.5
-                    "
-                    style={{
-                      color: BRAND,
-                    }}
-                  >
-                    Quick Search
-                  </label>
-
-                  <div
-                    className="
-                      relative
-                    "
-                  >
-
-                    <Search
-                      size={13}
-                      className="
-                        absolute
-                        left-3
-                        top-1/2
-                        -translate-y-1/2
-                      "
-                      style={{
-                        color: BRAND_SOFT,
-                      }}
-                    />
-
-                    <input
-                      type="text"
-                      value={quickFilter}
-                      onChange={(e) =>
-                        setQuickFilter(
-                          e.target.value
-                        )
-                      }
-                      placeholder="Search report data..."
-                      className="
-                        w-full
-                        pl-9
-                        pr-3
-                        py-2
-                        text-xs
-                        rounded-[10px]
-                        font-semibold
-                        outline-none
-                      "
-                      style={{
-                        background:
-                          '#fcf9f7',
-                        border:
-                          '1px solid #d7c4b7',
-                        color: BRAND,
-                      }}
-                    />
-
-                  </div>
-
-                </div>
 
 
                 {/* ---- NEW: Organisation filter (Report 1.5 only) ---- */}
@@ -2666,36 +2475,7 @@ export default function GMISReports({
 
         </div>
 
-
-        {/* ---- Note ---- */}
-
-        {isStageReport && (
-
-          <div
-            className="
-              p-3.5
-              text-xs
-              font-bold
-              text-left
-            "
-            style={{
-              background: '#fcf9f7',
-              borderBottom: `1px solid ${BORDER}`,
-              color: BRAND,
-            }}
-          >
-
-            Note : The summary values shown above
-            are calculated from the currently loaded
-            GMIS MoU report data.
-
-          </div>
-
         )}
-
-
-        {/* ---- Table ---- */}
-
         <div>
 
           <ReportTable
@@ -2792,83 +2572,6 @@ export default function GMISReports({
           />
 
         </div>
-
-      </div>
-
-      <div
-        className="
-          flex
-          flex-wrap
-          gap-3
-          text-[11px]
-          text-slate-600
-        "
-      >
-
-        <span
-          className="
-            inline-flex
-            items-center
-            gap-1.5
-          "
-        >
-
-          <span
-            className="
-              h-2.5
-              w-2.5
-              rounded-full
-              bg-emerald-500
-            "
-          />
-
-          Completed / Good
-
-        </span>
-
-
-        <span
-          className="
-            inline-flex
-            items-center
-            gap-1.5
-          "
-        >
-
-          <span
-            className="
-              h-2.5
-              w-2.5
-              rounded-full
-              bg-amber-500
-            "
-          />
-
-          In Progress
-
-        </span>
-
-
-        <span
-          className="
-            inline-flex
-            items-center
-            gap-1.5
-          "
-        >
-
-          <span
-            className="
-              h-2.5
-              w-2.5
-              rounded-full
-              bg-rose-500
-            "
-          />
-
-          Dropped
-
-        </span>
 
       </div>
 
