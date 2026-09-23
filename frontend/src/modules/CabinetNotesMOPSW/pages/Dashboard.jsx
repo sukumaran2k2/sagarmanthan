@@ -21,7 +21,7 @@ function KpiCard({ label, value, subtext, icon: Icon, valueColorClass, iconWrapC
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-sm">
       <div>
-        <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest block">{label}</span>
+        <span className="text-[10px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-widest block">{label}</span>
         <span className={`text-2xl font-black block mt-1 ${valueColorClass}`}>{value ?? '—'}</span>
         {subtext && (
           <span className={`text-[10px] font-semibold block mt-0.5 ${subtextColorClass}`}>{subtext}</span>
@@ -54,8 +54,8 @@ function StageDistributionChart({ data, onRootReady }) {
     xRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeDasharray: [3, 3] });
     const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0 }));
     const series = chart.series.push(am5xy.ColumnSeries.new(root, { xAxis, yAxis, valueXField: 'note_count', categoryYField: 'stage_name', tooltip: am5.Tooltip.new(root, { labelText: '{categoryY}: [bold]{valueX}[/]' }) }));
-    series.columns.template.setAll({ fill: am5.color(0x059669), stroke: am5.color(0x059669), height: am5.percent(60), cornerRadiusTR: 3, cornerRadiusBR: 3 });
-    series.bullets.push(() => am5.Bullet.new(root, { sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(0x059669), centerY: am5.p50, centerX: am5.p0, dx: 4, fontSize: 10, fontWeight: '600', populateText: true }) }));
+    series.columns.template.setAll({ fill: am5.color(0x6366f1), stroke: am5.color(0x6366f1), height: am5.percent(60), cornerRadiusTR: 3, cornerRadiusBR: 3 });
+    series.bullets.push(() => am5.Bullet.new(root, { sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(0x6366f1), centerY: am5.p50, centerX: am5.p0, dx: 4, fontSize: 10, fontWeight: '600', populateText: true }) }));
     const sorted = [...data].sort((a, b) => a.note_count - b.note_count);
     yAxis.data.setAll(sorted);
     series.data.setAll(sorted);
@@ -164,7 +164,7 @@ function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' 
     if (!data?.length) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    const headHtml = headers.map((h) => `<th style="border:1px solid #cbd5e1;padding:8px 10px;text-align:left;background:#059669;color:#fff;font-size:11px;font-weight:bold;text-transform:uppercase;">${h}</th>`).join('');
+    const headHtml = headers.map((h) => `<th style="border:1px solid #cbd5e1;padding:8px 10px;text-align:left;background:#6366f1;color:#fff;font-size:11px;font-weight:bold;text-transform:uppercase;">${h}</th>`).join('');
     const rowsHtml = data.map((row, i) => {
       const bg = i % 2 === 0 ? '#ffffff' : '#f8fafc';
       const cells = Object.values(row).map((v) => `<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11px;">${String(v ?? '')}</td>`).join('');
@@ -172,7 +172,7 @@ function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' 
     }).join('');
     printWindow.document.write(`
       <!DOCTYPE html><html><head><title>${title}</title>
-      <style>body{font-family:-apple-system,sans-serif;color:#1e293b;padding:24px}h1{font-size:16px;color:#059669;margin-bottom:4px;font-weight:800;text-transform:uppercase}p{font-size:11px;color:#64748b;margin-top:0;margin-bottom:16px}table{width:100%;border-collapse:collapse;margin-top:12px}@media print{body{padding:0}}</style>
+      <style>body{font-family:-apple-system,sans-serif;color:#1e293b;padding:24px}h1{font-size:16px;color:#6366f1;margin-bottom:4px;font-weight:800;text-transform:uppercase}p{font-size:11px;color:#64748b;margin-top:0;margin-bottom:16px}table{width:100%;border-collapse:collapse;margin-top:12px}@media print{body{padding:0}}</style>
       </head><body><h1>${title}</h1><p>Generated on: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
       <table><thead><tr>${headHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>
       <script>window.onload=function(){setTimeout(function(){window.print();},300);}</script>
@@ -249,7 +249,7 @@ export default function CabinetNotesMopswDashboard() {
   if (error) return (
     <div className="flex flex-col items-center justify-center py-20 gap-3">
       <p className="text-sm text-red-500">{error}</p>
-      <button onClick={load} className="text-xs font-semibold text-[#059669] underline cursor-pointer">Retry</button>
+      <button onClick={load} className="text-xs font-semibold text-[#6366f1] underline cursor-pointer">Retry</button>
     </div>
   );
 
@@ -273,12 +273,12 @@ export default function CabinetNotesMopswDashboard() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-          Last data update: {lastDataUpdate
+        <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">
+          Last updated date: {lastDataUpdate
             ? new Date(lastDataUpdate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
             : '—'}
         </p>
-        <button onClick={load} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-[#059669] dark:hover:text-emerald-400 transition cursor-pointer">
+        <button onClick={load} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-[#6366f1] dark:hover:text-indigo-400 transition cursor-pointer">
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
@@ -289,9 +289,9 @@ export default function CabinetNotesMopswDashboard() {
           value={kpi?.total}
           subtext="Across all wings"
           icon={Layers}
-          valueColorClass="text-slate-700 dark:text-slate-200"
-          subtextColorClass="text-slate-500 dark:text-slate-400"
-          iconWrapClass="bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+          valueColorClass="text-[#6366f1] dark:text-indigo-400"
+          subtextColorClass="text-indigo-600 dark:text-indigo-400"
+          iconWrapClass="bg-indigo-50 dark:bg-indigo-950/40 text-[#6366f1] dark:text-indigo-400 border-indigo-100 dark:border-indigo-900"
         />
         <KpiCard
           label="Active cabinet notes"
@@ -324,9 +324,9 @@ export default function CabinetNotesMopswDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
-          <div className="bg-gradient-to-r from-[#064e3b] to-[#059669] px-5 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3 flex items-center justify-between flex-shrink-0">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-emerald-200">1.</span> Stage-wise heat map
+              <span className="text-indigo-200">1.</span> Stage-wise heat map
             </h3>
             <TableExportMenu
               headers={['Stage', 'Count', 'Avg days', 'Max days', 'SLA status']}
@@ -338,7 +338,7 @@ export default function CabinetNotesMopswDashboard() {
           <div className="overflow-auto flex-1">
             <table className="w-full text-[11px] border-collapse">
               <thead>
-                <tr className="bg-[#047857] text-white relative z-10">
+                <tr className="bg-[#4f46e5] text-white relative z-10">
                   {['Stage','Count','Avg days','Max days','SLA status'].map((h) => (
                     <th key={h} className="px-3 py-2 text-center font-semibold tracking-wide whitespace-nowrap">{h}</th>
                   ))}
@@ -348,7 +348,7 @@ export default function CabinetNotesMopswDashboard() {
                 {heatMap.filter((row) => row.stage_id !== 11).map((row, i) => (
                   <tr key={row.stage_id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
                     <td className="px-3 py-2 text-slate-700 dark:text-slate-200 font-medium">{row.stage_name}</td>
-                    <td className="px-3 py-2 text-center font-bold text-[#059669] dark:text-emerald-400">{row.note_count}</td>
+                    <td className="px-3 py-2 text-center font-bold text-[#6366f1] dark:text-indigo-400">{row.note_count}</td>
                     <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300">{row.note_count ? row.avg_days : '—'}</td>
                     <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300">{row.note_count ? row.max_days : '—'}</td>
                     <td className="px-3 py-2"><SlaBadge status={row.sla_status} /></td>
@@ -360,11 +360,11 @@ export default function CabinetNotesMopswDashboard() {
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
-          <div className="bg-gradient-to-r from-[#064e3b] to-[#059669] px-5 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3 flex items-center justify-between flex-shrink-0">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-emerald-200">2.</span> Current stage distribution
+              <span className="text-indigo-200">2.</span> Current stage distribution
             </h3>
-            <ChartExportMenu chartRoot={distChartRoot} fileName="stage_distribution_chart" color="#059669" variant="plain" />
+            <ChartExportMenu chartRoot={distChartRoot} fileName="stage_distribution_chart" color="#6366f1" variant="plain" />
           </div>
           <div className="p-5 flex-1 overflow-auto">
             <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
@@ -375,11 +375,11 @@ export default function CabinetNotesMopswDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
-          <div className="bg-gradient-to-r from-[#064e3b] to-[#059669] px-5 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3 flex items-center justify-between flex-shrink-0">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-emerald-200">3.</span> Wing-wise pending cabinet notes (active)
+              <span className="text-indigo-200">3.</span> Wing-wise pending cabinet notes (active)
             </h3>
-            <ChartExportMenu chartRoot={wingChartRoot} fileName="wing_wise_pending_chart" color="#059669" variant="plain" />
+            <ChartExportMenu chartRoot={wingChartRoot} fileName="wing_wise_pending_chart" color="#6366f1" variant="plain" />
           </div>
           <div className="p-5 flex-1 overflow-auto">
             <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
@@ -389,10 +389,10 @@ export default function CabinetNotesMopswDashboard() {
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
-          <div className="bg-gradient-to-r from-[#064e3b] to-[#059669] px-5 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3 flex items-center justify-between flex-shrink-0">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-emerald-200">4.</span> Long pending cabinet notes
-              <span className="text-[10px] font-medium text-emerald-200/80 ml-1">(Top 10)</span>
+              <span className="text-indigo-200">4.</span> Long pending cabinet notes
+              <span className="text-[10px] font-medium text-indigo-200/80 ml-1">(Top 10)</span>
             </h3>
             <TableExportMenu
               headers={['Subject', 'Wing', 'Current stage', 'Days']}
@@ -404,7 +404,7 @@ export default function CabinetNotesMopswDashboard() {
           <div className="overflow-auto flex-1">
             <table className="w-full text-[11px] border-collapse">
               <thead className="sticky top-0 z-20">
-                <tr className="bg-[#047857] text-white relative z-10">
+                <tr className="bg-[#4f46e5] text-white relative z-10">
                   {['Subject','Wing','Current stage','Days'].map((h) => (
                     <th key={h} className="px-2.5 py-2 text-center font-semibold tracking-wide whitespace-nowrap">{h}</th>
                   ))}
