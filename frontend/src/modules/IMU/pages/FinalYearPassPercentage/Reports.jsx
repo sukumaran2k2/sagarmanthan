@@ -47,7 +47,10 @@ export default function FinalYearPassPercentageReports() {
 
         const gridCols = cols.length ? cols.map((c) => ({
           ...c,
-          cellClass: 'text-center font-semibold flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
+          pinned: c.field === 'Metric' ? 'left' : undefined,
+          cellClass: c.field === 'Metric'
+            ? 'font-bold text-slate-800 dark:text-slate-100 flex items-center border-r border-slate-200 dark:border-slate-700'
+            : 'text-center font-semibold flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
         })) : [];
         setColumnDefs(gridCols);
         setRowData(data);

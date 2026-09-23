@@ -160,4 +160,8 @@ export function fetchCabinetDivisionDetail(divisionId, stage) {
   return api.get(`/getmopsw-divisionwise/${divisionId}/${stage}`);
 }
 
+export function fetchCabinetMopswDashboard() {
+  return api.get('/cabinet-mopsw-dashboard');
+}
+
 export default api;

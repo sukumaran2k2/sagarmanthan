@@ -1185,9 +1185,9 @@ export default function InputForm({
               </div>
             </div>
 
-            <p className="text-[10px] text-slate-400 italic pt-1">
-              Fields marked with <span className="text-red-500">*</span> are mandatory
-            </p>
+            <span className="text-xs text-rose-500 font-bold italic">
+              * Asterisks marked with red are mandatory fields
+            </span>
 
                 {/* Footer Navigation & Final Submission */}
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -1330,9 +1330,9 @@ export default function InputForm({
 
               </div>
 
-              <p className="text-[10px] text-slate-400 italic pt-1">
-                Fields marked with <span className="text-red-500">*</span> are mandatory
-              </p>
+              <span className="text-xs text-rose-500 font-bold italic">
+                * Asterisks marked with red are mandatory fields
+              </span>
             </div>
 
             {/* Bottom Actions: Mandatory notice, Submit (Green) & Exit (Red) */}
