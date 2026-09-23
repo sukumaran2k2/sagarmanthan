@@ -218,6 +218,7 @@ const Table = forwardRef(({
         }
         .dark .${colorClass} .ag-row:hover {
           background-color: #1e293b !important;
+        }
         .dark .${colorClass} .ag-cell {
           color: #f8fafc !important;
           border-right-color: #1e293b !important;

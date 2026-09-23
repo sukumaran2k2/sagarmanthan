@@ -505,12 +505,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       id: 'contact',
       label: 'Contact Us',
       icon: PhoneCall,
-      align: 'right-0',
-      width: 'w-[240px]',
-      items: [
-        { label: 'Ministry Contacts', icon: Users },
-        { label: 'Helpdesk Support', icon: HelpCircle },
-      ],
+      directTab: 'Contact Us',
     },
   ]),
     [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex]

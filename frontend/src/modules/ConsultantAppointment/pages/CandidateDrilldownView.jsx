@@ -22,6 +22,8 @@ import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
 import {
   fetchCandidatesByConsultantAppointmentId,
+  fetchCandidateDetail,
+  fetchCandidateDocument,
   addCandidateDetail,
   updateCandidateDetail,
   deleteCandidateDetail,
@@ -84,10 +86,56 @@ export default function CandidateDrilldownView({
     setLoading(true);
     try {
       const res = await fetchCandidatesByConsultantAppointmentId(appointment.id);
-      setCandidates(res.data || []);
+      if (res.data && res.data.length > 0) {
+        setCandidates(res.data);
+      } else {
+        const candIdsStr = appointment.raw?.candidate_id || '';
+        if (candIdsStr) {
+          const idList = String(candIdsStr).split(',').map(s => s.trim()).filter(Boolean);
+          const loaded = await Promise.all(
+            idList.map(async (cid) => {
+              try {
+                const cres = await fetchCandidateDetail(cid);
+                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
+                const cdata = cres.data?.[0] || {};
+                const docName = docRes.data?.[0]?.appointment_order_document || '';
+                return { ...cdata, appointment_order_document: docName, documentName: docName };
+              } catch {
+                return { candidate_id: cid };
+              }
+            })
+          );
+          setCandidates(loaded);
+        } else {
+          setCandidates([]);
+        }
+      }
     } catch (err) {
       console.error('Error fetching candidates for drilldown:', err);
-      if (triggerNotification) {
+      const candIdsStr = appointment.raw?.candidate_id || '';
+      if (candIdsStr) {
+        try {
+          const idList = String(candIdsStr).split(',').map(s => s.trim()).filter(Boolean);
+          const loaded = await Promise.all(
+            idList.map(async (cid) => {
+              try {
+                const cres = await fetchCandidateDetail(cid);
+                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
+                const cdata = cres.data?.[0] || {};
+                const docName = docRes.data?.[0]?.appointment_order_document || '';
+                return { ...cdata, appointment_order_document: docName, documentName: docName };
+              } catch {
+                return { candidate_id: cid };
+              }
+            })
+          );
+          setCandidates(loaded);
+        } catch {
+          if (triggerNotification) {
+            triggerNotification('Failed to load candidate details.', 'error');
+          }
+        }
+      } else if (triggerNotification) {
         triggerNotification('Failed to load candidate details.', 'error');
       }
     } finally {
@@ -420,7 +468,10 @@ export default function CandidateDrilldownView({
         valueGetter: (params) => (params.node ? params.node.rowIndex + 1 : ''),
         minWidth: 80,
         maxWidth: 90,
-        cellClass: 'text-center font-mono font-bold text-slate-800 dark:text-slate-100',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-center font-mono font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         headerClass: 'text-center',
         hide: !visibleCols.sNo
       },
@@ -429,6 +480,9 @@ export default function CandidateDrilldownView({
         headerName: 'Candidate Name',
         flex: 1.3,
         minWidth: 180,
+        wrapText: true,
+        autoHeight: true,
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center' },
         cellRenderer: (params) => {
           const val = params.value;
           return (
@@ -436,7 +490,7 @@ export default function CandidateDrilldownView({
               <div className="h-7 w-7 rounded-full bg-blue-100 dark:bg-blue-950 text-[#0f417a] dark:text-blue-300 flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
                 {val ? val.charAt(0).toUpperCase() : 'C'}
               </div>
-              <span className="font-bold text-slate-800 dark:text-slate-100 truncate" title={val || '-'}>
+              <span className="font-bold text-slate-800 dark:text-slate-100" title={val || '-'}>
                 {val || '-'}
               </span>
             </div>
@@ -449,7 +503,10 @@ export default function CandidateDrilldownView({
         headerName: 'Qualification',
         flex: 1,
         minWidth: 140,
-        cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-slate-700 dark:text-slate-300 font-medium flex items-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center' },
         hide: !visibleCols.qualification
       },
       {
@@ -457,8 +514,11 @@ export default function CandidateDrilldownView({
         headerName: 'Experience',
         flex: 0.8,
         minWidth: 110,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
-        cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300',
+        cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         valueFormatter: (params) =>
           params.value !== null && params.value !== undefined ? `${params.value} Yrs` : '-',
         hide: !visibleCols.work_experience
@@ -468,8 +528,11 @@ export default function CandidateDrilldownView({
         headerName: 'Salary (LPA)',
         flex: 0.9,
         minWidth: 115,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
-        cellClass: 'text-center font-bold text-slate-800 dark:text-slate-200',
+        cellClass: 'text-center font-bold text-slate-800 dark:text-slate-200 flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         valueFormatter: (params) => (params.value ? `₹ ${params.value} L` : '-'),
         hide: !visibleCols.salary
       },
@@ -478,6 +541,9 @@ export default function CandidateDrilldownView({
         headerName: 'Deployment Category',
         flex: 1.2,
         minWidth: 160,
+        wrapText: true,
+        autoHeight: true,
+        cellStyle: { display: 'flex', alignItems: 'center' },
         cellRenderer: (params) => {
           const cat = params.value || 'Direct Contract';
           return (
@@ -501,8 +567,11 @@ export default function CandidateDrilldownView({
         headerName: 'Appointment Date',
         flex: 1,
         minWidth: 130,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
-        cellClass: 'text-center font-mono text-slate-600 dark:text-slate-400',
+        cellClass: 'text-center font-mono text-slate-600 dark:text-slate-400 flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         valueFormatter: (params) => formatDateDisplay(params.value),
         hide: !visibleCols.date_of_appointment
       },
@@ -511,7 +580,10 @@ export default function CandidateDrilldownView({
         headerName: 'Skill Set',
         flex: 1,
         minWidth: 130,
-        cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-slate-700 dark:text-slate-300 font-medium flex items-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center' },
         hide: !visibleCols.skill_set
       },
       {
@@ -519,7 +591,10 @@ export default function CandidateDrilldownView({
         headerName: 'Appointment Order (PDF)',
         flex: 1.6,
         minWidth: 230,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const row = params.data;
           if (!row) return null;
@@ -1015,6 +1090,30 @@ export default function CandidateDrilldownView({
             />
           </div>
         </div>
+
+        {/* Resource Slots Guidance Banner if incomplete */}
+        {!loading && candidates.length < totalRequiredResources && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl gap-3 animate-fade-in">
+            <div className="flex items-center gap-2.5 text-amber-800 dark:text-amber-300 text-xs font-semibold">
+              <User className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                {candidates.length === 0
+                  ? `No candidate profile recorded yet for this appointment (${totalRequiredResources} required resource${totalRequiredResources > 1 ? 's' : ''}).`
+                  : `${totalRequiredResources - candidates.length} more candidate profile(s) pending to be added (${candidates.length}/${totalRequiredResources} filled).`}
+              </span>
+            </div>
+            {canAdd && (
+              <button
+                type="button"
+                onClick={() => handleOpenEditCandidate(null, candidates.length)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0f417a] hover:bg-blue-800 text-white font-bold text-xs rounded-lg shadow-sm transition cursor-pointer shrink-0"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add Candidate {candidates.length + 1}</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Ag Grid Table */}
         <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">

@@ -132,20 +132,22 @@ async function getConsultantAppointment(req, res) {
         search,
         wing,
         division,
+        status,
+        stage,
         all
     } = req.query;
 
-    const isFetchAll = all === 'true' || limit === 'all' || (!page && !limit && !search && !wing && !division);
+    const isFetchAll = all === 'true' || limit === 'all';
     const pageNum = parseInt(page) || 1;
     const pageSize = parseInt(limit) || 10;
     const offset = (pageNum - 1) * pageSize;
 
-    let whereClauses = [];
+    let baseWhereClauses = [];
 
     // Search filter
     if (search && search.trim() !== '') {
         request.input('searchTerm', `%${search.trim()}%`);
-        whereClauses.push(`(
+        baseWhereClauses.push(`(
             w.wing_name LIKE @searchTerm OR 
             d.division_name LIKE @searchTerm OR 
             ca.appointment_type LIKE @searchTerm OR 
@@ -157,10 +159,10 @@ async function getConsultantAppointment(req, res) {
     if (wing && wing !== 'All' && wing !== 'all' && wing !== '') {
         if (!isNaN(wing)) {
             request.input('wingId', parseInt(wing));
-            whereClauses.push(`ca.wing = @wingId`);
+            baseWhereClauses.push(`ca.wing = @wingId`);
         } else {
             request.input('wingName', wing.trim());
-            whereClauses.push(`w.wing_name = @wingName`);
+            baseWhereClauses.push(`w.wing_name = @wingName`);
         }
     }
 
@@ -168,16 +170,52 @@ async function getConsultantAppointment(req, res) {
     if (division && division !== 'All' && division !== 'all' && division !== '') {
         if (!isNaN(division)) {
             request.input('divisionId', parseInt(division));
-            whereClauses.push(`ca.division = @divisionId`);
+            baseWhereClauses.push(`ca.division = @divisionId`);
         } else {
             request.input('divisionName', division.trim());
-            whereClauses.push(`d.division_name = @divisionName`);
+            baseWhereClauses.push(`d.division_name = @divisionName`);
         }
+    }
+
+    const baseWhereSql = baseWhereClauses.length > 0 ? `WHERE ${baseWhereClauses.join(' AND ')}` : '';
+
+    let whereClauses = [...baseWhereClauses];
+
+    // Status filter (pending vs completed)
+    if (status === 'completed') {
+        whereClauses.push(`ca.contract_signed_date IS NOT NULL`);
+    } else if (status === 'pending') {
+        whereClauses.push(`ca.contract_signed_date IS NULL`);
+    }
+
+    // Stage filter
+    if (stage && stage !== 'All' && stage !== 'all' && stage !== 'All Stages') {
+        request.input('stageParam', stage.trim());
+        whereClauses.push(`stage.stage_name = @stageParam`);
     }
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
     try {
+        // Query overall counts for tabs
+        const countQuery = `
+            SELECT
+                COUNT(*) AS all_count,
+                SUM(CASE WHEN ca.contract_signed_date IS NOT NULL THEN 1 ELSE 0 END) AS completed_count,
+                SUM(CASE WHEN ca.contract_signed_date IS NULL THEN 1 ELSE 0 END) AS pending_count
+            FROM tbl_consultant_appointment ca
+            JOIN mmt_wings w ON ca.wing = w.wing_id
+            JOIN mmt_division d ON ca.division = d.division_id
+            INNER JOIN mmt_consultant_appointment_stage AS stage ON ca.stage_id = stage.stage_id
+            ${baseWhereSql};
+        `;
+
+        const countResult = await request.query(countQuery);
+        const countRow = countResult.recordset?.[0] || {};
+        const allCount = countRow.all_count || 0;
+        const completedCount = countRow.completed_count || 0;
+        const pendingCount = countRow.pending_count || 0;
+
         if (isFetchAll) {
             const result = await request.query(`
                 SELECT
@@ -225,7 +263,10 @@ async function getConsultantAppointment(req, res) {
                 total,
                 page: pageNum,
                 limit: pageSize,
-                totalPages: Math.ceil(total / pageSize) || 1
+                totalPages: Math.ceil(total / pageSize) || 1,
+                allCount,
+                pendingCount,
+                completedCount
             }
         });
     } catch (err) {
@@ -333,29 +374,47 @@ async function getCandidatesByConsultantAppointmentId(req, res) {
             WHERE consultant_appointment_id = @consultantAppointmentID
         `);
         const caCandidateIdStr = caResult.recordset[0]?.candidate_id || '';
-        const idList = caCandidateIdStr
+        const idList = String(caCandidateIdStr)
             .split(',')
             .map(s => parseInt(s.trim(), 10))
             .filter(n => !isNaN(n) && n > 0);
 
-        let query = `
+        let hasCol = false;
+        try {
+            const colCheck = await conn.request().query(`
+                SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'tbl_ca_candidate' AND COLUMN_NAME = 'consultant_appointment_id'
+            `);
+            hasCol = colCheck.recordset?.length > 0;
+        } catch (colErr) {
+            hasCol = false;
+        }
+
+        let whereParts = [];
+        if (hasCol) {
+            whereParts.push(`c.consultant_appointment_id = @consultantAppointmentID`);
+        }
+        if (idList.length > 0) {
+            whereParts.push(`c.candidate_id IN (${idList.join(',')})`);
+        }
+
+        if (whereParts.length === 0) {
+            return res.json([]);
+        }
+
+        const query = `
             SELECT c.*, doc.appointment_order_document
             FROM tbl_ca_candidate c
             LEFT JOIN tbl_ca_candidate_document doc ON c.candidate_id = doc.candidate_id
-            WHERE c.consultant_appointment_id = @consultantAppointmentID
+            WHERE ${whereParts.join(' OR ')}
+            ORDER BY c.candidate_id ASC
         `;
 
-        if (idList.length > 0) {
-            query += ` OR c.candidate_id IN (${idList.join(',')})`;
-        }
-
-        query += ` ORDER BY c.candidate_id ASC`;
-
         const result = await request.query(query);
-        res.json(result.recordset);
+        res.json(result.recordset || []);
     } catch (err) {
         console.error("Error fetching candidates for CA:", err);
-        return res.sendStatus(500);
+        return res.status(500).json({ message: err.message || "Failed to fetch candidates." });
     }
 }
 
@@ -586,17 +645,21 @@ async function addConsultantID(req, res) {
     request.input("consultantAppointmentID", consultantAppointmentID);
 
     try {
-        await request.query(`
-            UPDATE tbl_ca_candidate
-            SET consultant_appointment_id = @consultantAppointmentID
-            WHERE candidate_id = @candidateID
-        `);
+        try {
+            await request.query(`
+                UPDATE tbl_ca_candidate
+                SET consultant_appointment_id = @consultantAppointmentID
+                WHERE candidate_id = @candidateID
+            `);
+        } catch (colErr) {
+            // column consultant_appointment_id might not exist in tbl_ca_candidate
+        }
 
         const caRes = await request.query(`
             SELECT candidate_id FROM tbl_consultant_appointment
             WHERE consultant_appointment_id = @consultantAppointmentID
         `);
-        let currentIds = caRes.recordset[0]?.candidate_id ? caRes.recordset[0].candidate_id.split(',').map(s => s.trim()).filter(Boolean) : [];
+        let currentIds = caRes.recordset[0]?.candidate_id ? String(caRes.recordset[0].candidate_id).split(',').map(s => s.trim()).filter(Boolean) : [];
         if (!currentIds.includes(String(candidateID))) {
             currentIds.push(String(candidateID));
             const newIdStr = currentIds.join(',');

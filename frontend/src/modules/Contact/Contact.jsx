@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
-import { Mail, Phone, Copy, Check, Search, Filter, HelpCircle, ShieldAlert } from "lucide-react";
-import PageBanner from "../../components/PageBanner";
+import { Mail, Phone, Copy, Check, Search, Filter, ShieldAlert, PhoneCall, ChevronDown, RotateCcw } from "lucide-react";
 
 const CONTACTS_DATA = [
   {
@@ -125,7 +124,15 @@ const ALL_MODULES = Array.from(
 export default function ContactUs() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedModule, setSelectedModule] = useState("all");
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (searchQuery.trim()) count++;
+    if (selectedModule !== "all") count++;
+    return count;
+  }, [searchQuery, selectedModule]);
 
   // Filter contacts list based on search query and selected module
   const filteredContacts = useMemo(() => {
@@ -156,65 +163,117 @@ export default function ContactUs() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
 
-      {/* Page Banner */}
-      <PageBanner
-        title="Contact Us"
-        description="Have questions about modules or systems? Reach out to the respective Under Secretary or Division in charge listed below."
-        icon={HelpCircle}
-        info={
-          <>
-            <span className="text-blue-200 dark:text-blue-300">Technical Queries:</span>
-            <a
-              href="mailto:support@ntcpwc.iitm.ac.in"
-              className="text-white hover:underline cursor-pointer font-bold"
-            >
-              support@ntcpwc.iitm.ac.in
-            </a>
-          </>
-        }
-      />
-
-      {/* Filtering System */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-        <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-          <Filter className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-            Search & Filter Controls
-          </h3>
+      {/* Module Header Row */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
+        <div>
+          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display flex items-center gap-2">
+            <PhoneCall className="h-5 w-5 text-[#0f417a] dark:text-blue-400" />
+            <span>Contact Us</span>
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
+            Have questions about modules or systems? Reach out to the respective Under Secretary or Division in charge listed below.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by name, designation or email…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 text-xs bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 dark:focus:ring-slate-700 dark:text-slate-200 font-medium placeholder:text-slate-400 dark:placeholder:text-slate-500"
-            />
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Technical Support callout card */}
+          <div className="bg-blue-50 dark:bg-slate-800/90 border border-blue-200 dark:border-slate-700 rounded-xl px-4 py-2.5 flex items-center space-x-3 shadow-xs">
+            <div className="p-2.5 bg-[#0f417a] dark:bg-blue-600 rounded-xl text-white flex-shrink-0 shadow-xs">
+              <Mail className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-slate-500 dark:text-slate-400 font-semibold text-xs leading-tight">
+                For any technical queries:
+              </p>
+              <a
+                href="mailto:support@ntcpwc.iitm.ac.in"
+                className="text-sm sm:text-base text-[#0f417a] dark:text-blue-400 hover:underline cursor-pointer font-black tracking-wide leading-tight inline-block mt-0.5"
+              >
+                support@ntcpwc.iitm.ac.in
+              </a>
+            </div>
           </div>
 
-          {/* Module Filter */}
-          <div className="relative">
-            <select
-              value={selectedModule}
-              onChange={(e) => setSelectedModule(e.target.value)}
-              className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 dark:focus:ring-slate-700 dark:text-slate-200 font-semibold cursor-pointer"
-            >
-              <option value="all">Filter by module (all)</option>
-              {ALL_MODULES.map((mod) => (
-                <option key={mod} value={mod}>
-                  {mod}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Filter Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setShowFilterPanel(prev => !prev)}
+            className={`flex items-center space-x-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer select-none ${
+              showFilterPanel || activeFiltersCount > 0
+                ? 'bg-blue-50 text-[#0f417a] border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800 shadow-xs'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Filter className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+            <span>Filters</span>
+            {activeFiltersCount > 0 && (
+              <span className="h-4 w-4 bg-[#0f417a] dark:bg-blue-600 text-white rounded-full text-[10px] flex items-center justify-center font-bold">
+                {activeFiltersCount}
+              </span>
+            )}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
+          </button>
         </div>
       </div>
+
+      {/* Collapsible Filter Panel */}
+      {showFilterPanel && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+            <div className="flex items-center space-x-2">
+              <Filter className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                Filter Contacts
+              </h3>
+            </div>
+            {activeFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedModule("all");
+                }}
+                className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center space-x-1"
+              >
+                <RotateCcw className="h-3 w-3" />
+                <span>Reset Filters</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by name, designation or email…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-slate-200 font-medium placeholder:text-slate-400 dark:placeholder:text-slate-500"
+              />
+            </div>
+
+            {/* Module Filter */}
+            <div className="relative">
+              <select
+                value={selectedModule}
+                onChange={(e) => setSelectedModule(e.target.value)}
+                className="w-full px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-slate-200 font-semibold cursor-pointer"
+              >
+                <option value="all">Filter by module (All Modules)</option>
+                {ALL_MODULES.map((mod) => (
+                  <option key={mod} value={mod}>
+                    {mod}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Contacts Grid Layout */}
       {filteredContacts.length > 0 ? (
