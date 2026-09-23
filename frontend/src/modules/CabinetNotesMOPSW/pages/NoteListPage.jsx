@@ -177,12 +177,6 @@ export default function NoteListPage({ notify, onGoHome }) {
     loadTabTotals();
   }, [loadTabTotals]);
 
-  const handleAdd = () => {
-    if (!permissions.canAdd) return;
-    setFormData(null);
-    setMode('form');
-  };
-
   const handleEdit = async (row) => {
     if (!permissions.canEdit && !permissions.canView) return;
     try {
@@ -292,8 +286,8 @@ export default function NoteListPage({ notify, onGoHome }) {
         divisions={divisions}
         statusOptions={statusOptions}
         canEdit={permissions.canEdit}
+        canView={permissions.canView}
         canDelete={permissions.canRemove}
-        canCreate={permissions.canAdd}
         filters={filters}
         onFiltersChange={handleFiltersChange}
         category={category}
@@ -306,7 +300,6 @@ export default function NoteListPage({ notify, onGoHome }) {
         onPageSizeChange={handlePageSizeChange}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        onAdd={handleAdd}
         onDocs={handleDocs}
       />
 
