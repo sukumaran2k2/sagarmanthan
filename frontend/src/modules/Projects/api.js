@@ -75,16 +75,53 @@ function toProjectListParams(params = {}) {
     query.projectCategory = params.projectCategory;
   }
 
+  if (params.schemeId && params.schemeId !== 'All') {
+    query.schemeId = params.schemeId;
+  }
+
+  if (params.isSagarmalaFunded !== undefined && params.isSagarmalaFunded !== null && params.isSagarmalaFunded !== '' && params.isSagarmalaFunded !== 'All') {
+    query.isSagarmalaFunded = params.isSagarmalaFunded;
+  }
+
   if (params.organisationId) {
     query.organisationId = params.organisationId;
+  }
+
+  if (params.implementationMode && params.implementationMode !== 'All') {
+    query.implementationMode = params.implementationMode;
+  }
+
+  if (params.implementationType && params.implementationType !== 'All') {
+    query.implementationType = params.implementationType;
   }
 
   if (params.state) {
     query.state = params.state;
   }
 
+  if (params.district) {
+    query.district = params.district;
+  }
+
+  if (params.physicalProgressMin !== '' && params.physicalProgressMin != null) {
+    query.physicalProgressMin = params.physicalProgressMin;
+  }
+  if (params.physicalProgressMax !== '' && params.physicalProgressMax != null) {
+    query.physicalProgressMax = params.physicalProgressMax;
+  }
+  if (params.financialProgressMin !== '' && params.financialProgressMin != null) {
+    query.financialProgressMin = params.financialProgressMin;
+  }
+  if (params.financialProgressMax !== '' && params.financialProgressMax != null) {
+    query.financialProgressMax = params.financialProgressMax;
+  }
+
   if (params.financialYear) {
     query.financialYear = params.financialYear;
+  }
+
+  if (params.includeCounts != null) {
+    query.includeCounts = params.includeCounts ? '1' : '0';
   }
 
   return query;
@@ -106,6 +143,47 @@ export function fetchProjectList({ userId, ...params }, config = {}) {
   });
 }
 
+export function fetchProjectAllData(userId, config = {}) {
+  if (!userId) {
+    throw new Error('User ID is required to export project data.');
+  }
+
+  return api.get(`/project-list-data/${userId}`, {
+    timeout: config.timeout ?? 180000,
+    ...config,
+  });
+}
+
+export function fetchExpenditureLogs(userId, config = {}) {
+  if (!userId) {
+    throw new Error('User ID is required to export expenditure logs.');
+  }
+
+  return api.get(`/project-list-expenditurelogs/${userId}`, {
+    timeout: config.timeout ?? 180000,
+    ...config,
+  });
+}
+
+export function requestProjectMediaFilesDownload(userId, emailId, config = {}) {
+  if (!userId) {
+    throw new Error('User ID is required to request media files.');
+  }
+
+  const email = String(emailId || '').trim();
+  if (!email) {
+    throw new Error('Email address is required to request media files.');
+  }
+
+  return api.get(
+    `/project-folder-download/${encodeURIComponent(userId)}/${encodeURIComponent(email)}`,
+    {
+      timeout: config.timeout ?? 60000,
+      ...config,
+    }
+  );
+}
+
 export function createProjectBasicInformation(payload) {
   return api.post('/add-newproject', payload);
 }
@@ -116,6 +194,14 @@ export function updateProjectBasicInformation(payload) {
 
 export function fetchEditProjectData(projectID, subProjectID) {
   return api.get(`/get-editprojectdata/${projectID}/${subProjectID}`);
+}
+
+export function addRevisedTargetCompletionDate(payload) {
+  return api.post('/add-revised-date', payload);
+}
+
+export function fetchRevisedTargetCompletionHistory(projectID, subProjectID) {
+  return api.get(`/get-revised-date/${projectID}/${subProjectID}`);
 }
 
 export function submitPlanningSanctioning(payload) {
@@ -285,12 +371,30 @@ export function fetchDropRequests(userId) {
   return api.get(`/viewdrop-projectlist/${userId}`);
 }
 
-export function acceptDropRequest(projectId, subProjectId) {
-  return api.put(`/delete-project/${projectId}/${subProjectId}`);
+export function acceptDropRequest(projectId, subProjectId, payload = {}) {
+  return api.put(`/delete-project/${projectId}/${subProjectId}`, payload);
 }
 
 export function rejectDropProject(payload) {
   return api.post('/reject-project-drop-request', payload);
+}
+
+export function fetchCapexProjectsData() {
+  return api.get('/get-capex-projects-data');
+}
+
+export function fetchUpdateCapexProjectsData({ financialYear, organisationId } = {}) {
+  return api.get('/get-update-capex-projects-data', {
+    params: { financialYear, organisationId },
+  });
+}
+
+export function submitCapexProjectData(payload) {
+  return api.post('/submit-capex-project-data', payload);
+}
+
+export function updateCapexProjectData(payload) {
+  return api.post('/update-capex-project-data', payload);
 }
 
 export function fetchViewProjectData(projectID, subProjectID = '-1') {

@@ -32,7 +32,7 @@ async function deleteProjectRequest(req, res)
         request.input("reason", reason);
 
         await request.query(`INSERT INTO tbl_project_drop_request (project_id, sub_project_id,
-            submitted_by, remarks) VALUES (@projectID, @subProjectID, @userID, @reason)`);
+            submitted_by, remarks, submitted_on) VALUES (@projectID, @subProjectID, @userID, @reason, GETDATE())`);
 
         // Send email asynchronously if possible without failing the HTTP response
         if (email) {
@@ -121,16 +121,20 @@ async function viewDropProjectList(req, res) {
             const result = await conn.query(`SELECT tbl_project.project_id,
                 ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) AS organisation_id, organisation_name,
                 tbl_project.project_name, tbl_sub_project.sub_project_id, tbl_sub_project.sub_project_name,
-                tbl_user.name,  sanctioned_cost, target_completion_date, current_project_stage_id, tbl_project_stage.stage_name, 
+                tbl_user.name, tbl_user.name AS submitted_by_name, sanctioned_cost, target_completion_date, current_project_stage_id, tbl_project_stage.stage_name, 
                 tbl_project_drop_request.remarks, tbl_project_drop_request.status, tbl_project_drop_request.submitted_on, 
                 tbl_project_drop_request.drop_date, tbl_project_drop_request.drop_rejected_remarks,
-                tbl_project_drop_request.reject_request_status
+                tbl_project_drop_request.reject_request_status,
+                tbl_project_drop_request.submitted_by,
+                tbl_project_drop_request.approved_by,
+                uApp.name AS approved_by_name
 
                 FROM tbl_project_drop_request
                 INNER JOIN tbl_project on tbl_project.project_id = tbl_project_drop_request.project_id        
-                Left JOIN tbl_user on tbl_user.user_id = tbl_project_drop_request.submitted_by
+                LEFT JOIN tbl_user on tbl_user.user_id = tbl_project_drop_request.submitted_by
+                LEFT JOIN tbl_user uApp on uApp.user_id = tbl_project_drop_request.approved_by
                 LEFT JOIN tbl_project_stage on tbl_project_stage.stage_id = tbl_project.current_project_stage_id
-                Left JOIN tbl_sub_project on tbl_sub_project.sub_project_id = tbl_project_drop_request.sub_project_id
+                LEFT JOIN tbl_sub_project on tbl_sub_project.sub_project_id = tbl_project_drop_request.sub_project_id
                 LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id)
                                                                               
                 where tbl_project_drop_request.status = 1 or tbl_project_drop_request.status = 0     
@@ -158,14 +162,18 @@ async function viewDropProjectList(req, res) {
 
             const result = await conn.query(`SELECT tbl_project.project_id, 
                 ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) AS organisation_id, organisation_name,
-                tbl_project.project_name, tbl_sub_project.sub_project_id, tbl_sub_project.sub_project_name, tbl_user.name,  
+                tbl_project.project_name, tbl_sub_project.sub_project_id, tbl_sub_project.sub_project_name, tbl_user.name, tbl_user.name AS submitted_by_name, 
                 sanctioned_cost, target_completion_date, current_project_stage_id, tbl_project_stage.stage_name, tbl_project_drop_request.remarks, 
                 tbl_project_drop_request.status, tbl_project_drop_request.drop_date, tbl_project_drop_request.submitted_on, 
-                tbl_project_drop_request.drop_rejected_remarks, tbl_project_drop_request.reject_request_status
+                tbl_project_drop_request.drop_rejected_remarks, tbl_project_drop_request.reject_request_status,
+                tbl_project_drop_request.submitted_by,
+                tbl_project_drop_request.approved_by,
+                uApp.name AS approved_by_name
     
                 FROM tbl_project_drop_request
                 INNER JOIN tbl_project on tbl_project.project_id = tbl_project_drop_request.project_id  
                 LEFT JOIN tbl_user on tbl_user.user_id = tbl_project_drop_request.submitted_by
+                LEFT JOIN tbl_user uApp on uApp.user_id = tbl_project_drop_request.approved_by
                 LEFT JOIN tbl_project_stage on tbl_project_stage.stage_id = tbl_project.current_project_stage_id
                 LEFT JOIN tbl_sub_project on tbl_sub_project.sub_project_id = tbl_project_drop_request.sub_project_id
                 LEFT JOIN mmt_organisation ON mmt_organisation.organisation_id = ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id)
@@ -186,31 +194,32 @@ async function viewDropProjectList(req, res) {
 };
 
 async function deleteProject(req, res) {
-    // const conn = await pool;
     const projectID = req.params.projectID;
     const subProjectID = req.params.subProjectID;
+    const approvedBy = req.body?.approvedBy || req.body?.userId || req.user?.id || req.query?.approvedBy || null;
 
     const conn = await pool;
     const request = conn.request();
     request.input("projectID", projectID);
     request.input("subProjectID", subProjectID);
+    request.input("approvedBy", approvedBy);
 
     let dropProjectQuery;
-    if (subProjectID == -1) {
-        // console.log(projectID)
-        let queryExists = await request.query("UPDATE tbl_project set status = 0 where project_id = @projectID;")
+    if (subProjectID == -1 || subProjectID == '-1' || !subProjectID) {
+        let queryExists = await request.query("UPDATE tbl_project set status = 0, last_updated = GETDATE() where project_id = @projectID;")
         if (queryExists) {
-            // console.log("yes")
             dropProjectQuery = (`UPDATE tbl_project_drop_request SET status = 0, 
-                    drop_date = getDate()             
+                    drop_date = GETDATE(),
+                    approved_by = COALESCE(@approvedBy, approved_by)
                     WHERE project_id = @projectID`)
         }
     }
     else {
-        let queryExists = await request.query("UPDATE tbl_sub_project set sub_status = 0 where sub_project_id = @subProjectID;")
+        let queryExists = await request.query("UPDATE tbl_sub_project set sub_status = 0, sub_last_updated = GETDATE() where sub_project_id = @subProjectID;")
         if (queryExists) {
             dropProjectQuery = (`UPDATE tbl_project_drop_request SET status = 0, 
-                    drop_date = getDate()             
+                    drop_date = GETDATE(),
+                    approved_by = COALESCE(@approvedBy, approved_by)
                     WHERE sub_project_id = @subProjectID`)
         }
     }

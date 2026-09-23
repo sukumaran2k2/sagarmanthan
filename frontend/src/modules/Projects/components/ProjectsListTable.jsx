@@ -11,6 +11,7 @@ import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { isOrganisationUser as checkIsOrganisationUser } from '../../../utils/authSession';
+import { pickPresentCost } from '../utils/mapProject';
 
 const STATUS_COLORS = {
   'Under Implementation': '#0284c7',
@@ -29,6 +30,68 @@ function toAmount(value) {
   });
 }
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatDropTimestamp(val) {
+  if (!val || val === '-' || val === 'null' || val === 'undefined') return null;
+
+  let year, month, day, hours, minutes, seconds;
+
+  if (typeof val === 'string') {
+    const s = val.trim();
+    // Match 'YYYY-MM-DD' or 'YYYY-MM-DD HH:mm:ss' or 'YYYY-MM-DDTHH:mm:ss...'
+    const match = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (match) {
+      year = parseInt(match[1], 10);
+      month = parseInt(match[2], 10) - 1;
+      day = parseInt(match[3], 10);
+      hours = match[4] !== undefined ? parseInt(match[4], 10) : 0;
+      minutes = match[5] !== undefined ? parseInt(match[5], 10) : 0;
+      seconds = match[6] !== undefined ? parseInt(match[6], 10) : 0;
+    }
+  }
+
+  if (year === undefined) {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return { date: String(val), time: null };
+
+    // If it came with 'Z' (UTC timestamp from tedious/mssql), use UTC components to get exact DB timestamp
+    if (typeof val === 'string' && val.includes('Z')) {
+      year = d.getUTCFullYear();
+      month = d.getUTCMonth();
+      day = d.getUTCDate();
+      hours = d.getUTCHours();
+      minutes = d.getUTCMinutes();
+      seconds = d.getUTCSeconds();
+    } else {
+      year = d.getFullYear();
+      month = d.getMonth();
+      day = d.getDate();
+      hours = d.getHours();
+      minutes = d.getMinutes();
+      seconds = d.getSeconds();
+    }
+  }
+
+  const dayStr = String(day).padStart(2, '0');
+  const monthStr = MONTH_NAMES[month] || 'Jan';
+  const dateStr = `${dayStr} ${monthStr} ${year}`;
+
+  // If time is 00:00:00 (pure date without time), return only the date
+  if (hours === 0 && minutes === 0 && seconds === 0) {
+    return { date: dateStr, time: null };
+  }
+
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  const hourStr = String(hour12).padStart(2, '0');
+  const minStr = String(minutes).padStart(2, '0');
+  const secStr = String(seconds).padStart(2, '0');
+  const timeStr = `${hourStr}:${minStr}:${secStr} ${ampm}`;
+
+  return { date: dateStr, time: timeStr };
+}
+
 export default function ProjectsListTable({
   rows = [],
   loading = false,
@@ -38,10 +101,13 @@ export default function ProjectsListTable({
   stageCounts,
   filters,
   onFiltersChange,
-  stageOptions = [],
   categoryOptions = [],
+  schemeOptions = [],
+  implementationModeOptions = [],
+  implementationTypeOptions = [],
   organisations = [],
   states = [],
+  districts = [],
 
   canAdd = false,
   canEdit = false,
@@ -90,6 +156,8 @@ export default function ProjectsListTable({
     stage: true,
     dropReqAt: true,
     dropReqApprovedAt: true,
+    dropRequestedBy: true,
+    dropApprovedBy: true,
     dropRemarks: true,
     dropStatus: true,
     actions: true,
@@ -107,9 +175,19 @@ export default function ProjectsListTable({
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (filters?.organisationId) count++;
+    if ((filters?.search || '').trim()) count++;
     if (filters?.projectCategory && filters.projectCategory !== 'All') count++;
+    if (filters?.schemeId && filters.schemeId !== 'All') count++;
+    if (filters?.isSagarmalaFunded && filters.isSagarmalaFunded !== 'All') count++;
+    if (filters?.organisationId) count++;
+    if (filters?.implementationMode && filters.implementationMode !== 'All') count++;
+    if (filters?.implementationType && filters.implementationType !== 'All') count++;
     if (filters?.state) count++;
+    if (filters?.district) count++;
+    if (filters?.physicalProgressMin !== '' && filters?.physicalProgressMin != null) count++;
+    if (filters?.physicalProgressMax !== '' && filters?.physicalProgressMax != null) count++;
+    if (filters?.financialProgressMin !== '' && filters?.financialProgressMin != null) count++;
+    if (filters?.financialProgressMax !== '' && filters?.financialProgressMax != null) count++;
     return count;
   }, [filters]);
 
@@ -120,11 +198,31 @@ export default function ProjectsListTable({
   const clearFilters = () => {
     onFiltersChange?.({ 
       ...filters,
+      search: '',
       projectCategory: 'All', 
+      schemeId: 'All',
+      isSagarmalaFunded: 'All',
       organisationId: '',
-      state: ''
+      implementationMode: 'All',
+      implementationType: 'All',
+      state: '',
+      district: '',
+      physicalProgressMin: '',
+      physicalProgressMax: '',
+      financialProgressMin: '',
+      financialProgressMax: '',
     });
   };
+
+  const filteredDistricts = useMemo(() => {
+    if (!filters?.state) return districts;
+    const selectedState = states.find(
+      (st) => String(st?.state_name || st?.name || st?.state_names || '') === String(filters.state)
+    );
+    const selectedStateId = selectedState?.state_id ?? selectedState?.id;
+    if (!selectedStateId) return districts;
+    return districts.filter((d) => String(d?.state_id || d?.stateId || '') === String(selectedStateId));
+  }, [districts, states, filters?.state]);
 
   const counts = useMemo(() => {
     const src = stageCounts || pagination?.counts;
@@ -170,6 +268,10 @@ export default function ProjectsListTable({
     ];
   }, [counts]);
 
+  const selectedStage = filters?.projectStage || 'All';
+  const isAllProjectsTab = selectedStage === 'All';
+  const isDroppedTab = selectedStage === 'Dropped';
+
   const STATUS_TABS = [
     { id: 'All', label: 'ALL PROJECTS', count: counts.all },
     { id: 'Project Initiated', label: 'PROJECT INITIATED', count: counts.planning },
@@ -188,6 +290,20 @@ export default function ProjectsListTable({
 
   const columnDefs = useMemo(() => {
     const cols = [];
+    const isInitiatedTab = selectedStage === 'Project Initiated';
+    const isTenderingTab = selectedStage === 'Under Tendering';
+    const isImplementationTab = selectedStage === 'Under Implementation';
+    const isCompletedTab = selectedStage === 'Completed';
+
+    const costHeader = isInitiatedTab
+      ? 'Estimated Cost (₹ Cr)'
+      : isTenderingTab
+        ? 'Sanctioned Cost (₹ Cr)'
+        : isImplementationTab
+          ? 'Awarded Cost (₹ Cr)'
+          : isCompletedTab
+            ? 'Closure Cost (₹ Cr)'
+            : 'Cost (₹ Cr)';
 
     if (visibleCols.sNo) {
       cols.push({
@@ -371,10 +487,10 @@ export default function ProjectsListTable({
       });
     }
 
-    if (visibleCols.sanctionedCost) {
+    if (visibleCols.sanctionedCost && !isAllProjectsTab && !isDroppedTab) {
       cols.push({
         field: 'sanctionedCost',
-        headerName: 'Sanctioned Cost (₹ Cr)',
+        headerName: costHeader,
         width: 150,
         cellClass: 'font-bold text-emerald-600 dark:text-emerald-400 text-center font-mono text-xs flex items-center justify-center',
         headerClass: 'text-center',
@@ -385,11 +501,46 @@ export default function ProjectsListTable({
           textAlign: 'center',
         },
         cellRenderer: (params) => {
-          const val = params.data?.sanctionedCost ?? params.data?.cost ?? params.value;
+          const row = params.data || {};
+          const stageText = String(row.stage || '').toLowerCase();
+          const effectiveStage = isAllProjectsTab
+            ? stageText
+            : String(selectedStage || '').toLowerCase();
+
+          let val = null;
+          if (effectiveStage.includes('complete')) {
+            val = pickPresentCost(
+              row.closureCost,
+              row.awardedCost,
+              row.sanctionedCost,
+              row.estimatedCost,
+              row.cost
+            );
+          } else if (effectiveStage.includes('implement')) {
+            val = pickPresentCost(
+              row.awardedCost,
+              row.sanctionedCost,
+              row.estimatedCost,
+              row.cost
+            );
+          } else if (effectiveStage.includes('tender')) {
+            val = pickPresentCost(row.sanctionedCost, row.estimatedCost, row.cost);
+          } else if (isAllProjectsTab || isDroppedTab) {
+            val = pickPresentCost(
+              row.cost,
+              row.estimatedCost,
+              row.sanctionedCost,
+              row.awardedCost,
+              row.closureCost
+            );
+          } else {
+            val = pickPresentCost(row.estimatedCost, row.sanctionedCost, row.cost);
+          }
+
           return (
             <div className="w-full flex items-center justify-center text-center">
               <span>
-                {val !== undefined && val !== null && val !== ''
+                {val !== null && val !== undefined && val !== ''
                   ? `₹ ${toAmount(val)}`
                   : '-'}
               </span>
@@ -399,7 +550,7 @@ export default function ProjectsListTable({
       });
     }
 
-    if (visibleCols.physicalProgress) {
+    if (visibleCols.physicalProgress && !isInitiatedTab && !isTenderingTab) {
       cols.push({
         field: 'physicalProgress',
         headerName: 'Physical Progress',
@@ -421,7 +572,7 @@ export default function ProjectsListTable({
       });
     }
 
-    if (visibleCols.financialProgress) {
+    if (visibleCols.financialProgress && !isInitiatedTab && !isTenderingTab) {
       cols.push({
         field: 'financialProgress',
         headerName: 'Financial Progress',
@@ -443,10 +594,6 @@ export default function ProjectsListTable({
       });
     }
 
-    const isAllProjectsTab = !filters?.projectStage || filters.projectStage === 'All';
-    const isDroppedTab = filters?.projectStage === 'Dropped';
-
-    // Status / Stage column: ONLY needed in the "ALL PROJECTS" tab
     if (isAllProjectsTab && visibleCols.stage) {
       cols.push({
         field: 'stage',
@@ -511,13 +658,12 @@ export default function ProjectsListTable({
       });
     }
 
-    // Drop Req At column: ONLY shown in the "DROPPED" tab
     if (isDroppedTab && visibleCols.dropReqAt !== false) {
       cols.push({
         field: 'dropReqAt',
         headerName: 'Drop Req At',
-        width: 185,
-        minWidth: 165,
+        width: 175,
+        minWidth: 155,
         cellClass: 'text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
         headerClass: 'text-center',
         cellStyle: {
@@ -528,38 +674,73 @@ export default function ProjectsListTable({
         },
         valueGetter: (params) => {
           const val = params.data?.dropReqAt || params.data?.raw?.drop_req_at || params.data?.raw?.submitted_on || params.data?.dropDate || params.data?.raw?.drop_date || params.value;
-          if (!val || val === '-') return '-';
-          const d = new Date(val);
-          if (isNaN(d.getTime())) return String(val);
-          return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+          const res = formatDropTimestamp(val);
+          if (!res) return '-';
+          return res.time ? `${res.date}, ${res.time}` : res.date;
         },
         cellRenderer: (params) => {
           const val = params.data?.dropReqAt || params.data?.raw?.drop_req_at || params.data?.raw?.submitted_on || params.data?.dropDate || params.data?.raw?.drop_date || params.value;
-          if (!val || val === '-') return <div className="w-full flex items-center justify-center text-center"><span className="text-slate-400 font-mono text-xs">-</span></div>;
-          const d = new Date(val);
-          if (isNaN(d.getTime())) return <div className="w-full flex items-center justify-center text-center"><span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{val}</span></div>;
+          const res = formatDropTimestamp(val);
+          if (!res) return <div className="w-full flex items-center justify-center text-center"><span className="text-slate-400 font-mono text-xs">-</span></div>;
 
           return (
             <div className="flex flex-col items-center justify-center text-center py-1 w-full leading-tight">
               <span className="font-bold text-slate-800 dark:text-slate-200 font-mono text-xs">
-                {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                {res.date}
               </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                {d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+              {res.time && (
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                  {res.time}
+                </span>
+              )}
+            </div>
+          );
+        },
+      });
+    }
+    if (isDroppedTab && visibleCols.dropRequestedBy !== false) {
+      cols.push({
+        field: 'dropRequestedBy',
+        headerName: 'Requested By',
+        width: 180,
+        minWidth: 150,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-xs text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
+        headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: '1.35',
+        },
+        valueGetter: (params) => {
+          const reqUser = params.data?.dropRequestedByName || params.data?.raw?.drop_requested_by_name || params.data?.raw?.name || '';
+          return reqUser || '-';
+        },
+        cellRenderer: (params) => {
+          const reqUser = params.data?.dropRequestedByName || params.data?.raw?.drop_requested_by_name || params.data?.raw?.name || '';
+          if (!reqUser) return <span className="text-slate-400 font-mono text-xs">-</span>;
+
+          return (
+            <div className="flex flex-col items-center justify-center text-center py-1.5 w-full">
+              <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs whitespace-normal break-words leading-snug">
+                {reqUser}
               </span>
             </div>
           );
         },
       });
     }
-
-    // Drop Req Approved At column: ONLY shown in the "DROPPED" tab
     if (isDroppedTab && visibleCols.dropReqApprovedAt !== false) {
       cols.push({
         field: 'dropReqApprovedAt',
         headerName: 'Drop Req Approved At',
-        width: 195,
-        minWidth: 175,
+        width: 175,
+        minWidth: 155,
         cellClass: 'text-xs font-mono font-semibold text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
         headerClass: 'text-center',
         cellStyle: {
@@ -571,33 +752,70 @@ export default function ProjectsListTable({
         valueGetter: (params) => {
           const isApproved = String(params.data?.dropStatus || params.data?.raw?.drop_status || '').toLowerCase().includes('approve') || params.data?.project_status === 0 || params.data?.raw?.status === 0;
           const val = params.data?.dropReqApprovedAt || params.data?.raw?.drop_req_approved_at || (isApproved ? (params.data?.dropDate || params.data?.raw?.drop_date) : null) || params.value;
-          if (!val) return '-';
-          const d = new Date(val);
-          if (isNaN(d.getTime())) return String(val);
-          return `${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+          if (!val || !isApproved) return '-';
+          const res = formatDropTimestamp(val);
+          if (!res) return '-';
+          return res.time ? `${res.date}, ${res.time}` : res.date;
         },
         cellRenderer: (params) => {
           const isApproved = String(params.data?.dropStatus || params.data?.raw?.drop_status || '').toLowerCase().includes('approve') || params.data?.project_status === 0 || params.data?.raw?.status === 0;
           const val = params.data?.dropReqApprovedAt || params.data?.raw?.drop_req_approved_at || (isApproved ? (params.data?.dropDate || params.data?.raw?.drop_date) : null) || params.value;
           if (!val || !isApproved) return <div className="w-full flex items-center justify-center text-center"><span className="text-slate-400 font-mono text-xs italic">-</span></div>;
-          const d = new Date(val);
-          if (isNaN(d.getTime())) return <div className="w-full flex items-center justify-center text-center"><span className="text-xs font-mono font-semibold text-emerald-600">{val}</span></div>;
+          const res = formatDropTimestamp(val);
+          if (!res) return <div className="w-full flex items-center justify-center text-center"><span className="text-slate-400 font-mono text-xs italic">-</span></div>;
 
           return (
             <div className="flex flex-col items-center justify-center text-center py-1 w-full leading-tight">
               <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono text-xs">
-                {d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                {res.date}
               </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                {d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+              {res.time && (
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                  {res.time}
+                </span>
+              )}
+            </div>
+          );
+        },
+      });
+    }
+    if (isDroppedTab && visibleCols.dropApprovedBy !== false) {
+      cols.push({
+        field: 'dropApprovedBy',
+        headerName: 'Approved By',
+        width: 180,
+        minWidth: 150,
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-xs text-slate-700 dark:text-slate-300 text-center flex items-center justify-center',
+        headerClass: 'text-center',
+        cellStyle: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: '1.35',
+        },
+        valueGetter: (params) => {
+          const appUser = params.data?.dropApprovedByName || params.data?.raw?.drop_approved_by_name || '';
+          return appUser || '-';
+        },
+        cellRenderer: (params) => {
+          const appUser = params.data?.dropApprovedByName || params.data?.raw?.drop_approved_by_name || '';
+          if (!appUser) return <span className="text-slate-400 font-mono text-xs">-</span>;
+
+          return (
+            <div className="flex flex-col items-center justify-center text-center py-1.5 w-full">
+              <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-xs whitespace-normal break-words leading-snug">
+                {appUser}
               </span>
             </div>
           );
         },
       });
     }
-
-    // Drop Reason column: ONLY shown in the "DROPPED" tab
     if (isDroppedTab && visibleCols.dropRemarks !== false) {
       cols.push({
         field: 'dropRemarks',
@@ -634,24 +852,19 @@ export default function ProjectsListTable({
         },
       });
     }
-
-    // Drop Status column: ONLY shown in the "DROPPED" tab
     if (isDroppedTab && visibleCols.dropStatus !== false) {
       cols.push({
         field: 'dropStatus',
         headerName: 'Drop Status',
-        width: 220,
-        minWidth: 190,
-        autoHeight: true,
-        wrapText: true,
-        cellClass: 'text-xs font-semibold text-center flex items-center justify-center py-2',
+        width: 165,
+        minWidth: 145,
+        cellClass: 'text-xs font-semibold text-center flex items-center justify-center',
         headerClass: 'text-center',
         cellStyle: {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           textAlign: 'center',
-          minHeight: '48px',
         },
         valueGetter: (params) => {
           return params.data?.dropStatus || params.data?.raw?.drop_status || params.value || 'Approved';
@@ -663,41 +876,35 @@ export default function ProjectsListTable({
           let statusBadge;
           if (s.includes('wait') || s.includes('pending')) {
             statusBadge = (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 shadow-xs tracking-tight whitespace-nowrap min-h-[28px]">
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                </span>
-                <Clock className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 tracking-tight whitespace-nowrap shadow-xs">
+                <Clock className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />
                 <span>Waiting for Approval</span>
               </span>
             );
           } else if (s.includes('reject')) {
             statusBadge = (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 shadow-xs tracking-tight whitespace-nowrap min-h-[28px]">
-                <XCircle className="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 tracking-tight whitespace-nowrap shadow-xs">
+                <XCircle className="h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" />
                 <span>Rejected</span>
               </span>
             );
           } else {
             statusBadge = (
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 shadow-xs tracking-tight whitespace-nowrap min-h-[28px]">
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 tracking-tight whitespace-nowrap shadow-xs">
+                <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 <span>Approved</span>
               </span>
             );
           }
 
           return (
-            <div className="w-full flex items-center justify-center text-center py-1">
+            <div className="w-full flex items-center justify-center text-center">
               {statusBadge}
             </div>
           );
         },
       });
     }
-
-    // Action column: NOT shown in the "DROPPED" tab
     if (!isDroppedTab && visibleCols.actions) {
       cols.push({
         headerName: 'Action',
@@ -872,7 +1079,20 @@ export default function ProjectsListTable({
             return (
               <button
                 key={tab.id}
-                onClick={() => setFilter('projectStage', tab.id)}
+                onClick={() =>
+                  onFiltersChange?.({
+                    ...filters,
+                    projectStage: tab.id,
+                    ...(tab.id === 'Project Initiated' || tab.id === 'Under Tendering'
+                      ? {
+                          physicalProgressMin: '',
+                          physicalProgressMax: '',
+                          financialProgressMin: '',
+                          financialProgressMax: '',
+                        }
+                      : {}),
+                  })
+                }
                 className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   isSelected
                     ? tab.id === 'Dropped'
@@ -1018,16 +1238,22 @@ export default function ProjectsListTable({
                     ...(!isOrgUser
                       ? [{ key: 'primaryImplementingAgency', label: 'Primary Implementing Agency' }]
                       : []),
-                    { key: 'sanctionedCost', label: 'Sanctioned Cost (₹ Cr)' },
-                    { key: 'physicalProgress', label: 'Physical Progress' },
-                    { key: 'financialProgress', label: 'Financial Progress' },
+                    ...(!isAllProjectsTab && !isDroppedTab ? [{ key: 'sanctionedCost', label: 'Cost (₹ Cr)' }] : []),
+                    ...((filters?.projectStage === 'Project Initiated' || filters?.projectStage === 'Under Tendering')
+                      ? []
+                      : [
+                          { key: 'physicalProgress', label: 'Physical Progress' },
+                          { key: 'financialProgress', label: 'Financial Progress' },
+                        ]),
                     ...((!filters?.projectStage || filters.projectStage === 'All')
                       ? [{ key: 'stage', label: 'Status / Stage' }]
                       : []),
                     ...(filters?.projectStage === 'Dropped'
                       ? [
                           { key: 'dropReqAt', label: 'Drop Req At' },
+                          { key: 'dropRequestedBy', label: 'Requested By' },
                           { key: 'dropReqApprovedAt', label: 'Drop Req Approved At' },
+                          { key: 'dropApprovedBy', label: 'Approved By' },
                           { key: 'dropRemarks', label: 'Drop Reason' },
                           { key: 'dropStatus', label: 'Drop Status' },
                         ]
@@ -1097,14 +1323,14 @@ export default function ProjectsListTable({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                  Lead Organisation
+                  Primary Implementing Agency (IA)
                 </label>
                 <select
                   value={filters?.organisationId || ''}
                   onChange={(e) => setFilter('organisationId', e.target.value)}
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
-                  <option value="">All Organisations ({organisations.length})</option>
+                  <option value="">All Primary Implementing Agencies</option>
                   {organisations.map((org) => {
                     const orgId = org.organisation_id || org.id;
                     const orgName = org.organisation_name || org.name;
@@ -1142,17 +1368,62 @@ export default function ProjectsListTable({
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                  State / Region
+                  Scheme
+                </label>
+                <select
+                  value={filters?.schemeId || 'All'}
+                  onChange={(e) => setFilter('schemeId', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="All">All Schemes</option>
+                  {schemeOptions.map((sch, idx) => {
+                    const value = String(sch?.scheme_id ?? sch?.id ?? idx);
+                    const label = sch?.scheme_name || sch?.name || value;
+                    return (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Is Sagarmala Funded
+                </label>
+                <select
+                  value={filters?.isSagarmalaFunded || 'All'}
+                  onChange={(e) => setFilter('isSagarmalaFunded', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="All">All</option>
+                  <option value="1">Yes</option>
+                  <option value="0">No</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  State
                 </label>
                 <select
                   value={filters?.state || ''}
-                  onChange={(e) => setFilter('state', e.target.value)}
+                  onChange={(e) =>
+                    onFiltersChange?.({
+                      ...filters,
+                      state: e.target.value,
+                      district: '',
+                    })
+                  }
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
-                  <option value="">All States ({states.length})</option>
+                  <option value="">All States</option>
                   {states.map((st) => {
+                    const stId = st.state_id || st.id;
                     const stName = st.state_name || st.name || st.state_names;
-                    const stId = st.state_id || st.id || stName;
                     return (
                       <option key={stId} value={stName}>
                         {stName}
@@ -1161,7 +1432,115 @@ export default function ProjectsListTable({
                   })}
                 </select>
               </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  District
+                </label>
+                <select
+                  value={filters?.district || ''}
+                  onChange={(e) => setFilter('district', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">All Districts</option>
+                  {filteredDistricts.map((dt) => {
+                    const dtId = dt.district_id || dt.id;
+                    const dtName = dt.district_name || dt.name;
+                    return (
+                      <option key={dtId} value={dtName}>
+                        {dtName}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Implementation Mode
+                </label>
+                <select
+                  value={filters?.implementationMode || 'All'}
+                  onChange={(e) => setFilter('implementationMode', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  {implementationModeOptions.map((mode) => (
+                    <option key={mode} value={mode}>{mode}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Implementation Type
+                </label>
+                <select
+                  value={filters?.implementationType || 'All'}
+                  onChange={(e) => setFilter('implementationType', e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  {implementationTypeOptions.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+
+            {filters?.projectStage !== 'Project Initiated' && filters?.projectStage !== 'Under Tendering' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                    Physical Progress (%)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Min"
+                      value={filters?.physicalProgressMin ?? ''}
+                      onChange={(e) => setFilter('physicalProgressMin', e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Max"
+                      value={filters?.physicalProgressMax ?? ''}
+                      onChange={(e) => setFilter('physicalProgressMax', e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                    Financial Progress (%)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Min"
+                      value={filters?.financialProgressMin ?? ''}
+                      onChange={(e) => setFilter('financialProgressMin', e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Max"
+                      value={filters?.financialProgressMax ?? ''}
+                      onChange={(e) => setFilter('financialProgressMax', e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
 

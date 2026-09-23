@@ -10,7 +10,12 @@ import UnderTenderingStage from './UnderTenderingStage';
 import UnderImplementationStage from './UnderImplementationStage';
 import ProjectCompletionStage from './ProjectCompletionStage';
 import { getProjectIdentity } from '../utils/mapProject';
-import { resolveWorkbenchLevel } from '../utils/stageProgress';
+import {
+  DEFAULT_STAGE_UNLOCK,
+  getStageLockMessage,
+  isStageUnlocked,
+  resolveWorkbenchLevel,
+} from '../utils/stageProgress';
 
 const NAV_STICKY_OFFSET_PX = 42;
 
@@ -35,6 +40,7 @@ export default function ProjectStageWorkbench({
   initialData,
   activeStage: controlledActiveStage,
   onActiveStageChange,
+  stageUnlock = DEFAULT_STAGE_UNLOCK,
   canSubmit,
   readOnly,
   loading,
@@ -42,6 +48,7 @@ export default function ProjectStageWorkbench({
   onSubmit,
   onSubmitStage,
   notify,
+  onRevisedTargetSaved,
   stageRefreshKey = 0,
   documentRows = [],
   documentsLoading = false,
@@ -84,6 +91,8 @@ export default function ProjectStageWorkbench({
     [raw.current_project_stage_id, stage]
   );
 
+  const unlockState = stageUnlock || DEFAULT_STAGE_UNLOCK;
+
   useEffect(() => {
     if (!isUpdateMode) {
       setStageTableStickyTop(NAV_STICKY_OFFSET_PX);
@@ -109,27 +118,23 @@ export default function ProjectStageWorkbench({
 
   const handleTabClick = (stageId) => {
     if (!isUpdateMode) return;
-    const targetIdx = STAGES.findIndex((s) => s.id === stageId);
-    if (targetIdx > currentProjectLevel) {
-      const prevStage = STAGES[targetIdx - 1];
-      const msg = `Please complete Stage 0${targetIdx} (${prevStage.label}) before proceeding to Stage 0${targetIdx + 1} (${STAGES[targetIdx].label}).`;
+
+    if (!isStageUnlocked(stageId, unlockState)) {
+      const msg = getStageLockMessage(stageId);
       setWarningMsg(msg);
       notify?.(msg, 'error');
       return;
     }
+
     setWarningMsg(null);
     setActiveStage(stageId);
   };
 
   const handleBasicSubmit = async (formData) => {
     const ok = await onSubmit?.(formData);
-    if (ok && isUpdateMode) {
-      setActiveStage('planning');
-    }
     return ok;
   };
 
-  // Page owns next-tab / stage-label sync via checkpoints — do not double-advance here.
   const handleMilestoneSubmit = async (stageId, stageData) => {
     return onSubmitStage?.(stageId, stageData);
   };
@@ -228,11 +233,11 @@ export default function ProjectStageWorkbench({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1">
             {STAGES.map((stg, idx) => {
               const isActive = activeStage === stg.id;
-              const isLocked = idx > currentProjectLevel;
-              const isCompleted = (
-                (currentProjectLevel === 4) ||
-                (idx < currentProjectLevel)
-              );
+              const isLocked = !isStageUnlocked(stg.id, unlockState);
+              const nextStageId = STAGES[idx + 1]?.id;
+              const isCompleted = nextStageId
+                ? isStageUnlocked(nextStageId, unlockState)
+                : currentProjectLevel >= 4 || String(stage || '').toLowerCase().includes('complete');
 
               return (
                 <button
@@ -251,7 +256,7 @@ export default function ProjectStageWorkbench({
                       ? 'bg-white text-[#0f417a] border-white shadow-md shadow-blue-950/25 ring-2 ring-white/50 cursor-pointer font-bold'
                       : 'bg-white/10 hover:bg-white/20 border-white/15 text-white/90 cursor-pointer backdrop-blur-sm'
                   }`}
-                  title={isLocked ? `Locked: Complete Stage 0${idx} (${STAGES[idx - 1]?.label}) first` : stg.desc}
+                  title={isLocked ? getStageLockMessage(stg.id) : stg.desc}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className={`text-[10px] font-black tracking-widest ${
@@ -316,6 +321,7 @@ export default function ProjectStageWorkbench({
             onBack={onBack}
             onSubmit={handleBasicSubmit}
             notify={notify}
+            onRevisedTargetSaved={onRevisedTargetSaved}
             outlayProps={outlayProps}
             documentRows={documentRows}
             documentsLoading={documentsLoading}

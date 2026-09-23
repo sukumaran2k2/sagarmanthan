@@ -66,7 +66,6 @@ export function formatFileSize(bytes) {
   return `${sizeKB.toFixed(2)} KB`;
 }
 
-/** Legacy basic-info "Others" document folders (must match backend Project_Documents subfolders). */
 export const PROJECT_DOCUMENT_TYPES = [
   {
     folderName: 'project_ppt',

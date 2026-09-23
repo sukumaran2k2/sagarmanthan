@@ -63,12 +63,10 @@ export default function PlanningSanctioningStage({
 
   const visibleRows = useMemo(() => {
     if (isPortLevelApproval) {
-      // Keep only pre-feasibility, DPR, and chairman row in Port Level Approval mode.
       return rows.filter((row) =>
         ['preFeasibility', 'dpr', 'chairmanApproval'].includes(row.key)
       );
     }
-    // In non-port flows, chairman row stays hidden as in legacy UI.
     return rows.filter((row) => row.key !== 'chairmanApproval');
   }, [rows, isPortLevelApproval]);
 
@@ -220,10 +218,6 @@ export default function PlanningSanctioningStage({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-xs font-semibold text-amber-900">
-        Project stage details are structured as in legacy planning/sanctioning flow.
-      </div>
-
       {loading ? (
         <div className="text-xs font-semibold text-slate-500">Loading planning details...</div>
       ) : null}

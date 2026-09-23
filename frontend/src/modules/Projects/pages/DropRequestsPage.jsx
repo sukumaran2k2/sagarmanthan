@@ -7,11 +7,63 @@ import {
 import { fetchDropRequests, acceptDropRequest, rejectDropProject } from '../api';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function fmtDateTime(val) {
+  if (!val || val === '-' || val === 'null' || val === 'undefined') return '-';
+  let year, month, day, hours, minutes, seconds;
+
+  if (typeof val === 'string') {
+    const s = val.trim();
+    const match = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (match) {
+      year = parseInt(match[1], 10);
+      month = parseInt(match[2], 10) - 1;
+      day = parseInt(match[3], 10);
+      hours = match[4] !== undefined ? parseInt(match[4], 10) : 0;
+      minutes = match[5] !== undefined ? parseInt(match[5], 10) : 0;
+      seconds = match[6] !== undefined ? parseInt(match[6], 10) : 0;
+    }
+  }
+
+  if (year === undefined) {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return String(val);
+    if (typeof val === 'string' && val.includes('Z')) {
+      year = d.getUTCFullYear();
+      month = d.getUTCMonth();
+      day = d.getUTCDate();
+      hours = d.getUTCHours();
+      minutes = d.getUTCMinutes();
+      seconds = d.getUTCSeconds();
+    } else {
+      year = d.getFullYear();
+      month = d.getMonth();
+      day = d.getDate();
+      hours = d.getHours();
+      minutes = d.getMinutes();
+      seconds = d.getSeconds();
+    }
+  }
+
+  const dayStr = String(day).padStart(2, '0');
+  const monthStr = MONTH_NAMES[month] || 'Jan';
+  const dateStr = `${dayStr} ${monthStr} ${year}`;
+
+  if (hours === 0 && minutes === 0 && seconds === 0) {
+    return dateStr;
+  }
+
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  const hourStr = String(hour12).padStart(2, '0');
+  const minStr = String(minutes).padStart(2, '0');
+  const secStr = String(seconds).padStart(2, '0');
+  return `${dateStr}, ${hourStr}:${minStr}:${secStr} ${ampm}`;
+}
+
 function fmt(dateStr) {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  if (isNaN(d)) return '-';
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return fmtDateTime(dateStr);
 }
 
 function StatusBadge({ row }) {
@@ -83,7 +135,7 @@ function ConfirmModal({ open, title, message, confirmLabel, confirmColor, onConf
   );
 }
 
-function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
+function RequestCard({ row, canReview, onAccept, onReject, busy }) {
   const isPending = row.reject_request_status !== 0 && !row.drop_date;
   const isDropped = row.status === 0 && !!row.drop_date;
   const isRejected = row.reject_request_status === 0;
@@ -94,6 +146,11 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
     : isRejected
     ? 'border-amber-200 dark:border-amber-900/40 bg-gradient-to-b from-white to-amber-50/20 dark:from-slate-900 dark:to-amber-950/10'
     : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900';
+
+  const reqUser = row.name || row.submitted_by_name || '';
+  const reqId = row.submitted_by || '';
+  const appUser = row.approved_by_name || '';
+  const appId = row.approved_by || '';
 
   return (
     <div className={`border rounded-2xl shadow-sm p-4.5 space-y-3.5 transition hover:shadow-md ${borderCls}`}>
@@ -132,11 +189,11 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
         {row.stage_name && (
           <span className="flex items-center gap-1"><FolderOpen className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />{row.stage_name}</span>
         )}
-        {row.name && (
-          <span className="flex items-center gap-1"><User className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />{row.name}</span>
+        {reqUser && (
+          <span className="flex items-center gap-1"><User className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />Req by: {reqUser}</span>
         )}
         {row.submitted_on && (
-          <span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />Submitted {fmt(row.submitted_on)}</span>
+          <span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />Submitted: {fmtDateTime(row.submitted_on)}</span>
         )}
         {row.sanctioned_cost && (
           <span>₹{Number(row.sanctioned_cost).toLocaleString('en-IN')} Cr</span>
@@ -163,11 +220,11 @@ function RequestCard({ row, isMinistry, onAccept, onReject, busy }) {
 
       {isDropped && row.drop_date && (
         <p className="text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
-          <CheckCheck className="h-3.5 w-3.5" /> Dropped on {fmt(row.drop_date)}
+          <CheckCheck className="h-3.5 w-3.5" /> Dropped on {fmtDateTime(row.drop_date)} {appUser ? `(Approved by: ${appUser})` : ''}
         </p>
       )}
 
-      {isMinistry && isPending && (
+      {canReview && isPending && (
         <div className="flex gap-2 pt-2 border-t border-slate-150 dark:border-slate-800">
           <button
             disabled={busy}
@@ -197,7 +254,13 @@ const FILTER_TABS = [
 
 export default function DropRequestsPage({ notify }) {
   const permissions = useProjectsPermissions();
-  const isMinistry = !permissions.isOrganisationUser && (permissions.viewMode === 'ministry' || permissions.viewMode === 'standard' || !permissions.viewMode);
+  const isMinistry =
+    !permissions.isOrganisationUser &&
+    (permissions.viewMode === 'ministry' ||
+      permissions.viewMode === 'standard' ||
+      !permissions.viewMode);
+  const canViewDrops = Boolean(permissions.canView && isMinistry);
+  const canReviewDrops = Boolean(permissions.canEdit && isMinistry);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -209,7 +272,7 @@ export default function DropRequestsPage({ notify }) {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    if (!isMinistry) return;
+    if (!canViewDrops) return;
     setLoading(true);
     try {
       const res = await fetchDropRequests(permissions.userId);
@@ -220,15 +283,15 @@ export default function DropRequestsPage({ notify }) {
     } finally {
       setLoading(false);
     }
-  }, [permissions.userId, isMinistry, notify]);
+  }, [permissions.userId, canViewDrops, notify]);
 
   useEffect(() => { 
-    if (isMinistry) {
+    if (canViewDrops) {
       load(); 
     }
-  }, [load, isMinistry]);
+  }, [load, canViewDrops]);
 
-  if (!isMinistry) {
+  if (!canViewDrops) {
     return (
       <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs animate-fade-in">
         <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3">
@@ -236,19 +299,19 @@ export default function DropRequestsPage({ notify }) {
         </div>
         <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Ministry View Only</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 max-w-md mx-auto">
-          The Drop Requests review section is exclusively available for Ministry View.
+          The Drop Requests review section is exclusively available for Ministry View with read access.
         </p>
       </div>
     );
   }
 
   const handleAccept = async () => {
-    if (!acceptModal) return;
+    if (!acceptModal || !canReviewDrops) return;
     setBusy(true);
     try {
       const row = acceptModal;
       const subId = row.sub_project_id && row.sub_project_id !== '' ? row.sub_project_id : '-1';
-      await acceptDropRequest(row.project_id, subId);
+      await acceptDropRequest(row.project_id, subId, { approvedBy: permissions.userId });
       if (notify) notify('Project dropped successfully.', 'success');
       window.dispatchEvent(new Event('drop-request-updated'));
       window.dispatchEvent(new Event('notifications-updated'));
@@ -263,7 +326,7 @@ export default function DropRequestsPage({ notify }) {
   };
 
   const handleReject = async () => {
-    if (!rejectModal) return;
+    if (!rejectModal || !canReviewDrops) return;
     const reason = rejectReason.trim();
     if (!reason) { if (notify) notify('Please enter a rejection reason.', 'error'); return; }
     setBusy(true);
@@ -362,7 +425,7 @@ export default function DropRequestsPage({ notify }) {
             <RequestCard
               key={`${row.project_id}-${row.sub_project_id}-${idx}`}
               row={row}
-              isMinistry={isMinistry}
+              canReview={canReviewDrops}
               busy={busy}
               onAccept={(r) => setAcceptModal(r)}
               onReject={(r) => { setRejectModal(r); setRejectReason(''); }}

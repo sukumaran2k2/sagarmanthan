@@ -2,6 +2,7 @@ import { pool } from "../../db.js";
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { getDataScope } from "../../middleware/dataScope.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,8 +22,11 @@ async function projectFolderDownloadLog(req, res)
    
     try {
      
-            const query = ` INSERT INTO tbl_project_folder_download_log ( user_id, email_id, requested_datetime) 
-            VALUES ( @userID, @emailId, CURRENT_TIMESTAMP ) `;
+            // Same flow as previous portal: queue the request here.
+            // Offline job `backend/projectMediaFileDownload.py` picks status=0 rows,
+            // builds the ZIP, emails the download link, then sets status=1.
+            const query = ` INSERT INTO tbl_project_folder_download_log ( user_id, email_id, requested_datetime, status) 
+            VALUES ( @userID, @emailId, CURRENT_TIMESTAMP, 0 ) `;
 
         const result = await request.query(query);
 
@@ -90,17 +94,33 @@ async function projectMediaLinkDownload(req, res) {
 
 async function getProjectList(req, res) {
     const conn = await pool;
-    const userID = Number(req.params.userID);
+    const requestedUserID = Number(req.params.userID);
+    const tokenUserID = Number(req.user?.userId || req.user?.user_id);
+    const userID = Number.isFinite(tokenUserID) && tokenUserID > 0 ? tokenUserID : requestedUserID;
 
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
     const offset = (page - 1) * limit;
 
     const search = String(req.query.search || '').trim();
+    const includeCounts = String(req.query.includeCounts || '0') === '1';
     const projectStage = String(req.query.projectStage || '').trim();
     const projectCategory = String(req.query.projectCategory || '').trim();
+    const schemeId = Number.parseInt(req.query.schemeId, 10);
+    const isSagarmalaFundedRaw = String(req.query.isSagarmalaFunded ?? '').trim();
+    const implementationMode = String(req.query.implementationMode || '').trim();
+    const implementationType = String(req.query.implementationType || '').trim();
     const state = String(req.query.state || '').trim();
-    const organisationId = Number.parseInt(req.query.organisationId, 10);
+    const district = String(req.query.district || '').trim();
+    const requestedOrganisationId = Number.parseInt(req.query.organisationId, 10);
+    const physicalProgressMinRaw = req.query.physicalProgressMin;
+    const physicalProgressMaxRaw = req.query.physicalProgressMax;
+    const financialProgressMinRaw = req.query.financialProgressMin;
+    const financialProgressMaxRaw = req.query.financialProgressMax;
+    const physicalProgressMin = physicalProgressMinRaw === '' || physicalProgressMinRaw == null ? null : Number(physicalProgressMinRaw);
+    const physicalProgressMax = physicalProgressMaxRaw === '' || physicalProgressMaxRaw == null ? null : Number(physicalProgressMaxRaw);
+    const financialProgressMin = financialProgressMinRaw === '' || financialProgressMinRaw == null ? null : Number(financialProgressMinRaw);
+    const financialProgressMax = financialProgressMaxRaw === '' || financialProgressMaxRaw == null ? null : Number(financialProgressMaxRaw);
 
     try {
         const roleRequest = conn.request();
@@ -111,26 +131,28 @@ async function getProjectList(req, res) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const { role_id, organisation_id } = userResult.recordset[0];
-        const privilegedRoles = new Set([2, 3, 4, 5, 8]);
+        const { organisation_id } = userResult.recordset[0];
+        const dataScope = getDataScope(req.user || {});
+        const jwtOrgId = Number(dataScope.organisationId);
 
-        let submittedByFilter = '';
-        if (!privilegedRoles.has(Number(role_id))) {
-            const usersRequest = conn.request();
-            usersRequest.input('organisationID', organisation_id);
-            const usersResult = await usersRequest.query('SELECT user_id FROM tbl_user WHERE organisation_id = @organisationID');
-            const userIds = usersResult.recordset
-                .map((row) => Number(row.user_id))
-                .filter((n) => Number.isFinite(n));
+        let effectiveOrganisationId = Number.isFinite(requestedOrganisationId) && requestedOrganisationId > 0
+            ? requestedOrganisationId
+            : null;
 
-            if (!userIds.length) {
+        if (dataScope.isOrganisation) {
+            const fallbackOrgId = Number(organisation_id);
+            effectiveOrganisationId = Number.isFinite(jwtOrgId) && jwtOrgId > 0
+                ? jwtOrgId
+                : (Number.isFinite(fallbackOrgId) && fallbackOrgId > 0 ? fallbackOrgId : null);
+
+            if (!Number.isFinite(effectiveOrganisationId) || effectiveOrganisationId <= 0) {
                 return res.json({ data: [], pagination: { total: 0, page, limit, totalPages: 0, counts: { all: 0, planning: 0, tendering: 0, ui: 0, completed: 0 } } });
             }
-
-            submittedByFilter = ` AND ISNULL(sp.sub_submitted_by, p.submitted_by) IN (${userIds.join(',')})`;
+        } else if (!dataScope.isWide && Number.isFinite(jwtOrgId) && jwtOrgId > 0) {
+            effectiveOrganisationId = jwtOrgId;
         }
 
-        const scopeByOrganisation = Number.isFinite(organisationId) && organisationId > 0
+        const scopeByOrganisation = Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0
             ? ' AND ISNULL(sp.sub_organisation_id, p.organisation_id) = @organisationId'
             : '';
 
@@ -148,14 +170,24 @@ async function getProjectList(req, res) {
                         FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_project_category_id, p.project_category_id))), ',') x
                         JOIN mmt_project_category pc ON TRY_CAST(x.value AS int) = pc.project_category_id
                     ) AS project_category_names,
+                    ISNULL(sp.sub_scheme_id, p.scheme_id) AS scheme_id,
+                    sch.scheme_name,
                     ISNULL(sp.sub_state_id, p.state_id) AS state_id,
                     (
                         SELECT STRING_AGG(st.state_name, ', ')
                         FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_state_id, p.state_id))), ',') x
                         JOIN mmt_state st ON TRY_CAST(x.value AS int) = st.state_id
                     ) AS state_names,
+                    ISNULL(sp.sub_district_id, p.district_id) AS district_id,
+                    (
+                        SELECT STRING_AGG(dt.district_name, ', ')
+                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_district_id, p.district_id))), ',') x
+                        JOIN mmt_district dt ON TRY_CAST(x.value AS int) = dt.district_id
+                    ) AS district_names,
                     ISNULL(sp.sub_organisation_id, p.organisation_id) AS organisation_id,
                     org.organisation_name,
+                    ISNULL(sp.sub_mode_of_implememtation, p.mode_of_implememtation) AS mode_of_implememtation,
+                    ISNULL(sp.sub_implememtation_type, p.implememtation_type) AS implememtation_type,
                     ISNULL(sp.sub_status, p.status) AS project_status,
                     CASE
                         WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 99
@@ -169,6 +201,9 @@ async function getProjectList(req, res) {
                     END AS stage_name,
                     ISNULL(sp.sub_estimated_cost, p.estimated_cost) AS estimated_cost,
                     ISNULL(sp.sub_sanctioned_cost, p.sanctioned_cost) AS sanctioned_cost,
+                    ISNULL(sp.sub_technical_sanction_cost, p.technical_sanction_cost) AS technical_sanction_cost,
+                    ISNULL(sp.sub_award_project_cost, p.award_project_cost) AS award_project_cost,
+                    ISNULL(sp.sub_closure_cost, p.closure_cost) AS closure_cost,
                     ISNULL(sp.sub_primary_ia_id, p.primary_ia_id) AS primary_ia_id,
                     ISNULL(ia.ia_name, '') AS primary_ia_name,
                     physicalProgress.physical_progress,
@@ -196,6 +231,10 @@ async function getProjectList(req, res) {
                     END AS drop_status,
                     dropReq.drop_request_status,
                     dropReq.reject_request_status,
+                    dropReq.drop_requested_by_id,
+                    dropReq.drop_requested_by_name,
+                    dropReq.drop_approved_by_id,
+                    dropReq.drop_approved_by_name,
                     ISNULL(sp.sub_is_sagarmala_funded, p.is_sagarmala_funded) AS is_sagarmala_funded,
                     ISNULL(sp.sub_source_of_funding_id, p.source_of_funding_id) AS source_of_funding_id,
                     ISNULL(sp.sub_sagarmala_components, p.sagarmala_components) AS sagarmala_components,
@@ -205,6 +244,7 @@ async function getProjectList(req, res) {
                 LEFT JOIN tbl_sub_project sp ON sp.project_id = p.project_id
                 LEFT JOIN mmt_organisation org ON org.organisation_id = ISNULL(sp.sub_organisation_id, p.organisation_id)
                 LEFT JOIN mmt_implementing_agency ia ON ia.ia_id = ISNULL(sp.sub_primary_ia_id, p.primary_ia_id)
+                LEFT JOIN mmt_scheme sch ON sch.scheme_id = ISNULL(sp.sub_scheme_id, p.scheme_id)
                 LEFT JOIN tbl_project_stage stage ON stage.stage_id = ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
                 OUTER APPLY (
                     SELECT TOP 1
@@ -212,6 +252,10 @@ async function getProjectList(req, res) {
                         dr.drop_date AS drop_req_approved_at,
                         COALESCE(dr.drop_date, dr.submitted_on) AS drop_date,
                         COALESCE(NULLIF(CAST(dr.remarks AS nvarchar(1000)), ''), NULLIF(CAST(dr.drop_rejected_remarks AS nvarchar(1000)), ''), '-') AS drop_remarks,
+                        dr.submitted_by AS drop_requested_by_id,
+                        uReq.name AS drop_requested_by_name,
+                        dr.approved_by AS drop_approved_by_id,
+                        uApp.name AS drop_approved_by_name,
                         dr.status AS drop_request_status,
                         dr.reject_request_status,
                         dr.drop_rejected_remarks,
@@ -222,6 +266,8 @@ async function getProjectList(req, res) {
                             ELSE NULL
                         END AS drop_status
                     FROM tbl_project_drop_request dr
+                    LEFT JOIN tbl_user uReq ON uReq.user_id = dr.submitted_by
+                    LEFT JOIN tbl_user uApp ON uApp.user_id = dr.approved_by
                     WHERE dr.project_id = p.project_id
                       AND (
                           (sp.sub_project_id IS NOT NULL AND (
@@ -286,7 +332,6 @@ async function getProjectList(req, res) {
                     GROUP BY e.sub_project_id, sp2.sub_award_project_cost
                 ) AS financialProgress ON financialProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
                 WHERE 1=1
-                ${submittedByFilter}
                 ${scopeByOrganisation}
             )
         `;
@@ -301,14 +346,45 @@ async function getProjectList(req, res) {
                 OR ISNULL(organisation_name, '') LIKE @search
                 OR ISNULL(primary_ia_name, '') LIKE @search
                 OR ISNULL(state_names, '') LIKE @search
+                OR ISNULL(district_names, '') LIKE @search
+                OR ISNULL(scheme_name, '') LIKE @search
+                OR ISNULL(mode_of_implememtation, '') LIKE @search
+                OR ISNULL(implememtation_type, '') LIKE @search
                 OR ISNULL(project_category_names, '') LIKE @search
             )`);
         }
         if (projectCategory && projectCategory !== 'All') {
             filterWhereClauses.push('ISNULL(project_category_names, \'\') LIKE @projectCategory');
         }
+        if (Number.isFinite(schemeId) && schemeId > 0) {
+            filterWhereClauses.push('scheme_id = @schemeId');
+        }
+        if (isSagarmalaFundedRaw === '0' || isSagarmalaFundedRaw === '1') {
+            filterWhereClauses.push('COALESCE(is_sagarmala_funded, 0) = @isSagarmalaFunded');
+        }
+        if (implementationMode && implementationMode !== 'All') {
+            filterWhereClauses.push('ISNULL(mode_of_implememtation, \'\') LIKE @implementationMode');
+        }
+        if (implementationType && implementationType !== 'All') {
+            filterWhereClauses.push('ISNULL(implememtation_type, \'\') LIKE @implementationType');
+        }
         if (state) {
             filterWhereClauses.push('ISNULL(state_names, \'\') LIKE @state');
+        }
+        if (district) {
+            filterWhereClauses.push('ISNULL(district_names, \'\') LIKE @district');
+        }
+        if (Number.isFinite(physicalProgressMin)) {
+            filterWhereClauses.push('COALESCE(physical_progress, 0) >= @physicalProgressMin');
+        }
+        if (Number.isFinite(physicalProgressMax)) {
+            filterWhereClauses.push('COALESCE(physical_progress, 0) <= @physicalProgressMax');
+        }
+        if (Number.isFinite(financialProgressMin)) {
+            filterWhereClauses.push('COALESCE(financial_progress, 0) >= @financialProgressMin');
+        }
+        if (Number.isFinite(financialProgressMax)) {
+            filterWhereClauses.push('COALESCE(financial_progress, 0) <= @financialProgressMax');
         }
 
         const whereClauses = [...filterWhereClauses];
@@ -334,9 +410,18 @@ async function getProjectList(req, res) {
         const countRequest = conn.request();
         const dataRequest = conn.request();
 
-        if (Number.isFinite(organisationId) && organisationId > 0) {
-            countRequest.input('organisationId', organisationId);
-            dataRequest.input('organisationId', organisationId);
+        if (Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0) {
+            countRequest.input('organisationId', effectiveOrganisationId);
+            dataRequest.input('organisationId', effectiveOrganisationId);
+        }
+        if (Number.isFinite(schemeId) && schemeId > 0) {
+            countRequest.input('schemeId', schemeId);
+            dataRequest.input('schemeId', schemeId);
+        }
+        if (isSagarmalaFundedRaw === '0' || isSagarmalaFundedRaw === '1') {
+            const sagarmalaFlag = Number(isSagarmalaFundedRaw);
+            countRequest.input('isSagarmalaFunded', sagarmalaFlag);
+            dataRequest.input('isSagarmalaFunded', sagarmalaFlag);
         }
         if (search) {
             const searchLike = `%${search}%`;
@@ -354,53 +439,86 @@ async function getProjectList(req, res) {
             countRequest.input('projectCategory', categoryLike);
             dataRequest.input('projectCategory', categoryLike);
         }
+        if (implementationMode && implementationMode !== 'All') {
+            const implementationModeLike = `%${implementationMode}%`;
+            countRequest.input('implementationMode', implementationModeLike);
+            dataRequest.input('implementationMode', implementationModeLike);
+        }
+        if (implementationType && implementationType !== 'All') {
+            const implementationTypeLike = `%${implementationType}%`;
+            countRequest.input('implementationType', implementationTypeLike);
+            dataRequest.input('implementationType', implementationTypeLike);
+        }
         if (state) {
             const stateLike = `%${state}%`;
             countRequest.input('state', stateLike);
             dataRequest.input('state', stateLike);
         }
+        if (district) {
+            const districtLike = `%${district}%`;
+            countRequest.input('district', districtLike);
+            dataRequest.input('district', districtLike);
+        }
+        if (Number.isFinite(physicalProgressMin)) {
+            countRequest.input('physicalProgressMin', physicalProgressMin);
+            dataRequest.input('physicalProgressMin', physicalProgressMin);
+        }
+        if (Number.isFinite(physicalProgressMax)) {
+            countRequest.input('physicalProgressMax', physicalProgressMax);
+            dataRequest.input('physicalProgressMax', physicalProgressMax);
+        }
+        if (Number.isFinite(financialProgressMin)) {
+            countRequest.input('financialProgressMin', financialProgressMin);
+            dataRequest.input('financialProgressMin', financialProgressMin);
+        }
+        if (Number.isFinite(financialProgressMax)) {
+            countRequest.input('financialProgressMax', financialProgressMax);
+            dataRequest.input('financialProgressMax', financialProgressMax);
+        }
 
         dataRequest.input('offset', offset);
         dataRequest.input('limit', limit);
 
-        const countResult = await countRequest.query(`${baseQuery} SELECT COUNT(1) AS total FROM base ${outerWhere};`);
-        const total = Number(countResult.recordset?.[0]?.total || 0);
-
-        const countsResult = await countRequest.query(`
-            ${baseQuery}
-            SELECT
-                COUNT(1) AS allCount,
-                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL) THEN 1 ELSE 0 END) AS planningCount,
-                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%') THEN 1 ELSE 0 END) AS tenderingCount,
-                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%') THEN 1 ELSE 0 END) AS uiCount,
-                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%') THEN 1 ELSE 0 END) AS completedCount,
-                SUM(CASE WHEN stage_name = 'Dropped' OR current_project_stage_id = 99 THEN 1 ELSE 0 END) AS droppedCount
-            FROM base
-            ${countsWhere};
-        `);
-        const cRow = countsResult.recordset?.[0] || {};
-        const counts = {
-            all: Number(cRow.allCount || 0),
-            planning: Number(cRow.planningCount || 0),
-            tendering: Number(cRow.tenderingCount || 0),
-            ui: Number(cRow.uiCount || 0),
-            completed: Number(cRow.completedCount || 0),
-            dropped: Number(cRow.droppedCount || 0),
-        };
+        let counts = null;
+        if (includeCounts) {
+            const countsResult = await countRequest.query(`
+                ${baseQuery}
+                SELECT
+                    COUNT(1) AS allCount,
+                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL) THEN 1 ELSE 0 END) AS planningCount,
+                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%') THEN 1 ELSE 0 END) AS tenderingCount,
+                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%') THEN 1 ELSE 0 END) AS uiCount,
+                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%') THEN 1 ELSE 0 END) AS completedCount,
+                    SUM(CASE WHEN stage_name = 'Dropped' OR current_project_stage_id = 99 THEN 1 ELSE 0 END) AS droppedCount
+                FROM base
+                ${countsWhere};
+            `);
+            const cRow = countsResult.recordset?.[0] || {};
+            counts = {
+                all: Number(cRow.allCount || 0),
+                planning: Number(cRow.planningCount || 0),
+                tendering: Number(cRow.tenderingCount || 0),
+                ui: Number(cRow.uiCount || 0),
+                completed: Number(cRow.completedCount || 0),
+                dropped: Number(cRow.droppedCount || 0),
+            };
+        }
 
         const dataResult = await dataRequest.query(`
             ${baseQuery}
-            SELECT *
+            SELECT *, COUNT(1) OVER() AS total_count
             FROM base
             ${outerWhere}
             ORDER BY current_project_stage_id, project_id DESC
             OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
         `);
 
+        const total = Number(dataResult.recordset?.[0]?.total_count || 0);
+        const data = dataResult.recordset.map(({ total_count, ...row }) => row);
         const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
 
         return res.json({
-            data: dataResult.recordset,
+            data,
             pagination: {
                 total,
                 page,
@@ -1276,10 +1394,16 @@ async function getProjectAllData(req, res) {
         }
         else {
             const orgResult = await conn.query(`SELECT organisation_id FROM tbl_user WHERE user_id = ${userID}`);
-            const organisationID = orgResult.recordset[0].organisation_id;
+            const organisationID = Number(orgResult.recordset?.[0]?.organisation_id);
+            const dataScope = getDataScope(req.user || {});
+            const jwtOrgId = Number(dataScope.organisationId);
+            const effectiveOrgId = Number.isFinite(jwtOrgId) && jwtOrgId > 0
+                ? jwtOrgId
+                : organisationID;
 
-            const usersResult = await conn.query(`SELECT user_id FROM tbl_user WHERE organisation_id = ${organisationID}`);
-            const userIDs = usersResult.recordset.map(user => user.user_id);
+            if (!Number.isFinite(effectiveOrgId) || effectiveOrgId <= 0) {
+                return res.json([]);
+            }
 
             // const result = await conn.query (organsationBased );
 
@@ -1665,7 +1789,7 @@ async function getProjectAllData(req, res) {
             LEFT JOIN ExpenditureTillPreviousFY expenditurePreviousFY ON PD.project_id = expenditurePreviousFY.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(expenditurePreviousFY.sub_project_id, -1)
             LEFT JOIN RevisedTargetDates RTD ON PD.project_id = RTD.project_id AND ISNULL(PD.sub_project_id, -1) = ISNULL(RTD.sub_project_id, -1)
 
-            WHERE ISNULL(PD.sub_submitted_by, PD.submitted_by)  IN (${userIDs.join(',')}) AND 
+            WHERE PD.organisation_id = ${effectiveOrgId} AND 
                 ((PD.sub_project_id IS NOT NULL AND PD.sub_status = 1) OR (PD.sub_project_id IS NULL AND PD.status = 1));        
             `);
 
@@ -1805,12 +1929,20 @@ async function getExpLogsData(req, res) {
         }
         else {
             const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
-            const organisationID = orgResult.recordset[0].organisation_id;
+            const organisationID = Number(orgResult.recordset?.[0]?.organisation_id);
+            const dataScope = getDataScope(req.user || {});
+            const jwtOrgId = Number(dataScope.organisationId);
+            const effectiveOrgId = Number.isFinite(jwtOrgId) && jwtOrgId > 0
+                ? jwtOrgId
+                : organisationID;
 
-            const usersResult = await conn.query(`SELECT user_id FROM tbl_user WHERE organisation_id = ${organisationID}`);
-            const userIDs = usersResult.recordset.map(user => user.user_id);
+            if (!Number.isFinite(effectiveOrgId) || effectiveOrgId <= 0) {
+                return res.json([]);
+            }
 
-            const result = await conn.query(`  SELECT
+            const expRequest = conn.request();
+            expRequest.input('organisationId', effectiveOrgId);
+            const result = await expRequest.query(`  SELECT
                     ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) AS [Organization ID], 
                     mmt_organisation.organisation_name AS [Organization Name],
                     tbl_project_expenditure.project_id AS [Project Id],
@@ -1851,9 +1983,9 @@ async function getExpLogsData(req, res) {
 
                     LEFT JOIN tbl_project ON tbl_project_expenditure.project_id = tbl_project.project_id
                     LEFT JOIN tbl_sub_project ON tbl_project_expenditure.sub_project_id = tbl_sub_project.sub_project_id
-                    INNER JOIN  mmt_organisation ON tbl_project.organisation_id = mmt_organisation.organisation_id
+                    INNER JOIN mmt_organisation ON mmt_organisation.organisation_id = ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id)
                     
-                    WHERE ISNULL(tbl_sub_project.sub_submitted_by, tbl_project.submitted_by)  IN (${userIDs.join(',')}) 
+                    WHERE ISNULL(tbl_sub_project.sub_organisation_id, tbl_project.organisation_id) = @organisationId
                     ORDER BY tbl_project_expenditure.project_id, tbl_project_expenditure.sub_project_id, tbl_project_expenditure.expenditure_date                 
               ;        
             `);
@@ -2369,119 +2501,260 @@ async function getUnderImplementationDate(req, res) {
     }
 }
 
+function resolveCapexActor(req) {
+    const dataScope = getDataScope(req.user || {});
+    const jwtUserId = Number(req.user?.userId || req.user?.user_id);
+    const jwtOrgId = Number(dataScope.organisationId);
+    return { dataScope, jwtUserId, jwtOrgId };
+}
+
+function parseRequiredCapexFields(body = {}) {
+    const financialYear = String(body.financialYear || '').trim();
+    const capexProjects = Number(body.capexProjects);
+    const totalExpenditure = Number(body.totalExpenditure);
+    const expenditureTillDate = Number(body.expenditureTillDate);
+
+    if (!financialYear) {
+        return { error: 'Financial year is required.' };
+    }
+    if (!Number.isFinite(capexProjects) || capexProjects < 0) {
+        return { error: 'Number of CAPEX projects must be a valid non-negative number.' };
+    }
+    if (!Number.isFinite(totalExpenditure) || totalExpenditure < 0) {
+        return { error: 'Total expenditure planned must be a valid non-negative number.' };
+    }
+    if (!Number.isFinite(expenditureTillDate) || expenditureTillDate < 0) {
+        return { error: 'Expenditure till date must be a valid non-negative number.' };
+    }
+
+    return { financialYear, capexProjects, totalExpenditure, expenditureTillDate };
+}
+
 async function submitCapexProjectData(req, res) {
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const capexProjects = req.body.capexProjects;
-    const totalExpenditure = req.body.totalExpenditure;
-    const expenditureTillDate = req.body.expenditureTillDate;
-    const userId = req.body.userId;
+    const { dataScope, jwtUserId, jwtOrgId } = resolveCapexActor(req);
+    const parsed = parseRequiredCapexFields(req.body);
+    if (parsed.error) {
+        return res.status(400).json({ message: parsed.error });
+    }
+
+    const userId = Number.isFinite(jwtUserId) && jwtUserId > 0
+        ? jwtUserId
+        : Number(req.body.userId);
+
+    if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ message: 'Valid user is required.' });
+    }
+
+    let organisationId = Number(req.body.organisationId);
+    if (dataScope.isOrganisation) {
+        if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+            return res.status(403).json({ message: 'Organisation scope is required.' });
+        }
+        organisationId = jwtOrgId;
+    } else if (!Number.isFinite(organisationId) || organisationId <= 0) {
+        return res.status(400).json({ message: 'Organisation is required.' });
+    }
 
     const conn = await pool;
-    const request = conn.request();
-
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("capexProjects", capexProjects);
-    request.input("totalExpenditure", totalExpenditure);
-    request.input("expenditureTillDate", expenditureTillDate);
-    request.input("userId", userId);
 
     try {
-        const result = await request.query(`INSERT INTO tbl_project_capex (financial_year, organisation_id, projects_less_than_5cr, total_expenditure_planned, expenditure_till_date, created_by, created_date)
-        VALUES (@financialYear, @organisationId, @capexProjects, @totalExpenditure, @expenditureTillDate, @userId, getDate());`);
-        
-        res.sendStatus(201); 
+        const checkRequest = conn.request();
+        checkRequest.input('financialYear', parsed.financialYear);
+        checkRequest.input('organisationId', organisationId);
+        const existing = await checkRequest.query(`
+            SELECT TOP 1 financial_year
+            FROM tbl_project_capex
+            WHERE financial_year = @financialYear AND organisation_id = @organisationId;
+        `);
+
+        if (existing.recordset?.length) {
+            return res.status(409).json({
+                message: 'Data for this Financial Year already exists.',
+            });
+        }
+
+        const insertRequest = conn.request();
+        insertRequest.input('financialYear', parsed.financialYear);
+        insertRequest.input('organisationId', organisationId);
+        insertRequest.input('capexProjects', parsed.capexProjects);
+        insertRequest.input('totalExpenditure', parsed.totalExpenditure);
+        insertRequest.input('expenditureTillDate', parsed.expenditureTillDate);
+        insertRequest.input('userId', userId);
+
+        await insertRequest.query(`
+            INSERT INTO tbl_project_capex (
+                financial_year,
+                organisation_id,
+                projects_less_than_5cr,
+                total_expenditure_planned,
+                expenditure_till_date,
+                created_by,
+                created_date
+            )
+            VALUES (
+                @financialYear,
+                @organisationId,
+                @capexProjects,
+                @totalExpenditure,
+                @expenditureTillDate,
+                @userId,
+                getDate()
+            );
+        `);
+
+        return res.sendStatus(201);
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);
     }
-};
+}
 
 async function getCapexProjectsData(req, res) {
+    const { dataScope, jwtOrgId } = resolveCapexActor(req);
     const conn = await pool;
     const request = conn.request();
 
     try {
+        let whereSql = '';
+        if (dataScope.isOrganisation) {
+            if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+                return res.json([]);
+            }
+            request.input('dataScopeOrgId', jwtOrgId);
+            whereSql = ' WHERE tbl_project_capex.organisation_id = @dataScopeOrgId ';
+        } else if (!dataScope.isWide) {
+            return res.json([]);
+        }
+
         const result = await request.query(`
-           SELECT 
-            tbl_project_capex.financial_year,
-            tbl_project_capex.organisation_id,
-            mmt_organisation.organisation_name,
-            tbl_project_capex.projects_less_than_5cr,
-            tbl_project_capex.total_expenditure_planned,
-            tbl_project_capex.expenditure_till_date
-        FROM 
-            tbl_project_capex
-        INNER JOIN 
-            mmt_organisation ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id;
-
-        `);
-
-        res.json(result.recordset);
-    } catch (err) {
-        console.log(err);
-        res.sendStatus(500);
-    }
-};
-
-async function getUpdateCapexProjectsData(req, res) {
-    const { financialYear, organisationId } = req.query;
-    const conn = await pool;
-    const request = conn.request();
-
-    try {
-        const query = `
-            SELECT 
+            SELECT
                 tbl_project_capex.financial_year,
                 tbl_project_capex.organisation_id,
                 mmt_organisation.organisation_name,
                 tbl_project_capex.projects_less_than_5cr,
                 tbl_project_capex.total_expenditure_planned,
-                tbl_project_capex.expenditure_till_date
-            FROM 
-                tbl_project_capex
-            INNER JOIN 
-                mmt_organisation ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id
-            WHERE 
-                tbl_project_capex.financial_year = @financialYear AND tbl_project_capex.organisation_id = @organisationId;
-        `;
+                tbl_project_capex.expenditure_till_date,
+                tbl_project_capex.updated_date,
+                tbl_project_capex.created_date
+            FROM tbl_project_capex
+            INNER JOIN mmt_organisation
+                ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id
+            ${whereSql}
+            ORDER BY tbl_project_capex.financial_year DESC, mmt_organisation.organisation_name ASC;
+        `);
 
-        request.input('financialYear', financialYear);
-        request.input('organisationId', organisationId);
-        const result = await request.query(query);
-
-        res.json(result.recordset);
+        return res.json(result.recordset);
     } catch (err) {
         console.log(err);
-        res.sendStatus(500);
+        return res.sendStatus(500);
     }
 }
 
-async function updateCapexProjectData(req, res) {
-    const financialYear = req.body.financialYear;
-    const organisationId = req.body.organisationId;
-    const capexProjects = req.body.capexProjects;
-    const totalExpenditure = req.body.totalExpenditure;
-    const expenditureTillDate = req.body.expenditureTillDate;
-    const userId = req.body.userId;
+async function getUpdateCapexProjectsData(req, res) {
+    const { dataScope, jwtOrgId } = resolveCapexActor(req);
+    const financialYear = String(req.query.financialYear || '').trim();
+    let organisationId = Number(req.query.organisationId);
+
+    if (!financialYear) {
+        return res.status(400).json({ message: 'Financial year is required.' });
+    }
+
+    if (dataScope.isOrganisation) {
+        if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+            return res.status(403).json({ message: 'Organisation scope is required.' });
+        }
+        organisationId = jwtOrgId;
+    } else if (!dataScope.isWide) {
+        return res.json([]);
+    } else if (!Number.isFinite(organisationId) || organisationId <= 0) {
+        return res.status(400).json({ message: 'Organisation is required.' });
+    }
 
     const conn = await pool;
     const request = conn.request();
 
-    request.input("financialYear", financialYear);
-    request.input("organisationId", organisationId);
-    request.input("capexProjects", capexProjects);
-    request.input("totalExpenditure", totalExpenditure);
-    request.input("expenditureTillDate", expenditureTillDate);
-    request.input("userId", userId);
+    try {
+        request.input('financialYear', financialYear);
+        request.input('organisationId', organisationId);
+
+        const result = await request.query(`
+            SELECT
+                tbl_project_capex.financial_year,
+                tbl_project_capex.organisation_id,
+                mmt_organisation.organisation_name,
+                tbl_project_capex.projects_less_than_5cr,
+                tbl_project_capex.total_expenditure_planned,
+                tbl_project_capex.expenditure_till_date,
+                tbl_project_capex.updated_date,
+                tbl_project_capex.created_date
+            FROM tbl_project_capex
+            INNER JOIN mmt_organisation
+                ON tbl_project_capex.organisation_id = mmt_organisation.organisation_id
+            WHERE tbl_project_capex.financial_year = @financialYear
+              AND tbl_project_capex.organisation_id = @organisationId;
+        `);
+
+        return res.json(result.recordset);
+    } catch (err) {
+        console.log(err);
+        return res.sendStatus(500);
+    }
+}
+
+async function updateCapexProjectData(req, res) {
+    const { dataScope, jwtUserId, jwtOrgId } = resolveCapexActor(req);
+    const parsed = parseRequiredCapexFields(req.body);
+    if (parsed.error) {
+        return res.status(400).json({ message: parsed.error });
+    }
+
+    const userId = Number.isFinite(jwtUserId) && jwtUserId > 0
+        ? jwtUserId
+        : Number(req.body.userId);
+
+    if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ message: 'Valid user is required.' });
+    }
+
+    let organisationId = Number(req.body.organisationId);
+    if (dataScope.isOrganisation) {
+        if (!Number.isFinite(jwtOrgId) || jwtOrgId <= 0) {
+            return res.status(403).json({ message: 'Organisation scope is required.' });
+        }
+        organisationId = jwtOrgId;
+    } else if (!Number.isFinite(organisationId) || organisationId <= 0) {
+        return res.status(400).json({ message: 'Organisation is required.' });
+    }
+
+    const conn = await pool;
+    const request = conn.request();
+
+    request.input('financialYear', parsed.financialYear);
+    request.input('organisationId', organisationId);
+    request.input('capexProjects', parsed.capexProjects);
+    request.input('totalExpenditure', parsed.totalExpenditure);
+    request.input('expenditureTillDate', parsed.expenditureTillDate);
+    request.input('userId', userId);
 
     try {
-        const result = await request.query(`UPDATE tbl_project_capex
-        SET projects_less_than_5cr = @capexProjects, total_expenditure_planned = @totalExpenditure,
-        expenditure_till_date = @expenditureTillDate, updated_by = @userId, updated_date = getDate() WHERE financial_year = @financialYear AND organisation_id = @organisationId;`);
-        
-        res.sendStatus(201); 
+        const result = await request.query(`
+            UPDATE tbl_project_capex
+            SET
+                projects_less_than_5cr = @capexProjects,
+                total_expenditure_planned = @totalExpenditure,
+                expenditure_till_date = @expenditureTillDate,
+                updated_by = @userId,
+                updated_date = getDate()
+            WHERE financial_year = @financialYear
+              AND organisation_id = @organisationId;
+        `);
+
+        const rowsAffected = Number(result?.rowsAffected?.[0] || 0);
+        if (rowsAffected === 0) {
+            return res.status(404).json({ message: 'Record not found.' });
+        }
+
+        return res.sendStatus(201);
     } catch (err) {
         console.log(err);
         return res.sendStatus(500);

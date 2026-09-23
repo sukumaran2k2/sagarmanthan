@@ -35,6 +35,34 @@ function nullIfInvalidNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+export function pickPresentCost(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === '') continue;
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+export function toSqlDate(value) {
+  if (value == null || value === '' || value === '-') return null;
+  const text = String(value).trim();
+  if (!text || text === '-' || text.toLowerCase() === 'null' || text.toLowerCase() === 'invalid date') {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  if (text.includes('T')) {
+    const sliced = text.slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(sliced)) return sliced;
+  }
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const yyyy = parsed.getFullYear();
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  const dd = String(parsed.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function getProjectIdentity(input = {}) {
   const projectId = input.projectId || input.projectID || input?.raw?.project_id || '';
   const subProjectId =
@@ -120,6 +148,8 @@ export function normalizeProjectFormForSubmit(form = {}) {
 
   next.implementationMode = deriveImplementationMode(next.sourceOfFunding);
   next.sagarmalaFunding = deriveSagarmalaFunding(next.sourceOfFunding);
+  next.projectInitiatedDate = toSqlDate(next.projectInitiatedDate);
+  next.targetCompletionDate = toSqlDate(next.targetCompletionDate);
 
   return next;
 }
@@ -154,13 +184,18 @@ export function mapProjectListRow(raw = {}, index = 0) {
 
   const stageLower = String(stage).toLowerCase();
 
-  let cost = estimatedCost;
-  if (stageLower.includes('complete')) cost = closureCost ?? awardedCost ?? sanctionedCost ?? estimatedCost;
-  else if (stageLower.includes('implementation')) cost = awardedCost ?? sanctionedCost ?? estimatedCost;
-  else if (stageLower.includes('tender')) cost = sanctionedCost ?? estimatedCost;
-  else cost = estimatedCost ?? sanctionedCost;
+  let cost = null;
+  if (stageLower.includes('complete')) {
+    cost = pickPresentCost(closureCost, awardedCost, sanctionedCost, estimatedCost);
+  } else if (stageLower.includes('implementation')) {
+    cost = pickPresentCost(awardedCost, sanctionedCost, estimatedCost);
+  } else if (stageLower.includes('tender')) {
+    cost = pickPresentCost(sanctionedCost, estimatedCost);
+  } else {
+    cost = pickPresentCost(estimatedCost, sanctionedCost);
+  }
 
-  cost = cost ?? nullIfInvalidNumber(raw.project_cost || raw.cost) ?? 0;
+  cost = pickPresentCost(cost, raw.project_cost, raw.cost) ?? 0;
 
   return {
     id: raw.id || raw.project_details_id || `${projectId}-${subProjectId}-${index}`,
@@ -174,10 +209,13 @@ export function mapProjectListRow(raw = {}, index = 0) {
     ),
     organisationName: textOrDash(raw.organisation_name || raw.organisationName || raw.agency),
     stateName: textOrDash(stateName),
-    estimatedCost: estimatedCost ?? 0,
-    sanctionedCost: sanctionedCost ?? 0,
-    awardedCost: awardedCost ?? 0,
-    closureCost: closureCost ?? 0,
+    estimatedCost,
+    sanctionedCost,
+    awardedCost,
+    closureCost,
+    technicalSanctionCost: nullIfInvalidNumber(
+      raw.technical_sanction_cost ?? raw.technicalSanctionCost
+    ),
     cost,
     projectInitiatedDate: textOrDash(
       raw.project_intiated_date || raw.project_initiated_date || raw.projectInitiatedDate
@@ -188,9 +226,6 @@ export function mapProjectListRow(raw = {}, index = 0) {
     actualCompletionDate: textOrDash(
       raw.actual_date_of_completion || raw.actualCompletionDate
     ),
-    sanctionedCost: (raw.sanctioned_cost !== undefined && raw.sanctioned_cost !== null && raw.sanctioned_cost !== '')
-      ? safeNumber(raw.sanctioned_cost)
-      : (raw.cost !== undefined && raw.cost !== null ? safeNumber(raw.cost) : null),
     primaryImplementingAgency: textOrDash(
       raw.primary_ia_name || raw.primaryImplementingAgency || raw.primary_ia || raw.primaryImplementingAgencyName || raw.ia_name
     ),
@@ -216,6 +251,10 @@ export function mapProjectListRow(raw = {}, index = 0) {
     dropDate: raw.drop_date || raw.dropDate || raw.raw?.drop_date || null,
     dropRemarks: textOrDash(raw.drop_remarks || raw.dropRemarks || raw.remarks || raw.raw?.drop_remarks),
     dropStatus: deriveDropStatus(raw),
+    dropRequestedById: raw.drop_requested_by_id || raw.submitted_by || null,
+    dropRequestedByName: raw.drop_requested_by_name || raw.name || null,
+    dropApprovedById: raw.drop_approved_by_id || raw.approved_by || null,
+    dropApprovedByName: raw.drop_approved_by_name || null,
     raw,
   };
 }
@@ -287,8 +326,13 @@ export function mapProjectBasicInfoPayload(form, options = {}) {
     subProjectsTab: Array.isArray(normalized.subProjectsTab) ? normalized.subProjectsTab : [],
   };
 
-  payload.projectID = form.projectID || identity.projectID || '';
-  payload.subProjectID = form.subProjectID || identity.subProjectID || '-1';
+  if (isUpdate) {
+    payload.projectID = form.projectID || identity.projectID || '';
+    payload.subProjectID = form.subProjectID || identity.subProjectID || '-1';
+  } else {
+    payload.projectID = '';
+    payload.subProjectID = '-1';
+  }
 
   return payload;
 }

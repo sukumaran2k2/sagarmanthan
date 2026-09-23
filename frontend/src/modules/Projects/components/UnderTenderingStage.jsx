@@ -174,8 +174,7 @@ export default function UnderTenderingStage({
 
   const MAX_PDF_BYTES = PROJECT_UPLOAD_MAX_BYTES;
 
-  /** Mirrors legacy checkActualDate() — previous stage must have planned + actual before later dates. */
-  const checkActualDateChain = (sourceRows, nominationValue) => {
+  const checkActualDateChain = (sourceRows, nominationValue, changedRowId) => {
     const byId = (id) => sourceRows.find((row) => Number(row.id) === id) || {};
     const r1 = byId(1);
     const r2 = byId(2);
@@ -186,39 +185,88 @@ export default function UnderTenderingStage({
     const r7 = byId(7);
     const r8 = byId(8);
     const isNomination = String(nominationValue) === '1';
+    const upTo = Number(changedRowId) || 8;
+
+    const requirePrior = (prior, next, priorNotApplicable, messages) => {
+      if (priorNotApplicable) return true;
+      if (next.actualDate && !prior.actualDate) {
+        notify?.(messages.actual, 'error');
+        return false;
+      }
+      if (next.plannedDate && !prior.plannedDate) {
+        notify?.(messages.planned, 'error');
+        return false;
+      }
+      return true;
+    };
 
     if (!isNomination) {
-      if (!r1.notApplicable && (!r1.plannedDate || !r1.actualDate) && (r2.plannedDate || r2.actualDate)) {
-        notify?.('Please enter the technical sanction - actual date.', 'error');
+      // Only check prerequisites up to the row being edited.
+      if (
+        upTo >= 2 &&
+        !requirePrior(r1, r2, r1.notApplicable, {
+          actual: 'Please enter the technical sanction - actual date.',
+          planned: 'Please enter the technical sanction - target date.',
+        })
+      ) {
         return false;
       }
-      if (!r2.notApplicable && (!r2.plannedDate || !r2.actualDate) && (r3.plannedDate || r3.actualDate)) {
-        notify?.('Please enter the tender document approved - actual date.', 'error');
+      if (
+        upTo >= 3 &&
+        !requirePrior(r2, r3, r2.notApplicable, {
+          actual: 'Please enter the tender document approved - actual date.',
+          planned: 'Please enter the tender document approved - target date.',
+        })
+      ) {
         return false;
       }
-      if (!r3.notApplicable && (!r3.plannedDate || !r3.actualDate) && (r4.plannedDate || r4.actualDate)) {
-        notify?.('Please enter the tender notice issued - actual date.', 'error');
+      if (
+        upTo >= 4 &&
+        !requirePrior(r3, r4, r3.notApplicable, {
+          actual: 'Please enter the tender notice issued - actual date.',
+          planned: 'Please enter the tender notice issued - target date.',
+        })
+      ) {
         return false;
       }
-      if (!r4.notApplicable && (!r4.plannedDate || !r4.actualDate) && (r5.plannedDate || r5.actualDate)) {
-        notify?.('Please enter the technical evaluation completed - actual date.', 'error');
+      if (
+        upTo >= 5 &&
+        !requirePrior(r4, r5, r4.notApplicable, {
+          actual: 'Please enter the technical evaluation completed - actual date.',
+          planned: 'Please enter the technical evaluation completed - target date.',
+        })
+      ) {
         return false;
       }
-      if (!r5.notApplicable && (!r5.plannedDate || !r5.actualDate) && (r6.plannedDate || r6.actualDate)) {
-        notify?.('Please enter the financial evaluation completed - actual date.', 'error');
+      if (
+        upTo >= 6 &&
+        !requirePrior(r5, r6, r5.notApplicable, {
+          actual: 'Please enter the financial evaluation completed - actual date.',
+          planned: 'Please enter the financial evaluation completed - target date.',
+        })
+      ) {
         return false;
       }
-      if ((!r6.plannedDate || !r6.actualDate) && (r7.plannedDate || r7.actualDate)) {
-        notify?.(
-          'Please enter the sanction of competent authority obtained for award - actual date.',
-          'error'
-        );
+      if (
+        upTo >= 7 &&
+        !requirePrior(r6, r7, r6.notApplicable, {
+          actual:
+            'Please enter the sanction of competent authority obtained for award - actual date.',
+          planned:
+            'Please enter the sanction of competent authority obtained for award - target date.',
+        })
+      ) {
         return false;
       }
     }
 
-    if ((!r7.plannedDate || !r7.actualDate) && (r8.plannedDate || r8.actualDate)) {
-      notify?.('Please enter the work awarded / LOA issued - actual date.', 'error');
+    if (
+      upTo >= 8 &&
+      !requirePrior(r7, r8, false, {
+        actual: 'Please enter the work awarded / LOA issued - actual date.',
+        planned: 'Please enter the work awarded / LOA issued - target date.',
+      })
+    ) {
       return false;
     }
     return true;
@@ -229,7 +277,8 @@ export default function UnderTenderingStage({
       Number(row.id) === Number(rowId) ? { ...row, actualDate: value } : row
     );
     updateRow(rowId, { actualDate: value });
-    checkActualDateChain(nextRows, onNominationBasisAwarded);
+    if (Number(rowId) <= 1) return;
+    checkActualDateChain(nextRows, onNominationBasisAwarded, rowId);
   };
 
   const onUploadForRow = async (rowId, file) => {
@@ -455,6 +504,15 @@ export default function UnderTenderingStage({
     const r7 = byId(7);
     const r8 = byId(8);
 
+    if (!nominationMode && !String(r1.cost ?? '').trim()) {
+      notify?.('Please enter Tech. Sanction Cost (In Cr).', 'error');
+      return false;
+    }
+    if (!String(r7.cost ?? '').trim()) {
+      notify?.('Please enter Awarded Project Cost (In Cr).', 'error');
+      return false;
+    }
+
     if (!nominationMode) {
       if (!r1.notApplicable && !r1.plannedDate && r2.plannedDate) {
         notify?.('Please fill the technical sanction obtained target dates.', 'error');
@@ -514,35 +572,35 @@ export default function UnderTenderingStage({
         notify?.('Tender Document Actual Date cannot be less than Tech Sanction Actual Date.', 'error');
         return false;
       }
-      if (compareDates(r3.plannedDate, r2.plannedDate)) {
+      if (!r2.notApplicable && compareDates(r3.plannedDate, r2.plannedDate)) {
         notify?.('Tender Notice Planned Date cannot be less than Tender Document Planned Date.', 'error');
         return false;
       }
-      if (compareDates(r3.actualDate, r2.actualDate)) {
+      if (!r2.notApplicable && compareDates(r3.actualDate, r2.actualDate)) {
         notify?.('Tender Notice Actual Date cannot be less than Tender Document Actual Date.', 'error');
         return false;
       }
-      if (compareDates(r4.plannedDate, r3.plannedDate)) {
+      if (!r3.notApplicable && compareDates(r4.plannedDate, r3.plannedDate)) {
         notify?.('Tech Evaluation Planned Date cannot be less than Tender Notice Planned Date.', 'error');
         return false;
       }
-      if (compareDates(r4.actualDate, r3.actualDate)) {
+      if (!r3.notApplicable && compareDates(r4.actualDate, r3.actualDate)) {
         notify?.('Tech Evaluation Actual Date cannot be less than Tender Notice Actual Date.', 'error');
         return false;
       }
-      if (compareDates(r5.plannedDate, r4.plannedDate)) {
+      if (!r4.notApplicable && compareDates(r5.plannedDate, r4.plannedDate)) {
         notify?.('Financial Evaluation Planned Date cannot be less than Tech Evaluation Planned Date.', 'error');
         return false;
       }
-      if (compareDates(r5.actualDate, r4.actualDate)) {
+      if (!r4.notApplicable && compareDates(r5.actualDate, r4.actualDate)) {
         notify?.('Financial Evaluation Actual Date cannot be less than Tech Evaluation Actual Date.', 'error');
         return false;
       }
-      if (compareDates(r6.plannedDate, r5.plannedDate)) {
+      if (!r5.notApplicable && compareDates(r6.plannedDate, r5.plannedDate)) {
         notify?.('Sanction Competent Authority Planned Date cannot be less than Financial Evaluation Planned Date.', 'error');
         return false;
       }
-      if (compareDates(r6.actualDate, r5.actualDate)) {
+      if (!r5.notApplicable && compareDates(r6.actualDate, r5.actualDate)) {
         notify?.('Sanction Competent Authority Actual Date cannot be less than Financial Evaluation Actual Date.', 'error');
         return false;
       }
@@ -556,13 +614,15 @@ export default function UnderTenderingStage({
       notify?.('Please fill the work awarded actual dates.', 'error');
       return false;
     }
-    if (compareDates(r7.plannedDate, r6.plannedDate)) {
-      notify?.('Work Awarded Planned Date cannot be less than Sanction Competent Authority Planned Date.', 'error');
-      return false;
-    }
-    if (compareDates(r7.actualDate, r6.actualDate)) {
-      notify?.('Work Awarded Actual Date cannot be less than Sanction Competent Authority Actual Date.', 'error');
-      return false;
+    if (!nominationMode && !r6.notApplicable) {
+      if (compareDates(r7.plannedDate, r6.plannedDate)) {
+        notify?.('Work Awarded Planned Date cannot be less than Sanction Competent Authority Planned Date.', 'error');
+        return false;
+      }
+      if (compareDates(r7.actualDate, r6.actualDate)) {
+        notify?.('Work Awarded Actual Date cannot be less than Sanction Competent Authority Actual Date.', 'error');
+        return false;
+      }
     }
     if (compareDates(r8.plannedDate, r7.plannedDate)) {
       notify?.('Contract Signed Planned Date cannot be less than Work Awarded Planned Date.', 'error');
@@ -619,7 +679,9 @@ export default function UnderTenderingStage({
               <th className="text-left px-3 py-2.5 bg-[#0f417a]">Revised Date</th>
               <th className="text-center px-3 py-2.5 bg-[#0f417a]">Revise</th>
               <th className="text-center px-3 py-2.5 bg-[#0f417a]">History</th>
-              <th className="text-left px-3 py-2.5 bg-[#0f417a]">Actual Date</th>
+              <th className="text-left px-3 py-2.5 bg-[#0f417a]">
+                Actual Date<span className="text-rose-300">*</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -628,21 +690,28 @@ export default function UnderTenderingStage({
                 <td className="px-3 py-3 min-w-[240px]">
                   <p className="font-bold text-slate-800">{row.label}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <label className="inline-flex items-center gap-2 text-[11px] text-slate-600 font-semibold">
-                      <span className="px-2 py-1 rounded border border-slate-200 bg-slate-50">
-                        Upload PDF (max 20 MB)
-                      </span>
-                      <input
-                        type="file"
-                        accept=".pdf,application/pdf"
-                        disabled={disabled || uploadingByRowId[row.id] || (nominationMode && row.id <= 6)}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) onUploadForRow(row.id, file);
-                          e.target.value = '';
-                        }}
-                        className="text-[11px]"
-                      />
+                    <input
+                      id={`tender-row-upload-${row.id}`}
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      disabled={disabled || uploadingByRowId[row.id] || (nominationMode && row.id <= 6)}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) onUploadForRow(row.id, file);
+                        e.target.value = '';
+                      }}
+                      className="sr-only"
+                    />
+                    <label
+                      htmlFor={`tender-row-upload-${row.id}`}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition ${
+                        disabled || uploadingByRowId[row.id] || (nominationMode && row.id <= 6)
+                          ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                          : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 cursor-pointer'
+                      }`}
+                    >
+                      <span>{uploadingByRowId[row.id] ? 'Uploading PDF...' : 'Upload PDF'}</span>
+                      <span className="text-[10px] font-semibold text-slate-500">(max 20 MB)</span>
                     </label>
                     <button
                       type="button"
@@ -682,6 +751,7 @@ export default function UnderTenderingStage({
                     <div className="mt-2 max-w-[220px]">
                       <label className="block text-[11px] font-bold text-slate-600 mb-1">
                         {row.id === 1 ? 'Tech. Sanction Cost (In Cr)' : 'Awarded Project Cost (In Cr)'}
+                        <span className="text-rose-600"> *</span>
                       </label>
                       <input
                         type="number"
