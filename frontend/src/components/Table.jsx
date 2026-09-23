@@ -216,12 +216,19 @@ const Table = forwardRef(({
         .dark .${colorClass} .ag-row-odd {
           background-color: #0f172a !important;
         }
-        .dark .${colorClass} .ag-row:hover {
-          background-color: #1e293b !important;
-        }
         .dark .${colorClass} .ag-cell {
           color: #f8fafc !important;
           border-right-color: #1e293b !important;
+        }
+        .${colorClass} .ag-cell {
+          display: flex !important;
+          align-items: center !important;
+        }
+        .${colorClass} .ag-cell-wrapper {
+          display: flex !important;
+          align-items: center !important;
+          width: 100% !important;
+          height: 100% !important;
         }
         .${colorClass} .ag-cell.mopsw-wrap-cell,
         .${colorClass} .ag-cell.mopsw-wrap-cell .ag-cell-value,
