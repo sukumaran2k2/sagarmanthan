@@ -46,23 +46,23 @@ function StageDistributionChart({ data, onRootReady }) {
     root.setThemes([am5themes_Animated.new(root)]);
     const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingRight: 20 }));
     const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10 });
-    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x64748b), maxWidth: 180, oversizedBehavior: 'truncate' });
+    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x334155), maxWidth: 180, oversizedBehavior: 'truncate' });
     yRenderer.grid.template.set('visible', false);
     const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'stage_name', renderer: yRenderer }));
     const xRenderer = am5xy.AxisRendererX.new(root, {});
-    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x64748b) });
+    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x334155) });
     xRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeDasharray: [3, 3] });
     const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0 }));
     const series = chart.series.push(am5xy.ColumnSeries.new(root, { xAxis, yAxis, valueXField: 'note_count', categoryYField: 'stage_name', tooltip: am5.Tooltip.new(root, { labelText: '{categoryY}: [bold]{valueX}[/]' }) }));
     series.columns.template.setAll({ fill: am5.color(0x6366f1), stroke: am5.color(0x6366f1), height: am5.percent(60), cornerRadiusTR: 3, cornerRadiusBR: 3 });
-    series.bullets.push(() => am5.Bullet.new(root, { sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(0x6366f1), centerY: am5.p50, centerX: am5.p0, dx: 4, fontSize: 10, fontWeight: '600', populateText: true }) }));
+    series.bullets.push(() => am5.Bullet.new(root, { locationX: 1, sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(0x334155), centerY: am5.p50, centerX: am5.p0, dx: 6, fontSize: 11, fontWeight: '700', populateText: true }) }));
     const sorted = [...data].sort((a, b) => a.note_count - b.note_count);
     yAxis.data.setAll(sorted);
     series.data.setAll(sorted);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
   }, [data]);
-  return <div ref={divRef} style={{ width: '100%', height: 280, overflow: 'hidden' }} />;
+  return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
 const WING_WISE_LEGEND = [
@@ -84,11 +84,11 @@ function WingWiseChart({ data, onRootReady }) {
     root.setThemes([am5themes_Animated.new(root)]);
     const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingRight: 20 }));
     const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10 });
-    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x64748b), maxWidth: 120, oversizedBehavior: 'truncate' });
+    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x334155), maxWidth: 120, oversizedBehavior: 'truncate' });
     yRenderer.grid.template.set('visible', false);
     const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'wing_name', renderer: yRenderer }));
     const xRenderer = am5xy.AxisRendererX.new(root, {});
-    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x64748b) });
+    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x334155) });
     xRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeDasharray: [3, 3] });
     const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0 }));
     const makeSeries = (field, name, color) => {
@@ -108,7 +108,7 @@ function WingWiseChart({ data, onRootReady }) {
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
   }, [data]);
-  return <div ref={divRef} style={{ width: '100%', height: chartHeight, overflow: 'hidden' }} />;
+  return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
 function WingWiseLegend() {
@@ -335,7 +335,8 @@ export default function CabinetNotesMopswDashboard() {
               title="Stage-wise Heat Map"
             />
           </div>
-          <div className="overflow-auto flex-1">
+          <div className="overflow-hidden flex-1 p-3">
+            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 h-full">
             <table className="w-full text-[11px] border-collapse">
               <thead>
                 <tr className="bg-[#4f46e5] text-white relative z-10">
@@ -356,6 +357,7 @@ export default function CabinetNotesMopswDashboard() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 
@@ -366,9 +368,11 @@ export default function CabinetNotesMopswDashboard() {
             </h3>
             <ChartExportMenu chartRoot={distChartRoot} fileName="stage_distribution_chart" color="#6366f1" variant="plain" />
           </div>
-          <div className="p-5 flex-1 overflow-auto">
-            <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
-            <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
+          <div className="p-5 flex-1 overflow-hidden flex flex-col">
+            <div className="flex-1 min-h-0">
+              <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
+            </div>
+            <p className="text-[9px] text-slate-400 text-center mt-1 flex-shrink-0">Number of notes →</p>
           </div>
         </div>
       </div>
@@ -381,10 +385,14 @@ export default function CabinetNotesMopswDashboard() {
             </h3>
             <ChartExportMenu chartRoot={wingChartRoot} fileName="wing_wise_pending_chart" color="#6366f1" variant="plain" />
           </div>
-          <div className="p-5 flex-1 overflow-auto">
-            <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
-            <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
-            <WingWiseLegend />
+          <div className="p-5 flex-1 overflow-hidden flex flex-col">
+            <div className="flex-1 min-h-0">
+              <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
+            </div>
+            <p className="text-[9px] text-slate-400 text-center mt-1 flex-shrink-0">Number of notes →</p>
+            <div className="flex-shrink-0">
+              <WingWiseLegend />
+            </div>
           </div>
         </div>
 
@@ -401,7 +409,8 @@ export default function CabinetNotesMopswDashboard() {
               title="Long Pending Cabinet Notes (Top 10)"
             />
           </div>
-          <div className="overflow-auto flex-1">
+          <div className="overflow-auto flex-1 p-3">
+            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
             <table className="w-full text-[11px] border-collapse">
               <thead className="sticky top-0 z-20">
                 <tr className="bg-[#4f46e5] text-white relative z-10">
@@ -424,6 +433,7 @@ export default function CabinetNotesMopswDashboard() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
           <p className="text-[9px] text-slate-400 px-5 py-2 flex-shrink-0">Days calculated from date of entry into current stage till today.</p>
         </div>
