@@ -180,6 +180,7 @@ export default function DataList({
 
   const handleWingChange = (val) => {
     setSelectedWing(val);
+    setSelectedDivision('');
     setCurrentPage(1);
   };
 
@@ -266,16 +267,39 @@ export default function DataList({
   const wingOptions = useMemo(() => {
     return wings.map(w => ({
       value: w.wing_name,
-      label: w.wing_name
+      label: w.wing_name,
+      wing_id: w.wing_id
     }));
   }, [wings]);
 
   const divisionOptions = useMemo(() => {
-    return divisions.map(d => ({
+    if (!selectedWing) return [];
+    let filtered = divisions;
+    const matchingWing = wings.find(w => 
+      (w.wing_name && String(w.wing_name) === String(selectedWing)) || 
+      (w.wing_id && String(w.wing_id) === String(selectedWing))
+    );
+    const targetWingId = matchingWing ? matchingWing.wing_id : null;
+    if (targetWingId !== undefined && targetWingId !== null) {
+      filtered = divisions.filter(d => String(d.wing_id) === String(targetWingId));
+    } else {
+      filtered = divisions.filter(d => String(d.wing_name) === String(selectedWing));
+    }
+    return filtered.map(d => ({
       value: d.division_name,
       label: d.division_name
     }));
-  }, [divisions]);
+  }, [divisions, wings, selectedWing]);
+
+  // Sync division selection if current division is not in filtered list
+  useEffect(() => {
+    if (selectedDivision) {
+      const exists = divisionOptions.some(d => String(d.value) === String(selectedDivision));
+      if (!exists) {
+        setSelectedDivision('');
+      }
+    }
+  }, [divisionOptions, selectedDivision]);
   const handleExport = (type) => {
     if (type === 'Copy') {
       if (gridApi) {
@@ -720,7 +744,7 @@ export default function DataList({
                 <select
                   value={selectedWing}
                   onChange={(e) => handleWingChange(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="">All Wings</option>
                   {wingOptions.map((w) => (
@@ -740,9 +764,14 @@ export default function DataList({
                 <select
                   value={selectedDivision}
                   onChange={(e) => handleDivisionChange(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  disabled={!selectedWing}
+                  className={`appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer ${
+                    !selectedWing ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : ''
+                  }`}
                 >
-                  <option value="">All Divisions</option>
+                  <option value="">
+                    {!selectedWing ? 'Select Wing First' : 'All Divisions'}
+                  </option>
                   {divisionOptions.map((d) => (
                     <option key={d.value} value={d.value}>{d.label}</option>
                   ))}
@@ -761,7 +790,7 @@ export default function DataList({
                   <select
                     value={selectedStage}
                     onChange={(e) => setSelectedStage(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                    className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                   >
                     <option value="">All Stages</option>
                     {(activeTab === 'pending' ? PENDING_STAGES : STAGES.map(s => s.label)).map(stage => (

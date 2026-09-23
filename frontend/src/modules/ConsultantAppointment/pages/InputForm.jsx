@@ -222,6 +222,7 @@ export default function InputForm({
             }
           });
       }
+    }
   }, [editData]);
 
   // Dynamically filter divisions based on the selected wing

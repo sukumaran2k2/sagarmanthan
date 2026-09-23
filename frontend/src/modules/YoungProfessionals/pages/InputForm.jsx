@@ -563,10 +563,12 @@ export default function InputForm({
           </div>
         </div>
 
-        {/* Appointment document - Minimized towards the left */}
-        <div className="space-y-1.5 max-w-sm">
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Appointment Order Document <span className="text-red-500">*</span></label>
-          <div className={`flex items-center justify-center border-2 border-dashed ${isFieldInvalid('documentName', documentName) ? 'border-red-500 bg-red-50/10' : 'border-slate-250 dark:border-slate-800'} rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative`}>
+        {/* Appointment document - Auto grow with text wrapping */}
+        <div className="space-y-1.5 w-full max-w-md">
+          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+            Appointment Order Document <span className="text-red-500">*</span>
+          </label>
+          <div className={`flex flex-col items-center justify-center border-2 border-dashed ${isFieldInvalid('documentName', documentName) ? 'border-red-500 bg-red-50/10' : 'border-slate-250 dark:border-slate-800'} rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative min-h-[110px] w-full`}>
             <input 
               type="file" 
               ref={fileInputRef}
@@ -596,26 +598,28 @@ export default function InputForm({
               }}
               className="absolute inset-0 opacity-0 cursor-pointer"
             />
-            <div className="text-center space-y-1">
-              <Upload className="mx-auto h-6 w-6 text-slate-400" />
+            <div className="text-center space-y-1 w-full max-w-full px-2">
+              <Upload className="mx-auto h-6 w-6 text-slate-400 shrink-0" />
               <p className="text-[11px] font-bold text-slate-655 dark:text-slate-400 uppercase tracking-wide">Upload PDF file</p>
               <p className="text-[9px] text-slate-400 font-semibold">(Only PDF under 10 MB is allowed)</p>
               {documentName && (
-                <p className="text-[11px] font-black text-emerald-600">Selected: {documentName}</p>
+                <p className="text-[11px] font-black text-emerald-600 break-all whitespace-normal leading-relaxed pt-1 max-w-full">
+                  Selected: {documentName}
+                </p>
               )}
             </div>
           </div>
 
           {isEdit && editData.appointment_document && (
-            <div className="mt-2 text-xs">
+            <div className="mt-2 text-xs max-w-full">
               <a
                 href={`${API_BASE}/download-yp-document?fileName=${editData.appointment_document}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center space-x-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline"
+                className="inline-flex flex-wrap items-center gap-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline max-w-full"
               >
-                <span>View current document:</span>
-                <span className="text-slate-600 dark:text-slate-450 font-semibold truncate max-w-[200px]" title={editData.appointment_document}>
+                <span className="shrink-0">View current document:</span>
+                <span className="text-slate-600 dark:text-slate-450 font-semibold break-all" title={editData.appointment_document}>
                   {editData.appointment_document}
                 </span>
               </a>
