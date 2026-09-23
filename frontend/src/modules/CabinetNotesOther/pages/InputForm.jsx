@@ -483,18 +483,12 @@ export default function InputForm({
         await createCabinetMinistry(payload);
       }
       if (triggerNotification) {
-        triggerNotification(
-          isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.",
-          "success"
-        );
+        triggerNotification(isEdit ? "Cabinet Note updated successfully." : "Cabinet Note created successfully.");
       }
       onSuccess();
     } catch (err) {
       console.error("Save error details:", err.response?.data || err.message || err);
-      const errorMsg = err.response?.data?.error || "Failed to save Cabinet Note. Please try again.";
-      if (triggerNotification) {
-        triggerNotification(errorMsg, "error");
-      }
+      alert(err.response?.data?.error || "Failed to save Cabinet Note. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -685,7 +679,7 @@ export default function InputForm({
                       </div>
                     </div>
 
-                    {/* Stage-specific optional remark field */}
+                    {/* Stage-specific optional remark field matching CabinetNotesMOPSW */}
                     {!isStageDisabled && !!currentStage.date && (
                       <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
                         <input
