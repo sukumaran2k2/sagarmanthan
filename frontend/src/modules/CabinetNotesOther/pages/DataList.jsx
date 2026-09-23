@@ -5,6 +5,10 @@ import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
 import { Search, Edit, Trash2, Filter, ChevronDown, X } from 'lucide-react';
 import { fetchDropdownAllValues, fetchMinistryList } from '../api';
+import {
+  getWrapColumnProps,
+  renderWrappedText,
+} from '../../../utils/tableCellWrap';
 
 export default function DataList({
   rowData = [],
@@ -233,26 +237,16 @@ export default function DataList({
       pinned: 'left',
       minWidth: 220,
       flex: 2,
-      wrapText: true,
-      autoHeight: true,
       headerClass: 'text-center font-bold',
-      cellClass: 'mopsw-wrap-cell flex items-center justify-center font-bold text-slate-800 dark:text-slate-200 text-center',
-      cellStyle: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+      ...getWrapColumnProps('text-center font-bold text-slate-800 dark:text-slate-200', {
         textAlign: 'center',
-        whiteSpace: 'normal',
-        wordBreak: 'break-word',
-        overflowWrap: 'anywhere',
-        lineHeight: '1.4',
-        padding: '8px'
-      },
-      cellRenderer: (params) => (
-        <div className="w-full max-w-full flex items-center justify-center text-center font-bold text-slate-800 dark:text-slate-200 whitespace-normal break-words py-1 leading-snug">
-          {params.value || '-'}
-        </div>
-      ),
+        padding: '8px',
+      }),
+      cellRenderer: (params) =>
+        renderWrappedText(
+          params.value,
+          'text-center font-bold text-slate-800 dark:text-slate-200'
+        ),
       hide: !visibleCols.subject
     },
     {
@@ -260,27 +254,17 @@ export default function DataList({
       headerName: 'NAME OF THE MINISTRY',
       minWidth: 200,
       flex: 1.8,
-      wrapText: true,
-      autoHeight: true,
       valueGetter: (params) => cleanMinistryName(params.data?.ministry_name),
       headerClass: 'text-center font-bold',
-      cellClass: 'mopsw-wrap-cell flex items-center justify-center font-medium text-slate-700 dark:text-slate-350 text-center',
-      cellStyle: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+      ...getWrapColumnProps('text-center font-medium text-slate-700 dark:text-slate-300', {
         textAlign: 'center',
-        whiteSpace: 'normal',
-        wordBreak: 'break-word',
-        overflowWrap: 'anywhere',
-        lineHeight: '1.4',
-        padding: '8px'
-      },
-      cellRenderer: (params) => (
-        <div className="w-full max-w-full flex items-center justify-center text-center font-semibold text-slate-700 dark:text-slate-300 whitespace-normal break-words py-1 leading-snug">
-          {params.value || '-'}
-        </div>
-      ),
+        padding: '8px',
+      }),
+      cellRenderer: (params) =>
+        renderWrappedText(
+          params.value,
+          'text-center font-semibold text-slate-700 dark:text-slate-300'
+        ),
       hide: !visibleCols.ministry
     },
     {
@@ -304,8 +288,10 @@ export default function DataList({
       minWidth: 180,
       flex: 1.5,
       headerClass: 'text-center font-bold',
-      cellClass: 'text-center flex items-center justify-center font-semibold',
-      cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
+      ...getWrapColumnProps('text-center font-semibold', {
+        textAlign: 'center',
+        padding: '8px',
+      }),
       valueGetter: (params) => params.data?.stage_name || '-',
       cellRenderer: (params) => {
         const rawVal = String(params.value || '').trim();
@@ -313,7 +299,7 @@ export default function DataList({
         const isCompleted = upperVal.includes('REPLY FURNISHED');
         const color = isCompleted ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : 'text-[#0f417a] dark:text-blue-400 font-extrabold';
         return (
-          <div className="w-full flex items-center justify-center text-center font-bold">
+          <div className="w-full max-w-full text-center font-bold whitespace-normal break-words py-1 leading-snug">
             <span className={`${color} text-xs uppercase tracking-wider text-center`}>
               {upperVal || '-'}
             </span>
@@ -327,27 +313,17 @@ export default function DataList({
       headerName: 'REMARKS',
       minWidth: 150,
       flex: 1.2,
-      wrapText: true,
-      autoHeight: true,
       valueGetter: (params) => params.data?.remarks || '-',
       headerClass: 'text-center font-bold',
-      cellClass: 'mopsw-wrap-cell flex items-center justify-center text-xs text-slate-600 dark:text-slate-400 text-center',
-      cellStyle: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+      ...getWrapColumnProps('text-center text-xs text-slate-600 dark:text-slate-400', {
         textAlign: 'center',
-        whiteSpace: 'normal',
-        wordBreak: 'break-word',
-        overflowWrap: 'anywhere',
-        lineHeight: '1.4',
-        padding: '8px'
-      },
-      cellRenderer: (params) => (
-        <div className="w-full max-w-full flex items-center justify-center text-center text-xs text-slate-600 dark:text-slate-400 whitespace-normal break-words py-1 leading-snug">
-          {params.value || '-'}
-        </div>
-      ),
+        padding: '8px',
+      }),
+      cellRenderer: (params) =>
+        renderWrappedText(
+          params.value,
+          'text-center text-xs text-slate-600 dark:text-slate-400'
+        ),
       hide: !visibleCols.remarks
     },
     {

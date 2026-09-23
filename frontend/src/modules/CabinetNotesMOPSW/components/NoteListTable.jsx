@@ -13,6 +13,10 @@ import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import {
+  getWrapColumnProps,
+  renderWrappedText,
+} from '../../../utils/tableCellWrap';
 
 function formatDate(value) {
   if (!value || value === '--') return '--';
@@ -103,7 +107,8 @@ export default function NoteListTable({
         headerName: 'Name of the Subject',
         flex: 1.8,
         minWidth: 200,
-        cellClass: 'font-bold text-slate-800',
+        ...getWrapColumnProps('font-bold text-slate-800'),
+        cellRenderer: (params) => renderWrappedText(params.value, 'font-bold text-slate-800'),
         hide: !visibleCols.subject,
       },
       {
@@ -111,7 +116,8 @@ export default function NoteListTable({
         headerName: 'Wing',
         flex: 1,
         minWidth: 120,
-        cellClass: 'text-slate-600 font-medium',
+        ...getWrapColumnProps('text-slate-600 font-medium'),
+        cellRenderer: (params) => renderWrappedText(params.value, 'text-slate-600 font-medium'),
         hide: !visibleCols.wing,
       },
       {
@@ -119,7 +125,8 @@ export default function NoteListTable({
         headerName: 'Division',
         flex: 1,
         minWidth: 120,
-        cellClass: 'text-slate-600 font-medium',
+        ...getWrapColumnProps('text-slate-600 font-medium'),
+        cellRenderer: (params) => renderWrappedText(params.value, 'text-slate-600 font-medium'),
         hide: !visibleCols.division,
       },
       {
@@ -128,18 +135,17 @@ export default function NoteListTable({
         flex: 1.2,
         minWidth: 140,
         hide: !visibleCols.status,
-        cellRenderer: (params) => (
-          <span className="text-xs font-black uppercase text-[#0f417a]">
-            {params.value || '-'}
-          </span>
-        ),
+        ...getWrapColumnProps(),
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'text-xs font-black uppercase text-[#0f417a]'),
       },
       {
         field: 'remarks',
         headerName: 'Remarks',
         flex: 1.3,
-        minWidth: 140,
-        cellClass: 'text-slate-600',
+        minWidth: 160,
+        ...getWrapColumnProps('text-slate-600'),
+        cellRenderer: (params) => renderWrappedText(params.value, 'text-slate-600 text-xs'),
         hide: !visibleCols.remarks,
       },
       {

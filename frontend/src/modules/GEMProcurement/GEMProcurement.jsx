@@ -25,6 +25,10 @@ import {
   proportionalTarget,
   GEM_CATEGORY_TABS,
 } from './utils/gemUtils';
+import {
+  getWrapColumnProps,
+  renderWrappedText,
+} from '../../utils/tableCellWrap';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -307,7 +311,7 @@ export default function GEMProcurementView({
         headerName: 'Organisation',
         flex: 2,
         minWidth: 220,
-        cellClass: 'font-bold text-slate-800 text-left flex items-center',
+        ...getWrapColumnProps('font-bold text-slate-800 text-left'),
         valueGetter: (params) => {
           if (!params.data) return '—';
           if (params.data.organisation_name) return params.data.organisation_name;
@@ -317,54 +321,65 @@ export default function GEMProcurementView({
           );
           return found ? found.organisation_name || found.name : '—';
         },
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-bold text-slate-800 text-left', '—'),
       },
       {
         headerName: 'Financial Year',
         flex: 1.2,
         minWidth: 130,
-        cellClass: 'font-semibold text-slate-700 text-center flex items-center justify-center',
+        ...getWrapColumnProps('font-semibold text-slate-700 text-center'),
         valueGetter: (params) => getGemFinancialYear(params.data) || '—',
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-semibold text-slate-700 text-center', '—'),
       },
       {
         headerName: 'Planned Total Procurement (In Crore)',
         flex: 2,
         minWidth: 220,
-        cellClass: 'font-black text-[#0f417a] text-center flex items-center justify-center',
+        ...getWrapColumnProps('font-black text-[#0f417a] text-center'),
         valueGetter: (params) =>
           Number(getGemPotential(params.data, listCategoryForTab(activeTab))).toFixed(2),
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-black text-[#0f417a] text-center', '0.00'),
       },
       {
         headerName: `${elapsedMonths} Months Proportional Target (In Crore)`,
         flex: 2,
         minWidth: 220,
-        cellClass: 'font-semibold text-slate-700 text-center flex items-center justify-center',
+        ...getWrapColumnProps('font-semibold text-slate-700 text-center'),
         valueGetter: (params) =>
           proportionalTarget(
             getGemPotential(params.data, listCategoryForTab(activeTab)),
             elapsedMonths
           ).toFixed(2),
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-semibold text-slate-700 text-center', '0.00'),
       },
       {
         headerName: 'Procurement Through GEM (In Crore)',
         flex: 2,
         minWidth: 220,
-        cellClass:
+        ...getWrapColumnProps(
           activeTab === 'total'
-            ? 'font-bold text-slate-800 text-center flex items-center justify-center'
-            : 'font-black text-blue-700 text-center flex items-center justify-center cursor-pointer hover:underline',
+            ? 'font-bold text-slate-800 text-center'
+            : 'font-black text-blue-700 text-center cursor-pointer hover:underline'
+        ),
         valueGetter: (params) =>
           Number(params.data?.total_procurement_through_gem || 0).toFixed(2),
         cellRenderer: (params) => {
           if (!params.data) return null;
-          if (activeTab === 'total') return params.value;
+          if (activeTab === 'total') {
+            return renderWrappedText(params.value, 'font-bold text-slate-800 text-center', '0.00');
+          }
           return (
-            <span
+            <div
               onClick={() => openMonthlyPage(params.data)}
-              className="text-blue-700 font-black underline cursor-pointer"
+              className="w-full max-w-full text-blue-700 font-black underline cursor-pointer whitespace-normal break-words leading-snug py-0.5 text-center"
               title="Click to view/edit monthly procurement data"
             >
               {params.value}
-            </span>
+            </div>
           );
         },
       },
@@ -372,9 +387,11 @@ export default function GEMProcurementView({
         headerName: 'Procurement Outside GEM (In Crore)',
         flex: 2,
         minWidth: 220,
-        cellClass: 'font-bold text-slate-800 text-center flex items-center justify-center',
+        ...getWrapColumnProps('font-bold text-slate-800 text-center'),
         valueGetter: (params) =>
           Number(params.data?.total_procurement_outside_gem || 0).toFixed(2),
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-bold text-slate-800 text-center', '0.00'),
       },
     ];
 
@@ -383,13 +400,19 @@ export default function GEMProcurementView({
         headerName: 'Last Updated Date',
         flex: 1.4,
         minWidth: 150,
-        cellClass: 'text-slate-600 font-semibold text-center flex items-center justify-center',
+        ...getWrapColumnProps('text-slate-600 font-semibold text-center'),
         valueGetter: (params) => {
           const raw = params.data?.updated_date;
           if (!raw) return '—';
           const d = new Date(raw);
           return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN');
         },
+        cellRenderer: (params) =>
+          renderWrappedText(
+            params.value,
+            'text-slate-600 font-semibold text-center font-mono text-xs',
+            '—'
+          ),
       });
     }
 
