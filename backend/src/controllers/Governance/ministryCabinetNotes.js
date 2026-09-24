@@ -348,6 +348,9 @@ async function editMinistryCabinet(req, res) {
 
 async function getCabinetMinistry(req, res) {
     const userID = req.params.userID;
+    const page = req.query.page ? parseInt(req.query.page, 10) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : null;
+    const search = req.query.search ? req.query.search.trim() : null;
 
     const conn = await pool;
     const request = conn.request();
@@ -361,43 +364,80 @@ async function getCabinetMinistry(req, res) {
         `);
 
         const role_id = userResult.recordset.length > 0 ? userResult.recordset[0].role_id : null;
+        let whereClause = '';
 
-        if (!role_id || role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
-            const result = await conn.query(`
-            SELECT
-                ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry_change.ministry_name) as ministry_name,
-                tbl_cabinet_notes_ministry_change.*,
-                stage.cab_ministry_stage_name AS stage_name
-            FROM
-                tbl_cabinet_notes_ministry_change
-                LEFT JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
-                LEFT JOIN mmt_cabinet_ministry_stage AS stage ON tbl_cabinet_notes_ministry_change.stage_id = stage.cab_ministry_stage_id
-            ORDER BY cabinet_notes_ministry_id DESC;
-            `);
-
-            res.json(result.recordset);
-        } else {
+        if (role_id && role_id != 2 && role_id != 3 && role_id != 4 && role_id != 5 && role_id != 8) {
             const orgResult = await request.query(`SELECT organisation_id FROM tbl_user WHERE user_id = @userID`);
-            const organisationID = orgResult.recordset[0].organisation_id;
+            const organisationID = orgResult.recordset[0]?.organisation_id;
 
             request.input('organisationID', organisationID);
             const usersResult = await request.query(`SELECT user_id FROM tbl_user WHERE organisation_id = @organisationID`);
             const userIDs = usersResult.recordset.map(user => user.user_id);
+            if (userIDs.length > 0) {
+                whereClause = `WHERE tbl_cabinet_notes_ministry_change.created_by IN (${userIDs.join(',')})`;
+            }
+        }
 
-            const result = await conn.query(`
-            SELECT
-                ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry_change.ministry_name) as ministry_name,
-                tbl_cabinet_notes_ministry_change.*,
-                stage.cab_ministry_stage_name AS stage_name
-            FROM
-                tbl_cabinet_notes_ministry_change
+        if (search) {
+            request.input('search', `%${search}%`);
+            whereClause = whereClause
+                ? `${whereClause} AND (tbl_cabinet_notes_ministry_change.cabinet_subject LIKE @search OR ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry_change.ministry_name) LIKE @search OR tbl_cabinet_notes_ministry_change.eoffice_file_no LIKE @search)`
+                : `WHERE (tbl_cabinet_notes_ministry_change.cabinet_subject LIKE @search OR ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry_change.ministry_name) LIKE @search OR tbl_cabinet_notes_ministry_change.eoffice_file_no LIKE @search)`;
+        }
+
+        if (page && limit) {
+            const offset = (page - 1) * limit;
+            request.input('offset', offset);
+            request.input('limit', limit);
+
+            const countQuery = `
+                SELECT COUNT(1) AS total
+                FROM tbl_cabinet_notes_ministry_change
                 LEFT JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
-                LEFT JOIN mmt_cabinet_ministry_stage AS stage ON tbl_cabinet_notes_ministry_change.stage_id = stage.cab_ministry_stage_id
-            WHERE created_by IN (${userIDs.join(',')})
-            ORDER BY cabinet_notes_ministry_id DESC;
-            `);
+                ${whereClause}
+            `;
+            const countResult = await request.query(countQuery);
+            const total = countResult.recordset[0]?.total || 0;
 
-            res.json(result.recordset);
+            const paginatedQuery = `
+                SELECT
+                    ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry_change.ministry_name) as ministry_name,
+                    tbl_cabinet_notes_ministry_change.*,
+                    stage.cab_ministry_stage_name AS stage_name
+                FROM
+                    tbl_cabinet_notes_ministry_change
+                    LEFT JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
+                    LEFT JOIN mmt_cabinet_ministry_stage AS stage ON tbl_cabinet_notes_ministry_change.stage_id = stage.cab_ministry_stage_id
+                ${whereClause}
+                ORDER BY tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `;
+            const result = await request.query(paginatedQuery);
+            return res.json({
+                data: result.recordset,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            });
+        } else {
+            const fullQuery = `
+                SELECT
+                    ISNULL(mmt_ministry.ministry_name, tbl_cabinet_notes_ministry_change.ministry_name) as ministry_name,
+                    tbl_cabinet_notes_ministry_change.*,
+                    stage.cab_ministry_stage_name AS stage_name
+                FROM
+                    tbl_cabinet_notes_ministry_change
+                    LEFT JOIN mmt_ministry ON mmt_ministry.ministry_id = tbl_cabinet_notes_ministry_change.ministry_id
+                    LEFT JOIN mmt_cabinet_ministry_stage AS stage ON tbl_cabinet_notes_ministry_change.stage_id = stage.cab_ministry_stage_id
+                ${whereClause}
+                ORDER BY tbl_cabinet_notes_ministry_change.cabinet_notes_ministry_id DESC;
+            `;
+            const result = await request.query(fullQuery);
+            return res.json(result.recordset);
         }
     } catch (err) {
         console.log(err);

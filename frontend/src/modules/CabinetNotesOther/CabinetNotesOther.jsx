@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PlusCircle, Layers, FileText, CheckCircle2 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
+import ConfirmModal from '../../components/ConfirmModal';
 import { useCabinetNotesPermissions } from './hooks/useCabinetNotesPermissions';
 import resolveCabinetNotesListView from './views';
 import InputForm from './pages/InputForm';
@@ -118,6 +119,12 @@ export default function CabinetNotesOther({
     return items;
   }, [permissions.canAdd]);
 
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    note: null,
+    loading: false
+  });
+
   const ListView = useMemo(
     () => resolveCabinetNotesListView(permissions.uiViewCode),
     [permissions.uiViewCode]
@@ -132,24 +139,37 @@ export default function CabinetNotesOther({
     setActiveSubTab('list');
   };
 
-  const handleDelete = async (note) => {
+  const handleDelete = (note) => {
     if (!permissions.canRemove) {
       notify("You do not have permission to delete records.", "error");
       return;
     }
-    const noteId = note.cabinet_notes_ministry_id;
+    const noteId = note?.cabinet_notes_ministry_id;
     if (!noteId) return;
 
-    if (window.confirm("Deleting the record will also delete the stored data. Are you sure you want to delete?")) {
-      try {
-        const userId = getActiveUserId();
-        await deleteCabinetMinistry(noteId, userId);
-        notify("Cabinet Notes Ministry record deleted successfully.");
-        fetchData();
-      } catch (err) {
-        console.error("Delete error:", err);
-        notify("Error deleting record. Please try again.", "error");
-      }
+    setDeleteModal({
+      open: true,
+      note,
+      loading: false
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    const note = deleteModal.note;
+    const noteId = note?.cabinet_notes_ministry_id;
+    if (!noteId) return;
+
+    setDeleteModal(prev => ({ ...prev, loading: true }));
+    try {
+      const userId = getActiveUserId();
+      await deleteCabinetMinistry(noteId, userId);
+      notify("Cabinet Notes Ministry record deleted successfully.");
+      setDeleteModal({ open: false, note: null, loading: false });
+      fetchData();
+    } catch (err) {
+      console.error("Delete error:", err);
+      notify("Error deleting record. Please try again.", "error");
+      setDeleteModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -255,6 +275,18 @@ export default function CabinetNotesOther({
           />
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, note: null, loading: false })}
+        onConfirm={handleConfirmDelete}
+        loading={deleteModal.loading}
+        title="Delete Cabinet Note"
+        message="Deleting the record will also delete the stored data. Are you sure you want to delete?"
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
     </div>
   );
 }
