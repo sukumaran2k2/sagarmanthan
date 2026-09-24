@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, Layers, FilePieChart } from 'lucide-react';
+
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import { useCabinetNotesPermissions } from './hooks/useCabinetNotesPermissions';
@@ -59,14 +59,14 @@ export default function CabinetNotesMOPSW({
 
   const tabs = useMemo(() => {
     const items = [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'dashboard', label: 'Dashboard' },
     ];
     if (permissions.canAdd) {
-      items.push({ id: 'input-form', label: 'Input Form', icon: PlusCircle });
+      items.push({ id: 'input-form', label: 'Input Form' });
     }
     items.push(
-      { id: 'data-list', label: 'Data List', icon: Layers },
-      { id: 'reports', label: 'Report', icon: FilePieChart }
+      { id: 'data-list', label: 'Data List' },
+      { id: 'reports', label: 'Report' }
     );
     return items;
   }, [permissions.canAdd]);

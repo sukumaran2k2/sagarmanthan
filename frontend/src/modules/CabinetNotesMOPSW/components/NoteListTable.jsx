@@ -92,7 +92,9 @@ export default function NoteListTable({
         headerName: 'Name of the Subject',
         flex: 1.8,
         minWidth: 200,
-        cellClass: 'font-bold text-slate-800 scrollable-cell',
+        cellClass: 'font-bold text-slate-800',
+        wrapText: true,
+        autoHeight: true,
         hide: !visibleCols.subject,
       },
       {
@@ -100,7 +102,9 @@ export default function NoteListTable({
         headerName: 'Wing',
         flex: 1,
         minWidth: 120,
-        cellClass: 'text-slate-600 font-medium scrollable-cell',
+        cellClass: 'text-slate-600 font-medium',
+        wrapText: true,
+        autoHeight: true,
         hide: !visibleCols.wing,
       },
       {
@@ -108,7 +112,9 @@ export default function NoteListTable({
         headerName: 'Division',
         flex: 1,
         minWidth: 120,
-        cellClass: 'text-slate-600 font-medium scrollable-cell',
+        cellClass: 'text-slate-600 font-medium',
+        wrapText: true,
+        autoHeight: true,
         hide: !visibleCols.division,
       },
       {
@@ -116,7 +122,8 @@ export default function NoteListTable({
         headerName: 'Status',
         flex: 1.2,
         minWidth: 140,
-        cellClass: 'scrollable-cell',
+        wrapText: true,
+        autoHeight: true,
         hide: !visibleCols.status,
         cellRenderer: (params) => (
           <span className="text-xs font-black uppercase text-[#0f417a]">
@@ -129,7 +136,9 @@ export default function NoteListTable({
         headerName: 'Remarks',
         flex: 1.3,
         minWidth: 140,
-        cellClass: 'text-slate-600 scrollable-cell',
+        cellClass: 'text-slate-600',
+        wrapText: true,
+        autoHeight: true,
         hide: !visibleCols.remarks,
       },
       {
@@ -178,7 +187,7 @@ export default function NoteListTable({
                 <button
                   type="button"
                   onClick={() => onEdit?.(row)}
-                  className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
+                  className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
                   title="Update"
                 >
                   <Edit className="h-4 w-4" />
@@ -541,23 +550,6 @@ export default function NoteListTable({
           )}
         </div>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: `
-        .ag-theme-quartz .ag-cell.scrollable-cell {
-          overflow-x: auto !important;
-          overflow-y: hidden !important;
-          white-space: nowrap !important;
-          text-overflow: clip !important;
-          scrollbar-width: none !important;
-        }
-        .ag-theme-quartz .ag-cell.scrollable-cell .ag-cell-value {
-          overflow: visible !important;
-          text-overflow: clip !important;
-          white-space: nowrap !important;
-        }
-        .ag-theme-quartz .ag-cell.scrollable-cell::-webkit-scrollbar {
-          display: none !important;
-        }
-      `}} />
     </div>
   );
 }
