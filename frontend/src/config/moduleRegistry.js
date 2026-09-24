@@ -384,6 +384,7 @@ export const MODULE_PAGES = {
 export const PUBLIC_UI_TABS = [
   'landing',
   'profile',
+  'Contact Us',
   'Ministry Contacts',
   'Helpdesk Support',
 ];

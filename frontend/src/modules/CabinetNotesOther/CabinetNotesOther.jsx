@@ -1,22 +1,30 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import { CheckCircle2 } from 'lucide-react';
+import { PlusCircle, Layers, FileText, CheckCircle2 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
+import ConfirmModal from '../../components/ConfirmModal';
 import { useCabinetNotesPermissions } from './hooks/useCabinetNotesPermissions';
 import resolveCabinetNotesListView from './views';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { fetchCabinetMinistry, fetchWings, deleteCabinetMinistry } from './api';
 
+const INIT_TAB_KEY = 'cabinetNotesOtherInitTab';
+
+function resolveSubTabId(label, canAdd) {
+  if (label === 'Input Form') return canAdd ? 'add' : 'list';
+  if (label === 'Reports' || label === 'Report') return 'report';
+  if (label === 'Cabinet Notes-Other Ministry' || label === 'Data List') return 'list';
+  return null;
+}
+
 export default function CabinetNotesOther({
+  activeSubTab: activeSubTabProp,
   onGoHome,
   triggerNotification
 }) {
-  const location = useLocation();
-  const navigate = useNavigate();
   const permissions = useCabinetNotesPermissions();
-
+  const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'add' | 'report'
   const [loading, setLoading] = useState(false);
   const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
@@ -69,24 +77,53 @@ export default function CabinetNotesOther({
     fetchData();
   }, [fetchData]);
 
+  // Sub-tab synchronization
+  useEffect(() => {
+    const apply = (label) => {
+      const next = resolveSubTabId(label, permissions.canAdd);
+      if (next) setActiveSubTab(next);
+    };
+
+    const init = sessionStorage.getItem(INIT_TAB_KEY);
+    if (init) {
+      sessionStorage.removeItem(INIT_TAB_KEY);
+      apply(init);
+    }
+
+    const onMenu = (e) => apply(e.detail);
+    window.addEventListener('cabinet-notes-other-subtab', onMenu);
+    return () => window.removeEventListener('cabinet-notes-other-subtab', onMenu);
+  }, [permissions.canAdd]);
+
+  useEffect(() => {
+    const next = resolveSubTabId(activeSubTabProp, permissions.canAdd);
+    if (next) setActiveSubTab(next);
+  }, [activeSubTabProp, permissions.canAdd]);
+
+  // Enforce read-only tab restriction
+  useEffect(() => {
+    if (activeSubTab === 'add' && !permissions.canAdd) {
+      setActiveSubTab('list');
+    }
+  }, [activeSubTab, permissions.canAdd]);
+
   const tabs = useMemo(() => {
     const items = [];
     if (permissions.canAdd) {
-      items.push({ id: 'add', label: 'Input Form' });
+      items.push({ id: 'add', label: 'Input Form', icon: PlusCircle });
     }
     items.push(
-      { id: 'list', label: 'Data List' },
-      { id: 'report', label: 'Reports' }
+      { id: 'list', label: 'Data List', icon: Layers },
+      { id: 'report', label: 'Reports', icon: FileText }
     );
     return items;
   }, [permissions.canAdd]);
 
-  const currentTab = useMemo(() => {
-    const path = location.pathname.toLowerCase();
-    if (path.includes('/input-form') || path.includes('/add') || path.includes('/edit')) return 'input-form';
-    if (path.includes('/reports') || path.includes('/report')) return 'reports';
-    return 'data-list';
-  }, [location.pathname]);
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    note: null,
+    loading: false
+  });
 
   const ListView = useMemo(
     () => resolveCabinetNotesListView(permissions.uiViewCode),
@@ -99,39 +136,52 @@ export default function CabinetNotesOther({
       return;
     }
     setEditData(note);
-    navigate('/governance/cabinet-notes-other-ministry/input-form', { state: { item: note } });
+    setActiveSubTab('list');
   };
 
-  const handleDelete = async (note) => {
+  const handleDelete = (note) => {
     if (!permissions.canRemove) {
       notify("You do not have permission to delete records.", "error");
       return;
     }
-    const noteId = note.cabinet_notes_ministry_id;
+    const noteId = note?.cabinet_notes_ministry_id;
     if (!noteId) return;
 
-    if (window.confirm("Deleting the record will also delete the stored data. Are you sure you want to delete?")) {
-      try {
-        const userId = getActiveUserId();
-        await deleteCabinetMinistry(noteId, userId);
-        notify("Cabinet Notes Ministry record deleted successfully.");
-        fetchData();
-      } catch (err) {
-        console.error("Delete error:", err);
-        notify("Error deleting record. Please try again.", "error");
-      }
+    setDeleteModal({
+      open: true,
+      note,
+      loading: false
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    const note = deleteModal.note;
+    const noteId = note?.cabinet_notes_ministry_id;
+    if (!noteId) return;
+
+    setDeleteModal(prev => ({ ...prev, loading: true }));
+    try {
+      const userId = getActiveUserId();
+      await deleteCabinetMinistry(noteId, userId);
+      notify("Cabinet Notes Ministry record deleted successfully.");
+      setDeleteModal({ open: false, note: null, loading: false });
+      fetchData();
+    } catch (err) {
+      console.error("Delete error:", err);
+      notify("Error deleting record. Please try again.", "error");
+      setDeleteModal(prev => ({ ...prev, loading: false }));
     }
   };
 
   const handleSuccess = () => {
     setEditData(null);
     fetchData();
-    navigate('/governance/cabinet-notes-other-ministry/data-list');
+    setActiveSubTab('list');
   };
 
   const handleBack = () => {
     setEditData(null);
-    navigate('/governance/cabinet-notes-other-ministry/data-list');
+    setActiveSubTab('list');
   };
 
   if (!permissions.canView) {
@@ -160,58 +210,83 @@ export default function CabinetNotesOther({
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
           <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-300 tracking-wide uppercase font-display">
-            Cabinet Notes - Other Ministries
+            Cabinet Notes - Other Ministry
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            Manage, record, and track Cabinet Notes stages for Other Ministries.
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
+            Manage, record, and track Cabinet Notes received from other ministries and departments.
+            <span className="text-slate-400 dark:text-slate-500">
+              {' '}
+              · Scope: {permissions.dataScopeCode || '-'} · View: {permissions.uiViewCode}
+              {permissions.isViewOnlyAdmin ? ' · View Only Admin' : ''}
+            </span>
           </p>
         </div>
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={currentTab}
+          currentTab={activeSubTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'input-form') setEditData(null);
-            if (tabId === 'input-form') navigate('/governance/cabinet-notes-other-ministry/input-form');
-            else if (tabId === 'reports') navigate('/governance/cabinet-notes-other-ministry/reports');
-            else navigate('/governance/cabinet-notes-other-ministry/data-list');
+            setEditData(null);
+            setActiveSubTab(tabId);
           }}
         />
       </div>
 
+      {/* Dynamic Tab Render Area */}
       <div className="space-y-8">
-        <Routes>
-          <Route path="data-list" element={
+        {activeSubTab === 'list' && (
+          editData ? (
+            <InputForm
+              onBack={handleBack}
+              onSuccess={handleSuccess}
+              triggerNotification={notify}
+              editData={editData}
+              wingsList={wingsList}
+              readOnly={!permissions.canEdit}
+            />
+          ) : (
             <ListView
               rowData={rowData}
               loading={loading}
-              wingsList={wingsList}
+              canEdit={permissions.canEdit}
+              canDelete={permissions.canRemove}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              notify={notify}
-              canEdit={permissions.canEdit}
-              canRemove={permissions.canRemove}
+              onRefresh={fetchData}
+              triggerNotification={notify}
             />
-          } />
+          )
+        )}
 
-          {permissions.canAdd && (
-            <Route path="input-form" element={
-              <InputForm
-                wingsList={wingsList}
-                editData={editData}
-                onSuccess={handleSuccess}
-                onBack={handleBack}
-                notify={notify}
-              />
-            } />
-          )}
+        {activeSubTab === 'add' && permissions.canAdd && (
+          <InputForm
+            onBack={handleBack}
+            onSuccess={handleSuccess}
+            triggerNotification={notify}
+            editData={null}
+            wingsList={wingsList}
+            readOnly={false}
+          />
+        )}
 
-          <Route path="reports" element={<Reports notify={notify} />} />
-
-          <Route index element={<Navigate to="data-list" replace />} />
-          <Route path="*" element={<Navigate to="data-list" replace />} />
-        </Routes>
+        {activeSubTab === 'report' && (
+          <Reports
+            triggerNotification={notify}
+          />
+        )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, note: null, loading: false })}
+        onConfirm={handleConfirmDelete}
+        loading={deleteModal.loading}
+        title="Delete Cabinet Note"
+        message="Deleting the record will also delete the stored data. Are you sure you want to delete?"
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
     </div>
   );
 }

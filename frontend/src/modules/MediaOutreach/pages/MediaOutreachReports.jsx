@@ -133,12 +133,10 @@ export default function MediaOutreachReports({ triggerNotification }) {
         gridRef.current.api.exportDataAsCsv({
           fileName: `Media_Outreach_${platform}_Report_export.csv`
         });
-        triggerNotification?.(`Report exported to Excel (CSV) successfully!`, 'success');
-      } else {
-        triggerNotification?.('Grid is not ready for export yet.', 'warning');
+        triggerNotification?.(`Report exported to Excel (CSV) successfully!`);
       }
     } else if (type === 'PDF') {
-      triggerNotification?.(`Preparing PDF document...`, 'info');
+      triggerNotification?.(`Preparing PDF document...`);
       const printWindow = window.open('', '_blank');
       const title = `Media Outreach - Monthly Abstract Report (${platform.toUpperCase()})`;
 
@@ -188,10 +186,7 @@ export default function MediaOutreachReports({ triggerNotification }) {
   };
 
   const handleCopy = () => {
-    if (!gridRef.current?.api) {
-      triggerNotification?.('Grid is not ready for copy yet.', 'warning');
-      return;
-    }
+    if (!gridRef.current?.api) return;
     let tsv = '';
     const headers = columnDefs.map(c => c.headerName).filter(Boolean);
     tsv += headers.join('\t') + '\n';
@@ -207,10 +202,9 @@ export default function MediaOutreachReports({ triggerNotification }) {
     });
     
     navigator.clipboard.writeText(tsv).then(() => {
-      triggerNotification?.('Report copied to clipboard!', 'success');
+      triggerNotification?.('Report copied to clipboard!');
     }).catch(err => {
       console.error('Copy failed', err);
-      triggerNotification?.('Failed to copy report data.', 'error');
     });
   };
 

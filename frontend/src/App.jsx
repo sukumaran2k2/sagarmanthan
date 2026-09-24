@@ -458,7 +458,7 @@ export default function App() {
             <Route path="strategies/one-vision-one-document/*" element={<Navigate to="/strategies/drishti-portal/dashboard" replace />} />
 
             {/* Finance - Capex */}
-            <Route path="finance/capex/*" element={<CapexView />} />
+            <Route path="finance/capex/*" element={<CapexView triggerNotification={triggerNotification} />} />
 
             {/* Governance Routes */}
             <Route path="governance/e-office/*" element={<EOfficeView initialKpi={eOfficeKpi} />} />
@@ -471,7 +471,7 @@ export default function App() {
             <Route path="governance/parliamentary-issue/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
             <Route path="governance/parliamentary-issues/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
             <Route path="governance/audit-paras/*" element={<AuditParaView triggerNotification={triggerNotification} />} />
-            <Route path="governance/gem-procurements" element={<GEMProcurementView />} />
+            <Route path="governance/gem-procurements" element={<GEMProcurementView triggerNotification={triggerNotification} />} />
 
             {/* Legal Routes */}
             <Route path="legal/courtcases" element={<ActsAndRulesView />} />

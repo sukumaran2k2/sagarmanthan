@@ -21,6 +21,10 @@ import {
   updateCapexTarget,
 } from './api';
 import { calculateCapexExpenditurePercentage } from './utils/capexUtils';
+import {
+  getWrapColumnProps,
+  renderWrappedText,
+} from '../../utils/tableCellWrap';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -71,13 +75,27 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
   const [toastVisible, setToastVisible] = useState(false);
 
   const showToast = useCallback(
-    (msg, color = '#10B981') => {
+    (msg, colorOrType = 'success') => {
+      const raw = String(msg || '');
+      const isError =
+        colorOrType === 'error' ||
+        String(colorOrType).toLowerCase().includes('ef4444') ||
+        String(colorOrType).toLowerCase().includes('red') ||
+        raw.includes('❌');
+      const type =
+        colorOrType === 'info' || String(colorOrType).toLowerCase().includes('3b82f6')
+          ? 'info'
+          : isError
+            ? 'error'
+            : 'success';
+      const cleanMsg = raw.replace(/^[✅❌📋📊📄]\s*/u, '').trim() || raw;
+
       if (typeof triggerNotification === 'function') {
-        triggerNotification(msg);
+        triggerNotification(cleanMsg, type);
         return;
       }
-      setToastMsg(msg);
-      setToastColor(color);
+      setToastMsg(cleanMsg);
+      setToastColor(isError ? '#EF4444' : '#10B981');
       setToastVisible(true);
       setTimeout(() => setToastVisible(false), 3000);
     },
@@ -284,7 +302,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
         headerName: 'Organisation',
         flex: 2,
         minWidth: 220,
-        cellClass: 'font-bold text-slate-800 text-left flex items-center',
+        ...getWrapColumnProps('font-bold text-slate-800 text-left'),
         valueGetter: (params) => {
           if (!params.data) return '—';
           if (params.data.organisation_name) return params.data.organisation_name;
@@ -294,50 +312,61 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
           );
           return foundOrg ? foundOrg.organisation_name || foundOrg.name : '—';
         },
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-bold text-slate-800 text-left', '—'),
       },
       {
         field: 'capex_financial_year',
         headerName: 'Financial Year',
         flex: 1.2,
         minWidth: 130,
-        cellClass:
-          'font-semibold text-slate-700 text-center flex items-center justify-center',
+        ...getWrapColumnProps('font-semibold text-slate-700 text-center'),
         valueFormatter: (params) =>
           params.value ? String(params.value).replace(/,/g, '') : '—',
+        cellRenderer: (params) =>
+          renderWrappedText(
+            params.valueFormatted ?? params.value,
+            'font-semibold text-slate-700 text-center',
+            '—'
+          ),
       },
       {
         field: 'capex_total_value',
         headerName: 'Total Planned Expenditure (In Crore)',
         flex: 2,
         minWidth: 220,
-        cellClass:
-          'font-black text-[#0f417a] text-center flex items-center justify-center',
+        ...getWrapColumnProps('font-black text-[#0f417a] text-center'),
         valueFormatter: (params) =>
           params.value !== undefined && params.value !== null
             ? Number(params.value).toFixed(2)
             : '0.00',
+        cellRenderer: (params) =>
+          renderWrappedText(
+            params.valueFormatted ?? params.value,
+            'font-black text-[#0f417a] text-center',
+            '0.00'
+          ),
       },
       {
         field: 'total_capex_expenditure',
         headerName: 'Actual Expenditure (In Crore)',
         flex: 2,
         minWidth: 200,
-        cellClass:
-          'font-black text-blue-700 text-center flex items-center justify-center cursor-pointer hover:underline',
+        ...getWrapColumnProps(
+          'font-black text-blue-700 text-center cursor-pointer hover:underline'
+        ),
         cellRenderer: (params) => (
           <div
             onClick={() => {
               setSelectedRecord(params.data);
               setIsActualExpenditurePageActive(true);
             }}
-            className="text-blue-700 font-black underline cursor-pointer flex items-center justify-center gap-1.5"
+            className="w-full max-w-full text-blue-700 font-black underline cursor-pointer whitespace-normal break-words leading-snug py-0.5 text-center"
             title="Click to view/edit monthly expenditure page"
           >
-            <span>
-              {params.value !== undefined && params.value !== null
-                ? Number(params.value).toFixed(2)
-                : '0.00'}
-            </span>
+            {params.value !== undefined && params.value !== null
+              ? Number(params.value).toFixed(2)
+              : '0.00'}
           </div>
         ),
       },
@@ -345,8 +374,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
         headerName: '% Expenditure Of BE',
         flex: 1.5,
         minWidth: 160,
-        cellClass:
-          'font-bold text-slate-800 text-center flex items-center justify-center',
+        ...getWrapColumnProps('font-bold text-slate-800 text-center'),
         valueGetter: (params) => {
           if (!params.data) return '0.00';
           return calculateCapexExpenditurePercentage(
@@ -354,32 +382,32 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
             params.data.capex_total_value
           );
         },
+        cellRenderer: (params) =>
+          renderWrappedText(params.value, 'font-bold text-slate-800 text-center', '0.00'),
       },
       {
         field: 'updated_date',
         headerName: 'Last Updated Date',
         flex: 1.5,
         minWidth: 150,
-        cellClass:
-          'text-slate-600 font-semibold text-center flex items-center justify-center',
+        ...getWrapColumnProps('text-slate-600 font-semibold text-center'),
         valueGetter: (params) =>
           params.data.updated_date ? String(params.data.updated_date).slice(0, 10) : '—',
+        cellRenderer: (params) =>
+          renderWrappedText(
+            params.value,
+            'text-slate-600 font-semibold text-center font-mono text-xs',
+            '—'
+          ),
       },
     ];
 
     if (permissions.canEdit) {
-      const updateHeaderLabel =
-        viewMode === 'ministry'
-          ? 'Update Target'
-          : viewMode === 'org'
-            ? 'Update Actuals'
-            : 'Update';
-
       allDefs.push({
-        headerName: updateHeaderLabel,
+        headerName: viewMode === 'ministry' ? 'Update Target' : 'Update Actuals',
         flex: 1,
         minWidth: 110,
-        maxWidth: 120,
+        maxWidth: 150,
         pinned: 'right',
         lockPinned: true,
         suppressMovable: true,
@@ -394,7 +422,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
               <button
                 type="button"
                 onClick={() => openUpdatePage(row)}
-                className="p-1.5 hover:bg-slate-100 rounded text-[#0f417a] transition cursor-pointer"
+                className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
                 title={viewMode === 'ministry' ? 'Update Planned Expense' : 'Edit Expenditure'}
               >
                 <Edit className="h-4 w-4" />
@@ -535,7 +563,7 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
             {/* KPI cards commented out for now
             <CapexKpiCards data={capexData} />
             */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
               <CapexDataListView
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}

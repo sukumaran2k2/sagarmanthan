@@ -4141,7 +4141,7 @@ async function getEventWiseSummary(req, res) {
             SELECT
                 event_name AS [GMIS Event],
                 COUNT(*) AS [Total MoUs],
-                SUM(ISNULL(amount, 0)) AS [Total Cost],
+                SUM(ISNULL(amount, 0)) AS [Total Amount],
                 SUM(
                     CASE
                         WHEN LOWER(LTRIM(RTRIM(present_status)))
@@ -4594,7 +4594,7 @@ async function getVibascellWiseSummary(req, res) {
                             ELSE 0
                         END
                     AS DECIMAL(10, 2))
-                    AS [Implementation Progress Value]
+                    AS [Implementation Progress]
 
                 FROM VibhasSummary
             )
@@ -4611,13 +4611,13 @@ async function getVibascellWiseSummary(req, res) {
                 [Dropped],
 
                 CONCAT(
-                    [Implementation Progress Value],
+                    [Implementation Progress],
                     '%'
                 ) AS [Implementation Progress (%)],
 
                 RANK() OVER (
                     ORDER BY
-                        [Implementation Progress Value] DESC
+                        [Implementation Progress] DESC
                 ) AS [Performance Rank]
 
             FROM CalculatedProgress
@@ -4701,7 +4701,7 @@ async function getCategoryWiseSummary(req,res) {
            SELECT
             mou.mou_category_name AS [MoU Category],
             COUNT(*) AS [Total MoUs],
-            SUM(ISNULL(amount, 0)) AS [Total Cost],
+            SUM(ISNULL(amount, 0)) AS [Total Amount],
             SUM(CASE
                 WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%yet%start%'
                 THEN 1 ELSE 0

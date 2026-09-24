@@ -154,6 +154,9 @@ async function addCapex(req, res) {
     await request.query(`
             INSERT INTO tbl_capex (
                 created_by,
+                created_date,
+                updated_by,
+                updated_date,
                 capex_financial_year,
                 capex_organisation_id,
                 capex_gbs_value,
@@ -163,6 +166,9 @@ async function addCapex(req, res) {
             )
             VALUES (
                 @userId,
+                GETDATE(),
+                @userId,
+                GETDATE(),
                 @financialYear,
                 @organisationId,
                 @gbsValue,

@@ -330,7 +330,7 @@ export default function DataList({
         </div>
       )
     },
-    {
+    ...(activeTab === 'completed' ? [{
       headerName: "Completed On",
       field: "completed_on",
       minWidth: 120,
@@ -344,7 +344,7 @@ export default function DataList({
           {p.value ? String(p.value).split('T')[0] : '-'}
         </div>
       )
-    },
+    }] : []),
     {
       headerName: "Remarks",
       field: "remarks",
@@ -416,7 +416,7 @@ export default function DataList({
         );
       }
     }
-  ], [currentPage, pageSize, onEdit, isOrgUser, visibleCols]);
+  ], [currentPage, pageSize, onEdit, isOrgUser, visibleCols, activeTab]);
 
   const exportColumns = useMemo(() => [
     { key: 'sno', label: 'S.No', render: (_, __, i) => i + 1 },
@@ -425,9 +425,9 @@ export default function DataList({
     { key: 'project_name', label: 'Name of the Project' },
     { key: 'project_value', label: 'Project Value(Rs. In Lakhs)', render: (v) => (v != null && v !== '' ? Number(v).toLocaleString() : '-') },
     { key: 'project_status', label: 'Project Status' },
-    { key: 'completed_on', label: 'Completed On', render: (v) => (v ? String(v).split('T')[0] : '-') },
+    ...(activeTab === 'completed' ? [{ key: 'completed_on', label: 'Completed On', render: (v) => (v ? String(v).split('T')[0] : '-') }] : []),
     { key: 'remarks', label: 'Remarks' },
-  ], [isOrgUser]);
+  ], [isOrgUser, activeTab]);
 
   return (
     <div className="space-y-4 animate-fade-in text-slate-800 dark:text-slate-100">
@@ -565,7 +565,7 @@ export default function DataList({
                     { key: 'project_name', label: 'Project Name' },
                     { key: 'project_value', label: 'Project Value' },
                     { key: 'project_status', label: 'Status' },
-                    { key: 'completed_on', label: 'Completed On' },
+                    ...(activeTab === 'completed' ? [{ key: 'completed_on', label: 'Completed On' }] : []),
                     { key: 'remarks', label: 'Remarks' },
                     { key: 'actions', label: 'Update' },
                   ].map(({ key, label }) => (

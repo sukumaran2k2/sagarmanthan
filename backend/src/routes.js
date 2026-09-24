@@ -1518,20 +1518,75 @@ router.get("/vip-pendencydivisionwise-report/:wingID/", vipReportTab.vipPendency
 router.get("/getvippendency-wingwise/:wingID/:countDate", vipReportTab.getDetailVipPendencyWingWise);
 router.get("/getvippendency-divisionwise/:divisionID/:countDate", vipReportTab.getDetailVipPendencyDivisionWise);
 
-//Social Media
-router.post("/create-social-media", socialmediaTab.createSocialMedia);
-router.get("/socialmedia-parameter", socialmediaTab.getSocialMediaData);
-router.get("/monthly-socialmedia-parameter/:userID/", socialmediaTab.getMonthlySocialParameter);
-router.get("/quarterly-socialmedia-parameter/:platform/:userID/", socialmediaTab.getQuarterlySocialParameter);
-router.get("/annually-socialmedia-parameter/:platform/:userID/", socialmediaTab.getAnnuallySocialMediaData);
-router.get("/update-Broadcast-media-data/:mediaOutreachId", socialmediaTab.getUpdateBroadcastmediadata);
-router.put('/media-outreach-data-edit',socialmediaTab.updateBroadcastmediadata);
-router.delete("/delete-social-media/:mediaOutreachId", socialmediaTab.deleteSocialMedia);
+// Social Media & Outreach
+router.post(
+  "/create-social-media",
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "create"),
+  socialmediaTab.createSocialMedia
+);
+router.get(
+  "/socialmedia-parameter",
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "read"),
+  socialmediaTab.getSocialMediaData
+);
+router.get(
+  "/monthly-socialmedia-parameter/:userID/",
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "read"),
+  socialmediaTab.getMonthlySocialParameter
+);
+router.get(
+  "/quarterly-socialmedia-parameter/:platform/:userID/",
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "read"),
+  socialmediaTab.getQuarterlySocialParameter
+);
+router.get(
+  "/annually-socialmedia-parameter/:platform/:userID/",
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "read"),
+  socialmediaTab.getAnnuallySocialMediaData
+);
+router.get(
+  "/update-Broadcast-media-data/:mediaOutreachId",
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "read"),
+  socialmediaTab.getUpdateBroadcastmediadata
+);
+router.put(
+  '/media-outreach-data-edit',
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "update"),
+  socialmediaTab.updateBroadcastmediadata
+);
+router.delete(
+  "/delete-social-media/:mediaOutreachId",
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "delete"),
+  socialmediaTab.deleteSocialMedia
+);
 
-//social Media week1 Report
-router.get("/monthly-onlinemedia-report-parameter/:userID/:currentMonth/:currentFinYear/", socialmediaTab.getMonthlyOnlineReport);
-router.get("/monthly-socialmedia-report-parameter/:userID/:currentMonth/:currentFinYear/", socialmediaTab.getMonthlySocialReport);
-router.get("/monthly-BroadPrint-report-parameter/:userID/:platform/:currentMonth/:currentFinYear/", socialmediaTab.getMonthlyBroadPrintReport);
+// social Media week1 Report
+router.get(
+  "/monthly-onlinemedia-report-parameter/:userID/:currentMonth/:currentFinYear/",
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "read"),
+  socialmediaTab.getMonthlyOnlineReport
+);
+router.get(
+  "/monthly-socialmedia-report-parameter/:userID/:currentMonth/:currentFinYear/",
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "read"),
+  socialmediaTab.getMonthlySocialReport
+);
+router.get(
+  "/monthly-BroadPrint-report-parameter/:userID/:platform/:currentMonth/:currentFinYear/",
+  auth,
+  requireModulePermission("MEDIA_OUTREACH", "read"),
+  socialmediaTab.getMonthlyBroadPrintReport
+);
 
 // Gem Procurement
 router.get("/gem-goodsreport", auth, requireModulePermission("GEM_PROCUREMENT", "read"), gemReportTab.gemGoodsData);

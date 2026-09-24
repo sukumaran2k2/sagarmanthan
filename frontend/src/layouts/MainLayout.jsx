@@ -409,8 +409,8 @@ export default function MainLayout({
       {/* Government Portal Footer */}
       <Footer />
 
-      {/* Intelligent Maritime ChatBot Assistant */}
-      <SagarBot />
+      {/* Intelligent Maritime ChatBot Assistant (Temporarily disabled) */}
+      {/* <SagarBot /> */}
     </div>
   );
 }

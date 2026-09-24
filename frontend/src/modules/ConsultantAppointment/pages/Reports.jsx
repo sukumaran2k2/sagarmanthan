@@ -55,6 +55,9 @@ export default function Reports({ wings = [], triggerNotification }) {
           filter: true,
           sortable: true,
           resizable: true,
+          wrapText: true,
+          autoHeight: true,
+          cellClass: 'yp-wrap-cell',
           minWidth: col.width || 120,
           cellRenderer: (params) => {
             if (params.value === null || params.value === undefined) return '';
@@ -148,6 +151,9 @@ export default function Reports({ wings = [], triggerNotification }) {
                   filter: true,
                   sortable: true,
                   pinned,
+                  wrapText: true,
+                  autoHeight: true,
+                  cellClass: 'yp-wrap-cell',
                   cellRenderer: (isNumerical && !isIdColumn) ? (params) => {
                     if (params.value === null || params.value === undefined) return '';
                     return params.value;
@@ -217,7 +223,14 @@ export default function Reports({ wings = [], triggerNotification }) {
     sortable: true,
     filter: true,
     resizable: true,
-    cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
+    wrapText: true,
+    autoHeight: true,
+    cellClass: 'yp-wrap-cell',
+    cellStyle: {
+      wordBreak: 'break-word',
+      whiteSpace: 'normal',
+      lineHeight: '1.5'
+    }
   }), []);
 
   const subtitle = useMemo(() => (
