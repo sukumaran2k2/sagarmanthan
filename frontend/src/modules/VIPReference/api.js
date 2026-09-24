@@ -5,6 +5,10 @@ export function fetchVIPReferences(params = {}, config = {}) {
   return axiosInstance.get('/vip-reference', { params, ...config });
 }
 
+export function fetchVIPReferenceDashboard() {
+  return axiosInstance.get('/vip-reference-dashboard');
+}
+
 export function fetchVIPReferenceById(id) {
   return axiosInstance.get(`/vip-reference/${id}`);
 }

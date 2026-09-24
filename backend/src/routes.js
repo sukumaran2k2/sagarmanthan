@@ -31,6 +31,7 @@ import fileDataTab from "./controllers/Governance/fileData.js";
 import pendencyTab from "./controllers/Governance/pendency.js";
 import pendencyDataTab from "./controllers/Governance/pendencyData.js";
 import vipReferenceTab from "./controllers/Governance/vipReference.js";
+import vipReferenceDashboard from "./controllers/Governance/vipReferenceDashboard.js";
 import cabinetMopswTab from "./controllers/Governance/mopswCabinetNotes.js";
 import cabinetMopswDashboard from "./controllers/Governance/cabinetMopswDashboard.js";
 import mopswDocumentTab from "./controllers/Governance/mopswDocumentUploader.js";
@@ -680,6 +681,7 @@ router.get("/get-works-procurement/:worksGemID", auth, requireModulePermission("
 
 router.get("/get-organisation-names/:organisationID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), financialParameterTab.getOrganisationName);
 // Vip
+router.get("/vip-reference-dashboard", vipReferenceDashboard.getVipReferenceDashboard);
 router.get("/vip-reference", vipReferenceTab.getVipReference);
 router.post("/vip-reference", vipReferenceTab.createVipReference);
 router.put("/vip-reference", vipReferenceTab.updateVipReference);
