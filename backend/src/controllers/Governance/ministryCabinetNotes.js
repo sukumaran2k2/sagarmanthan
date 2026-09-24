@@ -499,37 +499,12 @@ async function getUpdateCabinetMinistryData(req, res) {
 
 async function deleteCabinetNotesMinistry(req, res) {
     const cabinetNotesMinistryId = req.params.cabinet_notes_ministry_id;
-    const userID = req.params.userID;
-
-    const now = new Date();
-    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const hourPart = String(now.getHours()).padStart(2, '0');
-    const minutePart = String(now.getMinutes()).padStart(2, '0');
-    const secondPart = String(now.getSeconds()).padStart(2, '0');
-    const timestamp = `${datePart}_${hourPart}${minutePart}${secondPart}`;
-    const logFolder = `./delete_log/cabinet_notes_other`;
-    const logFileName = `${logFolder}/deleted_cabinet_notes_other_log_${timestamp}.txt`;
-
     const conn = await pool;
     const request = conn.request();
     request.input("cabinetNotesMinistryId", cabinetNotesMinistryId);
     try {
-        const dataToDelete = await request.query(`SELECT * FROM tbl_cabinet_notes_ministry_change WHERE cabinet_notes_ministry_id = @cabinetNotesMinistryId;`);
-        const dataJSON = JSON.stringify(dataToDelete.recordset[0]);
-
         const result = await request.query(`DELETE FROM tbl_cabinet_notes_ministry_change WHERE cabinet_notes_ministry_id = @cabinetNotesMinistryId;`);
         if (result.rowsAffected[0] > 0) {
-            const logMessage = `User ${userID} deleted Cabinet Notes Ministry data with Data ID ${cabinetNotesMinistryId}. Deleted Data: ${dataJSON}\n`;
-
-            if (!fs.existsSync(logFolder)) {
-                fs.mkdirSync(logFolder, { recursive: true });
-            }
-            fs.appendFile(logFileName, logMessage, (err) => {
-                if (err) {
-                    console.error('Error writing to delete log:', err);
-                }
-            });
-
             return res.sendStatus(201);
         } else {
             return res.status(404).send("Data not found");

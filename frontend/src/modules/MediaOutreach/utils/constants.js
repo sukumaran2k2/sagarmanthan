@@ -1,3 +1,5 @@
+import { PlusCircle, Tv, Newspaper, Globe, Share2 } from 'lucide-react';
+
 export const MONTHS = [
   'April', 'May', 'June', 'July', 'August', 'September', 
   'October', 'November', 'December', 'January', 'February', 'March'
@@ -29,9 +31,9 @@ export const STEPS = [
 ];
 
 export const MEDIA_TABS_ALL = [
-  { id: 'add_details', label: 'Input Form' },
-  { id: 'broadcast', label: 'Broadcast / TV Media' },
-  { id: 'print_media', label: 'Print Media' },
-  { id: 'online', label: 'Online' },
-  { id: 'social_media', label: 'Social Media' },
+  { id: 'add_details', label: 'Input Form', icon: PlusCircle },
+  { id: 'broadcast', label: 'Broadcast / TV Media', icon: Tv },
+  { id: 'print_media', label: 'Print Media', icon: Newspaper },
+  { id: 'online', label: 'Online', icon: Globe },
+  { id: 'social_media', label: 'Social Media', icon: Share2 },
 ];
