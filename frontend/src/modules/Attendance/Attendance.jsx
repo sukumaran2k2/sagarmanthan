@@ -859,7 +859,7 @@ export default function AttendanceView({ triggerNotification }) {
       headerName: 'Uploaded By',
       flex: 2,
       minWidth: 160,
-      cellClass: 'text-slate-700 font-medium text-left flex items-center',
+      cellClass: 'text-slate-700 font-medium text-center flex items-center justify-center',
       valueGetter: (params) => params.data['Uploaded By'] || params.data.Uploaded_By || params.data.uploaded_by || 'Admin',
     },
     {
