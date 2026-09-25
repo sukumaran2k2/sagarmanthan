@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { PlusCircle, Layers, FileText, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useCabinetNotesPermissions } from './hooks/useCabinetNotesPermissions';
 import resolveCabinetNotesListView from './views';
+import Dashboard from './pages/Dashboard';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { fetchCabinetMinistry, fetchWings, deleteCabinetMinistry } from './api';
@@ -12,6 +13,7 @@ import { fetchCabinetMinistry, fetchWings, deleteCabinetMinistry } from './api';
 const INIT_TAB_KEY = 'cabinetNotesOtherInitTab';
 
 function resolveSubTabId(label, canAdd) {
+  if (label === 'Dashboard') return 'dashboard';
   if (label === 'Input Form') return canAdd ? 'add' : 'list';
   if (label === 'Reports' || label === 'Report') return 'report';
   if (label === 'Cabinet Notes-Other Ministry' || label === 'Data List') return 'list';
@@ -24,7 +26,7 @@ export default function CabinetNotesOther({
   triggerNotification
 }) {
   const permissions = useCabinetNotesPermissions();
-  const [activeSubTab, setActiveSubTab] = useState('list'); // 'list' | 'add' | 'report'
+  const [activeSubTab, setActiveSubTab] = useState('dashboard'); // 'dashboard' | 'list' | 'add' | 'report'
   const [loading, setLoading] = useState(false);
   const [rowData, setRowData] = useState([]);
   const [editData, setEditData] = useState(null);
@@ -108,13 +110,13 @@ export default function CabinetNotesOther({
   }, [activeSubTab, permissions.canAdd]);
 
   const tabs = useMemo(() => {
-    const items = [];
+    const items = [{ id: 'dashboard', label: 'Dashboard' }];
     if (permissions.canAdd) {
-      items.push({ id: 'add', label: 'Input Form', icon: PlusCircle });
+      items.push({ id: 'add', label: 'Input Form' });
     }
     items.push(
-      { id: 'list', label: 'Data List', icon: Layers },
-      { id: 'report', label: 'Reports', icon: FileText }
+      { id: 'list', label: 'Data List' },
+      { id: 'report', label: 'Reports' }
     );
     return items;
   }, [permissions.canAdd]);
@@ -234,6 +236,8 @@ export default function CabinetNotesOther({
 
       {/* Dynamic Tab Render Area */}
       <div className="space-y-8">
+        {activeSubTab === 'dashboard' && <Dashboard />}
+
         {activeSubTab === 'list' && (
           editData ? (
             <InputForm

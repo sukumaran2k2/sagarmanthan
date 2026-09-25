@@ -5,6 +5,7 @@ import RestrictedAccess from '../../components/RestrictedAccess';
 import Notification from '../../components/Notification';
 import { useParliamentaryPermissions } from './hooks/useParliamentaryPermissions';
 import { resolveParliamentaryListView } from './views';
+import Dashboard from './pages/Dashboard';
 import ParliamentaryIssuesReports from './pages/Reports';
 import IssueForm from './pages/IssueForm';
 import {
@@ -54,7 +55,7 @@ export default function ParliamentaryIssues({
   }, []);
 
   const tabs = useMemo(() => {
-    const items = [];
+    const items = [{ id: 'dashboard', label: 'Dashboard' }];
     if (permissions.canAdd) {
       items.push({ id: 'input-form', label: 'Input Form' });
     }
@@ -67,9 +68,11 @@ export default function ParliamentaryIssues({
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
+    if (path.includes('/dashboard')) return 'dashboard';
     if (path.includes('/input-form') || path.includes('/add')) return 'input-form';
     if (path.includes('/reports') || path.includes('/report')) return 'reports';
-    return 'data-list';
+    if (path.includes('/data-list') || path.includes('/list')) return 'data-list';
+    return 'dashboard';
   }, [location.pathname]);
 
   const ListView = useMemo(
@@ -104,7 +107,8 @@ export default function ParliamentaryIssues({
           tabs={tabs}
           currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId === 'input-form') navigate('/governance/parliamentary-issues/input-form');
+            if (tabId === 'dashboard') navigate('/governance/parliamentary-issues/dashboard');
+            else if (tabId === 'input-form') navigate('/governance/parliamentary-issues/input-form');
             else if (tabId === 'reports') navigate('/governance/parliamentary-issues/reports');
             else navigate('/governance/parliamentary-issues/data-list');
           }}
@@ -113,6 +117,7 @@ export default function ParliamentaryIssues({
 
       <div className="space-y-8">
         <Routes>
+          <Route path="dashboard" element={<Dashboard />} />
           <Route path="data-list" element={
             <ListView key={listKey} notify={notify} onGoHome={onGoHome} />
           } />
@@ -137,8 +142,8 @@ export default function ParliamentaryIssues({
 
           <Route path="reports" element={<ParliamentaryIssuesReports notify={notify} />} />
 
-          <Route index element={<Navigate to="data-list" replace />} />
-          <Route path="*" element={<Navigate to="data-list" replace />} />
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
       </div>
     </div>

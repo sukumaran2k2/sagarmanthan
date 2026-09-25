@@ -3,9 +3,11 @@ import { RefreshCw, TrendingUp, BarChart3, Layers, Clock } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
-import { fetchVIPReferenceDashboard } from '../api';
+import { fetchParliamentaryIssueDashboard } from '../api';
 import ChartExportMenu from '../../../components/ChartExportMenu';
 import { MoreVertical, FileSpreadsheet, Printer } from 'lucide-react';
+
+const COMPLETED_STAGE_NAMES = ['Matter Disposed', 'Replay sent'];
 
 function SlaBadge({ status }) {
   if (!status) return <span className="text-slate-600 dark:text-slate-300 text-[10px]">—</span>;
@@ -187,7 +189,7 @@ function TableExportMenu({ headers, data, fileName = 'export', title = 'Report' 
   );
 }
 
-export default function VIPReferenceDashboard() {
+export default function ParliamentaryIssueDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -197,7 +199,7 @@ export default function VIPReferenceDashboard() {
   const load = () => {
     setLoading(true);
     setError(null);
-    fetchVIPReferenceDashboard()
+    fetchParliamentaryIssueDashboard()
       .then((res) => setData(res.data))
       .catch(() => setError('Failed to load dashboard data.'))
       .finally(() => setLoading(false));
@@ -206,7 +208,7 @@ export default function VIPReferenceDashboard() {
   useEffect(() => { load(); }, []);
 
   const { kpi, lastDataUpdate, heatMap = [], wingWise = [], longPending = [] } = data || {};
-  const distData = useMemo(() => heatMap.filter((s) => s.stage_id !== 6), [heatMap]);
+  const distData = useMemo(() => heatMap.filter((s) => !COMPLETED_STAGE_NAMES.includes(s.stage_name)), [heatMap]);
 
   if (loading) return (
     <div className="flex items-center justify-center py-20 text-slate-400 text-sm">
@@ -250,7 +252,7 @@ export default function VIPReferenceDashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
-          label="Total VIP references"
+          label="Total parliamentary issues"
           value={kpi?.total}
           subtext="Across all wings"
           icon={Layers}
@@ -259,7 +261,7 @@ export default function VIPReferenceDashboard() {
           iconWrapClass="bg-indigo-50 dark:bg-indigo-950/40 text-[#6366f1] dark:text-indigo-400 border-indigo-100 dark:border-indigo-900"
         />
         <KpiCard
-          label="Active VIP references"
+          label="Active issues"
           value={kpi?.active}
           subtext="Currently in progress"
           icon={TrendingUp}
@@ -268,18 +270,18 @@ export default function VIPReferenceDashboard() {
           iconWrapClass="bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900"
         />
         <KpiCard
-          label="Disposed"
+          label="Completed"
           value={kpi?.completed}
-          subtext="Finalized references"
+          subtext="Disposed / reply sent"
           icon={BarChart3}
           valueColorClass="text-emerald-700 dark:text-emerald-400"
           subtextColorClass="text-emerald-600 dark:text-emerald-400"
           iconWrapClass="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900"
         />
         <KpiCard
-          label="Avg age of active refs (days)"
+          label="Avg age of active issues (days)"
           value={kpi?.avgAgeDays}
-          subtext="For references still active"
+          subtext="For issues still active"
           icon={Clock}
           valueColorClass="text-teal-700 dark:text-teal-400"
           subtextColorClass="text-teal-600 dark:text-teal-400"
@@ -296,8 +298,8 @@ export default function VIPReferenceDashboard() {
             <TableExportMenu
               headers={['Stage', 'Count', 'Avg days', 'Max days', 'SLA status']}
               data={heatMapExportData}
-              fileName="vip_reference_stage_heat_map"
-              title="VIP Reference Stage-wise Heat Map"
+              fileName="parliamentary_issue_stage_heat_map"
+              title="Parliamentary Issues Stage-wise Heat Map"
             />
           </div>
           <div className="overflow-hidden flex-1 p-3">
@@ -312,7 +314,7 @@ export default function VIPReferenceDashboard() {
               </thead>
               <tbody>
                 {heatMap.map((row, i) => (
-                  <tr key={row.stage_id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
+                  <tr key={row.stage_name} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
                     <td className="px-3 py-2 text-slate-800 dark:text-slate-100 font-semibold">{row.stage_name}</td>
                     <td className="px-3 py-2 text-center font-bold text-[#6366f1] dark:text-indigo-400">{row.note_count}</td>
                     <td className="px-3 py-2 text-center text-slate-800 dark:text-slate-100 font-semibold">{row.note_count ? row.avg_days : '—'}</td>
@@ -331,13 +333,13 @@ export default function VIPReferenceDashboard() {
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
               <span className="text-indigo-200">2.</span> Current stage distribution
             </h3>
-            <ChartExportMenu chartRoot={distChartRoot} fileName="vip_reference_stage_distribution_chart" color="#6366f1" variant="plain" />
+            <ChartExportMenu chartRoot={distChartRoot} fileName="parliamentary_issue_stage_distribution_chart" color="#6366f1" variant="plain" />
           </div>
           <div className="p-5 flex-1 overflow-hidden flex flex-col">
             <div className="flex-1 min-h-0">
               <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
             </div>
-            <p className="text-[9px] text-slate-600 dark:text-slate-300 text-center mt-1 flex-shrink-0">Number of references →</p>
+            <p className="text-[9px] text-slate-600 dark:text-slate-300 text-center mt-1 flex-shrink-0">Number of issues →</p>
           </div>
         </div>
       </div>
@@ -346,29 +348,29 @@ export default function VIPReferenceDashboard() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
           <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3 flex items-center justify-between flex-shrink-0">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-indigo-200">3.</span> Wing-wise pending VIP references (active)
+              <span className="text-indigo-200">3.</span> Wing-wise pending issues (active)
             </h3>
-            <ChartExportMenu chartRoot={wingChartRoot} fileName="vip_reference_wing_wise_pending_chart" color="#6366f1" variant="plain" />
+            <ChartExportMenu chartRoot={wingChartRoot} fileName="parliamentary_issue_wing_wise_pending_chart" color="#6366f1" variant="plain" />
           </div>
           <div className="p-5 flex-1 overflow-hidden flex flex-col">
             <div className="flex-1 min-h-0">
               <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
             </div>
-            <p className="text-[9px] text-slate-600 dark:text-slate-300 text-center mt-1 flex-shrink-0">Number of references →</p>
+            <p className="text-[9px] text-slate-600 dark:text-slate-300 text-center mt-1 flex-shrink-0">Number of issues →</p>
           </div>
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden h-[460px] flex flex-col">
           <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3 flex items-center justify-between flex-shrink-0">
             <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-              <span className="text-indigo-200">4.</span> Long pending VIP references
+              <span className="text-indigo-200">4.</span> Long pending issues
               <span className="text-[10px] font-medium text-indigo-200/80 ml-1">(Top 10)</span>
             </h3>
             <TableExportMenu
               headers={['S.No', 'Subject', 'Wing', 'Current stage', 'Last Updated', 'Days']}
               data={longPendingExportData}
-              fileName="long_pending_vip_references"
-              title="Long Pending VIP References (Top 10)"
+              fileName="long_pending_parliamentary_issues"
+              title="Long Pending Parliamentary Issues (Top 10)"
             />
           </div>
           <div className="flex-1 p-3 overflow-hidden flex flex-col">
@@ -384,7 +386,7 @@ export default function VIPReferenceDashboard() {
               </thead>
               <tbody>
                 {longPending.map((row, i) => (
-                  <tr key={row.vip_reference_id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
+                  <tr key={row.parliamentary_issue_id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
                     <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 text-center font-mono">{i + 1}</td>
                     <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold max-w-[220px] whitespace-normal break-words align-top">{row.subject}</td>
                     <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold whitespace-normal break-words">{row.wing_name}</td>
@@ -394,7 +396,7 @@ export default function VIPReferenceDashboard() {
                   </tr>
                 ))}
                 {!longPending.length && (
-                  <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-600 dark:text-slate-300">No long-pending references</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-600 dark:text-slate-300">No long-pending issues</td></tr>
                 )}
               </tbody>
             </table>
