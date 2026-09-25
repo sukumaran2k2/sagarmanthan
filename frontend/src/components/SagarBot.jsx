@@ -130,16 +130,46 @@ const KNOWLEDGE_BASE = [
 * ⚖️ **Legal & Rules**: Court Cases, Acts & Pre-Constitutions Rules.`,
     link: '/',
     linkLabel: 'Go to Home Overview'
+  },
+  {
+    id: 'org-exclusive-modules',
+    category: 'Organisation Dashboard',
+    keywords: ['exclusive modules', 'organisation exclusive', 'chpa', 'chennai port', 'data entry dashboard', 'pending upload', 'last updated', 'gem procurement work', 'akv 2047'],
+    question: 'What is the Organisation Exclusive Modules status for Chennai Port Authority (ChPA)?',
+    answer: `For **Chennai Port Authority (ChPA)**, 15 Exclusive Modules are tracked in Sagarmanthan:
+
+🟢 **Updated Modules (12 / 80% On Track):**
+1. **Projects**: Updated 16-09-2026
+2. **CSR Projects**: Updated 01-09-2026
+3. **Capex**: Week 3 - September 2026 (₹420 Cr outlay)
+4. **KPI**: September-2026
+5. **HR Management**: September-2026
+6. **GEM Procurement - Goods**: August-2026
+7. **GEM Procurement - Service**: August-2026
+8. **Court Cases**: Updated 24-09-2026 (14 active matters)
+9. **MIV 2030**: Updated 25-08-2026
+10. **OVOD**: Updated 31-08-2026
+11. **GMIS IMW**: Updated 20-08-2026
+12. **Media Outreach**: Updated 31-08-2026
+13. **Cruise Shipping**: Updated 31-08-2026
+14. **Foreign Visit**: Updated 04-09-2026
+
+🔴 **Action Required / Pending (3 Modules):**
+* ⚠️ **GEM Procurement - Work**: Statement pending submission
+* ⚠️ **AKV 2047**: No data uploaded
+* ⚠️ **Knowledge Repository**: No data uploaded`,
+    link: '/org-dashboard',
+    linkLabel: 'Open Organisation Dashboard'
   }
 ];
 
 const QUICK_TOPICS = [
+  { label: '⚓ ChPA Exclusive Modules Status', query: 'What is the Organisation Exclusive Modules status for Chennai Port Authority (ChPA)?' },
   { label: '🚢 Chennai Port Ongoing Projects', query: 'Show all ongoing projects for Chennai port' },
-  { label: '📋 Consultant Appointments Details', query: 'List out all the consultant appointment with their important details' },
-  { label: '🚢 CSR Projects & Fund', query: 'What is CSR Projects Module?' },
+  { label: '💰 Capex Week 3 Outlay', query: 'How does the Capex module track project expenditures?' },
+  { label: '🛒 GEM Procurement Status', query: 'What is the GEM Procurement status?' },
   { label: '📈 MIV 2030 Vision', query: 'What is Maritime India Vision 2030?' },
   { label: '🏛️ VIP Reference 6 Stages', query: 'What are the 6 stages in VIP Reference?' },
-  { label: '🌐 GMIS & IMW MoUs', query: 'How does GMIS MoU tracking work?' },
 ];
 
 // SagarBot Mascot Emblem SVG Logo Component

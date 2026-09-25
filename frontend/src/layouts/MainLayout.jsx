@@ -135,6 +135,14 @@ export const ROUTE_MAP = {
   [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission',
   'admin/user-list': 'admin/user-list',
 
+  // Portal Overview Dashboard
+  'Portal Dashboard': 'portal-dashboard',
+  'portal-dashboard': 'portal-dashboard',
+  'Org Dashboard': 'org-dashboard',
+  'Organisation Dashboard': 'org-dashboard',
+  'Organization Dashboard': 'org-dashboard',
+  'org-dashboard': 'org-dashboard',
+
   // HR nested routes
   'HR Dashboard': 'hr/hr-management/hr-dashboard',
   'Employee Database': 'hr/hr-management/employee-database',
@@ -209,6 +217,8 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('kpi/imu')) return 'IMU Input Form';
   if (cleanSlug.startsWith('kpi/sci')) return 'SCI Input Form';
   if (cleanSlug.startsWith('governance/media-outreach')) return 'Media Outreach';
+  if (cleanSlug === 'portal-dashboard') return 'Portal Dashboard';
+  if (cleanSlug === 'org-dashboard' || cleanSlug === 'organization-dashboard') return 'Org Dashboard';
 
   // Exact match
   const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);
@@ -314,6 +324,9 @@ const getBreadcrumbs = (tab) => {
   const contactItems = ['Ministry Contacts', 'Helpdesk Support'];
   if (contactItems.includes(tab)) return ['Home', 'Contact Us', tab];
 
+  if (tab === 'Portal Dashboard' || tab === 'portal-dashboard') return ['Home', 'Portal Dashboard'];
+  if (tab === 'Org Dashboard' || tab === 'org-dashboard' || tab === 'Organisation Dashboard') return ['Home', 'Organisation Dashboard'];
+
   return ['Home', tab];
 };
 
@@ -380,7 +393,7 @@ export default function MainLayout({
       />
 
       {/* Main Content Viewport */}
-      <main className="flex-grow w-full max-w-full px-4 sm:px-6 lg:px-8 pb-12">
+      <main className={`flex-grow w-full max-w-full pb-12 ${activeTab === 'Portal Dashboard' || activeTab === 'portal-dashboard' || activeTab === 'Org Dashboard' || activeTab === 'org-dashboard' ? 'px-0' : 'px-4 sm:px-6 lg:px-8'}`}>
         {!usesOwnPageHeader(activeTab) && tabAllowed && (
           <div className="flex items-center space-x-2 text-slate-400 text-xs font-semibold px-2 mb-6 mt-3 animate-fade-in select-none bg-white py-2.5 px-4 rounded-xl border border-slate-200 shadow-sm w-fit">
             <Home className="h-3.5 w-3.5 text-slate-500 cursor-pointer hover:text-blue-700 transition-colors" onClick={() => goToTab('landing')} />
@@ -409,8 +422,8 @@ export default function MainLayout({
       {/* Government Portal Footer */}
       <Footer />
 
-      {/* Intelligent Maritime ChatBot Assistant (Temporarily disabled) */}
-      {/* <SagarBot /> */}
+      {/* Intelligent Maritime ChatBot Assistant */}
+      <SagarBot />
     </div>
   );
 }

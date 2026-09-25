@@ -60,7 +60,16 @@ export function isSuperAdminTab(tab) {
 
 export function usesOwnPageHeader(tab) {
   const t = normalizeTab(tab);
-  return t === 'landing' || SUPERADMIN_TABS.has(t) || SENIOR_OFFICER_TABS.has(t);
+  return (
+    t === 'landing' ||
+    t === 'Portal Dashboard' ||
+    t === 'portal-dashboard' ||
+    t === 'Org Dashboard' ||
+    t === 'org-dashboard' ||
+    t === 'Organisation Dashboard' ||
+    SUPERADMIN_TABS.has(t) ||
+    SENIOR_OFFICER_TABS.has(t)
+  );
 }
 
 export function canAccessTab(tab) {
@@ -94,7 +103,7 @@ export function canAccessMenuItem(item) {
 export function filterMenuByAccess(menuData) {
   if (isSuperAdmin()) {
     return menuData.filter(
-      (menu) => SUPERADMIN_MENU_IDS.has(menu.id) || menu.id === 'contact'
+      (menu) => SUPERADMIN_MENU_IDS.has(menu.id) || menu.id === 'contact' || menu.id === 'portalDashboard'
     );
   }
 
@@ -102,6 +111,7 @@ export function filterMenuByAccess(menuData) {
     .map((menu) => {
       if (SUPERADMIN_MENU_IDS.has(menu.id) || menu.id === 'admin') return null;
       if (menu.id === 'contact') return menu;
+      if (menu.id === 'portalDashboard') return menu;
 
       if (menu.subcategories) {
         const subcategories = menu.subcategories

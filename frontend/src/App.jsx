@@ -37,6 +37,8 @@ const IMUView = lazy(() => import('./modules/IMU/IMU'));
 const SCIView = lazy(() => import('./modules/SCI/SCI'));
 const UserMatrix = lazy(() => import('./modules/UserManagement/UserMatrix'));
 const ContactUs = lazy(() => import('./modules/Contact/Contact'));
+const PortalDashboard = lazy(() => import('./modules/PortalDashboard/PortalDashboard'));
+const OrgDashboard = lazy(() => import('./modules/PortalDashboard/OrgDashboard'));
 
 // Major Ports Components
 import { PortsDashboardView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
@@ -486,6 +488,11 @@ export default function App() {
             {/* Admin Routes */}
             <Route path="admin/user-module-permission" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
             <Route path="admin/user-list" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
+
+            {/* Portal Overview Dashboards (Ministry & Organisation) */}
+            <Route path="portal-dashboard" element={<PortalDashboard />} />
+            <Route path="org-dashboard" element={<OrgDashboard />} />
+            <Route path="organization-dashboard" element={<OrgDashboard />} />
 
             {/* Contact */}
             <Route path="contact" element={<ContactUs />} />

@@ -384,6 +384,11 @@ export const MODULE_PAGES = {
 export const PUBLIC_UI_TABS = [
   'landing',
   'profile',
+  'Portal Dashboard',
+  'portal-dashboard',
+  'Org Dashboard',
+  'org-dashboard',
+  'Organisation Dashboard',
   'Contact Us',
   'Ministry Contacts',
   'Helpdesk Support',

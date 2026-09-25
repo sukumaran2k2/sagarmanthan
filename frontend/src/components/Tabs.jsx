@@ -502,6 +502,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
         ]
       : []),
     {
+      id: 'portalDashboard',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      directTab: isOrgUser ? 'Org Dashboard' : 'Portal Dashboard',
+    },
+    {
       id: 'contact',
       label: 'Contact Us',
       icon: PhoneCall,
@@ -554,6 +560,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             ].includes(activeTab);
             const isMainMenuActive =
               activeTab === menu.directTab ||
+              (menu.id === 'portalDashboard' && (activeTab === 'Portal Dashboard' || activeTab === 'Org Dashboard')) ||
               activeTab.startsWith(menu.id) ||
               activeTab === menu.id ||
               (menu.id === 'hr' && isHrActiveTab);
@@ -915,7 +922,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
                       type="button"
                       onClick={() => { handleItemClick(menu.directTab); setIsOpen(false); }}
                       className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all border ${
-                        activeTab === menu.directTab
+                        activeTab === menu.directTab || (menu.id === 'portalDashboard' && (activeTab === 'Portal Dashboard' || activeTab === 'Org Dashboard'))
                           ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 shadow-sm'
                           : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
