@@ -36,7 +36,9 @@ import cabinetMopswTab from "./controllers/Governance/mopswCabinetNotes.js";
 import cabinetMopswDashboard from "./controllers/Governance/cabinetMopswDashboard.js";
 import mopswDocumentTab from "./controllers/Governance/mopswDocumentUploader.js";
 import cabinetBillTab from "./controllers/Governance/ministryCabinetNotes.js";
+import cabinetNotesOtherDashboard from "./controllers/Governance/cabinetNotesOtherDashboard.js";
 import parliamentaryIssueTab from "./controllers/Governance/parliamentaryIssue.js";
+import parliamentaryIssueDashboard from "./controllers/Governance/parliamentaryIssueDashboard.js";
 import gemProcurementTab from "./controllers/Governance/gemProcurement.js";
 import socialmediaTab from "./controllers/Governance/SocialMedia.js";
 import auditParaTab from "./controllers/Governance/auditPara.js";
@@ -562,6 +564,12 @@ router.delete(
 
 // Ministry (Cabinet Notes - Other Ministry)
 router.get(
+  "/cabinet-notes-other-dashboard",
+  auth,
+  requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
+  cabinetNotesOtherDashboard.getCabinetNotesOtherDashboard
+);
+router.get(
   "/cabinet-ministry/:userID",
   auth,
   requireModulePermission("CABINET_NOTES_OTHER_MINISTRIES", "read"),
@@ -599,6 +607,12 @@ router.delete(
 
 
 // Parliamentary Issue
+router.get(
+  "/parliamentary-issue-dashboard",
+  auth,
+  requireModulePermission("PARLIAMENTARY_ISSUES", "read"),
+  parliamentaryIssueDashboard.getParliamentaryIssueDashboard
+);
 router.get(
   "/parliamentary-issue",
   auth,

@@ -5,6 +5,7 @@ import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { STATUS_STEPS, CATEGORIES, getParaStatusText } from '../constants';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
+import { getWrapColumnProps, renderWrappedText } from '../../../utils/tableCellWrap';
 import { ChevronDown, Filter, ChevronUp } from 'lucide-react';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -145,7 +146,8 @@ export default function DataList({
     ...(visibleCols.subject ? [{
       headerName: 'Subject', field: 'subject', width: 280, minWidth: 200,
       tooltipField: 'subject',
-      cellClass: 'text-slate-700 flex items-center py-2 border-r border-slate-100 font-semibold'
+      ...getWrapColumnProps('text-slate-700 border-r border-slate-100 font-semibold'),
+      cellRenderer: (params) => renderWrappedText(params.value, 'text-slate-700 font-semibold'),
     }] : []),
     ...(visibleCols.wing ? [{ headerName: 'Wing', field: 'wing', minWidth: 120, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium' }] : []),
     ...(visibleCols.division ? [{ headerName: 'Division', field: 'division', minWidth: 120, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium' }] : []),
@@ -165,8 +167,8 @@ export default function DataList({
     ...(visibleCols.remarks ? [{
       headerName: 'Remarks', field: 'remarks', minWidth: 220,
       tooltipValueGetter: (params) => params.value || 'No remarks',
-      cellClass: 'text-slate-550 flex items-center py-2 border-r border-slate-100 font-medium',
-      valueFormatter: (params) => params.value || '--'
+      ...getWrapColumnProps('text-slate-550 border-r border-slate-100 font-medium'),
+      cellRenderer: (params) => renderWrappedText(params.value, 'text-slate-550 font-medium', '--'),
     }] : []),
     ...(visibleCols.lastUpdated ? [{ headerName: 'Last Updated Date', field: 'lastUpdated', minWidth: 155, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium',
       valueFormatter: (params) => {

@@ -466,13 +466,14 @@ export default function CabinetNotesMopswDashboard() {
               title="Long Pending Cabinet Notes (Top 10)"
             />
           </div>
-          <div className="overflow-auto flex-1 p-3">
-            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
-            <table className="w-full text-[11px] border-collapse">
+          <div className="flex-1 p-3 overflow-hidden flex flex-col">
+            <div className="overflow-auto flex-1">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800">
+            <table className="w-full text-[11px] border-separate border-spacing-0 [&_thead_tr:first-child_th:first-child]:rounded-tl-xl [&_thead_tr:first-child_th:last-child]:rounded-tr-xl [&_tbody_tr:last-child_td:first-child]:rounded-bl-xl [&_tbody_tr:last-child_td:last-child]:rounded-br-xl">
               <thead className="sticky top-0 z-20">
                 <tr className="bg-[#4f46e5] text-white relative z-10">
                   {['S.No','Subject','Wing','Current stage','Last Updated','Days'].map((h) => (
-                    <th key={h} className="px-2.5 py-2 text-center font-semibold tracking-wide whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-2.5 py-2 text-center font-semibold tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -480,9 +481,9 @@ export default function CabinetNotesMopswDashboard() {
                 {longPending.map((row, i) => (
                   <tr key={row.cabinet_notes_mopsw_id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
                     <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 text-center font-mono">{i + 1}</td>
-                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold min-w-[180px] max-w-[260px] whitespace-normal break-words align-top">{row.subject}</td>
-                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold whitespace-nowrap">{row.wing_name}</td>
-                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold whitespace-nowrap">{row.current_stage}</td>
+                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold max-w-[220px] whitespace-normal break-words align-top">{row.subject}</td>
+                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold whitespace-normal break-words">{row.wing_name}</td>
+                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold whitespace-normal break-words">{row.current_stage}</td>
                     <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap font-mono">{row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
                     <td className="px-2.5 py-2 text-right"><PendingDays days={row.pending_days} /></td>
                   </tr>
@@ -492,6 +493,7 @@ export default function CabinetNotesMopswDashboard() {
                 )}
               </tbody>
             </table>
+            </div>
             </div>
           </div>
           <p className="text-[9px] text-slate-600 dark:text-slate-300 px-5 py-2 flex-shrink-0">Days calculated from date of entry into current stage till today.</p>
