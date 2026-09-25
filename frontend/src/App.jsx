@@ -36,6 +36,7 @@ const CSLView = lazy(() => import('./modules/CSL/CSL'));
 const IMUView = lazy(() => import('./modules/IMU/IMU'));
 const SCIView = lazy(() => import('./modules/SCI/SCI'));
 const UserMatrix = lazy(() => import('./modules/UserManagement/UserMatrix'));
+const FormBuilderView = lazy(() => import('./modules/FormBuilder/FormBuilder'));
 const ContactUs = lazy(() => import('./modules/Contact/Contact'));
 
 // Major Ports Components
@@ -486,6 +487,10 @@ export default function App() {
             {/* Admin Routes */}
             <Route path="admin/user-module-permission" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
             <Route path="admin/user-list" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
+
+            {/* Form Builder Routes */}
+            <Route path="form-builder/*" element={<FormBuilderView triggerNotification={triggerNotification} />} />
+            <Route path="admin/form-builder/*" element={<FormBuilderView triggerNotification={triggerNotification} />} />
 
             {/* Contact */}
             <Route path="contact" element={<ContactUs />} />

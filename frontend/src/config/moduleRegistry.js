@@ -365,7 +365,8 @@ export const MODULE_PAGES = {
   },
 
   FORM_BUILDER: {
-    tabs: ['Create Dynamic Form', 'View Submissions'],
+    tabs: ['Create Dynamic Form', 'View Submissions', 'Form Builder', 'FormBuilder'],
+    uiTabs: ['Create Dynamic Form', 'View Submissions', 'Form Builder', 'FormBuilder'],
   },
 
   MOPSW_TRACKER: {

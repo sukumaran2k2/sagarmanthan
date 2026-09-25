@@ -114,8 +114,10 @@ export const ROUTE_MAP = {
   'Guidelines': 'knowledge/guidelines',
 
   // Form Builder nested routes
-  'Create Dynamic Form': 'formBuilder/create-dynamic-form',
-  'View Submissions': 'formBuilder/view-submissions',
+  'Create Dynamic Form': 'form-builder',
+  'View Submissions': 'form-builder',
+  'Form Builder': 'form-builder',
+  'FormBuilder': 'form-builder',
 
   // Tracker nested routes
   'Project Milestones': 'tracker/project-milestones',
