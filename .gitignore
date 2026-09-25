@@ -24,3 +24,6 @@ sagar_dumb_july1.sql
 
 # File Uploads directory
 backend/demoFiles/
+
+# Local Cursor workspace rules
+.cursor/rules/workspace-boundaries.mdc
