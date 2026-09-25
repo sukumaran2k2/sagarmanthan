@@ -87,6 +87,7 @@ export default function UnderTenderingStage({
   const [uploadingByRowId, setUploadingByRowId] = useState({});
   const [uploadPreviewByRowId, setUploadPreviewByRowId] = useState({});
   const [docFoldersPresent, setDocFoldersPresent] = useState(new Set());
+  const [lockedPlannedRowIds, setLockedPlannedRowIds] = useState(new Set());
   const [revisionModal, setRevisionModal] = useState({
     open: false,
     rowId: null,
@@ -114,6 +115,7 @@ export default function UnderTenderingStage({
   const nominationMode = onNominationBasisAwarded === '1';
   const docKey = String(subProjectID || '-1') === '-1' ? String(projectID || '') : String(subProjectID || '');
   const today = new Date().toISOString().slice(0, 10);
+  const isValidDateText = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
 
   const scheduleByRowId = useMemo(() => {
     const map = new Map();
@@ -161,7 +163,15 @@ export default function UnderTenderingStage({
 
         const dateRows = Array.isArray(datesRes?.data) ? datesRes.data : [];
         const costRow = Array.isArray(costRes?.data) ? costRes.data[0] : null;
-        setRows(mapTenderRowsFromApi(dateRows, costRow));
+        const nextRows = mapTenderRowsFromApi(dateRows, costRow);
+        setRows(nextRows);
+        setLockedPlannedRowIds(
+          new Set(
+            nextRows
+              .filter((row) => isValidDateText(row?.plannedDate))
+              .map((row) => Number(row.id))
+          )
+        );
         const meta = mapTenderMetaFromCostApi(costRow);
         setOnNominationBasisAwarded(meta.onNominationBasisAwarded);
         setNumberOfTenderCalls(meta.numberOfTenderCalls);
@@ -191,7 +201,7 @@ export default function UnderTenderingStage({
     disabled ||
     row.notApplicable ||
     (nominationMode && row.id <= 6);
-  const plannedDateLocked = (row) => /^\d{4}-\d{2}-\d{2}$/.test(String(row?.plannedDate || '').trim());
+  const plannedDateLocked = (row) => lockedPlannedRowIds.has(Number(row?.id));
 
   const compareDates = (a, b) => (a && b ? new Date(a) < new Date(b) : false);
   const countWords = (text) =>
