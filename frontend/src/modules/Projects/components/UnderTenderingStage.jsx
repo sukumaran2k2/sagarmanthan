@@ -21,6 +21,13 @@ import {
   mapTenderRowsFromApi,
   uiIdToSubStageId,
 } from '../utils/stageMappers';
+import {
+  getTenderStepScheduleStatus,
+  listTenderAttentionItems,
+  SCHEDULE_STATUS,
+  summarizeScheduleStatuses,
+} from '../utils/scheduleStatus';
+import ScheduleStatusBadge, { ScheduleStatusSummary } from './ScheduleStatusBadge';
 
 const DOC_FOLDER_BY_ROW_ID = {
   1: 'Technical_Sactioned_Obtained',
@@ -108,6 +115,26 @@ export default function UnderTenderingStage({
   const docKey = String(subProjectID || '-1') === '-1' ? String(projectID || '') : String(subProjectID || '');
   const today = new Date().toISOString().slice(0, 10);
 
+  const scheduleByRowId = useMemo(() => {
+    const map = new Map();
+    rows.forEach((row) => {
+      map.set(row.id, getTenderStepScheduleStatus(row, { nominationMode }));
+    });
+    return map;
+  }, [rows, nominationMode]);
+
+  const scheduleSummary = useMemo(() => {
+    const statuses = rows
+      .map((row) => scheduleByRowId.get(row.id))
+      .filter((status) => status && status.key !== SCHEDULE_STATUS.NOT_APPLICABLE);
+    return summarizeScheduleStatuses(statuses);
+  }, [rows, scheduleByRowId]);
+
+  const scheduleAttentionItems = useMemo(
+    () => listTenderAttentionItems(rows, { nominationMode }),
+    [rows, nominationMode]
+  );
+
   const refreshExistingDocs = async () => {
     if (!docKey) return;
     try {
@@ -164,6 +191,7 @@ export default function UnderTenderingStage({
     disabled ||
     row.notApplicable ||
     (nominationMode && row.id <= 6);
+  const plannedDateLocked = (row) => Boolean(String(row?.plannedDate || '').trim());
 
   const compareDates = (a, b) => (a && b ? new Date(a) < new Date(b) : false);
   const countWords = (text) =>
@@ -642,6 +670,23 @@ export default function UnderTenderingStage({
         <div className="text-xs font-semibold text-slate-500">Loading tendering details...</div>
       ) : null}
 
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="mb-3">
+          <p className="text-[11px] font-black uppercase tracking-wider text-[#0f417a]">
+            Tendering schedule health
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Compared against revised date when set, otherwise targeted completion date.
+          </p>
+        </div>
+        <ScheduleStatusSummary
+          summary={scheduleSummary}
+          attentionItems={scheduleAttentionItems}
+          titleWhenOverdue="Tendering delay attention required"
+          titleWhenWatch="Tendering milestones to watch"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 space-y-2">
           <p className="text-xs font-bold text-slate-800">Is the project awarded on nomination basis?</p>
@@ -685,11 +730,18 @@ export default function UnderTenderingStage({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {rows.map((row) => {
+              const rowStatus = scheduleByRowId.get(row.id);
+              return (
               <tr key={row.id} className="border-t border-slate-200 align-top">
                 <td className="px-3 py-3 min-w-[240px]">
-                  <p className="font-bold text-slate-800">{row.label}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="space-y-1.5">
+                    <p className="font-bold text-slate-800">{row.label}</p>
+                    <div>
+                      <ScheduleStatusBadge status={rowStatus} compact />
+                    </div>
+                  </div>
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
                     <input
                       id={`tender-row-upload-${row.id}`}
                       type="file"
@@ -763,13 +815,13 @@ export default function UnderTenderingStage({
                     </div>
                   )}
                 </td>
-                <td className="px-3 py-3"><input type="date" value={row.plannedDate} disabled={rowDisabled(row)} onChange={(e) => updateRow(row.id, { plannedDate: e.target.value })} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" /></td>
+                <td className="px-3 py-3"><input type="date" value={row.plannedDate} disabled={rowDisabled(row) || plannedDateLocked(row)} onChange={(e) => updateRow(row.id, { plannedDate: e.target.value })} className={`w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg ${plannedDateLocked(row) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50'}`} /></td>
                 <td className="px-3 py-3"><input type="date" value={row.revisedDate} disabled className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-100" /></td>
                 <td className="px-3 py-3 text-center"><button type="button" disabled={rowDisabled(row)} onClick={() => onReviseRow(row.id)} className="px-2 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold disabled:opacity-50">Revise</button></td>
                 <td className="px-3 py-3 text-center"><button type="button" disabled={rowDisabled(row)} onClick={() => onShowHistory(row.id)} className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold disabled:opacity-50">History</button></td>
                 <td className="px-3 py-3"><input type="date" value={row.actualDate} max={today} disabled={rowDisabled(row)} onChange={(e) => handleActualDateChange(row.id, e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" /></td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>
