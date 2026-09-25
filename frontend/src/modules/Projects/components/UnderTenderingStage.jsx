@@ -685,9 +685,6 @@ export default function UnderTenderingStage({
           <p className="text-[11px] font-black uppercase tracking-wider text-[#0f417a]">
             Tendering schedule health
           </p>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Compared against revised date when set, otherwise targeted completion date.
-          </p>
         </div>
         <ScheduleStatusSummary
           summary={scheduleSummary}

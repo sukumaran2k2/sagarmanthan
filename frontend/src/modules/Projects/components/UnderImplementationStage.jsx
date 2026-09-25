@@ -23,9 +23,15 @@ import {
   sliceDate,
   yearForMonth,
 } from '../utils/stageMappers';
+import {
+  getScheduleStatus,
+  SCHEDULE_STATUS,
+  summarizeScheduleStatuses,
+} from '../utils/scheduleStatus';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import ScheduleStatusBadge, { ScheduleStatusSummary } from './ScheduleStatusBadge';
 
 const COMPONENT_KEYS = [
   { key: 'gbsComponents', label: 'GBS Components (In Cr.)', apiField: 'gbs_components' },
@@ -443,6 +449,47 @@ export default function UnderImplementationStage({
   };
 
   const today = new Date().toISOString().slice(0, 10);
+  const milestoneScheduleById = useMemo(() => {
+    const map = new Map();
+    milestones.forEach((row) => {
+      map.set(
+        row.id,
+        getScheduleStatus({
+          targetDate: row.targetedEndDate,
+          actualDate: row.actualEndDate,
+        })
+      );
+    });
+    return map;
+  }, [milestones]);
+
+  const milestoneScheduleSummary = useMemo(() => {
+    const statuses = milestones
+      .map((row) => milestoneScheduleById.get(row.id))
+      .filter(Boolean);
+    return summarizeScheduleStatuses(statuses);
+  }, [milestones, milestoneScheduleById]);
+
+  const milestoneAttentionItems = useMemo(
+    () =>
+      milestones
+        .map((row) => {
+          const status = milestoneScheduleById.get(row.id);
+          if (
+            !status ||
+            ![
+              SCHEDULE_STATUS.OVERDUE,
+              SCHEDULE_STATUS.AT_RISK,
+              SCHEDULE_STATUS.COMPLETED_LATE,
+            ].includes(status.key)
+          ) {
+            return null;
+          }
+          return { row, status, label: row.milestone };
+        })
+        .filter(Boolean),
+    [milestones, milestoneScheduleById]
+  );
 
   const savePhysicalProgress = async () => {
     if (disabled || progressLocked || progressSaving) return;
@@ -776,6 +823,20 @@ export default function UnderImplementationStage({
             </div>
           </div>
 
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-3">
+              <p className="text-[11px] font-black uppercase tracking-wider text-[#0f417a]">
+                Milestone schedule health
+              </p>
+            </div>
+            <ScheduleStatusSummary
+              summary={milestoneScheduleSummary}
+              attentionItems={milestoneAttentionItems}
+              titleWhenOverdue="Implementation delay attention required"
+              titleWhenWatch="Implementation milestones to watch"
+            />
+          </div>
+
           <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
             <div className="grid grid-cols-1 md:grid-cols-[1.3fr_1fr_auto] gap-4 items-end">
               <div>
@@ -860,13 +921,22 @@ export default function UnderImplementationStage({
                 </tr>
               </thead>
               <tbody>
-                {milestones.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-200">
-                    <td className="px-3 py-2.5 font-semibold text-slate-800">{row.milestone}</td>
+                {milestones.map((row) => {
+                  const rowStatus = milestoneScheduleById.get(row.id);
+                  return (
+                  <tr key={row.id} className="border-t border-slate-200 align-top">
+                    <td className="px-3 py-2.5">
+                      <div className="space-y-1.5">
+                        <p className="font-semibold text-slate-800">{row.milestone}</p>
+                        <div>
+                          <ScheduleStatusBadge status={rowStatus} compact />
+                        </div>
+                      </div>
+                    </td>
                     <td className="px-3 py-2.5"><input type="date" value={row.targetedEndDate} disabled={disabled} onChange={(e) => updateMilestone(row.id, { targetedEndDate: e.target.value })} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" /></td>
                     <td className="px-3 py-2.5"><input type="date" max={today} value={row.actualEndDate} disabled={disabled} onChange={(e) => updateMilestone(row.id, { actualEndDate: e.target.value })} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" /></td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
