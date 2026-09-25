@@ -191,7 +191,7 @@ export default function UnderTenderingStage({
     disabled ||
     row.notApplicable ||
     (nominationMode && row.id <= 6);
-  const plannedDateLocked = (row) => Boolean(String(row?.plannedDate || '').trim());
+  const plannedDateLocked = (row) => /^\d{4}-\d{2}-\d{2}$/.test(String(row?.plannedDate || '').trim());
 
   const compareDates = (a, b) => (a && b ? new Date(a) < new Date(b) : false);
   const countWords = (text) =>
