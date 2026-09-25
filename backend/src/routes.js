@@ -695,13 +695,48 @@ router.get("/get-works-procurement/:worksGemID", auth, requireModulePermission("
 
 router.get("/get-organisation-names/:organisationID", auth, requireModulePermission("GEM_PROCUREMENT", "read"), financialParameterTab.getOrganisationName);
 // Vip
-router.get("/vip-reference-dashboard", vipReferenceDashboard.getVipReferenceDashboard);
-router.get("/vip-reference", vipReferenceTab.getVipReference);
-router.post("/vip-reference", vipReferenceTab.createVipReference);
-router.put("/vip-reference", vipReferenceTab.updateVipReference);
-router.post("/vip-reference-stage", vipReferenceTab.createVipReferenceStage);
-router.get("/vip-reference/:vipReferenceID", vipReferenceTab.getUpdateVipReferenceData);
-router.delete("/vip-reference/:vipReferenceID/:userID", vipReferenceTab.deleteVipReference);
+router.get(
+  "/vip-reference-dashboard",
+  auth,
+  requireModulePermission("VIP_REFERENCE", "read"),
+  vipReferenceDashboard.getVipReferenceDashboard
+);
+router.get(
+  "/vip-reference",
+  auth,
+  requireModulePermission("VIP_REFERENCE", "read"),
+  vipReferenceTab.getVipReference
+);
+router.post(
+  "/vip-reference",
+  auth,
+  requireModulePermission("VIP_REFERENCE", "create"),
+  vipReferenceTab.createVipReference
+);
+router.put(
+  "/vip-reference",
+  auth,
+  requireModulePermission("VIP_REFERENCE", "update"),
+  vipReferenceTab.updateVipReference
+);
+router.post(
+  "/vip-reference-stage",
+  auth,
+  requireModulePermission("VIP_REFERENCE", "update"),
+  vipReferenceTab.createVipReferenceStage
+);
+router.get(
+  "/vip-reference/:vipReferenceID",
+  auth,
+  requireModulePermission("VIP_REFERENCE", "read"),
+  vipReferenceTab.getUpdateVipReferenceData
+);
+router.delete(
+  "/vip-reference/:vipReferenceID/:userID",
+  auth,
+  requireModulePermission("VIP_REFERENCE", "delete"),
+  vipReferenceTab.deleteVipReference
+);
 // router.get("/get-vip-wing-chart", vipReferenceTab.getVipWingChartData);
 // router.get("/get-vip-division-chart", vipReferenceTab.getVipDivisionChartData);
 // router.get("/get-vip-stage-chart", vipReferenceTab.getVipStageChartData);
