@@ -17,6 +17,8 @@ import {
   Building, ShieldCheck, ArrowUpRight, FileCheck, AlertTriangle, Bot
 } from 'lucide-react';
 import { SagarBotLogo } from '../../components/SagarBot';
+import DynamicVisualizer from '../../components/SagarBot/DynamicVisualizer';
+import { API_BASE } from '../../api';
 
 /* ─── DATA & CONSTANTS ───────────────────────────────────── */
 const CAROUSEL_SLIDES = [
@@ -447,24 +449,45 @@ export default function OrgDashboard() {
   const chatInputRef = useRef(null);
   const chatMode = chatMessages.length > 0;
 
-  const PORT_BOT_REPLIES = [
-    (q) => `Port Telemetry for "${q.length > 50 ? q.slice(0, 50) + '\u2026' : q}" \u2014 ${selectedPort} has 12/15 modules updated (80% compliance). 3 modules are pending: GEM Works, Court Cases update, and MIV 2030 tracker.`,
-    (q) => `ChPA Compliance Intelligence: "${q.length > 50 ? q.slice(0, 50) + '\u2026' : q}" \u2014 Capex utilisation is at 85% (Week 3 Sep logged). GEM Goods (Aug 2026) \u2713, GEM Services (Aug 2026) \u2713, GEM Works \u2013 Pending submission.`,
-    (q) => `${selectedPort} Legal Update for "${q.length > 50 ? q.slice(0, 50) + '\u2026' : q}" \u2014 14 court cases active, 3 high-priority maritime arbitrations disposed this month. Filing deadline for monthly update: 30 Sep 2026.`,
-  ];
-
-  const sendMessage = useCallback((text) => {
+  const sendMessage = useCallback(async (text) => {
     const q = text.trim();
-    if (!q) return;
-    setChatMessages(prev => [...prev, { role: 'user', text: q, id: Date.now() }]);
+    if (!q || botLoading) return;
+    const msgId = Date.now();
+    setChatMessages(prev => [...prev, { role: 'user', text: q, id: msgId }]);
     setBotLoading(true);
     setInlineQuery('');
-    setTimeout(() => {
-      const reply = PORT_BOT_REPLIES[Math.floor(Math.random() * PORT_BOT_REPLIES.length)](q);
-      setChatMessages(prev => [...prev, { role: 'bot', text: reply, id: Date.now() + 1 }]);
+    try {
+      const res = await fetch(`${API_BASE}/api/copilot/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: q,
+          portName: selectedPort,
+          viewType: 'org',
+          conversationHistory: chatMessages.slice(-6)
+        })
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setChatMessages(prev => [...prev, {
+          role: 'bot',
+          text: '',
+          structuredData: json.data,
+          id: msgId + 1
+        }]);
+      } else {
+        throw new Error('Invalid response');
+      }
+    } catch {
+      setChatMessages(prev => [...prev, {
+        role: 'bot',
+        text: 'Sorry, I could not process your request. Please try again.',
+        id: msgId + 1
+      }]);
+    } finally {
       setBotLoading(false);
-    }, 1400);
-  }, [selectedPort]);
+    }
+  }, [botLoading, chatMessages, selectedPort]);
 
   const handleAskBot = (prompt) => sendMessage(prompt);
 
@@ -1199,16 +1222,23 @@ export default function OrgDashboard() {
                       className={`flex items-end gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       {msg.role === 'bot' && (
-                        <div className="flex-shrink-0 w-7 h-7 rounded-full bg-white/15 border border-white/20 flex items-center justify-center shadow-inner">
+                        <div className="flex-shrink-0 w-7 h-7 rounded-full bg-white/15 border border-white/20 flex items-center justify-center shadow-inner self-start mt-0.5">
                           <SagarBotLogo className="w-3.5 h-3.5 text-cyan-300" />
                         </div>
                       )}
-                      <div className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed shadow-md ${
+                      <div className={`${msg.role === 'user' ? 'max-w-[85%]' : 'max-w-[90%] w-full'} px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed shadow-md ${
                         msg.role === 'user'
                           ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-semibold rounded-br-sm shadow-cyan-500/20'
                           : 'bg-white/15 backdrop-blur-md border border-white/20 text-slate-100 rounded-bl-sm'
                       }`}>
-                        {msg.text}
+                        {msg.structuredData ? (
+                          <DynamicVisualizer
+                            data={msg.structuredData}
+                            onFollowUp={(q) => sendMessage(q)}
+                          />
+                        ) : (
+                          msg.text
+                        )}
                       </div>
                       {msg.role === 'user' && (
                         <div className="flex-shrink-0 w-7 h-7 rounded-full bg-white/20 border border-white/25 flex items-center justify-center text-white text-[9.5px] font-bold shadow-inner">
@@ -1217,6 +1247,7 @@ export default function OrgDashboard() {
                       )}
                     </motion.div>
                   ))}
+
                   {botLoading && (
                     <motion.div key="typing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-end gap-2.5 justify-start">
                       <div className="flex-shrink-0 w-7 h-7 rounded-full bg-white/15 border border-white/20 flex items-center justify-center shadow-inner">

@@ -2812,4 +2812,8 @@ router.get('/get-user-edit-Form-Data/:userID/:currentPage', formBuilderInputTab.
 import reportCopilotTab from "./controllers/ai/reportCopilot.js";
 router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
 
-export default router;
+// SagarBot Dashboard Copilot (Structured JSON - Charts, Tables, Insights)
+import copilotController from "./controllers/ai/copilotController.js";
+router.post('/api/copilot/query', copilotController.handleCopilotQuery);
+
+export default router;
