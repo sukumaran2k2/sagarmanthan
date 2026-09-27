@@ -59,8 +59,8 @@ api.interceptors.response.use(
 // createStudentEnrollment on the backend is itself an upsert (keyed on
 // financial_year) -- there's no separate update endpoint, so the frontend
 // always calls this same create function for both add and edit.
-export function fetchStudentEnrollment() {
-  return api.get('/get-imu-k-5-1');
+export function fetchStudentEnrollment(params = {}) {
+  return api.get('/get-imu-k-5-1', { params });
 }
 
 export function fetchStudentEnrollmentById(studentId) {

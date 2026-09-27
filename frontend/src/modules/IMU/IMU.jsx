@@ -78,6 +78,13 @@ export default function IMUView({ activeTab, triggerNotification }) {
   const [researchPagination, setResearchPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
   const [researchYears, setResearchYears] = useState([]);
 
+  // Student Enrollment: server-side pagination + search state
+  const [studentPage, setStudentPage] = useState(1);
+  const [studentLimit] = useState(10);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentPagination, setStudentPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
+  const [studentYears, setStudentYears] = useState([]);
+
   // Keep the URL's ?section=&tab= query params in sync with the current view,
   // so refreshing, bookmarking, or using browser back/forward preserves the
   // exact section and tab the user was on.
@@ -112,10 +119,22 @@ export default function IMUView({ activeTab, triggerNotification }) {
   const fetchData = () => {
     if (activeSection === 'studentEnrollment') {
       setLoading(true);
-      fetchStudentEnrollment()
-        .then((res) => setRowData(res.data || []))
+      fetchStudentEnrollment({ page: studentPage, limit: studentLimit, search: studentSearch })
+        .then((res) => {
+          setRowData(res.data?.data || []);
+          setStudentPagination(res.data?.pagination || { total: 0, page: 1, limit: studentLimit, totalPages: 0 });
+        })
         .catch((err) => console.error('Error loading Student Enrollment data:', err))
         .finally(() => setLoading(false));
+      if (studentYears.length === 0) {
+        fetchStudentEnrollment({ page: 1, limit: 100 })
+          .then((res) => {
+            const all = res.data?.data || [];
+            const distinctYears = [...new Set(all.map((r) => r.financial_year))].sort().reverse();
+            setStudentYears(distinctYears);
+          })
+          .catch(() => {});
+      }
     } else if (activeSection === 'finalYearPassPercentage') {
       setLoading(true);
       fetchFinalYearPassPercentage()
@@ -164,7 +183,7 @@ export default function IMUView({ activeTab, triggerNotification }) {
     useEffect(() => {
     setEditData(null);
     fetchData();
-  }, [activeSection, researchPage, researchSearch]);
+  }, [activeSection, researchPage, researchSearch, studentPage, studentSearch]);
 
   const handleEdit = (row) => {
     setEditData(row);
@@ -330,6 +349,11 @@ export default function IMUView({ activeTab, triggerNotification }) {
               onDelete={handleDelete}
               canEdit={canEdit}
               canRemove={canRemove}
+              pagination={studentPagination}
+              onPageChange={setStudentPage}
+              searchQuery={studentSearch}
+              onSearchChange={(v) => { setStudentSearch(v); setStudentPage(1); }}
+              years={studentYears}
             />
           )
         ) : activeSection === 'finalYearPassPercentage' ? (
