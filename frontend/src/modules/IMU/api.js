@@ -152,8 +152,8 @@ export function deleteFacilities(facilitiesId, userId) {
 
 // ---- Partnership (K-5.4) ----
 // createimuPartnership is an upsert keyed on financial_year.
-export function fetchPartnership() {
-  return api.get('/get-imu-k-5-4');
+export function fetchPartnership(params = {}) {
+  return api.get('/get-imu-k-5-4', { params });
 }
 
 export function fetchPartnershipById(partnershipId) {

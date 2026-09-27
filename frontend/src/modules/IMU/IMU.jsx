@@ -99,6 +99,13 @@ export default function IMUView({ activeTab, triggerNotification }) {
   const [facilitiesPagination, setFacilitiesPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
   const [facilitiesYears, setFacilitiesYears] = useState([]);
 
+  // Partnership: server-side pagination + search state
+  const [partnershipPage, setPartnershipPage] = useState(1);
+  const [partnershipLimit] = useState(10);
+  const [partnershipSearch, setPartnershipSearch] = useState('');
+  const [partnershipPagination, setPartnershipPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
+  const [partnershipYears, setPartnershipYears] = useState([]);
+
   // Keep the URL's ?section=&tab= query params in sync with the current view,
   // so refreshing, bookmarking, or using browser back/forward preserves the
   // exact section and tab the user was on.
@@ -193,10 +200,22 @@ export default function IMUView({ activeTab, triggerNotification }) {
       }
     } else if (activeSection === 'partnership') {
       setLoading(true);
-      fetchPartnership()
-        .then((res) => setRowData(res.data || []))
+      fetchPartnership({ page: partnershipPage, limit: partnershipLimit, search: partnershipSearch })
+        .then((res) => {
+          setRowData(res.data?.data || []);
+          setPartnershipPagination(res.data?.pagination || { total: 0, page: 1, limit: partnershipLimit, totalPages: 0 });
+        })
         .catch((err) => console.error('Error loading Partnership data:', err))
         .finally(() => setLoading(false));
+      if (partnershipYears.length === 0) {
+        fetchPartnership({ page: 1, limit: 100 })
+          .then((res) => {
+            const all = res.data?.data || [];
+            const distinctYears = [...new Set(all.map((r) => r.financial_year))].sort().reverse();
+            setPartnershipYears(distinctYears);
+          })
+          .catch(() => {});
+      }
     } else if (activeSection === 'research') {
       setLoading(true);
       fetchResearch({ page: researchPage, limit: researchLimit, search: researchSearch })
@@ -221,7 +240,7 @@ export default function IMUView({ activeTab, triggerNotification }) {
     useEffect(() => {
     setEditData(null);
     fetchData();
-  }, [activeSection, researchPage, researchSearch, studentPage, studentSearch, coursePage, courseSearch, facilitiesPage, facilitiesSearch]);
+  }, [activeSection, researchPage, researchSearch, studentPage, studentSearch, coursePage, courseSearch, facilitiesPage, facilitiesSearch, partnershipPage, partnershipSearch]);
 
   const handleEdit = (row) => {
     setEditData(row);
@@ -482,6 +501,11 @@ export default function IMUView({ activeTab, triggerNotification }) {
               onDelete={handleDelete}
               canEdit={canEdit}
               canRemove={canRemove}
+              pagination={partnershipPagination}
+              onPageChange={setPartnershipPage}
+              searchQuery={partnershipSearch}
+              onSearchChange={(v) => { setPartnershipSearch(v); setPartnershipPage(1); }}
+              years={partnershipYears}
             />
           )
         ) : activeSection === 'research' ? (
