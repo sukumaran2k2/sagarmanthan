@@ -130,8 +130,8 @@ export function deleteNewCourseUpgradation(courseId, userId) {
 
 // ---- Facilities (K-5.3) ----
 // createimuFacilities is an upsert keyed on financial_year.
-export function fetchFacilities() {
-  return api.get('/get-imu-k-5-3');
+export function fetchFacilities(params = {}) {
+  return api.get('/get-imu-k-5-3', { params });
 }
 
 export function fetchFacilitiesById(facilitiesId) {
