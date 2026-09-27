@@ -2515,51 +2515,236 @@ router.get('/get-sci-manning-of-owned-ships-report',sciReportTab.getsciManningof
 router.get('/get-sci-ship-management-business-report',sciReportTab.getsciShipmanagementbusinessReport);
 
 // imuTab
-router.post("/add-imu-k-5-1",imuTab.createStudentEnrollment);
-router.get("/get-imu-k-5-1",imuTab.getStudentEnrollment);
-router.get("/get-imu-k-5-1/:studentId",imuTab.getStudentEnrollmentByID);
-router.delete("/delete-imu-k-5-1/:student_id/:userID", imuTab.deleteStudentEnrollment);
-router.get("/get-imu-k-5-1-year",imuTab.getStudentEnrollmentYear);
+router.post(
+  "/add-imu-k-5-1",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createStudentEnrollment
+);
+router.get(
+  "/get-imu-k-5-1",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getStudentEnrollment
+);
+router.get(
+  "/get-imu-k-5-1/:studentId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getStudentEnrollmentByID
+);
+router.delete(
+  "/delete-imu-k-5-1/:student_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deleteStudentEnrollment
+);
+router.get(
+  "/get-imu-k-5-1-year",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getStudentEnrollmentYear
+);
 
-router.post("/add-imu-k-5-2",imuTab.createimunewCourseUpgradation);
-router.get("/get-imu-k-5-2/:courseId",imuTab.getimuNewCourseUpgradationByID);
-router.delete("/delete-imu-k-5-2/:course_id/:userID", imuTab.deleteNewCourseUpgradation);
-router.get("/get-imu-k-5-2",imuTab.getimuNewCourseUpgradation);
-router.get("/get-imu-k-5-2-year",imuTab.getimuNewCourseUpgradationYear);
+router.post(
+  "/add-imu-k-5-2",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createimunewCourseUpgradation
+);
+router.get(
+  "/get-imu-k-5-2/:courseId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuNewCourseUpgradationByID
+);
+router.delete(
+  "/delete-imu-k-5-2/:course_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deleteNewCourseUpgradation
+);
+router.get(
+  "/get-imu-k-5-2",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuNewCourseUpgradation
+);
+router.get(
+  "/get-imu-k-5-2-year",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuNewCourseUpgradationYear
+);
 
-router.post("/add-imu-k-5-3",imuTab.createimuFacilities);
-router.get("/get-imu-k-5-3",imuTab.getimuFacilities);
-router.get("/get-imu-k-5-3/:facilitiesId",imuTab.getimuFacilitiesByID);
-router.delete("/delete-imu-k-5-3/:facilities_id/:userID", imuTab.deleteFacilities);
-router.get("/get-imu-k-5-3-year",imuTab.getimuFacilitiesYear);
+router.post(
+  "/add-imu-k-5-3",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createimuFacilities
+);
+router.get(
+  "/get-imu-k-5-3",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuFacilities
+);
+router.get(
+  "/get-imu-k-5-3/:facilitiesId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuFacilitiesByID
+);
+router.delete(
+  "/delete-imu-k-5-3/:facilities_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deleteFacilities
+);
+router.get(
+  "/get-imu-k-5-3-year",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuFacilitiesYear
+);
 
-router.post("/add-imu-k-5-4",imuTab.createimuPartnership);
-router.get("/get-imu-k-5-4",imuTab.getimuPartnership);
-router.get("/get-imu-k-5-4/:partnershipId",imuTab.getimuPartnershipByID);
-router.delete("/delete-imu-k-5-4/:partnership_id/:userID", imuTab.deletePartnership);
-router.get("/get-imu-k-5-4-year",imuTab.getimuPartnershipYear);
+router.post(
+  "/add-imu-k-5-4",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createimuPartnership
+);
+router.get(
+  "/get-imu-k-5-4",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuPartnership
+);
+router.get(
+  "/get-imu-k-5-4/:partnershipId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuPartnershipByID
+);
+router.delete(
+  "/delete-imu-k-5-4/:partnership_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deletePartnership
+);
+router.get(
+  "/get-imu-k-5-4-year",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuPartnershipYear
+);
 
-router.post("/add-imu-k-5-5",imuTab.createImuResearch);
-router.get("/get-imu-k-5-5",imuTab.getImuResearch);
-router.get("/get-imu-k-5-5/:researchId",imuTab.getImuResearchByID);
-router.delete("/delete-imu-k-5-5/:research_id/:userID", imuTab.deleteResearch);
-router.get("/get-imu-k-5-5-year",imuTab.getimuResearchYear);
+router.post(
+  "/add-imu-k-5-5",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createImuResearch
+);
+router.get(
+  "/get-imu-k-5-5",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getImuResearch
+);
+router.get(
+  "/get-imu-k-5-5/:researchId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getImuResearchByID
+);
+router.delete(
+  "/delete-imu-k-5-5/:research_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deleteResearch
+);
+router.get(
+  "/get-imu-k-5-5-year",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuResearchYear
+);
 
-router.get("/get-imu-k-5-1-report",imuReportTab.getStudentEnrollmentReport);
-router.get("/get-imu-k-5-2-report",imuReportTab.getNewCoursesUpgradationReport);
-router.get("/get-imu-k-5-3-report",imuReportTab.getFacilitiesClassroomsReport);
-router.get("/get-imu-k-5-4-report",imuReportTab.getPartnershipsMoUsAcadamicReport);
-router.get("/get-imu-k-5-5-report",imuReportTab.getResearchInnovationsReport)
+router.get(
+  "/get-imu-k-5-1-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getStudentEnrollmentReport
+);
+router.get(
+  "/get-imu-k-5-2-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getNewCoursesUpgradationReport
+);
+router.get(
+  "/get-imu-k-5-3-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getFacilitiesClassroomsReport
+);
+router.get(
+  "/get-imu-k-5-4-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getPartnershipsMoUsAcadamicReport
+);
+router.get(
+  "/get-imu-k-5-5-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getResearchInnovationsReport
+);
 
-router.post("/add-imu-k-5-1-1",imuTab.createimuFinalYearpassPercentage);
-router.get("/get-student-perecntage-list/:userID",imuTab.getStudentfinalYearPercentage);
-router.get("/update-student-perecntage-data/:studentId",imuTab.getUpdateFinalyearPercentagedata);
-router.delete("/delete-imu-k-5-1-1/:student_id/:userID", imuTab.deleteFinalYearPassPercentage);
-router.get("/get-imu-k-5-1-1-program",imuTab.checkProgramalreadyExists)
+router.post(
+  "/add-imu-k-5-1-1",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createimuFinalYearpassPercentage
+);
+router.get(
+  "/get-student-perecntage-list/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getStudentfinalYearPercentage
+);
+router.get(
+  "/update-student-perecntage-data/:studentId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getUpdateFinalyearPercentagedata
+);
+router.delete(
+  "/delete-imu-k-5-1-1/:student_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deleteFinalYearPassPercentage
+);
+router.get(
+  "/get-imu-k-5-1-1-program",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.checkProgramalreadyExists
+);
 
 // Report
-router.get("/get-imu-k-5-1-linegraph-report",imuReportTab.getStudentEnrollmentLinegraphReport);
-router.get("/get-imu-k-5-1-1-report",imuReportTab.getfinalYearpassPercentageReport);
+router.get(
+  "/get-imu-k-5-1-linegraph-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getStudentEnrollmentLinegraphReport
+);
+router.get(
+  "/get-imu-k-5-1-1-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getfinalYearpassPercentageReport
+);
 
 //Long Term Strategies
 //MIV data
