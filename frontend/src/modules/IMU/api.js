@@ -108,8 +108,8 @@ export function deleteFinalYearPassPercentage(studentId, userId) {
 
 // ---- New Course Upgradation (K-5.2) ----
 // createimunewCourseUpgradation is an upsert keyed on financial_year.
-export function fetchNewCourseUpgradation() {
-  return api.get('/get-imu-k-5-2');
+export function fetchNewCourseUpgradation(params = {}) {
+  return api.get('/get-imu-k-5-2', { params });
 }
 
 export function fetchNewCourseUpgradationById(courseId) {

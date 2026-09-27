@@ -85,6 +85,13 @@ export default function IMUView({ activeTab, triggerNotification }) {
   const [studentPagination, setStudentPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
   const [studentYears, setStudentYears] = useState([]);
 
+  // New Course Upgradation: server-side pagination + search state
+  const [coursePage, setCoursePage] = useState(1);
+  const [courseLimit] = useState(10);
+  const [courseSearch, setCourseSearch] = useState('');
+  const [coursePagination, setCoursePagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
+  const [courseYears, setCourseYears] = useState([]);
+
   // Keep the URL's ?section=&tab= query params in sync with the current view,
   // so refreshing, bookmarking, or using browser back/forward preserves the
   // exact section and tab the user was on.
@@ -143,10 +150,22 @@ export default function IMUView({ activeTab, triggerNotification }) {
         .finally(() => setLoading(false));
     } else if (activeSection === 'newCourseUpgradation') {
       setLoading(true);
-      fetchNewCourseUpgradation()
-        .then((res) => setRowData(res.data || []))
+      fetchNewCourseUpgradation({ page: coursePage, limit: courseLimit, search: courseSearch })
+        .then((res) => {
+          setRowData(res.data?.data || []);
+          setCoursePagination(res.data?.pagination || { total: 0, page: 1, limit: courseLimit, totalPages: 0 });
+        })
         .catch((err) => console.error('Error loading New Course Upgradation data:', err))
         .finally(() => setLoading(false));
+      if (courseYears.length === 0) {
+        fetchNewCourseUpgradation({ page: 1, limit: 100 })
+          .then((res) => {
+            const all = res.data?.data || [];
+            const distinctYears = [...new Set(all.map((r) => r.financial_year))].sort().reverse();
+            setCourseYears(distinctYears);
+          })
+          .catch(() => {});
+      }
     } else if (activeSection === 'facilities') {
       setLoading(true);
       fetchFacilities()
@@ -183,7 +202,7 @@ export default function IMUView({ activeTab, triggerNotification }) {
     useEffect(() => {
     setEditData(null);
     fetchData();
-  }, [activeSection, researchPage, researchSearch, studentPage, studentSearch]);
+  }, [activeSection, researchPage, researchSearch, studentPage, studentSearch, coursePage, courseSearch]);
 
   const handleEdit = (row) => {
     setEditData(row);
@@ -394,6 +413,11 @@ export default function IMUView({ activeTab, triggerNotification }) {
               onDelete={handleDelete}
               canEdit={canEdit}
               canRemove={canRemove}
+              pagination={coursePagination}
+              onPageChange={setCoursePage}
+              searchQuery={courseSearch}
+              onSearchChange={(v) => { setCourseSearch(v); setCoursePage(1); }}
+              years={courseYears}
             />
           )
         ) : activeSection === 'facilities' ? (
