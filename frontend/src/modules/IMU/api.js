@@ -174,8 +174,8 @@ export function deletePartnership(partnershipId, userId) {
 
 // ---- Research, Innovation & Startups (K-5.5) ----
 // createImuResearch is an upsert keyed on financial_year.
-export function fetchResearch() {
-  return api.get('/get-imu-k-5-5');
+export function fetchResearch(params = {}) {
+  return api.get('/get-imu-k-5-5', { params });
 }
 
 export function fetchResearchById(researchId) {

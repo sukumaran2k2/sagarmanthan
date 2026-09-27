@@ -71,6 +71,13 @@ export default function IMUView({ activeTab, triggerNotification }) {
   const [loading, setLoading] = useState(false);
   const [editData, setEditData] = useState(null);
 
+  // Research: server-side pagination + search state
+  const [researchPage, setResearchPage] = useState(1);
+  const [researchLimit] = useState(10);
+  const [researchSearch, setResearchSearch] = useState('');
+  const [researchPagination, setResearchPagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
+  const [researchYears, setResearchYears] = useState([]);
+
   // Keep the URL's ?section=&tab= query params in sync with the current view,
   // so refreshing, bookmarking, or using browser back/forward preserves the
   // exact section and tab the user was on.
@@ -135,17 +142,29 @@ export default function IMUView({ activeTab, triggerNotification }) {
         .finally(() => setLoading(false));
     } else if (activeSection === 'research') {
       setLoading(true);
-      fetchResearch()
-        .then((res) => setRowData(res.data || []))
+      fetchResearch({ page: researchPage, limit: researchLimit, search: researchSearch })
+        .then((res) => {
+          setRowData(res.data?.data || []);
+          setResearchPagination(res.data?.pagination || { total: 0, page: 1, limit: researchLimit, totalPages: 0 });
+        })
         .catch((err) => console.error('Error loading Research data:', err))
         .finally(() => setLoading(false));
+      if (researchYears.length === 0) {
+        fetchResearch({ page: 1, limit: 100 })
+          .then((res) => {
+            const all = res.data?.data || [];
+            const distinctYears = [...new Set(all.map((r) => r.financial_year))].sort().reverse();
+            setResearchYears(distinctYears);
+          })
+          .catch(() => {});
+      }
     }
   };
 
     useEffect(() => {
     setEditData(null);
     fetchData();
-  }, [activeSection]);
+  }, [activeSection, researchPage, researchSearch]);
 
   const handleEdit = (row) => {
     setEditData(row);
@@ -411,6 +430,11 @@ export default function IMUView({ activeTab, triggerNotification }) {
               onDelete={handleDelete}
               canEdit={canEdit}
               canRemove={canRemove}
+              pagination={researchPagination}
+              onPageChange={setResearchPage}
+              searchQuery={researchSearch}
+              onSearchChange={(v) => { setResearchSearch(v); setResearchPage(1); }}
+              years={researchYears}
             />
           )
         ) : null}
