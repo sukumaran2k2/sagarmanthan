@@ -69,7 +69,7 @@ export default function TouristDestinationsDataList({
           {canEdit && (
             <button
               onClick={() => onEditDestination && onEditDestination(params.data)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+              className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
               title="Update Entry"
             >
               <Edit className="h-4 w-4" />
@@ -102,7 +102,7 @@ export default function TouristDestinationsDataList({
           {canEdit && (
             <button
               onClick={() => onEditTarget && onEditTarget(params.data)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+              className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
               title="Update Entry"
             >
               <Edit className="h-4 w-4" />
