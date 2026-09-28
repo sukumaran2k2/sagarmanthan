@@ -2,22 +2,17 @@ import { useState, useEffect } from 'react';
 import { Lightbulb, Radio, Activity, Wifi, MapPin, IndianRupee, Construction } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import LightHouseMasterDataList from './pages/LightHouseMaster/DataList';
+import { resolveDGLLListView } from './views';
 import LightHouseMasterInputForm from './pages/LightHouseMaster/InputForm';
 import LightHouseMasterReports from './pages/LightHouseMaster/Reports';
-import VTMSIntegrationDataList from './pages/VTMSIntegration/DataList';
 import VTMSIntegrationInputForm from './pages/VTMSIntegration/InputForm';
 import VTMSIntegrationReports from './pages/VTMSIntegration/Reports';
-import NAISUptimeDataList from './pages/NAISUptime/DataList';
 import NAISUptimeInputForm from './pages/NAISUptime/InputForm';
 import NAISUptimeReports from './pages/NAISUptime/Reports';
-import NAISIntegrationDataList from './pages/NAISIntegration/DataList';
 import NAISIntegrationInputForm from './pages/NAISIntegration/InputForm';
 import NAISIntegrationReports from './pages/NAISIntegration/Reports';
-import TouristDestinationsDataList from './pages/TouristDestinations/DataList';
 import TouristDestinationsInputForm from './pages/TouristDestinations/InputForm';
 import TouristDestinationsReports from './pages/TouristDestinations/Reports';
-import FinancialPerformanceDataList from './pages/FinancialPerformance/DataList';
 import FinancialPerformanceInputForm from './pages/FinancialPerformance/InputForm';
 import FinancialPerformanceReports from './pages/FinancialPerformance/Reports';
 import { useKPIDGLLPermissions } from './hooks/useKPIDGLLPermissions';
@@ -90,6 +85,7 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
     const newSearch = `?${params.toString()}`;
     if (window.location.search !== newSearch) {
       window.history.pushState(null, '', `${window.location.pathname}${newSearch}`);
+      window.dispatchEvent(new Event('kpi-subtab-change'));
     }
   }, [activeSection, activeSubTab]);
 
@@ -285,6 +281,27 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
       });
   };
 
+  const baseListProps = { rowData, loading, onEdit: handleEdit, onDelete: handleDelete, canEdit, canRemove };
+  const listPropsBySection = {
+    lightHouseMaster: baseListProps,
+    vtmsIntegration: baseListProps,
+    naisUptime: baseListProps,
+    naisIntegration: baseListProps,
+    touristDestinations: {
+      destinationRows: touristDestRows,
+      targetRows: targetDetailRows,
+      loading,
+      onEditDestination: handleEditDestination,
+      onEditTarget: handleEditTarget,
+      onDeleteDestination: handleDeleteDestination,
+      onDeleteTarget: handleDeleteTarget,
+      canEdit,
+      canRemove,
+    },
+    financialPerformance: baseListProps,
+  };
+  const ListView = resolveDGLLListView(activeSection);
+
   if (!canAdd && !canView && !canEdit) {
     return <RestrictedAccess moduleName="KPI - DGLL" />;
   }
@@ -346,7 +363,7 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
         </div>
       </div>
 
-      <div className={(activeSubTab === 'report' || activeSubTab === 'add') ? 'mt-2' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm mt-2'}>
+      <div className={(activeSubTab === 'report' || activeSubTab === 'add' || activeSection === 'touristDestinations') ? 'mt-2' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm mt-2'}>
         {!currentSection.ready ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Construction className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
@@ -365,14 +382,7 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <LightHouseMasterDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : activeSection === 'vtmsIntegration' ? (
           activeSubTab === 'report' ? (
@@ -384,14 +394,7 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <VTMSIntegrationDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : activeSection === 'naisUptime' ? (
           activeSubTab === 'report' ? (
@@ -403,14 +406,7 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <NAISUptimeDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : activeSection === 'naisIntegration' ? (
           activeSubTab === 'report' ? (
@@ -422,14 +418,7 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <NAISIntegrationDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : activeSection === 'touristDestinations' ? (
           activeSubTab === 'report' ? (
@@ -444,17 +433,7 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <TouristDestinationsDataList
-              destinationRows={touristDestRows}
-              targetRows={targetDetailRows}
-              loading={loading}
-              onEditDestination={handleEditDestination}
-              onEditTarget={handleEditTarget}
-              onDeleteDestination={handleDeleteDestination}
-              onDeleteTarget={handleDeleteTarget}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : activeSection === 'financialPerformance' ? (
           activeSubTab === 'report' ? (
@@ -466,14 +445,7 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <FinancialPerformanceDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : null}
       </div>

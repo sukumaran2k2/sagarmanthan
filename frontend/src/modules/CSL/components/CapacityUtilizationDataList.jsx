@@ -1,28 +1,33 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  no_of_ports_vtms_integrated: 'Number of Ports VTMS System Integrated',
+  total_shipbuilding_capacity: 'Total Shipbuilding Capacity (GT/Year)',
+  tonnage_of_vessels: 'Tonnage Of Vessels Built (GT)',
 };
 
-export default function VTMSIntegrationDataList({
+export default function CapacityUtilizationDataList({
   rowData = [],
   loading = false,
   onEdit,
   onDelete,
   canEdit = true,
   canRemove = false,
+  pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
+  onPageChange,
+  searchQuery = '',
+  onSearchChange,
+  years = [],
 }) {
-  const [yearFilter, setYearFilter] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    no_of_ports_vtms_integrated: true,
+    total_shipbuilding_capacity: true,
+    tonnage_of_vessels: true,
   });
   const gridRef = useRef(null);
 
@@ -30,46 +35,32 @@ export default function VTMSIntegrationDataList({
     if (type === 'Copy') {
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
-      filteredData.forEach((row, i) => {
+      rowData.forEach((row, i) => {
         const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'vtms_integration' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'csl_capacity_utilization' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'VTMS Integration Data List',
+        title: 'CSL Capacity Utilization Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
-        rowData: filteredData,
-        fileName: 'vtms_integration',
+        rowData: rowData,
+        fileName: 'csl_capacity_utilization',
       });
     }
   };
 
-  const years = useMemo(
-    () => [...new Set(rowData.map((r) => r.financial_year))].sort().reverse(),
-    [rowData]
-  );
-
-  const filteredData = useMemo(() => {
-    let data = yearFilter ? rowData.filter((r) => r.financial_year === yearFilter) : rowData;
-    if (!searchQuery.trim()) return data;
-    const q = searchQuery.toLowerCase();
-    return data.filter((r) =>
-      (r.financial_year || '').toLowerCase().includes(q) ||
-      String(r.no_of_ports_vtms_integrated ?? '').includes(q)
-    );
-  }, [rowData, yearFilter, searchQuery]);
-
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
-    ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_ports_vtms_integrated ? [{ headerName: 'Number of Ports VTMS System Integrated', field: 'no_of_ports_vtms_integrated', flex: 2, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', wrapText: true, autoHeight: true, flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_shipbuilding_capacity ? [{ headerName: 'Total Shipbuilding Capacity (GT/Year)', field: 'total_shipbuilding_capacity', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.tonnage_of_vessels ? [{ headerName: 'Tonnage Of Vessels Built (GT)', field: 'tonnage_of_vessels', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'vtms_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'csl_capacity_utilization_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
@@ -86,7 +77,7 @@ export default function VTMSIntegrationDataList({
             <button
               onClick={() => onDelete && onDelete(params.data)}
               className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
-              title="Delete VTMS Integration Entry"
+              title="Delete Capacity Utilization Entry"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -103,8 +94,8 @@ export default function VTMSIntegrationDataList({
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Financial Year</span>
             <select
-              value={yearFilter}
-              onChange={(e) => setYearFilter(e.target.value)}
+              value={searchQuery}
+              onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
               className="text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               <option value="">Show All</option>
@@ -113,11 +104,9 @@ export default function VTMSIntegrationDataList({
           </div>
         }
         searchTerm={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={onSearchChange}
         searchPlaceholder="Search"
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        totalRows={loading ? '...' : filteredData.length}
+        totalRows={loading ? '...' : pagination.total}
         onCopy={() => handleExport('Copy')}
         onExportExcel={() => handleExport('Excel')}
         onExportPdf={() => handleExport('PDF')}
@@ -128,16 +117,26 @@ export default function VTMSIntegrationDataList({
 
       <Table
         ref={gridRef}
-        rowData={filteredData}
+        rowData={rowData}
         columnDefs={colDefs}
         loading={loading}
-        pagination={true}
-        paginationPageSize={pageSize}
+        pagination={false}
         domLayout="autoHeight"
         rowHeight={50}
         headerHeight={42}
         color="#0f417a"
       />
+
+      {pagination.totalPages > 1 && (
+        <TablePagination
+          currentPage={Math.max(0, pagination.page - 1)}
+          totalPages={pagination.totalPages}
+          totalRows={pagination.total}
+          pageSize={pagination.limit}
+          onPageChange={(pageIndex) => onPageChange?.(pageIndex + 1)}
+          color="#0f417a"
+        />
+      )}
     </div>
   );
 }

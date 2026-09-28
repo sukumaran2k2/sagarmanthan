@@ -1,24 +1,15 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  no_of_classrooms: 'Number of Classrooms',
-  no_of_labs: 'Number of Labs',
-  no_of_simulators: 'Number of Simulators',
-  no_of_workshops: 'Number of Workshops',
-  no_of_library_books: 'Number of Library Books',
-  no_of_e_books: 'Number of E-Books',
-  no_of_e_journals: 'Number of E-Journals',
-  no_of_e_database: 'Number of E-Databases',
-  no_of_acadamic_software: 'Number of Academic Software',
-  total_e_resources: 'Total E-Resources',
+  no_of_ports_vtms_integrated: 'Number of Ports VTMS System Integrated',
 };
 
-export default function FacilitiesDataList({
+export default function VTMSIntegrationDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -31,16 +22,7 @@ export default function FacilitiesDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    no_of_classrooms: true,
-    no_of_labs: true,
-    no_of_simulators: true,
-    no_of_workshops: true,
-    no_of_library_books: true,
-    no_of_e_books: true,
-    no_of_e_journals: true,
-    no_of_e_database: true,
-    no_of_acadamic_software: true,
-    total_e_resources: true,
+    no_of_ports_vtms_integrated: true,
   });
   const gridRef = useRef(null);
 
@@ -54,14 +36,14 @@ export default function FacilitiesDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_facilities' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'vtms_integration' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'IMU Facilities Data List',
+        title: 'VTMS Integration Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'imu_facilities',
+        fileName: 'vtms_integration',
       });
     }
   };
@@ -75,25 +57,19 @@ export default function FacilitiesDataList({
     let data = yearFilter ? rowData.filter((r) => r.financial_year === yearFilter) : rowData;
     if (!searchQuery.trim()) return data;
     const q = searchQuery.toLowerCase();
-    return data.filter((r) => (r.financial_year || '').toLowerCase().includes(q));
+    return data.filter((r) =>
+      (r.financial_year || '').toLowerCase().includes(q) ||
+      String(r.no_of_ports_vtms_integrated ?? '').includes(q)
+    );
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
     { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_classrooms ? [{ headerName: 'Number of Classrooms', field: 'no_of_classrooms', flex: 1, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_labs ? [{ headerName: 'Number of Labs', field: 'no_of_labs', flex: 1, minWidth: 140, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_simulators ? [{ headerName: 'Number of Simulators', field: 'no_of_simulators', flex: 1, minWidth: 170, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_workshops ? [{ headerName: 'Number of Workshops', field: 'no_of_workshops', flex: 1, minWidth: 170, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_library_books ? [{ headerName: 'Number of Library Books', field: 'no_of_library_books', flex: 1.2, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_e_books ? [{ headerName: 'Number of E-Books', field: 'no_of_e_books', flex: 1, minWidth: 160, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_e_journals ? [{ headerName: 'Number of E-Journals', field: 'no_of_e_journals', flex: 1, minWidth: 170, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_e_database ? [{ headerName: 'Number of E-Databases', field: 'no_of_e_database', flex: 1.1, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_acadamic_software ? [{ headerName: 'Number of Academic Software', field: 'no_of_acadamic_software', flex: 1.3, minWidth: 210, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_e_resources ? [{ headerName: 'Total E-Resources', field: 'total_e_resources', flex: 1, minWidth: 160, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_ports_vtms_integrated ? [{ headerName: 'Number of Ports VTMS System Integrated', field: 'no_of_ports_vtms_integrated', flex: 2, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'facilities_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'vtms_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
@@ -110,7 +86,7 @@ export default function FacilitiesDataList({
             <button
               onClick={() => onDelete && onDelete(params.data)}
               className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
-              title="Delete Facilities Entry"
+              title="Delete VTMS Integration Entry"
             >
               <Trash2 className="h-4 w-4" />
             </button>

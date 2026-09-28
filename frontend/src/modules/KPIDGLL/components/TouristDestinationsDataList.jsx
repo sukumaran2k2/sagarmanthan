@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const DEST_COLUMN_LABELS = {
   finacial_year: 'Financial Year',
@@ -178,64 +178,76 @@ export default function TouristDestinationsDataList({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 flex-wrap">
+    <div className="space-y-2">
+      <div className="flex items-center space-x-1 border-b border-slate-200 dark:border-slate-800 select-none">
         <button
+          type="button"
           onClick={() => { setActiveTable('destination'); setYearFilter(''); setSearchQuery(''); }}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${isDestination ? 'bg-[#0f417a] text-white' : 'bg-white dark:bg-slate-900 text-[#0f417a] dark:text-blue-400 border border-[#0f417a]/40 dark:border-blue-500/40'}`}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            isDestination
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+          }`}
         >
           Lighthouse Table
         </button>
         <button
+          type="button"
           onClick={() => { setActiveTable('target'); setYearFilter(''); setSearchQuery(''); }}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${!isDestination ? 'bg-[#0f417a] text-white' : 'bg-white dark:bg-slate-900 text-[#0f417a] dark:text-blue-400 border border-[#0f417a]/40 dark:border-blue-500/40'}`}
+          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+            !isDestination
+              ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+          }`}
         >
           KPI Target Details
         </button>
       </div>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm space-y-6">
 
-      <DataListToolbar
-        leftContent={
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              {isDestination ? 'Financial Year' : 'Target Year'}
-            </span>
-            <select
-              value={yearFilter}
-              onChange={(e) => setYearFilter(e.target.value)}
-              className="text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-            >
-              <option value="">Show All</option>
-              {years.map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-        }
-        searchTerm={searchQuery}
-        onSearchChange={setSearchQuery}
-        searchPlaceholder="Search"
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        totalRows={loading ? '...' : rows.length}
-        onCopy={() => handleExport('Copy')}
-        onExportExcel={() => handleExport('Excel')}
-        onExportPdf={() => handleExport('PDF')}
-        visibleCols={visibleCols}
-        onVisibleColsChange={setVisibleCols}
-        columnLabels={columnLabels}
-      />
+        <DataListToolbar
+          leftContent={
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                {isDestination ? 'Financial Year' : 'Target Year'}
+              </span>
+              <select
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+                className="text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+              >
+                <option value="">Show All</option>
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+          }
+          searchTerm={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Search"
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          totalRows={loading ? '...' : rows.length}
+          onCopy={() => handleExport('Copy')}
+          onExportExcel={() => handleExport('Excel')}
+          onExportPdf={() => handleExport('PDF')}
+          visibleCols={visibleCols}
+          onVisibleColsChange={setVisibleCols}
+          columnLabels={columnLabels}
+        />
 
-      <Table
-        ref={gridRef}
-        rowData={rows}
-        columnDefs={colDefs}
-        loading={loading}
-        pagination={true}
-        paginationPageSize={pageSize}
-        domLayout="autoHeight"
-        rowHeight={50}
-        headerHeight={42}
-        color="#0f417a"
-      />
+        <Table
+          ref={gridRef}
+          rowData={rows}
+          columnDefs={colDefs}
+          loading={loading}
+          pagination={true}
+          paginationPageSize={pageSize}
+          domLayout="autoHeight"
+          rowHeight={50}
+          headerHeight={42}
+          color="#0f417a"
+        />
+      </div>
     </div>
   );
 }

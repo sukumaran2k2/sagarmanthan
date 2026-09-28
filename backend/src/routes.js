@@ -2315,101 +2315,491 @@ router.get('/get-course-type/:mtiId/:courseId', CourseMasterTab.getCourseTypeDat
 // router.get("/traffic-Fin-Year-Chart-Data", TrafficTab.getFinYearChartData);
 
 // DGLL
-router.post("/light-house-master", dgllTab.addLightsHouseMaster);
-router.get("/light-house-list/:userID", dgllTab.getLightHouseMaster);
-router.get("/update-light-house-list/:lightHouseId", dgllTab.getUpdatelightHouseData);
-router.put('/Light-House-edit',dgllTab.updateLightsHousedata);
-router.delete("/light-house-master/:lights_house_id/:userID", dgllTab.deleteLightHouseMaster);
+router.post(
+  "/light-house-master",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addLightsHouseMaster
+);
+router.get(
+  "/light-house-list/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getLightHouseMaster
+);
+router.get(
+  "/update-light-house-list/:lightHouseId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getUpdatelightHouseData
+);
+router.put(
+  "/Light-House-edit",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.updateLightsHousedata
+);
+router.delete(
+  "/light-house-master/:lights_house_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteLightHouseMaster
+);
 
-router.post("/vtms-Integration",dgllTab.addVtmsIntegration);
-router.get("/vtms-list/:userID", dgllTab.getVtmsIntegration);
-router.get("/update-Vtms-data/:VtmsId", dgllTab.getUpdateVtmsdata);
-router.put('/vtms-edit',dgllTab.updateVtmsData);
-router.delete("/vtms-integration/:vtms_id/:userID", dgllTab.deleteVtmsIntegration);
+router.post(
+  "/vtms-Integration",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addVtmsIntegration
+);
+router.get(
+  "/vtms-list/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getVtmsIntegration
+);
+router.get(
+  "/update-Vtms-data/:VtmsId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getUpdateVtmsdata
+);
+router.put(
+  "/vtms-edit",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.updateVtmsData
+);
+router.delete(
+  "/vtms-integration/:vtms_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteVtmsIntegration
+);
 
-router.post("/nais-uptime",dgllTab.addNaisUptime);
-router.get("/nais-list/:userID", dgllTab.getnaisList);
-router.get("/update-nais-data/:NaisId", dgllTab.getUpdateNaisdata);
-router.put('/nais-edit',dgllTab.updateNaisData);
-router.delete("/nais-uptime/:nais_id/:userID", dgllTab.deleteNaisUptime);
+router.post(
+  "/nais-uptime",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addNaisUptime
+);
+router.get(
+  "/nais-list/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getnaisList
+);
+router.get(
+  "/update-nais-data/:NaisId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getUpdateNaisdata
+);
+router.put(
+  "/nais-edit",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.updateNaisData
+);
+router.delete(
+  "/nais-uptime/:nais_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteNaisUptime
+);
 
-router.post("/nais-integration",dgllTab.addNAISIntegration);
-router.get("/nais-integration-list/:userID", dgllTab.getnaisIntegrationList);
-router.get("/update-nais-integration-data/:NaisIntegrationId", dgllTab.getUpdateNaisIntegrationdata);
-router.put('/nais-integration-edit',dgllTab.updateNaisIntegrationData);
-router.delete("/nais-integration/:nais_integration_id/:userID", dgllTab.deleteNaisIntegration);
+router.post(
+  "/nais-integration",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addNAISIntegration
+);
+router.get(
+  "/nais-integration-list/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getnaisIntegrationList
+);
+router.get(
+  "/update-nais-integration-data/:NaisIntegrationId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getUpdateNaisIntegrationdata
+);
+router.put(
+  "/nais-integration-edit",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.updateNaisIntegrationData
+);
+router.delete(
+  "/nais-integration/:nais_integration_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteNaisIntegration
+);
 
-router.get("/get-vtms-integration-report",dgllReportTab.getVTMSIntegrationReport);
-router.get("/get-nais-uptime-report",dgllReportTab.getNAISUptimeReport);
-router.get("/get-nais-integration-report",dgllReportTab.getNAISIntegrationReport);
-router.get("/get-light-house-master-report",dgllReportTab.getLightHouseMasterReport)
+router.get(
+  "/get-vtms-integration-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getVTMSIntegrationReport
+);
+router.get(
+  "/get-nais-uptime-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getNAISUptimeReport
+);
+router.get(
+  "/get-nais-integration-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getNAISIntegrationReport
+);
+router.get(
+  "/get-light-house-master-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getLightHouseMasterReport
+);
 
-router.post("/lighthose-tourist-destination", dgllTab.addTouristDestinations);
-router.get("/lighthouse-tourist-destination/:userID", dgllTab.getTouristDestinations );
-router.get('/update-lighthouse-tourist-destination/:TouristDestinationsId', dgllTab.getByIdTouristDestinations);
-router.put('/edit-lighthouse-tourist-destination' , dgllTab.UpdateTouristDestinations);
-router.delete("/lighthouse-tourist-destination/:tourist_destination_id/:userID", dgllTab.deleteTouristDestination);
-router.get('/get-lighthouse-tourist-destination-report', dgllReportTab.getLighthouseTouristDestinationReport);
-router.get("/get-dgll-financial-performance-report",dgllReportTab.getFinancialPerformanceReport)
+router.post(
+  "/lighthose-tourist-destination",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addTouristDestinations
+);
+router.get(
+  "/lighthouse-tourist-destination/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getTouristDestinations
+);
+router.get(
+  "/update-lighthouse-tourist-destination/:TouristDestinationsId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getByIdTouristDestinations
+);
+router.put(
+  "/edit-lighthouse-tourist-destination",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.UpdateTouristDestinations
+);
+router.delete(
+  "/lighthouse-tourist-destination/:tourist_destination_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteTouristDestination
+);
+router.get(
+  "/get-lighthouse-tourist-destination-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getLighthouseTouristDestinationReport
+);
+router.get(
+  "/get-dgll-financial-performance-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getFinancialPerformanceReport
+);
 
-router.get("/check-financialYears/:financialYears", dgllTab.checkFinancialYear);
+router.get(
+  "/check-financialYears/:financialYears",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.checkFinancialYear
+);
 
-router.post('/target-Details-lighthouse',dgllTab.addTargetDetails);
-router.get('/target-Details-lighthouse/:userID', dgllTab.getTargetDetails);
-router.get('/update-target-Details-destination/:TouristDestinationsId', dgllTab.getByIdTargetDestinations);
-router.put('/edit-target-Details-lighthouse', dgllTab.updateTargetDestinationData);
-router.delete("/target-Details-lighthouse/:tourist_destination_target_id/:userID", dgllTab.deleteTargetDetail);
-router.get("/check-targetYears/:year", dgllTab.checkYear);
+router.post(
+  "/target-Details-lighthouse",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addTargetDetails
+);
+router.get(
+  "/target-Details-lighthouse/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getTargetDetails
+);
+router.get(
+  "/update-target-Details-destination/:TouristDestinationsId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getByIdTargetDestinations
+);
+router.put(
+  "/edit-target-Details-lighthouse",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.updateTargetDestinationData
+);
+router.delete(
+  "/target-Details-lighthouse/:tourist_destination_target_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteTargetDetail
+);
+router.get(
+  "/check-targetYears/:year",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.checkYear
+);
 
-router.post("/dgll-submit-financial-performance",dgllTab.submitFinancialPerformance);
-router.get("/get-dgll-financial-performance",dgllTab.getFinancialPerfomanceData);
-router.get("/get-dgll-financial-performance/:financialId",dgllTab.getFinancialPerformanceDataByID)
-router.delete("/dgll-financial-performance/:financial_id/:userID", dgllTab.deleteFinancialPerformance);
+router.post(
+  "/dgll-submit-financial-performance",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.submitFinancialPerformance
+);
+router.get(
+  "/get-dgll-financial-performance",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getFinancialPerfomanceData
+);
+router.get(
+  "/get-dgll-financial-performance/:financialId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getFinancialPerformanceDataByID
+);
+router.delete(
+  "/dgll-financial-performance/:financial_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteFinancialPerformance
+);
 
 // CSL
-router.post("/vessels-built",cslTab. addVesselsBuilt);
-router.get("/vessel-list/:userID", cslTab. getVesselBuiltList);
-router.get("/update-CSL-vessel-built/:CslVesselId", cslTab.getUpdateVesselBuiltdata);
-router.put('/csl-vessel-Built-edit',cslTab.updatecslVesselBuiltData);
-router.delete("/csl-vessels-built/:csl_vessel_id/:userID", cslTab.deleteVesselsBuilt);
+router.post(
+  "/vessels-built",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addVesselsBuilt
+);
+router.get(
+  "/vessel-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getVesselBuiltList
+);
+router.get(
+  "/update-CSL-vessel-built/:CslVesselId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdateVesselBuiltdata
+);
+router.put(
+  "/csl-vessel-Built-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslVesselBuiltData
+);
+router.delete(
+  "/csl-vessels-built/:csl_vessel_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteVesselsBuilt
+);
 
-router.post("/csl-ship-building",cslTab.addShipBuildingOrders);
-router.get("/shipbuilding-list/:userID", cslTab.getshipbildingList);
-router.get("/update-CSL-ship-built/:CslshipbuildingId", cslTab.getUpdateshipBuildingdata);
-router.put('/csl-ship-Built-edit',cslTab.updatecslShipbuildingData);
-router.delete("/csl-ship-building/:csl_shipbuilding_id/:userID", cslTab.deleteShipBuildingOrders);
+router.post(
+  "/csl-ship-building",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addShipBuildingOrders
+);
+router.get(
+  "/shipbuilding-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getshipbildingList
+);
+router.get(
+  "/update-CSL-ship-built/:CslshipbuildingId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdateshipBuildingdata
+);
+router.put(
+  "/csl-ship-Built-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslShipbuildingData
+);
+router.delete(
+  "/csl-ship-building/:csl_shipbuilding_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteShipBuildingOrders
+);
 
-router.post("/csl-ship-delivery",cslTab.addShipdelivery);
-router.get("/shipdelivery-list/:userID", cslTab.getdeliveryList);
-router.get("/update-CSL-delivery-data/:CslshipdeliveryId",cslTab. getUpdateshipdeliverydata);
-router.put('/csl-ship-delivery-edit',cslTab.updatecslShipdeliveryData);
-router.delete("/csl-ship-delivery/:csl_shipdelivery_id/:userID", cslTab.deleteShipDeliveryPerformance);
+router.post(
+  "/csl-ship-delivery",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addShipdelivery
+);
+router.get(
+  "/shipdelivery-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getdeliveryList
+);
+router.get(
+  "/update-CSL-delivery-data/:CslshipdeliveryId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdateshipdeliverydata
+);
+router.put(
+  "/csl-ship-delivery-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslShipdeliveryData
+);
+router.delete(
+  "/csl-ship-delivery/:csl_shipdelivery_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteShipDeliveryPerformance
+);
 
-router.post("/csl-capacity-utilization",cslTab.addcapacityUtilization);
-router.get("/capacityUtilization-list/:userID", cslTab.getcapacityUtilizationList);
-router.get("/update-CSL-capcity-utilization-data/:CslcapacityUtilizationId",cslTab.getUpdatecapacityUtilizationdata);
-router.put('/csl-capacity-utilization-edit',cslTab.updatecslCapacityutilizationgData);
-router.delete("/csl-capacity-utilization/:csl_capacity_utilization_id/:userID", cslTab.deleteCapacityUtilization);
+router.post(
+  "/csl-capacity-utilization",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addcapacityUtilization
+);
+router.get(
+  "/capacityUtilization-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getcapacityUtilizationList
+);
+router.get(
+  "/update-CSL-capcity-utilization-data/:CslcapacityUtilizationId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdatecapacityUtilizationdata
+);
+router.put(
+  "/csl-capacity-utilization-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslCapacityutilizationgData
+);
+router.delete(
+  "/csl-capacity-utilization/:csl_capacity_utilization_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteCapacityUtilization
+);
 
-router.post("/csl-fabrication-steels",cslTab. addfabricationofsteels);
-router.get("/fabrication-list/:userID", cslTab. getfabricationList);
-router.get("/update-CSL-fabrication-data/:CslfabricationId",cslTab.getUpdatefabricationofsteeldata);
-router.put('/csl-fabrication-edit',cslTab.updatecslFabricationupdateData);
-router.delete("/csl-fabrication-steels/:csl_fabrication_id/:userID", cslTab.deleteFabricationOfSteels);
+router.post(
+  "/csl-fabrication-steels",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addfabricationofsteels
+);
+router.get(
+  "/fabrication-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getfabricationList
+);
+router.get(
+  "/update-CSL-fabrication-data/:CslfabricationId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdatefabricationofsteeldata
+);
+router.put(
+  "/csl-fabrication-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslFabricationupdateData
+);
+router.delete(
+  "/csl-fabrication-steels/:csl_fabrication_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteFabricationOfSteels
+);
 
-router.post("/csl-ships-repaired",cslTab. addShipRepaired);
-router.get("/ships-reapired-list/:userID", cslTab. getshipRepairedList);
-router.get("/update-ships-reapired-data/:CslreapiredId",cslTab.getUpdateshiptrapireddata);
-router.put('/csl-repaired-edit',cslTab.updatecslshipData);
-router.delete("/csl-ships-repaired/:csl_ships_reapired_id/:userID", cslTab.deleteShipRepaired);
+router.post(
+  "/csl-ships-repaired",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addShipRepaired
+);
+router.get(
+  "/ships-reapired-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getshipRepairedList
+);
+router.get(
+  "/update-ships-reapired-data/:CslreapiredId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdateshiptrapireddata
+);
+router.put(
+  "/csl-repaired-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslshipData
+);
+router.delete(
+  "/csl-ships-repaired/:csl_ships_reapired_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteShipRepaired
+);
 
 // CSL Report
-router.get('/get-csl-year-wise-report',CslreportTab.CslYearWiseReport);
-router.get('/get-csl-shipbuilding-year-wise-report',CslreportTab.getCslshipbuildingYearWiseReport);
-router.get('/get-csl-delivery-year-wise-report',CslreportTab.getCslshipdeliveryYearWiseReport);
-router.get('/get-csl-capacity-utilization-report',CslreportTab.getCslcapacityUtilizationReport);
-router.get('/get-csl-fabrication-of-steels-report',CslreportTab.getCslfabricationofsteelsYearWiseReport);
-router.get('/get-csl-ships-repaired-report',CslreportTab.getCslshipRepairedYearWiseReport);
+router.get(
+  "/get-csl-year-wise-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.CslYearWiseReport
+);
+router.get(
+  "/get-csl-shipbuilding-year-wise-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.getCslshipbuildingYearWiseReport
+);
+router.get(
+  "/get-csl-delivery-year-wise-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.getCslshipdeliveryYearWiseReport
+);
+router.get(
+  "/get-csl-capacity-utilization-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.getCslcapacityUtilizationReport
+);
+router.get(
+  "/get-csl-fabrication-of-steels-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.getCslfabricationofsteelsYearWiseReport
+);
+router.get(
+  "/get-csl-ships-repaired-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.getCslshipRepairedYearWiseReport
+);
 
 // SCI
 router.post("/add-vessel-avail-ability",sciTabList.addVesselAvailabiltydata);
@@ -2515,51 +2905,236 @@ router.get('/get-sci-manning-of-owned-ships-report',sciReportTab.getsciManningof
 router.get('/get-sci-ship-management-business-report',sciReportTab.getsciShipmanagementbusinessReport);
 
 // imuTab
-router.post("/add-imu-k-5-1",imuTab.createStudentEnrollment);
-router.get("/get-imu-k-5-1",imuTab.getStudentEnrollment);
-router.get("/get-imu-k-5-1/:studentId",imuTab.getStudentEnrollmentByID);
-router.delete("/delete-imu-k-5-1/:student_id/:userID", imuTab.deleteStudentEnrollment);
-router.get("/get-imu-k-5-1-year",imuTab.getStudentEnrollmentYear);
+router.post(
+  "/add-imu-k-5-1",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createStudentEnrollment
+);
+router.get(
+  "/get-imu-k-5-1",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getStudentEnrollment
+);
+router.get(
+  "/get-imu-k-5-1/:studentId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getStudentEnrollmentByID
+);
+router.delete(
+  "/delete-imu-k-5-1/:student_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deleteStudentEnrollment
+);
+router.get(
+  "/get-imu-k-5-1-year",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getStudentEnrollmentYear
+);
 
-router.post("/add-imu-k-5-2",imuTab.createimunewCourseUpgradation);
-router.get("/get-imu-k-5-2/:courseId",imuTab.getimuNewCourseUpgradationByID);
-router.delete("/delete-imu-k-5-2/:course_id/:userID", imuTab.deleteNewCourseUpgradation);
-router.get("/get-imu-k-5-2",imuTab.getimuNewCourseUpgradation);
-router.get("/get-imu-k-5-2-year",imuTab.getimuNewCourseUpgradationYear);
+router.post(
+  "/add-imu-k-5-2",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createimunewCourseUpgradation
+);
+router.get(
+  "/get-imu-k-5-2/:courseId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuNewCourseUpgradationByID
+);
+router.delete(
+  "/delete-imu-k-5-2/:course_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deleteNewCourseUpgradation
+);
+router.get(
+  "/get-imu-k-5-2",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuNewCourseUpgradation
+);
+router.get(
+  "/get-imu-k-5-2-year",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuNewCourseUpgradationYear
+);
 
-router.post("/add-imu-k-5-3",imuTab.createimuFacilities);
-router.get("/get-imu-k-5-3",imuTab.getimuFacilities);
-router.get("/get-imu-k-5-3/:facilitiesId",imuTab.getimuFacilitiesByID);
-router.delete("/delete-imu-k-5-3/:facilities_id/:userID", imuTab.deleteFacilities);
-router.get("/get-imu-k-5-3-year",imuTab.getimuFacilitiesYear);
+router.post(
+  "/add-imu-k-5-3",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createimuFacilities
+);
+router.get(
+  "/get-imu-k-5-3",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuFacilities
+);
+router.get(
+  "/get-imu-k-5-3/:facilitiesId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuFacilitiesByID
+);
+router.delete(
+  "/delete-imu-k-5-3/:facilities_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deleteFacilities
+);
+router.get(
+  "/get-imu-k-5-3-year",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuFacilitiesYear
+);
 
-router.post("/add-imu-k-5-4",imuTab.createimuPartnership);
-router.get("/get-imu-k-5-4",imuTab.getimuPartnership);
-router.get("/get-imu-k-5-4/:partnershipId",imuTab.getimuPartnershipByID);
-router.delete("/delete-imu-k-5-4/:partnership_id/:userID", imuTab.deletePartnership);
-router.get("/get-imu-k-5-4-year",imuTab.getimuPartnershipYear);
+router.post(
+  "/add-imu-k-5-4",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createimuPartnership
+);
+router.get(
+  "/get-imu-k-5-4",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuPartnership
+);
+router.get(
+  "/get-imu-k-5-4/:partnershipId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuPartnershipByID
+);
+router.delete(
+  "/delete-imu-k-5-4/:partnership_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deletePartnership
+);
+router.get(
+  "/get-imu-k-5-4-year",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuPartnershipYear
+);
 
-router.post("/add-imu-k-5-5",imuTab.createImuResearch);
-router.get("/get-imu-k-5-5",imuTab.getImuResearch);
-router.get("/get-imu-k-5-5/:researchId",imuTab.getImuResearchByID);
-router.delete("/delete-imu-k-5-5/:research_id/:userID", imuTab.deleteResearch);
-router.get("/get-imu-k-5-5-year",imuTab.getimuResearchYear);
+router.post(
+  "/add-imu-k-5-5",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createImuResearch
+);
+router.get(
+  "/get-imu-k-5-5",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getImuResearch
+);
+router.get(
+  "/get-imu-k-5-5/:researchId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getImuResearchByID
+);
+router.delete(
+  "/delete-imu-k-5-5/:research_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deleteResearch
+);
+router.get(
+  "/get-imu-k-5-5-year",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getimuResearchYear
+);
 
-router.get("/get-imu-k-5-1-report",imuReportTab.getStudentEnrollmentReport);
-router.get("/get-imu-k-5-2-report",imuReportTab.getNewCoursesUpgradationReport);
-router.get("/get-imu-k-5-3-report",imuReportTab.getFacilitiesClassroomsReport);
-router.get("/get-imu-k-5-4-report",imuReportTab.getPartnershipsMoUsAcadamicReport);
-router.get("/get-imu-k-5-5-report",imuReportTab.getResearchInnovationsReport)
+router.get(
+  "/get-imu-k-5-1-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getStudentEnrollmentReport
+);
+router.get(
+  "/get-imu-k-5-2-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getNewCoursesUpgradationReport
+);
+router.get(
+  "/get-imu-k-5-3-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getFacilitiesClassroomsReport
+);
+router.get(
+  "/get-imu-k-5-4-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getPartnershipsMoUsAcadamicReport
+);
+router.get(
+  "/get-imu-k-5-5-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getResearchInnovationsReport
+);
 
-router.post("/add-imu-k-5-1-1",imuTab.createimuFinalYearpassPercentage);
-router.get("/get-student-perecntage-list/:userID",imuTab.getStudentfinalYearPercentage);
-router.get("/update-student-perecntage-data/:studentId",imuTab.getUpdateFinalyearPercentagedata);
-router.delete("/delete-imu-k-5-1-1/:student_id/:userID", imuTab.deleteFinalYearPassPercentage);
-router.get("/get-imu-k-5-1-1-program",imuTab.checkProgramalreadyExists)
+router.post(
+  "/add-imu-k-5-1-1",
+  auth,
+  requireModulePermission("KPI_IMU", "create"),
+  imuTab.createimuFinalYearpassPercentage
+);
+router.get(
+  "/get-student-perecntage-list/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getStudentfinalYearPercentage
+);
+router.get(
+  "/update-student-perecntage-data/:studentId",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.getUpdateFinalyearPercentagedata
+);
+router.delete(
+  "/delete-imu-k-5-1-1/:student_id/:userID",
+  auth,
+  requireModulePermission("KPI_IMU", "delete"),
+  imuTab.deleteFinalYearPassPercentage
+);
+router.get(
+  "/get-imu-k-5-1-1-program",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuTab.checkProgramalreadyExists
+);
 
 // Report
-router.get("/get-imu-k-5-1-linegraph-report",imuReportTab.getStudentEnrollmentLinegraphReport);
-router.get("/get-imu-k-5-1-1-report",imuReportTab.getfinalYearpassPercentageReport);
+router.get(
+  "/get-imu-k-5-1-linegraph-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getStudentEnrollmentLinegraphReport
+);
+router.get(
+  "/get-imu-k-5-1-1-report",
+  auth,
+  requireModulePermission("KPI_IMU", "read"),
+  imuReportTab.getfinalYearpassPercentageReport
+);
 
 //Long Term Strategies
 //MIV data
