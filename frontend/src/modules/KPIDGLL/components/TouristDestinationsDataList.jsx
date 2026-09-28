@@ -85,12 +85,12 @@ export default function TouristDestinationsDataList({
   }, [targetRows, yearFilter, searchQuery]);
 
   const destinationColDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(destVisibleCols.finacial_year ? [{ headerName: 'Financial Year', field: 'finacial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(destVisibleCols.no_lighthouses_developed_tourist_destination ? [{ headerName: 'No. of Lighthouses Developed as Tourist Destinations', field: 'no_lighthouses_developed_tourist_destination', flex: 1.5, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(destVisibleCols.annual_tourist_footfall ? [{ headerName: 'Annual Tourist Footfall', field: 'annual_tourist_footfall', flex: 1.2, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'tourist_destination_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'tourist_destination_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
@@ -118,12 +118,12 @@ export default function TouristDestinationsDataList({
   ], [canEdit, canRemove, onEditDestination, onDeleteDestination, destVisibleCols]);
 
   const targetColDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(targetVisibleCols.year ? [{ headerName: 'Target Year', field: 'year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(targetVisibleCols.collection_of_light_dues ? [{ headerName: 'No. of Target Lighthouses', field: 'collection_of_light_dues', flex: 1.5, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(targetVisibleCols.footfall_in_the_lighthouses ? [{ headerName: 'Expected Footfall', field: 'footfall_in_the_lighthouses', flex: 1.2, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'tourist_destination_target_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'tourist_destination_target_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>

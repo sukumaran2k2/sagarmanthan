@@ -66,11 +66,11 @@ export default function LightHouseMasterDataList({
   }, [rowData, statusFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
-    ...(visibleCols.alol ? [{ headerName: 'ALOL', field: 'alol', flex: 1, minWidth: 90, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.light_house_name ? [{ headerName: 'Light House Name', field: 'light_house_name', flex: 2, minWidth: 180, cellClass: 'text-slate-700 dark:text-slate-200 flex items-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    ...(visibleCols.alol ? [{ headerName: 'ALOL', field: 'alol', wrapText: true, autoHeight: true, flex: 1, minWidth: 90, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.light_house_name ? [{ headerName: 'Light House Name', field: 'light_house_name', wrapText: true, autoHeight: true, flex: 2, minWidth: 180, cellClass: 'text-slate-700 dark:text-slate-200 flex items-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.light_status ? [{
-      headerName: 'Status', field: 'light_status', flex: 1, minWidth: 120,
+      headerName: 'Status', field: 'light_status', wrapText: true, autoHeight: true, flex: 1, minWidth: 120,
       cellClass: 'text-center flex items-center justify-center border-r border-slate-100 dark:border-slate-700',
       cellRenderer: (params) => {
         const isActive = String(params.value) === '1';
@@ -84,7 +84,7 @@ export default function LightHouseMasterDataList({
     }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'lights_house_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'lights_house_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
