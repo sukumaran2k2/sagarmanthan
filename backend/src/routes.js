@@ -2367,49 +2367,229 @@ router.get("/get-dgll-financial-performance/:financialId",dgllTab.getFinancialPe
 router.delete("/dgll-financial-performance/:financial_id/:userID", dgllTab.deleteFinancialPerformance);
 
 // CSL
-router.post("/vessels-built",cslTab. addVesselsBuilt);
-router.get("/vessel-list/:userID", cslTab. getVesselBuiltList);
-router.get("/update-CSL-vessel-built/:CslVesselId", cslTab.getUpdateVesselBuiltdata);
-router.put('/csl-vessel-Built-edit',cslTab.updatecslVesselBuiltData);
-router.delete("/csl-vessels-built/:csl_vessel_id/:userID", cslTab.deleteVesselsBuilt);
+router.post(
+  "/vessels-built",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addVesselsBuilt
+);
+router.get(
+  "/vessel-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getVesselBuiltList
+);
+router.get(
+  "/update-CSL-vessel-built/:CslVesselId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdateVesselBuiltdata
+);
+router.put(
+  "/csl-vessel-Built-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslVesselBuiltData
+);
+router.delete(
+  "/csl-vessels-built/:csl_vessel_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteVesselsBuilt
+);
 
-router.post("/csl-ship-building",cslTab.addShipBuildingOrders);
-router.get("/shipbuilding-list/:userID", cslTab.getshipbildingList);
-router.get("/update-CSL-ship-built/:CslshipbuildingId", cslTab.getUpdateshipBuildingdata);
-router.put('/csl-ship-Built-edit',cslTab.updatecslShipbuildingData);
-router.delete("/csl-ship-building/:csl_shipbuilding_id/:userID", cslTab.deleteShipBuildingOrders);
+router.post(
+  "/csl-ship-building",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addShipBuildingOrders
+);
+router.get(
+  "/shipbuilding-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getshipbildingList
+);
+router.get(
+  "/update-CSL-ship-built/:CslshipbuildingId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdateshipBuildingdata
+);
+router.put(
+  "/csl-ship-Built-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslShipbuildingData
+);
+router.delete(
+  "/csl-ship-building/:csl_shipbuilding_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteShipBuildingOrders
+);
 
-router.post("/csl-ship-delivery",cslTab.addShipdelivery);
-router.get("/shipdelivery-list/:userID", cslTab.getdeliveryList);
-router.get("/update-CSL-delivery-data/:CslshipdeliveryId",cslTab. getUpdateshipdeliverydata);
-router.put('/csl-ship-delivery-edit',cslTab.updatecslShipdeliveryData);
-router.delete("/csl-ship-delivery/:csl_shipdelivery_id/:userID", cslTab.deleteShipDeliveryPerformance);
+router.post(
+  "/csl-ship-delivery",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addShipdelivery
+);
+router.get(
+  "/shipdelivery-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getdeliveryList
+);
+router.get(
+  "/update-CSL-delivery-data/:CslshipdeliveryId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdateshipdeliverydata
+);
+router.put(
+  "/csl-ship-delivery-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslShipdeliveryData
+);
+router.delete(
+  "/csl-ship-delivery/:csl_shipdelivery_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteShipDeliveryPerformance
+);
 
-router.post("/csl-capacity-utilization",cslTab.addcapacityUtilization);
-router.get("/capacityUtilization-list/:userID", cslTab.getcapacityUtilizationList);
-router.get("/update-CSL-capcity-utilization-data/:CslcapacityUtilizationId",cslTab.getUpdatecapacityUtilizationdata);
-router.put('/csl-capacity-utilization-edit',cslTab.updatecslCapacityutilizationgData);
-router.delete("/csl-capacity-utilization/:csl_capacity_utilization_id/:userID", cslTab.deleteCapacityUtilization);
+router.post(
+  "/csl-capacity-utilization",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addcapacityUtilization
+);
+router.get(
+  "/capacityUtilization-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getcapacityUtilizationList
+);
+router.get(
+  "/update-CSL-capcity-utilization-data/:CslcapacityUtilizationId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdatecapacityUtilizationdata
+);
+router.put(
+  "/csl-capacity-utilization-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslCapacityutilizationgData
+);
+router.delete(
+  "/csl-capacity-utilization/:csl_capacity_utilization_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteCapacityUtilization
+);
 
-router.post("/csl-fabrication-steels",cslTab. addfabricationofsteels);
-router.get("/fabrication-list/:userID", cslTab. getfabricationList);
-router.get("/update-CSL-fabrication-data/:CslfabricationId",cslTab.getUpdatefabricationofsteeldata);
-router.put('/csl-fabrication-edit',cslTab.updatecslFabricationupdateData);
-router.delete("/csl-fabrication-steels/:csl_fabrication_id/:userID", cslTab.deleteFabricationOfSteels);
+router.post(
+  "/csl-fabrication-steels",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addfabricationofsteels
+);
+router.get(
+  "/fabrication-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getfabricationList
+);
+router.get(
+  "/update-CSL-fabrication-data/:CslfabricationId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdatefabricationofsteeldata
+);
+router.put(
+  "/csl-fabrication-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslFabricationupdateData
+);
+router.delete(
+  "/csl-fabrication-steels/:csl_fabrication_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteFabricationOfSteels
+);
 
-router.post("/csl-ships-repaired",cslTab. addShipRepaired);
-router.get("/ships-reapired-list/:userID", cslTab. getshipRepairedList);
-router.get("/update-ships-reapired-data/:CslreapiredId",cslTab.getUpdateshiptrapireddata);
-router.put('/csl-repaired-edit',cslTab.updatecslshipData);
-router.delete("/csl-ships-repaired/:csl_ships_reapired_id/:userID", cslTab.deleteShipRepaired);
+router.post(
+  "/csl-ships-repaired",
+  auth,
+  requireModulePermission("KPI_CSL", "create"),
+  cslTab.addShipRepaired
+);
+router.get(
+  "/ships-reapired-list/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getshipRepairedList
+);
+router.get(
+  "/update-ships-reapired-data/:CslreapiredId",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  cslTab.getUpdateshiptrapireddata
+);
+router.put(
+  "/csl-repaired-edit",
+  auth,
+  requireModulePermission("KPI_CSL", "update"),
+  cslTab.updatecslshipData
+);
+router.delete(
+  "/csl-ships-repaired/:csl_ships_reapired_id/:userID",
+  auth,
+  requireModulePermission("KPI_CSL", "delete"),
+  cslTab.deleteShipRepaired
+);
 
 // CSL Report
-router.get('/get-csl-year-wise-report',CslreportTab.CslYearWiseReport);
-router.get('/get-csl-shipbuilding-year-wise-report',CslreportTab.getCslshipbuildingYearWiseReport);
-router.get('/get-csl-delivery-year-wise-report',CslreportTab.getCslshipdeliveryYearWiseReport);
-router.get('/get-csl-capacity-utilization-report',CslreportTab.getCslcapacityUtilizationReport);
-router.get('/get-csl-fabrication-of-steels-report',CslreportTab.getCslfabricationofsteelsYearWiseReport);
-router.get('/get-csl-ships-repaired-report',CslreportTab.getCslshipRepairedYearWiseReport);
+router.get(
+  "/get-csl-year-wise-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.CslYearWiseReport
+);
+router.get(
+  "/get-csl-shipbuilding-year-wise-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.getCslshipbuildingYearWiseReport
+);
+router.get(
+  "/get-csl-delivery-year-wise-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.getCslshipdeliveryYearWiseReport
+);
+router.get(
+  "/get-csl-capacity-utilization-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.getCslcapacityUtilizationReport
+);
+router.get(
+  "/get-csl-fabrication-of-steels-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.getCslfabricationofsteelsYearWiseReport
+);
+router.get(
+  "/get-csl-ships-repaired-report",
+  auth,
+  requireModulePermission("KPI_CSL", "read"),
+  CslreportTab.getCslshipRepairedYearWiseReport
+);
 
 // SCI
 router.post("/add-vessel-avail-ability",sciTabList.addVesselAvailabiltydata);
