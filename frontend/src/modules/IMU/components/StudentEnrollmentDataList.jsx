@@ -1,17 +1,23 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import TablePagination from '../../../../components/TablePagination';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  no_of_courses_offered: 'Number Of Courses Offered',
-  no_of_courses_upgraded: 'Number Of New Courses',
+  no_of_seats: 'Number Of Student Seats/Capacity',
+  no_of_students_enrolled: 'Number Of Students Enrolled',
+  percentage_of_student_admission: '% of Admission',
+  no_of_students_on_roll: 'Number of Students on Roll',
+  no_of_final_year_students: 'Total No. of Final Year Students',
+  no_of_students_passedout: 'Total Number of Students Passed out',
+  no_of_students_placed: 'Number Of Students Placed',
+  placement_percentage: 'Placement %',
 };
 
-export default function NewCourseUpgradationDataList({
+export default function StudentEnrollmentDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -26,8 +32,14 @@ export default function NewCourseUpgradationDataList({
 }) {
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    no_of_courses_offered: true,
-    no_of_courses_upgraded: true,
+    no_of_seats: true,
+    no_of_students_enrolled: true,
+    percentage_of_student_admission: true,
+    no_of_students_on_roll: true,
+    no_of_final_year_students: true,
+    no_of_students_passedout: true,
+    no_of_students_placed: true,
+    placement_percentage: true,
   });
   const gridRef = useRef(null);
 
@@ -41,14 +53,14 @@ export default function NewCourseUpgradationDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_new_course_upgradation' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_student_enrollment' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'IMU New Course Upgradation Data List',
+        title: 'IMU Student Enrollment Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
-        fileName: 'imu_new_course_upgradation',
+        fileName: 'imu_student_enrollment',
       });
     }
   };
@@ -56,11 +68,17 @@ export default function NewCourseUpgradationDataList({
   const colDefs = useMemo(() => [
     { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', wrapText: true, autoHeight: true, flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_courses_offered ? [{ headerName: 'Number Of Courses Offered', field: 'no_of_courses_offered', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_courses_upgraded ? [{ headerName: 'Number Of New Courses', field: 'no_of_courses_upgraded', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_seats ? [{ headerName: 'Number Of Student Seats/Capacity', field: 'no_of_seats', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_students_enrolled ? [{ headerName: 'Number Of Students Enrolled', field: 'no_of_students_enrolled', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.percentage_of_student_admission ? [{ headerName: '% of Admission', field: 'percentage_of_student_admission', wrapText: true, autoHeight: true, flex: 1, minWidth: 140, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
+    ...(visibleCols.no_of_students_on_roll ? [{ headerName: 'Number of Students on Roll', field: 'no_of_students_on_roll', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_final_year_students ? [{ headerName: 'Total No. of Final Year Students', field: 'no_of_final_year_students', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_students_passedout ? [{ headerName: 'Total Number of Students Passed out', field: 'no_of_students_passedout', wrapText: true, autoHeight: true, flex: 1.3, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_students_placed ? [{ headerName: 'Number Of Students Placed', field: 'no_of_students_placed', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.placement_percentage ? [{ headerName: 'Placement %', field: 'placement_percentage', wrapText: true, autoHeight: true, flex: 1, minWidth: 130, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'course_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
+      headerName: 'Actions', field: 'student_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
@@ -77,7 +95,7 @@ export default function NewCourseUpgradationDataList({
             <button
               onClick={() => onDelete && onDelete(params.data)}
               className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
-              title="Delete New Course Upgradation Entry"
+              title="Delete Student Enrollment Entry"
             >
               <Trash2 className="h-4 w-4" />
             </button>

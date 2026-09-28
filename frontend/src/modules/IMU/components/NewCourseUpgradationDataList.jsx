@@ -1,19 +1,17 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import TablePagination from '../../../../components/TablePagination';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  academic_domestic: 'Academic Partnerships/MoUs - Domestic',
-  academic_international: 'Academic Partnerships/MoUs - International',
-  industry_domestic: 'Industry Partnerships/MoUs - Domestic',
-  industry_international: 'Industry Partnerships/MoUs - International',
+  no_of_courses_offered: 'Number Of Courses Offered',
+  no_of_courses_upgraded: 'Number Of New Courses',
 };
 
-export default function PartnershipDataList({
+export default function NewCourseUpgradationDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -28,10 +26,8 @@ export default function PartnershipDataList({
 }) {
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    academic_domestic: true,
-    academic_international: true,
-    industry_domestic: true,
-    industry_international: true,
+    no_of_courses_offered: true,
+    no_of_courses_upgraded: true,
   });
   const gridRef = useRef(null);
 
@@ -45,14 +41,14 @@ export default function PartnershipDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_partnership' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'imu_new_course_upgradation' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'IMU Partnership Data List',
+        title: 'IMU New Course Upgradation Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: rowData,
-        fileName: 'imu_partnership',
+        fileName: 'imu_new_course_upgradation',
       });
     }
   };
@@ -60,13 +56,11 @@ export default function PartnershipDataList({
   const colDefs = useMemo(() => [
     { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', wrapText: true, autoHeight: true, flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.academic_domestic ? [{ headerName: 'Academic Partnerships/MoUs - Domestic', field: 'academic_domestic', wrapText: true, autoHeight: true, flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.academic_international ? [{ headerName: 'Academic Partnerships/MoUs - International', field: 'academic_international', wrapText: true, autoHeight: true, flex: 1.3, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.industry_domestic ? [{ headerName: 'Industry Partnerships/MoUs - Domestic', field: 'industry_domestic', wrapText: true, autoHeight: true, flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.industry_international ? [{ headerName: 'Industry Partnerships/MoUs - International', field: 'industry_international', wrapText: true, autoHeight: true, flex: 1.3, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_courses_offered ? [{ headerName: 'Number Of Courses Offered', field: 'no_of_courses_offered', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_courses_upgraded ? [{ headerName: 'Number Of New Courses', field: 'no_of_courses_upgraded', wrapText: true, autoHeight: true, flex: 1.2, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'partnership_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
+      headerName: 'Actions', field: 'course_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
@@ -83,7 +77,7 @@ export default function PartnershipDataList({
             <button
               onClick={() => onDelete && onDelete(params.data)}
               className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
-              title="Delete Partnership Entry"
+              title="Delete New Course Upgradation Entry"
             >
               <Trash2 className="h-4 w-4" />
             </button>

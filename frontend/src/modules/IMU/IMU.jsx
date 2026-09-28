@@ -2,22 +2,17 @@ import { useState, useEffect } from 'react';
 import { GraduationCap, BookOpen, Building2, Handshake, FlaskConical, Users, Construction } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import StudentEnrollmentDataList from './pages/StudentEnrollment/DataList';
+import { resolveIMUListView } from './views';
 import StudentEnrollmentInputForm from './pages/StudentEnrollment/InputForm';
 import StudentEnrollmentReports from './pages/StudentEnrollment/Reports';
-import FinalYearPassPercentageDataList from './pages/FinalYearPassPercentage/DataList';
 import FinalYearPassPercentageInputForm from './pages/FinalYearPassPercentage/InputForm';
 import FinalYearPassPercentageReports from './pages/FinalYearPassPercentage/Reports';
-import NewCourseUpgradationDataList from './pages/NewCourseUpgradation/DataList';
 import NewCourseUpgradationInputForm from './pages/NewCourseUpgradation/InputForm';
 import NewCourseUpgradationReports from './pages/NewCourseUpgradation/Reports';
-import FacilitiesDataList from './pages/Facilities/DataList';
 import FacilitiesInputForm from './pages/Facilities/InputForm';
 import FacilitiesReports from './pages/Facilities/Reports';
-import PartnershipDataList from './pages/Partnership/DataList';
 import PartnershipInputForm from './pages/Partnership/InputForm';
 import PartnershipReports from './pages/Partnership/Reports';
-import ResearchDataList from './pages/Research/DataList';
 import ResearchInputForm from './pages/Research/InputForm';
 import ResearchReports from './pages/Research/Reports';
 import { useIMUPermissions } from './hooks/useIMUPermissions';
@@ -323,6 +318,17 @@ export default function IMUView({ activeTab, triggerNotification }) {
     }
   };
 
+  const baseListProps = { rowData, loading, onEdit: handleEdit, onDelete: handleDelete, canEdit, canRemove };
+  const listPropsBySection = {
+    studentEnrollment: { ...baseListProps, pagination: studentPagination, onPageChange: setStudentPage, searchQuery: studentSearch, onSearchChange: (v) => { setStudentSearch(v); setStudentPage(1); }, years: studentYears },
+    finalYearPassPercentage: { ...baseListProps },
+    newCourseUpgradation: { ...baseListProps, pagination: coursePagination, onPageChange: setCoursePage, searchQuery: courseSearch, onSearchChange: (v) => { setCourseSearch(v); setCoursePage(1); }, years: courseYears },
+    facilities: { ...baseListProps, pagination: facilitiesPagination, onPageChange: setFacilitiesPage, searchQuery: facilitiesSearch, onSearchChange: (v) => { setFacilitiesSearch(v); setFacilitiesPage(1); }, years: facilitiesYears },
+    partnership: { ...baseListProps, pagination: partnershipPagination, onPageChange: setPartnershipPage, searchQuery: partnershipSearch, onSearchChange: (v) => { setPartnershipSearch(v); setPartnershipPage(1); }, years: partnershipYears },
+    research: { ...baseListProps, pagination: researchPagination, onPageChange: setResearchPage, searchQuery: researchSearch, onSearchChange: (v) => { setResearchSearch(v); setResearchPage(1); }, years: researchYears },
+  };
+  const ListView = resolveIMUListView(activeSection);
+
   if (!canAdd && !canView && !canEdit) {
     return <RestrictedAccess moduleName="KPI - IMU" />;
   }
@@ -399,19 +405,7 @@ export default function IMUView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <StudentEnrollmentDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-              pagination={studentPagination}
-              onPageChange={setStudentPage}
-              searchQuery={studentSearch}
-              onSearchChange={(v) => { setStudentSearch(v); setStudentPage(1); }}
-              years={studentYears}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : activeSection === 'finalYearPassPercentage' ? (
           activeSubTab === 'report' ? (
@@ -424,14 +418,7 @@ export default function IMUView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <FinalYearPassPercentageDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : activeSection === 'newCourseUpgradation' ? (
           activeSubTab === 'report' ? (
@@ -444,19 +431,7 @@ export default function IMUView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <NewCourseUpgradationDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-              pagination={coursePagination}
-              onPageChange={setCoursePage}
-              searchQuery={courseSearch}
-              onSearchChange={(v) => { setCourseSearch(v); setCoursePage(1); }}
-              years={courseYears}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : activeSection === 'facilities' ? (
           activeSubTab === 'report' ? (
@@ -469,19 +444,7 @@ export default function IMUView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <FacilitiesDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-              pagination={facilitiesPagination}
-              onPageChange={setFacilitiesPage}
-              searchQuery={facilitiesSearch}
-              onSearchChange={(v) => { setFacilitiesSearch(v); setFacilitiesPage(1); }}
-              years={facilitiesYears}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : activeSection === 'partnership' ? (
           activeSubTab === 'report' ? (
@@ -494,19 +457,7 @@ export default function IMUView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <PartnershipDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-              pagination={partnershipPagination}
-              onPageChange={setPartnershipPage}
-              searchQuery={partnershipSearch}
-              onSearchChange={(v) => { setPartnershipSearch(v); setPartnershipPage(1); }}
-              years={partnershipYears}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : activeSection === 'research' ? (
           activeSubTab === 'report' ? (
@@ -519,19 +470,7 @@ export default function IMUView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <ResearchDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-              pagination={researchPagination}
-              onPageChange={setResearchPage}
-              searchQuery={researchSearch}
-              onSearchChange={(v) => { setResearchSearch(v); setResearchPage(1); }}
-              years={researchYears}
-            />
+            <ListView {...listPropsBySection[activeSection]} />
           )
         ) : null}
       </div>
