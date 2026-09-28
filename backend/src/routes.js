@@ -2315,56 +2315,266 @@ router.get('/get-course-type/:mtiId/:courseId', CourseMasterTab.getCourseTypeDat
 // router.get("/traffic-Fin-Year-Chart-Data", TrafficTab.getFinYearChartData);
 
 // DGLL
-router.post("/light-house-master", dgllTab.addLightsHouseMaster);
-router.get("/light-house-list/:userID", dgllTab.getLightHouseMaster);
-router.get("/update-light-house-list/:lightHouseId", dgllTab.getUpdatelightHouseData);
-router.put('/Light-House-edit',dgllTab.updateLightsHousedata);
-router.delete("/light-house-master/:lights_house_id/:userID", dgllTab.deleteLightHouseMaster);
+router.post(
+  "/light-house-master",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addLightsHouseMaster
+);
+router.get(
+  "/light-house-list/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getLightHouseMaster
+);
+router.get(
+  "/update-light-house-list/:lightHouseId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getUpdatelightHouseData
+);
+router.put(
+  "/Light-House-edit",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.updateLightsHousedata
+);
+router.delete(
+  "/light-house-master/:lights_house_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteLightHouseMaster
+);
 
-router.post("/vtms-Integration",dgllTab.addVtmsIntegration);
-router.get("/vtms-list/:userID", dgllTab.getVtmsIntegration);
-router.get("/update-Vtms-data/:VtmsId", dgllTab.getUpdateVtmsdata);
-router.put('/vtms-edit',dgllTab.updateVtmsData);
-router.delete("/vtms-integration/:vtms_id/:userID", dgllTab.deleteVtmsIntegration);
+router.post(
+  "/vtms-Integration",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addVtmsIntegration
+);
+router.get(
+  "/vtms-list/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getVtmsIntegration
+);
+router.get(
+  "/update-Vtms-data/:VtmsId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getUpdateVtmsdata
+);
+router.put(
+  "/vtms-edit",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.updateVtmsData
+);
+router.delete(
+  "/vtms-integration/:vtms_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteVtmsIntegration
+);
 
-router.post("/nais-uptime",dgllTab.addNaisUptime);
-router.get("/nais-list/:userID", dgllTab.getnaisList);
-router.get("/update-nais-data/:NaisId", dgllTab.getUpdateNaisdata);
-router.put('/nais-edit',dgllTab.updateNaisData);
-router.delete("/nais-uptime/:nais_id/:userID", dgllTab.deleteNaisUptime);
+router.post(
+  "/nais-uptime",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addNaisUptime
+);
+router.get(
+  "/nais-list/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getnaisList
+);
+router.get(
+  "/update-nais-data/:NaisId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getUpdateNaisdata
+);
+router.put(
+  "/nais-edit",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.updateNaisData
+);
+router.delete(
+  "/nais-uptime/:nais_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteNaisUptime
+);
 
-router.post("/nais-integration",dgllTab.addNAISIntegration);
-router.get("/nais-integration-list/:userID", dgllTab.getnaisIntegrationList);
-router.get("/update-nais-integration-data/:NaisIntegrationId", dgllTab.getUpdateNaisIntegrationdata);
-router.put('/nais-integration-edit',dgllTab.updateNaisIntegrationData);
-router.delete("/nais-integration/:nais_integration_id/:userID", dgllTab.deleteNaisIntegration);
+router.post(
+  "/nais-integration",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addNAISIntegration
+);
+router.get(
+  "/nais-integration-list/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getnaisIntegrationList
+);
+router.get(
+  "/update-nais-integration-data/:NaisIntegrationId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getUpdateNaisIntegrationdata
+);
+router.put(
+  "/nais-integration-edit",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.updateNaisIntegrationData
+);
+router.delete(
+  "/nais-integration/:nais_integration_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteNaisIntegration
+);
 
-router.get("/get-vtms-integration-report",dgllReportTab.getVTMSIntegrationReport);
-router.get("/get-nais-uptime-report",dgllReportTab.getNAISUptimeReport);
-router.get("/get-nais-integration-report",dgllReportTab.getNAISIntegrationReport);
-router.get("/get-light-house-master-report",dgllReportTab.getLightHouseMasterReport)
+router.get(
+  "/get-vtms-integration-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getVTMSIntegrationReport
+);
+router.get(
+  "/get-nais-uptime-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getNAISUptimeReport
+);
+router.get(
+  "/get-nais-integration-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getNAISIntegrationReport
+);
+router.get(
+  "/get-light-house-master-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getLightHouseMasterReport
+);
 
-router.post("/lighthose-tourist-destination", dgllTab.addTouristDestinations);
-router.get("/lighthouse-tourist-destination/:userID", dgllTab.getTouristDestinations );
-router.get('/update-lighthouse-tourist-destination/:TouristDestinationsId', dgllTab.getByIdTouristDestinations);
-router.put('/edit-lighthouse-tourist-destination' , dgllTab.UpdateTouristDestinations);
-router.delete("/lighthouse-tourist-destination/:tourist_destination_id/:userID", dgllTab.deleteTouristDestination);
-router.get('/get-lighthouse-tourist-destination-report', dgllReportTab.getLighthouseTouristDestinationReport);
-router.get("/get-dgll-financial-performance-report",dgllReportTab.getFinancialPerformanceReport)
+router.post(
+  "/lighthose-tourist-destination",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addTouristDestinations
+);
+router.get(
+  "/lighthouse-tourist-destination/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getTouristDestinations
+);
+router.get(
+  "/update-lighthouse-tourist-destination/:TouristDestinationsId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getByIdTouristDestinations
+);
+router.put(
+  "/edit-lighthouse-tourist-destination",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.UpdateTouristDestinations
+);
+router.delete(
+  "/lighthouse-tourist-destination/:tourist_destination_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteTouristDestination
+);
+router.get(
+  "/get-lighthouse-tourist-destination-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getLighthouseTouristDestinationReport
+);
+router.get(
+  "/get-dgll-financial-performance-report",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllReportTab.getFinancialPerformanceReport
+);
 
-router.get("/check-financialYears/:financialYears", dgllTab.checkFinancialYear);
+router.get(
+  "/check-financialYears/:financialYears",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.checkFinancialYear
+);
 
-router.post('/target-Details-lighthouse',dgllTab.addTargetDetails);
-router.get('/target-Details-lighthouse/:userID', dgllTab.getTargetDetails);
-router.get('/update-target-Details-destination/:TouristDestinationsId', dgllTab.getByIdTargetDestinations);
-router.put('/edit-target-Details-lighthouse', dgllTab.updateTargetDestinationData);
-router.delete("/target-Details-lighthouse/:tourist_destination_target_id/:userID", dgllTab.deleteTargetDetail);
-router.get("/check-targetYears/:year", dgllTab.checkYear);
+router.post(
+  "/target-Details-lighthouse",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.addTargetDetails
+);
+router.get(
+  "/target-Details-lighthouse/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getTargetDetails
+);
+router.get(
+  "/update-target-Details-destination/:TouristDestinationsId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getByIdTargetDestinations
+);
+router.put(
+  "/edit-target-Details-lighthouse",
+  auth,
+  requireModulePermission("KPI_DGLL", "update"),
+  dgllTab.updateTargetDestinationData
+);
+router.delete(
+  "/target-Details-lighthouse/:tourist_destination_target_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteTargetDetail
+);
+router.get(
+  "/check-targetYears/:year",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.checkYear
+);
 
-router.post("/dgll-submit-financial-performance",dgllTab.submitFinancialPerformance);
-router.get("/get-dgll-financial-performance",dgllTab.getFinancialPerfomanceData);
-router.get("/get-dgll-financial-performance/:financialId",dgllTab.getFinancialPerformanceDataByID)
-router.delete("/dgll-financial-performance/:financial_id/:userID", dgllTab.deleteFinancialPerformance);
+router.post(
+  "/dgll-submit-financial-performance",
+  auth,
+  requireModulePermission("KPI_DGLL", "create"),
+  dgllTab.submitFinancialPerformance
+);
+router.get(
+  "/get-dgll-financial-performance",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getFinancialPerfomanceData
+);
+router.get(
+  "/get-dgll-financial-performance/:financialId",
+  auth,
+  requireModulePermission("KPI_DGLL", "read"),
+  dgllTab.getFinancialPerformanceDataByID
+);
+router.delete(
+  "/dgll-financial-performance/:financial_id/:userID",
+  auth,
+  requireModulePermission("KPI_DGLL", "delete"),
+  dgllTab.deleteFinancialPerformance
+);
 
 // CSL
 router.post(
