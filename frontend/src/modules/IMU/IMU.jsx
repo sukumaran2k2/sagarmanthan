@@ -111,6 +111,7 @@ export default function IMUView({ activeTab, triggerNotification }) {
     const newSearch = `?${params.toString()}`;
     if (window.location.search !== newSearch) {
       window.history.pushState(null, '', `${window.location.pathname}${newSearch}`);
+      window.dispatchEvent(new Event('kpi-subtab-change'));
     }
   }, [activeSection, activeSubTab]);
 

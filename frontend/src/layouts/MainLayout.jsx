@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Tabs from '../components/Tabs';
@@ -221,6 +221,19 @@ export const getTabFromSlug = (slug) => {
   return normalizeTab(cleanSlug);
 };
 
+const KPI_SUBTAB_SUFFIX = { add: 'Input Form', list: 'Data List', report: 'Reports' };
+const KPI_MODULE_LABEL = { 'kpi/imu': 'IMU', 'kpi/csl': 'CSL', 'kpi/dgll': 'DGLL', 'kpi/sci': 'SCI' };
+
+// For the four KPI modules that switch tabs via ?tab=, show the real sub-tab in the last crumb.
+// Returns the replacement label, or null when the default crumb should be used.
+const getKpiSubTabCrumb = (pathname, search) => {
+  const cleanPath = pathname.replace(/^\//, '').replace(/\/$/, '');
+  const moduleKey = Object.keys(KPI_MODULE_LABEL).find((k) => cleanPath.startsWith(k));
+  if (!moduleKey) return null;
+  const suffix = KPI_SUBTAB_SUFFIX[new URLSearchParams(search).get('tab')];
+  return suffix ? `${KPI_MODULE_LABEL[moduleKey]} ${suffix}` : null;
+};
+
 const getBreadcrumbs = (tab) => {
   if (tab === 'landing') return ['Home'];
   if (tab === 'Ports Reports') return ['KPI - Major Ports - (Output Reports)'];
@@ -330,6 +343,16 @@ export default function MainLayout({
   const location = useLocation();
   const navigate = useNavigate();
 
+  // KPI modules switch tabs with a raw history.pushState, which React Router never sees.
+  // They fire 'kpi-subtab-change' afterwards; keep the live query string in state so the breadcrumb follows.
+  const [liveSearch, setLiveSearch] = useState(() => window.location.search);
+  useEffect(() => {
+    const sync = () => setLiveSearch(window.location.search);
+    sync();
+    window.addEventListener('kpi-subtab-change', sync);
+    return () => window.removeEventListener('kpi-subtab-change', sync);
+  }, [location.pathname, location.search]);
+
   // Active tab is derived directly from the current URL path
   const activeTab = useMemo(() => {
     const cleanSlug = location.pathname.replace(/^\//, '');
@@ -388,7 +411,7 @@ export default function MainLayout({
               <div key={idx} className="flex items-center space-x-2">
                 <span className="text-slate-350">/</span>
                 <span className={idx === arr.length - 1 ? "text-blue-800 font-bold" : "text-slate-550"}>
-                  {crumb}
+                  {idx === arr.length - 1 ? (getKpiSubTabCrumb(location.pathname, liveSearch) || crumb) : crumb}
                 </span>
               </div>
             ))}
