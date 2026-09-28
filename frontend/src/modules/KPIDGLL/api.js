@@ -65,8 +65,8 @@ export function fetchDistricts() {
 }
 
 // ---- Light House Master (K-3.1) ----
-export function fetchLightHouseMaster(userId) {
-  return api.get(`/light-house-list/${userId}`);
+export function fetchLightHouseMaster(userId, params = {}) {
+  return api.get(`/light-house-list/${userId}`, { params });
 }
 
 export function fetchLightHouseMasterById(lightHouseId) {
@@ -90,8 +90,8 @@ export function fetchLightHouseMasterReport() {
 }
 
 // ---- VTMS Integration (K-3.2) ----
-export function fetchVtmsIntegration(userId) {
-  return api.get(`/vtms-list/${userId}`);
+export function fetchVtmsIntegration(userId, params = {}) {
+  return api.get(`/vtms-list/${userId}`, { params });
 }
 
 export function fetchVtmsIntegrationById(vtmsId) {
@@ -115,8 +115,8 @@ export function fetchVtmsIntegrationReport() {
 }
 
 // ---- NAIS Uptime (K-3.3) ----
-export function fetchNaisUptime(userId) {
-  return api.get(`/nais-list/${userId}`);
+export function fetchNaisUptime(userId, params = {}) {
+  return api.get(`/nais-list/${userId}`, { params });
 }
 
 export function fetchNaisUptimeById(naisId) {
@@ -140,8 +140,8 @@ export function fetchNaisUptimeReport() {
 }
 
 // ---- NAIS Integration (K-3.4) ----
-export function fetchNaisIntegration(userId) {
-  return api.get(`/nais-integration-list/${userId}`);
+export function fetchNaisIntegration(userId, params = {}) {
+  return api.get(`/nais-integration-list/${userId}`, { params });
 }
 
 export function fetchNaisIntegrationById(naisIntegrationId) {
@@ -228,8 +228,8 @@ export function submitFinancialPerformance(payload) {
   return api.post('/dgll-submit-financial-performance', payload);
 }
 
-export function fetchFinancialPerformance() {
-  return api.get('/get-dgll-financial-performance');
+export function fetchFinancialPerformance(params = {}) {
+  return api.get('/get-dgll-financial-performance', { params });
 }
 
 export function fetchFinancialPerformanceById(financialId) {

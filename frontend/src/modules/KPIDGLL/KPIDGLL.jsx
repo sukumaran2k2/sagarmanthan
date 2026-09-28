@@ -66,6 +66,17 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
   const [loading, setLoading] = useState(false);
   const [editData, setEditData] = useState(null);
 
+  // Server-side pagination + search, one entry per section (Tourist Destinations still loads everything)
+  const LIST_LIMIT = 10;
+  const [listState, setListState] = useState({});
+  const [listPagination, setListPagination] = useState({});
+  const [listYears, setListYears] = useState({});
+  const [lhStatus, setLhStatus] = useState('active');
+  const [lhCounts, setLhCounts] = useState({ active: 0, inactive: 0 });
+  const setSectionPage = (page) => setListState((p) => ({ ...p, [activeSection]: { ...(p[activeSection] || { search: '' }), page } }));
+  const setSectionSearch = (search) => setListState((p) => ({ ...p, [activeSection]: { page: 1, search } }));
+  const changeLhStatus = (s) => { setLhStatus(s); setListState((p) => ({ ...p, lightHouseMaster: { page: 1, search: p.lightHouseMaster?.search || '' } })); };
+
   // Tourist Destinations has two related entities and its own tab switcher
   // inside a single InputForm, but otherwise follows the same activeSubTab
   // pattern as every other section.
@@ -112,31 +123,39 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
     fetchDistricts().then((res) => setDistricts(res.data || [])).catch((err) => console.error('Error loading districts:', err));
   }, []);
 
+  const LIST_FETCHERS = {
+    lightHouseMaster: (p) => fetchLightHouseMaster(1, p), // backend takes userID but query is currently unfiltered by it
+    vtmsIntegration: (p) => fetchVtmsIntegration(1, p),
+    naisUptime: (p) => fetchNaisUptime(1, p),
+    naisIntegration: (p) => fetchNaisIntegration(1, p),
+    financialPerformance: (p) => fetchFinancialPerformance(p),
+  };
+
   const fetchData = () => {
-    if (activeSection === 'lightHouseMaster') {
+    const fetcher = LIST_FETCHERS[activeSection];
+    if (fetcher) {
+      const st = listState[activeSection] || { page: 1, search: '' };
+      const params = { page: st.page, limit: LIST_LIMIT, search: st.search };
+      if (activeSection === 'lightHouseMaster') params.status = lhStatus;
       setLoading(true);
-      fetchLightHouseMaster(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Light House Master data:', err))
+      fetcher(params)
+        .then((res) => {
+          setRowData(res.data?.data || []);
+          setListPagination((prev) => ({ ...prev, [activeSection]: res.data?.pagination || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 } }));
+          if (activeSection === 'lightHouseMaster') setLhCounts(res.data?.counts || { active: 0, inactive: 0 });
+        })
+        .catch((err) => console.error('Error loading DGLL list data:', err))
         .finally(() => setLoading(false));
-    } else if (activeSection === 'vtmsIntegration') {
-      setLoading(true);
-      fetchVtmsIntegration(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading VTMS Integration data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'naisUptime') {
-      setLoading(true);
-      fetchNaisUptime(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading NAIS Uptime data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'naisIntegration') {
-      setLoading(true);
-      fetchNaisIntegration(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading NAIS Integration data:', err))
-        .finally(() => setLoading(false));
+      if (activeSection !== 'lightHouseMaster' && !listYears[activeSection]) {
+        fetcher({ page: 1, limit: 100, ...(activeSection === 'lightHouseMaster' ? { status: 'active' } : {}) })
+          .then((res) => {
+            const all = res.data?.data || [];
+            const yearKey = activeSection === 'financialPerformance' ? 'financialyear' : 'financial_year';
+            const yrs = [...new Set(all.map((r) => r[yearKey]).filter(Boolean))].sort().reverse();
+            setListYears((prev) => ({ ...prev, [activeSection]: yrs }));
+          })
+          .catch(() => {});
+      }
     } else if (activeSection === 'touristDestinations') {
       setLoading(true);
       Promise.all([
@@ -149,19 +168,13 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
         })
         .catch((err) => console.error('Error loading Tourist Destinations data:', err))
         .finally(() => setLoading(false));
-    } else if (activeSection === 'financialPerformance') {
-      setLoading(true);
-      fetchFinancialPerformance()
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Financial Performance data:', err))
-        .finally(() => setLoading(false));
     }
   };
 
   useEffect(() => {
     setEditData(null);
     fetchData();
-  }, [activeSection]);
+  }, [activeSection, listState[activeSection]?.page, listState[activeSection]?.search, lhStatus]);
 
   const handleEdit = (row) => {
     setEditData(row);
@@ -282,11 +295,19 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
   };
 
   const baseListProps = { rowData, loading, onEdit: handleEdit, onDelete: handleDelete, canEdit, canRemove };
+  const pagedProps = (section) => ({
+    ...baseListProps,
+    pagination: listPagination[section] || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 },
+    onPageChange: setSectionPage,
+    searchQuery: listState[section]?.search || '',
+    onSearchChange: setSectionSearch,
+    years: listYears[section] || [],
+  });
   const listPropsBySection = {
-    lightHouseMaster: baseListProps,
-    vtmsIntegration: baseListProps,
-    naisUptime: baseListProps,
-    naisIntegration: baseListProps,
+    lightHouseMaster: { ...pagedProps('lightHouseMaster'), statusFilter: lhStatus, onStatusChange: changeLhStatus, counts: lhCounts },
+    vtmsIntegration: pagedProps('vtmsIntegration'),
+    naisUptime: pagedProps('naisUptime'),
+    naisIntegration: pagedProps('naisIntegration'),
     touristDestinations: {
       destinationRows: touristDestRows,
       targetRows: targetDetailRows,
@@ -298,7 +319,7 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
       canEdit,
       canRemove,
     },
-    financialPerformance: baseListProps,
+    financialPerformance: pagedProps('financialPerformance'),
   };
   const ListView = resolveDGLLListView(activeSection);
 

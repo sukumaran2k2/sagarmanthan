@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
 import DataListToolbar from '../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
@@ -17,10 +18,14 @@ export default function LightHouseMasterDataList({
   onDelete,
   canEdit = true,
   canRemove = false,
+  pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
+  onPageChange,
+  searchQuery = '',
+  onSearchChange,
+  statusFilter = 'active',
+  onStatusChange,
+  counts = { active: 0, inactive: 0 },
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active');
-  const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     alol: true,
     light_house_name: true,
@@ -32,7 +37,7 @@ export default function LightHouseMasterDataList({
     if (type === 'Copy') {
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
-      filteredData.forEach((row, i) => {
+      rowData.forEach((row, i) => {
         const line = [i + 1, ...cols.map((c) => c === 'light_status' ? (String(row[c]) === '1' ? 'Active' : 'Inactive') : (row[c] ?? ''))];
         tsv += line.join('\t') + '\n';
       });
@@ -44,26 +49,12 @@ export default function LightHouseMasterDataList({
         title: 'Light House Master Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
-        rowData: filteredData,
+        rowData: rowData,
         fileName: 'light_house_master',
       });
     }
   };
 
-  const activeCount = useMemo(() => rowData.filter((r) => String(r.light_status) === '1').length, [rowData]);
-  const inactiveCount = useMemo(() => rowData.filter((r) => String(r.light_status) === '0').length, [rowData]);
-
-  const filteredData = useMemo(() => {
-    let data = rowData.filter((r) => String(r.light_status) === (statusFilter === 'active' ? '1' : '0'));
-    if (!searchQuery.trim()) return data;
-    const q = searchQuery.toLowerCase();
-    return data.filter((r) =>
-      (r.alol || '').toLowerCase().includes(q) ||
-      (r.light_house_name || '').toLowerCase().includes(q) ||
-      (r.state_name || '').toLowerCase().includes(q) ||
-      (r.district_name || '').toLowerCase().includes(q)
-    );
-  }, [rowData, statusFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
     { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
@@ -115,32 +106,30 @@ export default function LightHouseMasterDataList({
     <div className="space-y-6">
       <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 select-none">
         <button
-          onClick={() => setStatusFilter('active')}
+          onClick={() => onStatusChange && onStatusChange('active')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${statusFilter === 'active'
             ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
             : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
             }`}
         >
-          ACTIVE ({activeCount})
+          ACTIVE ({counts.active})
         </button>
         <button
-          onClick={() => setStatusFilter('inactive')}
+          onClick={() => onStatusChange && onStatusChange('inactive')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${statusFilter === 'inactive'
             ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
             : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
             }`}
         >
-          INACTIVE ({inactiveCount})
+          INACTIVE ({counts.inactive})
         </button>
       </div>
 
       <DataListToolbar
         searchTerm={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={onSearchChange}
         searchPlaceholder="Search"
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        totalRows={loading ? '...' : filteredData.length}
+        totalRows={loading ? '...' : pagination.total}
         onCopy={() => handleExport('Copy')}
         onExportExcel={() => handleExport('Excel')}
         onExportPdf={() => handleExport('PDF')}
@@ -151,16 +140,26 @@ export default function LightHouseMasterDataList({
 
       <Table
         ref={gridRef}
-        rowData={filteredData}
+        rowData={rowData}
         columnDefs={colDefs}
         loading={loading}
-        pagination={true}
-        paginationPageSize={pageSize}
+        pagination={false}
         domLayout="autoHeight"
         rowHeight={50}
         headerHeight={42}
         color="#0f417a"
       />
+
+      {pagination.totalPages > 1 && (
+        <TablePagination
+          currentPage={Math.max(0, pagination.page - 1)}
+          totalPages={pagination.totalPages}
+          totalRows={pagination.total}
+          pageSize={pagination.limit}
+          onPageChange={(pageIndex) => onPageChange?.(pageIndex + 1)}
+          color="#0f417a"
+        />
+      )}
     </div>
   );
 }
