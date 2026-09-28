@@ -66,10 +66,27 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
   const [loading, setLoading] = useState(false);
   const [editData, setEditData] = useState(null);
 
+  // Server-side pagination + search, one entry per section (Tourist Destinations still loads everything)
+  const LIST_LIMIT = 10;
+  const [listState, setListState] = useState({});
+  const [listPagination, setListPagination] = useState({});
+  const [listYears, setListYears] = useState({});
+  const [lhStatus, setLhStatus] = useState('active');
+  const [lhCounts, setLhCounts] = useState({ active: 0, inactive: 0 });
+  const setSectionPage = (page) => setListState((p) => ({ ...p, [activeSection]: { ...(p[activeSection] || { search: '' }), page } }));
+  const setSectionSearch = (search) => setListState((p) => ({ ...p, [activeSection]: { page: 1, search } }));
+  const changeLhStatus = (s) => { setLhStatus(s); setListState((p) => ({ ...p, lightHouseMaster: { page: 1, search: p.lightHouseMaster?.search || '' } })); };
+
   // Tourist Destinations has two related entities and its own tab switcher
   // inside a single InputForm, but otherwise follows the same activeSubTab
   // pattern as every other section.
   const [touristDestRows, setTouristDestRows] = useState([]);
+  const [touristTable, setTouristTable] = useState('destination');
+  const touristKey = touristTable === 'destination' ? 'touristDestinations' : 'touristTargets';
+  // switching tabs clears both tables' search, as the tab buttons did when this state lived in the list
+  const changeTouristTable = (t) => { setTouristTable(t); setListState((p) => ({ ...p, touristDestinations: { page: 1, search: '' }, touristTargets: { page: 1, search: '' } })); };
+  const setTouristPage = (page) => setListState((p) => ({ ...p, [touristKey]: { ...(p[touristKey] || { search: '' }), page } }));
+  const setTouristSearch = (search) => setListState((p) => ({ ...p, [touristKey]: { page: 1, search } }));
   const [targetDetailRows, setTargetDetailRows] = useState([]);
   const [touristFormTab, setTouristFormTab] = useState('destination');
   const [destinationEditData, setDestinationEditData] = useState(null);
@@ -112,56 +129,69 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
     fetchDistricts().then((res) => setDistricts(res.data || [])).catch((err) => console.error('Error loading districts:', err));
   }, []);
 
+  const LIST_FETCHERS = {
+    lightHouseMaster: (p) => fetchLightHouseMaster(1, p), // backend takes userID but query is currently unfiltered by it
+    vtmsIntegration: (p) => fetchVtmsIntegration(1, p),
+    naisUptime: (p) => fetchNaisUptime(1, p),
+    naisIntegration: (p) => fetchNaisIntegration(1, p),
+    financialPerformance: (p) => fetchFinancialPerformance(p),
+  };
+
   const fetchData = () => {
-    if (activeSection === 'lightHouseMaster') {
+    const fetcher = LIST_FETCHERS[activeSection];
+    if (fetcher) {
+      const st = listState[activeSection] || { page: 1, search: '' };
+      const params = { page: st.page, limit: LIST_LIMIT, search: st.search };
+      if (activeSection === 'lightHouseMaster') params.status = lhStatus;
       setLoading(true);
-      fetchLightHouseMaster(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Light House Master data:', err))
+      fetcher(params)
+        .then((res) => {
+          setRowData(res.data?.data || []);
+          setListPagination((prev) => ({ ...prev, [activeSection]: res.data?.pagination || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 } }));
+          if (activeSection === 'lightHouseMaster') setLhCounts(res.data?.counts || { active: 0, inactive: 0 });
+        })
+        .catch((err) => console.error('Error loading DGLL list data:', err))
         .finally(() => setLoading(false));
-    } else if (activeSection === 'vtmsIntegration') {
-      setLoading(true);
-      fetchVtmsIntegration(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading VTMS Integration data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'naisUptime') {
-      setLoading(true);
-      fetchNaisUptime(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading NAIS Uptime data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'naisIntegration') {
-      setLoading(true);
-      fetchNaisIntegration(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading NAIS Integration data:', err))
-        .finally(() => setLoading(false));
+      if (activeSection !== 'lightHouseMaster' && !listYears[activeSection]) {
+        fetcher({ page: 1, limit: 100, ...(activeSection === 'lightHouseMaster' ? { status: 'active' } : {}) })
+          .then((res) => {
+            const all = res.data?.data || [];
+            const yearKey = activeSection === 'financialPerformance' ? 'financialyear' : 'financial_year';
+            const yrs = [...new Set(all.map((r) => r[yearKey]).filter(Boolean))].sort().reverse();
+            setListYears((prev) => ({ ...prev, [activeSection]: yrs }));
+          })
+          .catch(() => {});
+      }
     } else if (activeSection === 'touristDestinations') {
+      const isDest = touristTable === 'destination';
+      const key = isDest ? 'touristDestinations' : 'touristTargets';
+      const st = listState[key] || { page: 1, search: '' };
+      const fetchTable = (p) => (isDest ? fetchTouristDestinations(1, p) : fetchTargetDetails(1, p)); // backend takes userID but query is currently unfiltered by it
       setLoading(true);
-      Promise.all([
-        fetchTouristDestinations(1), // backend takes userID but query is currently unfiltered by it
-        fetchTargetDetails(1),
-      ])
-        .then(([destRes, targetRes]) => {
-          setTouristDestRows(destRes.data || []);
-          setTargetDetailRows(targetRes.data || []);
+      fetchTable({ page: st.page, limit: LIST_LIMIT, search: st.search })
+        .then((res) => {
+          if (isDest) setTouristDestRows(res.data?.data || []);
+          else setTargetDetailRows(res.data?.data || []);
+          setListPagination((prev) => ({ ...prev, [key]: res.data?.pagination || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 } }));
         })
         .catch((err) => console.error('Error loading Tourist Destinations data:', err))
         .finally(() => setLoading(false));
-    } else if (activeSection === 'financialPerformance') {
-      setLoading(true);
-      fetchFinancialPerformance()
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Financial Performance data:', err))
-        .finally(() => setLoading(false));
+      if (!listYears[key]) {
+        fetchTable({ page: 1, limit: 100 })
+          .then((res) => {
+            const yearKey = isDest ? 'finacial_year' : 'year';
+            const yrs = [...new Set((res.data?.data || []).map((r) => r[yearKey]).filter(Boolean))].sort().reverse();
+            setListYears((prev) => ({ ...prev, [key]: yrs }));
+          })
+          .catch(() => {});
+      }
     }
   };
 
   useEffect(() => {
     setEditData(null);
     fetchData();
-  }, [activeSection]);
+  }, [activeSection, listState[activeSection]?.page, listState[activeSection]?.search, lhStatus, touristTable, listState.touristDestinations?.page, listState.touristDestinations?.search, listState.touristTargets?.page, listState.touristTargets?.search]);
 
   const handleEdit = (row) => {
     setEditData(row);
@@ -282,14 +312,23 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
   };
 
   const baseListProps = { rowData, loading, onEdit: handleEdit, onDelete: handleDelete, canEdit, canRemove };
+  const pagedProps = (section) => ({
+    ...baseListProps,
+    pagination: listPagination[section] || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 },
+    onPageChange: setSectionPage,
+    searchQuery: listState[section]?.search || '',
+    onSearchChange: setSectionSearch,
+    years: listYears[section] || [],
+  });
   const listPropsBySection = {
-    lightHouseMaster: baseListProps,
-    vtmsIntegration: baseListProps,
-    naisUptime: baseListProps,
-    naisIntegration: baseListProps,
+    lightHouseMaster: { ...pagedProps('lightHouseMaster'), statusFilter: lhStatus, onStatusChange: changeLhStatus, counts: lhCounts },
+    vtmsIntegration: pagedProps('vtmsIntegration'),
+    naisUptime: pagedProps('naisUptime'),
+    naisIntegration: pagedProps('naisIntegration'),
     touristDestinations: {
-      destinationRows: touristDestRows,
-      targetRows: targetDetailRows,
+      activeTable: touristTable,
+      onTableChange: changeTouristTable,
+      rows: touristTable === 'destination' ? touristDestRows : targetDetailRows,
       loading,
       onEditDestination: handleEditDestination,
       onEditTarget: handleEditTarget,
@@ -297,8 +336,13 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
       onDeleteTarget: handleDeleteTarget,
       canEdit,
       canRemove,
+      pagination: listPagination[touristKey] || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 },
+      onPageChange: setTouristPage,
+      searchQuery: listState[touristKey]?.search || '',
+      onSearchChange: setTouristSearch,
+      years: listYears[touristKey] || [],
     },
-    financialPerformance: baseListProps,
+    financialPerformance: pagedProps('financialPerformance'),
   };
   const ListView = resolveDGLLListView(activeSection);
 
