@@ -81,6 +81,12 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
   // inside a single InputForm, but otherwise follows the same activeSubTab
   // pattern as every other section.
   const [touristDestRows, setTouristDestRows] = useState([]);
+  const [touristTable, setTouristTable] = useState('destination');
+  const touristKey = touristTable === 'destination' ? 'touristDestinations' : 'touristTargets';
+  // switching tabs clears both tables' search, as the tab buttons did when this state lived in the list
+  const changeTouristTable = (t) => { setTouristTable(t); setListState((p) => ({ ...p, touristDestinations: { page: 1, search: '' }, touristTargets: { page: 1, search: '' } })); };
+  const setTouristPage = (page) => setListState((p) => ({ ...p, [touristKey]: { ...(p[touristKey] || { search: '' }), page } }));
+  const setTouristSearch = (search) => setListState((p) => ({ ...p, [touristKey]: { page: 1, search } }));
   const [targetDetailRows, setTargetDetailRows] = useState([]);
   const [touristFormTab, setTouristFormTab] = useState('destination');
   const [destinationEditData, setDestinationEditData] = useState(null);
@@ -157,24 +163,35 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
           .catch(() => {});
       }
     } else if (activeSection === 'touristDestinations') {
+      const isDest = touristTable === 'destination';
+      const key = isDest ? 'touristDestinations' : 'touristTargets';
+      const st = listState[key] || { page: 1, search: '' };
+      const fetchTable = (p) => (isDest ? fetchTouristDestinations(1, p) : fetchTargetDetails(1, p)); // backend takes userID but query is currently unfiltered by it
       setLoading(true);
-      Promise.all([
-        fetchTouristDestinations(1), // backend takes userID but query is currently unfiltered by it
-        fetchTargetDetails(1),
-      ])
-        .then(([destRes, targetRes]) => {
-          setTouristDestRows(destRes.data || []);
-          setTargetDetailRows(targetRes.data || []);
+      fetchTable({ page: st.page, limit: LIST_LIMIT, search: st.search })
+        .then((res) => {
+          if (isDest) setTouristDestRows(res.data?.data || []);
+          else setTargetDetailRows(res.data?.data || []);
+          setListPagination((prev) => ({ ...prev, [key]: res.data?.pagination || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 } }));
         })
         .catch((err) => console.error('Error loading Tourist Destinations data:', err))
         .finally(() => setLoading(false));
+      if (!listYears[key]) {
+        fetchTable({ page: 1, limit: 100 })
+          .then((res) => {
+            const yearKey = isDest ? 'finacial_year' : 'year';
+            const yrs = [...new Set((res.data?.data || []).map((r) => r[yearKey]).filter(Boolean))].sort().reverse();
+            setListYears((prev) => ({ ...prev, [key]: yrs }));
+          })
+          .catch(() => {});
+      }
     }
   };
 
   useEffect(() => {
     setEditData(null);
     fetchData();
-  }, [activeSection, listState[activeSection]?.page, listState[activeSection]?.search, lhStatus]);
+  }, [activeSection, listState[activeSection]?.page, listState[activeSection]?.search, lhStatus, touristTable, listState.touristDestinations?.page, listState.touristDestinations?.search, listState.touristTargets?.page, listState.touristTargets?.search]);
 
   const handleEdit = (row) => {
     setEditData(row);
@@ -309,8 +326,9 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
     naisUptime: pagedProps('naisUptime'),
     naisIntegration: pagedProps('naisIntegration'),
     touristDestinations: {
-      destinationRows: touristDestRows,
-      targetRows: targetDetailRows,
+      activeTable: touristTable,
+      onTableChange: changeTouristTable,
+      rows: touristTable === 'destination' ? touristDestRows : targetDetailRows,
       loading,
       onEditDestination: handleEditDestination,
       onEditTarget: handleEditTarget,
@@ -318,6 +336,11 @@ export default function KPIDGLLView({ activeTab, triggerNotification }) {
       onDeleteTarget: handleDeleteTarget,
       canEdit,
       canRemove,
+      pagination: listPagination[touristKey] || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 },
+      onPageChange: setTouristPage,
+      searchQuery: listState[touristKey]?.search || '',
+      onSearchChange: setTouristSearch,
+      years: listYears[touristKey] || [],
     },
     financialPerformance: pagedProps('financialPerformance'),
   };

@@ -165,8 +165,8 @@ export function fetchNaisIntegrationReport() {
 }
 
 // ---- Lighthouse as Tourist Destinations (K-3.5) ----
-export function fetchTouristDestinations(userId) {
-  return api.get(`/lighthouse-tourist-destination/${userId}`);
+export function fetchTouristDestinations(userId, params = {}) {
+  return api.get(`/lighthouse-tourist-destination/${userId}`, { params });
 }
 
 export function fetchTouristDestinationById(touristDestinationId) {
@@ -197,8 +197,8 @@ export function fetchTouristDestinationReport() {
 }
 
 // ---- Target Details (K-3.5 sub-entity) ----
-export function fetchTargetDetails(userId) {
-  return api.get(`/target-Details-lighthouse/${userId}`);
+export function fetchTargetDetails(userId, params = {}) {
+  return api.get(`/target-Details-lighthouse/${userId}`, { params });
 }
 
 export function fetchTargetDetailById(targetId) {

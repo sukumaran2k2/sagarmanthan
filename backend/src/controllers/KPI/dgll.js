@@ -806,18 +806,51 @@ async function addNaisUptime(req, res) {
 
 
        async function getTouristDestinations(req, res) {
-        
-        try{
-            const conn =await pool;
-            const request = conn.request();
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-            const result = await request.query (`SELECT * FROM tbl_kpi_dgll_3_5_1 ORDER BY finacial_year DESC`);
-            res.json(result.recordset);
-        } catch(err){
-            res.status(500);
-            console.log("err", err);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (finacial_year LIKE @search OR CAST(no_lighthouses_developed_tourist_destination AS VARCHAR(50)) LIKE @search OR CAST(annual_tourist_footfall AS VARCHAR(50)) LIKE @search)';
         }
-       }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_kpi_dgll_3_5_1 ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_kpi_dgll_3_5_1
+                ${whereClause}
+                ORDER BY finacial_year DESC, tourist_destination_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
 
 
 
@@ -863,18 +896,51 @@ async function addNaisUptime(req, res) {
 
 
        async function getTargetDetails(req, res) {
-        try{
-            const conn =await pool;
-            const request = conn.request();
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-            const result = await request.query (`SELECT * FROM tbl_kpi_dgll_3_5_2 ORDER BY year DESC`);
-            res.json(result.recordset);
-            console.log("result targeted", result);
-        } catch(err){
-            res.status(500);
-            console.log("err", err);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (year LIKE @search OR CAST(collection_of_light_dues AS VARCHAR(50)) LIKE @search OR CAST(footfall_in_the_lighthouses AS VARCHAR(50)) LIKE @search)';
         }
-       }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_kpi_dgll_3_5_2 ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_kpi_dgll_3_5_2
+                ${whereClause}
+                ORDER BY year DESC, tourist_destination_target_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
 
 
 
