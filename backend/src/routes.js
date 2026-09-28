@@ -950,6 +950,7 @@ router.get("/project-image-document/:projectID", auth, requireModulePermission("
 
 // Project list
 router.get("/project-list/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectList);
+router.get("/project-schedule-alerts/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectScheduleAlerts);
 router.get("/project-list-data/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectAllData);
 router.get("/project-folder-download/:userID/:emailId", auth, requireModulePermission("PROJECTS", "read"), projectListTab.projectFolderDownloadLog);
 // Email link download — keep public (tokenised filename)

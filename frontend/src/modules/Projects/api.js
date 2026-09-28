@@ -220,6 +220,10 @@ export function fetchUnderTenderingDates(projectID, subProjectID) {
   return api.get(`/undertendering/${projectID}/${subProjectID}`);
 }
 
+export function fetchProjectScheduleAlerts(userID, config = {}) {
+  return api.get(`/project-schedule-alerts/${userID}`, config);
+}
+
 export function submitUnderTenderingCostAndCalls(payload) {
   return api.post('/awardofcontract-cost', payload);
 }

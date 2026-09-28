@@ -6,6 +6,7 @@ import RestrictedAccess from '../../components/RestrictedAccess';
 import ProjectBasicInformationPage from './pages/ProjectBasicInformationPage';
 import DropRequestsPage from './pages/DropRequestsPage';
 import ProjectsLessThan5CrPage from './pages/ProjectsLessThan5CrPage';
+import ProjectReportsPage from './pages/ProjectReportsPage';
 import ProjectDetailView from './components/ProjectDetailView';
 import { useProjectsPermissions } from './hooks/useProjectsPermissions';
 import { resolveProjectsListView } from './views';
@@ -17,6 +18,7 @@ const INIT_TAB_KEY = 'projectsInitTab';
 function resolveSubTabId(label, canAdd, isOrgUser = false) {
   const key = String(label || '').toLowerCase().trim();
   if (key.includes('view-project') || key.includes('detail')) return 'view-project';
+  if (key.includes('report')) return 'reports';
   if (key.includes('edit')) return 'edit-info';
   if (key.includes('basic') || key.includes('input')) return (canAdd && isOrgUser) ? 'basic-info' : 'list';
   if (key.includes('drop') || key === 'view-drop-request' || key === 'projects-droprequests') {
@@ -59,6 +61,9 @@ export default function Projects({
     const path = String(location.pathname || '').toLowerCase();
     if (path.includes('view-project') || path.includes('/detail')) {
       return 'view-project';
+    }
+    if (path.includes('report')) {
+      return 'reports';
     }
     if (path.includes('view-drop-request') || path.includes('drop-request')) {
       return permissions.isOrganisationUser ? 'list' : 'drop-requests';
@@ -145,6 +150,10 @@ export default function Projects({
 
     if (path.includes('view-project') || path.includes('/detail')) {
       setManualSubTab('view-project');
+    } else if (path.includes('report')) {
+      setEditingRecord(null);
+      setFormReadOnly(false);
+      setManualSubTab('reports');
     } else if (path.includes('view-drop-request') || path.includes('drop-request')) {
       setEditingRecord(null);
       setFormReadOnly(false);
@@ -196,6 +205,11 @@ export default function Projects({
       || String(manualSubTab || '').startsWith('less5cr');
   }, [location.pathname, manualSubTab]);
 
+  const isReportsRoute = useMemo(() => {
+    const path = String(location.pathname || '').toLowerCase();
+    return path.includes('report') || manualSubTab === 'reports';
+  }, [location.pathname, manualSubTab]);
+
   const showLess5CrInputForm = Boolean(
     permissions.canAdd
     && (permissions.isOrganisationUser || viewMode === 'org')
@@ -203,6 +217,7 @@ export default function Projects({
   );
 
   const tabs = useMemo(() => {
+    if (isReportsRoute) return [];
     if (isLess5CrRoute) {
       const items = [{ id: 'less5cr-list', label: 'Data List' }];
       if (showLess5CrInputForm) {
@@ -229,9 +244,11 @@ export default function Projects({
     permissions.canView,
     dropRequestCount,
     isLess5CrRoute,
+    isReportsRoute,
   ]);
 
   const activeSubTab = useMemo(() => {
+    if (isReportsRoute || manualSubTab === 'reports') return 'reports';
     if (isLess5CrRoute) {
       if (manualSubTab === 'less5cr-form' || (less5CrEditingRecord && manualSubTab === 'less5cr-edit')) {
         if (manualSubTab === 'less5cr-form' && !showLess5CrInputForm && !less5CrEditingRecord) {
@@ -253,6 +270,7 @@ export default function Projects({
     if (base === 'less5cr' || base === 'less5cr-list') return 'list';
     return base;
   }, [
+    isReportsRoute,
     isLess5CrRoute,
     manualSubTab,
     less5CrEditingRecord,
@@ -311,12 +329,20 @@ export default function Projects({
         <div>
           <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display flex items-center gap-2">
             <FolderKanban className="h-5 w-5 text-[#0f417a] dark:text-blue-400" />
-            <span>{isLess5CrRoute ? 'Projects Less Than 5 Cr' : 'Projects Module'}</span>
+            <span>
+              {isReportsRoute
+                ? 'Projects Reports'
+                : isLess5CrRoute
+                  ? 'Projects Less Than 5 Cr'
+                  : 'Projects Module'}
+            </span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
-            {isLess5CrRoute
-              ? 'Organisation-wise yearly summary of CAPEX projects under ₹5 Cr.'
-              : 'Track and monitor infrastructure projects, milestone timelines, financial outlays, and execution progress.'}
+            {isReportsRoute
+              ? 'MIS operational reports and Ministry Data QC (Gap Analysis) for data-quality follow-up.'
+              : isLess5CrRoute
+                ? 'Organisation-wise yearly summary of CAPEX projects under ₹5 Cr.'
+                : 'Track and monitor infrastructure projects, milestone timelines, financial outlays, and execution progress.'}
           </p>
         </div>
 
@@ -360,6 +386,10 @@ export default function Projects({
       </div>
 
       <div className="space-y-8">
+        {activeSubTab === 'reports' ? (
+          <ProjectReportsPage />
+        ) : null}
+
         {activeSubTab === 'less5cr-list' ? (
           <ProjectsLessThan5CrPage
             key={`less5cr-list-${less5CrListRefreshKey}`}

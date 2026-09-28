@@ -5,11 +5,13 @@ import {
   fetchProjectList,
   fetchProjectAllData,
   fetchExpenditureLogs,
+  fetchProjectScheduleAlerts,
   requestProjectMediaFilesDownload,
   requestDropProject,
   fetchMmtDropdown,
 } from '../api';
 import ProjectsListTable from '../components/ProjectsListTable';
+import ProjectScheduleAlertsBanner from '../components/ProjectScheduleAlertsBanner';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 import {
   PROJECT_CATEGORY_OPTIONS,
@@ -91,6 +93,7 @@ export default function ProjectListPage({
     reason: '',
   });
   const [refreshTick, setRefreshTick] = useState(0);
+  const [scheduleAlerts, setScheduleAlerts] = useState(null);
   const [exportingAllData, setExportingAllData] = useState(false);
   const [exportingExpenditureLogs, setExportingExpenditureLogs] = useState(false);
   const [requestingMediaFiles, setRequestingMediaFiles] = useState(false);
@@ -240,6 +243,27 @@ export default function ProjectListPage({
       controller.abort();
     };
   }, [loadProjects, refreshTick]);
+
+  useEffect(() => {
+    if (!permissions.userId || !permissions.canView) return undefined;
+    let mounted = true;
+    const controller = new AbortController();
+
+    fetchProjectScheduleAlerts(permissions.userId, { signal: controller.signal })
+      .then((res) => {
+        if (mounted) setScheduleAlerts(res?.data || { tendering: [], implementation: [] });
+      })
+      .catch((error) => {
+        if (error?.code === 'ERR_CANCELED') return;
+        console.error(error);
+        if (mounted) setScheduleAlerts({ tendering: [], implementation: [] });
+      });
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [permissions.userId, permissions.canView, refreshTick]);
 
   const closeDropConfirmModal = () => {
     if (dropBusyId) return;
@@ -498,6 +522,12 @@ export default function ProjectListPage({
           <span>{exportingAllData ? 'Exporting All Data...' : 'Export All Data'}</span>
         </button>
       </div>
+
+      <ProjectScheduleAlertsBanner
+        alerts={scheduleAlerts}
+        onOpenProjectDetail={onOpenProjectDetail}
+        notify={notify}
+      />
 
       <ProjectsListTable
         rows={rows}
