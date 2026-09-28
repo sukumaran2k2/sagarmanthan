@@ -55,9 +55,9 @@ export default function CapacityUtilizationDataList({
 
   const colDefs = useMemo(() => [
     { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
-    ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_shipbuilding_capacity ? [{ headerName: 'Total Shipbuilding Capacity (GT/Year)', field: 'total_shipbuilding_capacity', flex: 1.5, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.tonnage_of_vessels ? [{ headerName: 'Tonnage Of Vessels Built (GT)', field: 'tonnage_of_vessels', flex: 1.5, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', wrapText: true, autoHeight: true, flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_shipbuilding_capacity ? [{ headerName: 'Total Shipbuilding Capacity (GT/Year)', field: 'total_shipbuilding_capacity', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.tonnage_of_vessels ? [{ headerName: 'Tonnage Of Vessels Built (GT)', field: 'tonnage_of_vessels', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'csl_capacity_utilization_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,

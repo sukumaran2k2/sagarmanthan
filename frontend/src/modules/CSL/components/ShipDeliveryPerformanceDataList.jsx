@@ -59,14 +59,14 @@ export default function ShipDeliveryPerformanceDataList({
 
   const colDefs = useMemo(() => [
     { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
-    ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', wrapText: true, autoHeight: true, flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
     ...(visibleCols.financial_quater ? [{
-      headerName: 'Financial Quarter', field: 'financial_quater', flex: 1, minWidth: 170,
+      headerName: 'Financial Quarter', field: 'financial_quater', wrapText: true, autoHeight: true, flex: 1, minWidth: 170,
       cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700',
       valueFormatter: (params) => QUARTER_LABELS[params.value] || params.value,
     }] : []),
-    ...(visibleCols.total_no_ship_orders_received ? [{ headerName: 'Total No Of Ship Orders Received', field: 'total_no_ship_orders_received', flex: 1.5, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_ships_delivered ? [{ headerName: 'No Of Ships Delivered on Time', field: 'no_of_ships_delivered', flex: 1.5, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_no_ship_orders_received ? [{ headerName: 'Total No Of Ship Orders Received', field: 'total_no_ship_orders_received', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_ships_delivered ? [{ headerName: 'No Of Ships Delivered on Time', field: 'no_of_ships_delivered', wrapText: true, autoHeight: true, flex: 1.5, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'csl_shipdelivery_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
