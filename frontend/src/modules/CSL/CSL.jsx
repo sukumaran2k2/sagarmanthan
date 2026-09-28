@@ -2,22 +2,17 @@ import { useState, useEffect } from 'react';
 import { Ship, Anchor, Truck, Gauge, Hammer, Wrench, Construction } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import VesselsBuiltDataList from './pages/VesselsBuilt/DataList';
+import { resolveCSLListView } from './views';
 import VesselsBuiltInputForm from './pages/VesselsBuilt/InputForm';
 import VesselsBuiltReports from './pages/VesselsBuilt/Reports';
-import ShipBuildingOrdersDataList from './pages/ShipBuildingOrders/DataList';
 import ShipBuildingOrdersInputForm from './pages/ShipBuildingOrders/InputForm';
 import ShipBuildingOrdersReports from './pages/ShipBuildingOrders/Reports';
-import ShipDeliveryPerformanceDataList from './pages/ShipDeliveryPerformance/DataList';
 import ShipDeliveryPerformanceInputForm from './pages/ShipDeliveryPerformance/InputForm';
 import ShipDeliveryPerformanceReports from './pages/ShipDeliveryPerformance/Reports';
-import CapacityUtilizationDataList from './pages/CapacityUtilization/DataList';
 import CapacityUtilizationInputForm from './pages/CapacityUtilization/InputForm';
 import CapacityUtilizationReports from './pages/CapacityUtilization/Reports';
-import FabricationOfSteelsDataList from './pages/FabricationOfSteels/DataList';
 import FabricationOfSteelsInputForm from './pages/FabricationOfSteels/InputForm';
 import FabricationOfSteelsReports from './pages/FabricationOfSteels/Reports';
-import ShipsRepairedDataList from './pages/ShipsRepaired/DataList';
 import ShipsRepairedInputForm from './pages/ShipsRepaired/InputForm';
 import ShipsRepairedReports from './pages/ShipsRepaired/Reports';
 import { useCSLPermissions } from './hooks/useCSLPermissions';
@@ -227,6 +222,8 @@ export default function CSLView({ activeTab, triggerNotification }) {
     }
   };
 
+  const ListView = resolveCSLListView(activeSection);
+
   if (!canAdd && !canView && !canEdit) {
     return <RestrictedAccess moduleName="KPI - CSL" />;
   }
@@ -303,14 +300,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <VesselsBuiltDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView rowData={rowData} loading={loading} onEdit={handleEdit} onDelete={handleDelete} canEdit={canEdit} canRemove={canRemove} />
           )
         ) : activeSection === 'shipBuildingOrders' ? (
           activeSubTab === 'report' ? (
@@ -323,14 +313,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <ShipBuildingOrdersDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView rowData={rowData} loading={loading} onEdit={handleEdit} onDelete={handleDelete} canEdit={canEdit} canRemove={canRemove} />
           )
         ) : activeSection === 'shipDelivery' ? (
           activeSubTab === 'report' ? (
@@ -343,14 +326,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <ShipDeliveryPerformanceDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView rowData={rowData} loading={loading} onEdit={handleEdit} onDelete={handleDelete} canEdit={canEdit} canRemove={canRemove} />
           )
         ) : activeSection === 'capacityUtilization' ? (
           activeSubTab === 'report' ? (
@@ -363,14 +339,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <CapacityUtilizationDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView rowData={rowData} loading={loading} onEdit={handleEdit} onDelete={handleDelete} canEdit={canEdit} canRemove={canRemove} />
           )
         ) : activeSection === 'fabricationOfSteels' ? (
           activeSubTab === 'report' ? (
@@ -383,14 +352,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <FabricationOfSteelsDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView rowData={rowData} loading={loading} onEdit={handleEdit} onDelete={handleDelete} canEdit={canEdit} canRemove={canRemove} />
           )
         ) : activeSection === 'shipsRepaired' ? (
           activeSubTab === 'report' ? (
@@ -403,14 +365,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <ShipsRepairedDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView rowData={rowData} loading={loading} onEdit={handleEdit} onDelete={handleDelete} canEdit={canEdit} canRemove={canRemove} />
           )
         ) : null}
       </div>

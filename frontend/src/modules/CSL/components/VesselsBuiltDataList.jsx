@@ -1,19 +1,17 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  financial_quater: 'Financial Quarter',
-  no_of_ships_repaired: 'Number Of Ships Repaired',
-  value_of_ships_repaired: 'Value Of Ship Repair Completed (INR Cr.)',
+  no_of_vessels_built: 'Number Of Vessels Built',
+  tonnage_of_vessels_built: 'Tonnage Of Vessels Built (GT)',
+  value_of_vessels_built: 'Value Of Vessels Built (INR Cr.)',
 };
 
-const QUARTER_LABELS = { Q1: 'Q1 (Apr - Jun)', Q2: 'Q2 (Jul - Sep)', Q3: 'Q3 (Oct - Dec)', Q4: 'Q4 (Jan - Mar)' };
-
-export default function ShipsRepairedDataList({
+export default function VesselsBuiltDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -26,30 +24,30 @@ export default function ShipsRepairedDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    financial_quater: true,
-    no_of_ships_repaired: true,
-    value_of_ships_repaired: true,
+    no_of_vessels_built: true,
+    tonnage_of_vessels_built: true,
+    value_of_vessels_built: true,
   });
   const gridRef = useRef(null);
 
   const handleExport = (type) => {
     if (type === 'Copy') {
-      const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
-      let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
+      const headers = Object.keys(visibleCols).filter((c) => visibleCols[c]).map((c) => COLUMN_LABELS[c]);
+      let tsv = ['S.No', ...headers].join('\t') + '\n';
       filteredData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => c === 'financial_quater' ? (QUARTER_LABELS[row[c]] || row[c]) : (row[c] ?? ''))];
+        const line = [i + 1, ...Object.keys(visibleCols).filter((c) => visibleCols[c]).map((c) => row[c] ?? '')];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'csl_ships_repaired' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'csl_vessels_built' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'CSL Ships Repaired Data List',
+        title: 'CSL Vessels Built Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'csl_ships_repaired',
+        fileName: 'csl_vessels_built',
       });
     }
   };
@@ -65,25 +63,21 @@ export default function ShipsRepairedDataList({
     const q = searchQuery.toLowerCase();
     return data.filter((r) =>
       (r.financial_year || '').toLowerCase().includes(q) ||
-      (r.financial_quater || '').toLowerCase().includes(q) ||
-      String(r.no_of_ships_repaired ?? '').includes(q) ||
-      String(r.value_of_ships_repaired ?? '').includes(q)
+      String(r.no_of_vessels_built ?? '').includes(q) ||
+      String(r.tonnage_of_vessels_built ?? '').includes(q) ||
+      String(r.value_of_vessels_built ?? '').includes(q)
     );
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.financial_quater ? [{
-      headerName: 'Financial Quarter', field: 'financial_quater', flex: 1, minWidth: 170,
-      cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700',
-      valueFormatter: (params) => QUARTER_LABELS[params.value] || params.value,
-    }] : []),
-    ...(visibleCols.no_of_ships_repaired ? [{ headerName: 'Number Of Ships Repaired', field: 'no_of_ships_repaired', flex: 1.5, minWidth: 210, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.value_of_ships_repaired ? [{ headerName: 'Value Of Ship Repair Completed (INR Cr.)', field: 'value_of_ships_repaired', flex: 1.5, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_vessels_built ? [{ headerName: 'Number Of Vessels Built', field: 'no_of_vessels_built', flex: 1, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.tonnage_of_vessels_built ? [{ headerName: 'Tonnage Of Vessels Built (GT)', field: 'tonnage_of_vessels_built', flex: 1, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.value_of_vessels_built ? [{ headerName: 'Value Of Vessels Built (INR Cr.)', field: 'value_of_vessels_built', flex: 1, minWidth: 210, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'csl_ships_reapired_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'csl_vessel_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
@@ -100,7 +94,7 @@ export default function ShipsRepairedDataList({
             <button
               onClick={() => onDelete && onDelete(params.data)}
               className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
-              title="Delete Ships Repaired Entry"
+              title="Delete Vessels Built Entry"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -128,7 +122,7 @@ export default function ShipsRepairedDataList({
         }
         searchTerm={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search"
+        searchPlaceholder="Search..."
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
         totalRows={loading ? '...' : filteredData.length}
@@ -140,18 +134,24 @@ export default function ShipsRepairedDataList({
         columnLabels={COLUMN_LABELS}
       />
 
-      <Table
-        ref={gridRef}
-        rowData={filteredData}
-        columnDefs={colDefs}
-        loading={loading}
-        pagination={true}
-        paginationPageSize={pageSize}
-        domLayout="autoHeight"
-        rowHeight={50}
-        headerHeight={42}
-        color="#0f417a"
-      />
+      <div className="ag-theme-quartz rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto">
+        <Table
+          ref={gridRef}
+          theme="legacy"
+          rowData={filteredData}
+          columnDefs={colDefs}
+          pagination={true}
+          paginationPageSize={pageSize}
+          paginationPageSizeSelector={[10, 20, 50]}
+          domLayout="autoHeight"
+          rowHeight={50}
+          headerHeight={42}
+          suppressColumnVirtualisation={true}
+          enableExport={false}
+          color="#0f417a"
+          defaultColDef={{ filter: false, wrapHeaderText: false, autoHeaderHeight: false, sortable: true, resizable: true }}
+        />
+      </div>
     </div>
   );
 }

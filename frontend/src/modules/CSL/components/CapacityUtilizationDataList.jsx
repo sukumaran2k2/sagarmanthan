@@ -1,19 +1,16 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  financial_quater: 'Financial Quarter',
-  ship_orders_received: 'Ship Orders Received (# of Vessels)',
-  value_of_ship_orders_received: 'Value Of Ship Order Received (INR Cr.)',
+  total_shipbuilding_capacity: 'Total Shipbuilding Capacity (GT/Year)',
+  tonnage_of_vessels: 'Tonnage Of Vessels Built (GT)',
 };
 
-const QUARTER_LABELS = { Q1: 'Q1 (Apr - Jun)', Q2: 'Q2 (Jul - Sep)', Q3: 'Q3 (Oct - Dec)', Q4: 'Q4 (Jan - Mar)' };
-
-export default function ShipBuildingOrdersDataList({
+export default function CapacityUtilizationDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -26,9 +23,8 @@ export default function ShipBuildingOrdersDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    financial_quater: true,
-    ship_orders_received: true,
-    value_of_ship_orders_received: true,
+    total_shipbuilding_capacity: true,
+    tonnage_of_vessels: true,
   });
   const gridRef = useRef(null);
 
@@ -37,19 +33,19 @@ export default function ShipBuildingOrdersDataList({
       const cols = Object.keys(visibleCols).filter((c) => visibleCols[c]);
       let tsv = ['S.No', ...cols.map((c) => COLUMN_LABELS[c])].join('\t') + '\n';
       filteredData.forEach((row, i) => {
-        const line = [i + 1, ...cols.map((c) => c === 'financial_quater' ? (QUARTER_LABELS[row[c]] || row[c]) : (row[c] ?? ''))];
+        const line = [i + 1, ...cols.map((c) => row[c] ?? '')];
         tsv += line.join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'csl_ship_building_orders' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'csl_capacity_utilization' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'CSL Ship Building Orders Data List',
+        title: 'CSL Capacity Utilization Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'csl_ship_building_orders',
+        fileName: 'csl_capacity_utilization',
       });
     }
   };
@@ -65,25 +61,19 @@ export default function ShipBuildingOrdersDataList({
     const q = searchQuery.toLowerCase();
     return data.filter((r) =>
       (r.financial_year || '').toLowerCase().includes(q) ||
-      (r.financial_quater || '').toLowerCase().includes(q) ||
-      String(r.ship_orders_received ?? '').includes(q) ||
-      String(r.value_of_ship_orders_received ?? '').includes(q)
+      String(r.total_shipbuilding_capacity ?? '').includes(q) ||
+      String(r.tonnage_of_vessels ?? '').includes(q)
     );
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.financial_quater ? [{
-      headerName: 'Financial Quarter', field: 'financial_quater', flex: 1, minWidth: 170,
-      cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700',
-      valueFormatter: (params) => QUARTER_LABELS[params.value] || params.value,
-    }] : []),
-    ...(visibleCols.ship_orders_received ? [{ headerName: 'Ship Orders Received (# of Vessels)', field: 'ship_orders_received', flex: 1.5, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.value_of_ship_orders_received ? [{ headerName: 'Value Of Ship Order Received (INR Cr.)', field: 'value_of_ship_orders_received', flex: 1.5, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_shipbuilding_capacity ? [{ headerName: 'Total Shipbuilding Capacity (GT/Year)', field: 'total_shipbuilding_capacity', flex: 1.5, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.tonnage_of_vessels ? [{ headerName: 'Tonnage Of Vessels Built (GT)', field: 'tonnage_of_vessels', flex: 1.5, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'csl_shipbuilding_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'csl_capacity_utilization_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
@@ -100,7 +90,7 @@ export default function ShipBuildingOrdersDataList({
             <button
               onClick={() => onDelete && onDelete(params.data)}
               className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg transition cursor-pointer"
-              title="Delete Ship Building Orders Entry"
+              title="Delete Capacity Utilization Entry"
             >
               <Trash2 className="h-4 w-4" />
             </button>
