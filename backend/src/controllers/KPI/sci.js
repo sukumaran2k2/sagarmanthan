@@ -43,16 +43,50 @@ async function addVesselAvailabiltydata(req, res) {
 
        
 async function getsciVesselList(req, res) {
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-    const conn = await pool;
-    const request = conn.request();
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-    const result = await request.query(`
-        SELECT * FROM tbl_sci_vessel_availability
-        ORDER BY financial_year DESC;
-    `);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
 
-    res.json(result.recordset);
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_vessel_availability ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_vessel_availability
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_vessel_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
 } 
 
 
@@ -201,16 +235,50 @@ async function addscitimeVoyageydata(req, res) {
 
        
 async function getscitimeVoyageList(req, res) {
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-    const conn = await pool;
-    const request = conn.request();
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-    const result = await request.query(`
-        SELECT * FROM tbl_sci_time_voyage_bulk
-        ORDER BY financial_year DESC;
-    `);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
 
-    res.json(result.recordset);
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_time_voyage_bulk ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_time_voyage_bulk
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_time_voyage_bulk_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
 } 
 async function getUpdatescitimeVoyageBulkdata(req, res) 
         {
@@ -354,17 +422,51 @@ async function updatescitimeVoyageBulkData(req,res){
         }
     }
     async function getscitimeList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
-    
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_time_voyage_tanker
-            ORDER BY financial_year DESC;
-        `);
-    
-        res.json(result.recordset);
-    } 
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
+
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_time_voyage_tanker ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_time_voyage_tanker
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_time_voyage_tanker_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+} 
 
     
 async function getUpdatesciVessetankerldata(req, res) 
@@ -516,17 +618,51 @@ async function deleteTimeVoyageTanker(req, res) {
     }
         
     async function getscioffshoreList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_time_voyage_offshore
-            ORDER BY financial_year DESC;
-        `);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        res.json(result.recordset);
-    } 
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_time_voyage_offshore ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_time_voyage_offshore
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_time_voyage_offshore_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+} 
 
     async function getUpdatesciVesseoffshoreldata(req, res) 
     {
@@ -673,17 +809,51 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getscilinearvesselList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_vessel_availability_linear
-            ORDER BY financial_year DESC;
-        `);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        res.json(result.recordset);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_vessel_availability_linear ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_vessel_availability_linear
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_vessel_availability_bulk_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
+}
     async function getUpdatescilinearvesseldata(req, res) 
     {
 
@@ -825,17 +995,51 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getsciprocurementList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_vessel_procurement
-            ORDER BY financial_year DESC;
-        `);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        res.json(result.recordset);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_vessel_procurement ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_vessel_procurement
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_procurement_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
+}
 
     async function getUpdatesciVesselprocurementdata(req, res) 
     {
@@ -976,17 +1180,51 @@ async function deleteTimeVoyageTanker(req, res) {
     }
 
     async function getsecondhandsciprocurementList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_secondhand_vessel_procurement
-            ORDER BY financial_year DESC;
-        `);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        res.json(result.recordset);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_secondhand_vessel_procurement ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_secondhand_vessel_procurement
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_secondhand_procurement_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
+}
 
     async function getUpdatescisecondhandVesselprocurementdata(req, res) 
     {
@@ -1128,17 +1366,51 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getShipdrydockList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_ship_dry_docking
-            ORDER BY financial_year DESC;
-        `);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        res.json(result.recordset);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_ship_dry_docking ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_ship_dry_docking
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_ship_dry_docking_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
+}
     async function getUpdateshipdrydockdata(req, res) 
     {
 
@@ -1276,17 +1548,51 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getShiprepairandMaintanaceList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_repair_and_maintanace
-            ORDER BY financial_year DESC;
-        `);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        res.json(result.recordset);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_repair_and_maintanace ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_repair_and_maintanace
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_repair_and_maintanace_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
+}
     async function getUpdateshiprepairandMaintanacedata(req, res) 
     {
 
@@ -1427,17 +1733,51 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getSaleandrecyclingList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_sale_and_recycling_oldvessels
-            ORDER BY financial_year DESC;
-        `);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        res.json(result.recordset);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_sale_and_recycling_oldvessels ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_sale_and_recycling_oldvessels
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_sale_recycling_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
+}
     async function getUpdatescisaleandRecyclingdata(req, res) 
     {
 
@@ -1575,17 +1915,51 @@ async function deleteTimeVoyageTanker(req, res) {
         }
     }
     async function getSaleandGreenrecyclingList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_sale_and_recycling_oldvessels_green_recycling
-            ORDER BY financial_year DESC;
-        `);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        res.json(result.recordset);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_sale_and_recycling_oldvessels_green_recycling ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_sale_and_recycling_oldvessels_green_recycling
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_sale_green_recycling_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
+}
 
     async function getUpdatescisaleandGreenrecyclingdata(req, res) 
             {
@@ -1773,17 +2147,51 @@ async function addmanningofOwnedships(req, res) {
 
 
     async function getscimanningdataList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
-    
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_manning_of_owned_ships
-            ORDER BY financial_year DESC;
-        `);
-    
-        res.json(result.recordset);
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
+
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_manning_of_owned_ships ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_manning_of_owned_ships
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_manning_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
+}
     async function getUpdatescimanningodOwnedshipsdata(req, res) 
     {
 
@@ -1930,17 +2338,51 @@ async function addmanningofOwnedships(req, res) {
         }
     }
     async function getshipmanagementList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
-    
-        const result = await request.query(`
-            SELECT * FROM tbl_sci_ship_management_business
-            ORDER BY financial_year DESC;
-        `);
-    
-        res.json(result.recordset);
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
+
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_sci_ship_management_business ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_sci_ship_management_business
+                ${whereClause}
+                ORDER BY financial_year DESC, sci_ship_management_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
+}
 
     async function getUpdatescishipManagementdata(req, res) 
     {

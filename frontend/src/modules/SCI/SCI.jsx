@@ -93,6 +93,14 @@ export default function SCIView({ activeTab, triggerNotification }) {
   const [loading, setLoading] = useState(false);
   const [editData, setEditData] = useState(null);
 
+  // Server-side pagination + search, one entry per section
+  const LIST_LIMIT = 10;
+  const [listState, setListState] = useState({});
+  const [listPagination, setListPagination] = useState({});
+  const [listYears, setListYears] = useState({});
+  const setSectionPage = (page) => setListState((p) => ({ ...p, [activeSection]: { ...(p[activeSection] || { search: '' }), page } }));
+  const setSectionSearch = (search) => setListState((p) => ({ ...p, [activeSection]: { page: 1, search } }));
+
   // Keep the URL's ?section=&tab= query params in sync with the current view,
   // so refreshing, bookmarking, or using browser back/forward preserves the
   // exact section and tab the user was on.
@@ -125,92 +133,49 @@ export default function SCIView({ activeTab, triggerNotification }) {
   if (canView) tabs.push({ id: 'list', label: 'Data List' });
   if (canView) tabs.push({ id: 'report', label: 'Reports' });
 
+  const LIST_FETCHERS = {
+    vesselAvailOwnShips: fetchVesselAvailabilityOwnShips,
+    timeVoyageBulk: fetchTimeVoyageBulk,
+    timeVoyageTanker: fetchTimeVoyageTanker,
+    timeVoyageOffshore: fetchTimeVoyageOffshore,
+    vesselAvailLiner: fetchVesselAvailabilityLiner,
+    vesselProcurement: fetchVesselProcurement,
+    secondhandVesselProcurement: fetchSecondhandVesselProcurement,
+    shipDryDocking: fetchShipDryDocking,
+    repairAndMaintenance: fetchRepairAndMaintenance,
+    saleAndRecycling: fetchSaleAndRecycling,
+    saleAndGreenRecycling: fetchSaleAndGreenRecycling,
+    manningOwnedShips: fetchManningOfOwnedShips,
+    shipManagementBusiness: fetchShipManagementBusiness,
+  };
+
   const fetchData = () => {
-    if (activeSection === 'vesselAvailOwnShips') {
-      setLoading(true);
-      fetchVesselAvailabilityOwnShips(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'timeVoyageBulk') {
-      setLoading(true);
-      fetchTimeVoyageBulk(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'timeVoyageTanker') {
-      setLoading(true);
-      fetchTimeVoyageTanker(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'timeVoyageOffshore') {
-      setLoading(true);
-      fetchTimeVoyageOffshore(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'vesselAvailLiner') {
-      setLoading(true);
-      fetchVesselAvailabilityLiner(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'vesselProcurement') {
-      setLoading(true);
-      fetchVesselProcurement(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'secondhandVesselProcurement') {
-      setLoading(true);
-      fetchSecondhandVesselProcurement(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'shipDryDocking') {
-      setLoading(true);
-      fetchShipDryDocking(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'repairAndMaintenance') {
-      setLoading(true);
-      fetchRepairAndMaintenance(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'saleAndRecycling') {
-      setLoading(true);
-      fetchSaleAndRecycling(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'saleAndGreenRecycling') {
-      setLoading(true);
-      fetchSaleAndGreenRecycling(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'manningOwnedShips') {
-      setLoading(true);
-      fetchManningOfOwnedShips(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'shipManagementBusiness') {
-      setLoading(true);
-      fetchShipManagementBusiness(1)
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading data:', err))
-        .finally(() => setLoading(false));
+    const fetcher = LIST_FETCHERS[activeSection];
+    if (!fetcher) return;
+    const st = listState[activeSection] || { page: 1, search: '' };
+    setLoading(true);
+    fetcher(1, { page: st.page, limit: LIST_LIMIT, search: st.search })
+      .then((res) => {
+        setRowData(res.data?.data || []);
+        setListPagination((prev) => ({ ...prev, [activeSection]: res.data?.pagination || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 } }));
+      })
+      .catch((err) => console.error('Error loading data:', err))
+      .finally(() => setLoading(false));
+    if (!listYears[activeSection]) {
+      fetcher(1, { page: 1, limit: 100 })
+        .then((res) => {
+          const all = res.data?.data || [];
+          const yrs = [...new Set(all.map((r) => r.financial_year).filter(Boolean))].sort().reverse();
+          setListYears((prev) => ({ ...prev, [activeSection]: yrs }));
+        })
+        .catch(() => {});
     }
   };
 
     useEffect(() => {
     setEditData(null);
     fetchData();
-  }, [activeSection]);
+  }, [activeSection, listState[activeSection]?.page, listState[activeSection]?.search]);
 
   const handleEdit = (row) => {
     setEditData(row);
@@ -297,7 +262,14 @@ export default function SCIView({ activeTab, triggerNotification }) {
   }
 
   const renderSection = () => {
-    const commonListProps = { rowData, loading, onEdit: handleEdit, onDelete: handleDelete, canEdit, canRemove };
+    const commonListProps = {
+      rowData, loading, onEdit: handleEdit, onDelete: handleDelete, canEdit, canRemove,
+      pagination: listPagination[activeSection] || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 },
+      onPageChange: setSectionPage,
+      searchQuery: listState[activeSection]?.search || '',
+      onSearchChange: setSectionSearch,
+      years: listYears[activeSection] || [],
+    };
     const commonFormProps = { editData, onBack: () => { setEditData(null); setActiveSubTab('list'); }, onSuccess: handleSuccess, triggerNotification };
     const ListView = resolveSCIListView(activeSection);
 
