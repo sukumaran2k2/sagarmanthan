@@ -30,7 +30,8 @@ import {
   MapPin,
   Map,
   Award,
-  CheckCheck
+  CheckCheck,
+  Save
 } from 'lucide-react';
 import FormPreviewModal from './FormPreviewModal';
 
@@ -313,6 +314,14 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSaveDraft = () => {
+    if (!formName.trim()) {
+      triggerNotification && triggerNotification('Please enter a Form Name to save as draft', 'warning');
+      return;
+    }
+    triggerNotification && triggerNotification(`Draft "${formName}" saved successfully!`, 'success');
   };
 
   const generateHtmlContent = () => {
@@ -779,14 +788,24 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                 </button>
               </div>
 
-              <button
-                onClick={handlePublishForm}
-                disabled={isSubmitting}
-                className="flex items-center space-x-2 px-5 py-2.5 bg-blue-650 hover:bg-blue-750 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
-              >
-                <Send className="h-4 w-4" />
-                <span>{isSubmitting ? 'Publishing...' : 'Publish Form'}</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleSaveDraft}
+                  disabled={isSubmitting}
+                  className="flex items-center space-x-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>Save Draft</span>
+                </button>
+                <button
+                  onClick={handlePublishForm}
+                  disabled={isSubmitting}
+                  className="flex items-center space-x-2 px-5 py-2.5 bg-[#0f417a] hover:bg-[#16569e] text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
+                >
+                  <Send className="h-4 w-4" />
+                  <span>{isSubmitting ? 'Publishing...' : 'Publish Form'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

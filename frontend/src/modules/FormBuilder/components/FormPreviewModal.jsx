@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, CheckCircle, Upload, Calendar } from 'lucide-react';
 import { INDIAN_STATES } from './FormBuilderStudio';
 
@@ -23,15 +24,30 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
     setSubmitted(true);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+  useEffect(() => {
+    // Prevent background page from scrolling when modal is open
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] overflow-hidden flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+      <div 
+        className="relative z-10 bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scale-up my-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
-          <div>
+        <div className="flex items-start justify-between p-5 border-b border-slate-100 bg-slate-50 shrink-0">
+          <div className="pr-4">
             <span className="text-[10px] font-black tracking-widest text-blue-600 uppercase">Live Form Preview</span>
-            <h2 className="text-lg font-bold text-slate-800">{formName}</h2>
+            <h2 className="text-lg font-bold text-slate-800 leading-tight">{formName}</h2>
+            <p className="text-xs text-slate-500 mt-1.5 max-w-xl leading-relaxed">
+              {formDescription || 'Please complete all required fields below.'}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -42,8 +58,8 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-5">
-          {submitted ? (
+        {submitted ? (
+          <div className="p-6 overflow-y-auto flex-1 space-y-5">
             <div className="text-center py-10 space-y-3">
               <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
                 <CheckCircle className="h-8 w-8" />
@@ -54,16 +70,16 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
               </p>
               <button
                 onClick={() => setSubmitted(false)}
-                className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+                className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer transition"
               >
                 Test Again
               </button>
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <p className="text-xs text-slate-500 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
-                {formDescription || 'Please complete all required fields below.'}
-              </p>
+          </div>
+        ) : (
+          <>
+            <div className="p-6 overflow-y-auto flex-1 space-y-5">
+              <form id="preview-form" onSubmit={handleSubmit} className="space-y-4">
 
               {fields.map((field) => (
                 <div key={field.id} className="space-y-1.5">
@@ -288,19 +304,22 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
                   )}
                 </div>
               ))}
-
-              <div className="pt-4 flex justify-end">
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-blue-650 hover:bg-blue-750 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
-                >
-                  Submit Form (Preview)
-                </button>
-              </div>
             </form>
-          )}
-        </div>
+          </div>
+          
+          <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+            <button
+              type="submit"
+              form="preview-form"
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
+            >
+              Submit Form (Preview)
+            </button>
+          </div>
+        </>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
