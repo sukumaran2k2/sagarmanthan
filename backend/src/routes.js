@@ -2802,107 +2802,497 @@ router.get(
 );
 
 // SCI
-router.post("/add-vessel-avail-ability",sciTabList.addVesselAvailabiltydata);
-router.get("/sci-Vessel-list/:userID", sciTabList.getsciVesselList);
-router.get("/update-sci-vessel-data/:SciVesselId", sciTabList.getUpdatesciVesseldata);
-router.put('/sci-vessel-built-edit',sciTabList.updatesciVesselData);
-router.delete("/delete-sci-vessel-availability/:sci_vessel_id/:userID", sciTabList.deleteVesselAvailabilityOwnShips);
+router.post(
+  "/add-vessel-avail-ability",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addVesselAvailabiltydata
+);
+router.get(
+  "/sci-Vessel-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getsciVesselList
+);
+router.get(
+  "/update-sci-vessel-data/:SciVesselId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatesciVesseldata
+);
+router.put(
+  "/sci-vessel-built-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updatesciVesselData
+);
+router.delete(
+  "/delete-sci-vessel-availability/:sci_vessel_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteVesselAvailabilityOwnShips
+);
 
 
-router.post("/add-sci-time-voyage",sciTabList.addscitimeVoyageydata);
-router.get("/sci-time-voyage-bulk-list/:userID", sciTabList.getscitimeVoyageList);
-router.get("/update-sci-time-voyage-data/:ScitimeVoyageBuiklId", sciTabList.getUpdatescitimeVoyageBulkdata);
-router.put('/sci-time-voyage-bulk-edit',sciTabList.updatescitimeVoyageBulkData);
-router.delete("/delete-sci-time-voyage-bulk/:sci_time_voyage_bulk_id/:userID", sciTabList.deleteTimeVoyageBulk);
+router.post(
+  "/add-sci-time-voyage",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addscitimeVoyageydata
+);
+router.get(
+  "/sci-time-voyage-bulk-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getscitimeVoyageList
+);
+router.get(
+  "/update-sci-time-voyage-data/:ScitimeVoyageBuiklId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatescitimeVoyageBulkdata
+);
+router.put(
+  "/sci-time-voyage-bulk-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updatescitimeVoyageBulkData
+);
+router.delete(
+  "/delete-sci-time-voyage-bulk/:sci_time_voyage_bulk_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteTimeVoyageBulk
+);
 
 
-router.post("/add-sci-time-voyage-tanker",sciTabList.addscitimeVoyagetankers);
-router.get("/sci-time-voyage-tanker-list/:userID", sciTabList.getscitimeList);
-router.get("/update-sci-time-voyage-tanker-data/:ScitimeVoyageTankerlId", sciTabList.getUpdatesciVessetankerldata);
-router.put('/sci-time-voyage-tanker-edit',sciTabList.updateTimeVoyagetankerData);
-router.delete("/delete-sci-time-voyage-tanker/:sci_time_voyage_tanker_id/:userID", sciTabList.deleteTimeVoyageTanker);
+router.post(
+  "/add-sci-time-voyage-tanker",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addscitimeVoyagetankers
+);
+router.get(
+  "/sci-time-voyage-tanker-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getscitimeList
+);
+router.get(
+  "/update-sci-time-voyage-tanker-data/:ScitimeVoyageTankerlId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatesciVessetankerldata
+);
+router.put(
+  "/sci-time-voyage-tanker-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updateTimeVoyagetankerData
+);
+router.delete(
+  "/delete-sci-time-voyage-tanker/:sci_time_voyage_tanker_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteTimeVoyageTanker
+);
 
 
 
-router.post("/add-sci-time-voyage-offshore",sciTabList.addscitimeVoyageoffshore);
-router.get("/sci-time-voyage-offshore-list/:userID", sciTabList.getscioffshoreList);
-router.get("/update-sci-time-voyage-offshore-data/:ScitimeVoyageoffshorelId", sciTabList.getUpdatesciVesseoffshoreldata);
-router.put('/sci-time-voyage-offshore-edit',sciTabList.updateTimeVoyageoffshoreData);
-router.delete("/delete-sci-time-voyage-offshore/:sci_time_voyage_offshore_id/:userID", sciTabList.deleteTimeVoyageOffshore);
+router.post(
+  "/add-sci-time-voyage-offshore",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addscitimeVoyageoffshore
+);
+router.get(
+  "/sci-time-voyage-offshore-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getscioffshoreList
+);
+router.get(
+  "/update-sci-time-voyage-offshore-data/:ScitimeVoyageoffshorelId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatesciVesseoffshoreldata
+);
+router.put(
+  "/sci-time-voyage-offshore-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updateTimeVoyageoffshoreData
+);
+router.delete(
+  "/delete-sci-time-voyage-offshore/:sci_time_voyage_offshore_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteTimeVoyageOffshore
+);
 
 
-router.post("/add-sci-vessel-availability-linear",sciTabList.addscilinearVesselavailability);
-router.get("/sci-linear-vessel-list/:userID", sciTabList.getscilinearvesselList);
-router.get("/update-sci-linear-vessel-data/:SciLinearvesselId", sciTabList.getUpdatescilinearvesseldata);
-router.put('/sci-linear-vessel-edit',sciTabList.updatescilinearvesselAvailabilityData);
-router.delete("/delete-sci-vessel-availability-linear/:sci_vessel_availability_bulk_id/:userID", sciTabList.deleteVesselAvailabilityLiner);
+router.post(
+  "/add-sci-vessel-availability-linear",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addscilinearVesselavailability
+);
+router.get(
+  "/sci-linear-vessel-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getscilinearvesselList
+);
+router.get(
+  "/update-sci-linear-vessel-data/:SciLinearvesselId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatescilinearvesseldata
+);
+router.put(
+  "/sci-linear-vessel-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updatescilinearvesselAvailabilityData
+);
+router.delete(
+  "/delete-sci-vessel-availability-linear/:sci_vessel_availability_bulk_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteVesselAvailabilityLiner
+);
 
-router.post("/add-sci-vessel-procurement",sciTabList.addvesselprocurementdata);
-router.get("/sci-vessel-procurement-list/:userID", sciTabList.getsciprocurementList);
-router.get("/update-sci-vessel-procurement-data/:SciProcurementId", sciTabList.getUpdatesciVesselprocurementdata);
-router.put('/sci-vessel-procurement-edit',sciTabList.submitVesselProcurementdata);
-router.delete("/delete-sci-vessel-procurement/:sci_procurement_id/:userID", sciTabList.deleteVesselProcurement);
+router.post(
+  "/add-sci-vessel-procurement",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addvesselprocurementdata
+);
+router.get(
+  "/sci-vessel-procurement-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getsciprocurementList
+);
+router.get(
+  "/update-sci-vessel-procurement-data/:SciProcurementId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatesciVesselprocurementdata
+);
+router.put(
+  "/sci-vessel-procurement-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.submitVesselProcurementdata
+);
+router.delete(
+  "/delete-sci-vessel-procurement/:sci_procurement_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteVesselProcurement
+);
 
 
-router.post("/add-sci-vessel-procurement-secondhand",sciTabList.addSecondhandvesselprocurementdata);
-router.get("/sci-secondhand-vessel-procurement-list/:userID", sciTabList.getsecondhandsciprocurementList);
-router.get("/update-sci-secondhand-vessel-procurement-data/:ScisecondhandProcurementId", sciTabList.getUpdatescisecondhandVesselprocurementdata);
-router.put('/sci-secondhand-vessel-procurement-edit',sciTabList.updatesecondhandVesselProcurementdata);
-router.delete("/delete-sci-secondhand-vessel-procurement/:sci_secondhand_procurement_id/:userID", sciTabList.deleteSecondhandVesselProcurement);
+router.post(
+  "/add-sci-vessel-procurement-secondhand",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addSecondhandvesselprocurementdata
+);
+router.get(
+  "/sci-secondhand-vessel-procurement-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getsecondhandsciprocurementList
+);
+router.get(
+  "/update-sci-secondhand-vessel-procurement-data/:ScisecondhandProcurementId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatescisecondhandVesselprocurementdata
+);
+router.put(
+  "/sci-secondhand-vessel-procurement-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updatesecondhandVesselProcurementdata
+);
+router.delete(
+  "/delete-sci-secondhand-vessel-procurement/:sci_secondhand_procurement_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteSecondhandVesselProcurement
+);
 
-router.post("/add-sci-ship-dry-docking",sciTabList.addshipDrydocking);
-router.get("/sci-ship-dry-dock-list/:userID", sciTabList.getShipdrydockList);
-router.get("/update-sci-ship-dry-docking-data/:SciDrydockId", sciTabList.getUpdateshipdrydockdata);
-router.put('/sci-dry-docking-edit',sciTabList.updatesciDrydockingtData);
-router.delete("/delete-sci-ship-dry-docking/:sci_ship_dry_docking_id/:userID", sciTabList.deleteShipDryDocking);
+router.post(
+  "/add-sci-ship-dry-docking",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addshipDrydocking
+);
+router.get(
+  "/sci-ship-dry-dock-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getShipdrydockList
+);
+router.get(
+  "/update-sci-ship-dry-docking-data/:SciDrydockId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdateshipdrydockdata
+);
+router.put(
+  "/sci-dry-docking-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updatesciDrydockingtData
+);
+router.delete(
+  "/delete-sci-ship-dry-docking/:sci_ship_dry_docking_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteShipDryDocking
+);
 
-router.post("/add-sci-ship-repair-maintanace",sciTabList.addshipRepaiandMaintanace);
-router.get("/sci-ship-repair-list/:userID", sciTabList.getShiprepairandMaintanaceList);
-router.get("/update-sci-ship-repair-maintanace-data/:ScirepairandMaintanaceId", sciTabList.getUpdateshiprepairandMaintanacedata);
-router.put('/sci-repair-maintance-edit',sciTabList.updaterepairandMaintanceData);
-router.delete("/delete-sci-ship-repair-maintanace/:sci_repair_and_maintanace_id/:userID", sciTabList.deleteRepairAndMaintenance);
+router.post(
+  "/add-sci-ship-repair-maintanace",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addshipRepaiandMaintanace
+);
+router.get(
+  "/sci-ship-repair-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getShiprepairandMaintanaceList
+);
+router.get(
+  "/update-sci-ship-repair-maintanace-data/:ScirepairandMaintanaceId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdateshiprepairandMaintanacedata
+);
+router.put(
+  "/sci-repair-maintance-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updaterepairandMaintanceData
+);
+router.delete(
+  "/delete-sci-ship-repair-maintanace/:sci_repair_and_maintanace_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteRepairAndMaintenance
+);
 
-router.post("/add-sci-sale-recycling-oldvessels",sciTabList.addsaleandRecycling);
-router.get("/sci-sale-and-recycling-list/:userID", sciTabList.getSaleandrecyclingList);
-router.get("/update-sci-sale-recycling-data/:ScisaleRecyclingId", sciTabList.getUpdatescisaleandRecyclingdata);
-router.put('/sci-sale-recycling-edit',sciTabList.updatesaleandRecyclingData);
-router.delete("/delete-sci-sale-recycling-oldvessels/:sci_sale_recycling_id/:userID", sciTabList.deleteSaleAndRecycling);
+router.post(
+  "/add-sci-sale-recycling-oldvessels",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addsaleandRecycling
+);
+router.get(
+  "/sci-sale-and-recycling-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getSaleandrecyclingList
+);
+router.get(
+  "/update-sci-sale-recycling-data/:ScisaleRecyclingId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatescisaleandRecyclingdata
+);
+router.put(
+  "/sci-sale-recycling-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updatesaleandRecyclingData
+);
+router.delete(
+  "/delete-sci-sale-recycling-oldvessels/:sci_sale_recycling_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteSaleAndRecycling
+);
 
 
-router.post("/add-sci-sale-recycling-oldvessels-green-recycling",sciTabList.addsaleandRecyclingofgreenRecycling);
-router.get("/sci-sale-and-green-recycling-list/:userID", sciTabList.getSaleandGreenrecyclingList);
-router.get("/update-sci-sale-recycling-green-data/:ScisaleGreenrecyclingId", sciTabList.getUpdatescisaleandGreenrecyclingdata);
-router.put('/sci-sale-greenrecycling-edit',sciTabList.updatesaleandGreenrecyclingData);
-router.delete("/delete-sci-sale-recycling-oldvessels-green-recycling/:sci_sale_green_recycling_id/:userID", sciTabList.deleteGreenRecycling);
+router.post(
+  "/add-sci-sale-recycling-oldvessels-green-recycling",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addsaleandRecyclingofgreenRecycling
+);
+router.get(
+  "/sci-sale-and-green-recycling-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getSaleandGreenrecyclingList
+);
+router.get(
+  "/update-sci-sale-recycling-green-data/:ScisaleGreenrecyclingId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatescisaleandGreenrecyclingdata
+);
+router.put(
+  "/sci-sale-greenrecycling-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updatesaleandGreenrecyclingData
+);
+router.delete(
+  "/delete-sci-sale-recycling-oldvessels-green-recycling/:sci_sale_green_recycling_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteGreenRecycling
+);
 
-router.post("/add-sci-manning-of-owned-ships",sciTabList.addmanningofOwnedships);
-router.get("/sci-manning-list/:userID", sciTabList.getscimanningdataList);
-router.get("/update-sci-manning-of-old-ships-data/:ScimanningId", sciTabList.getUpdatescimanningodOwnedshipsdata);
-router.put('/sci-manning-of-ownedships-edit',sciTabList.updatemanningofOwnedshipsData);
-router.delete("/delete-sci-manning-of-owned-ships/:sci_manning_id/:userID", sciTabList.deleteManningOfOwnedShips);
+router.post(
+  "/add-sci-manning-of-owned-ships",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addmanningofOwnedships
+);
+router.get(
+  "/sci-manning-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getscimanningdataList
+);
+router.get(
+  "/update-sci-manning-of-old-ships-data/:ScimanningId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatescimanningodOwnedshipsdata
+);
+router.put(
+  "/sci-manning-of-ownedships-edit",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updatemanningofOwnedshipsData
+);
+router.delete(
+  "/delete-sci-manning-of-owned-ships/:sci_manning_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteManningOfOwnedShips
+);
 
-router.post("/add-sci-ship-management-business",sciTabList.addshipManagementBusiness);
-router.get("/sci-ship-management-list/:userID", sciTabList.getshipmanagementList);
-router.get("/update-sci-ship-management-data/:ScishipmanagementId",sciTabList.getUpdatescishipManagementdata);
-router.put('/sci-ship-management-business',sciTabList.updateshipManagementbusinessData);
-router.delete("/delete-sci-ship-management-business/:sci_ship_management_id/:userID", sciTabList.deleteShipManagementBusiness);
+router.post(
+  "/add-sci-ship-management-business",
+  auth,
+  requireModulePermission("KPI_SCI", "create"),
+  sciTabList.addshipManagementBusiness
+);
+router.get(
+  "/sci-ship-management-list/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getshipmanagementList
+);
+router.get(
+  "/update-sci-ship-management-data/:ScishipmanagementId",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciTabList.getUpdatescishipManagementdata
+);
+router.put(
+  "/sci-ship-management-business",
+  auth,
+  requireModulePermission("KPI_SCI", "update"),
+  sciTabList.updateshipManagementbusinessData
+);
+router.delete(
+  "/delete-sci-ship-management-business/:sci_ship_management_id/:userID",
+  auth,
+  requireModulePermission("KPI_SCI", "delete"),
+  sciTabList.deleteShipManagementBusiness
+);
 
 //sci report
-router.get('/kpi-sci-6-1-1-report',sciReportTab.getsciVesselAvailabilityReport);
-router.get('/kpi-sci-6-1-2-report',sciReportTab.sciVeslAvailUtilTimeandVoyageChartShipsReport)
-router.get('/kpi-sci-6-1-3-report',sciReportTab.sciVeslAvailUtilTimeandVoyageTankerReport)
-router.get('/kpi-sci-6-1-4-report',sciReportTab.sciVesselAvailabilityOffshoreReport)
-router.get('/kpi-sci-6-1-5-report',sciReportTab.sciVessellAvailabilityLinerReport)
+router.get(
+  "/kpi-sci-6-1-1-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.getsciVesselAvailabilityReport
+);
+router.get(
+  "/kpi-sci-6-1-2-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.sciVeslAvailUtilTimeandVoyageChartShipsReport
+);
+router.get(
+  "/kpi-sci-6-1-3-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.sciVeslAvailUtilTimeandVoyageTankerReport
+);
+router.get(
+  "/kpi-sci-6-1-4-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.sciVesselAvailabilityOffshoreReport
+);
+router.get(
+  "/kpi-sci-6-1-5-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.sciVessellAvailabilityLinerReport
+);
 
 //SCI Report
-router.get('/get-sci-vessel-procurement-year-wise-report',sciReportTab.getsciVesselprocurementReport);
-router.get('/get-sci-vessel-procurement-secondhand-year-wise-report',sciReportTab.getsciVesselprocurementsecondhandReport);
-router.get('/get-sci-ship-dry-docking-year-wise-report',sciReportTab.getsciShipdrydockingReport);
-router.get('/get-sci-repair-maintance-report',sciReportTab.getsciRepairandMaintanceReport);
-router.get('/get-sci-sale-recycling-old-vessels-report',sciReportTab.getscisaleandRecyclingofvesselsReport);
-router.get('/get-sci-sale-green-recycling-old-vessels-report',sciReportTab.getsciSaleandGreenrecyclingodoldvesselsReport);
-router.get('/get-sci-manning-of-owned-ships-report',sciReportTab.getsciManningofownedshipsReport);
-router.get('/get-sci-ship-management-business-report',sciReportTab.getsciShipmanagementbusinessReport);
+router.get(
+  "/get-sci-vessel-procurement-year-wise-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.getsciVesselprocurementReport
+);
+router.get(
+  "/get-sci-vessel-procurement-secondhand-year-wise-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.getsciVesselprocurementsecondhandReport
+);
+router.get(
+  "/get-sci-ship-dry-docking-year-wise-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.getsciShipdrydockingReport
+);
+router.get(
+  "/get-sci-repair-maintance-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.getsciRepairandMaintanceReport
+);
+router.get(
+  "/get-sci-sale-recycling-old-vessels-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.getscisaleandRecyclingofvesselsReport
+);
+router.get(
+  "/get-sci-sale-green-recycling-old-vessels-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.getsciSaleandGreenrecyclingodoldvesselsReport
+);
+router.get(
+  "/get-sci-manning-of-owned-ships-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.getsciManningofownedshipsReport
+);
+router.get(
+  "/get-sci-ship-management-business-report",
+  auth,
+  requireModulePermission("KPI_SCI", "read"),
+  sciReportTab.getsciShipmanagementbusinessReport
+);
 
 // imuTab
 router.post(
