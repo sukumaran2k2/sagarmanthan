@@ -804,6 +804,30 @@ async function getAttendanceFilterOptions(req, res) {
     }
 }
 
+
+async function checkExistingAttendanceFile(req, res) {
+    try {
+        const { year, month, week } = req.params;
+        const conn = await pool;
+        const request = conn.request();
+        request.input("year", year);
+        request.input("month", month);
+        request.input("week", week);
+
+        const result = await request.query(`
+            SELECT TOP 1 File_Id
+            FROM tbl_employee_attendance
+            WHERE Year = @year AND Month = @month AND week = @week
+        `);
+
+        const existingFileId = result.recordset.length > 0 ? result.recordset[0].File_Id : null;
+        res.json({ existingFileId });
+    } catch (err) {
+        console.log(err);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
+
 const empAttendanceTab = { createEmpAttendance, upload, uploadSingleFile, addEmpDataAttendance,
-    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample, getAttendanceFilterOptions };
+    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample, getAttendanceFilterOptions, checkExistingAttendanceFile };
 export default empAttendanceTab;

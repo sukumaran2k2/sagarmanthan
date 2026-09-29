@@ -420,6 +420,13 @@ router.get(
   requireModulePermission("ATTENDANCE", "read"),
   empAttendanceTab.getAttendanceFilterOptions
 );
+
+router.get(
+  "/attendance-check-existing/:year/:month/:week",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  empAttendanceTab.checkExistingAttendanceFile
+);
 router.post(
   "/employee-attendance",
   auth,
