@@ -1,17 +1,16 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  total_no_of_linear_vessels_in_fleet: 'Total Liner Vessels in Fleet (Owned + Chartered)',
-  total_revenue_of_linear_vessels: 'Total Revenue (Rs. in Crs.)',
-  average_earnings_linear_vessels_perday: 'Average Earnings per Day (US $)',
+  total_no_of_new_built_ships_procured: 'Total New Built Ships Procured',
+  value_of_new_built_ships_procured: 'Value (USD in millions)',
 };
 
-export default function VesselAvailabilityLinerDataList({
+export default function VesselProcurementDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -24,9 +23,8 @@ export default function VesselAvailabilityLinerDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    total_no_of_linear_vessels_in_fleet: true,
-    total_revenue_of_linear_vessels: true,
-    average_earnings_linear_vessels_perday: true,
+    total_no_of_new_built_ships_procured: true,
+    value_of_new_built_ships_procured: true,
   });
   const gridRef = useRef(null);
 
@@ -40,14 +38,14 @@ export default function VesselAvailabilityLinerDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_vessel_availability_liner' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_vessel_procurement' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'SCI Vessel Availability (Liner) Data List',
+        title: 'SCI Vessel Procurement Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'sci_vessel_availability_liner',
+        fileName: 'sci_vessel_procurement',
       });
     }
   };
@@ -65,14 +63,13 @@ export default function VesselAvailabilityLinerDataList({
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_no_of_linear_vessels_in_fleet ? [{ headerName: 'Total Liner Vessels in Fleet (Owned + Chartered)', field: 'total_no_of_linear_vessels_in_fleet', flex: 1.4, minWidth: 260, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_revenue_of_linear_vessels ? [{ headerName: 'Total Revenue (Rs. in Crs.)', field: 'total_revenue_of_linear_vessels', flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.average_earnings_linear_vessels_perday ? [{ headerName: 'Average Earnings per Day (US $)', field: 'average_earnings_linear_vessels_perday', flex: 1.2, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_no_of_new_built_ships_procured ? [{ headerName: 'Total New Built Ships Procured', field: 'total_no_of_new_built_ships_procured', flex: 1.3, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.value_of_new_built_ships_procured ? [{ headerName: 'Value (USD in millions)', field: 'value_of_new_built_ships_procured', flex: 1.2, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'sci_vessel_availability_bulk_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'sci_procurement_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>

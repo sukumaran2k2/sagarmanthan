@@ -1,19 +1,17 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  total_no_of_tankers_in_fleet: 'Total Tankers in Fleet',
-  total_no_days_on_time_charter: 'Days on Time Charter',
-  total_no_days_on_voyage_charter: 'Days on Voyage Charter',
-  total_revenue_tankers: 'Total Revenue (Rs. in Crs.)',
-  average_earnings_tankers: 'Average Earnings per Day (US $)',
+  no_of_old_vessels_sold_for_recycling: 'Number of Vessels Sold for Recycling',
+  value_of_recycled_vessels: 'Value of Recycled Vessels ($ million)',
+  adherence_green_recycling: 'Adherence to Green Recycling Stds (%)',
 };
 
-export default function TimeVoyageTankerDataList({
+export default function SaleAndGreenRecyclingDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -26,11 +24,9 @@ export default function TimeVoyageTankerDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    total_no_of_tankers_in_fleet: true,
-    total_no_days_on_time_charter: true,
-    total_no_days_on_voyage_charter: true,
-    total_revenue_tankers: true,
-    average_earnings_tankers: true,
+    no_of_old_vessels_sold_for_recycling: true,
+    value_of_recycled_vessels: true,
+    adherence_green_recycling: true,
   });
   const gridRef = useRef(null);
 
@@ -44,14 +40,14 @@ export default function TimeVoyageTankerDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_time_voyage_tanker' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_sale_and_green_recycling' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'SCI Time Voyage Tanker Data List',
+        title: 'SCI Sale & Green Recycling of Old Vessels Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'sci_time_voyage_tanker',
+        fileName: 'sci_sale_and_green_recycling',
       });
     }
   };
@@ -69,16 +65,14 @@ export default function TimeVoyageTankerDataList({
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_no_of_tankers_in_fleet ? [{ headerName: 'Total Tankers in Fleet', field: 'total_no_of_tankers_in_fleet', flex: 1.2, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_no_days_on_time_charter ? [{ headerName: 'Days on Time Charter', field: 'total_no_days_on_time_charter', flex: 1.1, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_no_days_on_voyage_charter ? [{ headerName: 'Days on Voyage Charter', field: 'total_no_days_on_voyage_charter', flex: 1.1, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_revenue_tankers ? [{ headerName: 'Total Revenue (Rs. in Crs.)', field: 'total_revenue_tankers', flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.average_earnings_tankers ? [{ headerName: 'Average Earnings per Day (US $)', field: 'average_earnings_tankers', flex: 1.2, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_old_vessels_sold_for_recycling ? [{ headerName: 'Number of Vessels Sold for Recycling', field: 'no_of_old_vessels_sold_for_recycling', flex: 1.3, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.value_of_recycled_vessels ? [{ headerName: 'Value of Recycled Vessels ($ million)', field: 'value_of_recycled_vessels', flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.adherence_green_recycling ? [{ headerName: 'Adherence to Green Recycling Stds (%)', field: 'adherence_green_recycling', flex: 1.3, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'sci_time_voyage_tanker_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'sci_sale_green_recycling_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>

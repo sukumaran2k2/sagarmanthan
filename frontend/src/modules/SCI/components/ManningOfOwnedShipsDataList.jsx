@@ -1,18 +1,17 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  no_of_ships_managed_by_sci: 'Number of Ships Managed by SCI',
-  total_management_cost: 'Total Management Cost (Rs. in Crores)',
-  revenue_from_managing_ships: 'Revenue from Managing Ships (Rs. in Crores)',
-  cost_to_revenue_ratio: 'Cost to Revenue Ratio (%)',
+  no_of_old_vessels_audited_compliance: 'Number of Vessels Audited for Compliance',
+  no_of_ships_fully_complaint_stwc_and_mlc: 'Ships Fully Compliant with STCW & MLC',
+  compliance: 'Compliance (%)',
 };
 
-export default function ShipManagementBusinessDataList({
+export default function ManningOfOwnedShipsDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -25,10 +24,9 @@ export default function ShipManagementBusinessDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    no_of_ships_managed_by_sci: true,
-    total_management_cost: true,
-    revenue_from_managing_ships: true,
-    cost_to_revenue_ratio: true,
+    no_of_old_vessels_audited_compliance: true,
+    no_of_ships_fully_complaint_stwc_and_mlc: true,
+    compliance: true,
   });
   const gridRef = useRef(null);
 
@@ -42,14 +40,14 @@ export default function ShipManagementBusinessDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_ship_management_business' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_manning_of_owned_ships' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'SCI Ship Management Business Data List',
+        title: 'SCI Manning of Owned Ships Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'sci_ship_management_business',
+        fileName: 'sci_manning_of_owned_ships',
       });
     }
   };
@@ -67,15 +65,14 @@ export default function ShipManagementBusinessDataList({
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_ships_managed_by_sci ? [{ headerName: 'Number of Ships Managed by SCI', field: 'no_of_ships_managed_by_sci', flex: 1.3, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_management_cost ? [{ headerName: 'Total Management Cost (Rs. in Crores)', field: 'total_management_cost', flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.revenue_from_managing_ships ? [{ headerName: 'Revenue from Managing Ships (Rs. in Crores)', field: 'revenue_from_managing_ships', flex: 1.4, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.cost_to_revenue_ratio ? [{ headerName: 'Cost to Revenue Ratio (%)', field: 'cost_to_revenue_ratio', flex: 1.1, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
+    ...(visibleCols.no_of_old_vessels_audited_compliance ? [{ headerName: 'Number of Vessels Audited for Compliance', field: 'no_of_old_vessels_audited_compliance', flex: 1.4, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.no_of_ships_fully_complaint_stwc_and_mlc ? [{ headerName: 'Ships Fully Compliant with STCW & MLC', field: 'no_of_ships_fully_complaint_stwc_and_mlc', flex: 1.4, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.compliance ? [{ headerName: 'Compliance (%)', field: 'compliance', flex: 1, minWidth: 150, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${Number(p.value).toFixed(2)}%` : '' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'sci_ship_management_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'sci_manning_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>

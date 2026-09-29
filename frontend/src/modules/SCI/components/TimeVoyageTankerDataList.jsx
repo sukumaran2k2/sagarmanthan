@@ -1,19 +1,19 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  total_bulk_carriers_fleet: 'Total Bulk Carriers in Fleet',
-  total_bulk_carriers_time_charter: 'Days on Time Charter',
-  total_bulk_carriers_voyage_charter: 'Days on Voyage Charter',
-  total_revenue_bulk_carriers: 'Total Revenue (Rs. in Crs.)',
-  average_earnings_bulk_carriers: 'Average Earnings per Day (US $)',
+  total_no_of_tankers_in_fleet: 'Total Tankers in Fleet',
+  total_no_days_on_time_charter: 'Days on Time Charter',
+  total_no_days_on_voyage_charter: 'Days on Voyage Charter',
+  total_revenue_tankers: 'Total Revenue (Rs. in Crs.)',
+  average_earnings_tankers: 'Average Earnings per Day (US $)',
 };
 
-export default function TimeVoyageBulkDataList({
+export default function TimeVoyageTankerDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -26,11 +26,11 @@ export default function TimeVoyageBulkDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    total_bulk_carriers_fleet: true,
-    total_bulk_carriers_time_charter: true,
-    total_bulk_carriers_voyage_charter: true,
-    total_revenue_bulk_carriers: true,
-    average_earnings_bulk_carriers: true,
+    total_no_of_tankers_in_fleet: true,
+    total_no_days_on_time_charter: true,
+    total_no_days_on_voyage_charter: true,
+    total_revenue_tankers: true,
+    average_earnings_tankers: true,
   });
   const gridRef = useRef(null);
 
@@ -44,14 +44,14 @@ export default function TimeVoyageBulkDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_time_voyage_bulk' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_time_voyage_tanker' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'SCI Time Voyage Bulk Data List',
+        title: 'SCI Time Voyage Tanker Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'sci_time_voyage_bulk',
+        fileName: 'sci_time_voyage_tanker',
       });
     }
   };
@@ -69,16 +69,16 @@ export default function TimeVoyageBulkDataList({
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_bulk_carriers_fleet ? [{ headerName: 'Total Bulk Carriers in Fleet', field: 'total_bulk_carriers_fleet', flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_bulk_carriers_time_charter ? [{ headerName: 'Days on Time Charter', field: 'total_bulk_carriers_time_charter', flex: 1.1, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_bulk_carriers_voyage_charter ? [{ headerName: 'Days on Voyage Charter', field: 'total_bulk_carriers_voyage_charter', flex: 1.1, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_revenue_bulk_carriers ? [{ headerName: 'Total Revenue (Rs. in Crs.)', field: 'total_revenue_bulk_carriers', flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.average_earnings_bulk_carriers ? [{ headerName: 'Average Earnings per Day (US $)', field: 'average_earnings_bulk_carriers', flex: 1.2, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_no_of_tankers_in_fleet ? [{ headerName: 'Total Tankers in Fleet', field: 'total_no_of_tankers_in_fleet', flex: 1.2, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_no_days_on_time_charter ? [{ headerName: 'Days on Time Charter', field: 'total_no_days_on_time_charter', flex: 1.1, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_no_days_on_voyage_charter ? [{ headerName: 'Days on Voyage Charter', field: 'total_no_days_on_voyage_charter', flex: 1.1, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_revenue_tankers ? [{ headerName: 'Total Revenue (Rs. in Crs.)', field: 'total_revenue_tankers', flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.average_earnings_tankers ? [{ headerName: 'Average Earnings per Day (US $)', field: 'average_earnings_tankers', flex: 1.2, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'sci_time_voyage_bulk_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'sci_time_voyage_tanker_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>

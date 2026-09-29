@@ -1,17 +1,17 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  total_repair_and_maintanace_cost: 'Total Repair & Maintenance Costs (Rs. Lakhs)',
-  total_operational_revenue: 'Total Operational Revenue (Rs. Lakhs)',
-  percentage_repair_and_maintanace_cost: 'Repair & Maintenance Costs (%)',
+  no_of_old_vessels_sold: 'Number of Old Vessels Sold',
+  value_of_sale_proceeds: 'Value of Sale Proceeds ($ million)',
+  avg_age_of_old_vessels_sold: 'Average Age of Old Vessels Sold (Years)',
 };
 
-export default function RepairAndMaintenanceDataList({
+export default function SaleAndRecyclingDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -24,9 +24,9 @@ export default function RepairAndMaintenanceDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    total_repair_and_maintanace_cost: true,
-    total_operational_revenue: true,
-    percentage_repair_and_maintanace_cost: true,
+    no_of_old_vessels_sold: true,
+    value_of_sale_proceeds: true,
+    avg_age_of_old_vessels_sold: true,
   });
   const gridRef = useRef(null);
 
@@ -40,14 +40,14 @@ export default function RepairAndMaintenanceDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_repair_and_maintenance' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_sale_and_recycling' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'SCI Repair & Maintenance Data List',
+        title: 'SCI Sale & Recycling of Old Vessels Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'sci_repair_and_maintenance',
+        fileName: 'sci_sale_and_recycling',
       });
     }
   };
@@ -65,14 +65,14 @@ export default function RepairAndMaintenanceDataList({
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_repair_and_maintanace_cost ? [{ headerName: 'Total Repair & Maintenance Costs (Rs. Lakhs)', field: 'total_repair_and_maintanace_cost', flex: 1.4, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_operational_revenue ? [{ headerName: 'Total Operational Revenue (Rs. Lakhs)', field: 'total_operational_revenue', flex: 1.3, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.percentage_repair_and_maintanace_cost ? [{ headerName: 'Repair & Maintenance Costs (%)', field: 'percentage_repair_and_maintanace_cost', flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
+    ...(visibleCols.no_of_old_vessels_sold ? [{ headerName: 'Number of Old Vessels Sold', field: 'no_of_old_vessels_sold', flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.value_of_sale_proceeds ? [{ headerName: 'Value of Sale Proceeds ($ million)', field: 'value_of_sale_proceeds', flex: 1.3, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.avg_age_of_old_vessels_sold ? [{ headerName: 'Average Age of Old Vessels Sold (Years)', field: 'avg_age_of_old_vessels_sold', flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'sci_repair_and_maintanace_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'sci_sale_recycling_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>

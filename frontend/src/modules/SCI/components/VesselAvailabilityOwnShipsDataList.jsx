@@ -1,17 +1,16 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  no_of_old_vessels_sold_for_recycling: 'Number of Vessels Sold for Recycling',
-  value_of_recycled_vessels: 'Value of Recycled Vessels ($ million)',
-  adherence_green_recycling: 'Adherence to Green Recycling Stds (%)',
+  total_no_of_own_operated: 'Total Number of Own Operated Ships',
+  ship_utilization: 'Ship Utilization (%)',
 };
 
-export default function SaleAndGreenRecyclingDataList({
+export default function VesselAvailabilityOwnShipsDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -24,9 +23,8 @@ export default function SaleAndGreenRecyclingDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    no_of_old_vessels_sold_for_recycling: true,
-    value_of_recycled_vessels: true,
-    adherence_green_recycling: true,
+    total_no_of_own_operated: true,
+    ship_utilization: true,
   });
   const gridRef = useRef(null);
 
@@ -40,14 +38,14 @@ export default function SaleAndGreenRecyclingDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_sale_and_green_recycling' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_vessel_availability_own_ships' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'SCI Sale & Green Recycling of Old Vessels Data List',
+        title: 'SCI Vessel Availability (Own Ships) Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'sci_sale_and_green_recycling',
+        fileName: 'sci_vessel_availability_own_ships',
       });
     }
   };
@@ -65,14 +63,13 @@ export default function SaleAndGreenRecyclingDataList({
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_old_vessels_sold_for_recycling ? [{ headerName: 'Number of Vessels Sold for Recycling', field: 'no_of_old_vessels_sold_for_recycling', flex: 1.3, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.value_of_recycled_vessels ? [{ headerName: 'Value of Recycled Vessels ($ million)', field: 'value_of_recycled_vessels', flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.adherence_green_recycling ? [{ headerName: 'Adherence to Green Recycling Stds (%)', field: 'adherence_green_recycling', flex: 1.3, minWidth: 240, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
+    ...(visibleCols.total_no_of_own_operated ? [{ headerName: 'Total Number of Own Operated Ships', field: 'total_no_of_own_operated', flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.ship_utilization ? [{ headerName: 'Ship Utilization (%)', field: 'ship_utilization', flex: 1, minWidth: 170, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'sci_sale_green_recycling_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'sci_vessel_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>

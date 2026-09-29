@@ -1,16 +1,17 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  total_no_of_own_operated: 'Total Number of Own Operated Ships',
-  ship_utilization: 'Ship Utilization (%)',
+  total_no_of_secondhand_ships_procured: 'Total Secondhand Ships Procured',
+  average_age_of_secondhand_ships_procured: 'Average Age',
+  gross_value_of_secondhand_ships_procured: 'Gross Value (USD in millions)',
 };
 
-export default function VesselAvailabilityOwnShipsDataList({
+export default function SecondhandVesselProcurementDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -23,8 +24,9 @@ export default function VesselAvailabilityOwnShipsDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    total_no_of_own_operated: true,
-    ship_utilization: true,
+    total_no_of_secondhand_ships_procured: true,
+    average_age_of_secondhand_ships_procured: true,
+    gross_value_of_secondhand_ships_procured: true,
   });
   const gridRef = useRef(null);
 
@@ -38,14 +40,14 @@ export default function VesselAvailabilityOwnShipsDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_vessel_availability_own_ships' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_secondhand_vessel_procurement' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'SCI Vessel Availability (Own Ships) Data List',
+        title: 'SCI Secondhand Vessel Procurement Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'sci_vessel_availability_own_ships',
+        fileName: 'sci_secondhand_vessel_procurement',
       });
     }
   };
@@ -63,13 +65,14 @@ export default function VesselAvailabilityOwnShipsDataList({
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_no_of_own_operated ? [{ headerName: 'Total Number of Own Operated Ships', field: 'total_no_of_own_operated', flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.ship_utilization ? [{ headerName: 'Ship Utilization (%)', field: 'ship_utilization', flex: 1, minWidth: 170, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
+    ...(visibleCols.total_no_of_secondhand_ships_procured ? [{ headerName: 'Total Secondhand Ships Procured', field: 'total_no_of_secondhand_ships_procured', flex: 1.3, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.average_age_of_secondhand_ships_procured ? [{ headerName: 'Average Age', field: 'average_age_of_secondhand_ships_procured', flex: 1, minWidth: 140, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null && p.value !== '' ? p.value : '—' }] : []),
+    ...(visibleCols.gross_value_of_secondhand_ships_procured ? [{ headerName: 'Gross Value (USD in millions)', field: 'gross_value_of_secondhand_ships_procured', flex: 1.3, minWidth: 210, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'sci_vessel_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'sci_secondhand_procurement_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>

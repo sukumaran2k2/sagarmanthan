@@ -1,17 +1,19 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import Table from '../../../../components/Table';
-import DataListToolbar from '../../../../components/DataListToolbar';
-import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
+import Table from '../../../components/Table';
+import DataListToolbar from '../../../components/DataListToolbar';
+import { exportDataListToPdf } from '../../../utils/exportReportPdf';
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
-  no_of_old_vessels_audited_compliance: 'Number of Vessels Audited for Compliance',
-  no_of_ships_fully_complaint_stwc_and_mlc: 'Ships Fully Compliant with STCW & MLC',
-  compliance: 'Compliance (%)',
+  total_bulk_carriers_fleet: 'Total Bulk Carriers in Fleet',
+  total_bulk_carriers_time_charter: 'Days on Time Charter',
+  total_bulk_carriers_voyage_charter: 'Days on Voyage Charter',
+  total_revenue_bulk_carriers: 'Total Revenue (Rs. in Crs.)',
+  average_earnings_bulk_carriers: 'Average Earnings per Day (US $)',
 };
 
-export default function ManningOfOwnedShipsDataList({
+export default function TimeVoyageBulkDataList({
   rowData = [],
   loading = false,
   onEdit,
@@ -24,9 +26,11 @@ export default function ManningOfOwnedShipsDataList({
   const [pageSize, setPageSize] = useState(10);
   const [visibleCols, setVisibleCols] = useState({
     financial_year: true,
-    no_of_old_vessels_audited_compliance: true,
-    no_of_ships_fully_complaint_stwc_and_mlc: true,
-    compliance: true,
+    total_bulk_carriers_fleet: true,
+    total_bulk_carriers_time_charter: true,
+    total_bulk_carriers_voyage_charter: true,
+    total_revenue_bulk_carriers: true,
+    average_earnings_bulk_carriers: true,
   });
   const gridRef = useRef(null);
 
@@ -40,14 +44,14 @@ export default function ManningOfOwnedShipsDataList({
       });
       navigator.clipboard.writeText(tsv);
     } else if (type === 'Excel') {
-      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_manning_of_owned_ships' });
+      gridRef.current?.api?.exportDataAsCsv({ fileName: 'sci_time_voyage_bulk' });
     } else if (type === 'PDF') {
       exportDataListToPdf({
-        title: 'SCI Manning of Owned Ships Data List',
+        title: 'SCI Time Voyage Bulk Data List',
         columnLabels: COLUMN_LABELS,
         visibleCols,
         rowData: filteredData,
-        fileName: 'sci_manning_of_owned_ships',
+        fileName: 'sci_time_voyage_bulk',
       });
     }
   };
@@ -65,14 +69,16 @@ export default function ManningOfOwnedShipsDataList({
   }, [rowData, yearFilter, searchQuery]);
 
   const colDefs = useMemo(() => [
-    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, width: 70, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
+    { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
     ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_old_vessels_audited_compliance ? [{ headerName: 'Number of Vessels Audited for Compliance', field: 'no_of_old_vessels_audited_compliance', flex: 1.4, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.no_of_ships_fully_complaint_stwc_and_mlc ? [{ headerName: 'Ships Fully Compliant with STCW & MLC', field: 'no_of_ships_fully_complaint_stwc_and_mlc', flex: 1.4, minWidth: 250, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.compliance ? [{ headerName: 'Compliance (%)', field: 'compliance', flex: 1, minWidth: 150, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${Number(p.value).toFixed(2)}%` : '' }] : []),
+    ...(visibleCols.total_bulk_carriers_fleet ? [{ headerName: 'Total Bulk Carriers in Fleet', field: 'total_bulk_carriers_fleet', flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_bulk_carriers_time_charter ? [{ headerName: 'Days on Time Charter', field: 'total_bulk_carriers_time_charter', flex: 1.1, minWidth: 180, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_bulk_carriers_voyage_charter ? [{ headerName: 'Days on Voyage Charter', field: 'total_bulk_carriers_voyage_charter', flex: 1.1, minWidth: 190, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_revenue_bulk_carriers ? [{ headerName: 'Total Revenue (Rs. in Crs.)', field: 'total_revenue_bulk_carriers', flex: 1.2, minWidth: 200, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.average_earnings_bulk_carriers ? [{ headerName: 'Average Earnings per Day (US $)', field: 'average_earnings_bulk_carriers', flex: 1.2, minWidth: 220, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
 
     ...(canEdit || canRemove ? [{
-      headerName: 'Actions', field: 'sci_manning_id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
+      headerName: 'Actions', field: 'sci_time_voyage_bulk_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
       cellClass: 'text-center flex items-center justify-center gap-1',
       cellRenderer: (params) => (
         <>
