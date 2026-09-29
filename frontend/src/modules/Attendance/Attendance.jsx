@@ -604,6 +604,8 @@ export default function AttendanceView({ triggerNotification }) {
         minWidth: isWing ? 180 : (isLongHeader ? 150 : 120),
         wrapHeaderText: true,
         autoHeaderHeight: true,
+        wrapText: true,
+        autoHeight: true,
         filter: true,
         sortable: true,
         pinned: isWing ? 'left' : null,
@@ -655,6 +657,8 @@ export default function AttendanceView({ triggerNotification }) {
           field: key,
           flex: isEmp ? 2 : 1,
           minWidth: isEmp ? 180 : 120,
+          wrapText: true,
+          autoHeight: true,
           filter: true,
           sortable: true,
           cellClass: (params) => {
@@ -714,6 +718,8 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'EmpId',
         headerName: 'Emp ID',
         width: 110,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.EmpId,
         cellClass: 'font-bold text-[#0f417a] text-center flex items-center justify-center',
         valueGetter: (params) => {
@@ -727,6 +733,8 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Employee Name',
         flex: 2,
         minWidth: 180,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.EmpName,
         cellClass: 'font-semibold text-slate-800 flex items-center',
         valueGetter: (params) => {
@@ -740,6 +748,8 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Wing',
         flex: 1.5,
         minWidth: 140,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.Wing,
         cellClass: 'text-slate-700 font-medium flex items-center',
         valueGetter: (params) => {
@@ -753,6 +763,8 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Division',
         flex: 1.5,
         minWidth: 140,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.Division,
         cellClass: 'text-slate-600 font-medium flex items-center',
         valueGetter: (params) => {
@@ -766,6 +778,8 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Designation',
         flex: 1.5,
         minWidth: 150,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.Designation,
         cellClass: 'text-slate-600 font-medium flex items-center',
         valueGetter: (params) => {
@@ -778,6 +792,8 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'AttendanceMarked',
         headerName: 'Days Marked',
         width: 120,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.AttendanceMarked,
         cellClass: 'text-center font-bold text-slate-700 flex items-center justify-center',
         valueGetter: (params) => {
@@ -790,6 +806,8 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'WorkingHours',
         headerName: 'Avg Work Hours',
         width: 140,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.WorkingHours,
         cellClass: 'text-center font-bold text-slate-800 flex items-center justify-center',
         valueGetter: (params) => {
@@ -806,6 +824,8 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'InTimeAvg',
         headerName: 'In Time Avg',
         width: 130,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.InTimeAvg,
         cellClass: 'text-center font-medium text-emerald-700 flex items-center justify-center',
         valueGetter: (params) => {
@@ -819,6 +839,8 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'OutTimeAvg',
         headerName: 'Out Time Avg',
         width: 130,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.OutTimeAvg,
         cellClass: 'text-center font-medium text-slate-600 flex items-center justify-center',
         valueGetter: (params) => {
@@ -844,6 +866,8 @@ export default function AttendanceView({ triggerNotification }) {
       headerName: 'File Name',
       flex: 3,
       minWidth: 260,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'font-semibold flex items-center text-left',
       valueGetter: (params) => params.data['File Name'] || params.data.file_name || params.data.File_name || 'Attendance_Spreadsheet.xlsx',
       cellRenderer: (params) => (
@@ -861,6 +885,8 @@ export default function AttendanceView({ triggerNotification }) {
       headerName: 'Uploaded By',
       flex: 2,
       minWidth: 160,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-slate-700 font-medium text-center flex items-center justify-center',
       valueGetter: (params) => params.data['Uploaded By'] || params.data.Uploaded_By || params.data.uploaded_by || 'Admin',
     },
@@ -869,6 +895,8 @@ export default function AttendanceView({ triggerNotification }) {
       headerName: 'Date of Upload',
       flex: 2,
       minWidth: 160,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-slate-600 font-medium text-center flex items-center justify-center',
       valueGetter: (params) => params.data['Date of Upload'] || params.data.date_of_upload || params.data.Date_of_Upload || '—',
       valueFormatter: (params) => {
@@ -881,6 +909,7 @@ export default function AttendanceView({ triggerNotification }) {
     {
       headerName: 'Actions',
       width: 120,
+      pinned: 'right',
       cellClass: 'text-center flex items-center justify-center gap-2',
       cellRenderer: (params) => {
         const fName = params.data['File Name'] || params.data.file_name || params.data.File_name;
