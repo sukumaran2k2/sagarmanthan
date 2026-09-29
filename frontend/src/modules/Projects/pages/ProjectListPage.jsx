@@ -37,6 +37,7 @@ const DEFAULT_FILTERS = {
   physicalProgressMax: '',
   financialProgressMin: '',
   financialProgressMax: '',
+  underTenderingSubStage: '',
 };
 
 const IMPLEMENTATION_MODE_OPTIONS = ['All', 'EPC', 'PPP'];
@@ -77,6 +78,7 @@ export default function ProjectListPage({
   const [organisations, setOrganisations] = useState([]);
   const [states, setStates] = useState([]);
   const [districts, setDistricts] = useState([]);
+  const [underTenderingSubStages, setUnderTenderingSubStages] = useState([]);
   const [stageCounts, setStageCounts] = useState({
     all: 0,
     planning: 0,
@@ -114,7 +116,14 @@ export default function ProjectListPage({
       fetchMmtDropdown('mmt_district'),
       fetchMmtDropdown('mmt_project_category'),
       fetchMmtDropdown('mmt_scheme'),
-    ]).then(([orgRes, stateRes, districtRes, catRes, schemeRes]) => {
+      fetchMmtDropdown('tbl_project_sub_stage'),
+    ]).then(([orgRes, stateRes, districtRes, catRes, schemeRes, subStageRes]) => {
+      if (
+        subStageRes.status === 'fulfilled' &&
+        Array.isArray(subStageRes.value?.data)
+      ) {
+        setUnderTenderingSubStages(subStageRes.value.data);
+      }
       if (!mounted) return;
       if (orgRes.status === 'fulfilled' && Array.isArray(orgRes.value?.data)) {
         setOrganisations(orgRes.value.data);
@@ -177,6 +186,7 @@ export default function ProjectListPage({
           financialProgressMin: effectiveFilters.financialProgressMin,
           financialProgressMax: effectiveFilters.financialProgressMax,
           includeCounts: page === 1 || !stageCounts?.all,
+          underTenderingSubStage: effectiveFilters.underTenderingSubStage,
         };
 
         if (permissions.viewMode === 'org' && permissions.organisationId) {
@@ -549,6 +559,7 @@ export default function ProjectListPage({
         organisations={organisations}
         states={states}
         districts={districts}
+        underTenderingSubStageOptions={underTenderingSubStages}
         canAdd={Boolean(permissions.canAdd && (permissions.isOrganisationUser || permissions.viewMode === 'org'))}
         canEdit={permissions.canEdit}
         canView={permissions.canView}

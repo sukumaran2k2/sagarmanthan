@@ -559,6 +559,10 @@ async function getDropDownData(req, res) {
             query = "SELECT * FROM mmt_akv_initiatives";
             break;
 
+        case "tbl_project_sub_stage":
+            query = "SELECT sub_stage_id, sub_stage_name FROM tbl_project_sub_stage WHERE sub_stage_id BETWEEN 3 AND 9 ORDER BY sub_stage_id";
+            break;
+
         // case "tbl_project":
         //     query = "SELECT project_id, project_name FROM tbl_project WHERE status = 1 AND project_stage_id != 14 ORDER BY project_name";
         //     break;

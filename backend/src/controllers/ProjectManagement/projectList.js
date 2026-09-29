@@ -102,6 +102,7 @@ async function getProjectList(req, res) {
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
     const offset = (page - 1) * limit;
+    const underTenderingSubStageRaw = req.query.underTenderingSubStage;
 
     const search = String(req.query.search || '').trim();
     const includeCounts = String(req.query.includeCounts || '0') === '1';
@@ -122,6 +123,9 @@ async function getProjectList(req, res) {
     const physicalProgressMax = physicalProgressMaxRaw === '' || physicalProgressMaxRaw == null ? null : Number(physicalProgressMaxRaw);
     const financialProgressMin = financialProgressMinRaw === '' || financialProgressMinRaw == null ? null : Number(financialProgressMinRaw);
     const financialProgressMax = financialProgressMaxRaw === '' || financialProgressMaxRaw == null ? null : Number(financialProgressMaxRaw);
+
+    const underTenderingSubStage = Number.parseInt(req.query.underTenderingSubStage, 10);
+    const hasUnderTenderingSubStage = Number.isInteger(underTenderingSubStage) && underTenderingSubStage >= 3 && underTenderingSubStage <= 9;
 
     try {
         const roleRequest = conn.request();
@@ -156,6 +160,48 @@ async function getProjectList(req, res) {
         const scopeByOrganisation = Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0
             ? ' AND ISNULL(sp.sub_organisation_id, p.organisation_id) = @organisationId'
             : '';
+
+         const selectedStageJoin = hasUnderTenderingSubStage
+        ? `
+            OUTER APPLY (
+                SELECT
+                    MAX(CASE
+                        WHEN TRY_CAST(pd.sub_stage_id AS INT) = ${underTenderingSubStage}
+                            AND pd.actual_date IS NOT NULL
+                        THEN 1
+                        ELSE 0
+                    END) AS selected_stage_completed,
+
+                    MAX(CASE
+                        WHEN TRY_CAST(pd.sub_stage_id AS INT) = ${underTenderingSubStage + 1}
+                            AND pd.actual_date IS NOT NULL
+                        THEN 1
+                        ELSE 0
+                    END) AS next_stage_completed
+                FROM tbl_project_date pd
+                WHERE pd.project_id = p.project_id
+                AND (
+                        sp.sub_project_id IS NULL
+                        OR pd.sub_project_id = sp.sub_project_id
+                        OR pd.sub_project_id IS NULL
+                        OR TRY_CAST(pd.sub_project_id AS INT) = -1
+                    )
+            ) latestSubStage
+        `
+        : '';
+        
+        const selectedStageActualDateSelect = hasUnderTenderingSubStage
+        ? `
+            CASE
+                WHEN latestSubStage.selected_stage_completed = 1
+                AND ISNULL(latestSubStage.next_stage_completed, 0) = 0
+                THEN @underTenderingSubStage
+                ELSE NULL
+            END AS latest_actual_sub_stage_id
+        `
+        : `
+            CAST(NULL AS INT) AS latest_actual_sub_stage_id
+        `;
 
         const baseQuery = `
             WITH base AS (
@@ -209,6 +255,7 @@ async function getProjectList(req, res) {
                     ISNULL(ia.ia_name, '') AS primary_ia_name,
                     physicalProgress.physical_progress,
                     financialProgress.financial_progress,
+                    ${selectedStageActualDateSelect},
                     CASE
                         WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN COALESCE(dropReq.drop_req_at, dropReq.drop_date, sp.sub_last_updated, p.last_updated)
                         ELSE NULL
@@ -243,6 +290,7 @@ async function getProjectList(req, res) {
                     CAST(ISNULL(sp.sub_project_id, -1) AS varchar(50)) AS sub_project_id_text
                 FROM tbl_project p
                 LEFT JOIN tbl_sub_project sp ON sp.project_id = p.project_id
+                ${selectedStageJoin}
                 LEFT JOIN mmt_organisation org ON org.organisation_id = ISNULL(sp.sub_organisation_id, p.organisation_id)
                 LEFT JOIN mmt_implementing_agency ia ON ia.ia_id = ISNULL(sp.sub_primary_ia_id, p.primary_ia_id)
                 LEFT JOIN mmt_scheme sch ON sch.scheme_id = ISNULL(sp.sub_scheme_id, p.scheme_id)
@@ -332,6 +380,7 @@ async function getProjectList(req, res) {
                     WHERE e.sub_project_id != '-1'
                     GROUP BY e.sub_project_id, sp2.sub_award_project_cost
                 ) AS financialProgress ON financialProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
+
                 WHERE 1=1
                 ${scopeByOrganisation}
             )
@@ -372,7 +421,7 @@ async function getProjectList(req, res) {
         if (state) {
             filterWhereClauses.push('ISNULL(state_names, \'\') LIKE @state');
         }
-        if (district) {
+          if (district) {
             filterWhereClauses.push('ISNULL(district_names, \'\') LIKE @district');
         }
         if (Number.isFinite(physicalProgressMin)) {
@@ -386,6 +435,9 @@ async function getProjectList(req, res) {
         }
         if (Number.isFinite(financialProgressMax)) {
             filterWhereClauses.push('COALESCE(financial_progress, 0) <= @financialProgressMax');
+        }
+        if (hasUnderTenderingSubStage) {
+            filterWhereClauses.push('latest_actual_sub_stage_id = @underTenderingSubStage');
         }
 
         const whereClauses = [...filterWhereClauses];
@@ -476,6 +528,11 @@ async function getProjectList(req, res) {
             countRequest.input('financialProgressMax', financialProgressMax);
             dataRequest.input('financialProgressMax', financialProgressMax);
         }
+        if (hasUnderTenderingSubStage) {
+            const hasUnderTenderingSubStageLike = `%${hasUnderTenderingSubStage}%`;
+            countRequest.input('underTenderingSubStage', hasUnderTenderingSubStageLike);
+            dataRequest.input('underTenderingSubStage',hasUnderTenderingSubStageLike);
+        }
 
         dataRequest.input('offset', offset);
         dataRequest.input('limit', limit);
@@ -513,6 +570,24 @@ async function getProjectList(req, res) {
             ORDER BY current_project_stage_id, project_id DESC
             OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
         `);
+
+
+        console.log('========== SUB STAGE FILTER DEBUG ==========');
+        console.log('Input:', {
+            underTenderingSubStageRaw,
+            underTenderingSubStage,
+            hasUnderTenderingSubStage
+        });
+
+        console.log(
+            'Filtered projects:',
+            dataResult.recordset.map(row => ({
+                project_id: row.project_id,
+                sub_project_id: row.sub_project_id,
+                latest_actual_sub_stage_id: row.latest_actual_sub_stage_id
+            }))
+        );
+
 
         const total = Number(dataResult.recordset?.[0]?.total_count || 0);
         const data = dataResult.recordset.map(({ total_count, ...row }) => row);

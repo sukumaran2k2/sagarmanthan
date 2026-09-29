@@ -124,6 +124,17 @@ function toProjectListParams(params = {}) {
     query.includeCounts = params.includeCounts ? '1' : '0';
   }
 
+  const underTenderingSubStage = Number(params.underTenderingSubStage);
+
+  if (
+    Number.isInteger(underTenderingSubStage) &&
+    underTenderingSubStage >= 3 &&
+    underTenderingSubStage <= 9
+  ) {
+    query.underTenderingSubStage = underTenderingSubStage;
+  }
+
+
   return query;
 }
 

@@ -101,6 +101,7 @@ export default function ProjectsListTable({
   stageCounts,
   filters,
   onFiltersChange,
+  underTenderingSubStageOptions = [],
   categoryOptions = [],
   schemeOptions = [],
   implementationModeOptions = [],
@@ -188,8 +189,17 @@ export default function ProjectsListTable({
     if (filters?.physicalProgressMax !== '' && filters?.physicalProgressMax != null) count++;
     if (filters?.financialProgressMin !== '' && filters?.financialProgressMin != null) count++;
     if (filters?.financialProgressMax !== '' && filters?.financialProgressMax != null) count++;
+
+    if (filters?.projectStage === 'Under Tendering' && filters?.underTenderingSubStage) 
+    { 
+      count++;
+    }
+
     return count;
   }, [filters]);
+
+  //  console.log("Current projectStage:", filters?.projectStage);
+  // console.log("Current projectStage type:", typeof filters?.projectStage);
 
   const setFilter = (key, value) => {
     onFiltersChange?.({ ...filters, [key]: value });
@@ -211,6 +221,8 @@ export default function ProjectsListTable({
       physicalProgressMax: '',
       financialProgressMin: '',
       financialProgressMax: '',
+      underTenderingSubStage: ''
+
     });
   };
 
@@ -1484,6 +1496,43 @@ export default function ProjectsListTable({
                   ))}
                 </select>
               </div>
+              {filters?.projectStage === 'Under Tendering' && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                      Sub Stage
+                    </label>
+
+                    <select
+                      value={filters?.underTenderingSubStage || ''}
+                      onChange={(e) =>
+                        setFilter('underTenderingSubStage', e.target.value)
+                      }
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                    >
+                      <option value="">
+                        All Sub Stages ({underTenderingSubStageOptions.length})
+                      </option>
+
+                      {underTenderingSubStageOptions.map((subStage) => {
+                        const subStageId =
+                          subStage.sub_stage_id || subStage.id;
+
+                        const subStageName =
+                          subStage.sub_stage_name || subStage.name;
+
+                        return (
+                          <option
+                            key={subStageId}
+                            value={subStageId}
+                          >
+                            {subStageName}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+              )}
+
             </div>
 
             {filters?.projectStage !== 'Project Initiated' && filters?.projectStage !== 'Under Tendering' ? (
