@@ -413,6 +413,13 @@ router.get(
   requireModulePermission("ATTENDANCE", "read"),
   empAttendanceTab.getEmpAttendance
 );
+
+router.get(
+  "/attendance-filter-options",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  empAttendanceTab.getAttendanceFilterOptions
+);
 router.post(
   "/employee-attendance",
   auth,

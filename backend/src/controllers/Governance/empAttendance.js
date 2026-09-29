@@ -770,6 +770,40 @@ async function agSample(req, res) {
   
 
 
+
+async function getAttendanceFilterOptions(req, res) {
+    try {
+        const conn = await pool;
+        const wingsRequest = conn.request();
+        const periodsRequest = conn.request();
+
+        const [wingsResult, periodsResult] = await Promise.all([
+            wingsRequest.query(`
+                SELECT DISTINCT mmt_organization_info.wing_name
+                FROM tbl_employee_attendance
+                INNER JOIN mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
+                INNER JOIN mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
+                WHERE mmt_organization_info.wing_name IS NOT NULL
+            `),
+            periodsRequest.query(`
+                SELECT DISTINCT Month, Year, week
+                FROM tbl_employee_attendance
+            `),
+        ]);
+
+        const wings = wingsResult.recordset.map(r => r.wing_name).filter(Boolean);
+        const months = [...new Set(periodsResult.recordset.map(r => r.Month).filter(Boolean))];
+        const years = [...new Set(periodsResult.recordset.map(r => String(r.Year)).filter(Boolean))];
+        const weeks = [...new Set(periodsResult.recordset.map(r => String(r.week)).filter(Boolean))]
+            .sort((a, b) => Number(a) - Number(b));
+
+        res.json({ wings, months, years, weeks });
+    } catch (err) {
+        console.log(err);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
+
 const empAttendanceTab = { createEmpAttendance, upload, uploadSingleFile, addEmpDataAttendance,
-    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample };
+    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample, getAttendanceFilterOptions };
 export default empAttendanceTab;
