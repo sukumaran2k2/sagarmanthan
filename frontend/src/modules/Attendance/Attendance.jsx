@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import axios from 'axios';
+import api from './api';
 import * as XLSX from 'xlsx';
 import { 
   UserCheck, 
@@ -32,7 +32,6 @@ import {
   validateAttendanceRows,
 } from './utils/attendanceUtils';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 export default function AttendanceView({ triggerNotification }) {
   const getUrlParams = () => {
@@ -180,17 +179,17 @@ export default function AttendanceView({ triggerNotification }) {
     setFetchError(null);
     setLoading(true);
     
-    const p1 = axios.get(`${API_BASE_URL}/attendance`)
+    const p1 = api.get(`/attendance`)
       .then(res => (Array.isArray(res.data) ? res.data : res.data?.rowData) || [])
-      .catch(() => axios.get(`${API_BASE_URL}/employee-attendance-file`).then(res => res.data?.rowData || res.data || []).catch(() => []));
+      .catch(() => api.get(`/employee-attendance-file`).then(res => res.data?.rowData || res.data || []).catch(() => []));
 
-    const p2 = axios.get(`${API_BASE_URL}/employee-attendance-view`)
+    const p2 = api.get(`/employee-attendance-view`)
       .then(res => {
         const rows = (Array.isArray(res.data) ? res.data : res.data?.rowData) || [];
         if (rows.length > 0) return rows;
-        return axios.get(`${API_BASE_URL}/excelData`).then(r => r.data || []).catch(() => []);
+        return api.get(`/excelData`).then(r => r.data || []).catch(() => []);
       })
-      .catch(() => axios.get(`${API_BASE_URL}/excelData`).then(res => res.data || []).catch(() => []));
+      .catch(() => api.get(`/excelData`).then(res => res.data || []).catch(() => []));
 
     Promise.all([p1, p2])
       .then(([files, rows]) => {
@@ -207,7 +206,7 @@ export default function AttendanceView({ triggerNotification }) {
   useEffect(() => {
     fetchFilesAndData();
 
-    axios.get(`${API_BASE_URL}/employee-attendance-check`)
+    api.get(`/employee-attendance-check`)
       .then(res => {
         const data = res.data;
         if (data && data.length > 0) {
@@ -251,7 +250,7 @@ export default function AttendanceView({ triggerNotification }) {
     setReportLoading(true);
     setReportViewMode('summary');
 
-    axios.get(`${API_BASE_URL}/employee-attendance-weekone-report/${targetMonth}/${targetYear}/${targetWeek}`)
+    api.get(`/employee-attendance-weekone-report/${targetMonth}/${targetYear}/${targetWeek}`)
       .then(res => {
         const data = res.data.rowData || res.data || [];
         setReportData(data);
@@ -374,7 +373,7 @@ export default function AttendanceView({ triggerNotification }) {
     setDetailData([]);
     setDetailLoading(true);
 
-    axios.get(`${API_BASE_URL}/employee-attendance-weekone-detail/${reportYear}/${reportMonth}/${encodeURIComponent(wingParam)}/0/${typeParam}/${weekNum}`)
+    api.get(`/employee-attendance-weekone-detail/${reportYear}/${reportMonth}/${encodeURIComponent(wingParam)}/0/${typeParam}/${weekNum}`)
       .then(res => {
         const rows = res.data.rowData || res.data || [];
         if (rows.length > 0) {
@@ -1009,11 +1008,11 @@ export default function AttendanceView({ triggerNotification }) {
     const uploadRequest = existingFileId
         ? (() => {
             formData.append('fileId', existingFileId);
-            return axios.put(`${API_BASE_URL}/attend-employee`, formData, {
+            return api.put(`/attend-employee`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
         })()
-        : axios.post(`${API_BASE_URL}/employee-attendance`, formData, {
+        : api.post(`/employee-attendance`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
 
@@ -1037,13 +1036,13 @@ export default function AttendanceView({ triggerNotification }) {
       const fallbackFormData = new FormData();
       fallbackFormData.append('file', selectedFile);
       
-      return axios.post(`${API_BASE_URL}/attendance`, fallbackFormData, {
+      return api.post(`/attendance`, fallbackFormData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       .then(res => {
         const id = res.data.id || res.data.fileId;
         if (id) {
-          return axios.post(`${API_BASE_URL}/attendance/storecsv/${id}`);
+          return api.post(`/attendance/storecsv/${id}`);
         }
       })
       .then(() => {
@@ -1104,7 +1103,7 @@ export default function AttendanceView({ triggerNotification }) {
   };
 
   const handleDownloadFile = (id, fileName) => {
-    axios.get(`${API_BASE_URL}/attendance/download/${id}`, { responseType: 'blob' })
+    api.get(`/attendance/download/${id}`, { responseType: 'blob' })
       .then(res => {
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement('a');
@@ -1122,7 +1121,7 @@ export default function AttendanceView({ triggerNotification }) {
 
     const handleDeleteFile = (id) => {
     askConfirm("Deleting the file will also delete all attendance records parsed from it. Continue?", () => {
-      axios.delete(`${API_BASE_URL}/attendance/${id}`)
+      api.delete(`/attendance/${id}`)
         .then(() => {
           showToast('🗑️ File record deleted successfully', '#10B981');
           attendanceCache.current = {};
@@ -1136,7 +1135,7 @@ export default function AttendanceView({ triggerNotification }) {
   };
 
   const handleDownloadSample = () => {
-    axios.get(`${API_BASE_URL}/attendance/downloadSampleDocument`, { responseType: 'blob' })
+    api.get(`/attendance/downloadSampleDocument`, { responseType: 'blob' })
       .then(res => {
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement('a');

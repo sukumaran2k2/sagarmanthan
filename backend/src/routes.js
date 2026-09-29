@@ -394,13 +394,43 @@ router.get("/detail-broadcategory-project-dashboard/:moi/:broadId", projectDashb
 
 //attendance
 //check
-router.get("/employee-attendance-file", empAttendanceTab.getEmployeeAttendance);
-router.get("/employee-attendance-sample", empAttendanceTab.agSample);
+router.get(
+  "/employee-attendance-file",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  empAttendanceTab.getEmployeeAttendance
+);
+router.get(
+  "/employee-attendance-sample",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  empAttendanceTab.agSample
+);
 
-router.get("/employee-attendance-view", empAttendanceTab.getEmpAttendance);
-router.post("/employee-attendance", empAttendanceTab.uploadSingleFile, empAttendanceTab.createEmpAttendance);
-router.put("/attend-employee", empAttendanceTab.uploadSingleFile, empAttendanceTab.updateEmpAttendance);
-router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
+router.get(
+  "/employee-attendance-view",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  empAttendanceTab.getEmpAttendance
+);
+router.post(
+  "/employee-attendance",
+  auth,
+  requireModulePermission("ATTENDANCE", "create"),
+  empAttendanceTab.uploadSingleFile,empAttendanceTab.createEmpAttendance
+);
+router.put(
+  "/attend-employee",
+  auth,
+  requireModulePermission("ATTENDANCE", "update"),
+  empAttendanceTab.uploadSingleFile,empAttendanceTab.updateEmpAttendance
+);
+router.post(
+  "/employee-attendance-data",
+  auth,
+  requireModulePermission("ATTENDANCE", "create"),
+  empAttendanceTab.addEmpDataAttendance
+);
 // router.get("/employee-attendance/download/:id", empAttendanceTab.downloadEmpAttendance);
 // router.delete("/employee-attendance/:id", empAttendanceTab.deleteEmpAttendance);
 // router.post("/employee-attendance/storecsv/:id",empAttendanceTab.storeEMPAttendanceData);
@@ -410,15 +440,50 @@ router.post("/employee-attendance-data", empAttendanceTab.addEmpDataAttendance);
 // router.get("/employee-excelData", empAttendanceTab.getEmpExcelData);
 
 //attendance
-router.get("/attendance", attendanceTab.getAttendance);
-router.post("/attendance", attendanceTab.uploadSingleFile, attendanceTab.createAttendance);
-router.get("/attendance/download/:id", attendanceTab.downloadAttendance);
-router.delete("/attendance/:id", attendanceTab.deleteAttendance);
-router.post("/attendance/storecsv/:id", attendanceTab.storeCsvData);
-router.get("/attendance/downloadSampleDocument", attendanceTab.downloadSampleDocument);
+router.get(
+  "/attendance",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  attendanceTab.getAttendance
+);
+router.post(
+  "/attendance",
+  auth,
+  requireModulePermission("ATTENDANCE", "create"),
+  attendanceTab.uploadSingleFile,attendanceTab.createAttendance
+);
+router.get(
+  "/attendance/download/:id",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  attendanceTab.downloadAttendance
+);
+router.delete(
+  "/attendance/:id",
+  auth,
+  requireModulePermission("ATTENDANCE", "delete"),
+  attendanceTab.deleteAttendance
+);
+router.post(
+  "/attendance/storecsv/:id",
+  auth,
+  requireModulePermission("ATTENDANCE", "create"),
+  attendanceTab.storeCsvData
+);
+router.get(
+  "/attendance/downloadSampleDocument",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  attendanceTab.downloadSampleDocument
+);
 
 //view Data - Attendance
-router.get("/excelData", excelDataTab.getExcelData);
+router.get(
+  "/excelData",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  excelDataTab.getExcelData
+);
 
 router.get("/attendance/user-manual", userManualMenu.attendanceManual);
 
@@ -1488,10 +1553,30 @@ router.get("/getbill-wingwise/:wingID/:billStage", billReportTab.getDetailBillWi
 router.get("/getbill-divisionwise/:divisionID/:billStage", billReportTab.getDetailBillDivisionWise);
 
 //Attendance Report
-router.get("/attendance-weekone-report/:attendanceMonth/:attendanceYear", attendanceReportTab.attendanceWeekOneReport);
-router.get("/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week", empAttendanceReportTab.empAttendanceWeekOneReport);
-router.get("/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week", empAttendanceReportTab.getDetailAttendanceWeekOneReport);
-router.get("/employee-attendance-check", empAttendanceReportTab.getEmpAttendanceCheck);
+router.get(
+  "/attendance-weekone-report/:attendanceMonth/:attendanceYear",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  attendanceReportTab.attendanceWeekOneReport
+);
+router.get(
+  "/employee-attendance-weekone-report/:attendanceMonth/:attendanceYear/:week",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  empAttendanceReportTab.empAttendanceWeekOneReport
+);
+router.get(
+  "/employee-attendance-weekone-detail/:Year/:Month/:Wing/:Division/:type/:week",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  empAttendanceReportTab.getDetailAttendanceWeekOneReport
+);
+router.get(
+  "/employee-attendance-check",
+  auth,
+  requireModulePermission("ATTENDANCE", "read"),
+  empAttendanceReportTab.getEmpAttendanceCheck
+);
 
 //Court Case Report
 // router.get("/all-court-case-report", arbitCourtCaseTab.getCourtCaseReport),
