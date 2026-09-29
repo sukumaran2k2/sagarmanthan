@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import api from './api';
+import RestrictedAccess from '../../components/RestrictedAccess';
+import { useAttendancePermissions } from './hooks/useAttendancePermissions';
 import * as XLSX from 'xlsx';
 import { 
   UserCheck, 
@@ -34,6 +36,7 @@ import {
 
 
 export default function AttendanceView({ triggerNotification }) {
+  const { canAdd, canEdit, canRemove, canView } = useAttendancePermissions();
   const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
     const subTabParam = params.get('subtab') || params.get('tab');
@@ -890,6 +893,7 @@ export default function AttendanceView({ triggerNotification }) {
             >
               <Download size={15} />
             </button>
+            {canRemove && (
             <button
               onClick={() => handleDeleteFile(params.data.id)}
               className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition cursor-pointer"
@@ -897,6 +901,7 @@ export default function AttendanceView({ triggerNotification }) {
             >
               <Trash2 size={15} />
             </button>
+            )}
           </div>
         );
       },
@@ -1223,6 +1228,10 @@ export default function AttendanceView({ triggerNotification }) {
     });
   };
 
+  if (!canAdd && !canView && !canEdit) {
+    return <RestrictedAccess moduleName="Attendance" />;
+  }
+
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 relative">
       <style>{`
@@ -1305,6 +1314,7 @@ export default function AttendanceView({ triggerNotification }) {
         {/* Sub-tabs (Upload > View Files > DataList > Report) & User Manual */}
         <div className="flex flex-wrap items-center gap-3 justify-end">
           <div className="flex items-center space-x-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200/80 select-none">
+            {canAdd && (
             <button
               type="button"
               onClick={() => setSubTab('upload')}
@@ -1316,6 +1326,7 @@ export default function AttendanceView({ triggerNotification }) {
             >
               Upload Attendance
             </button>
+            )}
 
             <button
               type="button"
@@ -1354,14 +1365,6 @@ export default function AttendanceView({ triggerNotification }) {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={handleDownloadSample}
-            className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center space-x-1 cursor-pointer flex-shrink-0 select-none"
-            title="Download User Manual excel template"
-          >
-            <span>User Manual</span>
-          </button>
         </div>
       </div>
 
@@ -1535,7 +1538,7 @@ export default function AttendanceView({ triggerNotification }) {
                 <button
                   type="button"
                   onClick={() => handleFetchReport(reportMonth, reportYear, reportWeek, true)}
-                  className="px-4 py-2 bg-[#0f417a] hover:bg-[#0c3361] text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer flex items-center space-x-1.5"
+                  className="px-4 py-2 bg-[#4b2424] hover:bg-[#381b1b] text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer flex items-center space-x-1.5"
                 >
                   <span>Fetch Report</span>
                 </button>
