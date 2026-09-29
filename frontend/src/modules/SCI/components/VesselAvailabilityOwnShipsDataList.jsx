@@ -64,9 +64,9 @@ export default function VesselAvailabilityOwnShipsDataList({
 
   const colDefs = useMemo(() => [
     { headerName: 'S.No', pinned: 'left', valueGetter: (params) => params.node.rowIndex + 1, minWidth: 90, cellClass: 'text-center font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' },
-    ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.total_no_of_own_operated ? [{ headerName: 'Total Number of Own Operated Ships', field: 'total_no_of_own_operated', flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
-    ...(visibleCols.ship_utilization ? [{ headerName: 'Ship Utilization (%)', field: 'ship_utilization', flex: 1, minWidth: 170, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
+    ...(visibleCols.financial_year ? [{ headerName: 'Financial Year', field: 'financial_year', wrapText: true, autoHeight: true, flex: 1, minWidth: 140, cellClass: 'text-center font-bold text-[#0f417a] dark:text-blue-400 flex items-center justify-center border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.total_no_of_own_operated ? [{ headerName: 'Total Number of Own Operated Ships', field: 'total_no_of_own_operated', wrapText: true, autoHeight: true, flex: 1.3, minWidth: 230, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700' }] : []),
+    ...(visibleCols.ship_utilization ? [{ headerName: 'Ship Utilization (%)', field: 'ship_utilization', wrapText: true, autoHeight: true, flex: 1, minWidth: 170, cellClass: 'text-center text-slate-700 dark:text-slate-200 flex items-center justify-center font-semibold border-r border-slate-100 dark:border-slate-700', valueFormatter: (p) => p.value != null ? `${p.value}%` : '' }] : []),
 
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'sci_vessel_id', pinned: 'right', minWidth: canEdit && canRemove ? 110 : 70,
