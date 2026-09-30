@@ -136,7 +136,11 @@ export function mapTenderRowsFromApi(dateRows = [], costRow = null) {
     row.plannedDate = sliceDate(apiRow.planned_date);
     row.revisedDate = sliceDate(apiRow.revised_date);
     row.actualDate = sliceDate(apiRow.actual_date);
-    row.notApplicable = Boolean(toBitFlag(apiRow.not_applicable_date));
+    // N/A only applies to tendering stages 2–6 (legacy has no N/A on Tech Sanction / Award / Contract).
+    row.notApplicable =
+      row.id >= 2 && row.id <= 6
+        ? Boolean(toBitFlag(apiRow.not_applicable_date))
+        : false;
   });
 
   if (costRow) {

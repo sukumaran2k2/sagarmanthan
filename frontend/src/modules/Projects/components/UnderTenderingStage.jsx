@@ -197,11 +197,11 @@ export default function UnderTenderingStage({
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   };
 
-  // Actual/Revise: freeze on N/A or nomination (1–6). Planned can also lock after first save.
-  const rowDisabled = (row) =>
-    disabled ||
-    row.notApplicable ||
+  // Freeze Actual/Revise only on N/A (stages 2–6) or nomination (stages 1–6). Never freeze just because a date exists.
+  const rowDatesFrozen = (row) =>
+    (row.notApplicable && row.id >= 2 && row.id <= 6) ||
     (nominationMode && row.id <= 6);
+  const rowDisabled = (row) => disabled || rowDatesFrozen(row);
   const plannedDateLocked = (row) => lockedPlannedRowIds.has(Number(row?.id));
 
   const compareDates = (a, b) => (a && b ? new Date(a) < new Date(b) : false);
@@ -823,11 +823,11 @@ export default function UnderTenderingStage({
                     </div>
                   )}
                 </td>
-                <td className="px-3 py-3"><input type="date" value={row.plannedDate} disabled={rowDisabled(row) || plannedDateLocked(row)} onChange={(e) => updateRow(row.id, { plannedDate: e.target.value })} className={`w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg ${plannedDateLocked(row) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50'}`} /></td>
-                <td className="px-3 py-3"><input type="date" value={row.revisedDate} disabled className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-100" /></td>
+                <td className="px-3 py-3"><input type="date" value={row.plannedDate} disabled={rowDisabled(row) || plannedDateLocked(row)} onChange={(e) => updateRow(row.id, { plannedDate: e.target.value })} className={`w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg ${rowDisabled(row) || plannedDateLocked(row) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white'}`} /></td>
+                <td className="px-3 py-3"><input type="date" value={row.revisedDate} disabled className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-100 text-slate-500 cursor-not-allowed" /></td>
                 <td className="px-3 py-3 text-center"><button type="button" disabled={rowDisabled(row)} onClick={() => onReviseRow(row.id)} className="px-2 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold disabled:opacity-50">Revise</button></td>
-                <td className="px-3 py-3 text-center"><button type="button" disabled={rowDisabled(row)} onClick={() => onShowHistory(row.id)} className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold disabled:opacity-50">History</button></td>
-                <td className="px-3 py-3"><input type="date" value={row.actualDate} max={today} disabled={rowDisabled(row)} onChange={(e) => handleActualDateChange(row.id, e.target.value)} className="w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-slate-50" /></td>
+                <td className="px-3 py-3 text-center"><button type="button" disabled={disabled} onClick={() => onShowHistory(row.id)} className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold disabled:opacity-50">History</button></td>
+                <td className="px-3 py-3"><input type="date" value={row.actualDate} max={today} disabled={rowDisabled(row)} onChange={(e) => handleActualDateChange(row.id, e.target.value)} className={`w-full text-xs px-2.5 py-2 border border-slate-200 rounded-lg ${rowDisabled(row) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white'}`} /></td>
               </tr>
             )})}
           </tbody>
