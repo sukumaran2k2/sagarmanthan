@@ -23,7 +23,7 @@ import ExportDropdown from '../../components/ExportDropdown';
 import CopyButton from '../../components/CopyButton';
 import AttendanceKpiHeader from './components/AttendanceKpiHeader';
 import AttendanceToolbar from './components/AttendanceToolbar';
-import AttendanceUploadView from './components/AttendanceUploadView';
+import AttendanceUploadView from './pages/AttendanceUploadView';
 import AttendanceDataListView from './components/AttendanceDataListView';
 import AttendanceFilesHistoryView from './components/AttendanceFilesHistoryView';
 import {
