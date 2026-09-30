@@ -197,6 +197,7 @@ export default function UnderTenderingStage({
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   };
 
+  // Actual/Revise: freeze on N/A or nomination (1–6). Planned can also lock after first save.
   const rowDisabled = (row) =>
     disabled ||
     row.notApplicable ||

@@ -167,8 +167,12 @@ export function mapTenderMetaFromCostApi(costRow = null) {
     foundationLaid = 'no';
   }
 
+  const nominationRaw = costRow.on_nomination_basis;
+  const onNominationBasisAwarded =
+    nominationRaw === true || nominationRaw === 1 || nominationRaw === '1' ? '1' : '0';
+
   return {
-    onNominationBasisAwarded: String(costRow.on_nomination_basis ?? '0'),
+    onNominationBasisAwarded,
     numberOfTenderCalls: costRow.num_ut_tender_calls ?? '',
     foundationLaid,
     foundationLaidDate: sliceDate(costRow.foundation_laid_date),

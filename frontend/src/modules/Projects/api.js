@@ -428,4 +428,12 @@ export function fetchViewProjectImages(projectID, subProjectID = '-1') {
   return api.get(`/view-projectimages/${projectID}/${subProjectID}`);
 }
 
+export function fetchProjectsDataQcSummary() {
+  return api.get('/projects-data-qc/summary');
+}
+
+export function fetchProjectsDataQcCheck(checkId) {
+  return api.get(`/projects-data-qc/${encodeURIComponent(checkId)}`);
+}
+
 export default api;
