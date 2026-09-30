@@ -18,7 +18,6 @@ import {
   X
 } from 'lucide-react';
 import FormPreviewModal from './FormPreviewModal';
-import FormBuilderStudio from './FormBuilderStudio';
 
 const MOCK_PUBLISHED_FORMS = [
   {
@@ -70,7 +69,6 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
   const [formToDelete, setFormToDelete] = useState(null);
-  const [formToEdit, setFormToEdit] = useState(null);
 
   useEffect(() => {
     // Attempt fetching live forms from backend
@@ -85,6 +83,16 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
         // Fallback to rich mock data
       });
   }, []);
+
+  // Disable scroll when delete modal is open
+  useEffect(() => {
+    if (!formToDelete) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [formToDelete]);
 
   const handleCloneForm = (form) => {
     const clonedForm = {
@@ -121,30 +129,40 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
   );
 
   return (
-    <div className="space-y-6">
-      {/* Search & Filter Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search forms by title or port authority..."
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition"
-          />
+    <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-6">
+      
+      {/* Header & Search Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-slate-100 pb-6">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+            <FileText className="h-6 w-6 text-blue-600" />
+            <span>Form Directory</span>
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Manage your published forms, track submissions, and create new templates.
+          </p>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <span className="text-xs font-bold text-slate-500">Total Published Forms:</span>
-          <span className="px-2.5 py-1 bg-blue-50 text-blue-700 font-extrabold text-xs rounded-full border border-blue-200">
-            {filteredForms.length}
-          </span>
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <div className="relative flex-grow md:w-72">
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search forms by title or org..."
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition"
+            />
+          </div>
+          <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 min-w-[100px] text-center hidden md:block">
+            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Total</span>
+            <span className="text-xl font-black text-blue-800">{filteredForms.length}</span>
+          </div>
         </div>
       </div>
 
       {/* Forms Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
         {filteredForms.map((form) => {
           const isOverdue = form.status === 'Overdue';
           return (
@@ -191,10 +209,25 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
               </div>
 
               {/* Form Action Buttons */}
-              <div className="flex items-center justify-between gap-2 pt-4 mt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between gap-2 pt-4 mt-4 border-t border-slate-100 flex-wrap">
+                <button
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (onViewSubmissions) {
+                      onViewSubmissions(form);
+                    }
+                  }}
+                  className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl transition cursor-pointer min-w-[max-content]"
+                  title="View Submissions"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>Submissions</span>
+                </button>
+
                 <button
                   onClick={(e) => { e.stopPropagation(); handleCloneForm(form); }}
-                  className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl transition cursor-pointer"
+                  className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl transition cursor-pointer min-w-[max-content]"
+                  title="Clone Form"
                 >
                   <Copy className="h-3.5 w-3.5" />
                   <span>Clone</span>
@@ -203,9 +236,12 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
                 <button
                   onClick={(e) => { 
                     e.stopPropagation(); 
-                    setFormToEdit(form);
+                    if (onEditForm) {
+                      onEditForm(form);
+                    }
                   }}
-                  className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs rounded-xl transition cursor-pointer"
+                  className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs rounded-xl transition cursor-pointer min-w-[max-content]"
+                  title="Edit Form"
                 >
                   <Edit className="h-3.5 w-3.5" />
                   <span>Edit</span>
@@ -213,15 +249,27 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
 
                 <button
                   onClick={(e) => { e.stopPropagation(); handleToggleStatus(form.id); }}
-                  className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+                  className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 font-bold text-xs rounded-xl transition cursor-pointer min-w-[max-content] ${
+                    form.status === 'Active' 
+                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' 
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-500'
+                  }`}
+                  title="Toggle Status"
                 >
-                  <Activity className="h-3.5 w-3.5" />
-                  <span>Status</span>
+                  <div className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
+                    form.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}>
+                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform shadow-sm ${
+                      form.status === 'Active' ? 'translate-x-3.5' : 'translate-x-0.5'
+                    }`} />
+                  </div>
+                  <span>{form.status === 'Active' ? 'ON' : 'OFF'}</span>
                 </button>
 
                 <button
                   onClick={(e) => { e.stopPropagation(); setFormToDelete(form); }}
                   className="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition cursor-pointer"
+                  title="Delete Form"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -229,6 +277,12 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
             </div>
           );
         })}
+        
+        {filteredForms.length === 0 && (
+          <div className="col-span-full py-8 text-center text-sm text-slate-500 font-medium">
+            No published forms found matching your search.
+          </div>
+        )}
       </div>
 
       {/* Fill Form Modal */}
@@ -242,66 +296,39 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
       )}
       {/* Delete Confirmation Overlay */}
       {formToDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="p-6">
-              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4 mx-auto">
-                <Trash2 className="h-6 w-6" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 text-center mb-2">Delete Form</h3>
-              <p className="text-sm text-slate-500 text-center mb-6">
-                Are you sure you want to delete <strong>{formToDelete.formName}</strong>? This action cannot be undone and will remove all associated submissions.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setFormToDelete(null)}
-                  className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition cursor-pointer shadow-md shadow-red-500/20"
-                >
-                  Delete
-                </button>
-              </div>
+        <div className="fixed inset-0 z-[99999] overflow-hidden flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setFormToDelete(null)} />
+          <div
+            className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-200 animate-scale-up my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4 mx-auto">
+              <Trash2 className="h-6 w-6" />
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Form Full-Screen Overlay */}
-      {formToEdit && (
-        <div className="fixed inset-0 z-[100] bg-slate-50/95 backdrop-blur overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
-          <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-            <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-                  <Edit className="h-5 w-5 text-amber-700" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900 leading-tight">Edit Form</h2>
-                  <p className="text-xs text-slate-500">Modify properties and fields for {formToEdit.formName}</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setFormToEdit(null)}
-                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition cursor-pointer font-bold text-xs flex items-center space-x-1.5"
+            <h3 className="text-lg font-bold text-slate-800 mb-2 text-center">Delete Form</h3>
+            <p className="text-sm text-slate-500 mb-6 text-center">
+              Are you sure you want to delete <strong>{formToDelete.formName}</strong>? This action cannot be undone and will remove all associated submissions.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => setFormToDelete(null)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
               >
-                <X className="h-4 w-4" />
-                <span>Close Editor</span>
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-xl text-sm font-bold transition shadow-sm cursor-pointer bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete Form
               </button>
             </div>
-
-            <FormBuilderStudio 
-              formToEdit={formToEdit} 
-              triggerNotification={triggerNotification} 
-              onFormPublished={() => setFormToEdit(null)}
-            />
           </div>
         </div>
       )}
+
     </div>
   );
 }

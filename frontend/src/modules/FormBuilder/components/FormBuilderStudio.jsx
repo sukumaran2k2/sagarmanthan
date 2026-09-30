@@ -36,36 +36,88 @@ import {
 import FormPreviewModal from './FormPreviewModal';
 
 export const FULL_ORGANISATION_LIST = [
-  // 12 Major Port Authorities
-  { id: '1', code: 'SMPA', name: 'Syama Prasad Mookerjee Port Authority (Haldia/Kolkata)', category: 'Major Port' },
-  { id: '2', code: 'PPA', name: 'Paradip Port Authority', category: 'Major Port' },
-  { id: '3', code: 'VPA', name: 'Visakhapatnam Port Authority', category: 'Major Port' },
-  { id: '4', code: 'KPL', name: 'Kamarajar Port Limited (Ennore)', category: 'Major Port' },
-  { id: '5', code: 'ChPA', name: 'Chennai Port Authority', category: 'Major Port' },
-  { id: '6', code: 'VOCPA', name: 'V.O. Chidambaranar Port Authority (Tuticorin)', category: 'Major Port' },
-  { id: '7', code: 'CoPA', name: 'Cochin Port Authority', category: 'Major Port' },
-  { id: '8', code: 'NMPT', name: 'New Mangalore Port Authority', category: 'Major Port' },
-  { id: '9', code: 'MPA', name: 'Mormugao Port Authority', category: 'Major Port' },
-  { id: '10', code: 'MbPA', name: 'Mumbai Port Authority', category: 'Major Port' },
-  { id: '11', code: 'JNPA', name: 'Jawaharlal Nehru Port Authority (Nhava Sheva)', category: 'Major Port' },
-  { id: '12', code: 'DPA', name: 'Deendayal Port Authority (Kandla)', category: 'Major Port' },
+  { id: '1', name: 'Syama Prasad Mookerjee Port Authority', code: 'SMPA', category: '1' },
+  { id: '2', name: 'Paradip Port Authority', code: 'PPA', category: '1' },
+  { id: '3', name: 'Kamarajar Port Limited', code: 'KPL', category: '1' },
+  { id: '4', name: 'Chennai Port Authority', code: 'ChPA', category: '1' },
+  { id: '5', name: 'Cochin Port Authority', code: 'CoPA', category: '1' },
+  { id: '6', name: 'New Mangalore Port Authority', code: 'NMPT', category: '1' },
+  { id: '7', name: 'Mormugao Port Authority', code: 'MPA', category: '1' },
+  { id: '8', name: 'Mumbai Port Authority', code: 'MbPA', category: '1' },
+  { id: '9', name: 'Jawaharlal Nehru Port Authority', code: 'JNPA', category: '1' },
+  { id: '10', name: 'Deendayal Port Authority', code: 'DPA', category: '1' },
+  { id: '11', name: 'V.O. Chidambaranar Port Authority', code: 'VOCPA', category: '1' },
+  { id: '12', name: 'Visakhapatnam Port Authority', code: 'VPA', category: '1' },
+  { id: '13', name: 'SMPA - Kolkata Dock System', code: 'SMPA-KDS', category: '1' },
+  { id: '14', name: 'SMPA - Haldia Dock Complex', code: 'SMPA-HDC', category: '1' },
+  { id: '15', name: 'Ministry of Ports, Shipping and Waterways', code: 'MoPSW', category: '2' },
+  { id: '16', name: 'Ministry of Rural Development (DDU-GKY)', code: 'MORDDDU', category: '2' },
+  { id: '17', name: 'Shipping Corporation of India', code: 'SCI', category: '3' },
+  { id: '18', name: 'Indian Port Association', code: 'IPA', category: '3' },
+  { id: '19', name: 'Inland Waterways Authority of India', code: 'IWAI', category: '3' },
+  { id: '20', name: 'Cochin Shipyard Limited', code: 'CSL', category: '3' },
+  { id: '21', name: 'Directorate General of Lighthouses and Lightships', code: 'DGLL', category: '3' },
+  { id: '22', name: 'Indian Port Rail & Ropeway Corporation Ltd', code: 'IPRCL', category: '3' },
+  { id: '23', name: 'Directorate General of Shipping, Mumbai', code: 'DGS', category: '3' },
+  { id: '24', name: 'Sagarmala Finance Corporation Limited', code: 'SMFCL', category: '3' },
+  { id: '25', name: 'Andaman, Lakshadweep Harbour Works', code: 'ALHW', category: '3' },
+  { id: '26', name: 'Tariff Authority of Major Ports', code: 'TAMP', category: '3' },
+  { id: '27', name: 'Indian Maritime University', code: 'IMU', category: '3' },
+  { id: '28', name: 'Dredging Corporation of India', code: 'DCI', category: '3' },
+  { id: '29', name: "Seamen's Provident Fund Organisation", code: 'SPFO', category: '3' },
+  { id: '30', name: 'Udupi Cochin Shipyard Limited', code: 'UCSL', category: '3' },
+  { id: '31', name: 'Hooghly Cochin Shipyard Limited', code: 'HCSL', category: '3' },
+  { id: '32', name: 'NHAI', code: 'NHAI', category: '3' },
+  { id: '33', name: 'Centre for Maritime Economy & Connectivity', code: 'CMEC', category: '3' },
+  { id: '34', name: 'A to Z EXIM', code: 'EXIM', category: '3' },
+  { id: '35', name: 'India Ports Global Limited', code: 'IPGL', category: '3' },
+  { id: '36', name: 'Shipping Corporation of India Land and Assets Limited', code: 'SCILAL', category: '3' },
+  { id: '37', name: 'Comptroller and Auditor General of India', code: 'CAG', category: '3' },
+  { id: '38', name: 'Andhra Pradesh Maritime Board', code: 'APMB', category: '4' },
+  { id: '39', name: 'Andhra Pradesh Tourism Development Corporation', code: 'APTDC', category: '4' },
+  { id: '40', name: 'Commissionerate of Fisheries, GoG', code: 'COFGOG', category: '4' },
+  { id: '41', name: 'Daman & Diu', code: 'DD', category: '4' },
+  { id: '42', name: 'Department of Ports, Government of Odisha', code: 'DOPGOO', category: '4' },
+  { id: '43', name: 'Director of Fisheries, Karnataka', code: 'DOFK', category: '4' },
+  { id: '44', name: 'Fisheries Department, GoAP', code: 'FDGOAP', category: '4' },
+  { id: '45', name: 'Fisheries Department, GoO', code: 'FDGOO', category: '4' },
+  { id: '46', name: 'Fisheries Department, GoTN', code: 'FDGOTN', category: '4' },
+  { id: '47', name: 'Gujarat Maritime Board', code: 'GMB', category: '4' },
+  { id: '48', name: 'Harbour Engineering Department, Kerala', code: 'HEDK', category: '4' },
+  { id: '49', name: 'Kerala Maritime Board', code: 'KMB', category: '4' },
+  { id: '50', name: 'Maharashtra Fisheries Development Corporation', code: 'MFDC', category: '4' },
+  { id: '51', name: 'Maharashtra Maritime Board', code: 'MMB', category: '4' },
+  { id: '52', name: 'Port Department, Government of Puducherry', code: 'PDGOP', category: '4' },
+  { id: '53', name: 'Ports & IWT, Karnataka', code: 'PIWTK', category: '4' },
+  { id: '54', name: 'Tamil Nadu Maritime Board', code: 'TNMB', category: '4' },
+  { id: '55', name: 'PWD, GOA', code: 'PWD', category: '4' },
+  { id: '56', name: 'Karnataka Maritime Board', code: 'KarnatakaMB', category: '4' },
+  { id: '57', name: 'Directorate of Ports & IWT, Odisha', code: 'DopIWT', category: '4' },
+  { id: '58', name: 'IIT Madras', code: 'IITM', category: '5' },
+  { id: '59', name: 'IIT Kharagpur', code: 'IITKH', category: '5' },
+  { id: '60', name: 'IRS', code: 'IRS', category: '5' },
+  { id: '61', name: 'Centre Of Excellence in Maritime and Shipbuilding', code: 'CEMS', category: '5' },
+  { id: '62', name: 'Centre for Inland and Coastal Maritime Technology', code: 'CICMT', category: '5' },
+  { id: '63', name: 'The Energy and Research Institute', code: 'TERI', category: '5' },
+  { id: '64', name: 'Pondicherry Port', code: 'PP', category: '6' },
+  { id: '65', name: 'Lakshadweep Ports', code: 'LP', category: '6' },
+  { id: '66', name: 'Andaman Port, Port Blair', code: 'APPB', category: '6' }
+].sort((a, b) => a.name.localeCompare(b.name));
 
-  // Ministry & Autonomous/Attached Bodies
-  { id: '13', code: 'MoPSW', name: 'Ministry of Ports, Shipping and Waterways (MoPSW)', category: 'Ministry' },
-  { id: '14', code: 'CSL', name: 'Cochin Shipyard Limited (CSL)', category: 'Public Sector Undertaking' },
-  { id: '15', code: 'SCI', name: 'Shipping Corporation of India (SCI)', category: 'Public Sector Undertaking' },
-  { id: '16', code: 'DGLL', name: 'Directorate General of Lighthouses and Lightships (DGLL)', category: 'Attached Office' },
-  { id: '17', code: 'DGS', name: 'Directorate General of Shipping (DGS)', category: 'Attached Office' },
-  { id: '18', code: 'IWAI', name: 'Inland Waterways Authority of India (IWAI)', category: 'Statutory Body' },
-  { id: '19', code: 'DCI', name: 'Dredging Corporation of India (DCI)', category: 'Public Sector Undertaking' },
-  { id: '20', code: 'IMU', name: 'Indian Maritime University (IMU)', category: 'Autonomous Institution' },
-  { id: '21', code: 'ALHW', name: 'Andaman Lakshadweep Harbour Works (ALHW)', category: 'Attached Office' },
-  { id: '22', code: 'IPRCL', name: 'Indian Port Rail & Ropeway Corporation Ltd (IPRCL)', category: 'Public Sector Undertaking' },
-  { id: '23', code: 'SDCL', name: 'Sagarmala Development Company Ltd (SDCL)', category: 'Public Sector Undertaking' },
-  { id: '24', code: 'IPA', name: 'Indian Ports Association (IPA)', category: 'Apex Body' },
-  { id: '25', code: 'CMEC', name: 'Centre for Maritime Economy & Connectivity (CMEC)', category: 'Research Centre' },
-  { id: '26', code: 'SMB', name: 'State Maritime Boards (GMB, TMB, MMB, KMB, APMB)', category: 'State Board' }
-];
+export const WING_OPTIONS = [
+  'Administration', 'Coord-I', 'Coord-II', 'DGLL, Parliament & TRW', 
+  'Development', 'Finance', 'IWT', 'Information Technology', 
+  'Office of Economic Advisor', 'Ports', 'Sagarmala ', 'Shipping', 
+  'Special Initiatives & Projects', 'Vigilance'
+].sort((a, b) => a.localeCompare(b));
+
+export const DIVISION_OPTIONS = [
+  'Admn. ', 'Coord-I ', 'Coord-II ', 'DGLL, Parl. & TRW', 'Devlopment ', 
+  'Finance ', 'IT', 'IWT-I ', 'IWT-II ', 'PD- IV', 'PD-I', 'PD-II', 
+  'PD-III', 'PHRD ', 'PPP ', 'Sagarmala -I ', 'Sagarmala -II ', 
+  'Sagarmala-III , ALHW & Media ', 'Shipping-I', 'Shipping-II ', 
+  'Shipping-III ', 'Special Initiatives & Projects', 'Vigilance'
+].sort((a, b) => a.localeCompare(b));
 
 export const SAGARMANTHAN_INPUT_TYPES = [
   { type: 'text', label: 'Text', icon: Type, defaultLabel: 'Sample Text Field' },
@@ -98,86 +150,40 @@ export const INDIAN_STATES = [
 
 export default function FormBuilderStudio({ triggerNotification, onFormPublished, formToEdit }) {
   // Form Config State
-  const [formName, setFormName] = useState('Port Infrastructure Progress Report');
-  const [formDescription, setFormDescription] = useState('Monthly progress telemetry submission form for active port modernisations.');
+  const [formName, setFormName] = useState('');
+  const [formDescription, setFormDescription] = useState('');
   
-  // Multi-Select Assigned Organisations (Default: All 12 Major Ports selected)
-  const [selectedOrgIds, setSelectedOrgIds] = useState(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']);
+
+
+  const [assignType, setAssignType] = useState('organisation');
+  const [selectedOrgIds, setSelectedOrgIds] = useState([]);
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false);
   const [orgSearchQuery, setOrgSearchQuery] = useState('');
   const orgDropdownRef = useRef(null);
-
-  const [targetWing, setTargetWing] = useState('Ports Wing');
-  const [dueDate, setDueDate] = useState('2026-10-31');
+  const [selectedWings, setSelectedWings] = useState([]);
+  const [isWingDropdownOpen, setIsWingDropdownOpen] = useState(false);
+  const wingDropdownRef = useRef(null);
+  const [dueDate, setDueDate] = useState('');
   const [activeStatus, setActiveStatus] = useState('1');
 
   // Fields Canvas State
-  const [fields, setFields] = useState([
-    {
-      id: 'f1',
-      inputLabel: 'Project Name',
-      inputType: 'text',
-      placeholder: 'Enter official project title',
-      hint: '',
-      required: true,
-      options: []
-    },
-    {
-      id: 'f2',
-      inputLabel: 'Nodal Officer Email',
-      inputType: 'email',
-      placeholder: 'officer@port.gov.in',
-      hint: 'Use official gov.in or nic.in email',
-      required: true,
-      options: []
-    },
-    {
-      id: 'f3',
-      inputLabel: 'Sanctioned Cost (Rs Cr)',
-      inputType: 'float',
-      placeholder: '0.00',
-      hint: 'Enter value in Crores',
-      required: true,
-      options: []
-    },
-    {
-      id: 'f4',
-      inputLabel: 'Implementation Stage',
-      inputType: 'dropdown',
-      placeholder: 'Select stage',
-      hint: '',
-      required: true,
-      options: ['Under Tendering', 'Awarded', 'Under Construction', 'Completed']
-    },
-    {
-      id: 'f5',
-      inputLabel: 'Port Location State',
-      inputType: 'state',
-      placeholder: 'Select State',
-      hint: '',
-      required: true,
-      options: []
-    },
-    {
-      id: 'f6',
-      inputLabel: 'Target Completion Date',
-      inputType: 'date',
-      placeholder: '',
-      hint: '',
-      required: false,
-      options: []
-    }
-  ]);
+  const [fields, setFields] = useState([]);
 
-  const [selectedFieldId, setSelectedFieldId] = useState('f1');
+  const [selectedFieldId, setSelectedFieldId] = useState(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+
 
   // Close org dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (orgDropdownRef.current && !orgDropdownRef.current.contains(event.target)) {
         setIsOrgDropdownOpen(false);
+      }
+      if (wingDropdownRef.current && !wingDropdownRef.current.contains(event.target)) {
+        setIsWingDropdownOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -199,6 +205,18 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       if (formToEdit.status) setActiveStatus(formToEdit.status === 'Active' ? '1' : '0');
     }
   }, [formToEdit]);
+
+  // Disable scroll when clear modal is open
+  useEffect(() => {
+    if (!isClearModalOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isClearModalOpen]);
+
+
 
   // Toggle Single Org Selection
   const handleToggleOrg = (id) => {
@@ -283,10 +301,12 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       triggerNotification && triggerNotification('Please enter a valid Form Name', 'warning');
       return;
     }
-    if (selectedOrgIds.length === 0) {
+
+    if (assignType === 'organisation' && selectedOrgIds.length === 0) {
       triggerNotification && triggerNotification('Please select at least one assigned organization', 'warning');
       return;
     }
+
     if (fields.length === 0) {
       triggerNotification && triggerNotification('Please add at least one field to the form', 'warning');
       return;
@@ -294,7 +314,9 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
 
     setIsSubmitting(true);
 
-    const selectedOrgNames = FULL_ORGANISATION_LIST.filter(o => selectedOrgIds.includes(o.id)).map(o => o.code);
+    const selectedOrgNames = assignType === 'organisation' ? FULL_ORGANISATION_LIST.filter(o => selectedOrgIds.includes(o.id)).map(o => o.code) : [];
+    const payloadWing = assignType === 'wing' ? [targetWing] : [];
+    const payloadDivision = assignType === 'division' ? [targetDivision] : [];
 
     const payload = {
       formattedFormId: formName.replace(/[^a-zA-Z0-9]/g, '_'),
@@ -311,7 +333,8 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
         formDescription,
         formDueDate: dueDate,
         organisation: selectedOrgNames,
-        wing: targetWing,
+        wing: payloadWing,
+        division: payloadDivision,
         activeStatus,
         userID: '1'
       }]
@@ -325,14 +348,14 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       });
 
       if (response.ok || response.status === 200 || response.status === 201) {
-        triggerNotification && triggerNotification(`Form "${formName}" published to ${selectedOrgIds.length} organizations!`, 'success');
+        triggerNotification && triggerNotification(`Form "${formName}" published successfully!`, 'success');
         onFormPublished && onFormPublished();
       } else {
-        triggerNotification && triggerNotification(`Form "${formName}" created and assigned to ${selectedOrgIds.length} organizations!`, 'success');
+        triggerNotification && triggerNotification(`Form "${formName}" created successfully!`, 'success');
         onFormPublished && onFormPublished();
       }
     } catch {
-      triggerNotification && triggerNotification(`Form "${formName}" assigned to ${selectedOrgIds.length} organizations!`, 'success');
+      triggerNotification && triggerNotification(`Form "${formName}" created successfully!`, 'success');
       onFormPublished && onFormPublished();
     } finally {
       setIsSubmitting(false);
@@ -368,7 +391,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           
           {/* Form Title */}
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-5">
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Form Name / Title <span className="text-red-500">*</span>
             </label>
@@ -381,164 +404,222 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
             />
           </div>
 
-          {/* Multi-Select Assigned Organisations */}
-          <div className="lg:col-span-5 relative" ref={orgDropdownRef}>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-              <span>Assigned Organisations ({selectedOrgIds.length} Selected) <span className="text-red-500">*</span></span>
-              <div className="flex items-center space-x-2">
-                {selectedOrgIds.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); handleClearAllOrgs(); }}
-                    className="text-[10px] text-red-500 font-bold hover:underline cursor-pointer"
-                  >
-                    Clear All
-                  </button>
-                )}
-                <span className="text-[10px] text-blue-600 font-bold cursor-pointer" onClick={() => setIsOrgDropdownOpen(!isOrgDropdownOpen)}>
-                  {isOrgDropdownOpen ? 'Close Menu' : 'Select Organisations'}
-                </span>
+          {/* Assign To (Wing vs Org) */}
+          <div className="lg:col-span-4 space-y-1.5">
+            <div className="flex items-center space-x-4 mb-1.5 pt-0.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Assign To: <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-center space-x-3">
+                <label className="flex items-center space-x-1.5 cursor-pointer group">
+                  <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition ${assignType === 'organisation' ? 'border-blue-600' : 'border-slate-300 group-hover:border-blue-400'}`}>
+                    {assignType === 'organisation' && <div className="w-1.5 h-1.5 bg-blue-600 rounded-full" />}
+                  </div>
+                  <input type="radio" className="hidden" checked={assignType === 'organisation'} onChange={() => setAssignType('organisation')} />
+                  <span className={`text-[11px] font-bold ${assignType === 'organisation' ? 'text-blue-900' : 'text-slate-600'}`}>Organizations</span>
+                </label>
+                
+                <label className="flex items-center space-x-1.5 cursor-pointer group">
+                  <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition ${assignType === 'wing' ? 'border-blue-600' : 'border-slate-300 group-hover:border-blue-400'}`}>
+                    {assignType === 'wing' && <div className="w-1.5 h-1.5 bg-blue-600 rounded-full" />}
+                  </div>
+                  <input type="radio" className="hidden" checked={assignType === 'wing'} onChange={() => setAssignType('wing')} />
+                  <span className={`text-[11px] font-bold ${assignType === 'wing' ? 'text-blue-900' : 'text-slate-600'}`}>Wing</span>
+                </label>
               </div>
-            </label>
-
-            {/* Custom Multi-Select Trigger Bar */}
-            <div
-              onClick={() => setIsOrgDropdownOpen(!isOrgDropdownOpen)}
-              className="w-full pl-9 pr-12 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 cursor-pointer min-h-[42px] flex items-center flex-wrap gap-1.5 hover:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 transition relative"
-            >
-              <Building2 className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-              
-              <div className="absolute right-3 top-3 flex items-center space-x-1">
-                {selectedOrgIds.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); handleClearAllOrgs(); }}
-                    className="p-0.5 text-slate-400 hover:text-red-600 rounded cursor-pointer"
-                    title="Clear All Selections"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-                <ChevronDown className="h-4 w-4 text-slate-400" />
-              </div>
-
-              {selectedOrgIds.length === 0 ? (
-                <span className="text-slate-400 font-medium">Select organizations...</span>
-              ) : selectedOrgIds.length === FULL_ORGANISATION_LIST.length ? (
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-800 font-bold rounded-md text-xs">
-                  All 26 Organisations Selected
-                </span>
-              ) : (
-                selectedOrgIds.slice(0, 3).map(id => {
-                  const org = FULL_ORGANISATION_LIST.find(o => o.id === id);
-                  return (
-                    <span 
-                      key={id}
-                      className="inline-flex items-center space-x-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 font-bold rounded-md text-[11px]"
-                    >
-                      <span>{org?.code || org?.name}</span>
-                      <X 
-                        className="h-3 w-3 hover:text-red-600 cursor-pointer" 
-                        onClick={(e) => { e.stopPropagation(); handleToggleOrg(id); }}
-                      />
-                    </span>
-                  );
-                })
-              )}
-
-              {selectedOrgIds.length > 3 && selectedOrgIds.length < FULL_ORGANISATION_LIST.length && (
-                <span className="px-2 py-0.5 bg-slate-200 text-slate-700 font-extrabold rounded-md text-[11px]">
-                  +{selectedOrgIds.length - 3} more
-                </span>
-              )}
             </div>
 
-            {/* Multi-Select Dropdown Menu */}
-            {isOrgDropdownOpen && (
-              <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 p-3 space-y-3 animate-fade-in max-h-96 flex flex-col">
-                
-                {/* Search & Quick Actions */}
-                <div className="space-y-2 border-b border-slate-100 pb-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                    <input
-                      type="text"
-                      value={orgSearchQuery}
-                      onChange={(e) => setOrgSearchQuery(e.target.value)}
-                      placeholder="Search organisation name or code..."
-                      className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] pt-1">
-                    <button
-                      type="button"
-                      onClick={handleSelectAllMajorPorts}
-                      className="text-blue-600 font-bold hover:underline cursor-pointer"
-                    >
-                      + 12 Major Ports
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSelectAllOrgs}
-                      className="text-emerald-600 font-bold hover:underline cursor-pointer"
-                    >
-                      Select All (26)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearAllOrgs}
-                      className="text-red-500 font-bold hover:underline cursor-pointer"
-                    >
-                      Clear All
-                    </button>
-                  </div>
-                </div>
-
-                {/* Checklist Scroll Area */}
-                <div className="overflow-y-auto flex-1 space-y-1 pr-1">
-                  {filteredOrgs.map((org) => {
-                    const isChecked = selectedOrgIds.includes(org.id);
-                    return (
-                      <label
-                        key={org.id}
-                        onClick={() => handleToggleOrg(org.id)}
-                        className={`flex items-center justify-between p-2 rounded-xl text-xs font-medium cursor-pointer transition ${
-                          isChecked 
-                            ? 'bg-blue-50/70 text-blue-900 font-semibold' 
-                            : 'hover:bg-slate-50 text-slate-700'
-                        }`}
+            {/* Multi-Select Assigned Wings */}
+            {assignType === 'wing' && (
+              <div className="w-full relative" ref={wingDropdownRef}>
+                <div
+                  onClick={() => setIsWingDropdownOpen(!isWingDropdownOpen)}
+                  className="w-full pl-9 pr-12 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 cursor-pointer min-h-[42px] flex items-center flex-wrap gap-1.5 hover:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 transition relative"
+                >
+                  <Building2 className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  
+                  <div className="absolute right-3 top-3 flex items-center space-x-1">
+                    {selectedWings.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setSelectedWings([]); }}
+                        className="p-0.5 text-slate-400 hover:text-red-600 rounded cursor-pointer"
+                        title="Clear All Selections"
                       >
-                        <div className="flex items-center space-x-2.5 pr-2">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {}} // handled by label click
-                            className="h-4 w-4 text-blue-600 rounded border-slate-300"
-                          />
-                          <div>
-                            <span className="font-bold text-slate-800">{org.name}</span>
-                            <span className="ml-1 text-[10px] text-slate-400">({org.code})</span>
-                          </div>
-                        </div>
-                        <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-semibold whitespace-nowrap">
-                          {org.category}
-                        </span>
-                      </label>
-                    );
-                  })}
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                  </div>
+
+                  {selectedWings.length === 0 ? (
+                    <span className="text-slate-400 font-medium">Select Wings...</span>
+                  ) : selectedWings.length === WING_OPTIONS.length ? (
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 font-bold rounded-md text-xs">
+                      All {WING_OPTIONS.length}
+                    </span>
+                  ) : (
+                    selectedWings.slice(0, 3).map(wing => (
+                      <span 
+                        key={wing}
+                        className="inline-flex items-center space-x-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 font-bold rounded-md text-[11px]"
+                      >
+                        <span className="max-w-[80px] truncate">{wing}</span>
+                        <X 
+                          className="h-3 w-3 hover:text-red-600 cursor-pointer" 
+                          onClick={(e) => { e.stopPropagation(); setSelectedWings(prev => prev.filter(w => w !== wing)); }}
+                        />
+                      </span>
+                    ))
+                  )}
+
+                  {selectedWings.length > 3 && selectedWings.length < WING_OPTIONS.length && (
+                    <span className="px-2 py-0.5 bg-slate-200 text-slate-700 font-extrabold rounded-md text-[11px]">
+                      +{selectedWings.length - 3}
+                    </span>
+                  )}
                 </div>
 
-                {/* Done Button */}
-                <div className="pt-2 border-t border-slate-100 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setIsOrgDropdownOpen(false)}
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow cursor-pointer"
-                  >
-                    Done Selecting
-                  </button>
+                {isWingDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 p-3 animate-fade-in flex flex-col">
+                    <div className="flex items-center justify-between text-[11px] pb-2 border-b border-slate-100 mb-2">
+                      <button type="button" onClick={() => setSelectedWings([...WING_OPTIONS])} className="text-emerald-600 font-bold hover:underline cursor-pointer">
+                        Select All
+                      </button>
+                      <button type="button" onClick={() => setSelectedWings([])} className="text-red-500 font-bold hover:underline cursor-pointer">
+                        Clear All
+                      </button>
+                    </div>
+                    <div className="overflow-y-auto max-h-60 space-y-1">
+                      {WING_OPTIONS.map((wing) => {
+                        const isChecked = selectedWings.includes(wing);
+                        return (
+                          <label key={wing} onClick={(e) => {
+                            e.preventDefault();
+                            if (isChecked) setSelectedWings(prev => prev.filter(w => w !== wing));
+                            else setSelectedWings(prev => [...prev, wing]);
+                          }} className={`flex items-center justify-between p-2 rounded-xl text-xs font-medium cursor-pointer transition ${isChecked ? 'bg-blue-50/70 text-blue-900 font-semibold' : 'hover:bg-slate-50 text-slate-700'}`}>
+                            <div className="flex items-center space-x-2.5">
+                              <input type="checkbox" checked={isChecked} onChange={() => {}} className="h-4 w-4 text-blue-600 rounded border-slate-300" />
+                              <span className="font-bold">{wing}</span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <div className="pt-2 mt-2 border-t border-slate-100 flex justify-end">
+                      <button type="button" onClick={() => setIsWingDropdownOpen(false)} className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow cursor-pointer">
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Multi-Select Assigned Organisations */}
+            {assignType === 'organisation' && (
+              <div className="w-full relative" ref={orgDropdownRef}>
+                <div
+                  onClick={() => setIsOrgDropdownOpen(!isOrgDropdownOpen)}
+                  className="w-full pl-9 pr-12 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 cursor-pointer min-h-[42px] flex items-center flex-wrap gap-1.5 hover:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 transition relative"
+                >
+                  <Building2 className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  
+                  <div className="absolute right-3 top-3 flex items-center space-x-1">
+                    {selectedOrgIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleClearAllOrgs(); }}
+                        className="p-0.5 text-slate-400 hover:text-red-600 rounded cursor-pointer"
+                        title="Clear All Selections"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                  </div>
+
+                  {selectedOrgIds.length === 0 ? (
+                    <span className="text-slate-400 font-medium">Select...</span>
+                  ) : selectedOrgIds.length === FULL_ORGANISATION_LIST.length ? (
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 font-bold rounded-md text-xs">
+                      All {FULL_ORGANISATION_LIST.length}
+                    </span>
+                  ) : (
+                    selectedOrgIds.slice(0, 2).map(id => {
+                      const org = FULL_ORGANISATION_LIST.find(o => o.id === id);
+                      return (
+                        <span 
+                          key={id}
+                          className="inline-flex items-center space-x-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 font-bold rounded-md text-[11px]"
+                        >
+                          <span className="max-w-[50px] truncate">{org?.code || org?.name}</span>
+                          <X 
+                            className="h-3 w-3 hover:text-red-600 cursor-pointer" 
+                            onClick={(e) => { e.stopPropagation(); handleToggleOrg(id); }}
+                          />
+                        </span>
+                      );
+                    })
+                  )}
+
+                  {selectedOrgIds.length > 2 && selectedOrgIds.length < FULL_ORGANISATION_LIST.length && (
+                    <span className="px-2 py-0.5 bg-slate-200 text-slate-700 font-extrabold rounded-md text-[11px]">
+                      +{selectedOrgIds.length - 2}
+                    </span>
+                  )}
                 </div>
+
+                {isOrgDropdownOpen && (
+                  <div className="absolute left-0 right-[-100px] top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 p-3 space-y-3 animate-fade-in max-h-96 w-[400px] flex flex-col">
+                    <div className="space-y-2 border-b border-slate-100 pb-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                        <input
+                          type="text"
+                          value={orgSearchQuery}
+                          onChange={(e) => setOrgSearchQuery(e.target.value)}
+                          placeholder="Search organisation name or code..."
+                          className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] pt-1">
+                        <button type="button" onClick={handleSelectAllMajorPorts} className="text-blue-600 font-bold hover:underline cursor-pointer">
+                          + 12 Major Ports
+                        </button>
+                        <button type="button" onClick={handleSelectAllOrgs} className="text-emerald-600 font-bold hover:underline cursor-pointer">
+                          Select All ({FULL_ORGANISATION_LIST.length})
+                        </button>
+                        <button type="button" onClick={handleClearAllOrgs} className="text-red-500 font-bold hover:underline cursor-pointer">
+                          Clear All
+                        </button>
+                      </div>
+                    </div>
+                    <div className="overflow-y-auto flex-1 space-y-1 pr-1">
+                      {filteredOrgs.map((org) => {
+                        const isChecked = selectedOrgIds.includes(org.id);
+                        return (
+                          <label key={org.id} onClick={() => handleToggleOrg(org.id)} className={`flex items-center justify-between p-2 rounded-xl text-xs font-medium cursor-pointer transition ${isChecked ? 'bg-blue-50/70 text-blue-900 font-semibold' : 'hover:bg-slate-50 text-slate-700'}`}>
+                            <div className="flex items-center space-x-2.5 pr-2">
+                              <input type="checkbox" checked={isChecked} onChange={() => {}} className="h-4 w-4 text-blue-600 rounded border-slate-300" />
+                              <div>
+                                <span className="font-bold text-slate-800">{org.name}</span>
+                                <span className="ml-1 text-[10px] text-slate-400">({org.code})</span>
+                              </div>
+                            </div>
+                            <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-semibold whitespace-nowrap">{org.category}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 flex justify-end">
+                      <button type="button" onClick={() => setIsOrgDropdownOpen(false)} className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow cursor-pointer">
+                        Done Selecting
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -575,41 +656,6 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
         </div>
       </div>
 
-      {/* Selected Organisations Pills Bar */}
-      {selectedOrgIds.length > 0 && (
-        <div className="bg-blue-50/50 rounded-2xl border border-blue-100 p-3 flex items-center flex-wrap gap-1.5 justify-between">
-          <div className="flex items-center flex-wrap gap-1.5">
-            <span className="text-xs font-bold text-blue-900 mr-2 flex items-center space-x-1">
-              <Building2 className="h-3.5 w-3.5 text-blue-600" />
-              <span>Assigned ({selectedOrgIds.length}):</span>
-            </span>
-            {selectedOrgIds.map(id => {
-              const org = FULL_ORGANISATION_LIST.find(o => o.id === id);
-              return (
-                <span
-                  key={id}
-                  className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-white text-blue-800 font-bold text-xs rounded-lg border border-blue-200 shadow-xs"
-                >
-                  <span>{org?.name}</span>
-                  <X 
-                    className="h-3 w-3 text-slate-400 hover:text-red-600 cursor-pointer"
-                    onClick={() => handleToggleOrg(id)}
-                  />
-                </span>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={handleClearAllOrgs}
-            className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-xs rounded-lg transition cursor-pointer flex items-center space-x-1 shrink-0"
-          >
-            <X className="h-3.5 w-3.5" />
-            <span>Clear All</span>
-          </button>
-        </div>
-      )}
 
       {/* Main Builder Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -802,15 +848,11 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                 </button>
 
                 <button
-                  onClick={() => {
-                    setFields([]);
-                    setSelectedFieldId(null);
-                    triggerNotification && triggerNotification('Form canvas fields cleared', 'info');
-                  }}
+                  onClick={() => setIsClearModalOpen(true)}
                   className="flex items-center space-x-1.5 px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-xl transition cursor-pointer border border-red-200"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  <span>Clear Canvas</span>
+                  <span>Clear</span>
                 </button>
               </div>
 
@@ -974,6 +1016,46 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
           fields={fields}
           onClose={() => setIsPreviewOpen(false)}
         />
+      )}
+
+      {/* Clear Canvas Confirmation Modal */}
+      {isClearModalOpen && (
+        <div className="fixed inset-0 z-[99999] overflow-hidden flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsClearModalOpen(false)} />
+          <div
+            className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-200 animate-scale-up my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4 mx-auto">
+              <Trash2 className="h-6 w-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-2 text-center">Clear Canvas</h3>
+            <p className="text-sm text-slate-500 mb-6 text-center">
+              Are you sure you want to clear the canvas? All fields will be removed.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => setIsClearModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFields([]);
+                  setSelectedFieldId(null);
+                  setIsClearModalOpen(false);
+                  triggerNotification && triggerNotification('Form canvas fields cleared', 'info');
+                }}
+                className="px-4 py-2 rounded-xl text-sm font-bold transition shadow-sm cursor-pointer bg-red-600 hover:bg-red-700 text-white"
+              >
+                Clear Canvas
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
