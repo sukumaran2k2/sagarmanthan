@@ -36,7 +36,6 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 const GEM_BASE = '/governance/gem-procurements';
 const INIT_TAB_KEY = 'gemInitTab';
 
-/** Menu / legacy label → URL segment. */
 function resolvePathSegment(label) {
   const key = String(label || '').toLowerCase().trim();
   if (key.includes('report')) return 'reports';

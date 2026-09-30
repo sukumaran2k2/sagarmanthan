@@ -32,7 +32,6 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 const CAPEX_BASE = '/finance/capex';
 const INIT_TAB_KEY = 'capexInitTab';
 
-/** Menu / legacy label → URL segment (portal kebab-case). */
 function resolvePathSegment(label, showInputForm) {
   const key = String(label || '').toLowerCase().trim();
   if (key.includes('input form') || key === 'add' || key.includes('input-form')) {

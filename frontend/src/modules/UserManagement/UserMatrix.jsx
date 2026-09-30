@@ -27,7 +27,6 @@ import {
 
 const PERMISSIONS_BASE = '/admin/user-module-permission';
 
-/** Leaf tab key → nested path segment (portal kebab-case convention). */
 const TAB_PATHS = {
   users: 'users',
   userlist: 'user-list',
