@@ -86,16 +86,6 @@ export default function AttendanceView({ triggerNotification }) {
   // earlier version of this cross-referenced them and always resolved to
   // no match. File_Id is an auto-incrementing key, so its max value here
   // reliably identifies the latest upload's rows.
-  const latestFileId = useMemo(() => {
-    if (!employeeRows || employeeRows.length === 0) return null;
-    let maxId = null;
-    employeeRows.forEach(r => {
-      const fid = Number(r.File_Id ?? r.File_ID ?? r.file_id);
-      if (!isNaN(fid) && (maxId === null || fid > maxId)) maxId = fid;
-    });
-    return maxId;
-  }, [employeeRows]);
-
   // Upload states & file data preview
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewRows, setPreviewRows] = useState([]);
@@ -121,6 +111,24 @@ export default function AttendanceView({ triggerNotification }) {
   const [dataFilterMonth, setDataFilterMonth] = useState('All');
   const [dataFilterYear, setDataFilterYear] = useState('All');
   const [dataFilterWeek, setDataFilterWeek] = useState('All');
+  const [dataPage, setDataPage] = useState(1);
+  const [employeePagination, setEmployeePagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
+  const [filterOptions, setFilterOptions] = useState({ wings: [], months: [], years: [], weeks: [] });
+  const changeDataFilterWing = (v) => { setDataFilterWing(v); setDataPage(1); };
+  const changeDataFilterMonth = (v) => { setDataFilterMonth(v); setDataPage(1); };
+  const changeDataFilterYear = (v) => { setDataFilterYear(v); setDataPage(1); };
+  const changeDataFilterWeek = (v) => { setDataFilterWeek(v); setDataPage(1); };
+  const changeSearchTerm = (v) => { setSearchTerm(v); setDataPage(1); };
+  const fetchFilterOptions = () => {
+    api.get('/attendance-filter-options')
+      .then(res => setFilterOptions({
+        wings: ['All', ...(res.data?.wings || [])],
+        months: ['All', ...(res.data?.months || [])],
+        years: ['All', ...(res.data?.years || [])],
+        weeks: ['All', ...(res.data?.weeks || [])],
+      }))
+      .catch(err => console.error('Error loading filter options:', err));
+  };
 
   // ---- ABSTRACT REPORT TAB STATE ----
   const [reportData, setReportData] = useState([]);
@@ -166,48 +174,67 @@ export default function AttendanceView({ triggerNotification }) {
   };
 
   // ---- FETCH FROM DATABASE WITH IN-MEMORY CACHING ----
-  const fetchFilesAndData = (forceRefresh = false) => {
+  const fetchFilesList = (forceRefresh = false) => {
     const cacheKey = "files_data";
 
     if (!forceRefresh && attendanceCache.current[cacheKey]) {
-      setFilesList(attendanceCache.current[cacheKey].filesList);
-      setEmployeeRows(attendanceCache.current[cacheKey].employeeRows);
+      setFilesList(attendanceCache.current[cacheKey]);
       setFetchError(null);
-      setLoading(false);
       return;
     }
 
     setFilesList([]);
-    setEmployeeRows([]);
     setFetchError(null);
-    setLoading(true);
-    
-    const p1 = api.get(`/attendance`)
+
+    api.get(`/attendance`)
       .then(res => (Array.isArray(res.data) ? res.data : res.data?.rowData) || [])
-      .catch(() => api.get(`/employee-attendance-file`).then(res => res.data?.rowData || res.data || []).catch(() => []));
-
-    const p2 = api.get(`/employee-attendance-view`)
-      .then(res => {
-        const rows = (Array.isArray(res.data) ? res.data : res.data?.rowData) || [];
-        if (rows.length > 0) return rows;
-        return api.get(`/excelData`).then(r => r.data || []).catch(() => []);
-      })
-      .catch(() => api.get(`/excelData`).then(res => res.data || []).catch(() => []));
-
-    Promise.all([p1, p2])
-      .then(([files, rows]) => {
+      .catch(() => api.get(`/employee-attendance-file`).then(res => res.data?.rowData || res.data || []).catch(() => []))
+      .then(files => {
         setFilesList(files);
-        setEmployeeRows(rows);
-        attendanceCache.current[cacheKey] = { filesList: files, employeeRows: rows };
+        attendanceCache.current[cacheKey] = files;
       })
       .catch(() => {
         setFetchError("Failed to connect to attendance database server");
+      });
+  };
+
+  const fetchEmployeeData = () => {
+    setLoading(true);
+    const params = {
+      page: dataPage,
+      limit: pageSize,
+      search: searchTerm,
+      wing: dataFilterWing,
+      month: dataFilterMonth,
+      year: dataFilterYear,
+      week: dataFilterWeek,
+    };
+    api.get(`/employee-attendance-view`, { params })
+      .then(res => {
+        setEmployeeRows(res.data?.data || []);
+        setEmployeePagination(res.data?.pagination || { total: 0, page: 1, limit: pageSize, totalPages: 0 });
+        setFetchError(null);
+      })
+      .catch(() => {
+        api.get(`/excelData`)
+          .then(r => {
+            const rows = r.data || [];
+            setEmployeeRows(rows);
+            setEmployeePagination({ total: rows.length, page: 1, limit: rows.length || 1, totalPages: rows.length ? 1 : 0 });
+          })
+          .catch(() => setFetchError("Failed to connect to attendance database server"));
       })
       .finally(() => setLoading(false));
   };
 
+  const fetchFilesAndData = (forceRefresh = false) => {
+    fetchFilesList(forceRefresh);
+    fetchEmployeeData();
+  };
+
   useEffect(() => {
-    fetchFilesAndData();
+    fetchFilesList();
+    fetchFilterOptions();
 
     api.get(`/employee-attendance-check`)
       .then(res => {
@@ -231,6 +258,10 @@ export default function AttendanceView({ triggerNotification }) {
         handleFetchReport();
       });
   }, []);
+
+  useEffect(() => {
+    fetchEmployeeData();
+  }, [dataFilterWing, dataFilterMonth, dataFilterYear, dataFilterWeek, searchTerm, dataPage, pageSize]);
 
   const handleFetchReport = (
     targetMonth = reportMonth,
@@ -427,56 +458,11 @@ export default function AttendanceView({ triggerNotification }) {
     );
   }, [reportData, searchTerm]);
 
-  const availableWings = useMemo(() => {
-    const wings = new Set(employeeRows.map(r => r.Wing || r.wing_name || r.organization_name || r.Division || r.division_name).filter(Boolean));
-    return ['All', ...Array.from(wings)];
-  }, [employeeRows]);
-
-  const availableMonths = useMemo(() => {
-    const months = new Set(employeeRows.map(r => r.Month).filter(Boolean));
-    return ['All', ...Array.from(months)];
-  }, [employeeRows]);
-
-  const availableYears = useMemo(() => {
-    const years = new Set(employeeRows.map(r => String(r.Year)).filter(Boolean));
-    return ['All', ...Array.from(years)];
-  }, [employeeRows]);
-
-  const availableWeeks = useMemo(() => {
-    const weeks = new Set(employeeRows.map(r => r.week ?? r.Week).filter(v => v !== undefined && v !== null && v !== '').map(String));
-    return ['All', ...Array.from(weeks).sort((a, b) => Number(a) - Number(b))];
-  }, [employeeRows]);
-
-  const filteredEmployeeRows = useMemo(() => {
-    const anyFilterActive = dataFilterWing !== 'All' || dataFilterMonth !== 'All' || dataFilterYear !== 'All' || dataFilterWeek !== 'All';
-
-    // Default view: only the most recently uploaded file's rows. Once any
-    // filter is set, search across the full historical dataset instead.
-    let result = (!anyFilterActive && latestFileId !== null)
-      ? employeeRows.filter(r => Number(r.File_Id ?? r.File_ID ?? r.file_id) === latestFileId)
-      : employeeRows;
-
-    if (dataFilterWing !== 'All') {
-      result = result.filter(r => (r.Wing || r.wing_name || r.organization_name || r.Division || r.division_name) === dataFilterWing);
-    }
-    if (dataFilterMonth !== 'All') {
-      result = result.filter(r => r.Month === dataFilterMonth);
-    }
-    if (dataFilterYear !== 'All') {
-      result = result.filter(r => String(r.Year) === String(dataFilterYear));
-    }
-    if (dataFilterWeek !== 'All') {
-      result = result.filter(r => String(r.week ?? r.Week) === String(dataFilterWeek));
-    }
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(row => 
-        Object.values(row).some(val => String(val || '').toLowerCase().includes(term))
-      );
-    }
-
-    return result;
-  }, [employeeRows, latestFileId, dataFilterWing, dataFilterMonth, dataFilterYear, dataFilterWeek, searchTerm]);
+  // Filtering, the "latest file only by default" view, and pagination all
+  // now happen server-side in fetchEmployeeData(); employeeRows already IS
+  // the current filtered/paginated page. Kept as an alias so every other
+  // reference below (exports, pinned totals row, etc.) needs no changes.
+  const filteredEmployeeRows = employeeRows;
 
   const totalEmployeesStat = useMemo(() => {
     if (subTab === 'report' && reportData.length > 0) {
@@ -574,10 +560,10 @@ export default function AttendanceView({ triggerNotification }) {
       const totalRow = reportData.find(r => r.Wing === 'Total');
       return totalRow ? [totalRow] : [];
     }
-    if (filteredEmployeeRows.length === 0) return [];
+    if (employeePagination.total === 0) return [];
     return [{
       EmpId: 'Total',
-      EmpName: `${filteredEmployeeRows.length} Employees Total`,
+      EmpName: `${employeePagination.total} Employees Total`,
       Wing: 'All Wings',
       Division: 'All Divisions',
       Designation: 'Summary',
@@ -586,7 +572,7 @@ export default function AttendanceView({ triggerNotification }) {
       InTimeAvg: '—',
       OutTimeAvg: '—'
     }];
-  }, [subTab, reportData, filteredEmployeeRows, avgWorkingHoursFormatted]);
+  }, [subTab, reportData, filteredEmployeeRows, employeePagination, avgWorkingHoursFormatted]);
 
   const showKpiCards = (subTab === 'report' || subTab === 'data') && reportViewMode !== 'detail';
 
@@ -1018,6 +1004,7 @@ export default function AttendanceView({ triggerNotification }) {
     setFileValidationError('');
     attendanceCache.current = {};
     fetchFilesAndData(true);
+    fetchFilterOptions();
 
     if (month && year && week) {
       setReportMonth(month);
@@ -1114,26 +1101,29 @@ export default function AttendanceView({ triggerNotification }) {
     // If a file already exists for this exact Year/Month/Week, route this
     // upload through the update endpoint (which replaces that file's rows)
     // instead of always creating a brand-new File_Id for the same period.
-    const existingMatch = employeeRows.find(r =>
-        String(r.Year) === String(yearVal) &&
-        r.Month === monthVal &&
-        String(r.week) === String(weekVal)
-    );
-    const existingFileId = existingMatch ? existingMatch.File_Id : null;
-
-    if (existingFileId) {
-        askConfirm(
+    api.get(`/attendance-check-existing/${yearVal}/${monthVal}/${weekVal}`)
+      .then(res => {
+        const existingFileId = res.data?.existingFileId ?? null;
+        if (existingFileId) {
+          askConfirm(
             `A file already exists for ${monthVal} ${yearVal}, Week ${weekVal}. Uploading will replace all existing attendance data for this period. Continue?`,
             () => {
-                setUploading(true);
-                executeAttendanceUpload(existingFileId, monthVal, yearVal, weekVal);
+              setUploading(true);
+              executeAttendanceUpload(existingFileId, monthVal, yearVal, weekVal);
             }
-        );
-        return;
-    }
-
-    setUploading(true);
-    executeAttendanceUpload(existingFileId, monthVal, yearVal, weekVal);
+          );
+          return;
+        }
+        setUploading(true);
+        executeAttendanceUpload(existingFileId, monthVal, yearVal, weekVal);
+      })
+      .catch(err => {
+        // Fail safe: if the existence check itself fails, proceed as if no
+        // existing file was found rather than blocking the upload entirely.
+        console.error("Existing-file check failed:", err);
+        setUploading(true);
+        executeAttendanceUpload(null, monthVal, yearVal, weekVal);
+      });
   };
 
   const handleDownloadFile = (id, fileName) => {
@@ -1434,24 +1424,24 @@ export default function AttendanceView({ triggerNotification }) {
         {subTab === 'data' && (
           <AttendanceDataListView
             dataFilterWing={dataFilterWing}
-            setDataFilterWing={setDataFilterWing}
+            setDataFilterWing={changeDataFilterWing}
             dataFilterMonth={dataFilterMonth}
-            setDataFilterMonth={setDataFilterMonth}
+            setDataFilterMonth={changeDataFilterMonth}
             dataFilterYear={dataFilterYear}
-            setDataFilterYear={setDataFilterYear}
+            setDataFilterYear={changeDataFilterYear}
             dataFilterWeek={dataFilterWeek}
-            setDataFilterWeek={setDataFilterWeek}
-            availableWings={availableWings}
-            availableMonths={availableMonths}
-            availableYears={availableYears}
-            availableWeeks={availableWeeks}
+            setDataFilterWeek={changeDataFilterWeek}
+            availableWings={filterOptions.wings}
+            availableMonths={filterOptions.months}
+            availableYears={filterOptions.years}
+            availableWeeks={filterOptions.weeks}
             handleCopyData={handleCopyData}
             handleExportExcel={handleExportExcel}
             handleExportPdf={handleExportPdf}
             pageSize={pageSize}
             setPageSize={setPageSize}
             searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
+            setSearchTerm={changeSearchTerm}
             fetchError={fetchError}
             fetchFilesAndData={fetchFilesAndData}
             loading={loading}
@@ -1461,6 +1451,8 @@ export default function AttendanceView({ triggerNotification }) {
             visibleCols={employeeVisibleCols}
             setVisibleCols={setEmployeeVisibleCols}
             columnLabels={EMPLOYEE_COLUMN_LABELS}
+            pagination={employeePagination}
+            onPageChange={setDataPage}
           />
         )}
 
