@@ -484,8 +484,8 @@ export default function App() {
             <Route path="hr/consultant-appointment/*" element={<ConsultantAppointmentView triggerNotification={triggerNotification} />} />
 
             {/* Admin Routes */}
-            <Route path="admin/user-module-permission" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
-            <Route path="admin/user-list" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-module-permission/*" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-list/*" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
 
             {/* Contact */}
             <Route path="contact" element={<ContactUs />} />

@@ -11,7 +11,8 @@ import {
   canAccessTab, 
   normalizeTab, 
   usesOwnPageHeader, 
-  TAB_USER_MODULE_PERMISSION 
+  TAB_USER_MODULE_PERMISSION,
+  TAB_USER_LIST,
 } from '../utils/moduleAccess';
 import { Home } from 'lucide-react';
 
@@ -132,8 +133,8 @@ export const ROUTE_MAP = {
   'Contact Us': 'contact',
 
   // SUPERADMIN
-  [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission',
-  'admin/user-list': 'admin/user-list',
+  [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission/users',
+  [TAB_USER_LIST]: 'admin/user-list',
 
   // HR nested routes
   'HR Dashboard': 'hr/hr-management/hr-dashboard',
@@ -209,6 +210,8 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('kpi/imu')) return 'IMU Input Form';
   if (cleanSlug.startsWith('kpi/sci')) return 'SCI Input Form';
   if (cleanSlug.startsWith('governance/media-outreach')) return 'Media Outreach';
+  if (cleanSlug.startsWith('admin/user-module-permission')) return TAB_USER_MODULE_PERMISSION;
+  if (cleanSlug.startsWith('admin/user-list')) return TAB_USER_LIST;
 
   // Exact match
   const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);

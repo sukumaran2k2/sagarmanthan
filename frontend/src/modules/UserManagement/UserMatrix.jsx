@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Home } from 'lucide-react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
+import { Home, Users, ListTodo, Boxes, LayoutList, Bot } from 'lucide-react';
 import api, { rbacApi } from './rbacApi';
 import './UserMatrix.css';
 import { colorFromString } from './utils';
 import { PERMS } from './constants';
 import { getCurrentUserId, getSessionOrganisationId, getSessionOrganisationName, isNodalOfficerRole, isOrgSeniorOfficer } from '../../utils/authSession';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST } from '../../utils/moduleAccess';
+import InternalNavigation from '../../components/InternalNavigation';
 
 import UserPermissionsTab from './components/UserPermissionsTab';
 import ModulePermissionsTab from './components/ModulePermissionsTab';
@@ -23,30 +25,23 @@ import {
   toggleCrudPerm,
 } from './userModuleCrud';
 
-const PERMISSION_NAV = [
-  {
-    id: 'users',
-    label: 'Users',
-    items: [
-      { key: 'users', label: 'Update', hint: 'Edit CRUD access' },
-      { key: 'userlist', label: 'List', hint: 'Browse & manage users' },
-    ],
-  },
-  {
-    id: 'modules',
-    label: 'Modules',
-    items: [
-      { key: 'modules', label: 'Update', hint: 'Assign org modules' },
-      { key: 'module_permission_list', label: 'List', hint: 'View module access' },
-    ],
-  },
-  {
-    id: 'sagarbot',
-    label: 'SagarBot AI',
-    items: [
-      { key: 'sagarbot_permissions', label: 'Copilot Settings', hint: 'Turn Copilot on/off per module' },
-    ],
-  },
+const PERMISSIONS_BASE = '/admin/user-module-permission';
+
+/** Leaf tab key → nested path segment (portal kebab-case convention). */
+const TAB_PATHS = {
+  users: 'users',
+  userlist: 'user-list',
+  modules: 'modules',
+  module_permission_list: 'module-permission-list',
+  sagarbot_permissions: 'sagarbot-permissions',
+};
+
+const PERMISSION_TABS = [
+  { id: 'users', label: 'Users Update', icon: Users },
+  { id: 'userlist', label: 'Users List', icon: ListTodo },
+  { id: 'modules', label: 'Modules Update', icon: Boxes },
+  { id: 'module_permission_list', label: 'Modules List', icon: LayoutList },
+  { id: 'sagarbot_permissions', label: 'SagarBot AI', icon: Bot },
 ];
 
 const TAB_META = {
@@ -60,7 +55,7 @@ const TAB_META = {
   },
   module_permission_list: {
     title: 'Module Access List',
-    note: 'Select an organisation to see its allowed modules. Use Modules → Update to change them.',
+    note: 'Select an organisation to see its allowed modules. Use Modules Update to change them.',
   },
   userlist: {
     title: 'User Directory',
@@ -71,6 +66,16 @@ const TAB_META = {
     note: 'Enable or disable SagarBot AI Assistant for the Main Dashboard and specific modules.',
   },
 };
+
+function getTabKeyFromPath(pathname = '') {
+  const path = pathname.toLowerCase();
+  if (path.includes('/module-permission-list')) return 'module_permission_list';
+  if (path.includes('/sagarbot-permissions')) return 'sagarbot_permissions';
+  if (path.includes('/user-list') || path.endsWith('/userlist')) return 'userlist';
+  if (path.includes('/modules')) return 'modules';
+  if (path.includes('/users')) return 'users';
+  return 'users';
+}
 
 function mapUser(row) {
   return {
@@ -90,10 +95,23 @@ function mapUser(row) {
   };
 }
 export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNotification }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const isSeniorOfficer = isOrgSeniorOfficer();
   const seniorOrgId = getSessionOrganisationId();
   const isUserList = mode === 'userlist' || isSeniorOfficer;
-  const [activeMainTab, setActiveMainTab] = useState(isUserList ? 'userlist' : 'users');
+  const activeMainTab = isUserList ? 'userlist' : getTabKeyFromPath(location.pathname);
+
+  const goHome = () => {
+    if (typeof onGoHome === 'function') onGoHome();
+    else navigate('/');
+  };
+
+  const handlePermissionTabChange = (tabId) => {
+    const segment = TAB_PATHS[tabId] || TAB_PATHS.users;
+    navigate(`${PERMISSIONS_BASE}/${segment}`);
+  };
+
   const [saving, setSaving] = useState(false);
 
   const [categories, setCategories] = useState([]);
@@ -888,13 +906,171 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
     return (masterRoles || []).filter((r) => isNodalOfficerRole(r));
   }, [isSeniorOfficer, masterRoles]);
 
+  const usersFilters = activeMainTab === 'users' ? (
+    <div className="topbar-filters">
+      <div className="filter-field">
+        <label htmlFor="um-filter-category">Category</label>
+        <select
+          id="um-filter-category"
+          value={selectedCategory}
+          onChange={handleOrgCatChange}
+        >
+          <option value="all">Select category</option>
+          {categories.map((c) => (
+            <option key={c.category_id} value={c.category_id}>
+              {c.category_name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="filter-field">
+        <label htmlFor="um-filter-org">Organisation</label>
+        <select
+          id="um-filter-org"
+          value={selectedOrg}
+          onChange={(e) => setSelectedOrg(e.target.value)}
+          disabled={selectedCategory === 'all'}
+        >
+          <option value="all">All organisations</option>
+          {orgsForCategory.map((o) => (
+            <option key={o.organisation_id} value={o.organisation_id}>
+              {o.organisation_name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="filter-field">
+        <label htmlFor="um-filter-role">Role</label>
+        <select
+          id="um-filter-role"
+          value={selectedRole}
+          onChange={(e) => setSelectedRole(e.target.value)}
+          disabled={selectedCategory === 'all'}
+        >
+          <option value="all">All roles</option>
+          {activeRoles.map((r) => (
+            <option key={r.role_id} value={r.role_id}>
+              {r.role_name}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  ) : null;
+
+  const userPermissionsPanel = (
+    <UserPermissionsTab
+      selectedCategory={selectedCategory}
+      selectedOrg={selectedOrg}
+      setSelectedOrg={setSelectedOrg}
+      selectedRole={selectedRole}
+      setSelectedRole={setSelectedRole}
+      searchTerm={searchTerm}
+      setSearchTerm={setSearchTerm}
+      selectedIds={selectedIds}
+      setSelectedIds={setSelectedIds}
+      draft={draft}
+      categories={categories}
+      orgs={orgsForCategory}
+      filteredUsers={filteredUsers}
+      selectedUsers={selectedUsers}
+      activeModules={activeModules}
+      handleOrgCatChange={handleOrgCatChange}
+      toggleUser={toggleUser}
+      toggleSelectAll={toggleSelectAll}
+      handleCheck={handleCheck}
+      toggleRowAll={toggleRowAll}
+      setAll={setAll}
+      colAll={colAll}
+      handleSave={handleSave}
+      allSel={allSel}
+      someSel={someSel}
+      grantedCount={grantedCount}
+      mixedCount={mixedCount}
+      usersLoading={usersLoading}
+      saving={saving}
+    />
+  );
+
+  const modulePermissionsPanel = (
+    <ModulePermissionsTab
+      organisations={organisations}
+      categories={categories}
+      masterModules={masterModules}
+      selectedModuleOrgIds={selectedModuleOrgIds}
+      setSelectedModuleOrgIds={setSelectedModuleOrgIds}
+      orgModuleState={orgModuleState}
+      toggleOrgModule={toggleOrgModule}
+      setAllOrgModules={setAllOrgModules}
+      saveModulePermissions={saveModulePermissions}
+      saving={saving}
+    />
+  );
+
+  const modulePermissionListPanel = (
+    <ModulePermissionListTab
+      organisations={organisations}
+      categories={categories}
+      masterModules={masterModules}
+      showToast={showToast}
+    />
+  );
+
+  const userListPanel = (
+    <UserListTab
+      dbUserList={dbUserList}
+      userListSearch={userListSearch}
+      setUserListSearch={setUserListSearch}
+      selectedDbRole={selectedDbRole}
+      setSelectedDbRole={setSelectedDbRole}
+      selectedDbOrg={selectedDbOrg}
+      setSelectedDbOrg={setSelectedDbOrg}
+      organisations={isSeniorOfficer ? formOrgs : organisations}
+      dbLoading={dbLoading}
+      filteredDbUsers={filteredDbUsers}
+      masterRoles={listRoles}
+      handleOpenAdd={handleOpenAdd}
+      handleOpenEdit={handleOpenEdit}
+      toggleUserStatus={toggleUserStatus}
+      handleResetPassword={handleResetPassword}
+      showToast={showToast}
+      hideOrgFilter={isSeniorOfficer}
+      bannerTitle={isSeniorOfficer ? 'Organisation Nodal Officers' : undefined}
+      bannerSub={
+        isSeniorOfficer
+          ? 'Add and manage Nodal Officers for your organisation. Set module Create / Read / Update / Delete when adding or editing.'
+          : undefined
+      }
+    />
+  );
+
+  const sagarBotPanel = (
+    <SagarBotPermissionsTab triggerNotification={triggerNotification || showToast} />
+  );
+
+  const renderWorkbench = (panel) => (
+    <div className="user-matrix-container w-full h-[85vh] bg-[#F8FAFC] dark:bg-[#0b0f19] text-[#1E293B] dark:text-slate-100 flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+      <div className="topbar">
+        <div className="topbar-left">
+          <div className="topbar-brand">
+            <div className="dot"></div>
+            <h1>{TAB_META[activeMainTab]?.title}</h1>
+          </div>
+          <p className="topbar-note">{TAB_META[activeMainTab]?.note}</p>
+        </div>
+        {usersFilters}
+      </div>
+      <div className="layout">{panel}</div>
+    </div>
+  );
+
   return (
     <div className="user-matrix-page animate-fade-in">
       <div className="um-page-header">
         <div className="um-breadcrumb">
           <Home
             className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 cursor-pointer hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-            onClick={onGoHome}
+            onClick={goHome}
           />
           <span className="text-slate-300 dark:text-slate-600">/</span>
           <span className="text-blue-800 dark:text-blue-300 font-bold">
@@ -907,246 +1083,88 @@ export default function UserMatrix({ onGoHome, mode = 'permissions', triggerNoti
         </div>
 
         {!isUserList && (
-          <nav className="um-nav" aria-label="Permission sections">
-            {PERMISSION_NAV.map((group, gi) => (
-              <div key={group.id} className="um-nav-group">
-                {gi > 0 && <div className="um-nav-divider" aria-hidden="true" />}
-                <span className="um-nav-group-label">{group.label}</span>
-                <div className="um-nav-pills">
-                  {group.items.map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      title={item.hint}
-                      onClick={() => setActiveMainTab(item.key)}
-                      className={`um-nav-pill ${activeMainTab === item.key ? 'is-active' : ''}`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </nav>
+          <InternalNavigation
+            tabs={PERMISSION_TABS}
+            currentTab={activeMainTab}
+            onTabChange={handlePermissionTabChange}
+          />
         )}
       </div>
 
-      <div className="user-matrix-container w-full h-[85vh] bg-[#F8FAFC] dark:bg-[#0b0f19] text-[#1E293B] dark:text-slate-100 flex flex-col font-sans relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-        <div className="topbar">
-          <div className="topbar-left">
-            <div className="topbar-brand">
-              <div className="dot"></div>
-              <h1>{TAB_META[activeMainTab]?.title}</h1>
-            </div>
-            <p className="topbar-note">{TAB_META[activeMainTab]?.note}</p>
-          </div>
+      {isUserList ? (
+        renderWorkbench(userListPanel)
+      ) : (
+        <Routes>
+          <Route path="users" element={renderWorkbench(userPermissionsPanel)} />
+          <Route path="user-list" element={renderWorkbench(userListPanel)} />
+          <Route path="modules" element={renderWorkbench(modulePermissionsPanel)} />
+          <Route path="module-permission-list" element={renderWorkbench(modulePermissionListPanel)} />
+          <Route path="sagarbot-permissions" element={renderWorkbench(sagarBotPanel)} />
+          <Route index element={<Navigate to="users" replace />} />
+          <Route path="*" element={<Navigate to="users" replace />} />
+        </Routes>
+      )}
 
-          {activeMainTab === 'users' && (
-            <div className="topbar-filters">
-              <div className="filter-field">
-                <label htmlFor="um-filter-category">Category</label>
-                <select
-                  id="um-filter-category"
-                  value={selectedCategory}
-                  onChange={handleOrgCatChange}
-                >
-                  <option value="all">Select category</option>
-                  {categories.map((c) => (
-                    <option key={c.category_id} value={c.category_id}>
-                      {c.category_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="filter-field">
-                <label htmlFor="um-filter-org">Organisation</label>
-                <select
-                  id="um-filter-org"
-                  value={selectedOrg}
-                  onChange={(e) => setSelectedOrg(e.target.value)}
-                  disabled={selectedCategory === 'all'}
-                >
-                  <option value="all">All organisations</option>
-                  {orgsForCategory.map((o) => (
-                    <option key={o.organisation_id} value={o.organisation_id}>
-                      {o.organisation_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="filter-field">
-                <label htmlFor="um-filter-role">Role</label>
-                <select
-                  id="um-filter-role"
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value)}
-                  disabled={selectedCategory === 'all'}
-                >
-                  <option value="all">All roles</option>
-                  {activeRoles.map((r) => (
-                    <option key={r.role_id} value={r.role_id}>
-                      {r.role_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
+      <UserFormModal
+        isOpen={isUserFormOpen}
+        mode={userFormMode}
+        onClose={() => {
+          setIsUserFormOpen(false);
+          resetUserForm();
+        }}
+        onSubmit={handleUserFormSubmit}
+        saving={userFormSaving}
+        formTitle={formTitle}
+        setFormTitle={setFormTitle}
+        formName={formName}
+        setFormName={setFormName}
+        formDesignation={formDesignation}
+        setFormDesignation={setFormDesignation}
+        formOrg={formOrg}
+        setFormOrg={setFormOrg}
+        formRole={formRole}
+        setFormRole={setFormRole}
+        formWing={formWing}
+        setFormWing={setFormWing}
+        formDivision={formDivision}
+        setFormDivision={setFormDivision}
+        formPhone={formPhone}
+        setFormPhone={setFormPhone}
+        formEmail={formEmail}
+        setFormEmail={setFormEmail}
+        masterOrgs={formOrgs}
+        masterRoles={formRoles}
+        masterWings={masterWings}
+        masterDivisions={masterDivisions}
+        formModules={formModules}
+        formCrudDraft={formCrudDraft}
+        setFormCrudDraft={setFormCrudDraft}
+        formCrudLoading={formCrudLoading}
+        formError={formError}
+        lockOrganisation={isSeniorOfficer}
+      />
 
-        <div className="layout">
-          {activeMainTab === 'users' && (
-            <UserPermissionsTab
-              selectedCategory={selectedCategory}
-              selectedOrg={selectedOrg}
-              setSelectedOrg={setSelectedOrg}
-              selectedRole={selectedRole}
-              setSelectedRole={setSelectedRole}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              selectedIds={selectedIds}
-              setSelectedIds={setSelectedIds}
-              draft={draft}
-              categories={categories}
-              orgs={orgsForCategory}
-              filteredUsers={filteredUsers}
-              selectedUsers={selectedUsers}
-              activeModules={activeModules}
-              handleOrgCatChange={handleOrgCatChange}
-              toggleUser={toggleUser}
-              toggleSelectAll={toggleSelectAll}
-              handleCheck={handleCheck}
-              toggleRowAll={toggleRowAll}
-              setAll={setAll}
-              colAll={colAll}
-              handleSave={handleSave}
-              allSel={allSel}
-              someSel={someSel}
-              grantedCount={grantedCount}
-              mixedCount={mixedCount}
-              usersLoading={usersLoading}
-              saving={saving}
-            />
-          )}
-
-          {activeMainTab === 'modules' && (
-            <ModulePermissionsTab
-              organisations={organisations}
-              categories={categories}
-              masterModules={masterModules}
-              selectedModuleOrgIds={selectedModuleOrgIds}
-              setSelectedModuleOrgIds={setSelectedModuleOrgIds}
-              orgModuleState={orgModuleState}
-              toggleOrgModule={toggleOrgModule}
-              setAllOrgModules={setAllOrgModules}
-              saveModulePermissions={saveModulePermissions}
-              saving={saving}
-            />
-          )}
-
-          {activeMainTab === 'module_permission_list' && (
-            <ModulePermissionListTab
-              organisations={organisations}
-              categories={categories}
-              masterModules={masterModules}
-              showToast={showToast}
-            />
-          )}
-
-          {activeMainTab === 'userlist' && (
-            <UserListTab
-              dbUserList={dbUserList}
-              userListSearch={userListSearch}
-              setUserListSearch={setUserListSearch}
-              selectedDbRole={selectedDbRole}
-              setSelectedDbRole={setSelectedDbRole}
-              selectedDbOrg={selectedDbOrg}
-              setSelectedDbOrg={setSelectedDbOrg}
-              organisations={isSeniorOfficer ? formOrgs : organisations}
-              dbLoading={dbLoading}
-              filteredDbUsers={filteredDbUsers}
-              masterRoles={listRoles}
-              handleOpenAdd={handleOpenAdd}
-              handleOpenEdit={handleOpenEdit}
-              toggleUserStatus={toggleUserStatus}
-              handleResetPassword={handleResetPassword}
-              showToast={showToast}
-              hideOrgFilter={isSeniorOfficer}
-              bannerTitle={isSeniorOfficer ? 'Organisation Nodal Officers' : undefined}
-              bannerSub={
-                isSeniorOfficer
-                  ? 'Add and manage Nodal Officers for your organisation. Set module Create / Read / Update / Delete when adding or editing.'
-                  : undefined
-              }
-            />
-          )}
-
-          {activeMainTab === 'sagarbot_permissions' && (
-            <SagarBotPermissionsTab triggerNotification={triggerNotification || showToast} />
-          )}
-        </div>
-
-        <UserFormModal
-          isOpen={isUserFormOpen}
-          mode={userFormMode}
-          onClose={() => {
-            setIsUserFormOpen(false);
-            resetUserForm();
+      {toastVisible && (
+        <div
+          className="toast"
+          style={{
+            position: 'fixed',
+            top: 24,
+            right: 24,
+            zIndex: 10050,
+            background: toastColor,
+            color: '#fff',
+            padding: '12px 18px',
+            borderRadius: 8,
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+            maxWidth: 420,
           }}
-          onSubmit={handleUserFormSubmit}
-          saving={userFormSaving}
-          formTitle={formTitle}
-          setFormTitle={setFormTitle}
-          formName={formName}
-          setFormName={setFormName}
-          formDesignation={formDesignation}
-          setFormDesignation={setFormDesignation}
-          formOrg={formOrg}
-          setFormOrg={setFormOrg}
-          formRole={formRole}
-          setFormRole={setFormRole}
-          formWing={formWing}
-          setFormWing={setFormWing}
-          formDivision={formDivision}
-          setFormDivision={setFormDivision}
-          formPhone={formPhone}
-          setFormPhone={setFormPhone}
-          formEmail={formEmail}
-          setFormEmail={setFormEmail}
-          masterOrgs={formOrgs}
-          masterRoles={formRoles}
-          masterWings={masterWings}
-          masterDivisions={masterDivisions}
-          formModules={formModules}
-          formCrudDraft={formCrudDraft}
-          setFormCrudDraft={setFormCrudDraft}
-          formCrudLoading={formCrudLoading}
-          formError={formError}
-          lockOrganisation={isSeniorOfficer}
-        />
-
-        {toastVisible && (
-          <div
-            className="toast"
-            style={{
-              position: 'fixed',
-              top: 24,
-              right: 24,
-              zIndex: 10050,
-              background: toastColor,
-              color: '#fff',
-              padding: '12px 18px',
-              borderRadius: 8,
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
-              maxWidth: 420,
-            }}
-          >
-            {toastMsg}
-          </div>
-        )}
-      </div>
+        >
+          {toastMsg}
+        </div>
+      )}
     </div>
   );
 }
