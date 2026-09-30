@@ -471,7 +471,7 @@ export default function App() {
             <Route path="governance/parliamentary-issue/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
             <Route path="governance/parliamentary-issues/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
             <Route path="governance/audit-paras/*" element={<AuditParaView triggerNotification={triggerNotification} />} />
-            <Route path="governance/gem-procurements" element={<GEMProcurementView triggerNotification={triggerNotification} />} />
+            <Route path="governance/gem-procurements/*" element={<GEMProcurementView triggerNotification={triggerNotification} />} />
 
             {/* Legal Routes */}
             <Route path="legal/courtcases" element={<ActsAndRulesView />} />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { Edit } from 'lucide-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
@@ -28,25 +29,42 @@ import {
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
+const CAPEX_BASE = '/finance/capex';
 const INIT_TAB_KEY = 'capexInitTab';
 
-function resolveSubTabId(label, showInputForm) {
+/** Menu / legacy label → URL segment (portal kebab-case). */
+function resolvePathSegment(label, showInputForm) {
   const key = String(label || '').toLowerCase().trim();
-  if (!key || key === 'capex') return 'data';
-  if (key.includes('input form') || key === 'add') return showInputForm ? 'add' : 'data';
-  if (key.includes('datalist') || key.includes('data list') || key.includes('dashboard')) {
-    return 'data';
+  if (key.includes('input form') || key === 'add' || key.includes('input-form')) {
+    return showInputForm ? 'input-form' : 'data-list';
   }
-  if (key.includes('report')) return 'report';
-  return 'data';
+  if (key.includes('report')) return 'reports';
+  if (key.includes('estimate')) return 'data-list';
+  if (key.includes('dashboard')) return 'dashboard';
+  if (key.includes('datalist') || key.includes('data list') || key.includes('data-list')) {
+    return 'data-list';
+  }
+  return 'data-list';
+}
+
+function getTabKeyFromPath(pathname = '') {
+  const path = pathname.toLowerCase();
+  if (path.includes('/input-form')) return 'input-form';
+  if (path.includes('/reports') || path.includes('/report')) return 'reports';
+  if (path.includes('/dashboard') || path.includes('/data-list') || path.includes('/estimate-values')) {
+    return 'data-list';
+  }
+  return 'data-list';
 }
 
 export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, triggerNotification }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const permissions = useCapexPermissions();
   const viewMode = permissions.viewMode;
   const showInputForm = Boolean(permissions.canAdd && viewMode !== 'org');
+  const activeTab = getTabKeyFromPath(location.pathname);
 
-  const [activeTab, setActiveTab] = useState('data');
   const [selectedOrgId, setSelectedOrgId] = useState(
     permissions.organisationId ? String(permissions.organisationId) : ''
   );
@@ -68,7 +86,21 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
 
   const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
   const [isActualExpenditurePageActive, setIsActualExpenditurePageActive] = useState(false);
+  const [isEditPageActive, setIsEditPageActive] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+
+  const goToCapexTab = useCallback(
+    (segment) => {
+      navigate(`${CAPEX_BASE}/${segment}`);
+    },
+    [navigate]
+  );
+
+  const clearOverlays = useCallback(() => {
+    setIsActualExpenditurePageActive(false);
+    setIsEditPageActive(false);
+    setSelectedRecord(null);
+  }, []);
 
   const [toastMsg, setToastMsg] = useState('');
   const [toastColor, setToastColor] = useState('#10B981');
@@ -110,7 +142,8 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
 
   useEffect(() => {
     const apply = (label) => {
-      setActiveTab(resolveSubTabId(label, showInputForm));
+      clearOverlays();
+      goToCapexTab(resolvePathSegment(label, showInputForm));
     };
     const init = sessionStorage.getItem(INIT_TAB_KEY);
     if (init) {
@@ -120,20 +153,35 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
     const onMenu = (e) => apply(e.detail);
     window.addEventListener('capex-subtab', onMenu);
     return () => window.removeEventListener('capex-subtab', onMenu);
-  }, [showInputForm]);
+  }, [showInputForm, goToCapexTab, clearOverlays]);
 
   useEffect(() => {
-    setActiveTab(resolveSubTabId(activeSubTabProp, showInputForm));
-  }, [activeSubTabProp, showInputForm]);
+    if (!activeSubTabProp) return;
+    clearOverlays();
+    goToCapexTab(resolvePathSegment(activeSubTabProp, showInputForm));
+  }, [activeSubTabProp, showInputForm, goToCapexTab, clearOverlays]);
 
   useEffect(() => {
-    if (activeTab === 'add' && !showInputForm) {
-      setActiveTab('data');
+    if (activeTab !== 'data-list') {
+      clearOverlays();
     }
-    if (activeTab === 'edit' && (!permissions.canEdit || viewMode !== 'ministry' || !selectedRecord)) {
-      setActiveTab('data');
+  }, [activeTab, clearOverlays]);
+
+  useEffect(() => {
+    if (activeTab === 'input-form' && !showInputForm) {
+      goToCapexTab('data-list');
     }
-  }, [activeTab, showInputForm, permissions.canEdit, viewMode, selectedRecord]);
+  }, [activeTab, showInputForm, goToCapexTab]);
+
+  useEffect(() => {
+    if (
+      isEditPageActive &&
+      (!permissions.canEdit || viewMode !== 'ministry' || !selectedRecord)
+    ) {
+      setIsEditPageActive(false);
+      setSelectedRecord(null);
+    }
+  }, [isEditPageActive, permissions.canEdit, viewMode, selectedRecord]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -270,19 +318,20 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
       setSelectedRecord(row);
       setIsActualExpenditurePageActive(false);
       if (viewMode === 'ministry') {
-        setActiveTab('edit');
+        setIsEditPageActive(true);
       } else {
+        setIsEditPageActive(false);
         setIsActualExpenditurePageActive(true);
-        setActiveTab('data');
       }
     },
     [viewMode]
   );
 
   const closeUpdatePage = useCallback(() => {
-    setActiveTab('data');
+    setIsEditPageActive(false);
     setSelectedRecord(null);
-  }, []);
+    goToCapexTab('data-list');
+  }, [goToCapexTab]);
   const colDefs = useMemo(() => {
     const allDefs = [
       {
@@ -468,14 +517,85 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
   const tabs = useMemo(() => {
     const items = [];
     if (showInputForm) {
-      items.push({ id: 'add', label: 'Input Form' });
+      items.push({ id: 'input-form', label: 'Input Form' });
     }
     items.push(
-      { id: 'data', label: 'Data List' },
-      { id: 'report', label: 'Report' }
+      { id: 'data-list', label: 'Data List' },
+      { id: 'reports', label: 'Report' }
     );
     return items;
   }, [showInputForm]);
+
+  const dataListPanel = isEditPageActive && permissions.canEdit && viewMode === 'ministry' ? (
+    <CapexUpdateForm
+      record={selectedRecord}
+      onSubmit={handleEditSubmit}
+      onBack={closeUpdatePage}
+      onSuccess={() => {
+        closeUpdatePage();
+        fetchCapexData();
+      }}
+      notify={(msg, type) =>
+        showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
+      }
+    />
+  ) : isActualExpenditurePageActive && selectedRecord ? (
+    <CapexActualExpenditurePage
+      capexRecord={selectedRecord}
+      onBack={() => setIsActualExpenditurePageActive(false)}
+      showToast={showToast}
+      onRefresh={fetchCapexData}
+      canEdit={permissions.canEdit}
+    />
+  ) : (
+    <>
+      {/* KPI cards commented out for now
+      <CapexKpiCards data={capexData} />
+      */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+        <CapexDataListView
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          page={page}
+          pageSize={pageSize}
+          setPageSize={setPageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(n) => {
+            setPageSize(n);
+            setPage(1);
+          }}
+          pagination={pagination}
+          rowData={capexData}
+          colDefs={colDefs}
+          loading={loading}
+          handleCopyData={handleCopyData}
+          handleExportExcel={handleExportExcel}
+          handleExportPdf={handleExportPdf}
+          organisations={organisations}
+          filterYear={filterYear}
+          setFilterYear={setFilterYear}
+          filterOrg={filterOrg}
+          setFilterOrg={setFilterOrg}
+          viewMode={viewMode}
+        />
+      </div>
+    </>
+  );
+
+  const inputFormPanel = (
+    <CapexInputForm
+      organisations={organisations}
+      onSubmit={handleAddSubmit}
+      onBack={() => goToCapexTab('data-list')}
+      onSuccess={() => {
+        fetchCapexData();
+        goToCapexTab('data-list');
+      }}
+      notify={(msg, type) =>
+        showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
+      }
+    />
+  );
 
   if (!permissions.canView) {
     return <RestrictedAccess moduleName="Capex" onGoHome={onGoHome} />;
@@ -509,93 +629,32 @@ export default function CapexView({ activeSubTab: activeSubTabProp, onGoHome, tr
 
         <InternalNavigation
           tabs={tabs}
-          currentTab={activeTab === 'edit' ? 'data' : activeTab}
+          currentTab={
+            isEditPageActive || isActualExpenditurePageActive ? 'data-list' : activeTab
+          }
           onTabChange={(tabId) => {
-            setIsActualExpenditurePageActive(false);
-            if (tabId !== 'edit') setSelectedRecord(null);
-            setActiveTab(tabId);
+            clearOverlays();
+            if (tabId === 'input-form') goToCapexTab('input-form');
+            else if (tabId === 'reports') goToCapexTab('reports');
+            else goToCapexTab('data-list');
           }}
         />
       </div>
 
       <div className="space-y-8">
-      {activeTab === 'add' && showInputForm && (
-        <CapexInputForm
-          organisations={organisations}
-          onSubmit={handleAddSubmit}
-          onBack={() => setActiveTab('data')}
-          onSuccess={() => {
-            fetchCapexData();
-            setActiveTab('data');
-          }}
-          notify={(msg, type) =>
-            showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
-          }
-        />
-      )}
-
-      {activeTab === 'edit' && permissions.canEdit && viewMode === 'ministry' && (
-        <CapexUpdateForm
-          record={selectedRecord}
-          onSubmit={handleEditSubmit}
-          onBack={closeUpdatePage}
-          onSuccess={() => {
-            closeUpdatePage();
-            fetchCapexData();
-          }}
-          notify={(msg, type) =>
-            showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
-          }
-        />
-      )}
-
-      {activeTab === 'data' &&
-        (isActualExpenditurePageActive && selectedRecord ? (
-          <CapexActualExpenditurePage
-            capexRecord={selectedRecord}
-            onBack={() => setIsActualExpenditurePageActive(false)}
-            showToast={showToast}
-            onRefresh={fetchCapexData}
-            canEdit={permissions.canEdit}
-          />
-        ) : (
-          <>
-            {/* KPI cards commented out for now
-            <CapexKpiCards data={capexData} />
-            */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-              <CapexDataListView
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                page={page}
-                pageSize={pageSize}
-                setPageSize={setPageSize}
-                onPageChange={setPage}
-                onPageSizeChange={(n) => {
-                  setPageSize(n);
-                  setPage(1);
-                }}
-                pagination={pagination}
-                rowData={capexData}
-                colDefs={colDefs}
-                loading={loading}
-                handleCopyData={handleCopyData}
-                handleExportExcel={handleExportExcel}
-                handleExportPdf={handleExportPdf}
-                organisations={organisations}
-                filterYear={filterYear}
-                setFilterYear={setFilterYear}
-                filterOrg={filterOrg}
-                setFilterOrg={setFilterOrg}
-                viewMode={viewMode}
-              />
-            </div>
-          </>
-        ))}
-
-      {activeTab === 'report' && (
-        <CapexReports viewMode={viewMode} showToast={showToast} />
-      )}
+        <Routes>
+          <Route path="dashboard" element={dataListPanel} />
+          <Route path="data-list" element={dataListPanel} />
+          <Route path="estimate-values" element={<Navigate to="../data-list" replace />} />
+          {showInputForm ? (
+            <Route path="input-form" element={inputFormPanel} />
+          ) : (
+            <Route path="input-form" element={<Navigate to="../data-list" replace />} />
+          )}
+          <Route path="reports" element={<CapexReports viewMode={viewMode} showToast={showToast} />} />
+          <Route index element={<Navigate to="data-list" replace />} />
+          <Route path="*" element={<Navigate to="data-list" replace />} />
+        </Routes>
       </div>
 
       <CapexMonthlyDataModal

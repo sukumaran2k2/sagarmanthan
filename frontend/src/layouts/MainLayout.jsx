@@ -75,7 +75,7 @@ export const ROUTE_MAP = {
   'Parliamentary Issues': 'governance/parliamentary-issues/data-list',
   'Audit Paras': 'governance/audit-paras/input-form',
   'Audit Para': 'governance/audit-paras/input-form',
-  'GEM Procurements': 'governance/gem-procurements',
+  'GEM Procurements': 'governance/gem-procurements/total',
 
   // Legal nested routes
   'Courtcases': 'legal/courtcases',
@@ -171,11 +171,11 @@ export const ROUTE_MAP = {
   'CSR Reports': 'projects/csr-projects/reports',
 
   // Finance / Capex routes
-  'Capex': 'finance/capex/dashboard',
+  'Capex': 'finance/capex/data-list',
   'Capex Dashboard': 'finance/capex/dashboard',
   'Capex Datalist': 'finance/capex/data-list',
   'Capex Input Form': 'finance/capex/input-form',
-  'Estimate Values': 'finance/capex/estimate-values',
+  'Estimate Values': 'finance/capex/data-list',
   'Capex Reports': 'finance/capex/reports',
 };
 
@@ -199,6 +199,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
   if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
+  if (cleanSlug.startsWith('governance/gem-procurements')) return 'GEM Procurements';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
   if (cleanSlug.startsWith('governance/audit-paras')) return 'Audit Paras';
   if (cleanSlug.startsWith('governance/cabinet-notes-other-ministry')) return 'Cabinet Notes - Other Ministries';
