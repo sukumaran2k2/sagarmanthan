@@ -65,36 +65,117 @@ function uploadSingleFile(req, res, next) {
 
 
 async function getEmpAttendance(req, res) {
-    const conn = await pool;
-
     try {
-        const result = await conn.query(`SELECT 
-        tbl_employee_attendance.ID,
-        tbl_employee_attendance.Emp_Id,
-        tbl_employee_attendance.No_of_days_Attendance_Marked,
-        tbl_employee_attendance.In_Time_Avg,
-        tbl_employee_attendance.Out_Time_Avg,
-        tbl_employee_attendance.Average_Working_Hours,
-        tbl_employee_attendance.Month,
-        tbl_employee_attendance.Year,
-        tbl_employee_attendance.week,
-        tbl_employee_attendance.File_Id,
-        mmt_employee_info.Emp_Name,
-        mmt_employee_info.Designation,
-        mmt_organization_info.wing_name,
-        mmt_organization_info.division_name
-    FROM 
-        sagarmanthan_revamp.dbo.tbl_employee_attendance
-    INNER JOIN 
-        sagarmanthan_revamp.dbo.mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
-    INNER JOIN 
-        sagarmanthan_revamp.dbo.mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
-    ORDER BY File_Id,ID;
-    ;`);
-        res.json(result.recordset);
+        const conn = await pool;
+
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
+        const wing = (req.query.wing || '').trim();
+        const month = (req.query.month || '').trim();
+        const year = (req.query.year || '').trim();
+        const week = (req.query.week || '').trim();
+
+        const hasWing = wing && wing !== 'All';
+        const hasMonth = month && month !== 'All';
+        const hasYear = year && year !== 'All';
+        const hasWeek = week && week !== 'All';
+        const hasSearch = !!search;
+        const anyFilterActive = hasWing || hasMonth || hasYear || hasWeek || hasSearch;
+
+        const FROM_SQL = `
+            FROM sagarmanthan_revamp.dbo.tbl_employee_attendance
+            INNER JOIN sagarmanthan_revamp.dbo.mmt_employee_info
+                ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
+            INNER JOIN sagarmanthan_revamp.dbo.mmt_organization_info
+                ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
+        `;
+
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        const clauses = [];
+        if (!anyFilterActive) {
+            // Default view: only the most recently uploaded file's rows,
+            // matching the frontend's prior client-side "latestFileId" behavior.
+            clauses.push("tbl_employee_attendance.File_Id = (SELECT MAX(File_Id) FROM tbl_employee_attendance)");
+        } else {
+            if (hasWing) {
+                countRequest.input("wing", wing);
+                pageRequest.input("wing", wing);
+                clauses.push("mmt_organization_info.wing_name = @wing");
+            }
+            if (hasMonth) {
+                countRequest.input("month", month);
+                pageRequest.input("month", month);
+                clauses.push("tbl_employee_attendance.Month = @month");
+            }
+            if (hasYear) {
+                countRequest.input("year", year);
+                pageRequest.input("year", year);
+                clauses.push("tbl_employee_attendance.Year = @year");
+            }
+            if (hasWeek) {
+                countRequest.input("week", week);
+                pageRequest.input("week", week);
+                clauses.push("tbl_employee_attendance.week = @week");
+            }
+            if (hasSearch) {
+                countRequest.input("search", `%${search}%`);
+                pageRequest.input("search", `%${search}%`);
+                clauses.push(`(
+                    mmt_employee_info.Emp_Name LIKE @search
+                    OR tbl_employee_attendance.Emp_Id LIKE @search
+                    OR mmt_employee_info.Designation LIKE @search
+                    OR mmt_organization_info.wing_name LIKE @search
+                    OR mmt_organization_info.division_name LIKE @search
+                )`);
+            }
+        }
+        const whereClause = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total ${FROM_SQL} ${whereClause}`),
+            pageRequest.query(`
+                SELECT
+                    tbl_employee_attendance.ID,
+                    tbl_employee_attendance.Emp_Id,
+                    tbl_employee_attendance.No_of_days_Attendance_Marked,
+                    tbl_employee_attendance.In_Time_Avg,
+                    tbl_employee_attendance.Out_Time_Avg,
+                    tbl_employee_attendance.Average_Working_Hours,
+                    tbl_employee_attendance.Month,
+                    tbl_employee_attendance.Year,
+                    tbl_employee_attendance.week,
+                    tbl_employee_attendance.File_Id,
+                    mmt_employee_info.Emp_Name,
+                    mmt_employee_info.Designation,
+                    mmt_organization_info.wing_name,
+                    mmt_organization_info.division_name
+                ${FROM_SQL}
+                ${whereClause}
+                ORDER BY tbl_employee_attendance.File_Id, tbl_employee_attendance.ID
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
     } catch (err) {
         console.log(err);
-        return res.sendStatus(500);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
 }
 
@@ -770,6 +851,64 @@ async function agSample(req, res) {
   
 
 
+
+async function getAttendanceFilterOptions(req, res) {
+    try {
+        const conn = await pool;
+        const wingsRequest = conn.request();
+        const periodsRequest = conn.request();
+
+        const [wingsResult, periodsResult] = await Promise.all([
+            wingsRequest.query(`
+                SELECT DISTINCT mmt_organization_info.wing_name
+                FROM tbl_employee_attendance
+                INNER JOIN mmt_employee_info ON tbl_employee_attendance.Emp_Id = mmt_employee_info.Emp_Id
+                INNER JOIN mmt_organization_info ON mmt_employee_info.organization_id = mmt_organization_info.organization_id
+                WHERE mmt_organization_info.wing_name IS NOT NULL
+            `),
+            periodsRequest.query(`
+                SELECT DISTINCT Month, Year, week
+                FROM tbl_employee_attendance
+            `),
+        ]);
+
+        const wings = wingsResult.recordset.map(r => r.wing_name).filter(Boolean);
+        const months = [...new Set(periodsResult.recordset.map(r => r.Month).filter(Boolean))];
+        const years = [...new Set(periodsResult.recordset.map(r => String(r.Year)).filter(Boolean))];
+        const weeks = [...new Set(periodsResult.recordset.map(r => String(r.week)).filter(Boolean))]
+            .sort((a, b) => Number(a) - Number(b));
+
+        res.json({ wings, months, years, weeks });
+    } catch (err) {
+        console.log(err);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
+
+
+async function checkExistingAttendanceFile(req, res) {
+    try {
+        const { year, month, week } = req.params;
+        const conn = await pool;
+        const request = conn.request();
+        request.input("year", year);
+        request.input("month", month);
+        request.input("week", week);
+
+        const result = await request.query(`
+            SELECT TOP 1 File_Id
+            FROM tbl_employee_attendance
+            WHERE Year = @year AND Month = @month AND week = @week
+        `);
+
+        const existingFileId = result.recordset.length > 0 ? result.recordset[0].File_Id : null;
+        res.json({ existingFileId });
+    } catch (err) {
+        console.log(err);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
+
 const empAttendanceTab = { createEmpAttendance, upload, uploadSingleFile, addEmpDataAttendance,
-    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample };
+    getEmployeeAttendance, updateEmpAttendance, getEmpAttendance, agSample, getAttendanceFilterOptions, checkExistingAttendanceFile };
 export default empAttendanceTab;

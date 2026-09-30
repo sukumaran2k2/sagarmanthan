@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, AlertCircle, RefreshCw, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import Table from '../../../components/Table';
+import TablePagination from '../../../components/TablePagination';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
 
@@ -33,6 +34,8 @@ export default function AttendanceDataListView({
   visibleCols,
   setVisibleCols,
   columnLabels,
+  pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
+  onPageChange,
 }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = [dataFilterWing, dataFilterMonth, dataFilterYear, dataFilterWeek].filter(v => v && v !== 'All').length;
@@ -242,10 +245,20 @@ export default function AttendanceDataListView({
           rowData={filteredEmployeeRows}
           columnDefs={employeeColDefs}
           pinnedBottomRowData={pinnedBottomRowData}
-          pagination={true}
-          paginationPageSize={pageSize}
+          pagination={false}
         />
       </div>
+
+      {pagination.totalPages > 1 && (
+        <TablePagination
+          currentPage={Math.max(0, pagination.page - 1)}
+          totalPages={pagination.totalPages}
+          totalRows={pagination.total}
+          pageSize={pagination.limit}
+          onPageChange={(pageIndex) => onPageChange?.(pageIndex + 1)}
+          color="#0f417a"
+        />
+      )}
     </div>
   );
 }

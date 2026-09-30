@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import axios from 'axios';
+import api from './api';
+import RestrictedAccess from '../../components/RestrictedAccess';
+import { useAttendancePermissions } from './hooks/useAttendancePermissions';
 import * as XLSX from 'xlsx';
 import { 
   UserCheck, 
@@ -32,9 +34,9 @@ import {
   validateAttendanceRows,
 } from './utils/attendanceUtils';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 export default function AttendanceView({ triggerNotification }) {
+  const { canAdd, canEdit, canRemove, canView } = useAttendancePermissions();
   const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
     const subTabParam = params.get('subtab') || params.get('tab');
@@ -84,16 +86,6 @@ export default function AttendanceView({ triggerNotification }) {
   // earlier version of this cross-referenced them and always resolved to
   // no match. File_Id is an auto-incrementing key, so its max value here
   // reliably identifies the latest upload's rows.
-  const latestFileId = useMemo(() => {
-    if (!employeeRows || employeeRows.length === 0) return null;
-    let maxId = null;
-    employeeRows.forEach(r => {
-      const fid = Number(r.File_Id ?? r.File_ID ?? r.file_id);
-      if (!isNaN(fid) && (maxId === null || fid > maxId)) maxId = fid;
-    });
-    return maxId;
-  }, [employeeRows]);
-
   // Upload states & file data preview
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewRows, setPreviewRows] = useState([]);
@@ -119,6 +111,24 @@ export default function AttendanceView({ triggerNotification }) {
   const [dataFilterMonth, setDataFilterMonth] = useState('All');
   const [dataFilterYear, setDataFilterYear] = useState('All');
   const [dataFilterWeek, setDataFilterWeek] = useState('All');
+  const [dataPage, setDataPage] = useState(1);
+  const [employeePagination, setEmployeePagination] = useState({ total: 0, page: 1, limit: 10, totalPages: 0 });
+  const [filterOptions, setFilterOptions] = useState({ wings: [], months: [], years: [], weeks: [] });
+  const changeDataFilterWing = (v) => { setDataFilterWing(v); setDataPage(1); };
+  const changeDataFilterMonth = (v) => { setDataFilterMonth(v); setDataPage(1); };
+  const changeDataFilterYear = (v) => { setDataFilterYear(v); setDataPage(1); };
+  const changeDataFilterWeek = (v) => { setDataFilterWeek(v); setDataPage(1); };
+  const changeSearchTerm = (v) => { setSearchTerm(v); setDataPage(1); };
+  const fetchFilterOptions = () => {
+    api.get('/attendance-filter-options')
+      .then(res => setFilterOptions({
+        wings: ['All', ...(res.data?.wings || [])],
+        months: ['All', ...(res.data?.months || [])],
+        years: ['All', ...(res.data?.years || [])],
+        weeks: ['All', ...(res.data?.weeks || [])],
+      }))
+      .catch(err => console.error('Error loading filter options:', err));
+  };
 
   // ---- ABSTRACT REPORT TAB STATE ----
   const [reportData, setReportData] = useState([]);
@@ -164,50 +174,69 @@ export default function AttendanceView({ triggerNotification }) {
   };
 
   // ---- FETCH FROM DATABASE WITH IN-MEMORY CACHING ----
-  const fetchFilesAndData = (forceRefresh = false) => {
+  const fetchFilesList = (forceRefresh = false) => {
     const cacheKey = "files_data";
 
     if (!forceRefresh && attendanceCache.current[cacheKey]) {
-      setFilesList(attendanceCache.current[cacheKey].filesList);
-      setEmployeeRows(attendanceCache.current[cacheKey].employeeRows);
+      setFilesList(attendanceCache.current[cacheKey]);
       setFetchError(null);
-      setLoading(false);
       return;
     }
 
     setFilesList([]);
-    setEmployeeRows([]);
     setFetchError(null);
-    setLoading(true);
-    
-    const p1 = axios.get(`${API_BASE_URL}/attendance`)
+
+    api.get(`/attendance`)
       .then(res => (Array.isArray(res.data) ? res.data : res.data?.rowData) || [])
-      .catch(() => axios.get(`${API_BASE_URL}/employee-attendance-file`).then(res => res.data?.rowData || res.data || []).catch(() => []));
-
-    const p2 = axios.get(`${API_BASE_URL}/employee-attendance-view`)
-      .then(res => {
-        const rows = (Array.isArray(res.data) ? res.data : res.data?.rowData) || [];
-        if (rows.length > 0) return rows;
-        return axios.get(`${API_BASE_URL}/excelData`).then(r => r.data || []).catch(() => []);
-      })
-      .catch(() => axios.get(`${API_BASE_URL}/excelData`).then(res => res.data || []).catch(() => []));
-
-    Promise.all([p1, p2])
-      .then(([files, rows]) => {
+      .catch(() => api.get(`/employee-attendance-file`).then(res => res.data?.rowData || res.data || []).catch(() => []))
+      .then(files => {
         setFilesList(files);
-        setEmployeeRows(rows);
-        attendanceCache.current[cacheKey] = { filesList: files, employeeRows: rows };
+        attendanceCache.current[cacheKey] = files;
       })
       .catch(() => {
         setFetchError("Failed to connect to attendance database server");
+      });
+  };
+
+  const fetchEmployeeData = () => {
+    setLoading(true);
+    const params = {
+      page: dataPage,
+      limit: pageSize,
+      search: searchTerm,
+      wing: dataFilterWing,
+      month: dataFilterMonth,
+      year: dataFilterYear,
+      week: dataFilterWeek,
+    };
+    api.get(`/employee-attendance-view`, { params })
+      .then(res => {
+        setEmployeeRows(res.data?.data || []);
+        setEmployeePagination(res.data?.pagination || { total: 0, page: 1, limit: pageSize, totalPages: 0 });
+        setFetchError(null);
+      })
+      .catch(() => {
+        api.get(`/excelData`)
+          .then(r => {
+            const rows = r.data || [];
+            setEmployeeRows(rows);
+            setEmployeePagination({ total: rows.length, page: 1, limit: rows.length || 1, totalPages: rows.length ? 1 : 0 });
+          })
+          .catch(() => setFetchError("Failed to connect to attendance database server"));
       })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    fetchFilesAndData();
+  const fetchFilesAndData = (forceRefresh = false) => {
+    fetchFilesList(forceRefresh);
+    fetchEmployeeData();
+  };
 
-    axios.get(`${API_BASE_URL}/employee-attendance-check`)
+  useEffect(() => {
+    fetchFilesList();
+    fetchFilterOptions();
+
+    api.get(`/employee-attendance-check`)
       .then(res => {
         const data = res.data;
         if (data && data.length > 0) {
@@ -230,6 +259,10 @@ export default function AttendanceView({ triggerNotification }) {
       });
   }, []);
 
+  useEffect(() => {
+    fetchEmployeeData();
+  }, [dataFilterWing, dataFilterMonth, dataFilterYear, dataFilterWeek, searchTerm, dataPage, pageSize]);
+
   const handleFetchReport = (
     targetMonth = reportMonth,
     targetYear = reportYear,
@@ -251,7 +284,7 @@ export default function AttendanceView({ triggerNotification }) {
     setReportLoading(true);
     setReportViewMode('summary');
 
-    axios.get(`${API_BASE_URL}/employee-attendance-weekone-report/${targetMonth}/${targetYear}/${targetWeek}`)
+    api.get(`/employee-attendance-weekone-report/${targetMonth}/${targetYear}/${targetWeek}`)
       .then(res => {
         const data = res.data.rowData || res.data || [];
         setReportData(data);
@@ -374,7 +407,7 @@ export default function AttendanceView({ triggerNotification }) {
     setDetailData([]);
     setDetailLoading(true);
 
-    axios.get(`${API_BASE_URL}/employee-attendance-weekone-detail/${reportYear}/${reportMonth}/${encodeURIComponent(wingParam)}/0/${typeParam}/${weekNum}`)
+    api.get(`/employee-attendance-weekone-detail/${reportYear}/${reportMonth}/${encodeURIComponent(wingParam)}/0/${typeParam}/${weekNum}`)
       .then(res => {
         const rows = res.data.rowData || res.data || [];
         if (rows.length > 0) {
@@ -425,56 +458,11 @@ export default function AttendanceView({ triggerNotification }) {
     );
   }, [reportData, searchTerm]);
 
-  const availableWings = useMemo(() => {
-    const wings = new Set(employeeRows.map(r => r.Wing || r.wing_name || r.organization_name || r.Division || r.division_name).filter(Boolean));
-    return ['All', ...Array.from(wings)];
-  }, [employeeRows]);
-
-  const availableMonths = useMemo(() => {
-    const months = new Set(employeeRows.map(r => r.Month).filter(Boolean));
-    return ['All', ...Array.from(months)];
-  }, [employeeRows]);
-
-  const availableYears = useMemo(() => {
-    const years = new Set(employeeRows.map(r => String(r.Year)).filter(Boolean));
-    return ['All', ...Array.from(years)];
-  }, [employeeRows]);
-
-  const availableWeeks = useMemo(() => {
-    const weeks = new Set(employeeRows.map(r => r.week ?? r.Week).filter(v => v !== undefined && v !== null && v !== '').map(String));
-    return ['All', ...Array.from(weeks).sort((a, b) => Number(a) - Number(b))];
-  }, [employeeRows]);
-
-  const filteredEmployeeRows = useMemo(() => {
-    const anyFilterActive = dataFilterWing !== 'All' || dataFilterMonth !== 'All' || dataFilterYear !== 'All' || dataFilterWeek !== 'All';
-
-    // Default view: only the most recently uploaded file's rows. Once any
-    // filter is set, search across the full historical dataset instead.
-    let result = (!anyFilterActive && latestFileId !== null)
-      ? employeeRows.filter(r => Number(r.File_Id ?? r.File_ID ?? r.file_id) === latestFileId)
-      : employeeRows;
-
-    if (dataFilterWing !== 'All') {
-      result = result.filter(r => (r.Wing || r.wing_name || r.organization_name || r.Division || r.division_name) === dataFilterWing);
-    }
-    if (dataFilterMonth !== 'All') {
-      result = result.filter(r => r.Month === dataFilterMonth);
-    }
-    if (dataFilterYear !== 'All') {
-      result = result.filter(r => String(r.Year) === String(dataFilterYear));
-    }
-    if (dataFilterWeek !== 'All') {
-      result = result.filter(r => String(r.week ?? r.Week) === String(dataFilterWeek));
-    }
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(row => 
-        Object.values(row).some(val => String(val || '').toLowerCase().includes(term))
-      );
-    }
-
-    return result;
-  }, [employeeRows, latestFileId, dataFilterWing, dataFilterMonth, dataFilterYear, dataFilterWeek, searchTerm]);
+  // Filtering, the "latest file only by default" view, and pagination all
+  // now happen server-side in fetchEmployeeData(); employeeRows already IS
+  // the current filtered/paginated page. Kept as an alias so every other
+  // reference below (exports, pinned totals row, etc.) needs no changes.
+  const filteredEmployeeRows = employeeRows;
 
   const totalEmployeesStat = useMemo(() => {
     if (subTab === 'report' && reportData.length > 0) {
@@ -572,10 +560,10 @@ export default function AttendanceView({ triggerNotification }) {
       const totalRow = reportData.find(r => r.Wing === 'Total');
       return totalRow ? [totalRow] : [];
     }
-    if (filteredEmployeeRows.length === 0) return [];
+    if (employeePagination.total === 0) return [];
     return [{
       EmpId: 'Total',
-      EmpName: `${filteredEmployeeRows.length} Employees Total`,
+      EmpName: `${employeePagination.total} Employees Total`,
       Wing: 'All Wings',
       Division: 'All Divisions',
       Designation: 'Summary',
@@ -584,7 +572,7 @@ export default function AttendanceView({ triggerNotification }) {
       InTimeAvg: '—',
       OutTimeAvg: '—'
     }];
-  }, [subTab, reportData, filteredEmployeeRows, avgWorkingHoursFormatted]);
+  }, [subTab, reportData, filteredEmployeeRows, employeePagination, avgWorkingHoursFormatted]);
 
   const showKpiCards = (subTab === 'report' || subTab === 'data') && reportViewMode !== 'detail';
 
@@ -602,6 +590,8 @@ export default function AttendanceView({ triggerNotification }) {
         minWidth: isWing ? 180 : (isLongHeader ? 150 : 120),
         wrapHeaderText: true,
         autoHeaderHeight: true,
+        wrapText: true,
+        autoHeight: true,
         filter: true,
         sortable: true,
         pinned: isWing ? 'left' : null,
@@ -653,6 +643,8 @@ export default function AttendanceView({ triggerNotification }) {
           field: key,
           flex: isEmp ? 2 : 1,
           minWidth: isEmp ? 180 : 120,
+          wrapText: true,
+          autoHeight: true,
           filter: true,
           sortable: true,
           cellClass: (params) => {
@@ -712,6 +704,8 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'EmpId',
         headerName: 'Emp ID',
         width: 110,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.EmpId,
         cellClass: 'font-bold text-[#0f417a] text-center flex items-center justify-center',
         valueGetter: (params) => {
@@ -725,6 +719,8 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Employee Name',
         flex: 2,
         minWidth: 180,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.EmpName,
         cellClass: 'font-semibold text-slate-800 flex items-center',
         valueGetter: (params) => {
@@ -738,6 +734,8 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Wing',
         flex: 1.5,
         minWidth: 140,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.Wing,
         cellClass: 'text-slate-700 font-medium flex items-center',
         valueGetter: (params) => {
@@ -751,6 +749,8 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Division',
         flex: 1.5,
         minWidth: 140,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.Division,
         cellClass: 'text-slate-600 font-medium flex items-center',
         valueGetter: (params) => {
@@ -764,6 +764,8 @@ export default function AttendanceView({ triggerNotification }) {
         headerName: 'Designation',
         flex: 1.5,
         minWidth: 150,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.Designation,
         cellClass: 'text-slate-600 font-medium flex items-center',
         valueGetter: (params) => {
@@ -776,6 +778,8 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'AttendanceMarked',
         headerName: 'Days Marked',
         width: 120,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.AttendanceMarked,
         cellClass: 'text-center font-bold text-slate-700 flex items-center justify-center',
         valueGetter: (params) => {
@@ -788,6 +792,8 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'WorkingHours',
         headerName: 'Avg Work Hours',
         width: 140,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.WorkingHours,
         cellClass: 'text-center font-bold text-slate-800 flex items-center justify-center',
         valueGetter: (params) => {
@@ -804,6 +810,8 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'InTimeAvg',
         headerName: 'In Time Avg',
         width: 130,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.InTimeAvg,
         cellClass: 'text-center font-medium text-emerald-700 flex items-center justify-center',
         valueGetter: (params) => {
@@ -817,6 +825,8 @@ export default function AttendanceView({ triggerNotification }) {
         field: 'OutTimeAvg',
         headerName: 'Out Time Avg',
         width: 130,
+        wrapText: true,
+        autoHeight: true,
         hide: !employeeVisibleCols.OutTimeAvg,
         cellClass: 'text-center font-medium text-slate-600 flex items-center justify-center',
         valueGetter: (params) => {
@@ -842,6 +852,8 @@ export default function AttendanceView({ triggerNotification }) {
       headerName: 'File Name',
       flex: 3,
       minWidth: 260,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'font-semibold flex items-center text-left',
       valueGetter: (params) => params.data['File Name'] || params.data.file_name || params.data.File_name || 'Attendance_Spreadsheet.xlsx',
       cellRenderer: (params) => (
@@ -859,6 +871,8 @@ export default function AttendanceView({ triggerNotification }) {
       headerName: 'Uploaded By',
       flex: 2,
       minWidth: 160,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-slate-700 font-medium text-center flex items-center justify-center',
       valueGetter: (params) => params.data['Uploaded By'] || params.data.Uploaded_By || params.data.uploaded_by || 'Admin',
     },
@@ -867,6 +881,8 @@ export default function AttendanceView({ triggerNotification }) {
       headerName: 'Date of Upload',
       flex: 2,
       minWidth: 160,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-slate-600 font-medium text-center flex items-center justify-center',
       valueGetter: (params) => params.data['Date of Upload'] || params.data.date_of_upload || params.data.Date_of_Upload || '—',
       valueFormatter: (params) => {
@@ -879,6 +895,7 @@ export default function AttendanceView({ triggerNotification }) {
     {
       headerName: 'Actions',
       width: 120,
+      pinned: 'right',
       cellClass: 'text-center flex items-center justify-center gap-2',
       cellRenderer: (params) => {
         const fName = params.data['File Name'] || params.data.file_name || params.data.File_name;
@@ -891,6 +908,7 @@ export default function AttendanceView({ triggerNotification }) {
             >
               <Download size={15} />
             </button>
+            {canRemove && (
             <button
               onClick={() => handleDeleteFile(params.data.id)}
               className="p-1.5 hover:bg-rose-50 text-rose-600 rounded-lg transition cursor-pointer"
@@ -898,6 +916,7 @@ export default function AttendanceView({ triggerNotification }) {
             >
               <Trash2 size={15} />
             </button>
+            )}
           </div>
         );
       },
@@ -985,6 +1004,7 @@ export default function AttendanceView({ triggerNotification }) {
     setFileValidationError('');
     attendanceCache.current = {};
     fetchFilesAndData(true);
+    fetchFilterOptions();
 
     if (month && year && week) {
       setReportMonth(month);
@@ -1009,11 +1029,11 @@ export default function AttendanceView({ triggerNotification }) {
     const uploadRequest = existingFileId
         ? (() => {
             formData.append('fileId', existingFileId);
-            return axios.put(`${API_BASE_URL}/attend-employee`, formData, {
+            return api.put(`/attend-employee`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
         })()
-        : axios.post(`${API_BASE_URL}/employee-attendance`, formData, {
+        : api.post(`/employee-attendance`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
 
@@ -1037,13 +1057,13 @@ export default function AttendanceView({ triggerNotification }) {
       const fallbackFormData = new FormData();
       fallbackFormData.append('file', selectedFile);
       
-      return axios.post(`${API_BASE_URL}/attendance`, fallbackFormData, {
+      return api.post(`/attendance`, fallbackFormData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       .then(res => {
         const id = res.data.id || res.data.fileId;
         if (id) {
-          return axios.post(`${API_BASE_URL}/attendance/storecsv/${id}`);
+          return api.post(`/attendance/storecsv/${id}`);
         }
       })
       .then(() => {
@@ -1081,30 +1101,33 @@ export default function AttendanceView({ triggerNotification }) {
     // If a file already exists for this exact Year/Month/Week, route this
     // upload through the update endpoint (which replaces that file's rows)
     // instead of always creating a brand-new File_Id for the same period.
-    const existingMatch = employeeRows.find(r =>
-        String(r.Year) === String(yearVal) &&
-        r.Month === monthVal &&
-        String(r.week) === String(weekVal)
-    );
-    const existingFileId = existingMatch ? existingMatch.File_Id : null;
-
-    if (existingFileId) {
-        askConfirm(
+    api.get(`/attendance-check-existing/${yearVal}/${monthVal}/${weekVal}`)
+      .then(res => {
+        const existingFileId = res.data?.existingFileId ?? null;
+        if (existingFileId) {
+          askConfirm(
             `A file already exists for ${monthVal} ${yearVal}, Week ${weekVal}. Uploading will replace all existing attendance data for this period. Continue?`,
             () => {
-                setUploading(true);
-                executeAttendanceUpload(existingFileId, monthVal, yearVal, weekVal);
+              setUploading(true);
+              executeAttendanceUpload(existingFileId, monthVal, yearVal, weekVal);
             }
-        );
-        return;
-    }
-
-    setUploading(true);
-    executeAttendanceUpload(existingFileId, monthVal, yearVal, weekVal);
+          );
+          return;
+        }
+        setUploading(true);
+        executeAttendanceUpload(existingFileId, monthVal, yearVal, weekVal);
+      })
+      .catch(err => {
+        // Fail safe: if the existence check itself fails, proceed as if no
+        // existing file was found rather than blocking the upload entirely.
+        console.error("Existing-file check failed:", err);
+        setUploading(true);
+        executeAttendanceUpload(null, monthVal, yearVal, weekVal);
+      });
   };
 
   const handleDownloadFile = (id, fileName) => {
-    axios.get(`${API_BASE_URL}/attendance/download/${id}`, { responseType: 'blob' })
+    api.get(`/attendance/download/${id}`, { responseType: 'blob' })
       .then(res => {
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement('a');
@@ -1122,7 +1145,7 @@ export default function AttendanceView({ triggerNotification }) {
 
     const handleDeleteFile = (id) => {
     askConfirm("Deleting the file will also delete all attendance records parsed from it. Continue?", () => {
-      axios.delete(`${API_BASE_URL}/attendance/${id}`)
+      api.delete(`/attendance/${id}`)
         .then(() => {
           showToast('🗑️ File record deleted successfully', '#10B981');
           attendanceCache.current = {};
@@ -1136,7 +1159,7 @@ export default function AttendanceView({ triggerNotification }) {
   };
 
   const handleDownloadSample = () => {
-    axios.get(`${API_BASE_URL}/attendance/downloadSampleDocument`, { responseType: 'blob' })
+    api.get(`/attendance/downloadSampleDocument`, { responseType: 'blob' })
       .then(res => {
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const link = document.createElement('a');
@@ -1224,6 +1247,10 @@ export default function AttendanceView({ triggerNotification }) {
     });
   };
 
+  if (!canAdd && !canView && !canEdit) {
+    return <RestrictedAccess moduleName="Attendance" />;
+  }
+
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 relative">
       <style>{`
@@ -1306,6 +1333,7 @@ export default function AttendanceView({ triggerNotification }) {
         {/* Sub-tabs (Upload > View Files > DataList > Report) & User Manual */}
         <div className="flex flex-wrap items-center gap-3 justify-end">
           <div className="flex items-center space-x-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200/80 select-none">
+            {canAdd && (
             <button
               type="button"
               onClick={() => setSubTab('upload')}
@@ -1317,6 +1345,7 @@ export default function AttendanceView({ triggerNotification }) {
             >
               Upload Attendance
             </button>
+            )}
 
             <button
               type="button"
@@ -1355,14 +1384,6 @@ export default function AttendanceView({ triggerNotification }) {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={handleDownloadSample}
-            className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center space-x-1 cursor-pointer flex-shrink-0 select-none"
-            title="Download User Manual excel template"
-          >
-            <span>User Manual</span>
-          </button>
         </div>
       </div>
 
@@ -1403,24 +1424,24 @@ export default function AttendanceView({ triggerNotification }) {
         {subTab === 'data' && (
           <AttendanceDataListView
             dataFilterWing={dataFilterWing}
-            setDataFilterWing={setDataFilterWing}
+            setDataFilterWing={changeDataFilterWing}
             dataFilterMonth={dataFilterMonth}
-            setDataFilterMonth={setDataFilterMonth}
+            setDataFilterMonth={changeDataFilterMonth}
             dataFilterYear={dataFilterYear}
-            setDataFilterYear={setDataFilterYear}
+            setDataFilterYear={changeDataFilterYear}
             dataFilterWeek={dataFilterWeek}
-            setDataFilterWeek={setDataFilterWeek}
-            availableWings={availableWings}
-            availableMonths={availableMonths}
-            availableYears={availableYears}
-            availableWeeks={availableWeeks}
+            setDataFilterWeek={changeDataFilterWeek}
+            availableWings={filterOptions.wings}
+            availableMonths={filterOptions.months}
+            availableYears={filterOptions.years}
+            availableWeeks={filterOptions.weeks}
             handleCopyData={handleCopyData}
             handleExportExcel={handleExportExcel}
             handleExportPdf={handleExportPdf}
             pageSize={pageSize}
             setPageSize={setPageSize}
             searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
+            setSearchTerm={changeSearchTerm}
             fetchError={fetchError}
             fetchFilesAndData={fetchFilesAndData}
             loading={loading}
@@ -1430,6 +1451,8 @@ export default function AttendanceView({ triggerNotification }) {
             visibleCols={employeeVisibleCols}
             setVisibleCols={setEmployeeVisibleCols}
             columnLabels={EMPLOYEE_COLUMN_LABELS}
+            pagination={employeePagination}
+            onPageChange={setDataPage}
           />
         )}
 
@@ -1536,7 +1559,7 @@ export default function AttendanceView({ triggerNotification }) {
                 <button
                   type="button"
                   onClick={() => handleFetchReport(reportMonth, reportYear, reportWeek, true)}
-                  className="px-4 py-2 bg-[#0f417a] hover:bg-[#0c3361] text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer flex items-center space-x-1.5"
+                  className="px-4 py-2 bg-[#4b2424] hover:bg-[#381b1b] text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer flex items-center space-x-1.5"
                 >
                   <span>Fetch Report</span>
                 </button>
