@@ -14,9 +14,11 @@ import {
   Sparkles,
   Copy,
   Edit,
-  Activity
+  Activity,
+  X
 } from 'lucide-react';
 import FormPreviewModal from './FormPreviewModal';
+import FormBuilderStudio from './FormBuilderStudio';
 
 const MOCK_PUBLISHED_FORMS = [
   {
@@ -63,10 +65,12 @@ const MOCK_PUBLISHED_FORMS = [
   }
 ];
 
-export default function FormDirectory({ triggerNotification, onViewSubmissions }) {
+export default function FormDirectory({ triggerNotification, onViewSubmissions, onEditForm }) {
   const [forms, setForms] = useState(MOCK_PUBLISHED_FORMS);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
+  const [formToDelete, setFormToDelete] = useState(null);
+  const [formToEdit, setFormToEdit] = useState(null);
 
   useEffect(() => {
     // Attempt fetching live forms from backend
@@ -82,9 +86,33 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions }
       });
   }, []);
 
-  const handleDeleteForm = (id, name) => {
-    setForms(forms.filter(f => f.id !== id));
-    triggerNotification && triggerNotification(`Form "${name}" deleted successfully`, 'success');
+  const handleCloneForm = (form) => {
+    const clonedForm = {
+      ...form,
+      id: `form_${Date.now()}`,
+      formName: `${form.formName} (Copy)`,
+      submissionsCount: 0
+    };
+    setForms([clonedForm, ...forms]);
+    triggerNotification && triggerNotification(`Cloned "${form.formName}" successfully!`, 'success');
+  };
+
+  const confirmDelete = () => {
+    if (!formToDelete) return;
+    setForms(forms.filter(f => f.id !== formToDelete.id));
+    triggerNotification && triggerNotification(`Form "${formToDelete.formName}" deleted successfully`, 'success');
+    setFormToDelete(null);
+  };
+
+  const handleToggleStatus = (id) => {
+    setForms(forms.map(f => {
+      if (f.id === id) {
+        const newStatus = f.status === 'Active' ? 'Inactive' : 'Active';
+        triggerNotification && triggerNotification(`Status changed to ${newStatus}`, 'success');
+        return { ...f, status: newStatus };
+      }
+      return f;
+    }));
   };
 
   const filteredForms = forms.filter(f => 
@@ -130,7 +158,9 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions }
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                     isOverdue 
                       ? 'bg-red-50 text-red-700 border border-red-200' 
-                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : form.status === 'Inactive'
+                        ? 'bg-slate-100 text-slate-500 border border-slate-300'
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                   }`}>
                     {form.status}
                   </span>
@@ -163,7 +193,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions }
               {/* Form Action Buttons */}
               <div className="flex items-center justify-between gap-2 pt-4 mt-4 border-t border-slate-100">
                 <button
-                  onClick={(e) => { e.stopPropagation(); triggerNotification && triggerNotification(`Cloned "${form.formName}"`, 'success'); }}
+                  onClick={(e) => { e.stopPropagation(); handleCloneForm(form); }}
                   className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl transition cursor-pointer"
                 >
                   <Copy className="h-3.5 w-3.5" />
@@ -171,7 +201,10 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions }
                 </button>
 
                 <button
-                  onClick={(e) => { e.stopPropagation(); triggerNotification && triggerNotification(`Editing "${form.formName}"`, 'success'); }}
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setFormToEdit(form);
+                  }}
                   className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs rounded-xl transition cursor-pointer"
                 >
                   <Edit className="h-3.5 w-3.5" />
@@ -179,7 +212,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions }
                 </button>
 
                 <button
-                  onClick={(e) => { e.stopPropagation(); triggerNotification && triggerNotification(`Status changed for "${form.formName}"`, 'success'); }}
+                  onClick={(e) => { e.stopPropagation(); handleToggleStatus(form.id); }}
                   className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
                 >
                   <Activity className="h-3.5 w-3.5" />
@@ -187,7 +220,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions }
                 </button>
 
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleDeleteForm(form.id, form.formName); }}
+                  onClick={(e) => { e.stopPropagation(); setFormToDelete(form); }}
                   className="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition cursor-pointer"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -206,6 +239,68 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions }
           fields={selectedFormToFill.fields}
           onClose={() => setSelectedFormToFill(null)}
         />
+      )}
+      {/* Delete Confirmation Overlay */}
+      {formToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4 mx-auto">
+                <Trash2 className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 text-center mb-2">Delete Form</h3>
+              <p className="text-sm text-slate-500 text-center mb-6">
+                Are you sure you want to delete <strong>{formToDelete.formName}</strong>? This action cannot be undone and will remove all associated submissions.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setFormToDelete(null)}
+                  className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition cursor-pointer shadow-md shadow-red-500/20"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Form Full-Screen Overlay */}
+      {formToEdit && (
+        <div className="fixed inset-0 z-[100] bg-slate-50/95 backdrop-blur overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+          <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+            <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                  <Edit className="h-5 w-5 text-amber-700" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 leading-tight">Edit Form</h2>
+                  <p className="text-xs text-slate-500">Modify properties and fields for {formToEdit.formName}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setFormToEdit(null)}
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition cursor-pointer font-bold text-xs flex items-center space-x-1.5"
+              >
+                <X className="h-4 w-4" />
+                <span>Close Editor</span>
+              </button>
+            </div>
+
+            <FormBuilderStudio 
+              formToEdit={formToEdit} 
+              triggerNotification={triggerNotification} 
+              onFormPublished={() => setFormToEdit(null)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

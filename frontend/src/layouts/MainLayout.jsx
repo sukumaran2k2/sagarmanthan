@@ -118,6 +118,9 @@ export const ROUTE_MAP = {
   'View Submissions': 'form-builder',
   'Form Builder': 'form-builder',
   'FormBuilder': 'form-builder',
+  'Form Studio': 'form-builder/studio',
+  'Form Directory': 'form-builder/directory',
+  'Inbox Forms': 'form-builder/inbox',
 
   // Tracker nested routes
   'Project Milestones': 'tracker/project-milestones',
@@ -211,6 +214,9 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('kpi/imu')) return 'IMU Input Form';
   if (cleanSlug.startsWith('kpi/sci')) return 'SCI Input Form';
   if (cleanSlug.startsWith('governance/media-outreach')) return 'Media Outreach';
+  if (cleanSlug.startsWith('form-builder/studio')) return 'Form Studio';
+  if (cleanSlug.startsWith('form-builder/directory')) return 'Form Directory';
+  if (cleanSlug.startsWith('form-builder/inbox')) return 'Inbox Forms';
 
   // Exact match
   const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);
@@ -304,7 +310,7 @@ const getBreadcrumbs = (tab) => {
   const knowledgeItems = ['Research Papers', 'Policy Documents', 'Guidelines'];
   if (knowledgeItems.includes(tab)) return ['Home', 'Knowledge Repository', tab];
 
-  const formBuilderItems = ['Create Dynamic Form', 'View Submissions'];
+  const formBuilderItems = ['Create Dynamic Form', 'View Submissions', 'Form Studio', 'Form Directory', 'Inbox Forms', 'Form Builder'];
   if (formBuilderItems.includes(tab)) return ['Home', 'Form Builder', tab];
 
   const trackerItems = ['Project Milestones', 'Delay Analysis'];

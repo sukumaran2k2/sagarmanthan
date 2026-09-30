@@ -88,6 +88,9 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
                     {field.required && <span className="text-red-500 ml-1">*</span>}
                     <span className="ml-2 text-[10px] text-slate-400 font-mono">({field.inputType})</span>
                   </label>
+                  {field.hint && (
+                    <p className="text-[10px] text-slate-500 pb-1 leading-snug">{field.hint}</p>
+                  )}
 
                   {/* Text */}
                   {field.inputType === 'text' && (

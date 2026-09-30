@@ -96,7 +96,7 @@ export const INDIAN_STATES = [
   'Lakshadweep', 'Puducherry'
 ];
 
-export default function FormBuilderStudio({ triggerNotification, onFormPublished }) {
+export default function FormBuilderStudio({ triggerNotification, onFormPublished, formToEdit }) {
   // Form Config State
   const [formName, setFormName] = useState('Port Infrastructure Progress Report');
   const [formDescription, setFormDescription] = useState('Monthly progress telemetry submission form for active port modernisations.');
@@ -118,6 +118,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       inputLabel: 'Project Name',
       inputType: 'text',
       placeholder: 'Enter official project title',
+      hint: '',
       required: true,
       options: []
     },
@@ -126,6 +127,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       inputLabel: 'Nodal Officer Email',
       inputType: 'email',
       placeholder: 'officer@port.gov.in',
+      hint: 'Use official gov.in or nic.in email',
       required: true,
       options: []
     },
@@ -134,6 +136,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       inputLabel: 'Sanctioned Cost (Rs Cr)',
       inputType: 'float',
       placeholder: '0.00',
+      hint: 'Enter value in Crores',
       required: true,
       options: []
     },
@@ -142,6 +145,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       inputLabel: 'Implementation Stage',
       inputType: 'dropdown',
       placeholder: 'Select stage',
+      hint: '',
       required: true,
       options: ['Under Tendering', 'Awarded', 'Under Construction', 'Completed']
     },
@@ -150,6 +154,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       inputLabel: 'Port Location State',
       inputType: 'state',
       placeholder: 'Select State',
+      hint: '',
       required: true,
       options: []
     },
@@ -158,6 +163,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       inputLabel: 'Target Completion Date',
       inputType: 'date',
       placeholder: '',
+      hint: '',
       required: false,
       options: []
     }
@@ -177,6 +183,22 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Hydrate form if editing
+  useEffect(() => {
+    if (formToEdit) {
+      setFormName(formToEdit.formName || '');
+      setFormDescription(formToEdit.formDescription || '');
+      if (formToEdit.fields) {
+        setFields(formToEdit.fields);
+        if (formToEdit.fields.length > 0) {
+          setSelectedFieldId(formToEdit.fields[0].id);
+        }
+      }
+      if (formToEdit.dueDate) setDueDate(formToEdit.dueDate);
+      if (formToEdit.status) setActiveStatus(formToEdit.status === 'Active' ? '1' : '0');
+    }
+  }, [formToEdit]);
 
   // Toggle Single Org Selection
   const handleToggleOrg = (id) => {
@@ -218,6 +240,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       inputLabel: fieldTypeObj.defaultLabel,
       inputType: fieldTypeObj.type,
       placeholder: `Enter ${fieldTypeObj.defaultLabel.toLowerCase()}...`,
+      hint: '',
       required: false,
       options: isMultiSelect ? ['Option 1', 'Option 2', 'Option 3'] : []
     };
@@ -661,6 +684,9 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                               {field.inputType}
                             </span>
                           </div>
+                          {field.hint && (
+                            <p className="text-[10px] text-slate-500 mt-0.5">{field.hint}</p>
+                          )}
 
                           {/* Dummy Field Representation */}
                           <div className="mt-2">
@@ -848,12 +874,25 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Placeholder Hint
+                    Placeholder Text
                   </label>
                   <input
                     type="text"
                     value={selectedField.placeholder}
                     onChange={(e) => handleUpdateField(selectedField.id, 'placeholder', e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Help Text / Hint
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedField.hint || ''}
+                    onChange={(e) => handleUpdateField(selectedField.id, 'hint', e.target.value)}
+                    placeholder="e.g. Enter value in INR Crores"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700"
                   />
                 </div>

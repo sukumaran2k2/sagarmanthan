@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   FileText, 
   PlusCircle, 
@@ -18,9 +19,34 @@ import SubmissionsTable from './components/SubmissionsTable';
 import InternalNavigation from '../../components/InternalNavigation';
 
 export default function FormBuilder({ triggerNotification }) {
-  const [activeTab, setActiveTab] = useState('studio'); // 'studio' | 'directory' | 'inbox' | 'submissions'
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Initialize active tab from the URL path
+  const [activeTab, setActiveTab] = useState(() => {
+    const path = location.pathname;
+    if (path.includes('/directory')) return 'directory';
+    if (path.includes('/inbox')) return 'inbox';
+    if (path.includes('/submissions')) return 'submissions';
+    return 'studio';
+  });
+
+  // Keep state in sync if URL changes (e.g., from header)
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.includes('/directory')) setActiveTab('directory');
+    else if (path.includes('/inbox')) setActiveTab('inbox');
+    else if (path.includes('/submissions')) setActiveTab('submissions');
+    else setActiveTab('studio');
+  }, [location.pathname]);
+
   const [selectedFormForInbox, setSelectedFormForInbox] = useState(null);
   const [selectedFormForSubmission, setSelectedFormForSubmission] = useState(null);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    navigate(`/form-builder/${tabId}`);
+  };
 
   const tabs = [
     { id: 'studio', label: 'Form Studio' },
@@ -43,7 +69,7 @@ export default function FormBuilder({ triggerNotification }) {
         <InternalNavigation
           tabs={tabs}
           currentTab={activeTab === 'submissions' ? 'directory' : activeTab}
-          onTabChange={(tabId) => setActiveTab(tabId)}
+          onTabChange={handleTabChange}
         />
       </div>
 
@@ -51,7 +77,7 @@ export default function FormBuilder({ triggerNotification }) {
       {activeTab === 'studio' && (
         <FormBuilderStudio 
           triggerNotification={triggerNotification} 
-          onFormPublished={() => setActiveTab('directory')}
+          onFormPublished={() => handleTabChange('directory')}
         />
       )}
 
@@ -60,7 +86,7 @@ export default function FormBuilder({ triggerNotification }) {
           triggerNotification={triggerNotification}
           onViewSubmissions={(form) => {
             setSelectedFormForSubmission(form);
-            setActiveTab('submissions');
+            handleTabChange('submissions');
           }}
         />
       )}
@@ -69,7 +95,7 @@ export default function FormBuilder({ triggerNotification }) {
         <InboxForms 
           selectedForm={selectedFormForInbox}
           triggerNotification={triggerNotification}
-          onBackToDirectory={() => setActiveTab('directory')}
+          onBackToDirectory={() => handleTabChange('directory')}
         />
       )}
 
@@ -77,7 +103,7 @@ export default function FormBuilder({ triggerNotification }) {
         <SubmissionsTable 
           selectedForm={selectedFormForSubmission}
           triggerNotification={triggerNotification}
-          onBackToDirectory={() => setActiveTab('directory')}
+          onBackToDirectory={() => handleTabChange('directory')}
         />
       )}
     </div>
