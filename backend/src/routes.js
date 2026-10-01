@@ -266,6 +266,7 @@ import { getContainerTwoLeg } from "./controllers/traffic-container-two-leg.js";
 
 //Form Builder tab
 import formBuilderTab from "./controllers/formBuilder/formBuilderV1.js";
+import formBuilderController from "./controllers/formBuilder/formBuilderController.js";
 import formBuilderInputTab from "./controllers/formBuilder/formBuilderInput.js";
 
 const router = express.Router();
@@ -2792,9 +2793,19 @@ router.get("/traffic-container-two-leg", getContainerTwoLeg);
 
 //Form Builder Fields
 router.post('/store-form-builder-input-form', formBuilderTab.storeFormBuilderInputForm); //req
-router.post('/modify-form-builder-input-form', formBuilderTab.modifyFormBuilderInputForm); //req
+router.post(
+  '/modify-form-builder-input-form',
+  auth,
+  requireModulePermission("FORM_BUILDER", "create"),
+  formBuilderController.modifyFormBuilderInputForm
+); // replaces the legacy formBuilderV1.js implementation -- see formBuilderController.js
 
-router.get('/get-created-form-data', formBuilderTab.getCreatedFormData); //req //get created forms
+router.get(
+  '/get-created-form-data',
+  auth,
+  requireModulePermission("FORM_BUILDER", "read"),
+  formBuilderController.getCreatedFormData
+); // replaces the legacy formBuilderV1.js implementation -- see formBuilderController.js
 router.delete("/delete-form-builder-data/:data", formBuilderInputTab.deleteMmtFormBuilder); //req //delete created forms
 router.post("/edit-form-builder-data/:data", formBuilderInputTab.editMmtFormBuilder); //req //edit forms
 
