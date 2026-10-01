@@ -124,6 +124,7 @@ export default function FormBuilder({ triggerNotification }) {
 
       {activeTab === 'directory' && (
         <FormDirectory 
+          mode="published"
           triggerNotification={triggerNotification}
           onViewSubmissions={(form) => {
             setSelectedFormForSubmission(form);

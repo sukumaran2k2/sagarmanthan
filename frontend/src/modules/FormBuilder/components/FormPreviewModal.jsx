@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, CheckCircle, Upload, Calendar } from 'lucide-react';
+import { X, CheckCircle, Upload, Calendar, Info } from 'lucide-react';
 import { INDIAN_STATES } from './FormBuilderStudio';
 
 export default function FormPreviewModal({ formName, formDescription, fields, onClose }) {
@@ -83,14 +83,22 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
 
               {fields.map((field) => (
                 <div key={field.id} className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
-                    {field.inputLabel}
-                    {field.required && <span className="text-red-500 ml-1">*</span>}
-                    <span className="ml-2 text-[10px] text-slate-400 font-mono">({field.inputType})</span>
-                  </label>
-                  {field.hint && (
-                    <p className="text-[10px] text-slate-500 pb-1 leading-snug">{field.hint}</p>
-                  )}
+                  <div className="flex items-center">
+                    <label className="block text-xs font-bold text-slate-700">
+                      {field.inputLabel}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                      <span className="ml-2 text-[10px] text-slate-400 font-mono">({field.inputType})</span>
+                    </label>
+                    {field.hint && (
+                      <div className="group/hint relative flex items-center ml-2">
+                        <Info className="h-3.5 w-3.5 text-slate-400 hover:text-blue-500 cursor-help" />
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 hidden group-hover/hint:block w-max max-w-xs bg-slate-800 text-white text-[10px] py-1 px-2 rounded shadow-lg z-10 whitespace-normal text-center">
+                          {field.hint}
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full border-4 border-transparent border-t-slate-800"></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Text */}
                   {field.inputType === 'text' && (

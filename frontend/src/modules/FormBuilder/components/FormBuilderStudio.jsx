@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ConfirmOverlay from '../../../components/ConfirmOverlay';
 import { 
   Plus, 
   Trash2, 
@@ -31,9 +32,102 @@ import {
   Map,
   Award,
   CheckCheck,
-  Save
+  Save,
+  FolderOpen,
+  Info
 } from 'lucide-react';
 import FormPreviewModal from './FormPreviewModal';
+
+const MOCK_DRAFTS = [
+  {
+    id: 'draft_1',
+    formName: 'Annual HR Performance Review',
+    formDescription: 'Draft for the upcoming annual HR performance review.',
+    dueDate: '2026-12-31',
+    assignType: 'wing',
+    selectedWings: ['Administration', 'Finance'],
+    fields: [
+      { id: 'f1', inputLabel: 'Employee ID', inputType: 'text', required: true },
+      { id: 'f2', inputLabel: 'Self Rating (1-10)', inputType: 'number', required: true }
+    ]
+  },
+  {
+    id: 'draft_2',
+    formName: 'Safety Audit Checklist',
+    formDescription: 'Safety inspection checklist draft.',
+    dueDate: '2026-11-30',
+    assignType: 'organisation',
+    selectedOrgIds: ['1', '8'],
+    fields: [
+      { id: 'f1', inputLabel: 'Terminal Zone', inputType: 'text', required: true }
+    ]
+  },
+  {
+    id: 'draft_3',
+    formName: 'Vessel Traffic Report',
+    formDescription: 'Monthly report on vessel traffic at major ports.',
+    dueDate: '2026-10-31',
+    assignType: 'organisation',
+    selectedOrgIds: ['2', '3', '5'],
+    fields: [
+      { id: 'f1', inputLabel: 'Port Name', inputType: 'text', required: true },
+      { id: 'f2', inputLabel: 'Total Vessels Berthed', inputType: 'number', required: true },
+      { id: 'f3', inputLabel: 'Report Date', inputType: 'date', required: true }
+    ]
+  },
+  {
+    id: 'draft_4',
+    formName: 'Port Expansion Feasibility Study',
+    formDescription: 'Survey data collection for proposed new cargo terminals.',
+    dueDate: '2027-01-15',
+    assignType: 'wing',
+    selectedWings: ['Engineering', 'Project Management'],
+    fields: [
+      { id: 'f1', inputLabel: 'Proposed Terminal Name', inputType: 'text', required: true },
+      { id: 'f2', inputLabel: 'Estimated Cost (Cr)', inputType: 'number', required: true },
+      { id: 'f3', inputLabel: 'Initial Feasibility Status', inputType: 'dropdown', options: ['High', 'Medium', 'Low'], required: false }
+    ]
+  },
+  {
+    id: 'draft_5',
+    formName: 'Employee Grievance Form',
+    formDescription: 'Standardized form for internal employee grievances.',
+    dueDate: '2026-12-15',
+    assignType: 'wing',
+    selectedWings: ['Administration'],
+    fields: [
+      { id: 'f1', inputLabel: 'Department', inputType: 'dropdown', options: ['HR', 'Finance', 'Engineering', 'Operations'], required: true },
+      { id: 'f2', inputLabel: 'Description of Grievance', inputType: 'long-text', required: true }
+    ]
+  },
+  {
+    id: 'draft_6',
+    formName: 'Environmental Impact Assessment',
+    formDescription: 'Draft form for quarterly environmental impact reporting.',
+    dueDate: '2027-03-01',
+    assignType: 'organisation',
+    selectedOrgIds: ['1', '2', '3', '4', '5'],
+    fields: [
+      { id: 'f1', inputLabel: 'Assessment Quarter', inputType: 'dropdown', options: ['Q1', 'Q2', 'Q3', 'Q4'], required: true },
+      { id: 'f2', inputLabel: 'Air Quality Index', inputType: 'number', required: true },
+      { id: 'f3', inputLabel: 'Water Quality Status', inputType: 'radio', options: ['Optimal', 'Warning', 'Critical'], required: true }
+    ]
+  },
+  {
+    id: 'draft_7',
+    formName: 'Cargo Handling Equipment Request',
+    formDescription: 'Request form for new cranes, forklifts, and other heavy equipment.',
+    dueDate: '2026-10-25',
+    assignType: 'wing',
+    selectedWings: ['Operations', 'Finance'],
+    fields: [
+      { id: 'f1', inputLabel: 'Equipment Type', inputType: 'dropdown', options: ['Crane', 'Forklift', 'Tractor', 'Other'], required: true },
+      { id: 'f2', inputLabel: 'Quantity Required', inputType: 'number', required: true },
+      { id: 'f3', inputLabel: 'Urgency', inputType: 'radio', options: ['High', 'Normal', 'Low'], required: true },
+      { id: 'f4', inputLabel: 'Justification', inputType: 'long-text', required: true }
+    ]
+  }
+];
 
 export const FULL_ORGANISATION_LIST = [
   { id: '1', name: 'Syama Prasad Mookerjee Port Authority', code: 'SMPA', category: '1' },
@@ -172,10 +266,15 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [isClearMetadataModalOpen, setIsClearMetadataModalOpen] = useState(false);
+  const [isDraftsModalOpen, setIsDraftsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [drafts, setDrafts] = useState(MOCK_DRAFTS);
 
-
-
+  const handleDeleteDraft = (draftId) => {
+    setDrafts(drafts.filter(d => d.id !== draftId));
+    triggerNotification && triggerNotification('Draft deleted successfully', 'info');
+  };
   // Close org dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
@@ -205,16 +304,6 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       if (formToEdit.status) setActiveStatus(formToEdit.status === 'Active' ? '1' : '0');
     }
   }, [formToEdit]);
-
-  // Disable scroll when clear modal is open
-  useEffect(() => {
-    if (!isClearModalOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [isClearModalOpen]);
 
 
 
@@ -379,13 +468,50 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
 
   const selectedField = fields.find(f => f.id === selectedFieldId);
 
+  const loadDraft = (draft) => {
+    setFormName(draft.formName || '');
+    setFormDescription(draft.formDescription || '');
+    if (draft.fields) {
+      setFields(draft.fields);
+      if (draft.fields.length > 0) {
+        setSelectedFieldId(draft.fields[0].id);
+      }
+    } else {
+      setFields([]);
+    }
+    if (draft.dueDate) setDueDate(draft.dueDate);
+    if (draft.assignType) setAssignType(draft.assignType);
+    if (draft.selectedWings) setSelectedWings(draft.selectedWings);
+    if (draft.selectedOrgIds) setSelectedOrgIds(draft.selectedOrgIds);
+    setIsDraftsModalOpen(false);
+    triggerNotification && triggerNotification(`Draft "${draft.formName}" loaded successfully!`, 'success');
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Config Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
-        <div className="flex items-center space-x-2 text-slate-800 font-bold text-base mb-4">
-          <Settings className="h-5 w-5 text-blue-600" />
-          <span>Form Configuration & Target Metadata</span>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2 text-slate-800 font-bold text-base">
+            <Settings className="h-5 w-5 text-blue-600" />
+            <span>Form Configuration & Target Metadata</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setIsClearMetadataModalOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-lg transition cursor-pointer"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>Clear</span>
+            </button>
+            <button
+              onClick={() => setIsDraftsModalOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-lg transition cursor-pointer"
+            >
+              <FolderOpen className="h-4 w-4" />
+              <span>Load Draft ({drafts.length})</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -704,7 +830,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
               </div>
 
               {/* Field Cards List */}
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                 {fields.map((field, idx) => {
                   const isSelected = field.id === selectedFieldId;
                   return (
@@ -729,10 +855,16 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                             <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 font-semibold rounded uppercase font-mono">
                               {field.inputType}
                             </span>
+                            {field.hint && (
+                              <div className="group/hint relative flex items-center">
+                                <Info className="h-3.5 w-3.5 text-slate-400 hover:text-blue-500 cursor-help" />
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 hidden group-hover/hint:block w-max max-w-xs bg-slate-800 text-white text-[10px] py-1 px-2 rounded shadow-lg z-10 whitespace-normal text-center">
+                                  {field.hint}
+                                  <div className="absolute left-1/2 -translate-x-1/2 top-full border-4 border-transparent border-t-slate-800"></div>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          {field.hint && (
-                            <p className="text-[10px] text-slate-500 mt-0.5">{field.hint}</p>
-                          )}
 
                           {/* Dummy Field Representation */}
                           <div className="mt-2">
@@ -1019,44 +1151,96 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       )}
 
       {/* Clear Canvas Confirmation Modal */}
-      {isClearModalOpen && (
-        <div className="fixed inset-0 z-[99999] overflow-hidden flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsClearModalOpen(false)} />
-          <div
-            className="relative z-10 bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-200 animate-scale-up my-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4 mx-auto">
-              <Trash2 className="h-6 w-6" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-2 text-center">Clear Canvas</h3>
-            <p className="text-sm text-slate-500 mb-6 text-center">
-              Are you sure you want to clear the canvas? All fields will be removed.
-            </p>
-            <div className="flex gap-3 justify-center">
+      <ConfirmOverlay
+        isOpen={isClearModalOpen}
+        title="Clear Canvas"
+        description="Are you sure you want to clear the canvas? All fields will be removed."
+        confirmText="Clear Canvas"
+        icon={Trash2}
+        onCancel={() => setIsClearModalOpen(false)}
+        onConfirm={() => {
+          setFields([]);
+          setSelectedFieldId(null);
+          setIsClearModalOpen(false);
+          triggerNotification && triggerNotification('Form canvas fields cleared', 'info');
+        }}
+      />
+
+      {/* Clear Metadata Confirmation Modal */}
+      <ConfirmOverlay
+        isOpen={isClearMetadataModalOpen}
+        title="Clear Metadata"
+        description="Are you sure you want to clear all form configuration and target metadata? The canvas fields will remain intact."
+        confirmText="Clear Metadata"
+        icon={Trash2}
+        onCancel={() => setIsClearMetadataModalOpen(false)}
+        onConfirm={() => {
+          setFormName('');
+          setFormDescription('');
+          setDueDate('');
+          setSelectedWings([]);
+          setSelectedOrgIds([]);
+          setIsClearMetadataModalOpen(false);
+          triggerNotification && triggerNotification('Form configuration and metadata cleared', 'info');
+        }}
+      />
+
+      {/* Saved Drafts Modal */}
+      <ConfirmOverlay
+        isOpen={isDraftsModalOpen}
+        title="Saved Drafts"
+        description="Select a draft below to resume editing. Any unsaved changes on the current canvas will be overwritten."
+        icon={FolderOpen}
+        iconColor="text-indigo-600"
+        iconBgColor="bg-indigo-100"
+        maxWidth="max-w-2xl"
+        cancelText="Close"
+        onCancel={() => setIsDraftsModalOpen(false)}
+      >
+        <div className="max-h-[50vh] overflow-y-auto space-y-3 -mx-2 px-2">
+          {drafts.map((draft) => (
+            <div 
+              key={draft.id} 
+              className="border border-slate-200 rounded-xl p-4 hover:border-indigo-300 hover:shadow-md transition cursor-pointer bg-slate-50 hover:bg-indigo-50/30 group relative"
+              onClick={() => loadDraft(draft)}
+            >
+              <div className="flex justify-between items-start mb-1 pr-8">
+                <h4 className="font-bold text-slate-800 text-sm group-hover:text-indigo-700">{draft.formName}</h4>
+                <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 font-bold rounded uppercase">Draft</span>
+              </div>
+              <p className="text-xs text-slate-500 line-clamp-1 mb-2 pr-8">{draft.formDescription}</p>
+              <div className="flex items-center space-x-3 text-[10px] font-semibold text-slate-400">
+                <span className="flex items-center space-x-1">
+                  <List className="h-3 w-3" />
+                  <span>{draft.fields.length} Fields</span>
+                </span>
+                <span className="flex items-center space-x-1">
+                  <CalendarDays className="h-3 w-3" />
+                  <span>Due: {draft.dueDate}</span>
+                </span>
+              </div>
+
               <button
                 type="button"
-                onClick={() => setIsClearModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFields([]);
-                  setSelectedFieldId(null);
-                  setIsClearModalOpen(false);
-                  triggerNotification && triggerNotification('Form canvas fields cleared', 'info');
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteDraft(draft.id);
                 }}
-                className="px-4 py-2 rounded-xl text-sm font-bold transition shadow-sm cursor-pointer bg-red-600 hover:bg-red-700 text-white"
+                className="absolute right-4 top-4 p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                title="Delete Draft"
               >
-                Clear Canvas
+                <Trash2 className="h-4 w-4" />
               </button>
             </div>
-          </div>
+          ))}
+          
+          {drafts.length === 0 && (
+            <div className="text-center py-8 text-sm text-slate-500 font-medium">
+              No saved drafts found.
+            </div>
+          )}
         </div>
-      )}
+      </ConfirmOverlay>
     </div>
   );
 }
