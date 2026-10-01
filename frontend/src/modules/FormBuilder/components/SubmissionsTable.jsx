@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
-  Table, 
   Download, 
   Search, 
   ArrowLeft, 
@@ -9,6 +8,8 @@ import {
   Calendar,
   FileSpreadsheet
 } from 'lucide-react';
+import Table from '../../../components/Table';
+import ExportDropdown from '../../../components/ExportDropdown';
 
 const MOCK_SUBMISSIONS = [
   {
@@ -55,10 +56,15 @@ const MOCK_SUBMISSIONS = [
 export default function SubmissionsTable({ selectedForm, triggerNotification, onBackToDirectory }) {
   const [searchQuery, setSearchQuery] = useState('');
 
+  const gridRef = useRef(null);
+
   const formTitle = selectedForm ? selectedForm.formName : 'Monthly Capex Expenditure Telemetry';
 
-  const handleExportCSV = () => {
-    triggerNotification && triggerNotification('Exporting submissions report to CSV...', 'success');
+  const handleExportExcel = () => {
+    if (gridRef.current && gridRef.current.api) {
+      gridRef.current.api.exportDataAsCsv({ fileName: `Submissions_${formTitle}` });
+      triggerNotification && triggerNotification('Exporting submissions report to CSV...', 'success');
+    }
   };
 
   const filtered = MOCK_SUBMISSIONS.filter(s => 
@@ -66,101 +72,102 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
     s.submittedBy.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const columnDefs = [
+    { field: 'id', headerName: 'Submission ID', cellStyle: { fontWeight: '900', color: '#2563eb', fontSize: '11px' }, flex: 1.2 },
+    { field: 'portName', headerName: 'Port Authority', cellStyle: { fontWeight: 'bold', color: '#0f172a', fontSize: '11px' }, flex: 2.5 },
+    { field: 'submittedBy', headerName: 'Submitted By', cellStyle: { fontSize: '11px' }, flex: 1.5 },
+    { field: 'submittedOn', headerName: 'Submission Date', cellStyle: { color: '#64748b', fontSize: '11px' } },
+    { headerName: 'Project Name', valueGetter: (p) => p.data.data['Project Name'], cellStyle: { fontWeight: '600', color: '#1e293b', fontSize: '11px' }, flex: 1.5 },
+    { headerName: 'Cost (Rs Cr)', valueGetter: (p) => p.data.data['Sanctioned Cost (Rs Cr)'], type: 'rightAligned', cellStyle: { fontWeight: '900', color: '#0f172a', fontSize: '11px' } },
+    { 
+      headerName: 'Stage',
+      valueGetter: (p) => p.data.data['Implementation Stage'],
+      cellRenderer: (params) => (
+        <div className="flex items-center h-full">
+          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold rounded text-[10px] uppercase border border-blue-200 shadow-sm inline-block whitespace-nowrap leading-none">
+            {params.value}
+          </span>
+        </div>
+      )
+    }
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col overflow-hidden animate-fade-in">
       {/* Top Header Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="p-5 border-b border-slate-200/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <button
             onClick={onBackToDirectory}
-            className="flex items-center space-x-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 mb-2 cursor-pointer"
+            className="flex items-center space-x-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 mb-2 cursor-pointer transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <span>Back to Form Directory</span>
           </button>
 
-          <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
+          <h2 className="text-xl font-black text-slate-900 flex items-center space-x-2">
             <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
             <span>Submissions & Responses — {formTitle}</span>
           </h2>
         </div>
-
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center space-x-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer self-start md:self-auto"
-        >
-          <Download className="h-4 w-4" />
-          <span>Export to CSV</span>
-        </button>
+        
+        <ExportDropdown 
+          onExportExcel={handleExportExcel} 
+          onExportPdf={() => window.print()} 
+        />
       </div>
 
-      {/* Stats Highlights */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Submissions</span>
-          <div className="text-2xl font-black text-slate-800 mt-1">{filtered.length}</div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Verified Officers</span>
-          <div className="text-2xl font-black text-blue-600 mt-1">3 Nodal Officers</div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Submission Rate</span>
-          <div className="text-2xl font-black text-emerald-600 mt-1">84% Compliance</div>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm">
-        <div className="relative w-full md:w-96">
+      {/* Toolbar & Stats Section */}
+      <div className="p-5 border-b border-slate-200/80 bg-slate-50/50 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+        
+        {/* Search Bar */}
+        <div className="relative w-full lg:w-96">
           <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by port authority or officer name..."
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition"
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500/20 transition shadow-sm"
           />
+        </div>
+
+        {/* Stats Highlights */}
+        <div className="flex items-center space-x-8">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Total Submissions</span>
+            <div className="text-lg font-black text-slate-800">{filtered.length}</div>
+          </div>
+          
+          <div className="w-px h-8 bg-slate-200 hidden md:block"></div>
+
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Verified Officers</span>
+            <div className="text-lg font-black text-blue-600">3 Nodal Officers</div>
+          </div>
+          
+          <div className="w-px h-8 bg-slate-200 hidden md:block"></div>
+
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Submission Rate</span>
+            <div className="text-lg font-black text-emerald-600">84% Compliance</div>
+          </div>
         </div>
       </div>
 
       {/* Submissions Data Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-900 text-white font-bold uppercase tracking-wider text-[11px]">
-                <th className="p-4">Submission ID</th>
-                <th className="p-4">Port Authority</th>
-                <th className="p-4">Submitted By</th>
-                <th className="p-4">Submission Date</th>
-                <th className="p-4">Project Name</th>
-                <th className="p-4 text-right">Cost (Rs Cr)</th>
-                <th className="p-4">Stage</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-              {filtered.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50/80 transition">
-                  <td className="p-4 font-bold text-blue-600">{row.id}</td>
-                  <td className="p-4 font-bold text-slate-900">{row.portName}</td>
-                  <td className="p-4">{row.submittedBy}</td>
-                  <td className="p-4 text-slate-500">{row.submittedOn}</td>
-                  <td className="p-4 font-semibold text-slate-800">{row.data['Project Name']}</td>
-                  <td className="p-4 text-right font-bold text-slate-900">{row.data['Sanctioned Cost (Rs Cr)']}</td>
-                  <td className="p-4">
-                    <span className="px-2.5 py-1 bg-blue-50 text-blue-700 font-bold rounded-full text-[10px] uppercase border border-blue-200">
-                      {row.data['Implementation Stage']}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="w-full">
+        <Table 
+          ref={gridRef}
+          rowData={filtered} 
+          columnDefs={columnDefs} 
+          pagination={true}
+          paginationPageSize={10}
+          enableExport={false}
+          domLayout="autoHeight"
+          color="#0f417a"
+          rowHeight={34}
+        />
       </div>
     </div>
   );
