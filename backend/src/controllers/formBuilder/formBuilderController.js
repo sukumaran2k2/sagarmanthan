@@ -129,5 +129,51 @@ async function modifyFormBuilderInputForm(req, res) {
   }
 }
 
-const formBuilderController = { modifyFormBuilderInputForm };
+
+// GET /get-created-form-data
+async function getCreatedFormData(req, res) {
+  try {
+    const conn = await pool;
+    const result = await conn.request().query(`
+      SELECT id, form_name, form_description, due_date, organisation, active_status, submission_count, form_fields
+      FROM mmt_form_definitions
+      ORDER BY created_date DESC;
+    `);
+
+    const forms = result.recordset.map((row) => {
+      let fields = [];
+      try {
+        const parsed = JSON.parse(row.form_fields || '[]');
+        fields = parsed.map((f) => ({
+          id: f.columnName || f.inputLabel,
+          inputLabel: f.inputLabel,
+          inputType: f.inputType,
+          options: f.options || [],
+          required: !!f.required,
+          placeholder: f.placeholder || '',
+        }));
+      } catch {
+        fields = [];
+      }
+
+      return {
+        id: row.id,
+        formName: row.form_name,
+        formDescription: row.form_description,
+        organisation: row.organisation,
+        dueDate: row.due_date ? new Date(row.due_date).toISOString().split('T')[0] : null,
+        status: row.active_status === '1' ? 'Active' : 'Inactive',
+        submissionsCount: row.submission_count,
+        fields,
+      };
+    });
+
+    res.json(forms);
+  } catch (err) {
+    console.error('getCreatedFormData error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData };
 export default formBuilderController;
