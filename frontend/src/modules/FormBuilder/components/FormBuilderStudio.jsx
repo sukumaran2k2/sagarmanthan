@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ConfirmOverlay from '../../../components/ConfirmOverlay';
+import api from '../api';
 import { 
   Plus, 
   Trash2, 
@@ -408,6 +409,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
     const payloadDivision = assignType === 'division' ? [targetDivision] : [];
 
     const payload = {
+      formName,
       formattedFormId: formName.replace(/[^a-zA-Z0-9]/g, '_'),
       content: generateHtmlContent(),
       formFields: fields.map(f => ({
@@ -430,22 +432,18 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
     };
 
     try {
-      const response = await fetch('/api/modify-form-builder-input-form', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.ok || response.status === 200 || response.status === 201) {
-        triggerNotification && triggerNotification(`Form "${formName}" published successfully!`, 'success');
-        onFormPublished && onFormPublished();
-      } else {
-        triggerNotification && triggerNotification(`Form "${formName}" created successfully!`, 'success');
-        onFormPublished && onFormPublished();
-      }
-    } catch {
-      triggerNotification && triggerNotification(`Form "${formName}" created successfully!`, 'success');
+      // axios resolves only on 2xx and throws otherwise, unlike fetch --
+      // reaching this line at all means the request succeeded.
+      await api.post('/modify-form-builder-input-form', payload);
+      triggerNotification && triggerNotification(`Form "${formName}" published successfully!`, 'success');
       onFormPublished && onFormPublished();
+    } catch (err) {
+      console.error('Error publishing form:', err);
+      const serverMessage = err.response?.data?.message;
+      triggerNotification && triggerNotification(
+        serverMessage ? `Failed to publish form: ${serverMessage}` : `Failed to publish form "${formName}". Please try again.`,
+        'error'
+      );
     } finally {
       setIsSubmitting(false);
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../api';
 import ConfirmOverlay from '../../../components/ConfirmOverlay';
 import { 
   FileText, 
@@ -106,15 +107,15 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
 
   useEffect(() => {
     // Attempt fetching live forms from backend
-    fetch('/get-created-form-data')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          // Merge or update with backend forms
+    api.get('/get-created-form-data')
+      .then(res => {
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          setForms(res.data);
         }
       })
-      .catch(() => {
-        // Fallback to rich mock data
+      .catch((err) => {
+        console.error('Error loading forms, falling back to mock data:', err);
+        // Fallback to rich mock data (left as-is from the initial useState)
       });
   }, []);
 
