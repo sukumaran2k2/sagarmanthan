@@ -102,6 +102,8 @@ async function modifyFormBuilderInputForm(req, res) {
         submitted_date DATETIME NULL,
         updated_date DATETIME NOT NULL DEFAULT GETDATE()
       );
+      CREATE INDEX idx_submitted_by ON [${tableName}] (submitted_by);
+      CREATE INDEX idx_submission_status ON [${tableName}] (submission_status);
     `);
 
     // 3. Now that the table exists, record its name and the full field
