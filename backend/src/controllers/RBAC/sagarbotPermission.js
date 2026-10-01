@@ -39,6 +39,7 @@ export const DEFAULT_SAGARBOT_ITEMS = [
   { itemKey: 'HR_MANAGEMENT', itemName: 'HR Management & Vacancies', category: 'HR & Capacity', isEnabled: true },
   { itemKey: 'COURT_CASES', itemName: 'Court Cases & Arbitrations', category: 'Legal & Regulations', isEnabled: true },
   { itemKey: 'ACTS_AND_RULES', itemName: 'Acts & Pre-Constitution Bills', category: 'Legal & Regulations', isEnabled: true },
+  { itemKey: 'FORM_BUILDER', itemName: 'Form Builder & Data Collector', category: 'Governance & Operations', isEnabled: true },
 ];
 
 // Fallback in-memory cache
