@@ -15,14 +15,14 @@ import { getCurrentUserId } from '../../utils/authSession';
 
 const INIT_TAB_KEY = 'projectsInitTab';
 
-function resolveSubTabId(label, canAdd, isOrgUser = false) {
+function resolveSubTabId(label, canAdd, isOrgScope = false) {
   const key = String(label || '').toLowerCase().trim();
   if (key.includes('view-project') || key.includes('detail')) return 'view-project';
   if (key.includes('report')) return 'reports';
   if (key.includes('edit')) return 'edit-info';
-  if (key.includes('basic') || key.includes('input')) return (canAdd && isOrgUser) ? 'basic-info' : 'list';
+  if (key.includes('basic') || key.includes('input')) return (canAdd && isOrgScope) ? 'basic-info' : 'list';
   if (key.includes('drop') || key === 'view-drop-request' || key === 'projects-droprequests') {
-    return isOrgUser ? 'list' : 'drop-requests';
+    return isOrgScope ? 'list' : 'drop-requests';
   }
   if (
     key.includes('less5cr')
@@ -44,8 +44,10 @@ export default function Projects({
   const navigate = useNavigate();
   const { id: routeId } = useParams();
   const permissions = useProjectsPermissions();
-  const viewMode = permissions.viewMode;
-  const showInputForm = Boolean(permissions.canAdd && (permissions.isOrganisationUser || viewMode === 'org'));
+  const isOrgScope = Boolean(permissions.isOrgScope);
+  const showInputForm = Boolean(permissions.canAdd && isOrgScope);
+  const canAccessDropRequests = Boolean(permissions.canView && !isOrgScope);
+  const canAccessReports = Boolean(permissions.canView);
 
   const ListView = useMemo(
     () => resolveProjectsListView(permissions.uiViewCode),
@@ -56,25 +58,25 @@ export default function Projects({
     const init = sessionStorage.getItem(INIT_TAB_KEY);
     if (init) {
       sessionStorage.removeItem(INIT_TAB_KEY);
-      return resolveSubTabId(init, permissions.canAdd, permissions.isOrganisationUser);
+      return resolveSubTabId(init, permissions.canAdd, isOrgScope);
     }
     const path = String(location.pathname || '').toLowerCase();
     if (path.includes('view-project') || path.includes('/detail')) {
       return 'view-project';
     }
     if (path.includes('report')) {
-      return 'reports';
+      return canAccessReports ? 'reports' : 'list';
     }
     if (path.includes('view-drop-request') || path.includes('drop-request')) {
-      return permissions.isOrganisationUser ? 'list' : 'drop-requests';
+      return canAccessDropRequests ? 'drop-requests' : 'list';
     }
     if (path.includes('less-than-5') || path.includes('less5cr')) {
       return 'less5cr-list';
     }
     if (path.includes('input-form') || path.includes('basic-info') || path.includes('add-project')) {
-      return (permissions.canAdd && permissions.isOrganisationUser) ? 'basic-info' : 'list';
+      return showInputForm ? 'basic-info' : 'list';
     }
-    return resolveSubTabId(activeSubTabProp, permissions.canAdd, permissions.isOrganisationUser);
+    return resolveSubTabId(activeSubTabProp, permissions.canAdd, isOrgScope);
   });
   const [dropRequestCount, setDropRequestCount] = useState(0);
   const [listRefreshKey, setListRefreshKey] = useState(0);
@@ -86,7 +88,7 @@ export default function Projects({
   const initialOrgRouteHandledRef = useRef(false);
 
   useEffect(() => {
-    if (permissions.isOrganisationUser) return;
+    if (!canAccessDropRequests) return undefined;
 
     let isMounted = true;
     const fetchCount = async () => {
@@ -114,7 +116,7 @@ export default function Projects({
       clearInterval(interval);
       window.removeEventListener('drop-request-updated', fetchCount);
     };
-  }, [permissions.isOrganisationUser]);
+  }, [canAccessDropRequests]);
 
   const notify = useCallback(
     (message, type = 'success') => {
@@ -153,11 +155,11 @@ export default function Projects({
     } else if (path.includes('report')) {
       setEditingRecord(null);
       setFormReadOnly(false);
-      setManualSubTab('reports');
+      setManualSubTab(canAccessReports ? 'reports' : 'list');
     } else if (path.includes('view-drop-request') || path.includes('drop-request')) {
       setEditingRecord(null);
       setFormReadOnly(false);
-      setManualSubTab(permissions.isOrganisationUser ? 'list' : 'drop-requests');
+      setManualSubTab(canAccessDropRequests ? 'drop-requests' : 'list');
     } else if (path.includes('less-than-5') || path.includes('less5cr')) {
       setEditingRecord(null);
       setFormReadOnly(false);
@@ -173,25 +175,32 @@ export default function Projects({
       } else {
         setEditingRecord(null);
         setFormReadOnly(false);
-        setManualSubTab((permissions.canAdd && permissions.isOrganisationUser) ? 'basic-info' : 'list');
+        setManualSubTab(showInputForm ? 'basic-info' : 'list');
       }
     } else if (path.includes('project-list') || path.includes('data-list')) {
       setEditingRecord(null);
       setFormReadOnly(false);
       setManualSubTab('list');
     }
-  }, [location.pathname, location.state, permissions.canAdd, permissions.isOrganisationUser]);
+  }, [
+    location.pathname,
+    location.state,
+    showInputForm,
+    canAccessDropRequests,
+    canAccessReports,
+    permissions.isOrganisationUser,
+  ]);
 
   useEffect(() => {
     const onMenu = (event) => {
       setEditingRecord(null);
       setFormReadOnly(false);
-      setManualSubTab(resolveSubTabId(event.detail, permissions.canAdd, permissions.isOrganisationUser));
+      setManualSubTab(resolveSubTabId(event.detail, permissions.canAdd, isOrgScope));
     };
 
     window.addEventListener('projects-subtab', onMenu);
     return () => window.removeEventListener('projects-subtab', onMenu);
-  }, [permissions.canAdd, permissions.isOrganisationUser]);
+  }, [permissions.canAdd, isOrgScope]);
 
   useEffect(() => {
     if (manualSubTab === 'basic-info' && !showInputForm && !editingRecord) {
@@ -211,13 +220,10 @@ export default function Projects({
   }, [location.pathname, manualSubTab]);
 
   const showLess5CrInputForm = Boolean(
-    permissions.canAdd
-    && (permissions.isOrganisationUser || viewMode === 'org')
-    && !permissions.isViewOnlyAdmin
+    permissions.canAdd && isOrgScope && !permissions.isViewOnlyAdmin
   );
 
   const tabs = useMemo(() => {
-    if (isReportsRoute) return [];
     if (isLess5CrRoute) {
       const items = [{ id: 'less5cr-list', label: 'Data List' }];
       if (showLess5CrInputForm) {
@@ -225,30 +231,33 @@ export default function Projects({
       }
       return items;
     }
-    const items = [{ id: 'list', label: 'Data List' }];
+    const items = [];
     if (showInputForm) {
       items.push({ id: 'basic-info', label: 'Input Form' });
     }
-    if (!permissions.isOrganisationUser && permissions.canView) {
+    if (canAccessDropRequests) {
       items.push({
         id: 'drop-requests',
         label: 'Drop Requests',
         count: dropRequestCount,
       });
     }
+    items.push({ id: 'list', label: 'Data List' });
+    if (canAccessReports) {
+      items.push({ id: 'reports', label: 'Reports' });
+    }
     return items;
   }, [
     showInputForm,
     showLess5CrInputForm,
-    permissions.isOrganisationUser,
-    permissions.canView,
+    canAccessDropRequests,
+    canAccessReports,
     dropRequestCount,
     isLess5CrRoute,
-    isReportsRoute,
   ]);
 
   const activeSubTab = useMemo(() => {
-    if (isReportsRoute || manualSubTab === 'reports') return 'reports';
+    if ((isReportsRoute || manualSubTab === 'reports') && canAccessReports) return 'reports';
     if (isLess5CrRoute) {
       if (manualSubTab === 'less5cr-form' || (less5CrEditingRecord && manualSubTab === 'less5cr-edit')) {
         if (manualSubTab === 'less5cr-form' && !showLess5CrInputForm && !less5CrEditingRecord) {
@@ -259,12 +268,13 @@ export default function Projects({
       return 'less5cr-list';
     }
     if (editingRecord && !['view-project', 'edit-info'].includes(manualSubTab)) return 'edit-info';
-    const base = manualSubTab ?? resolveSubTabId(activeSubTabProp, permissions.canAdd, permissions.isOrganisationUser);
+    const base = manualSubTab ?? resolveSubTabId(activeSubTabProp, permissions.canAdd, isOrgScope);
+    if (base === 'reports' && !canAccessReports) return 'list';
     if (base === 'edit-info' && !editingRecord) return 'list';
-    if (base === 'basic-info' && (!permissions.canAdd || !permissions.isOrganisationUser)) {
+    if (base === 'basic-info' && !showInputForm) {
       return 'list';
     }
-    if (base === 'drop-requests' && (permissions.isOrganisationUser || !permissions.canView)) {
+    if (base === 'drop-requests' && !canAccessDropRequests) {
       return 'list';
     }
     if (base === 'less5cr' || base === 'less5cr-list') return 'list';
@@ -275,10 +285,12 @@ export default function Projects({
     manualSubTab,
     less5CrEditingRecord,
     showLess5CrInputForm,
+    showInputForm,
+    canAccessDropRequests,
+    canAccessReports,
     activeSubTabProp,
     permissions.canAdd,
-    permissions.canView,
-    permissions.isOrganisationUser,
+    isOrgScope,
     editingRecord,
   ]);
 
@@ -297,16 +309,17 @@ export default function Projects({
         <ProjectDetailView
           projectId={routeId || editingRecord?.projectId || editingRecord?.project_id}
           project={editingRecord || location.state?.project}
-          canEdit={permissions.canEdit}
+          canEdit={Boolean(permissions.canEdit && !permissions.isViewOnlyAdmin)}
           onBack={() => {
             setEditingRecord(null);
             setManualSubTab('list');
             navigate('/projects/project/project-list');
           }}
           onEdit={(proj) => {
+            if (!permissions.canEdit || permissions.isViewOnlyAdmin) return;
             setEditingRecord(proj);
-            setManualSubTab('basic-info');
-            navigate('/projects/project/input-form');
+            setManualSubTab('edit-info');
+            navigate('/projects/project/input-form', { state: { project: proj, fromEdit: true } });
           }}
         />
       </div>
@@ -361,10 +374,6 @@ export default function Projects({
                 setEditingRecord(null);
                 setFormReadOnly(false);
               }
-              if (tab === 'basic-info' && !showInputForm) {
-                setManualSubTab('list');
-                return;
-              }
               if (tab === 'less5cr-list') {
                 setLess5CrEditingRecord(null);
                 setManualSubTab('less5cr-list');
@@ -377,6 +386,41 @@ export default function Projects({
                 }
                 setLess5CrEditingRecord(null);
                 setManualSubTab('less5cr-form');
+                return;
+              }
+              if (tab === 'reports') {
+                if (!canAccessReports) {
+                  setManualSubTab('list');
+                  navigate('/projects/project/project-list');
+                  return;
+                }
+                setManualSubTab('reports');
+                navigate('/projects/project/reports');
+                return;
+              }
+              if (tab === 'drop-requests') {
+                if (!canAccessDropRequests) {
+                  setManualSubTab('list');
+                  navigate('/projects/project/project-list');
+                  return;
+                }
+                setManualSubTab('drop-requests');
+                navigate('/projects/project/view-drop-request');
+                return;
+              }
+              if (tab === 'basic-info') {
+                if (!showInputForm) {
+                  setManualSubTab('list');
+                  navigate('/projects/project/project-list');
+                  return;
+                }
+                setManualSubTab('basic-info');
+                navigate('/projects/project/input-form');
+                return;
+              }
+              if (tab === 'list') {
+                setManualSubTab('list');
+                navigate('/projects/project/project-list');
                 return;
               }
               setManualSubTab(tab);
@@ -434,10 +478,12 @@ export default function Projects({
                 : undefined
             }
             onOpenBasicInfo={(row, options = {}) => {
+              const readOnly =
+                Boolean(options.readOnly)
+                || permissions.isViewOnlyAdmin
+                || (!permissions.canEdit && permissions.canView);
               setEditingRecord(row);
-              setFormReadOnly(
-                Boolean(options.readOnly) || (!permissions.canEdit && permissions.canView)
-              );
+              setFormReadOnly(readOnly);
               setManualSubTab('edit-info');
               navigate('/projects/project/input-form', { state: { project: row, fromEdit: true } });
             }}
@@ -473,7 +519,7 @@ export default function Projects({
           />
         ) : null}
 
-        {activeSubTab === 'drop-requests' && !permissions.isOrganisationUser ? (
+        {activeSubTab === 'drop-requests' && canAccessDropRequests ? (
           <DropRequestsPage notify={notify} />
         ) : null}
       </div>

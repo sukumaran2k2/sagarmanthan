@@ -93,6 +93,72 @@ async function projectMediaLinkDownload(req, res) {
     }
 }
 
+function bindProjectListFilterInputs(request, {
+    effectiveOrganisationId,
+    schemeId,
+    isSagarmalaFundedRaw,
+    search,
+    projectStage,
+    projectCategory,
+    implementationMode,
+    implementationType,
+    state,
+    district,
+    physicalProgressMin,
+    physicalProgressMax,
+    financialProgressMin,
+    financialProgressMax,
+    hasUnderTenderingSubStage,
+    underTenderingSubStage,
+}) {
+    if (Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0) {
+        request.input('organisationId', sql.Int, effectiveOrganisationId);
+    }
+    if (Number.isFinite(schemeId) && schemeId > 0) {
+        request.input('schemeId', sql.Int, schemeId);
+    }
+    if (isSagarmalaFundedRaw === '0' || isSagarmalaFundedRaw === '1') {
+        request.input('isSagarmalaFunded', sql.Int, Number(isSagarmalaFundedRaw));
+    }
+    if (search) {
+        request.input('search', sql.NVarChar(255), `%${search}%`);
+    }
+    if (projectStage && projectStage !== 'All') {
+        request.input('projectStage', sql.NVarChar(255), projectStage);
+        request.input('projectStageLike', sql.NVarChar(255), `%${projectStage}%`);
+    }
+    if (projectCategory && projectCategory !== 'All') {
+        request.input('projectCategory', sql.NVarChar(255), `%${projectCategory}%`);
+    }
+    if (implementationMode && implementationMode !== 'All') {
+        request.input('implementationMode', sql.NVarChar(255), `%${implementationMode}%`);
+    }
+    if (implementationType && implementationType !== 'All') {
+        request.input('implementationType', sql.NVarChar(255), `%${implementationType}%`);
+    }
+    if (state) {
+        request.input('state', sql.NVarChar(255), `%${state}%`);
+    }
+    if (district) {
+        request.input('district', sql.NVarChar(255), `%${district}%`);
+    }
+    if (Number.isFinite(physicalProgressMin)) {
+        request.input('physicalProgressMin', sql.Float, physicalProgressMin);
+    }
+    if (Number.isFinite(physicalProgressMax)) {
+        request.input('physicalProgressMax', sql.Float, physicalProgressMax);
+    }
+    if (Number.isFinite(financialProgressMin)) {
+        request.input('financialProgressMin', sql.Float, financialProgressMin);
+    }
+    if (Number.isFinite(financialProgressMax)) {
+        request.input('financialProgressMax', sql.Float, financialProgressMax);
+    }
+    if (hasUnderTenderingSubStage) {
+        request.input('underTenderingSubStage', sql.Int, underTenderingSubStage);
+    }
+}
+
 async function getProjectList(req, res) {
     const conn = await pool;
     const requestedUserID = Number(req.params.userID);
@@ -102,10 +168,10 @@ async function getProjectList(req, res) {
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
     const offset = (page - 1) * limit;
-    const underTenderingSubStageRaw = req.query.underTenderingSubStage;
 
     const search = String(req.query.search || '').trim();
     const includeCounts = String(req.query.includeCounts || '0') === '1';
+    const countsOnly = String(req.query.countsOnly || '0') === '1';
     const projectStage = String(req.query.projectStage || '').trim();
     const projectCategory = String(req.query.projectCategory || '').trim();
     const schemeId = Number.parseInt(req.query.schemeId, 10);
@@ -126,19 +192,32 @@ async function getProjectList(req, res) {
 
     const underTenderingSubStage = Number.parseInt(req.query.underTenderingSubStage, 10);
     const hasUnderTenderingSubStage = Number.isInteger(underTenderingSubStage) && underTenderingSubStage >= 3 && underTenderingSubStage <= 9;
+    const needsProgressFilter =
+        Number.isFinite(physicalProgressMin) ||
+        Number.isFinite(physicalProgressMax) ||
+        Number.isFinite(financialProgressMin) ||
+        Number.isFinite(financialProgressMax);
 
     try {
-        const roleRequest = conn.request();
-        roleRequest.input('userID', userID);
-        const userResult = await roleRequest.query('SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID');
-
-        if (!userResult.recordset?.length) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        const { organisation_id } = userResult.recordset[0];
         const dataScope = getDataScope(req.user || {});
         const jwtOrgId = Number(dataScope.organisationId);
+
+        let organisation_id = null;
+        const needsUserOrgFallback =
+            dataScope.isOrganisation && !(Number.isFinite(jwtOrgId) && jwtOrgId > 0);
+
+        if (needsUserOrgFallback) {
+            const roleRequest = conn.request();
+            roleRequest.input('userID', sql.Int, userID);
+            const userResult = await roleRequest.query(
+                'SELECT role_id, organisation_id FROM tbl_user WHERE user_id = @userID'
+            );
+
+            if (!userResult.recordset?.length) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+            organisation_id = userResult.recordset[0].organisation_id;
+        }
 
         let effectiveOrganisationId = Number.isFinite(requestedOrganisationId) && requestedOrganisationId > 0
             ? requestedOrganisationId
@@ -151,7 +230,16 @@ async function getProjectList(req, res) {
                 : (Number.isFinite(fallbackOrgId) && fallbackOrgId > 0 ? fallbackOrgId : null);
 
             if (!Number.isFinite(effectiveOrganisationId) || effectiveOrganisationId <= 0) {
-                return res.json({ data: [], pagination: { total: 0, page, limit, totalPages: 0, counts: { all: 0, planning: 0, tendering: 0, ui: 0, completed: 0 } } });
+                return res.json({
+                    data: [],
+                    pagination: {
+                        total: 0,
+                        page,
+                        limit,
+                        totalPages: 0,
+                        counts: { all: 0, planning: 0, tendering: 0, ui: 0, completed: 0, dropped: 0 },
+                    },
+                });
             }
         } else if (!dataScope.isWide && Number.isFinite(jwtOrgId) && jwtOrgId > 0) {
             effectiveOrganisationId = jwtOrgId;
@@ -161,37 +249,34 @@ async function getProjectList(req, res) {
             ? ' AND ISNULL(sp.sub_organisation_id, p.organisation_id) = @organisationId'
             : '';
 
-         const selectedStageJoin = hasUnderTenderingSubStage
-        ? `
+        const selectedStageJoin = hasUnderTenderingSubStage
+            ? `
             OUTER APPLY (
                 SELECT
                     MAX(CASE
                         WHEN TRY_CAST(pd.sub_stage_id AS INT) = ${underTenderingSubStage}
                             AND pd.actual_date IS NOT NULL
-                        THEN 1
-                        ELSE 0
+                        THEN 1 ELSE 0
                     END) AS selected_stage_completed,
-
                     MAX(CASE
                         WHEN TRY_CAST(pd.sub_stage_id AS INT) = ${underTenderingSubStage + 1}
                             AND pd.actual_date IS NOT NULL
-                        THEN 1
-                        ELSE 0
+                        THEN 1 ELSE 0
                     END) AS next_stage_completed
                 FROM tbl_project_date pd
                 WHERE pd.project_id = p.project_id
                 AND (
-                        sp.sub_project_id IS NULL
-                        OR pd.sub_project_id = sp.sub_project_id
-                        OR pd.sub_project_id IS NULL
-                        OR TRY_CAST(pd.sub_project_id AS INT) = -1
-                    )
+                    sp.sub_project_id IS NULL
+                    OR pd.sub_project_id = sp.sub_project_id
+                    OR pd.sub_project_id IS NULL
+                    OR TRY_CAST(pd.sub_project_id AS INT) = -1
+                )
             ) latestSubStage
         `
-        : '';
-        
+            : '';
+
         const selectedStageActualDateSelect = hasUnderTenderingSubStage
-        ? `
+            ? `
             CASE
                 WHEN latestSubStage.selected_stage_completed = 1
                 AND ISNULL(latestSubStage.next_stage_completed, 0) = 0
@@ -199,12 +284,66 @@ async function getProjectList(req, res) {
                 ELSE NULL
             END AS latest_actual_sub_stage_id
         `
-        : `
-            CAST(NULL AS INT) AS latest_actual_sub_stage_id
+            : `CAST(NULL AS INT) AS latest_actual_sub_stage_id`;
+
+        const progressSelect = needsProgressFilter
+            ? `
+            physicalProgress.physical_progress,
+            financialProgress.financial_progress,
+        `
+            : `
+            CAST(NULL AS float) AS physical_progress,
+            CAST(NULL AS float) AS financial_progress,
         `;
 
-        const baseQuery = `
-            WITH base AS (
+        const progressJoins = needsProgressFilter
+            ? `
+            LEFT JOIN (
+                SELECT project_id AS entity_id, MAX(physical_progress) AS physical_progress
+                FROM tbl_project_physical_progress
+                WHERE sub_project_id = '-1'
+                GROUP BY project_id
+                UNION ALL
+                SELECT sub_project_id AS entity_id, MAX(physical_progress) AS physical_progress
+                FROM tbl_project_physical_progress
+                WHERE sub_project_id != '-1'
+                GROUP BY sub_project_id
+            ) AS physicalProgress ON physicalProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
+            LEFT JOIN (
+                SELECT
+                    e.project_id AS entity_id,
+                    (SUM(
+                        COALESCE(e.gbs_components, 0) + COALESCE(e.iebr_components, 0) +
+                        COALESCE(e.ppp_components, 0) + COALESCE(e.loans_components, 0) +
+                        COALESCE(e.multilateral_components, 0) + COALESCE(e.state_gov_fund_components, 0) +
+                        COALESCE(e.pmmsy_components, 0) + COALESCE(e.sagarmala_components, 0) +
+                        COALESCE(e.other_source_funding_comp, 0)
+                    ) / NULLIF(p2.award_project_cost, 0)) * 100 AS financial_progress
+                FROM tbl_project_expenditure e
+                LEFT JOIN tbl_project p2 ON p2.project_id = e.project_id
+                WHERE e.sub_project_id = '-1'
+                GROUP BY e.project_id, p2.award_project_cost
+                UNION ALL
+                SELECT
+                    e.sub_project_id AS entity_id,
+                    (SUM(
+                        COALESCE(e.gbs_components, 0) + COALESCE(e.iebr_components, 0) +
+                        COALESCE(e.ppp_components, 0) + COALESCE(e.loans_components, 0) +
+                        COALESCE(e.multilateral_components, 0) + COALESCE(e.state_gov_fund_components, 0) +
+                        COALESCE(e.pmmsy_components, 0) + COALESCE(e.sagarmala_components, 0) +
+                        COALESCE(e.other_source_funding_comp, 0)
+                    ) / NULLIF(sp2.sub_award_project_cost, 0)) * 100 AS financial_progress
+                FROM tbl_project_expenditure e
+                LEFT JOIN tbl_sub_project sp2 ON sp2.sub_project_id = e.sub_project_id
+                WHERE e.sub_project_id != '-1'
+                GROUP BY e.sub_project_id, sp2.sub_award_project_cost
+            ) AS financialProgress ON financialProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
+        `
+            : '';
+
+        // Slim keyset: no STRING_AGG / full drop detail / progress unless filters require progress.
+        const keyedCte = `
+            WITH keyed AS (
                 SELECT
                     p.project_id,
                     p.sagarmala_project_id,
@@ -212,25 +351,10 @@ async function getProjectList(req, res) {
                     p.project_name,
                     sp.sub_project_name,
                     ISNULL(sp.sub_project_category_id, p.project_category_id) AS project_category_id,
-                    (
-                        SELECT STRING_AGG(pc.project_category_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_project_category_id, p.project_category_id))), ',') x
-                        JOIN mmt_project_category pc ON TRY_CAST(x.value AS int) = pc.project_category_id
-                    ) AS project_category_names,
                     ISNULL(sp.sub_scheme_id, p.scheme_id) AS scheme_id,
                     sch.scheme_name,
                     ISNULL(sp.sub_state_id, p.state_id) AS state_id,
-                    (
-                        SELECT STRING_AGG(st.state_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_state_id, p.state_id))), ',') x
-                        JOIN mmt_state st ON TRY_CAST(x.value AS int) = st.state_id
-                    ) AS state_names,
                     ISNULL(sp.sub_district_id, p.district_id) AS district_id,
-                    (
-                        SELECT STRING_AGG(dt.district_name, ', ')
-                        FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), ISNULL(sp.sub_district_id, p.district_id))), ',') x
-                        JOIN mmt_district dt ON TRY_CAST(x.value AS int) = dt.district_id
-                    ) AS district_names,
                     ISNULL(sp.sub_organisation_id, p.organisation_id) AS organisation_id,
                     org.organisation_name,
                     ISNULL(sp.sub_mode_of_implememtation, p.mode_of_implememtation) AS mode_of_implememtation,
@@ -238,12 +362,12 @@ async function getProjectList(req, res) {
                     ISNULL(sp.sub_status, p.status) AS project_status,
                     CASE
                         WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 99
-                        WHEN dropReq.drop_status IN ('Waiting for Approval', 'Pending Approval from MoPSW') THEN 99
+                        WHEN dropPending.drop_status IN ('Waiting for Approval', 'Pending Approval from MoPSW') THEN 99
                         ELSE ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
                     END AS current_project_stage_id,
                     CASE
                         WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 'Dropped'
-                        WHEN dropReq.drop_status IN ('Waiting for Approval', 'Pending Approval from MoPSW') THEN 'Dropped'
+                        WHEN dropPending.drop_status IN ('Waiting for Approval', 'Pending Approval from MoPSW') THEN 'Dropped'
                         ELSE stage.stage_name
                     END AS stage_name,
                     ISNULL(sp.sub_estimated_cost, p.estimated_cost) AS estimated_cost,
@@ -253,39 +377,13 @@ async function getProjectList(req, res) {
                     ISNULL(sp.sub_closure_cost, p.closure_cost) AS closure_cost,
                     ISNULL(sp.sub_primary_ia_id, p.primary_ia_id) AS primary_ia_id,
                     ISNULL(ia.ia_name, '') AS primary_ia_name,
-                    physicalProgress.physical_progress,
-                    financialProgress.financial_progress,
+                    ${progressSelect}
                     ${selectedStageActualDateSelect},
-                    CASE
-                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN COALESCE(dropReq.drop_req_at, dropReq.drop_date, sp.sub_last_updated, p.last_updated)
-                        ELSE NULL
-                    END AS drop_req_at,
-                    CASE
-                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN COALESCE(dropReq.drop_req_approved_at, CASE WHEN ISNULL(sp.sub_status, p.status) = 0 THEN COALESCE(dropReq.drop_date, sp.sub_last_updated, p.last_updated) ELSE NULL END)
-                        ELSE NULL
-                    END AS drop_req_approved_at,
-                    CASE
-                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN COALESCE(dropReq.drop_date, sp.sub_last_updated, p.last_updated)
-                        ELSE NULL
-                    END AS drop_date,
-                    CASE
-                        WHEN ISNULL(sp.sub_status, p.status) = 0 OR dropReq.drop_status IS NOT NULL THEN ISNULL(dropReq.drop_remarks, '-')
-                        ELSE '-'
-                    END AS drop_remarks,
-                    CASE
-                        WHEN ISNULL(sp.sub_status, p.status) = 0 THEN 'Approved'
-                        WHEN dropReq.drop_status IS NOT NULL THEN dropReq.drop_status
-                        ELSE NULL
-                    END AS drop_status,
-                    dropReq.drop_request_status,
-                    dropReq.reject_request_status,
-                    dropReq.drop_requested_by_id,
-                    dropReq.drop_requested_by_name,
-                    dropReq.drop_approved_by_id,
-                    dropReq.drop_approved_by_name,
                     ISNULL(sp.sub_is_sagarmala_funded, p.is_sagarmala_funded) AS is_sagarmala_funded,
                     ISNULL(sp.sub_source_of_funding_id, p.source_of_funding_id) AS source_of_funding_id,
                     ISNULL(sp.sub_sagarmala_components, p.sagarmala_components) AS sagarmala_components,
+                    sp.sub_last_updated,
+                    p.last_updated,
                     CAST(p.project_id AS varchar(50)) AS project_id_text,
                     CAST(ISNULL(sp.sub_project_id, -1) AS varchar(50)) AS sub_project_id_text
                 FROM tbl_project p
@@ -297,17 +395,6 @@ async function getProjectList(req, res) {
                 LEFT JOIN tbl_project_stage stage ON stage.stage_id = ISNULL(sp.sub_current_project_stage_id, p.current_project_stage_id)
                 OUTER APPLY (
                     SELECT TOP 1
-                        dr.submitted_on AS drop_req_at,
-                        dr.drop_date AS drop_req_approved_at,
-                        COALESCE(dr.drop_date, dr.submitted_on) AS drop_date,
-                        COALESCE(NULLIF(CAST(dr.remarks AS nvarchar(1000)), ''), NULLIF(CAST(dr.drop_rejected_remarks AS nvarchar(1000)), ''), '-') AS drop_remarks,
-                        dr.submitted_by AS drop_requested_by_id,
-                        uReq.name AS drop_requested_by_name,
-                        dr.approved_by AS drop_approved_by_id,
-                        uApp.name AS drop_approved_by_name,
-                        dr.status AS drop_request_status,
-                        dr.reject_request_status,
-                        dr.drop_rejected_remarks,
                         CASE
                             WHEN dr.reject_request_status = 0 THEN 'Rejected'
                             WHEN dr.status = 0 THEN 'Approved'
@@ -315,8 +402,6 @@ async function getProjectList(req, res) {
                             ELSE NULL
                         END AS drop_status
                     FROM tbl_project_drop_request dr
-                    LEFT JOIN tbl_user uReq ON uReq.user_id = dr.submitted_by
-                    LEFT JOIN tbl_user uApp ON uApp.user_id = dr.approved_by
                     WHERE dr.project_id = p.project_id
                       AND (
                           (sp.sub_project_id IS NOT NULL AND (
@@ -325,62 +410,13 @@ async function getProjectList(req, res) {
                               OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
                           ))
                           OR (sp.sub_project_id IS NULL AND (
-                              dr.sub_project_id IS NULL 
+                              dr.sub_project_id IS NULL
                               OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
                           ))
                       )
-                    ORDER BY 
-                        COALESCE(dr.submitted_on, dr.drop_date) DESC
-                ) AS dropReq
-                LEFT JOIN (
-                    SELECT project_id AS entity_id, MAX(physical_progress) AS physical_progress
-                    FROM tbl_project_physical_progress
-                    WHERE sub_project_id = '-1'
-                    GROUP BY project_id
-                    UNION
-                    SELECT sub_project_id AS entity_id, MAX(physical_progress) AS physical_progress
-                    FROM tbl_project_physical_progress
-                    WHERE sub_project_id != '-1'
-                    GROUP BY sub_project_id
-                ) AS physicalProgress ON physicalProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
-                LEFT JOIN (
-                    SELECT
-                        e.project_id AS entity_id,
-                        (SUM(
-                            COALESCE(e.gbs_components, 0) +
-                            COALESCE(e.iebr_components, 0) +
-                            COALESCE(e.ppp_components, 0) +
-                            COALESCE(e.loans_components, 0) +
-                            COALESCE(e.multilateral_components, 0) +
-                            COALESCE(e.state_gov_fund_components, 0) +
-                            COALESCE(e.pmmsy_components, 0) +
-                            COALESCE(e.sagarmala_components, 0) +
-                            COALESCE(e.other_source_funding_comp, 0)
-                        ) / NULLIF(p2.award_project_cost, 0)) * 100 AS financial_progress
-                    FROM tbl_project_expenditure e
-                    LEFT JOIN tbl_project p2 ON p2.project_id = e.project_id
-                    WHERE e.sub_project_id = '-1'
-                    GROUP BY e.project_id, p2.award_project_cost
-                    UNION
-                    SELECT
-                        e.sub_project_id AS entity_id,
-                        (SUM(
-                            COALESCE(e.gbs_components, 0) +
-                            COALESCE(e.iebr_components, 0) +
-                            COALESCE(e.ppp_components, 0) +
-                            COALESCE(e.loans_components, 0) +
-                            COALESCE(e.multilateral_components, 0) +
-                            COALESCE(e.state_gov_fund_components, 0) +
-                            COALESCE(e.pmmsy_components, 0) +
-                            COALESCE(e.sagarmala_components, 0) +
-                            COALESCE(e.other_source_funding_comp, 0)
-                        ) / NULLIF(sp2.sub_award_project_cost, 0)) * 100 AS financial_progress
-                    FROM tbl_project_expenditure e
-                    LEFT JOIN tbl_sub_project sp2 ON sp2.sub_project_id = e.sub_project_id
-                    WHERE e.sub_project_id != '-1'
-                    GROUP BY e.sub_project_id, sp2.sub_award_project_cost
-                ) AS financialProgress ON financialProgress.entity_id = ISNULL(sp.sub_project_id, p.project_id)
-
+                    ORDER BY COALESCE(dr.submitted_on, dr.drop_date) DESC
+                ) AS dropPending
+                ${progressJoins}
                 WHERE 1=1
                 ${scopeByOrganisation}
             )
@@ -395,16 +431,36 @@ async function getProjectList(req, res) {
                 OR ISNULL(sub_project_name, '') LIKE @search
                 OR ISNULL(organisation_name, '') LIKE @search
                 OR ISNULL(primary_ia_name, '') LIKE @search
-                OR ISNULL(state_names, '') LIKE @search
-                OR ISNULL(district_names, '') LIKE @search
                 OR ISNULL(scheme_name, '') LIKE @search
                 OR ISNULL(mode_of_implememtation, '') LIKE @search
                 OR ISNULL(implememtation_type, '') LIKE @search
-                OR ISNULL(project_category_names, '') LIKE @search
+                OR EXISTS (
+                    SELECT 1
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), project_category_id)), ',') x
+                    JOIN mmt_project_category pc ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = pc.project_category_id
+                    WHERE pc.project_category_name LIKE @search
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), state_id)), ',') x
+                    JOIN mmt_state st ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = st.state_id
+                    WHERE st.state_name LIKE @search
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), district_id)), ',') x
+                    JOIN mmt_district dt ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = dt.district_id
+                    WHERE dt.district_name LIKE @search
+                )
             )`);
         }
         if (projectCategory && projectCategory !== 'All') {
-            filterWhereClauses.push('ISNULL(project_category_names, \'\') LIKE @projectCategory');
+            filterWhereClauses.push(`EXISTS (
+                SELECT 1
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), project_category_id)), ',') x
+                JOIN mmt_project_category pc ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = pc.project_category_id
+                WHERE pc.project_category_name LIKE @projectCategory
+            )`);
         }
         if (Number.isFinite(schemeId) && schemeId > 0) {
             filterWhereClauses.push('scheme_id = @schemeId');
@@ -419,10 +475,20 @@ async function getProjectList(req, res) {
             filterWhereClauses.push('ISNULL(implememtation_type, \'\') LIKE @implementationType');
         }
         if (state) {
-            filterWhereClauses.push('ISNULL(state_names, \'\') LIKE @state');
+            filterWhereClauses.push(`EXISTS (
+                SELECT 1
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), state_id)), ',') x
+                JOIN mmt_state st ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = st.state_id
+                WHERE st.state_name LIKE @state
+            )`);
         }
-          if (district) {
-            filterWhereClauses.push('ISNULL(district_names, \'\') LIKE @district');
+        if (district) {
+            filterWhereClauses.push(`EXISTS (
+                SELECT 1
+                FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), district_id)), ',') x
+                JOIN mmt_district dt ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = dt.district_id
+                WHERE dt.district_name LIKE @district
+            )`);
         }
         if (Number.isFinite(physicalProgressMin)) {
             filterWhereClauses.push('COALESCE(physical_progress, 0) >= @physicalProgressMin');
@@ -460,97 +526,249 @@ async function getProjectList(req, res) {
         const outerWhere = whereClauses.length ? ` WHERE ${whereClauses.join(' AND ')}` : '';
         const countsWhere = filterWhereClauses.length ? ` WHERE ${filterWhereClauses.join(' AND ')}` : '';
 
-        const countRequest = conn.request();
+        const filterBindArgs = {
+            effectiveOrganisationId,
+            schemeId,
+            isSagarmalaFundedRaw,
+            search,
+            projectStage,
+            projectCategory,
+            implementationMode,
+            implementationType,
+            state,
+            district,
+            physicalProgressMin,
+            physicalProgressMax,
+            financialProgressMin,
+            financialProgressMax,
+            hasUnderTenderingSubStage,
+            underTenderingSubStage,
+        };
+
+        const countsSql = `
+            ${keyedCte}
+            SELECT
+                COUNT(1) AS allCount,
+                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL) THEN 1 ELSE 0 END) AS planningCount,
+                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%') THEN 1 ELSE 0 END) AS tenderingCount,
+                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%') THEN 1 ELSE 0 END) AS uiCount,
+                SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%') THEN 1 ELSE 0 END) AS completedCount,
+                SUM(CASE WHEN stage_name = 'Dropped' OR current_project_stage_id = 99 THEN 1 ELSE 0 END) AS droppedCount
+            FROM keyed
+            ${countsWhere};
+        `;
+
+        // countsOnly: skip page hydrate — used by deferred badge fetch on the client.
+        if (countsOnly && includeCounts) {
+            const countRequest = conn.request();
+            bindProjectListFilterInputs(countRequest, filterBindArgs);
+            const countsResult = await countRequest.query(countsSql);
+            const cRow = countsResult.recordset?.[0] || {};
+            return res.json({
+                data: [],
+                pagination: {
+                    total: Number(cRow.allCount || 0),
+                    page: 1,
+                    limit: 1,
+                    totalPages: 0,
+                    counts: {
+                        all: Number(cRow.allCount || 0),
+                        planning: Number(cRow.planningCount || 0),
+                        tendering: Number(cRow.tenderingCount || 0),
+                        ui: Number(cRow.uiCount || 0),
+                        completed: Number(cRow.completedCount || 0),
+                        dropped: Number(cRow.droppedCount || 0),
+                    },
+                },
+            });
+        }
+
+        // Phase A+B: page slim keys, then hydrate names/progress/drop detail for the page only.
+        const dataSql = `
+            ${keyedCte},
+            page_keys AS (
+                SELECT
+                    k.*,
+                    COUNT(1) OVER() AS total_count
+                FROM keyed k
+                ${outerWhere}
+                ORDER BY k.current_project_stage_id, k.project_id DESC
+                OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+            )
+            SELECT
+                pk.project_id,
+                pk.sagarmala_project_id,
+                pk.sub_project_id,
+                pk.project_name,
+                pk.sub_project_name,
+                pk.project_category_id,
+                (
+                    SELECT STRING_AGG(pc.project_category_name, ', ')
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), pk.project_category_id)), ',') x
+                    JOIN mmt_project_category pc ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = pc.project_category_id
+                ) AS project_category_names,
+                pk.scheme_id,
+                pk.scheme_name,
+                pk.state_id,
+                (
+                    SELECT STRING_AGG(st.state_name, ', ')
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), pk.state_id)), ',') x
+                    JOIN mmt_state st ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = st.state_id
+                ) AS state_names,
+                pk.district_id,
+                (
+                    SELECT STRING_AGG(dt.district_name, ', ')
+                    FROM STRING_SPLIT(CONVERT(varchar(max), CONVERT(nvarchar(max), pk.district_id)), ',') x
+                    JOIN mmt_district dt ON TRY_CAST(LTRIM(RTRIM(x.value)) AS int) = dt.district_id
+                ) AS district_names,
+                pk.organisation_id,
+                pk.organisation_name,
+                pk.mode_of_implememtation,
+                pk.implememtation_type,
+                pk.project_status,
+                pk.current_project_stage_id,
+                pk.stage_name,
+                pk.estimated_cost,
+                pk.sanctioned_cost,
+                pk.technical_sanction_cost,
+                pk.award_project_cost,
+                pk.closure_cost,
+                pk.primary_ia_id,
+                pk.primary_ia_name,
+                COALESCE(pagePhysical.physical_progress, pk.physical_progress) AS physical_progress,
+                COALESCE(pageFinancial.financial_progress, pk.financial_progress) AS financial_progress,
+                pk.latest_actual_sub_stage_id,
+                CASE
+                    WHEN pk.project_status = 0 OR dropReq.drop_status IS NOT NULL
+                    THEN COALESCE(dropReq.drop_req_at, dropReq.drop_date, pk.sub_last_updated, pk.last_updated)
+                    ELSE NULL
+                END AS drop_req_at,
+                CASE
+                    WHEN pk.project_status = 0 OR dropReq.drop_status IS NOT NULL
+                    THEN COALESCE(
+                        dropReq.drop_req_approved_at,
+                        CASE WHEN pk.project_status = 0 THEN COALESCE(dropReq.drop_date, pk.sub_last_updated, pk.last_updated) ELSE NULL END
+                    )
+                    ELSE NULL
+                END AS drop_req_approved_at,
+                CASE
+                    WHEN pk.project_status = 0 OR dropReq.drop_status IS NOT NULL
+                    THEN COALESCE(dropReq.drop_date, pk.sub_last_updated, pk.last_updated)
+                    ELSE NULL
+                END AS drop_date,
+                CASE
+                    WHEN pk.project_status = 0 OR dropReq.drop_status IS NOT NULL
+                    THEN ISNULL(dropReq.drop_remarks, '-')
+                    ELSE '-'
+                END AS drop_remarks,
+                CASE
+                    WHEN pk.project_status = 0 THEN 'Approved'
+                    WHEN dropReq.drop_status IS NOT NULL THEN dropReq.drop_status
+                    ELSE NULL
+                END AS drop_status,
+                dropReq.drop_request_status,
+                dropReq.reject_request_status,
+                dropReq.drop_requested_by_id,
+                dropReq.drop_requested_by_name,
+                dropReq.drop_approved_by_id,
+                dropReq.drop_approved_by_name,
+                pk.is_sagarmala_funded,
+                pk.source_of_funding_id,
+                pk.sagarmala_components,
+                pk.project_id_text,
+                pk.sub_project_id_text,
+                pk.total_count
+            FROM page_keys pk
+            OUTER APPLY (
+                SELECT TOP 1
+                    dr.submitted_on AS drop_req_at,
+                    dr.drop_date AS drop_req_approved_at,
+                    COALESCE(dr.drop_date, dr.submitted_on) AS drop_date,
+                    COALESCE(NULLIF(CAST(dr.remarks AS nvarchar(1000)), ''), NULLIF(CAST(dr.drop_rejected_remarks AS nvarchar(1000)), ''), '-') AS drop_remarks,
+                    dr.submitted_by AS drop_requested_by_id,
+                    uReq.name AS drop_requested_by_name,
+                    dr.approved_by AS drop_approved_by_id,
+                    uApp.name AS drop_approved_by_name,
+                    dr.status AS drop_request_status,
+                    dr.reject_request_status,
+                    CASE
+                        WHEN dr.reject_request_status = 0 THEN 'Rejected'
+                        WHEN dr.status = 0 THEN 'Approved'
+                        WHEN dr.status = 1 THEN 'Waiting for Approval'
+                        ELSE NULL
+                    END AS drop_status
+                FROM tbl_project_drop_request dr
+                LEFT JOIN tbl_user uReq ON uReq.user_id = dr.submitted_by
+                LEFT JOIN tbl_user uApp ON uApp.user_id = dr.approved_by
+                WHERE dr.project_id = pk.project_id
+                  AND (
+                      (pk.sub_project_id IS NOT NULL AND (
+                          CAST(dr.sub_project_id AS varchar(50)) = CAST(pk.sub_project_id AS varchar(50))
+                          OR dr.sub_project_id IS NULL
+                          OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
+                      ))
+                      OR (pk.sub_project_id IS NULL AND (
+                          dr.sub_project_id IS NULL
+                          OR TRIM(CAST(dr.sub_project_id AS varchar(50))) IN ('-1', '-', '0', '', 'null', 'undefined')
+                      ))
+                  )
+                ORDER BY COALESCE(dr.submitted_on, dr.drop_date) DESC
+            ) AS dropReq
+            OUTER APPLY (
+                SELECT MAX(pp.physical_progress) AS physical_progress
+                FROM tbl_project_physical_progress pp
+                WHERE (
+                    pk.sub_project_id IS NULL
+                    AND pp.project_id = pk.project_id
+                    AND CAST(pp.sub_project_id AS varchar(50)) = '-1'
+                ) OR (
+                    pk.sub_project_id IS NOT NULL
+                    AND CAST(pp.sub_project_id AS varchar(50)) = CAST(pk.sub_project_id AS varchar(50))
+                )
+            ) AS pagePhysical
+            OUTER APPLY (
+                SELECT
+                    (SUM(
+                        COALESCE(e.gbs_components, 0) + COALESCE(e.iebr_components, 0) +
+                        COALESCE(e.ppp_components, 0) + COALESCE(e.loans_components, 0) +
+                        COALESCE(e.multilateral_components, 0) + COALESCE(e.state_gov_fund_components, 0) +
+                        COALESCE(e.pmmsy_components, 0) + COALESCE(e.sagarmala_components, 0) +
+                        COALESCE(e.other_source_funding_comp, 0)
+                    ) / NULLIF(
+                        CASE
+                            WHEN pk.sub_project_id IS NULL THEN pk.award_project_cost
+                            ELSE pk.award_project_cost
+                        END
+                    , 0)) * 100 AS financial_progress
+                FROM tbl_project_expenditure e
+                WHERE (
+                    pk.sub_project_id IS NULL
+                    AND e.project_id = pk.project_id
+                    AND CAST(e.sub_project_id AS varchar(50)) = '-1'
+                ) OR (
+                    pk.sub_project_id IS NOT NULL
+                    AND CAST(e.sub_project_id AS varchar(50)) = CAST(pk.sub_project_id AS varchar(50))
+                )
+            ) AS pageFinancial
+            ORDER BY pk.current_project_stage_id, pk.project_id DESC;
+        `;
+
         const dataRequest = conn.request();
-
-        if (Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0) {
-            countRequest.input('organisationId', effectiveOrganisationId);
-            dataRequest.input('organisationId', effectiveOrganisationId);
-        }
-        if (Number.isFinite(schemeId) && schemeId > 0) {
-            countRequest.input('schemeId', schemeId);
-            dataRequest.input('schemeId', schemeId);
-        }
-        if (isSagarmalaFundedRaw === '0' || isSagarmalaFundedRaw === '1') {
-            const sagarmalaFlag = Number(isSagarmalaFundedRaw);
-            countRequest.input('isSagarmalaFunded', sagarmalaFlag);
-            dataRequest.input('isSagarmalaFunded', sagarmalaFlag);
-        }
-        if (search) {
-            const searchLike = `%${search}%`;
-            countRequest.input('search', searchLike);
-            dataRequest.input('search', searchLike);
-        }
-        if (projectStage && projectStage !== 'All') {
-            countRequest.input('projectStage', projectStage);
-            dataRequest.input('projectStage', projectStage);
-            countRequest.input('projectStageLike', `%${projectStage}%`);
-            dataRequest.input('projectStageLike', `%${projectStage}%`);
-        }
-        if (projectCategory && projectCategory !== 'All') {
-            const categoryLike = `%${projectCategory}%`;
-            countRequest.input('projectCategory', categoryLike);
-            dataRequest.input('projectCategory', categoryLike);
-        }
-        if (implementationMode && implementationMode !== 'All') {
-            const implementationModeLike = `%${implementationMode}%`;
-            countRequest.input('implementationMode', implementationModeLike);
-            dataRequest.input('implementationMode', implementationModeLike);
-        }
-        if (implementationType && implementationType !== 'All') {
-            const implementationTypeLike = `%${implementationType}%`;
-            countRequest.input('implementationType', implementationTypeLike);
-            dataRequest.input('implementationType', implementationTypeLike);
-        }
-        if (state) {
-            const stateLike = `%${state}%`;
-            countRequest.input('state', stateLike);
-            dataRequest.input('state', stateLike);
-        }
-        if (district) {
-            const districtLike = `%${district}%`;
-            countRequest.input('district', districtLike);
-            dataRequest.input('district', districtLike);
-        }
-        if (Number.isFinite(physicalProgressMin)) {
-            countRequest.input('physicalProgressMin', physicalProgressMin);
-            dataRequest.input('physicalProgressMin', physicalProgressMin);
-        }
-        if (Number.isFinite(physicalProgressMax)) {
-            countRequest.input('physicalProgressMax', physicalProgressMax);
-            dataRequest.input('physicalProgressMax', physicalProgressMax);
-        }
-        if (Number.isFinite(financialProgressMin)) {
-            countRequest.input('financialProgressMin', financialProgressMin);
-            dataRequest.input('financialProgressMin', financialProgressMin);
-        }
-        if (Number.isFinite(financialProgressMax)) {
-            countRequest.input('financialProgressMax', financialProgressMax);
-            dataRequest.input('financialProgressMax', financialProgressMax);
-        }
-        if (hasUnderTenderingSubStage) {
-            const hasUnderTenderingSubStageLike = `%${hasUnderTenderingSubStage}%`;
-            countRequest.input('underTenderingSubStage', hasUnderTenderingSubStageLike);
-            dataRequest.input('underTenderingSubStage',hasUnderTenderingSubStageLike);
-        }
-
-        dataRequest.input('offset', offset);
-        dataRequest.input('limit', limit);
+        bindProjectListFilterInputs(dataRequest, filterBindArgs);
+        dataRequest.input('offset', sql.Int, offset);
+        dataRequest.input('limit', sql.Int, limit);
 
         let counts = null;
+        let dataResult;
+
         if (includeCounts) {
-            const countsResult = await countRequest.query(`
-                ${baseQuery}
-                SELECT
-                    COUNT(1) AS allCount,
-                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, '') LIKE '%Planning%' OR ISNULL(stage_name, '') LIKE '%Initiated%' OR current_project_stage_id IS NULL) THEN 1 ELSE 0 END) AS planningCount,
-                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 12 OR ISNULL(stage_name, '') LIKE '%Tender%') THEN 1 ELSE 0 END) AS tenderingCount,
-                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 13 OR ISNULL(stage_name, '') LIKE '%Implement%') THEN 1 ELSE 0 END) AS uiCount,
-                    SUM(CASE WHEN stage_name != 'Dropped' AND current_project_stage_id != 99 AND (current_project_stage_id = 14 OR ISNULL(stage_name, '') LIKE '%Complete%') THEN 1 ELSE 0 END) AS completedCount,
-                    SUM(CASE WHEN stage_name = 'Dropped' OR current_project_stage_id = 99 THEN 1 ELSE 0 END) AS droppedCount
-                FROM base
-                ${countsWhere};
-            `);
+            const countRequest = conn.request();
+            bindProjectListFilterInputs(countRequest, filterBindArgs);
+            const [countsResult, pageResult] = await Promise.all([
+                countRequest.query(countsSql),
+                dataRequest.query(dataSql),
+            ]);
+            dataResult = pageResult;
             const cRow = countsResult.recordset?.[0] || {};
             counts = {
                 all: Number(cRow.allCount || 0),
@@ -560,37 +778,13 @@ async function getProjectList(req, res) {
                 completed: Number(cRow.completedCount || 0),
                 dropped: Number(cRow.droppedCount || 0),
             };
+        } else {
+            dataResult = await dataRequest.query(dataSql);
         }
 
-        const dataResult = await dataRequest.query(`
-            ${baseQuery}
-            SELECT *, COUNT(1) OVER() AS total_count
-            FROM base
-            ${outerWhere}
-            ORDER BY current_project_stage_id, project_id DESC
-            OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
-        `);
-
-
-        console.log('========== SUB STAGE FILTER DEBUG ==========');
-        console.log('Input:', {
-            underTenderingSubStageRaw,
-            underTenderingSubStage,
-            hasUnderTenderingSubStage
-        });
-
-        console.log(
-            'Filtered projects:',
-            dataResult.recordset.map(row => ({
-                project_id: row.project_id,
-                sub_project_id: row.sub_project_id,
-                latest_actual_sub_stage_id: row.latest_actual_sub_stage_id
-            }))
-        );
-
-
-        const total = Number(dataResult.recordset?.[0]?.total_count || 0);
-        const data = dataResult.recordset.map(({ total_count, ...row }) => row);
+        const recordset = dataResult.recordset || [];
+        const total = Number(recordset[0]?.total_count || 0);
+        const data = recordset.map(({ total_count, ...row }) => row);
         const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
 
         return res.json({
@@ -604,7 +798,7 @@ async function getProjectList(req, res) {
             },
         });
     } catch (err) {
-        console.log(err);
+        console.error('getProjectList error:', err);
         return res.sendStatus(500);
     }
 }
@@ -1900,7 +2094,7 @@ async function getProjectScheduleAlerts(req, res) {
 
         // Current open tendering step that is overdue or due within 7 days (matches SCHEDULE_AT_RISK_DAYS).
         const tenderingQuery = `
-            SELECT
+            SELECT TOP 100
                 p.project_id,
                 ISNULL(sp.sub_project_id, -1) AS sub_project_id,
                 p.project_name,
@@ -1934,7 +2128,7 @@ async function getProjectScheduleAlerts(req, res) {
 
         // Current open milestone that is overdue or due within 7 days.
         const implementationQuery = `
-            SELECT
+            SELECT TOP 100
                 p.project_id,
                 ISNULL(sp.sub_project_id, -1) AS sub_project_id,
                 p.project_name,

@@ -185,7 +185,10 @@ export function buildDataQcColumnDefs(checkId, { page = 1, pageSize = 10 } = {})
         ...issueActionCols(),
       ];
 
-    case 'project-category':
+    case 'project-category-blank':
+      return [...identity, ...issueActionCols()];
+
+    case 'project-category-mismatch':
       return [
         ...identity,
         textCol({
@@ -215,7 +218,7 @@ export const DATA_QC_CHECK_META = [
     id: 'tendering-missing',
     group: 'Tendering',
     shortLabel: '1. Tendering-Missing Dates',
-    title: '1. Projects under Tendering – Missing Stage Target Dates',
+    title: '1. Projects under Tendering - Missing Stage Target Dates',
     severity: 'warning',
     description: 'Target dates not entered for one or more tendering stages.',
   },
@@ -223,7 +226,7 @@ export const DATA_QC_CHECK_META = [
     id: 'tendering-overdue',
     group: 'Tendering',
     shortLabel: '2. Tendering-Overdue Dates',
-    title: '2. Projects under Tendering – Overdue Stage Target Dates',
+    title: '2. Projects under Tendering - Overdue Stage Target Dates',
     severity: 'critical',
     description: 'Stage target dates have expired with no actual completion recorded.',
   },
@@ -232,7 +235,7 @@ export const DATA_QC_CHECK_META = [
     group: 'Tendering',
     shortLabel: '3. Tendering-Foundation',
     title:
-      '3. Projects under Tendering – Foundation Not Laid & Foundation-Laying Date Missing',
+      '3. Projects under Tendering - Foundation Not Laid & Foundation-Laying Date Missing',
     severity: 'attention',
     description: 'Foundation not laid and/or foundation-laying date missing.',
   },
@@ -240,7 +243,7 @@ export const DATA_QC_CHECK_META = [
     id: 'implementation-missing',
     group: 'Implementation',
     shortLabel: '4. Implementation-Missing',
-    title: '4. Projects under Implementation – Missing Stage/Milestone Target Dates',
+    title: '4. Projects under Implementation - Missing Stage/Milestone Target Dates',
     severity: 'warning',
     description: 'Milestone target end dates not entered for projects under implementation.',
   },
@@ -248,7 +251,7 @@ export const DATA_QC_CHECK_META = [
     id: 'implementation-overdue',
     group: 'Implementation',
     shortLabel: '5. Implementation-Overdue',
-    title: '5. Projects under Implementation – Overdue Stage/Milestone Target Dates',
+    title: '5. Projects under Implementation - Overdue Stage/Milestone Target Dates',
     severity: 'critical',
     description: 'Milestone targets expired with no actual end date recorded.',
   },
@@ -257,7 +260,7 @@ export const DATA_QC_CHECK_META = [
     group: 'Implementation',
     shortLabel: '6. Implementation-Inauguration',
     title:
-      '6. Projects under Implementation – Not Yet Inaugurated & Inauguration Date Missing',
+      '6. Projects under Implementation - Not Yet Inaugurated & Inauguration Date Missing',
     severity: 'attention',
     description: 'Project not yet inaugurated and/or inauguration date needs confirmation.',
   },
@@ -266,17 +269,27 @@ export const DATA_QC_CHECK_META = [
     group: 'Overall Project',
     shortLabel: '7. Target Completion Date',
     title:
-      '7. Projects – Missing or Expired Target Completion Date (all active, non-completed projects)',
+      '7. Projects - Missing or Expired Target Completion Date (all active, non-completed projects)',
     severity: 'critical',
     description: 'Overall target completion missing, expired, or revised date also expired.',
   },
   {
-    id: 'project-category',
+    id: 'project-category-blank',
     group: 'Master Data',
-    shortLabel: '8. Project Category',
-    title: '8. Projects – Project Category Not Filled / Possibly Mismatched',
+    shortLabel: '8A. Projects - Project Category Not Filled',
+    title: '8A. Projects - Project Category Not Filled',
     severity: 'attention',
-    description: 'Master data: category blank or possibly mismatched with project scope.',
+    description: 'Project Category field not filled.',
+  },
+  {
+    id: 'project-category-mismatch',
+    group: 'Master Data',
+    shortLabel:
+      '8B. Projects - Project Category Possibly Mismatched with Project Name/Scope',
+    title:
+      '8B. Projects - Project Category Possibly Mismatched with Project Name/Scope',
+    severity: 'attention',
+    description: 'Assigned category may not match project name or scope.',
   },
 ];
 

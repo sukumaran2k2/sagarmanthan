@@ -27,8 +27,24 @@ import {
 
 const GROUP_ORDER = ['Tendering', 'Implementation', 'Overall Project', 'Master Data'];
 
+const BRAND = '#4b2424';
+const BRAND_HOVER = '#6b3535';
+const BRAND_SOFT = '#8c4242';
+const ACCENT = '#f5eeea';
+const BORDER = '#eadede';
+
 function getColKey(col) {
   return col.field || col.headerName || '';
+}
+
+function splitReportTitle(title) {
+  const text = String(title || '').trim();
+  const match = text.match(/^(.*?)\s*\((.+)\)\s*$/);
+  if (!match) return { main: text, note: '' };
+  return {
+    main: match[1].trim(),
+    note: match[2].trim(),
+  };
 }
 
 function SeverityBadge({ severity }) {
@@ -98,70 +114,93 @@ function DataQcOverview({ onOpenCheck }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-br from-[#0f417a] via-[#143d6b] to-[#0b2d54] text-white p-5 sm:p-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
-          <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-100/90 mb-2">
-              <ShieldAlert className="h-3.5 w-3.5" />
-              Ministry · Data QC
+      <div
+        className="relative flex flex-wrap items-center justify-between gap-4 px-[26px] py-5 rounded-2xl shadow-sm"
+        style={{
+          border: `1px solid ${BORDER}`,
+          background: 'linear-gradient(to right, #fdfcfc, #f7f3f3)',
+        }}
+      >
+        <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldAlert size={14} style={{ color: BRAND_SOFT }} strokeWidth={2.5} />
+              <span
+                className="text-[10.5px] uppercase tracking-[0.12em] font-extrabold"
+                style={{ color: BRAND_SOFT }}
+              >
+                Ministry · Data QC
+              </span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+            <h2 className="m-0 text-xl font-bold tracking-wide" style={{ color: BRAND }}>
               Projects Gap Analysis
             </h2>
-            <p className="mt-1.5 text-sm text-blue-100/85 max-w-2xl font-medium">
+            <p className="mt-1.5 text-xs font-semibold max-w-2xl" style={{ color: BRAND_SOFT }}>
               Ministry review of missing and overdue project data for follow-up with ports.
             </p>
             {summary.availableCheckCount < summary.checkCount ? (
-              <p className="mt-2 text-[11px] text-blue-100/70 font-semibold">
+              <p className="mt-1.5 text-[11px] font-semibold" style={{ color: BRAND_SOFT }}>
                 Live: {summary.availableCheckCount} of {summary.checkCount} checks · remaining
                 checks will activate as each report is wired.
               </p>
             ) : null}
           </div>
+        </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-stretch gap-3 sm:gap-3.5 min-w-0 w-full lg:w-auto lg:min-w-[460px]">
-            <div className="rounded-xl bg-white text-[#0f417a] px-4 py-3 shadow-sm sm:min-w-[7.25rem] flex flex-col justify-center">
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                Total
+        <div className="flex flex-col sm:flex-row sm:items-stretch gap-3 sm:gap-3.5 min-w-0 w-full lg:w-auto lg:min-w-[460px]">
+          <div
+            className="rounded-xl px-4 py-3 shadow-sm sm:min-w-[7.25rem] flex flex-col justify-center bg-white"
+            style={{ border: `1px solid ${BORDER}`, color: BRAND }}
+          >
+            <div className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND_SOFT }}>
+              Total
+            </div>
+            <div className="text-3xl font-black tabular-nums leading-none mt-1 tracking-tight">
+              {loading ? '…' : summary.totalIssues}
+            </div>
+            <div className="text-[10px] font-semibold mt-1" style={{ color: BRAND_SOFT }}>
+              Flagged issues (live)
+            </div>
+          </div>
+
+          <div className="hidden sm:block w-px self-stretch mx-0.5" style={{ background: BORDER }} aria-hidden />
+          <div className="sm:hidden h-px w-full" style={{ background: BORDER }} aria-hidden />
+
+          <div className="flex-1 grid grid-cols-3 gap-2 min-w-0">
+            <div
+              className="rounded-xl px-2 py-2.5 text-center flex flex-col items-center justify-center gap-1 bg-white"
+              style={{ border: `1px solid ${BORDER}` }}
+            >
+              <div className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-rose-700">
+                <AlertCircle className="h-3 w-3 shrink-0" />
+                <span className="truncate">Critical</span>
               </div>
-              <div className="text-3xl font-black tabular-nums leading-none mt-1 tracking-tight">
-                {loading ? '…' : summary.totalIssues}
-              </div>
-              <div className="text-[10px] font-semibold text-slate-500 mt-1">
-                Flagged issues (live)
+              <div className="text-2xl font-black tabular-nums leading-none" style={{ color: BRAND }}>
+                {loading ? '…' : summary.bySeverity.critical || 0}
               </div>
             </div>
-
-            <div className="hidden sm:block w-px self-stretch bg-white/30 mx-0.5" aria-hidden />
-            <div className="sm:hidden h-px w-full bg-white/25" aria-hidden />
-
-            <div className="flex-1 grid grid-cols-3 gap-2 min-w-0">
-              <div className="rounded-xl bg-white/10 border border-white/15 px-2 py-2.5 text-center flex flex-col items-center justify-center gap-1">
-                <div className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-rose-300">
-                  <AlertCircle className="h-3 w-3 shrink-0" />
-                  <span className="truncate">Critical</span>
-                </div>
-                <div className="text-2xl font-black tabular-nums text-white leading-none">
-                  {loading ? '…' : summary.bySeverity.critical || 0}
-                </div>
+            <div
+              className="rounded-xl px-2 py-2.5 text-center flex flex-col items-center justify-center gap-1 bg-white"
+              style={{ border: `1px solid ${BORDER}` }}
+            >
+              <div className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-amber-700">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                <span className="truncate">Needs data</span>
               </div>
-              <div className="rounded-xl bg-white/10 border border-white/15 px-2 py-2.5 text-center flex flex-col items-center justify-center gap-1">
-                <div className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-amber-300">
-                  <AlertTriangle className="h-3 w-3 shrink-0" />
-                  <span className="truncate">Needs data</span>
-                </div>
-                <div className="text-2xl font-black tabular-nums text-white leading-none">
-                  {loading ? '…' : summary.bySeverity.warning || 0}
-                </div>
+              <div className="text-2xl font-black tabular-nums leading-none" style={{ color: BRAND }}>
+                {loading ? '…' : summary.bySeverity.warning || 0}
               </div>
-              <div className="rounded-xl bg-white/10 border border-white/15 px-2 py-2.5 text-center flex flex-col items-center justify-center gap-1">
-                <div className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-sky-300">
-                  <Info className="h-3 w-3 shrink-0" />
-                  <span className="truncate">Attention</span>
-                </div>
-                <div className="text-2xl font-black tabular-nums text-white leading-none">
-                  {loading ? '…' : summary.bySeverity.attention || 0}
-                </div>
+            </div>
+            <div
+              className="rounded-xl px-2 py-2.5 text-center flex flex-col items-center justify-center gap-1 bg-white"
+              style={{ border: `1px solid ${BORDER}` }}
+            >
+              <div className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-sky-700">
+                <Info className="h-3 w-3 shrink-0" />
+                <span className="truncate">Attention</span>
+              </div>
+              <div className="text-2xl font-black tabular-nums leading-none" style={{ color: BRAND }}>
+                {loading ? '…' : summary.bySeverity.attention || 0}
               </div>
             </div>
           </div>
@@ -183,15 +222,22 @@ function DataQcOverview({ onOpenCheck }) {
         grouped.map(({ group, checks }) => (
           <section key={group} className="space-y-3">
             <div className="flex items-center gap-3 pt-1">
-              <h3 className="shrink-0 text-[11px] font-black uppercase tracking-[0.14em] text-[#0f417a] dark:text-blue-400 px-2.5 py-1 rounded-md bg-[#0f417a]/8 dark:bg-blue-500/10 border border-[#0f417a]/15 dark:border-blue-500/20">
+              <h3
+                className="shrink-0 text-[11px] font-black uppercase tracking-[0.14em] px-2.5 py-1 rounded-md"
+                style={{
+                  color: BRAND,
+                  background: ACCENT,
+                  border: `1px solid ${BORDER}`,
+                }}
+              >
                 {group}
               </h3>
-              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+              <div className="h-px flex-1" style={{ background: BORDER }} />
               <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 {checks.length} check{checks.length === 1 ? '' : 's'}
               </span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-stretch">
               {checks.map((check) => {
                 const meta = SEVERITY_META[check.severity] || SEVERITY_META.attention;
                 return (
@@ -199,45 +245,52 @@ function DataQcOverview({ onOpenCheck }) {
                     key={check.id}
                     type="button"
                     onClick={() => onOpenCheck(check.id)}
-                    className={`group text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm ring-1 ${meta.ring} hover:shadow-md hover:border-[#0f417a]/40 dark:hover:border-blue-500/40 transition-all cursor-pointer`}
+                    className="group flex h-full flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 text-left shadow-sm hover:shadow-md transition-all cursor-pointer"
+                    style={{ border: `1px solid ${BORDER}` }}
                   >
-                    <div className={`-mx-4 -mt-4 mb-3 h-1 rounded-t-2xl ${meta.bar}`} />
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                    <div className={`h-1 w-full shrink-0 ${meta.bar}`} />
+                    <div className="flex flex-1 flex-col p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <SeverityBadge severity={check.severity} />
                           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                             {check.group}
                           </span>
                           {!check.available ? (
-                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                            <span
+                              className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider"
+                              style={{ color: BRAND_SOFT, background: ACCENT }}
+                            >
                               Coming next
                             </span>
                           ) : null}
                         </div>
-                        <h4 className="text-sm font-black text-slate-800 dark:text-slate-100 leading-snug group-hover:text-[#0f417a] dark:group-hover:text-blue-400 transition-colors">
-                          {check.shortLabel}
-                        </h4>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
-                          {check.description}
-                        </p>
+                        <div
+                          className={`w-14 shrink-0 rounded-xl px-2 py-1.5 text-center ${meta.soft}`}
+                        >
+                          <div className={check.available ? meta.icon : ''}>
+                            <CountDisplay count={check.count} available={check.available} />
+                          </div>
+                          <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                            Issues
+                          </div>
+                        </div>
                       </div>
+                      <h4 className="mt-2 text-sm font-black leading-snug text-slate-800 transition-colors group-hover:text-[#4b2424] dark:text-slate-100 dark:group-hover:text-[#eadede]">
+                        {check.shortLabel}
+                      </h4>
+                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                        {check.description}
+                      </p>
                       <div
-                        className={`shrink-0 rounded-xl px-3 py-2 ${meta.soft} text-center min-w-[4.5rem]`}
+                        className="mt-auto flex items-center justify-between pt-3 text-[11px] font-bold"
+                        style={{ color: BRAND }}
                       >
-                        <div className={check.available ? meta.icon : ''}>
-                          <CountDisplay count={check.count} available={check.available} />
-                        </div>
-                        <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mt-1">
-                          Issues
-                        </div>
+                        <span>{check.available ? 'View issue list' : 'Preview check'}</span>
+                        <span className="opacity-0 transition-opacity group-hover:opacity-100">
+                          →
+                        </span>
                       </div>
-                    </div>
-                    <div className="mt-3 flex items-center justify-between text-[11px] font-bold text-[#0f417a] dark:text-blue-400">
-                      <span>{check.available ? 'View issue list' : 'Preview check'}</span>
-                      <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        →
-                      </span>
                     </div>
                   </button>
                 );
@@ -402,25 +455,29 @@ function DataQcCheckGrid({
   };
 
   const filterSelectClass =
-    'w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer';
+    'w-full px-3 py-2 text-xs font-semibold rounded-[10px] outline-none cursor-pointer';
 
   return (
     <div className="space-y-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
+      <div className="flex flex-col lg:flex-row gap-3 items-center justify-between pb-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
         <div className="flex items-center gap-2.5 w-full lg:w-auto">
           <button
             type="button"
             onClick={() => setShowFilterPanel((prev) => !prev)}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[9px] text-xs font-bold border transition cursor-pointer"
+            style={
               showFilterPanel || activeFiltersCount > 0
-                ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200'
-            }`}
+                ? { background: ACCENT, borderColor: '#d7c4b7', color: BRAND }
+                : { background: '#fff', borderColor: BORDER, color: BRAND }
+            }
           >
-            <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
+            <Filter size={14} style={{ color: BRAND }} />
             <span>Filter</span>
             {activeFiltersCount > 0 && (
-              <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+              <span
+                className="text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none"
+                style={{ background: BRAND }}
+              >
                 {activeFiltersCount}
               </span>
             )}
@@ -434,7 +491,8 @@ function DataQcCheckGrid({
             <button
               type="button"
               onClick={clearFilters}
-              className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 px-2.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/40 dark:hover:bg-rose-950/30 transition cursor-pointer"
+              className="flex items-center gap-1 text-xs font-bold px-2.5 py-2 rounded-[9px] border transition cursor-pointer"
+              style={{ background: ACCENT, borderColor: BORDER, color: BRAND }}
             >
               <X className="h-3 w-3" />
               <span>Reset Filters</span>
@@ -444,31 +502,42 @@ function DataQcCheckGrid({
 
         <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
           <div className="relative min-w-[200px] flex-1 sm:flex-initial">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <Search
+              className="absolute left-3 top-2.5 h-3.5 w-3.5 pointer-events-none"
+              style={{ color: BRAND_SOFT }}
+            />
             <input
               type="text"
               placeholder="Search project, organisation, issue..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+              className="w-full pl-9 pr-8 py-2 text-[13px] font-medium rounded-[9px] outline-none bg-white"
+              style={{ border: `1px solid ${BORDER}`, color: BRAND }}
             />
             {searchTerm ? (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer bg-transparent border-0 p-0.5"
+                style={{ color: BRAND_SOFT }}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             ) : null}
           </div>
 
-          <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
-            <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+          <div
+            className="flex items-center space-x-1.5 text-xs font-semibold bg-white rounded-[9px] px-2.5 py-1.5 select-none"
+            style={{ border: `1px solid ${BORDER}`, color: BRAND }}
+          >
+            <span className="text-[10px] uppercase font-bold" style={{ color: BRAND_SOFT }}>
+              Rows:
+            </span>
             <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
-              className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+              className="bg-transparent border-none text-xs font-bold focus:outline-none cursor-pointer p-0"
+              style={{ color: BRAND }}
             >
               {[10, 20, 50, 100].map((n) => (
                 <option key={n} value={n}>
@@ -478,9 +547,12 @@ function DataQcCheckGrid({
             </select>
           </div>
 
-          <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+          <div
+            className="text-xs font-bold uppercase tracking-wider px-3 py-2 rounded-[9px]"
+            style={{ background: '#fcf9f7', border: `1px solid ${BORDER}`, color: BRAND_SOFT }}
+          >
             Total:{' '}
-            <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">
+            <span className="font-extrabold" style={{ color: BRAND }}>
               {filteredRows.length}
             </span>
           </div>
@@ -489,15 +561,22 @@ function DataQcCheckGrid({
             <button
               type="button"
               onClick={() => setDropdownOpen((o) => !o)}
-              className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800 shadow-xs"
+              className="px-3 py-2 rounded-[9px] text-xs font-bold transition cursor-pointer flex items-center space-x-1.5 bg-white"
+              style={{ border: `1px solid ${BORDER}`, color: BRAND }}
             >
               <span>Visibility</span>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              <ChevronDown className="h-3.5 w-3.5" style={{ color: BRAND_SOFT }} />
             </button>
             {dropdownOpen && (
-              <div className="absolute right-0 mt-1.5 w-72 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
-                <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">
+              <div
+                className="absolute right-0 mt-1.5 w-72 max-h-80 overflow-y-auto bg-white rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5"
+                style={{ border: `1px solid ${BORDER}` }}
+              >
+                <div
+                  className="flex items-center justify-between px-2 py-1"
+                  style={{ borderBottom: `1px solid ${BORDER}` }}
+                >
+                  <span className="text-[10px] uppercase font-bold" style={{ color: BRAND_SOFT }}>
                     Toggle Columns
                   </span>
                   <button
@@ -509,7 +588,8 @@ function DataQcCheckGrid({
                       });
                       setVisibleCols(all);
                     }}
-                    className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    className="text-[10px] font-bold hover:underline cursor-pointer"
+                    style={{ color: BRAND }}
                   >
                     Show All
                   </button>
@@ -517,7 +597,8 @@ function DataQcCheckGrid({
                 {toggleableCols.map(({ key, label }) => (
                   <label
                     key={key}
-                    className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                    className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-[#f7f3f3] rounded-lg text-xs font-semibold cursor-pointer select-none"
+                    style={{ color: BRAND }}
                   >
                     <input
                       type="checkbox"
@@ -528,7 +609,7 @@ function DataQcCheckGrid({
                           [key]: prev[key] === false,
                         }))
                       }
-                      className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      className="h-3.5 w-3.5 rounded cursor-pointer accent-[#4b2424]"
                     />
                     <span>{label}</span>
                   </label>
@@ -537,30 +618,40 @@ function DataQcCheckGrid({
             )}
           </div>
 
-          <CopyButton onCopy={handleCopyData} color="#0f417a" hoverBg="#f1f5f9" />
+          <CopyButton onCopy={handleCopyData} color={BRAND} hoverBg="#f7f3f3" />
           <ExportDropdown
             onExportExcel={handleExportExcel}
             onExportPdf={handleExportPdf}
-            color="#0f417a"
-            hoverColor="#1e5ea8"
+            color={BRAND}
+            hoverColor={BRAND_HOVER}
           />
         </div>
       </div>
 
       {showFilterPanel && (
-        <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-fade-in">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Filter className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                Filter Data QC
-              </span>
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{ border: `1px solid ${BORDER}`, background: '#fcf9f7' }}
+        >
+          <div
+            className="px-[18px] py-3 flex items-center justify-between text-xs font-extrabold"
+            style={{ background: ACCENT, color: BRAND }}
+          >
+            <div className="flex items-center gap-2">
+              <Filter size={15} color={BRAND} />
+              <span>Filter Report Parameters</span>
+              {activeFiltersCount > 0 ? (
+                <span className="px-2 py-0.5 text-white text-[10px] rounded-full font-bold" style={{ background: BRAND }}>
+                  Active
+                </span>
+              ) : null}
             </div>
             {activeFiltersCount > 0 && (
               <button
                 type="button"
                 onClick={clearFilters}
-                className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center space-x-1 cursor-pointer"
+                className="text-xs font-bold flex items-center space-x-1 cursor-pointer bg-transparent border-0"
+                style={{ color: BRAND }}
               >
                 <X className="h-3.5 w-3.5" />
                 <span>Reset All Filters</span>
@@ -568,35 +659,48 @@ function DataQcCheckGrid({
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
-                Port/Organisation
-              </label>
-              <select
-                value={orgFilter}
-                onChange={(e) => setOrgFilter(e.target.value)}
-                className={filterSelectClass}
-              >
-                <option value="">Show All</option>
-                {organisations.map((org) => (
-                  <option key={org} value={org}>
-                    {org}
-                  </option>
-                ))}
-              </select>
+          <div className="p-4 space-y-3 bg-white" style={{ borderTop: `1px solid ${BORDER}` }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label
+                  className="block text-[11.5px] font-extrabold mb-1.5"
+                  style={{ color: BRAND }}
+                >
+                  Port/Organisation
+                </label>
+                <select
+                  value={orgFilter}
+                  onChange={(e) => setOrgFilter(e.target.value)}
+                  className={filterSelectClass}
+                  style={{
+                    background: '#fcf9f7',
+                    border: '1px solid #d7c4b7',
+                    color: BRAND,
+                  }}
+                >
+                  <option value="">Show All</option>
+                  {organisations.map((org) => (
+                    <option key={org} value={org}>
+                      {org}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      <div className="relative min-h-[380px] capex-grid border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+      <div
+        className="relative min-h-[380px] capex-grid rounded-2xl overflow-hidden shadow-sm bg-white"
+        style={{ border: `1px solid ${BORDER}` }}
+      >
         <Table
           rowData={pagedRows}
           columnDefs={displayColDefs}
           pagination={false}
           loading={loading}
-          color="#0f417a"
+          color={BRAND}
           defaultColDef={{
             minWidth: 90,
             filter: false,
@@ -613,7 +717,7 @@ function DataQcCheckGrid({
             totalRows={filteredRows.length}
             pageSize={pageSize}
             onPageChange={(pageIndex) => setPage(pageIndex + 1)}
-            color="#0f417a"
+            color={BRAND}
           />
         )}
       </div>
@@ -701,7 +805,8 @@ function DataQcDetail({ checkId, onBack }) {
         <button
           type="button"
           onClick={onBack}
-          className="mt-3 text-xs font-bold text-[#0f417a] dark:text-blue-400 cursor-pointer"
+          className="mt-3 text-xs font-bold cursor-pointer"
+          style={{ color: BRAND }}
         >
           Back to overview
         </button>
@@ -719,15 +824,16 @@ function DataQcDetail({ checkId, onBack }) {
   }
 
   const severityMeta = SEVERITY_META[active.severity] || SEVERITY_META.attention;
+  const titleParts = splitReportTitle(active.title);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-[#0f417a] dark:hover:text-blue-400 transition-colors mb-2 cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 transition-colors mb-2 cursor-pointer hover:text-[#4b2424]"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             All Data QC checks
@@ -738,10 +844,21 @@ function DataQcDetail({ checkId, onBack }) {
               {active.group}
             </span>
           </div>
-          <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 leading-snug">
-            {active.title}
+          <h2
+            className="text-lg font-black leading-snug break-words max-w-4xl"
+            style={{ color: BRAND }}
+          >
+            {titleParts.main}
           </h2>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-3xl">
+          {titleParts.note ? (
+            <p
+              className="mt-1 text-[11px] font-semibold leading-relaxed max-w-3xl"
+              style={{ color: BRAND_SOFT }}
+            >
+              {titleParts.note}
+            </p>
+          ) : null}
+          <p className="mt-1.5 text-xs max-w-3xl" style={{ color: BRAND_SOFT }}>
             {active.description}
           </p>
         </div>
@@ -770,8 +887,8 @@ function DataQcDetail({ checkId, onBack }) {
             Live data for this check is next
           </p>
           <p className="mt-1 text-xs text-slate-500 max-w-md mx-auto">
-            Report 1 (Tendering – Missing Dates) is live. Remaining checks will be wired one by
-            one against the same Data QC API.
+            This Data QC check is not available yet. Live checks are shown on the overview
+            cards.
           </p>
         </div>
       ) : null}

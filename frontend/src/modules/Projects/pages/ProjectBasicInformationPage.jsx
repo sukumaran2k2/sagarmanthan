@@ -136,7 +136,7 @@ export default function ProjectBasicInformationPage({
     !forceReadOnly &&
     !permissions.isViewOnlyAdmin &&
     ((isUpdateMode && permissions.canEdit) ||
-      (!isUpdateMode && permissions.canAdd && permissions.viewMode === 'org'));
+      (!isUpdateMode && permissions.canAdd && permissions.isOrgScope));
   const readOnly = forceReadOnly || permissions.isViewOnlyAdmin || !canSubmit;
 
   const [activeStage, setActiveStage] = useState(() => {

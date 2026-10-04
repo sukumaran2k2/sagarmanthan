@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, FileBarChart2, ShieldCheck } from 'lucide-react';
+import RestrictedAccess from '../../../components/RestrictedAccess';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 import DataQcGapAnalysis, { DataQcMinistryOnlyNotice } from '../components/reports/DataQcGapAnalysis';
 
@@ -45,19 +46,16 @@ function MisReportsShell() {
 
 export default function ProjectReportsPage() {
   const permissions = useProjectsPermissions();
-  const isMinistry =
-    !permissions.isOrganisationUser &&
-    (permissions.viewMode === 'ministry' ||
-      permissions.viewMode === 'standard' ||
-      !permissions.viewMode);
+  const canAccessReports = Boolean(permissions.canView);
+  const isMinistryAudience = Boolean(!permissions.isOrgScope);
 
   const availableCategories = useMemo(() => {
-    if (isMinistry) return CATEGORIES;
+    if (isMinistryAudience) return CATEGORIES;
     return CATEGORIES.filter((c) => c.id === 'mis');
-  }, [isMinistry]);
+  }, [isMinistryAudience]);
 
   const [activeCategory, setActiveCategory] = useState(() =>
-    isMinistry ? 'data-qc' : 'mis'
+    isMinistryAudience ? 'data-qc' : 'mis'
   );
 
   useEffect(() => {
@@ -65,6 +63,10 @@ export default function ProjectReportsPage() {
       setActiveCategory(availableCategories[0]?.id || 'mis');
     }
   }, [availableCategories, activeCategory]);
+
+  if (!canAccessReports) {
+    return <RestrictedAccess moduleName="Projects Reports" />;
+  }
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -79,7 +81,7 @@ export default function ProjectReportsPage() {
               onClick={() => setActiveCategory(cat.id)}
               className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 whitespace-nowrap transition-all cursor-pointer ${
                 active
-                  ? 'border-[#0f417a] text-[#0f417a] dark:border-blue-400 dark:text-blue-400 bg-[#0f417a]/5 dark:bg-slate-800/60 rounded-t-lg'
+                  ? 'border-[#4b2424] text-[#4b2424] dark:border-[#eadede] dark:text-[#eadede] bg-[#f7f3f3] dark:bg-slate-800 rounded-t-lg'
                   : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
             >
@@ -100,7 +102,7 @@ export default function ProjectReportsPage() {
         {activeCategory === 'mis' ? <MisReportsShell /> : null}
 
         {activeCategory === 'data-qc' ? (
-          isMinistry ? <DataQcGapAnalysis /> : <DataQcMinistryOnlyNotice />
+          isMinistryAudience ? <DataQcGapAnalysis /> : <DataQcMinistryOnlyNotice />
         ) : null}
       </div>
     </div>

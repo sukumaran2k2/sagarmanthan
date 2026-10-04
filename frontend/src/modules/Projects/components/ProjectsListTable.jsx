@@ -95,6 +95,7 @@ function formatDropTimestamp(val) {
 export default function ProjectsListTable({
   rows = [],
   loading = false,
+  isRefreshing = false,
   page = 1,
   pageSize = 10,
   pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
@@ -1594,7 +1595,12 @@ export default function ProjectsListTable({
         )}
 
         {viewMode === 'table' ? (
-          <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+          <div className={`ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800 ${isRefreshing ? 'opacity-80' : ''}`}>
+            {isRefreshing ? (
+              <div className="absolute top-0 left-0 right-0 z-20 h-0.5 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                <div className="h-full w-1/3 animate-indeterminate-progress bg-gradient-to-r from-[#0f417a] via-sky-400 to-[#0f417a]" />
+              </div>
+            ) : null}
             <Table
               rowData={displayRows}
               columnDefs={columnDefs}
@@ -1615,9 +1621,18 @@ export default function ProjectsListTable({
               totalPages={pagination.totalPages || Math.ceil((pagination.total || rows.length) / pageSize)}
               totalRows={pagination.total || rows.length}
               pageSize={pageSize}
-              onPageChange={(zeroIdx) => onPageChange?.(zeroIdx + 1)}
-              onPrevPage={() => onPageChange?.(Math.max(1, page - 1))}
-              onNextPage={() => onPageChange?.(Math.min(pagination.totalPages || 1, page + 1))}
+              onPageChange={(zeroIdx) => {
+                if (loading || isRefreshing) return;
+                onPageChange?.(zeroIdx + 1);
+              }}
+              onPrevPage={() => {
+                if (loading || isRefreshing) return;
+                onPageChange?.(Math.max(1, page - 1));
+              }}
+              onNextPage={() => {
+                if (loading || isRefreshing) return;
+                onPageChange?.(Math.min(pagination.totalPages || 1, page + 1));
+              }}
               color="#0f417a"
             />
 

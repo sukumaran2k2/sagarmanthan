@@ -254,13 +254,14 @@ const FILTER_TABS = [
 
 export default function DropRequestsPage({ notify }) {
   const permissions = useProjectsPermissions();
-  const isMinistry =
-    !permissions.isOrganisationUser &&
-    (permissions.viewMode === 'ministry' ||
-      permissions.viewMode === 'standard' ||
-      !permissions.viewMode);
-  const canViewDrops = Boolean(permissions.canView && isMinistry);
-  const canReviewDrops = Boolean(permissions.canEdit && isMinistry);
+  const isMinistryAudience = Boolean(!permissions.isOrgScope);
+  const canViewDrops = Boolean(permissions.canView && isMinistryAudience);
+  const canReviewDrops = Boolean(
+    permissions.canView
+    && permissions.canEdit
+    && isMinistryAudience
+    && !permissions.isViewOnlyAdmin
+  );
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);

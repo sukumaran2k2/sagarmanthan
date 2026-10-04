@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FileSpreadsheet, FolderArchive } from 'lucide-react';
 import {
@@ -40,6 +40,14 @@ const DEFAULT_FILTERS = {
   underTenderingSubStage: '',
 };
 
+const DEFAULT_PROGRESS_FILTERS = {
+  physicalProgressMin: '',
+  physicalProgressMax: '',
+  financialProgressMin: '',
+  financialProgressMax: '',
+};
+
+const FILTER_DEBOUNCE_MS = 300;
 const IMPLEMENTATION_MODE_OPTIONS = ['All', 'EPC', 'PPP'];
 
 const EMAIL_PATTERN = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -52,6 +60,25 @@ function getSessionEmail(claims = {}) {
   return String(claims.email || claims.userEmail || claims.mail || '').trim();
 }
 
+function getCountsFilterKey(filters = {}) {
+  return JSON.stringify({
+    search: String(filters.search || '').trim(),
+    projectCategory: filters.projectCategory || 'All',
+    schemeId: filters.schemeId || 'All',
+    isSagarmalaFunded: filters.isSagarmalaFunded || 'All',
+    organisationId: filters.organisationId || '',
+    implementationMode: filters.implementationMode || 'All',
+    implementationType: filters.implementationType || 'All',
+    state: filters.state || '',
+    district: filters.district || '',
+    physicalProgressMin: filters.physicalProgressMin ?? '',
+    physicalProgressMax: filters.physicalProgressMax ?? '',
+    financialProgressMin: filters.financialProgressMin ?? '',
+    financialProgressMax: filters.financialProgressMax ?? '',
+    underTenderingSubStage: filters.underTenderingSubStage || '',
+  });
+}
+
 export default function ProjectListPage({
   notify,
   onOpenBasicInfo,
@@ -62,7 +89,7 @@ export default function ProjectListPage({
   const claims = getSessionClaims() || {};
 
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -88,6 +115,8 @@ export default function ProjectListPage({
   });
 
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedProgressFilters, setDebouncedProgressFilters] = useState(DEFAULT_PROGRESS_FILTERS);
+  const [listHydrated, setListHydrated] = useState(false);
   const [dropBusyId, setDropBusyId] = useState(null);
   const [dropConfirmModal, setDropConfirmModal] = useState({
     open: false,
@@ -106,24 +135,23 @@ export default function ProjectListPage({
     step: 'form', // 'form' | 'success'
   });
 
+  const countsFilterKeyRef = useRef('');
+  const hasLoadedRowsRef = useRef(false);
+
   const isExportBusy = exportingAllData || exportingExpenditureLogs || requestingMediaFiles;
+  const showInitialLoader = isFetching && !hasLoadedRowsRef.current;
+  const isRefreshing = isFetching && hasLoadedRowsRef.current;
 
   useEffect(() => {
     let mounted = true;
+
     Promise.allSettled([
       fetchMmtDropdown('mmt_organisation'),
       fetchMmtDropdown('mmt_state'),
-      fetchMmtDropdown('mmt_district'),
       fetchMmtDropdown('mmt_project_category'),
       fetchMmtDropdown('mmt_scheme'),
       fetchMmtDropdown('tbl_project_sub_stage'),
-    ]).then(([orgRes, stateRes, districtRes, catRes, schemeRes, subStageRes]) => {
-      if (
-        subStageRes.status === 'fulfilled' &&
-        Array.isArray(subStageRes.value?.data)
-      ) {
-        setUnderTenderingSubStages(subStageRes.value.data);
-      }
+    ]).then(([orgRes, stateRes, catRes, schemeRes, subStageRes]) => {
       if (!mounted) return;
       if (orgRes.status === 'fulfilled' && Array.isArray(orgRes.value?.data)) {
         setOrganisations(orgRes.value.data);
@@ -131,14 +159,17 @@ export default function ProjectListPage({
       if (stateRes.status === 'fulfilled' && Array.isArray(stateRes.value?.data)) {
         setStates(stateRes.value.data);
       }
-      if (districtRes.status === 'fulfilled' && Array.isArray(districtRes.value?.data)) {
-        setDistricts(districtRes.value.data);
-      }
       if (catRes.status === 'fulfilled' && Array.isArray(catRes.value?.data)) {
         setCategories(catRes.value.data);
       }
       if (schemeRes.status === 'fulfilled' && Array.isArray(schemeRes.value?.data)) {
         setSchemes(schemeRes.value.data);
+      }
+      if (
+        subStageRes.status === 'fulfilled' &&
+        Array.isArray(subStageRes.value?.data)
+      ) {
+        setUnderTenderingSubStages(subStageRes.value.data);
       }
     });
 
@@ -148,72 +179,203 @@ export default function ProjectListPage({
   }, []);
 
   useEffect(() => {
+    if (!listHydrated) return undefined;
+    let mounted = true;
+
+    fetchMmtDropdown('mmt_district')
+      .then((res) => {
+        if (mounted && Array.isArray(res?.data)) {
+          setDistricts(res.data);
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [listHydrated]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(filters.search);
-    }, 300);
+    }, FILTER_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
   }, [filters.search]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedProgressFilters({
+        physicalProgressMin: filters.physicalProgressMin,
+        physicalProgressMax: filters.physicalProgressMax,
+        financialProgressMin: filters.financialProgressMin,
+        financialProgressMax: filters.financialProgressMax,
+      });
+    }, FILTER_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [
+    filters.physicalProgressMin,
+    filters.physicalProgressMax,
+    filters.financialProgressMin,
+    filters.financialProgressMax,
+  ]);
+
   const effectiveFilters = useMemo(
-    () => ({ ...filters, search: debouncedSearch }),
-    [filters, debouncedSearch]
+    () => ({
+      search: debouncedSearch,
+      projectStage: filters.projectStage,
+      projectCategory: filters.projectCategory,
+      schemeId: filters.schemeId,
+      isSagarmalaFunded: filters.isSagarmalaFunded,
+      organisationId: filters.organisationId,
+      implementationMode: filters.implementationMode,
+      implementationType: filters.implementationType,
+      state: filters.state,
+      district: filters.district,
+      underTenderingSubStage: filters.underTenderingSubStage,
+      ...debouncedProgressFilters,
+    }),
+    [
+      debouncedSearch,
+      filters.projectStage,
+      filters.projectCategory,
+      filters.schemeId,
+      filters.isSagarmalaFunded,
+      filters.organisationId,
+      filters.implementationMode,
+      filters.implementationType,
+      filters.state,
+      filters.district,
+      filters.underTenderingSubStage,
+      debouncedProgressFilters,
+    ]
+  );
+
+  const countsFilterKey = useMemo(
+    () => getCountsFilterKey(effectiveFilters),
+    [effectiveFilters]
+  );
+
+  const buildListParams = useCallback(
+    (overrides = {}) => {
+      const params = {
+        userId: permissions.userId,
+        page,
+        limit: pageSize,
+        search: effectiveFilters.search,
+        projectStage: effectiveFilters.projectStage,
+        projectCategory: effectiveFilters.projectCategory,
+        schemeId: effectiveFilters.schemeId,
+        isSagarmalaFunded: effectiveFilters.isSagarmalaFunded,
+        organisationId: effectiveFilters.organisationId,
+        implementationMode: effectiveFilters.implementationMode,
+        implementationType: effectiveFilters.implementationType,
+        state: effectiveFilters.state,
+        district: effectiveFilters.district,
+        physicalProgressMin: effectiveFilters.physicalProgressMin,
+        physicalProgressMax: effectiveFilters.physicalProgressMax,
+        financialProgressMin: effectiveFilters.financialProgressMin,
+        financialProgressMax: effectiveFilters.financialProgressMax,
+        underTenderingSubStage: effectiveFilters.underTenderingSubStage,
+        includeCounts: false,
+        ...overrides,
+      };
+
+      if (permissions.viewMode === 'org' && permissions.organisationId) {
+        params.organisationId = permissions.organisationId;
+      }
+
+      return params;
+    },
+    [
+      permissions.userId,
+      permissions.viewMode,
+      permissions.organisationId,
+      page,
+      pageSize,
+      effectiveFilters,
+    ]
   );
 
   const loadProjects = useCallback(
     async (signal) => {
       if (!permissions.canView || !permissions.userId) return;
 
-      setLoading(true);
+      setIsFetching(true);
+      const needsCounts = countsFilterKeyRef.current !== countsFilterKey;
 
       try {
-        const params = {
-          userId: permissions.userId,
-          page,
-          limit: pageSize,
-          search: effectiveFilters.search,
-          projectStage: effectiveFilters.projectStage,
-          projectCategory: effectiveFilters.projectCategory,
-          schemeId: effectiveFilters.schemeId,
-          isSagarmalaFunded: effectiveFilters.isSagarmalaFunded,
-          organisationId: effectiveFilters.organisationId,
-          implementationMode: effectiveFilters.implementationMode,
-          implementationType: effectiveFilters.implementationType,
-          state: effectiveFilters.state,
-          district: effectiveFilters.district,
-          physicalProgressMin: effectiveFilters.physicalProgressMin,
-          physicalProgressMax: effectiveFilters.physicalProgressMax,
-          financialProgressMin: effectiveFilters.financialProgressMin,
-          financialProgressMax: effectiveFilters.financialProgressMax,
-          includeCounts: page === 1 || !stageCounts?.all,
-          underTenderingSubStage: effectiveFilters.underTenderingSubStage,
-        };
+        const pagePromise = fetchProjectList(
+          buildListParams({ includeCounts: false }),
+          { signal }
+        );
+        const countsPromise = needsCounts
+          ? fetchProjectList(
+              buildListParams({
+                page: 1,
+                limit: 1,
+                includeCounts: true,
+                countsOnly: true,
+                // Badge counts ignore the active stage tab.
+                projectStage: 'All',
+              }),
+              { signal }
+            )
+          : null;
 
-        if (permissions.viewMode === 'org' && permissions.organisationId) {
-          params.organisationId = permissions.organisationId;
-        }
+        const res = await pagePromise;
+        if (signal?.aborted) return;
 
-        const res = await fetchProjectList(params, { signal });
         const payload = res?.data || {};
         const serverRows = Array.isArray(payload?.data) ? payload.data : [];
         const mappedRows = serverRows.map(mapProjectListRow);
 
         setRows(mappedRows);
-        if (payload?.pagination?.counts) {
-          setStageCounts(payload.pagination.counts);
-        }
+        hasLoadedRowsRef.current = true;
+        setListHydrated(true);
+
         setPagination((prev) => ({
           total: Number(payload?.pagination?.total) || 0,
           page: Number(payload?.pagination?.page) || page,
           limit: Number(payload?.pagination?.limit) || pageSize,
           totalPages: Number(payload?.pagination?.totalPages) || 0,
-          counts: payload?.pagination?.counts ?? prev?.counts ?? null,
+          counts: prev?.counts ?? null,
         }));
+
+        if (!signal?.aborted) {
+          setIsFetching(false);
+        }
+
+        if (countsPromise && !signal?.aborted) {
+          try {
+            const countsRes = await countsPromise;
+            if (signal?.aborted) return;
+
+            const counts = countsRes?.data?.pagination?.counts;
+            if (counts) {
+              setStageCounts(counts);
+              countsFilterKeyRef.current = countsFilterKey;
+              setPagination((prev) => ({
+                ...prev,
+                counts,
+              }));
+            }
+          } catch (countsError) {
+            if (countsError?.code === 'ERR_CANCELED' || signal?.aborted) return;
+            console.error(countsError);
+          }
+        }
       } catch (error) {
-        if (error?.code === 'ERR_CANCELED') return;
+        if (error?.code === 'ERR_CANCELED' || signal?.aborted) return;
         console.error(error);
-        setRows([]);
-        setPagination({ total: 0, page: 1, limit: pageSize, totalPages: 0 });
+
+        if (!hasLoadedRowsRef.current) {
+          setRows([]);
+          setPagination({ total: 0, page: 1, limit: pageSize, totalPages: 0 });
+        }
 
         const timeoutMessage =
           error?.code === 'ECONNABORTED'
@@ -226,27 +388,28 @@ export default function ProjectListPage({
             'Failed to load projects list. Please try again.',
           'error'
         );
-      } finally {
+
         if (!signal?.aborted) {
-          setLoading(false);
+          setIsFetching(false);
         }
       }
     },
     [
       permissions.canView,
       permissions.userId,
-      permissions.viewMode,
-      permissions.organisationId,
+      buildListParams,
       page,
       pageSize,
-      effectiveFilters,
+      countsFilterKey,
       notify,
-      stageCounts?.all,
     ]
   );
 
   useEffect(() => {
     const controller = new AbortController();
+    if (refreshTick > 0) {
+      countsFilterKeyRef.current = '';
+    }
     loadProjects(controller.signal);
 
     return () => {
@@ -255,7 +418,7 @@ export default function ProjectListPage({
   }, [loadProjects, refreshTick]);
 
   useEffect(() => {
-    if (!permissions.userId || !permissions.canView) return undefined;
+    if (!permissions.userId || !permissions.canView || !listHydrated) return undefined;
     let mounted = true;
     const controller = new AbortController();
 
@@ -273,14 +436,19 @@ export default function ProjectListPage({
       mounted = false;
       controller.abort();
     };
-  }, [permissions.userId, permissions.canView, refreshTick]);
+  }, [permissions.userId, permissions.canView, refreshTick, listHydrated]);
 
   const closeDropConfirmModal = () => {
     if (dropBusyId) return;
     setDropConfirmModal({ open: false, row: null, reason: '' });
   };
 
-  const canRequestDrop = Boolean(permissions.canEdit && permissions.viewMode === 'org');
+  const canRequestDrop = Boolean(
+    permissions.canView
+    && permissions.canEdit
+    && permissions.isOrgScope
+    && !permissions.isViewOnlyAdmin
+  );
 
   const handleDropProject = (row) => {
     if (!canRequestDrop) {
@@ -541,7 +709,8 @@ export default function ProjectListPage({
 
       <ProjectsListTable
         rows={rows}
-        loading={loading}
+        loading={showInitialLoader}
+        isRefreshing={isRefreshing}
         page={page}
         pageSize={pageSize}
         pagination={pagination}
@@ -550,6 +719,17 @@ export default function ProjectListPage({
         onFiltersChange={(nextFilters) => {
           setFilters(nextFilters);
           setPage(1);
+
+          const nextProgress = {
+            physicalProgressMin: nextFilters.physicalProgressMin ?? '',
+            physicalProgressMax: nextFilters.physicalProgressMax ?? '',
+            financialProgressMin: nextFilters.financialProgressMin ?? '',
+            financialProgressMax: nextFilters.financialProgressMax ?? '',
+          };
+          const progressCleared = Object.values(nextProgress).every((value) => value === '');
+          if (progressCleared) {
+            setDebouncedProgressFilters(nextProgress);
+          }
         }}
         stageOptions={PROJECT_STAGE_OPTIONS}
         categoryOptions={categories?.length ? categories : PROJECT_CATEGORY_OPTIONS}
@@ -560,14 +740,14 @@ export default function ProjectListPage({
         states={states}
         districts={districts}
         underTenderingSubStageOptions={underTenderingSubStages}
-        canAdd={Boolean(permissions.canAdd && (permissions.isOrganisationUser || permissions.viewMode === 'org'))}
-        canEdit={permissions.canEdit}
+        canAdd={Boolean(permissions.canAdd && permissions.isOrgScope)}
+        canEdit={Boolean(permissions.canEdit && !permissions.isViewOnlyAdmin)}
         canView={permissions.canView}
         canDropProject={canRequestDrop}
         isOrganisationUser={permissions.isOrganisationUser}
         dropBusyId={dropBusyId}
         onAddNew={
-          permissions.canAdd && (permissions.isOrganisationUser || permissions.viewMode === 'org')
+          permissions.canAdd && permissions.isOrgScope
             ? onAddNew
             : undefined
         }

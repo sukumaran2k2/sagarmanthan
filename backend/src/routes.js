@@ -136,7 +136,7 @@ import projectReport from "./controllers/Reports/projectReport.js";
 
 import lumpsumReportTab from "./controllers/Reports/lumpsumReport.js";
 import capexReportTab from "./controllers/Reports/capexReport.js";
-import projectsDataQcReportTab from "./controllers/Reports/projectsDataQcReport.js";
+import projectsDataQcReportTab from "./controllers/Reports/dataQc/index.js";
 import kpiDgs1_0Tab from "./controllers/Reports/kpiDgs1_0.js";
 import kpiDgs2_0Tab from "./controllers/Reports/kpiDgs2_0.js";
 import kpiDgs3_0Tab from "./controllers/Reports/kpiDgs2_3.js";
