@@ -257,7 +257,7 @@ async function getCreatedFormData(req, res) {
   try {
     const conn = await pool;
     const result = await conn.request().query(`
-      SELECT id, form_name, form_description, due_date, organisation, active_status, submission_count, form_fields
+      SELECT id, form_name, form_description, due_date, organisation, wing, active_status, submission_count, form_fields
       FROM mmt_form_definitions
       ORDER BY created_date DESC;
     `);
@@ -283,6 +283,7 @@ async function getCreatedFormData(req, res) {
         formName: row.form_name,
         formDescription: row.form_description,
         organisation: row.organisation,
+        wing: row.wing,
         dueDate: row.due_date ? new Date(row.due_date).toISOString().split('T')[0] : null,
         status: row.active_status === '1' ? 'Active' : 'Inactive',
         submissionsCount: row.submission_count,
