@@ -142,13 +142,8 @@ export const ROUTE_MAP = {
   'admin/user-list': 'admin/user-list',
 
   // HR nested routes
-  'HR Dashboard': 'hr/hr-management/hr-dashboard',
-  'Employee Database': 'hr/hr-management/employee-database',
-  'List of Abolished Ports': 'hr/hr-management/abolished-ports',
-  'List of Abolished Posts': 'hr/hr-management/abolished-posts',
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
-  'HR Reports': 'hr/hr-management/hr-reports',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -265,12 +260,8 @@ const getBreadcrumbs = (tab) => {
   if (kpiItems[tab]) return ['Home', ...kpiItems[tab], tab];
 
   const hrItems = {
-    'HR Dashboard': ['HR & Institutional', 'HR Management'],
-    'Employee Database': ['HR & Institutional', 'HR Management'],
-    'List of Abolished Ports': ['HR & Institutional', 'HR Management'],
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
-    'HR Reports': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],

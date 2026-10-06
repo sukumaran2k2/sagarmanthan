@@ -379,50 +379,69 @@ async function getHRTrainingDataByID(req,res){
 
     try{
         const trainingResult = await request.query(`
-            SELECT [TRAINING_ID]
-                  ,[TITLE]
+            SELECT ht.[TRAINING_ID]
+                  ,tit.[TITLE]
                   ,ty.[TRAINING_TYPE_NAME]
                   ,ty.[TRAINING_TYPE_ID]
-                  ,t.[TRAINING_TITLE_ID]
-                  ,other_type
-                  ,[from_date]
-                  ,[to_date]
-                  ,[training_source]
-                  ,[outside_agency_name]
-                  ,[country_id]
-                  ,[location]
-                  ,[expenditure]
-                  ,[TBL_HR_TRAINING].[organisation_id]
-                  ,[created_date]
-                  ,[created_by]
-                  ,[updated_date]
-                  ,[updated_by],
-                  [NO_OF_PARTICIPANTS]
-            FROM [TBL_HR_TRAINING]
-            LEFT JOIN [TBL_TRAINING_TITLE] t ON [TBL_HR_TRAINING].[TRAINING_TITLE_ID] = t.[TRAINING_TITLE_ID]
-            LEFT JOIN [TBL_TRAINING_TYPE] ty ON t.[TRAINING_TYPE_ID] = ty.[TRAINING_TYPE_ID] WHERE [TBL_HR_TRAINING].TRAINING_ID = @trainingID
+                  ,ht.[TRAINING_TITLE_ID]
+                  ,ht.[other_type]
+                  ,ht.[from_date]
+                  ,ht.[to_date]
+                  ,ht.[training_source]
+                  ,ht.[outside_agency_name]
+                  ,ht.[country_id]
+                  ,mmt.[country] AS [country_name]
+                  ,ht.[location]
+                  ,ht.[expenditure]
+                  ,ht.[organisation_id]
+                  ,ht.[created_date]
+                  ,ht.[created_by]
+                  ,ht.[updated_date]
+                  ,ht.[updated_by]
+                  ,ht.[NO_OF_PARTICIPANTS]
+            FROM [tbl_hr_training] ht
+            LEFT JOIN [TBL_TRAINING_TITLE] tit ON ht.[TRAINING_TITLE_ID] = tit.[TRAINING_TITLE_ID]
+            LEFT JOIN [TBL_TRAINING_TYPE] ty ON tit.[TRAINING_TYPE_ID] = ty.[TRAINING_TYPE_ID]
+            LEFT JOIN [mmt_country] mmt ON ht.[country_id] = mmt.id
+            WHERE ht.TRAINING_ID = @trainingID
         `);
 
         const trainingStaffResult = await request.query(`
-            SELECT
-                [transaction_id]
-                ,[training_id]
-                ,[emp_master_id]
-                ,[employee_id]
-                ,[emp_transaction_id]
-
-            FROM [tbl_hr_staff_training] WHERE training_id = @trainingID
-
+            WITH StaffData AS (
+                SELECT
+                     hst.[training_id]
+                    ,hst.[emp_master_id]
+                    ,COALESCE(NULLIF(hst.[employee_id], ''), etd.employee_id, etd.emp_reference_id, '') AS [employee_id]
+                    ,hst.[emp_transaction_id]
+                    ,COALESCE(em.emp_name, '') AS [emp_name]
+                    ,COALESCE(etd.emp_department_name, '') AS [emp_department_name]
+                    ,COALESCE(etd.emp_post_name, po.post_name, em.emp_parent_org_designation, '') AS [emp_post_name]
+                    ,COALESCE(etd.emp_reference_id, '') AS [emp_reference_id]
+                    ,ROW_NUMBER() OVER (
+                        PARTITION BY hst.training_id, COALESCE(NULLIF(hst.employee_id, ''), NULLIF(etd.employee_id, ''), CAST(hst.emp_master_id AS VARCHAR(50)))
+                        ORDER BY CASE WHEN etd.emp_post_end_date IS NULL THEN 0 ELSE 1 END, etd.transaction_id DESC
+                    ) AS rn
+                FROM [tbl_hr_staff_training] hst
+                LEFT JOIN tbl_employee_master em ON hst.emp_master_id = em.emp_master_id
+                LEFT JOIN tbl_employee_transaction_details etd ON (
+                    (hst.emp_transaction_id IS NOT NULL AND hst.emp_transaction_id = etd.transaction_id)
+                    OR (hst.employee_id IS NOT NULL AND hst.employee_id = etd.employee_id)
+                    OR (hst.emp_master_id IS NOT NULL AND hst.emp_master_id = etd.emp_master_id)
+                )
+                LEFT JOIN mmt_hr_post po ON etd.emp_post_id = po.post_id
+                WHERE hst.training_id = @trainingID
+            )
+            SELECT * FROM StaffData WHERE rn = 1;
         `);
 
         res.json({
-            training: trainingResult.recordset[0],
-            participants: trainingStaffResult.recordset
+            training: trainingResult.recordset[0] || null,
+            participants: trainingStaffResult.recordset || []
         });
 
     }catch(e){
-        // console.error(err);
-        return res.status(500).json({message:"Internal Server Error",error:e});
+        console.error("Error in getHRTrainingDataByID:", e);
+        return res.status(500).json({message:"Internal Server Error",error:e.message});
     }
 }
 
@@ -786,7 +805,7 @@ async function getHRTrainingDetailsDataByOrg(req, res) {
         return res.status(400).json({ message: "Missing required query parameters" });
     }
 
-    if (!(roleID == 2 || roleID == 3 || roleID == 4 || roleID == 5 || roleID == 8)) {
+    if (!(roleID == 1 || roleID == 2 || roleID == 3 || roleID == 4 || roleID == 5 || roleID == 8)) {
         return res.status(403).json({ message: "Access denied" });
     }
 
@@ -899,7 +918,7 @@ async function getAllTrainingData(req, res) {
         const allowedOrgIds = [23,15,27,21,24,19,25,22,16,17,18,20];
 
         let result;
-        if ([2,3,4,5].includes(role_id)) {
+        if ([1,2,3,4,5,8].includes(role_id)) {
 
             result = await conn.query(`
                 WITH StaffRanked AS (
@@ -1168,7 +1187,7 @@ async function getAllContractualData(req,res) {
         const userResult = await conn.query(` SELECT role_id,organisation_id FROM tbl_user WHERE user_id = ${userID} `);
         const { role_id,organisation_id  } = userResult.recordset[0];
         let result;
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
+        if ([1,2,3,4,5,8].includes(role_id)) {
             result = await conn.query(`
             SELECT 
                 ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S.No],

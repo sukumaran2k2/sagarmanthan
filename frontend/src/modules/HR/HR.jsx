@@ -1,64 +1,67 @@
-import { useState } from 'react';
+import React, { useMemo } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import { 
-  LayoutDashboard, 
-  ClipboardList, 
-  UserX, 
   UserPlus, 
   BookOpen, 
-  FilePieChart
+  Users
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 
-import Dashboard from './pages/Dashboard';
-import EmployeeDatabase from './pages/EmployeeDatabase';
-import ListOfAbolishedPosts from './pages/ListOfAbolishedPosts';
 import ContractualEmployment from './pages/ContractualEmployment';
 import TrainingDetails from './pages/TrainingDetails';
-import Reports from './pages/Reports';
 
-export default function HRDashboardView({ activeSubTab, setActiveSubTab }) {
-  // Sub-tabs configuration
-  const SUB_TABS = [
-    { id: 'HR Dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'Employee Database', label: 'Employee Database', icon: ClipboardList },
-    { id: 'List of Abolished Posts', label: 'List of Abolished Posts', icon: UserX },
-    { id: 'Contractual Employment', label: 'Contractual Employment', icon: UserPlus },
-    { id: 'Training Details', label: 'Training Details', icon: BookOpen },
-    { id: 'HR Reports', label: 'Reports', icon: FilePieChart }
+export default function HRDashboardView({ triggerNotification }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const currentTab = useMemo(() => {
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/training-details')) return 'training-details';
+    return 'contractual-employment';
+  }, [location.pathname]);
+
+  const tabs = [
+    { id: 'contractual-employment', label: 'Contractual Employment', icon: UserPlus },
+    { id: 'training-details', label: 'Training Details', icon: BookOpen },
   ];
 
-  // Determine current active sub-tab (fallback to 'HR Dashboard' if prop is invalid or empty)
-  const currentTab = SUB_TABS.some(t => t.id === activeSubTab) ? activeSubTab : 'HR Dashboard';
+  const handleTabChange = (tabId) => {
+    navigate(`/hr/hr-management/${tabId}`);
+  };
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-
-      {/* Header Row: Title & Navigation Tab Switcher on the same line */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
+      
+      {/* Header Row */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
         <div>
-          <h2 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
-            HR Management
-          </h2>
+          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display flex items-center gap-2">
+            <Users className="h-5 w-5 text-[#0f417a] dark:text-blue-400" />
+            <span>HR Management</span>
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
+            Manage contractual employment and training details.
+          </p>
         </div>
 
-        {/* Modern Segmented Control Tab Switcher */}
         <InternalNavigation
-          tabs={SUB_TABS} 
-          currentTab={currentTab} 
-          onTabChange={setActiveSubTab}
+          tabs={tabs}
+          currentTab={currentTab}
+          onTabChange={handleTabChange}
         />
       </div>
 
-      {/* Render sub-page depending on selected tab */}
-      <div className="space-y-6">
-        {currentTab === 'HR Dashboard' && <Dashboard />}
-        {currentTab === 'Employee Database' && <EmployeeDatabase />}
-        {currentTab === 'List of Abolished Posts' && <ListOfAbolishedPosts />}
-        {currentTab === 'Contractual Employment' && <ContractualEmployment />}
-        {currentTab === 'Training Details' && <TrainingDetails />}
-        {currentTab === 'HR Reports' && <Reports />}
-      </div>
+      {/* Child Routes */}
+      <div>
+        <Routes>
+          <Route path="contractual-employment" element={<ContractualEmployment triggerNotification={triggerNotification} />} />
+          <Route path="training-details" element={<TrainingDetails triggerNotification={triggerNotification} />} />
 
+          <Route index element={<Navigate to="contractual-employment" replace />} />
+          <Route path="*" element={<Navigate to="contractual-employment" replace />} />
+        </Routes>
+      </div>
+      
     </div>
   );
 }

@@ -341,13 +341,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'HR Management',
           icon: Users,
           items: [
-            m('HR_MANAGEMENT', { label: 'HR Dashboard', icon: LayoutDashboard }),
-            m('HR_MANAGEMENT', { label: 'Employee Database', icon: ClipboardList }),
-            m('HR_MANAGEMENT', { label: 'List of Abolished Ports', icon: UserX }),
-            m('HR_MANAGEMENT', { label: 'List of Abolished Posts', icon: UserX }),
-            m('HR_MANAGEMENT', { label: 'Contractual Employment', icon: UserPlus }),
-            m('HR_MANAGEMENT', { label: 'Training Details', icon: BookOpen }),
-            m('HR_MANAGEMENT', { label: 'HR Reports', icon: FilePieChart }),
+            m('HR_MANAGEMENT', { label: 'Contractual Employment', tab: 'Contractual Employment', icon: UserPlus }),
+            m('HR_MANAGEMENT', { label: 'Training Details', tab: 'Training Details', icon: BookOpen }),
           ]
         },
         {
