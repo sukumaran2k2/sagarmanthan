@@ -94,6 +94,13 @@ const MOCK_DRAFT_FORMS = [
   }
 ];
 
+// Turns a failed request into a message the user can act on.
+const loadErrorMessage = (err, what) => (
+  err.response?.status === 401
+    ? 'Your session has expired. Please log out and log in again.'
+    : err.response?.data?.message || `Could not load ${what} from the server.`
+);
+
 export default function FormDirectory({ triggerNotification, onViewSubmissions, onEditForm, mode = 'published' }) {
   const [forms, setForms] = useState(mode === 'drafts' ? MOCK_DRAFT_FORMS : MOCK_PUBLISHED_FORMS);
   
@@ -104,19 +111,29 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
   const [formToDelete, setFormToDelete] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
-  useEffect(() => {
-    // Attempt fetching live forms from backend
+  // Mock forms show only when the request succeeds and the DB has no forms.
+  // A failed request shows an error instead, so it can't pass for real data.
+  const loadForms = () => {
+    setLoadError(null);
     api.get('/get-created-form-data')
       .then(res => {
         if (Array.isArray(res.data) && res.data.length > 0) {
           setForms(res.data);
+        } else {
+          setForms(mode === 'drafts' ? MOCK_DRAFT_FORMS : MOCK_PUBLISHED_FORMS);
         }
       })
       .catch((err) => {
-        console.error('Error loading forms, falling back to mock data:', err);
-        // Fallback to rich mock data (left as-is from the initial useState)
+        console.error('Error loading forms:', err);
+        setForms([]);
+        setLoadError(loadErrorMessage(err, 'forms'));
       });
+  };
+
+  useEffect(() => {
+    loadForms();
   }, []);
 
   const handleCloneForm = (form) => {
@@ -187,6 +204,19 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl border border-rose-200 bg-rose-50 text-xs font-semibold text-rose-700">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={loadForms}
+            className="px-3 py-1.5 rounded-lg bg-white border border-rose-200 hover:bg-rose-100 font-bold cursor-pointer transition"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Forms Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
@@ -325,7 +355,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
           );
         })}
         
-        {filteredForms.length === 0 && (
+        {filteredForms.length === 0 && !loadError && (
           <div className="col-span-full py-8 text-center text-sm text-slate-500 font-medium">
             No published forms found matching your search.
           </div>

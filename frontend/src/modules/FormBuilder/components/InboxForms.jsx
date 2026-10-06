@@ -53,22 +53,40 @@ const MOCK_INBOX = [
   }
 ];
 
+// Turns a failed request into a message the user can act on.
+const loadErrorMessage = (err, what) => (
+  err.response?.status === 401
+    ? 'Your session has expired. Please log out and log in again.'
+    : err.response?.data?.message || `Could not load ${what} from the server.`
+);
+
 export default function InboxForms({ triggerNotification, onBackToDirectory }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
   const [inboxForms, setInboxForms] = useState(MOCK_INBOX);
+  const [loadError, setLoadError] = useState(null);
 
-  useEffect(() => {
-    // Real assigned forms replace the mock list when there are any (same rule as Form Directory).
+  // Same rule as Form Directory: mock list only when the request succeeds with
+  // nothing assigned; a failed request shows an error instead.
+  const loadInbox = () => {
+    setLoadError(null);
     api.get('/get-inbox-forms')
       .then(res => {
         if (Array.isArray(res.data) && res.data.length > 0) {
           setInboxForms(res.data);
+        } else {
+          setInboxForms(MOCK_INBOX);
         }
       })
       .catch((err) => {
-        console.error('Error loading inbox forms, falling back to mock data:', err);
+        console.error('Error loading inbox forms:', err);
+        setInboxForms([]);
+        setLoadError(loadErrorMessage(err, 'your inbox'));
       });
+  };
+
+  useEffect(() => {
+    loadInbox();
   }, []);
 
   const filtered = inboxForms.filter(s => 
@@ -198,6 +216,19 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl border border-rose-200 bg-rose-50 text-xs font-semibold text-rose-700">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={loadInbox}
+            className="px-3 py-1.5 rounded-lg bg-white border border-rose-200 hover:bg-rose-100 font-bold cursor-pointer transition"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Forms List (AG Grid Table) */}
       <div className="w-full">
