@@ -697,5 +697,62 @@ async function submitFormData(req, res) {
   }
 }
 
-const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData };
+// ---------- GET /get-my-form-response/:formId ----------
+// The caller's own saved response (draft or submitted), so the fill form can be
+// reopened with its earlier answers. Only ever returns the caller's row.
+async function getMyFormResponse(req, res) {
+  const userId = Number(req.user?.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(401).json({ message: 'Unauthorized!' });
+  }
+  const formId = Number(req.params.formId);
+  if (!Number.isInteger(formId) || formId <= 0) {
+    return res.status(400).json({ message: 'Invalid form id' });
+  }
+
+  try {
+    const conn = await pool;
+    const lookup = await conn.request()
+      .input('id', sql.Int, formId)
+      .query(`SELECT table_name, form_fields FROM mmt_form_definitions WHERE id = @id;`);
+    if (lookup.recordset.length === 0) {
+      return res.status(404).json({ message: 'Form not found' });
+    }
+    const form = lookup.recordset[0];
+    if (!isSafeIdentifier(form.table_name)) {
+      return res.status(500).json({ message: 'Stored table name failed safety check' });
+    }
+
+    const dataFields = toClientFields(form.form_fields).filter((f) => f.columnName && isSafeIdentifier(f.columnName));
+    const columnList = dataFields.map((f) => `[${f.columnName}]`).join(', ');
+    const result = await conn.request()
+      .input('userId', sql.Int, userId)
+      .query(`
+        SELECT TOP 1 ${columnList ? columnList + ',' : ''} submission_uid, submission_status
+        FROM [${form.table_name}]
+        WHERE submitted_by = @userId
+        ORDER BY CASE WHEN submission_status = 'Submitted' THEN 0 ELSE 1 END, updated_date DESC;
+      `);
+
+    const row = result.recordset[0];
+    if (!row) {
+      return res.json({ status: 'Pending', submissionUid: null, values: {} });
+    }
+    const values = {};
+    for (const f of dataFields) {
+      const v = fromColumnValue(f.inputType, row[f.columnName]);
+      if (v !== null) values[f.id] = v;
+    }
+    res.json({
+      status: row.submission_status === 'Submitted' ? 'Submitted' : 'Draft Saved',
+      submissionUid: row.submission_uid,
+      values,
+    });
+  } catch (err) {
+    console.error('getMyFormResponse error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData, getMyFormResponse };
 export default formBuilderController;

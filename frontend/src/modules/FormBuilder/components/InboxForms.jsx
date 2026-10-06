@@ -92,6 +92,22 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
   // Real (numeric-id) forms save through the API; mock forms stay preview-only.
   const isRealForm = (form) => /^\d+$/.test(String(form?.id));
 
+  // Opens the fill form; for a saved draft or submitted response, loads the earlier
+  // answers first so saving again doesn't overwrite them with blanks.
+  const openForm = async (form) => {
+    if (!isRealForm(form) || form.status === 'Pending') {
+      setSelectedFormToFill(form);
+      return;
+    }
+    try {
+      const res = await api.get(`/get-my-form-response/${form.id}`);
+      setSelectedFormToFill({ ...form, initialValues: res.data.values || {} });
+    } catch (err) {
+      console.error('Error loading saved response:', err);
+      triggerNotification && triggerNotification(err.response?.data?.message || 'Could not load your saved answers', 'error');
+    }
+  };
+
   const submitResponse = async (form, action, values) => {
     const res = await api.post('/submit-form-data', { formId: form.id, action, values });
     setInboxForms(prev => prev.map(f => (f.id === form.id ? { ...f, status: res.data.status } : f)));
@@ -171,7 +187,7 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
         return (
           <div className="flex items-center justify-end h-full">
             <button
-              onClick={() => setSelectedFormToFill(params.data)}
+              onClick={() => openForm(params.data)}
               className={`inline-flex items-center space-x-1 px-3 py-1.5 font-bold text-[11px] rounded-lg transition cursor-pointer ${
                 isSubmitted 
                   ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' 
@@ -260,6 +276,7 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
           formName={selectedFormToFill.formName}
           formDescription={selectedFormToFill.formDescription}
           fields={selectedFormToFill.fields}
+          initialValues={selectedFormToFill.initialValues}
           onClose={() => setSelectedFormToFill(null)}
           onSubmitResponse={isRealForm(selectedFormToFill)
             ? (action, values) => submitResponse(selectedFormToFill, action, values)

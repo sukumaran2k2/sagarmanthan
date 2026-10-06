@@ -2824,6 +2824,12 @@ router.post(
   requireModulePermission("FORM_BUILDER", "read"),
   formBuilderController.submitFormData
 ); // filling an assigned form; the controller also checks the form is assigned to the caller
+router.get(
+  '/get-my-form-response/:formId',
+  auth,
+  requireModulePermission("FORM_BUILDER", "read"),
+  formBuilderController.getMyFormResponse
+);
 router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "delete"), formBuilderInputTab.deleteMmtFormBuilder); //req //delete created forms
 router.post("/edit-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "update"), formBuilderInputTab.editMmtFormBuilder); //req //edit forms
 
