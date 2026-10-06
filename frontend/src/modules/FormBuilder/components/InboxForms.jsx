@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   ArrowLeft, 
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import FormPreviewModal from './FormPreviewModal';
+import api from '../api';
 
 const MOCK_INBOX = [
   {
@@ -55,13 +56,27 @@ const MOCK_INBOX = [
 export default function InboxForms({ triggerNotification, onBackToDirectory }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
+  const [inboxForms, setInboxForms] = useState(MOCK_INBOX);
 
-  const filtered = MOCK_INBOX.filter(s => 
-    s.formName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.assignedBy.toLowerCase().includes(searchQuery.toLowerCase())
+  useEffect(() => {
+    // Real assigned forms replace the mock list when there are any (same rule as Form Directory).
+    api.get('/get-inbox-forms')
+      .then(res => {
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          setInboxForms(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading inbox forms, falling back to mock data:', err);
+      });
+  }, []);
+
+  const filtered = inboxForms.filter(s => 
+    (s.formName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (s.assignedBy || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const pendingCount = MOCK_INBOX.filter(s => s.status !== 'Submitted').length;
+  const pendingCount = inboxForms.filter(s => s.status !== 'Submitted').length;
 
   const columnDefs = [
     {

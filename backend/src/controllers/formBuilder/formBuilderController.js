@@ -130,7 +130,8 @@ async function createForm(req, res, { formName, meta, storableFields }) {
     await transaction.begin();
 
     const insertReq = bindMetadata(transaction.request(), formName, meta);
-    insertReq.input('created_by', sql.Int, Number(meta.userID) || null);
+    // Creator comes from the verified token, never from the request body.
+    insertReq.input('created_by', sql.Int, Number(req.user?.userId) || null);
     const insertResult = await insertReq.query(`
       INSERT INTO mmt_form_definitions
         (form_name, form_description, table_name, form_fields, due_date, organisation, wing, division, active_status, created_by)
@@ -406,5 +407,78 @@ async function getFormSubmissions(req, res) {
   }
 }
 
-const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions };
+// ---------- GET /get-inbox-forms ----------
+// Active forms assigned to the caller's organisation (by code) or wing (by name),
+// with the caller's own progress on each. Assignment lists are stored as CSV and
+// wing names can contain commas ("DGLL, Parliament & TRW"), so matching is done on
+// the whole delimited name rather than by splitting.
+async function getInboxForms(req, res) {
+  const userId = Number(req.user?.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(401).json({ message: 'Unauthorized!' });
+  }
+
+  try {
+    const conn = await pool;
+    const formsResult = await conn.request()
+      .input('orgId', sql.Int, Number(req.user?.organisationId) || null)
+      .input('wingId', sql.Int, Number(req.user?.wingId) || null)
+      .query(`
+        DECLARE @orgCode NVARCHAR(100) = (SELECT organisation_code FROM mmt_organisation WHERE organisation_id = @orgId);
+        DECLARE @wingName NVARCHAR(255) = (SELECT wing_name FROM mmt_wings WHERE wing_id = @wingId);
+
+        SELECT d.id, d.form_name, d.form_description, d.due_date, d.table_name, d.form_fields,
+               u.name AS creator_name, o.organisation_name AS creator_organisation
+        FROM mmt_form_definitions d
+        LEFT JOIN tbl_user u ON u.user_id = d.created_by
+        LEFT JOIN mmt_organisation o ON o.organisation_id = u.organisation_id
+        WHERE d.active_status = '1'
+          AND (
+            (@orgCode IS NOT NULL AND CHARINDEX(',' + @orgCode + ',', ',' + ISNULL(d.organisation, '') + ',') > 0)
+            OR (@wingName IS NOT NULL AND CHARINDEX(',' + @wingName + ',', ',' + ISNULL(d.wing, '') + ',') > 0)
+          )
+        ORDER BY d.due_date, d.id;
+      `);
+
+    const forms = formsResult.recordset.filter((f) => isSafeIdentifier(f.table_name));
+
+    // The caller's own rows across all matched per-form tables, in one query.
+    const progress = new Map();
+    if (forms.length) {
+      const unions = forms.map((f) => `
+        SELECT ${Number(f.id)} AS form_id, submission_uid, submission_status, updated_date
+        FROM [${f.table_name}] WHERE submitted_by = @userId`).join('\n        UNION ALL');
+      const progressResult = await conn.request()
+        .input('userId', sql.Int, userId)
+        .query(`${unions}\n        ORDER BY updated_date DESC;`);
+      for (const row of progressResult.recordset) {
+        const current = progress.get(row.form_id);
+        // A submitted row wins over any draft; otherwise the latest row.
+        if (!current || (row.submission_status === 'Submitted' && current.submission_status !== 'Submitted')) {
+          progress.set(row.form_id, row);
+        }
+      }
+    }
+
+    const STATUS_LABELS = { Submitted: 'Submitted', Draft: 'Draft Saved' };
+    res.json(forms.map((f) => {
+      const mine = progress.get(f.id);
+      return {
+        id: f.id,
+        formName: f.form_name,
+        formDescription: f.form_description,
+        assignedBy: f.creator_organisation || f.creator_name || null,
+        dueDate: f.due_date ? new Date(f.due_date).toISOString().split('T')[0] : null,
+        status: mine ? (STATUS_LABELS[mine.submission_status] || mine.submission_status) : 'Pending',
+        submissionUid: mine ? mine.submission_uid : null,
+        fields: toClientFields(f.form_fields),
+      };
+    }));
+  } catch (err) {
+    console.error('getInboxForms error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms };
 export default formBuilderController;
