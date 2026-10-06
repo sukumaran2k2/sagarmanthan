@@ -407,11 +407,26 @@ async function getFormSubmissions(req, res) {
   }
 }
 
+// Resolves the caller's organisation code and wing name. Needs @orgId and @wingId inputs.
+const DECLARE_CALLER_ASSIGNMENT_SQL = `
+  DECLARE @orgCode NVARCHAR(100) = (SELECT organisation_code FROM mmt_organisation WHERE organisation_id = @orgId);
+  DECLARE @wingName NVARCHAR(255) = (SELECT wing_name FROM mmt_wings WHERE wing_id = @wingId);`;
+
+// True when form row `d` is assigned to the caller. Assignment lists are stored as CSV and
+// wing names can contain commas ("DGLL, Parliament & TRW"), so this matches the whole
+// delimited name rather than splitting (which also keeps SMPA from matching SMPA-KDS).
+const ASSIGNED_TO_CALLER_SQL = `(
+  (@orgCode IS NOT NULL AND CHARINDEX(',' + @orgCode + ',', ',' + ISNULL(d.organisation, '') + ',') > 0)
+  OR (@wingName IS NOT NULL AND CHARINDEX(',' + @wingName + ',', ',' + ISNULL(d.wing, '') + ',') > 0)
+)`;
+
+const bindCallerAssignment = (request, user) => request
+  .input('orgId', sql.Int, Number(user?.organisationId) || null)
+  .input('wingId', sql.Int, Number(user?.wingId) || null);
+
 // ---------- GET /get-inbox-forms ----------
 // Active forms assigned to the caller's organisation (by code) or wing (by name),
-// with the caller's own progress on each. Assignment lists are stored as CSV and
-// wing names can contain commas ("DGLL, Parliament & TRW"), so matching is done on
-// the whole delimited name rather than by splitting.
+// with the caller's own progress on each.
 async function getInboxForms(req, res) {
   const userId = Number(req.user?.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
@@ -420,12 +435,9 @@ async function getInboxForms(req, res) {
 
   try {
     const conn = await pool;
-    const formsResult = await conn.request()
-      .input('orgId', sql.Int, Number(req.user?.organisationId) || null)
-      .input('wingId', sql.Int, Number(req.user?.wingId) || null)
+    const formsResult = await bindCallerAssignment(conn.request(), req.user)
       .query(`
-        DECLARE @orgCode NVARCHAR(100) = (SELECT organisation_code FROM mmt_organisation WHERE organisation_id = @orgId);
-        DECLARE @wingName NVARCHAR(255) = (SELECT wing_name FROM mmt_wings WHERE wing_id = @wingId);
+        ${DECLARE_CALLER_ASSIGNMENT_SQL}
 
         SELECT d.id, d.form_name, d.form_description, d.due_date, d.table_name, d.form_fields,
                u.name AS creator_name, o.organisation_name AS creator_organisation
@@ -433,10 +445,7 @@ async function getInboxForms(req, res) {
         LEFT JOIN tbl_user u ON u.user_id = d.created_by
         LEFT JOIN mmt_organisation o ON o.organisation_id = u.organisation_id
         WHERE d.active_status = '1'
-          AND (
-            (@orgCode IS NOT NULL AND CHARINDEX(',' + @orgCode + ',', ',' + ISNULL(d.organisation, '') + ',') > 0)
-            OR (@wingName IS NOT NULL AND CHARINDEX(',' + @wingName + ',', ',' + ISNULL(d.wing, '') + ',') > 0)
-          )
+          AND ${ASSIGNED_TO_CALLER_SQL}
         ORDER BY d.due_date, d.id;
       `);
 
@@ -480,5 +489,213 @@ async function getInboxForms(req, res) {
   }
 }
 
-const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms };
+// Validates one submitted value against its field and returns { value, sqlType }
+// ready to bind, or { error }. Empty values become NULL.
+const isEmptyValue = (v) => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const INT_MIN = -2147483648, INT_MAX = 2147483647;
+
+function coerceFieldValue(field, raw) {
+  const label = field.inputLabel;
+  if (isEmptyValue(raw)) return { value: null, sqlType: null };
+  const options = Array.isArray(field.options) ? field.options : [];
+  switch (field.inputType) {
+    case 'number': {
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < INT_MIN || n > INT_MAX) return { error: `${label} must be a whole number` };
+      return { value: n, sqlType: sql.Int };
+    }
+    case 'float': {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || Math.abs(n) >= 1e16) return { error: `${label} must be a number` };
+      return { value: n, sqlType: sql.Decimal(18, 2) };
+    }
+    case 'date': {
+      const d = String(raw);
+      // Round-trip check: Date quietly rolls 2027-02-30 over to 2027-03-02.
+      const parsed = DATE_RE.test(d) ? new Date(`${d}T00:00:00Z`) : null;
+      if (!parsed || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== d) {
+        return { error: `${label} must be a valid date` };
+      }
+      return { value: d, sqlType: sql.Date };
+    }
+    case 'checkbox': {
+      if (raw === true || raw === 'true' || raw === 1 || raw === '1') return { value: true, sqlType: sql.Bit };
+      if (raw === false || raw === 'false' || raw === 0 || raw === '0') return { value: false, sqlType: sql.Bit };
+      return { error: `${label} must be yes or no` };
+    }
+    case 'multiple-select': {
+      if (!Array.isArray(raw) || raw.some((v) => typeof v !== 'string')) return { error: `${label} must be a list of options` };
+      if (options.length && raw.some((v) => !options.includes(v))) return { error: `${label} has an option that is not allowed` };
+      return { value: JSON.stringify(raw), sqlType: sql.NVarChar(sql.MAX) };
+    }
+    default: {
+      if (typeof raw !== 'string' && typeof raw !== 'number') return { error: `${label} must be text` };
+      const text = String(raw);
+      if ((field.inputType === 'dropdown' || field.inputType === 'radio') && options.length && !options.includes(text)) {
+        return { error: `${label} has an option that is not allowed` };
+      }
+      if (field.inputType === 'email' && !EMAIL_RE.test(text)) return { error: `${label} must be a valid email address` };
+      const maxLen = { email: 320, phone: 20, password: 255, radio: 255, dropdown: 255, state: 100, district: 100, 'MP-Constituency': 255 }[field.inputType];
+      if (maxLen && text.length > maxLen) return { error: `${label} is too long (max ${maxLen} characters)` };
+      return { value: text, sqlType: sql.NVarChar(sql.MAX) };
+    }
+  }
+}
+
+// ---------- POST /submit-form-data ----------
+// Body: { formId, values: { field_N: value }, action: 'draft' | 'submit' }.
+// One response per user per form: saving again updates it. A submitted response can be
+// edited and re-submitted but not turned back into a draft. Required fields are only
+// enforced on submit (drafts may be partial). File fields are skipped until uploads exist.
+async function submitFormData(req, res) {
+  const userId = Number(req.user?.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(401).json({ message: 'Unauthorized!' });
+  }
+  const formId = Number(req.body?.formId);
+  if (!Number.isInteger(formId) || formId <= 0) {
+    return res.status(400).json({ message: 'Invalid form id' });
+  }
+  const action = req.body?.action;
+  if (action !== 'draft' && action !== 'submit') {
+    return res.status(400).json({ message: "action must be 'draft' or 'submit'" });
+  }
+  const values = req.body?.values;
+  if (!values || typeof values !== 'object' || Array.isArray(values)) {
+    return res.status(400).json({ message: 'values must be an object' });
+  }
+
+  let transaction;
+  try {
+    const conn = await pool;
+    transaction = new sql.Transaction(conn);
+    await transaction.begin();
+
+    // Update lock on the definition: the field list can't be rebuilt mid-submit, and two
+    // first-time submitters can't deadlock converting shared locks for the count update.
+    const lookup = await bindCallerAssignment(transaction.request(), req.user)
+      .input('id', sql.Int, formId)
+      .query(`
+        ${DECLARE_CALLER_ASSIGNMENT_SQL}
+        SELECT d.table_name, d.form_fields, d.active_status,
+               CASE WHEN ${ASSIGNED_TO_CALLER_SQL} THEN 1 ELSE 0 END AS is_assigned
+        FROM mmt_form_definitions d WITH (UPDLOCK, HOLDLOCK)
+        WHERE d.id = @id;
+      `);
+    if (lookup.recordset.length === 0) {
+      await rollbackQuietly(transaction);
+      return res.status(404).json({ message: 'Form not found' });
+    }
+    const form = lookup.recordset[0];
+    if (!form.is_assigned) {
+      await rollbackQuietly(transaction);
+      return res.status(403).json({ message: 'This form is not assigned to you' });
+    }
+    if (form.active_status !== '1') {
+      await rollbackQuietly(transaction);
+      return res.status(409).json({ message: 'This form is not accepting responses' });
+    }
+    if (!isSafeIdentifier(form.table_name)) {
+      await rollbackQuietly(transaction);
+      return res.status(500).json({ message: 'Stored table name failed safety check' });
+    }
+
+    const fields = toClientFields(form.form_fields);
+    const dataFields = fields.filter((f) => f.columnName && isSafeIdentifier(f.columnName));
+    const knownIds = new Set(fields.map((f) => f.id));
+    const unknown = Object.keys(values).filter((k) => !knownIds.has(k));
+    if (unknown.length) {
+      await rollbackQuietly(transaction);
+      return res.status(400).json({ message: 'This form has changed since you opened it. Please reload it.', unknownFields: unknown });
+    }
+
+    const errors = [];
+    const columns = [];
+    for (const f of dataFields) {
+      const { value, sqlType, error } = coerceFieldValue(f, values[f.id]);
+      if (error) { errors.push(error); continue; }
+      if (action === 'submit' && f.required && value === null) errors.push(`${f.inputLabel} is required`);
+      columns.push({ name: f.columnName, value, sqlType: sqlType || sql.NVarChar(sql.MAX) });
+    }
+    if (errors.length) {
+      await rollbackQuietly(transaction);
+      return res.status(400).json({ message: errors[0], errors });
+    }
+
+    const existing = await transaction.request()
+      .input('userId', sql.Int, userId)
+      .query(`
+        SELECT TOP 1 id, submission_status
+        FROM [${form.table_name}] WITH (UPDLOCK, HOLDLOCK)
+        WHERE submitted_by = @userId
+        ORDER BY CASE WHEN submission_status = 'Submitted' THEN 0 ELSE 1 END, updated_date DESC;
+      `);
+    const prior = existing.recordset[0];
+
+    if (prior && prior.submission_status === 'Submitted' && action === 'draft') {
+      await rollbackQuietly(transaction);
+      return res.status(409).json({ message: 'This response has already been submitted. Submit again to update it.' });
+    }
+
+    const newStatus = action === 'submit' ? 'Submitted' : 'Draft';
+    const write = transaction.request()
+      .input('userId', sql.Int, userId)
+      .input('status', sql.NVarChar(20), newStatus);
+    columns.forEach((c, i) => write.input(`v${i}`, c.sqlType, c.value));
+
+    let rowId;
+    if (prior) {
+      const sets = columns.map((c, i) => `[${c.name}] = @v${i}`);
+      write.input('rowId', sql.Int, prior.id);
+      await write.query(`
+        UPDATE [${form.table_name}]
+        SET ${sets.length ? sets.join(', ') + ',' : ''}
+            submission_status = @status,
+            submitted_date = CASE WHEN @status = 'Submitted' THEN GETDATE() ELSE submitted_date END,
+            updated_date = GETDATE()
+        WHERE id = @rowId;
+      `);
+      rowId = prior.id;
+    } else {
+      const names = columns.map((c) => `[${c.name}]`);
+      const params = columns.map((_, i) => `@v${i}`);
+      const inserted = await write.query(`
+        INSERT INTO [${form.table_name}]
+          (${names.length ? names.join(', ') + ',' : ''} submitted_by, submission_status, submitted_date)
+        OUTPUT INSERTED.id
+        VALUES
+          (${params.length ? params.join(', ') + ',' : ''} @userId, @status, CASE WHEN @status = 'Submitted' THEN GETDATE() ELSE NULL END);
+      `);
+      rowId = inserted.recordset[0].id;
+    }
+
+    // Count a response once, when it first becomes Submitted.
+    const firstSubmit = newStatus === 'Submitted' && (!prior || prior.submission_status !== 'Submitted');
+    if (firstSubmit) {
+      await transaction.request()
+        .input('id', sql.Int, formId)
+        .query(`UPDATE mmt_form_definitions SET submission_count = ISNULL(submission_count, 0) + 1 WHERE id = @id;`);
+    }
+
+    const uid = await transaction.request()
+      .input('rowId', sql.Int, rowId)
+      .query(`SELECT submission_uid FROM [${form.table_name}] WHERE id = @rowId;`);
+
+    await transaction.commit();
+    res.status(prior ? 200 : 201).json({
+      id: rowId,
+      submissionUid: uid.recordset[0].submission_uid,
+      status: newStatus === 'Draft' ? 'Draft Saved' : 'Submitted',
+      message: newStatus === 'Draft' ? 'Draft saved' : (prior && prior.submission_status === 'Submitted' ? 'Response updated' : 'Form submitted'),
+    });
+  } catch (err) {
+    await rollbackQuietly(transaction);
+    console.error('submitFormData error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData };
 export default formBuilderController;

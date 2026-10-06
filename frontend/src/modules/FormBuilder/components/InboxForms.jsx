@@ -89,6 +89,16 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
     loadInbox();
   }, []);
 
+  // Real (numeric-id) forms save through the API; mock forms stay preview-only.
+  const isRealForm = (form) => /^\d+$/.test(String(form?.id));
+
+  const submitResponse = async (form, action, values) => {
+    const res = await api.post('/submit-form-data', { formId: form.id, action, values });
+    setInboxForms(prev => prev.map(f => (f.id === form.id ? { ...f, status: res.data.status } : f)));
+    triggerNotification && triggerNotification(res.data.message, 'success');
+    return res.data.message;
+  };
+
   const filtered = inboxForms.filter(s => 
     (s.formName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (s.assignedBy || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -251,6 +261,9 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
           formDescription={selectedFormToFill.formDescription}
           fields={selectedFormToFill.fields}
           onClose={() => setSelectedFormToFill(null)}
+          onSubmitResponse={isRealForm(selectedFormToFill)
+            ? (action, values) => submitResponse(selectedFormToFill, action, values)
+            : undefined}
         />
       )}
     </div>
