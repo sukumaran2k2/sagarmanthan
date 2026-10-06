@@ -298,5 +298,113 @@ async function getCreatedFormData(req, res) {
   }
 }
 
-const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData };
+// Stored field JSON -> the field shape the frontend renders (same as getCreatedFormData).
+function toClientFields(formFieldsJson) {
+  let parsed = [];
+  try { parsed = JSON.parse(formFieldsJson || '[]'); } catch { parsed = []; }
+  return parsed.map((f) => ({
+    id: f.columnName || f.inputLabel,
+    columnName: f.columnName || null,
+    inputLabel: f.inputLabel,
+    inputType: f.inputType,
+    options: f.options || [],
+    required: !!f.required,
+    placeholder: f.placeholder || '',
+  }));
+}
+
+// Converts a stored column value back to what the form field holds.
+function fromColumnValue(inputType, value) {
+  if (value === null || value === undefined) return null;
+  if (inputType === 'multiple-select') {
+    try { return JSON.parse(value); } catch { return value; }
+  }
+  if (inputType === 'checkbox') return !!value;
+  if (inputType === 'date' && value instanceof Date) return value.toISOString().split('T')[0];
+  return value;
+}
+
+const formatDateTime = (d) => (d ? new Date(d).toISOString().replace('T', ' ').slice(0, 16) : null);
+
+// ---------- GET /get-form-submissions/:formId ----------
+// Submitted rows only; drafts stay private to the person filling the form.
+// Row values are keyed by field id (field_N), with labels in `fields`, so the
+// frontend can build its columns from the form instead of hard-coding them.
+async function getFormSubmissions(req, res) {
+  const formId = Number(req.params.formId);
+  if (!Number.isInteger(formId) || formId <= 0) {
+    return res.status(400).json({ message: 'Invalid form id' });
+  }
+
+  try {
+    const conn = await pool;
+    const lookup = await conn.request()
+      .input('id', sql.Int, formId)
+      .query(`
+        SELECT id, form_name, table_name, form_fields, organisation
+        FROM mmt_form_definitions
+        WHERE id = @id;
+      `);
+    if (lookup.recordset.length === 0) {
+      return res.status(404).json({ message: 'Form not found' });
+    }
+
+    const form = lookup.recordset[0];
+    if (!isSafeIdentifier(form.table_name)) {
+      return res.status(500).json({ message: 'Stored table name failed safety check' });
+    }
+
+    const fields = toClientFields(form.form_fields);
+    const dataFields = fields.filter((f) => f.columnName && isSafeIdentifier(f.columnName));
+    const columnList = dataFields.map((f) => `s.[${f.columnName}]`).join(', ');
+
+    const rows = await conn.request().query(`
+      SELECT s.id, s.submission_uid, s.submitted_by, s.submitted_date,
+             ${columnList ? columnList + ',' : ''}
+             u.name AS submitter_name, u.designation AS submitter_designation,
+             o.organisation_name, o.organisation_code
+      FROM [${form.table_name}] s
+      LEFT JOIN tbl_user u ON u.user_id = s.submitted_by
+      LEFT JOIN mmt_organisation o ON o.organisation_id = u.organisation_id
+      WHERE s.submission_status = 'Submitted'
+      ORDER BY s.submitted_date DESC, s.id DESC;
+    `);
+
+    const submissions = rows.recordset.map((r) => {
+      const data = {};
+      for (const f of dataFields) data[f.id] = fromColumnValue(f.inputType, r[f.columnName]);
+      return {
+        id: r.id,
+        submissionUid: r.submission_uid,
+        portName: r.organisation_name || null,
+        organisationCode: r.organisation_code || null,
+        submittedBy: r.submitter_name
+          ? (r.submitter_designation ? `${r.submitter_name} (${r.submitter_designation})` : r.submitter_name)
+          : null,
+        submittedOn: formatDateTime(r.submitted_date),
+        data,
+      };
+    });
+
+    const assignedOrganisations = String(form.organisation || '').split(',').filter(Boolean);
+    const respondedOrganisations = new Set(submissions.map((s) => s.organisationCode).filter(Boolean));
+    const distinctSubmitters = new Set(rows.recordset.map((r) => r.submitted_by).filter((v) => v != null));
+
+    res.json({
+      form: { id: form.id, formName: form.form_name, fields },
+      submissions,
+      stats: {
+        totalSubmissions: submissions.length,
+        distinctSubmitters: distinctSubmitters.size,
+        assignedOrganisations: assignedOrganisations.length,
+        respondedOrganisations: assignedOrganisations.filter((c) => respondedOrganisations.has(c)).length,
+      },
+    });
+  } catch (err) {
+    console.error('getFormSubmissions error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions };
 export default formBuilderController;

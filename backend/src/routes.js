@@ -2806,6 +2806,12 @@ router.get(
   requireModulePermission("FORM_BUILDER", "read"),
   formBuilderController.getCreatedFormData
 ); // replaces the legacy formBuilderV1.js implementation -- see formBuilderController.js
+router.get(
+  '/get-form-submissions/:formId',
+  auth,
+  requireModulePermission("FORM_BUILDER", "read"),
+  formBuilderController.getFormSubmissions
+);
 router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "delete"), formBuilderInputTab.deleteMmtFormBuilder); //req //delete created forms
 router.post("/edit-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "update"), formBuilderInputTab.editMmtFormBuilder); //req //edit forms
 

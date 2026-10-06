@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Download, 
   Search, 
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
+import api from '../api';
 
 const MOCK_SUBMISSIONS = [
   {
@@ -58,6 +59,21 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
 
   const gridRef = useRef(null);
 
+  // Forms from the DB have numeric ids; mock forms ('form_101') keep showing mock submissions.
+  const isRealForm = !!selectedForm && /^\d+$/.test(String(selectedForm.id));
+  const [realData, setRealData] = useState(null);
+
+  useEffect(() => {
+    if (!isRealForm) return;
+    setRealData(null);
+    api.get(`/get-form-submissions/${selectedForm.id}`)
+      .then((res) => setRealData(res.data))
+      .catch((err) => {
+        console.error('Failed to load submissions', err);
+        triggerNotification && triggerNotification(err.response?.data?.message || 'Failed to load submissions', 'error');
+      });
+  }, [isRealForm, selectedForm?.id]);
+
   const formTitle = selectedForm ? selectedForm.formName : 'Monthly Capex Expenditure Telemetry';
 
   const handleExportExcel = () => {
@@ -67,16 +83,40 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
     }
   };
 
-  const filtered = MOCK_SUBMISSIONS.filter(s => 
-    s.portName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.submittedBy.toLowerCase().includes(searchQuery.toLowerCase())
+  const sourceRows = isRealForm ? (realData?.submissions || []) : MOCK_SUBMISSIONS;
+  const filtered = sourceRows.filter(s => 
+    (s.portName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (s.submittedBy || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const columnDefs = [
+  const stats = realData?.stats;
+  const officersText = isRealForm ? `${stats?.distinctSubmitters ?? 0} Officers` : '3 Nodal Officers';
+  const complianceText = !isRealForm
+    ? '84% Compliance'
+    : stats?.assignedOrganisations
+      ? `${Math.round((stats.respondedOrganisations / stats.assignedOrganisations) * 100)}% Compliance`
+      : '—';
+
+  const formatValue = (v) => (Array.isArray(v) ? v.join(', ') : typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v);
+
+  // One column per stored field (file fields have no column, so no data to show).
+  const realFieldColumns = (realData?.form?.fields || [])
+    .filter(f => f.columnName)
+    .map(f => ({
+      headerName: f.inputLabel,
+      valueGetter: (p) => formatValue(p.data.data[f.id]),
+      cellStyle: { color: '#1e293b', fontSize: '11px' },
+      flex: 1.5,
+    }));
+
+  const baseColumnDefs = [
     { field: 'id', headerName: 'Submission ID', cellStyle: { fontWeight: '900', color: '#2563eb', fontSize: '11px' }, flex: 1.2 },
     { field: 'portName', headerName: 'Port Authority', cellStyle: { fontWeight: 'bold', color: '#0f172a', fontSize: '11px' }, flex: 2.5 },
     { field: 'submittedBy', headerName: 'Submitted By', cellStyle: { fontSize: '11px' }, flex: 1.5 },
     { field: 'submittedOn', headerName: 'Submission Date', cellStyle: { color: '#64748b', fontSize: '11px' } },
+  ];
+
+  const mockColumnDefs = [
     { headerName: 'Project Name', valueGetter: (p) => p.data.data['Project Name'], cellStyle: { fontWeight: '600', color: '#1e293b', fontSize: '11px' }, flex: 1.5 },
     { headerName: 'Cost (Rs Cr)', valueGetter: (p) => p.data.data['Sanctioned Cost (Rs Cr)'], type: 'rightAligned', cellStyle: { fontWeight: '900', color: '#0f172a', fontSize: '11px' } },
     { 
@@ -91,6 +131,8 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
       )
     }
   ];
+
+  const columnDefs = [...baseColumnDefs, ...(isRealForm ? realFieldColumns : mockColumnDefs)];
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col overflow-hidden animate-fade-in">
@@ -143,14 +185,14 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
 
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Verified Officers</span>
-            <div className="text-lg font-black text-blue-600">3 Nodal Officers</div>
+            <div className="text-lg font-black text-blue-600">{officersText}</div>
           </div>
           
           <div className="w-px h-8 bg-slate-200 hidden md:block"></div>
 
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Submission Rate</span>
-            <div className="text-lg font-black text-emerald-600">84% Compliance</div>
+            <div className="text-lg font-black text-emerald-600">{complianceText}</div>
           </div>
         </div>
       </div>
