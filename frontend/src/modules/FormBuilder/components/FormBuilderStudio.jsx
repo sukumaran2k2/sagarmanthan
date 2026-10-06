@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ConfirmOverlay from '../../../components/ConfirmOverlay';
+import api from '../api';
 import { 
   Plus, 
   Trash2, 
@@ -302,6 +303,17 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       }
       if (formToEdit.dueDate) setDueDate(formToEdit.dueDate);
       if (formToEdit.status) setActiveStatus(formToEdit.status === 'Active' ? '1' : '0');
+      // Restore assignment: backend stores org codes / wings as CSV
+      const splitCSV = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
+      const editWings = splitCSV(formToEdit.wing);
+      if (editWings.length > 0) {
+        setAssignType('wing');
+        setSelectedWings(editWings);
+      } else {
+        const orgCodes = splitCSV(formToEdit.organisation);
+        setAssignType('organisation');
+        setSelectedOrgIds(FULL_ORGANISATION_LIST.filter(o => orgCodes.includes(o.code)).map(o => o.id));
+      }
     }
   }, [formToEdit]);
 
@@ -404,10 +416,13 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
     setIsSubmitting(true);
 
     const selectedOrgNames = assignType === 'organisation' ? FULL_ORGANISATION_LIST.filter(o => selectedOrgIds.includes(o.id)).map(o => o.code) : [];
-    const payloadWing = assignType === 'wing' ? [targetWing] : [];
-    const payloadDivision = assignType === 'division' ? [targetDivision] : [];
+    // targetWing/targetDivision were never defined (ReferenceError on Wing publish); use the real selection
+    const payloadWing = assignType === 'wing' ? selectedWings : [];
+    const payloadDivision = []; // no division picker in the Studio yet
 
     const payload = {
+      ...(formToEdit?.id ? { formId: formToEdit.id } : {}), // edit -> update, not a duplicate
+      formName,
       formattedFormId: formName.replace(/[^a-zA-Z0-9]/g, '_'),
       content: generateHtmlContent(),
       formFields: fields.map(f => ({
@@ -430,22 +445,18 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
     };
 
     try {
-      const response = await fetch('/api/modify-form-builder-input-form', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.ok || response.status === 200 || response.status === 201) {
-        triggerNotification && triggerNotification(`Form "${formName}" published successfully!`, 'success');
-        onFormPublished && onFormPublished();
-      } else {
-        triggerNotification && triggerNotification(`Form "${formName}" created successfully!`, 'success');
-        onFormPublished && onFormPublished();
-      }
-    } catch {
-      triggerNotification && triggerNotification(`Form "${formName}" created successfully!`, 'success');
+      // axios resolves only on 2xx and throws otherwise, unlike fetch --
+      // reaching this line at all means the request succeeded.
+      await api.post('/modify-form-builder-input-form', payload);
+      triggerNotification && triggerNotification(`Form "${formName}" ${formToEdit?.id ? 'updated' : 'published'} successfully!`, 'success');
       onFormPublished && onFormPublished();
+    } catch (err) {
+      console.error('Error publishing form:', err);
+      const serverMessage = err.response?.data?.message;
+      triggerNotification && triggerNotification(
+        serverMessage ? `Failed to publish form: ${serverMessage}` : `Failed to publish form "${formName}". Please try again.`,
+        'error'
+      );
     } finally {
       setIsSubmitting(false);
     }
