@@ -97,16 +97,54 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
       ? `${Math.round((stats.respondedOrganisations / stats.assignedOrganisations) * 100)}% Compliance`
       : '—';
 
-  const formatValue = (v) => (Array.isArray(v) ? v.join(', ') : typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v);
+  const formatValue = (v) => (
+    Array.isArray(v) ? v.join(', ')
+      : typeof v === 'boolean' ? (v ? 'Yes' : 'No')
+      : v && typeof v === 'object' && 'fileName' in v ? v.fileName
+      : v
+  );
 
-  // One column per stored field (file fields have no column, so no data to show).
+  // Files need the login token, so they're fetched as a blob rather than linked directly.
+  const downloadFile = async (submissionUid, fieldId, fileName) => {
+    try {
+      const res = await api.get(`/download-form-file/${submissionUid}/${fieldId}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || 'download';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('File download failed', err);
+      triggerNotification && triggerNotification('Could not download the file', 'error');
+    }
+  };
+
+  // One column per field; file fields show a download button.
   const realFieldColumns = (realData?.form?.fields || [])
-    .filter(f => f.columnName)
+    .filter(f => f.columnName || f.inputType === 'file')
     .map(f => ({
       headerName: f.inputLabel,
       valueGetter: (p) => formatValue(p.data.data[f.id]),
       cellStyle: { color: '#1e293b', fontSize: '11px' },
       flex: 1.5,
+      ...(f.inputType === 'file' && {
+        cellRenderer: (params) => {
+          const file = params.data.data[f.id];
+          if (!file?.fileName) return null;
+          return (
+            <button
+              type="button"
+              onClick={() => downloadFile(params.data.submissionUid, f.id, file.fileName)}
+              className="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+              title={`Download ${file.fileName}`}
+            >
+              <Download className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{file.fileName}</span>
+            </button>
+          );
+        },
+      }),
     }));
 
   const baseColumnDefs = [

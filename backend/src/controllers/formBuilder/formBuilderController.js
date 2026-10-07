@@ -1,5 +1,7 @@
 import sql from 'mssql';
+import fs from 'fs';
 import { pool } from '../../db.js';
+import { storedFilePath, removeFiles, attachmentHeader, originalNameOf } from './formBuilderFiles.js';
 import {
   buildTableName,
   buildColumnName,
@@ -24,6 +26,12 @@ function formStatus(activeStatus, isPastDue) {
   if (activeStatus !== '1') return 'Inactive';
   return isPastDue ? 'Overdue' : 'Active';
 }
+
+// Data fields are keyed by their column (field_N). File fields have no column, so they
+// get the same positional style (file_N) instead of falling back to the label text.
+const clientFieldId = (f, index) => f.columnName || (f.inputType === 'file' ? `file_${index + 1}` : f.inputLabel);
+
+const FILE_MAPPING = 'tbl_form_Builder_fileMapping';
 
 const toCSV = (v) => (Array.isArray(v) ? v.filter(Boolean).join(',') : (v || ''));
 
@@ -296,8 +304,8 @@ async function getCreatedFormData(req, res) {
       let fields = [];
       try {
         const parsed = JSON.parse(row.form_fields || '[]');
-        fields = parsed.map((f) => ({
-          id: f.columnName || f.inputLabel,
+        fields = parsed.map((f, i) => ({
+          id: clientFieldId(f, i),
           inputLabel: f.inputLabel,
           inputType: f.inputType,
           options: f.options || [],
@@ -333,8 +341,8 @@ async function getCreatedFormData(req, res) {
 function toClientFields(formFieldsJson) {
   let parsed = [];
   try { parsed = JSON.parse(formFieldsJson || '[]'); } catch { parsed = []; }
-  return parsed.map((f) => ({
-    id: f.columnName || f.inputLabel,
+  return parsed.map((f, i) => ({
+    id: clientFieldId(f, i),
     columnName: f.columnName || null,
     inputLabel: f.inputLabel,
     inputType: f.inputType,
@@ -401,9 +409,25 @@ async function getFormSubmissions(req, res) {
       ORDER BY s.submitted_date DESC, s.id DESC;
     `);
 
+    // Uploaded files for these submissions, keyed by submission uid then field id.
+    const filesByUid = new Map();
+    if (fields.some((f) => f.inputType === 'file')) {
+      const fileRows = await conn.request().query(`
+        SELECT m.uid, m.field_name, m.file_name
+        FROM ${FILE_MAPPING} m
+        INNER JOIN [${form.table_name}] s ON m.uid = CONVERT(NVARCHAR(100), s.submission_uid)
+        WHERE s.submission_status = 'Submitted';
+      `);
+      for (const fr of fileRows.recordset) {
+        if (!filesByUid.has(fr.uid)) filesByUid.set(fr.uid, {});
+        filesByUid.get(fr.uid)[fr.field_name] = { fileName: fr.file_name };
+      }
+    }
+
     const submissions = rows.recordset.map((r) => {
       const data = {};
       for (const f of dataFields) data[f.id] = fromColumnValue(f.inputType, r[f.columnName]);
+      Object.assign(data, filesByUid.get(String(r.submission_uid).toUpperCase()) || {});
       return {
         id: r.id,
         submissionUid: r.submission_uid,
@@ -579,7 +603,19 @@ function coerceFieldValue(field, raw) {
 // One response per user per form: saving again updates it. A submitted response can be
 // edited and re-submitted but not turned back into a draft. Required fields are only
 // enforced on submit (drafts may be partial). File fields are skipped until uploads exist.
+// Files arrive (multipart) before the handler runs, so the wrapper removes them again
+// unless the handler committed and marked them as kept.
 async function submitFormData(req, res) {
+  try {
+    await handleSubmitFormData(req, res);
+  } finally {
+    if (!res.locals.fbKeepUploads) {
+      await removeFiles((req.files || []).map((f) => f.path));
+    }
+  }
+}
+
+async function handleSubmitFormData(req, res) {
   const userId = Number(req.user?.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
     return res.status(401).json({ message: 'Unauthorized!' });
@@ -592,7 +628,11 @@ async function submitFormData(req, res) {
   if (action !== 'draft' && action !== 'submit') {
     return res.status(400).json({ message: "action must be 'draft' or 'submit'" });
   }
-  const values = req.body?.values;
+  // Multipart requests (with files) send values as a JSON string.
+  let values = req.body?.values;
+  if (typeof values === 'string') {
+    try { values = JSON.parse(values); } catch { values = null; }
+  }
   if (!values || typeof values !== 'object' || Array.isArray(values)) {
     return res.status(400).json({ message: 'values must be an object' });
   }
@@ -646,6 +686,23 @@ async function submitFormData(req, res) {
       return res.status(400).json({ message: 'This form has changed since you opened it. Please reload it.', unknownFields: unknown });
     }
 
+    // Each upload must be for one of this form's file fields, at most one per field.
+    const fileFields = fields.filter((f) => f.inputType === 'file');
+    const fileFieldIds = new Set(fileFields.map((f) => f.id));
+    const uploads = req.files || [];
+    const uploadsByField = new Map();
+    for (const u of uploads) {
+      if (!fileFieldIds.has(u.fieldname)) {
+        await rollbackQuietly(transaction);
+        return res.status(400).json({ message: 'A file was sent for a field that is not a file field on this form' });
+      }
+      if (uploadsByField.has(u.fieldname)) {
+        await rollbackQuietly(transaction);
+        return res.status(400).json({ message: 'Only one file can be uploaded per field' });
+      }
+      uploadsByField.set(u.fieldname, u);
+    }
+
     const errors = [];
     const columns = [];
     for (const f of dataFields) {
@@ -662,7 +719,7 @@ async function submitFormData(req, res) {
     const existing = await transaction.request()
       .input('userId', sql.Int, userId)
       .query(`
-        SELECT TOP 1 id, submission_status
+        SELECT TOP 1 id, submission_status, submission_uid
         FROM [${form.table_name}] WITH (UPDLOCK, HOLDLOCK)
         WHERE submitted_by = @userId
         ORDER BY CASE WHEN submission_status = 'Submitted' THEN 0 ELSE 1 END, updated_date DESC;
@@ -672,6 +729,23 @@ async function submitFormData(req, res) {
     if (prior && prior.submission_status === 'Submitted' && action === 'draft') {
       await rollbackQuietly(transaction);
       return res.status(409).json({ message: 'This response has already been submitted. Submit again to update it.' });
+    }
+
+    // Required file fields are satisfied by a new upload or a file saved earlier.
+    let savedFileFields = new Set();
+    if (prior && fileFields.length) {
+      const saved = await transaction.request()
+        .input('uid', sql.NVarChar(100), String(prior.submission_uid).toUpperCase())
+        .query(`SELECT field_name FROM ${FILE_MAPPING} WHERE uid = @uid;`);
+      savedFileFields = new Set(saved.recordset.map((r) => r.field_name));
+    }
+    if (action === 'submit') {
+      const missing = fileFields.filter((f) => f.required && !uploadsByField.has(f.id) && !savedFileFields.has(f.id));
+      if (missing.length) {
+        await rollbackQuietly(transaction);
+        const fileErrors = missing.map((f) => `${f.inputLabel} is required`);
+        return res.status(400).json({ message: fileErrors[0], errors: fileErrors });
+      }
     }
 
     const newStatus = action === 'submit' ? 'Submitted' : 'Draft';
@@ -717,11 +791,40 @@ async function submitFormData(req, res) {
     const uid = await transaction.request()
       .input('rowId', sql.Int, rowId)
       .query(`SELECT submission_uid FROM [${form.table_name}] WHERE id = @rowId;`);
+    const submissionUid = String(uid.recordset[0].submission_uid).toUpperCase();
+
+    // Map each upload to (uid, field); a replaced file is removed after commit.
+    const replacedFiles = [];
+    for (const [fieldId, u] of uploadsByField) {
+      const mapReq = transaction.request()
+        .input('uid', sql.NVarChar(100), submissionUid)
+        .input('field', sql.NVarChar(sql.MAX), fieldId)
+        .input('fileName', sql.NVarChar(sql.MAX), originalNameOf(u))
+        .input('uniqueName', sql.VarChar(sql.MAX), u.filename);
+      const old = await mapReq.query(`
+        SELECT unique_file_name FROM ${FILE_MAPPING} WITH (UPDLOCK, HOLDLOCK)
+        WHERE uid = @uid AND field_name = @field;
+      `);
+      if (old.recordset.length) {
+        replacedFiles.push(...old.recordset.map((r) => storedFilePath(r.unique_file_name)));
+        await mapReq.query(`
+          UPDATE ${FILE_MAPPING} SET file_name = @fileName, unique_file_name = @uniqueName
+          WHERE uid = @uid AND field_name = @field;
+        `);
+      } else {
+        await mapReq.query(`
+          INSERT INTO ${FILE_MAPPING} (id, uid, field_name, file_name, unique_file_name)
+          VALUES (NEWID(), @uid, @field, @fileName, @uniqueName);
+        `);
+      }
+    }
 
     await transaction.commit();
+    res.locals.fbKeepUploads = true;
+    await removeFiles(replacedFiles);
     res.status(prior ? 200 : 201).json({
       id: rowId,
-      submissionUid: uid.recordset[0].submission_uid,
+      submissionUid,
       status: newStatus === 'Draft' ? 'Draft Saved' : 'Submitted',
       message: newStatus === 'Draft' ? 'Draft saved' : (prior && prior.submission_status === 'Submitted' ? 'Response updated' : 'Form submitted'),
     });
@@ -778,6 +881,10 @@ async function getMyFormResponse(req, res) {
       const v = fromColumnValue(f.inputType, row[f.columnName]);
       if (v !== null) values[f.id] = v;
     }
+    const files = await conn.request()
+      .input('uid', sql.NVarChar(100), String(row.submission_uid).toUpperCase())
+      .query(`SELECT field_name, file_name FROM ${FILE_MAPPING} WHERE uid = @uid;`);
+    for (const fr of files.recordset) values[fr.field_name] = { fileName: fr.file_name };
     res.json({
       status: row.submission_status === 'Submitted' ? 'Submitted' : 'Draft Saved',
       submissionUid: row.submission_uid,
@@ -820,6 +927,7 @@ async function deleteForm(req, res) {
     }
 
     let deletedResponses = 0;
+    let deletedFiles = [];
     const exists = await transaction.request()
       .input('t', sql.NVarChar(128), tableName)
       .query(`SELECT OBJECT_ID(@t, 'U') AS oid;`);
@@ -828,6 +936,14 @@ async function deleteForm(req, res) {
       const counted = await transaction.request()
         .query(`SELECT COUNT(*) AS n FROM [${tableName}] WITH (TABLOCKX, HOLDLOCK);`);
       deletedResponses = counted.recordset[0].n;
+      // The form's uploaded files go with it: mapping rows now, files after commit.
+      const fileRows = await transaction.request().query(`
+        DELETE m
+        OUTPUT DELETED.unique_file_name
+        FROM ${FILE_MAPPING} m
+        INNER JOIN [${tableName}] s ON m.uid = CONVERT(NVARCHAR(100), s.submission_uid);
+      `);
+      deletedFiles = fileRows.recordset.map((r) => storedFilePath(r.unique_file_name));
       await transaction.request().query(`DROP TABLE [${tableName}];`);
     }
 
@@ -836,7 +952,8 @@ async function deleteForm(req, res) {
       .query(`DELETE FROM mmt_form_definitions WHERE id = @id;`);
 
     await transaction.commit();
-    res.json({ id: formId, formName, deletedResponses, message: 'Form deleted successfully' });
+    await removeFiles(deletedFiles);
+    res.json({ id: formId, formName, deletedResponses, deletedFiles: deletedFiles.length, message: 'Form deleted successfully' });
   } catch (err) {
     await rollbackQuietly(transaction);
     console.error('deleteForm error:', err);
@@ -960,5 +1077,42 @@ async function cloneForm(req, res) {
   }
 }
 
-const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData, getMyFormResponse, deleteForm, toggleFormStatus, cloneForm };
+// ---------- GET /download-form-file/:submissionUid/:fieldId ----------
+// Streams an uploaded file as a download (never rendered inline), under its original name.
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function downloadFormFile(req, res) {
+  const { submissionUid, fieldId } = req.params;
+  if (!GUID_RE.test(String(submissionUid)) || !/^file_\d+$/.test(String(fieldId))) {
+    return res.status(400).json({ message: 'Invalid file reference' });
+  }
+
+  try {
+    const conn = await pool;
+    const result = await conn.request()
+      .input('uid', sql.NVarChar(100), String(submissionUid).toUpperCase())
+      .input('field', sql.NVarChar(sql.MAX), fieldId)
+      .query(`SELECT TOP 1 file_name, unique_file_name FROM ${FILE_MAPPING} WHERE uid = @uid AND field_name = @field;`);
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+    const { file_name: fileName, unique_file_name: uniqueName } = result.recordset[0];
+    const filePath = storedFilePath(uniqueName);
+    if (!filePath || !fs.existsSync(filePath)) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', attachmentHeader(fileName));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    res.setHeader('Content-Length', fs.statSync(filePath).size);
+    fs.createReadStream(filePath).pipe(res);
+  } catch (err) {
+    console.error('downloadFormFile error:', err);
+    if (!res.headersSent) res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData, getMyFormResponse, deleteForm, toggleFormStatus, cloneForm, downloadFormFile };
 export default formBuilderController;

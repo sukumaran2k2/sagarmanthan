@@ -109,7 +109,21 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
   };
 
   const submitResponse = async (form, action, values) => {
-    const res = await api.post('/submit-form-data', { formId: form.id, action, values });
+    // Newly chosen files go as multipart, keyed by field id; a saved file ({ fileName })
+    // is left out so the server keeps it.
+    const files = Object.entries(values).filter(([, v]) => v instanceof File);
+    const plainValues = Object.fromEntries(
+      Object.entries(values).filter(([, v]) => !(v instanceof File) && !(v && typeof v === 'object' && 'fileName' in v))
+    );
+    let body = { formId: form.id, action, values: plainValues };
+    if (files.length) {
+      body = new FormData();
+      body.append('formId', String(form.id));
+      body.append('action', action);
+      body.append('values', JSON.stringify(plainValues));
+      files.forEach(([fieldId, file]) => body.append(fieldId, file, file.name));
+    }
+    const res = await api.post('/submit-form-data', body);
     setInboxForms(prev => prev.map(f => (f.id === form.id ? { ...f, status: res.data.status } : f)));
     triggerNotification && triggerNotification(res.data.message, 'success');
     return res.data.message;

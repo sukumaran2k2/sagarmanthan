@@ -267,6 +267,7 @@ import { getContainerTwoLeg } from "./controllers/traffic-container-two-leg.js";
 //Form Builder tab
 
 import formBuilderController from "./controllers/formBuilder/formBuilderController.js";
+import { acceptFormFiles } from "./controllers/formBuilder/formBuilderFiles.js";
 import formBuilderInputTab from "./controllers/formBuilder/formBuilderInput.js";
 
 const router = express.Router();
@@ -2821,6 +2822,7 @@ router.post(
   '/submit-form-data',
   auth,
   requireModulePermission("FORM_BUILDER", "read"),
+  acceptFormFiles, // after auth, so nothing is written to disk for rejected callers
   formBuilderController.submitFormData
 ); // filling an assigned form; the controller also checks the form is assigned to the caller
 router.get(
@@ -2828,6 +2830,12 @@ router.get(
   auth,
   requireModulePermission("FORM_BUILDER", "read"),
   formBuilderController.getMyFormResponse
+);
+router.get(
+  '/download-form-file/:submissionUid/:fieldId',
+  auth,
+  requireModulePermission("FORM_BUILDER", "read"),
+  formBuilderController.downloadFormFile
 );
 router.post(
   '/toggle-form-status/:formId',

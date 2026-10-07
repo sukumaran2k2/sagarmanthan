@@ -302,11 +302,24 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
                   )}
 
                   {/* File Upload */}
+                  {/* Holds a File once chosen, or { fileName } for a file saved earlier. */}
                   {field.inputType === 'file' && (
-                    <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center bg-slate-50 hover:bg-slate-100 transition cursor-pointer">
+                    <label className="block border-2 border-dashed border-slate-200 rounded-xl p-4 text-center bg-slate-50 hover:bg-slate-100 transition cursor-pointer">
+                      <input
+                        type="file"
+                        className="sr-only"
+                        required={field.required && !formData[field.id]}
+                        onChange={(e) => handleChange(field.id, e.target.files?.[0] || formData[field.id])}
+                      />
                       <Upload className="h-5 w-5 text-slate-400 mx-auto mb-1" />
-                      <span className="text-xs text-slate-500 font-medium">Click to select attachment</span>
-                    </div>
+                      <span className="text-xs text-slate-500 font-medium">
+                        {formData[field.id] instanceof File
+                          ? formData[field.id].name
+                          : formData[field.id]?.fileName
+                            ? `Saved: ${formData[field.id].fileName} (click to replace)`
+                            : 'Click to select attachment'}
+                      </span>
+                    </label>
                   )}
 
                   {/* Checkbox */}

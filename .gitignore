@@ -24,3 +24,6 @@ sagar_dumb_july1.sql
 
 # File Uploads directory
 backend/demoFiles/
+
+# Form Builder uploaded files
+backend/formbuilder_Files/
