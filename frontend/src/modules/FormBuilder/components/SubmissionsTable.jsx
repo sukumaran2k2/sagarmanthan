@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
+import TablePagination from '../../../components/TablePagination';
 import api from '../api';
 
 const MOCK_SUBMISSIONS = [
@@ -63,31 +64,74 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
   const isRealForm = !!selectedForm && /^\d+$/.test(String(selectedForm.id));
   const [realData, setRealData] = useState(null);
 
+  // Real forms are paged and searched on the server; mock forms filter in the browser.
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(searchQuery.trim()); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPage(1);
+    setRealData(null);
+  }, [selectedForm?.id]);
+
   useEffect(() => {
     if (!isRealForm) return;
-    setRealData(null);
-    api.get(`/get-form-submissions/${selectedForm.id}`)
+    api.get(`/get-form-submissions/${selectedForm.id}`, { params: { page, limit: PAGE_SIZE, search: debouncedSearch } })
       .then((res) => setRealData(res.data))
       .catch((err) => {
         console.error('Failed to load submissions', err);
         triggerNotification && triggerNotification(err.response?.data?.message || 'Failed to load submissions', 'error');
       });
-  }, [isRealForm, selectedForm?.id]);
+  }, [isRealForm, selectedForm?.id, page, debouncedSearch]);
 
   const formTitle = selectedForm ? selectedForm.formName : 'Monthly Capex Expenditure Telemetry';
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    // The grid only holds one page for real forms, so export fetches every matching row.
+    if (isRealForm) {
+      try {
+        const res = await api.get(`/get-form-submissions/${selectedForm.id}`, { params: { all: true, search: debouncedSearch } });
+        const cell = (v) => {
+          const text = v === null || v === undefined ? '' : String(v);
+          return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        };
+        const lines = [
+          columnDefs.map(c => cell(c.headerName)).join(','),
+          ...res.data.submissions.map((row, i) => columnDefs.map(c => cell(
+            c.colId === 'sno' ? i + 1 : c.valueGetter ? c.valueGetter({ data: row }) : row[c.field]
+          )).join(',')),
+        ];
+        const url = URL.createObjectURL(new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Submissions_${formTitle}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        triggerNotification && triggerNotification(`Exported ${res.data.submissions.length} submissions to CSV`, 'success');
+      } catch (err) {
+        console.error('Export failed', err);
+        triggerNotification && triggerNotification('Could not export submissions', 'error');
+      }
+      return;
+    }
     if (gridRef.current && gridRef.current.api) {
       gridRef.current.api.exportDataAsCsv({ fileName: `Submissions_${formTitle}` });
       triggerNotification && triggerNotification('Exporting submissions report to CSV...', 'success');
     }
   };
 
-  const sourceRows = isRealForm ? (realData?.submissions || []) : MOCK_SUBMISSIONS;
-  const filtered = sourceRows.filter(s => 
-    (s.portName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (s.submittedBy || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = isRealForm
+    ? (realData?.submissions || [])
+    : MOCK_SUBMISSIONS.filter(s => 
+      (s.portName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.submittedBy || '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  const pagination = realData?.pagination;
 
   const stats = realData?.stats;
   const officersText = isRealForm ? `${stats?.distinctSubmitters ?? 0} Officers` : '3 Nodal Officers';
@@ -148,7 +192,17 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
     }));
 
   const baseColumnDefs = [
-    { field: 'id', headerName: 'Submission ID', cellStyle: { fontWeight: '900', color: '#2563eb', fontSize: '11px' }, flex: 1.2 },
+    {
+      colId: 'sno',
+      headerName: 'S.No',
+      // Real forms are paged on the server, so page 2 continues from 11.
+      valueGetter: (params) => (params.node && !params.node.rowPinned
+        ? params.node.rowIndex + 1 + (isRealForm ? (page - 1) * PAGE_SIZE : 0)
+        : ''),
+      width: 70,
+      pinned: 'left',
+      cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
+    },
     { field: 'portName', headerName: 'Port Authority', cellStyle: { fontWeight: 'bold', color: '#0f172a', fontSize: '11px' }, flex: 2.5 },
     { field: 'submittedBy', headerName: 'Submitted By', cellStyle: { fontSize: '11px' }, flex: 1.5 },
     { field: 'submittedOn', headerName: 'Submission Date', cellStyle: { color: '#64748b', fontSize: '11px' } },
@@ -216,7 +270,7 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
         <div className="flex items-center space-x-8">
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Total Submissions</span>
-            <div className="text-lg font-black text-slate-800">{filtered.length}</div>
+            <div className="text-lg font-black text-slate-800">{isRealForm ? (stats?.totalSubmissions ?? 0) : filtered.length}</div>
           </div>
           
           <div className="w-px h-8 bg-slate-200 hidden md:block"></div>
@@ -241,13 +295,23 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
           ref={gridRef}
           rowData={filtered} 
           columnDefs={columnDefs} 
-          pagination={true}
+          pagination={!isRealForm}
           paginationPageSize={10}
           enableExport={false}
           domLayout="autoHeight"
           color="#0f417a"
           rowHeight={34}
         />
+        {isRealForm && pagination?.totalPages > 0 && (
+          <TablePagination
+            currentPage={Math.max(0, page - 1)}
+            totalPages={pagination.totalPages}
+            totalRows={pagination.total}
+            pageSize={PAGE_SIZE}
+            onPageChange={(pageIndex) => setPage(pageIndex + 1)}
+            color="#0f417a"
+          />
+        )}
       </div>
     </div>
   );

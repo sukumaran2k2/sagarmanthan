@@ -413,29 +413,67 @@ async function getFormSubmissions(req, res) {
 
     // Organisation users see only their own organisation's responses on forms they didn't create.
     const ownOrgOnly = !canManage(scope, form.created_by);
-    const rows = await conn.request()
-      .input('scopeOrgId', sql.Int, ownOrgOnly ? scope.organisationId : null)
-      .query(`
-      SELECT s.id, s.submission_uid, s.submitted_by, s.submitted_date,
-             ${columnList ? columnList + ',' : ''}
-             u.name AS submitter_name, u.designation AS submitter_designation,
-             o.organisation_name, o.organisation_code
+
+    // Paging and search happen in SQL. ?all=true returns every matching row (for Export).
+    const all = String(req.query.all) === 'true';
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const search = String(req.query.search || '').trim().slice(0, 100);
+    // LIKE wildcards in the search text are matched literally.
+    const searchPattern = `%${search.replace(/[\\%_[]/g, (ch) => `\\${ch}`)}%`;
+
+    const baseFrom = `
       FROM [${form.table_name}] s
       LEFT JOIN tbl_user u ON u.user_id = s.submitted_by
       LEFT JOIN mmt_organisation o ON o.organisation_id = u.organisation_id
       WHERE s.submission_status = 'Submitted'
-        ${ownOrgOnly ? 'AND u.organisation_id = @scopeOrgId' : ''}
-      ORDER BY s.submitted_date DESC, s.id DESC;
-    `);
+        ${ownOrgOnly ? 'AND u.organisation_id = @scopeOrgId' : ''}`;
+    const searchSql = search
+      ? `AND (o.organisation_name LIKE @search ESCAPE '\\' OR u.name LIKE @search ESCAPE '\\' OR u.designation LIKE @search ESCAPE '\\')`
+      : '';
+    const bindFilters = (request) => request
+      .input('scopeOrgId', sql.Int, ownOrgOnly ? scope.organisationId : null)
+      .input('search', sql.NVarChar(110), searchPattern);
 
-    // Uploaded files for these submissions, keyed by submission uid then field id.
+    const rows = await bindFilters(conn.request())
+      .input('offset', sql.Int, (page - 1) * limit)
+      .input('limit', sql.Int, limit)
+      .query(`
+      SELECT s.id, s.submission_uid, s.submitted_by, s.submitted_date,
+             ${columnList ? columnList + ',' : ''}
+             u.name AS submitter_name, u.designation AS submitter_designation,
+             o.organisation_name, o.organisation_code,
+             COUNT(*) OVER () AS total_count
+      ${baseFrom}
+        ${searchSql}
+      ORDER BY s.submitted_date DESC, s.id DESC
+      ${all ? '' : 'OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY'};
+    `);
+    let total = rows.recordset[0]?.total_count || 0;
+    if (!all && rows.recordset.length === 0 && page > 1) {
+      // Past the last page: report the real total so the pager can recover.
+      const counted = await bindFilters(conn.request()).query(`SELECT COUNT(*) AS n ${baseFrom} ${searchSql};`);
+      total = counted.recordset[0].n;
+    }
+
+    // Header stats cover every visible response, not just this page or search.
+    const statsResult = await bindFilters(conn.request()).query(`
+      SELECT COUNT(*) AS total_submissions,
+             COUNT(DISTINCT s.submitted_by) AS distinct_submitters,
+             STRING_AGG(CAST(o.organisation_code AS NVARCHAR(MAX)), ',') AS org_codes
+      ${baseFrom};
+    `);
+    const statsRow = statsResult.recordset[0];
+
+    // Uploaded files for the rows on this page, keyed by submission uid then field id.
     const filesByUid = new Map();
-    if (fields.some((f) => f.inputType === 'file')) {
-      const fileRows = await conn.request().query(`
-        SELECT m.uid, m.field_name, m.file_name
-        FROM ${FILE_MAPPING} m
-        INNER JOIN [${form.table_name}] s ON m.uid = CONVERT(NVARCHAR(100), s.submission_uid)
-        WHERE s.submission_status = 'Submitted';
+    const pageUids = rows.recordset.map((r) => String(r.submission_uid).toUpperCase());
+    if (fields.some((f) => f.inputType === 'file') && pageUids.length) {
+      const fileReq = conn.request();
+      pageUids.forEach((u, i) => fileReq.input(`u${i}`, sql.NVarChar(100), u));
+      const fileRows = await fileReq.query(`
+        SELECT uid, field_name, file_name FROM ${FILE_MAPPING}
+        WHERE uid IN (${pageUids.map((_, i) => `@u${i}`).join(', ')});
       `);
       for (const fr of fileRows.recordset) {
         if (!filesByUid.has(fr.uid)) filesByUid.set(fr.uid, {});
@@ -461,17 +499,23 @@ async function getFormSubmissions(req, res) {
     });
 
     const assignedOrganisations = String(form.organisation || '').split(',').filter(Boolean);
-    const respondedOrganisations = new Set(submissions.map((s) => s.organisationCode).filter(Boolean));
-    const distinctSubmitters = new Set(rows.recordset.map((r) => r.submitted_by).filter((v) => v != null));
+    const respondedOrganisations = new Set(String(statsRow.org_codes || '').split(',').filter(Boolean));
+    const pageSize = all ? Math.max(total, 1) : limit;
 
     res.json({
       form: { id: form.id, formName: form.form_name, fields },
       submissions,
       stats: {
-        totalSubmissions: submissions.length,
-        distinctSubmitters: distinctSubmitters.size,
+        totalSubmissions: statsRow.total_submissions,
+        distinctSubmitters: statsRow.distinct_submitters,
         assignedOrganisations: assignedOrganisations.length,
         respondedOrganisations: assignedOrganisations.filter((c) => respondedOrganisations.has(c)).length,
+      },
+      pagination: {
+        total,
+        page: all ? 1 : page,
+        limit: pageSize,
+        totalPages: Math.ceil(total / pageSize) || 1,
       },
     });
   } catch (err) {
