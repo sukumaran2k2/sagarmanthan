@@ -2830,7 +2830,7 @@ router.get(
   requireModulePermission("FORM_BUILDER", "read"),
   formBuilderController.getMyFormResponse
 );
-router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "delete"), formBuilderInputTab.deleteMmtFormBuilder); //req //delete created forms
+router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "delete"), formBuilderController.deleteForm); // replaces the legacy formBuilderInput.js implementation -- see formBuilderController.js
 router.post("/edit-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "update"), formBuilderInputTab.editMmtFormBuilder); //req //edit forms
 
 router.post('/upload-formbuilder-documents', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderInputTab.upload.array('files[]'), formBuilderInputTab.UploadFormDocument);//req upload

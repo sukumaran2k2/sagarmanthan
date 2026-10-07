@@ -147,11 +147,22 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
     triggerNotification && triggerNotification(`Cloned "${form.formName}" successfully!`, 'success');
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!formToDelete) return;
-    setForms(forms.filter(f => f.id !== formToDelete.id));
-    triggerNotification && triggerNotification(`Form "${formToDelete.formName}" deleted successfully`, 'success');
+    const target = formToDelete;
     setFormToDelete(null);
+    // Mock cards (non-numeric ids) only exist on screen.
+    if (/^\d+$/.test(String(target.id))) {
+      try {
+        await api.delete(`/delete-form-builder-data/${target.id}`);
+      } catch (err) {
+        console.error('Error deleting form:', err);
+        triggerNotification && triggerNotification(err.response?.data?.message || `Could not delete "${target.formName}"`, 'error');
+        return;
+      }
+    }
+    setForms(prev => prev.filter(f => f.id !== target.id));
+    triggerNotification && triggerNotification(`Form "${target.formName}" deleted successfully`, 'success');
   };
 
   const handleToggleStatus = (id) => {

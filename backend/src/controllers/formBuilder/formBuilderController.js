@@ -754,5 +754,60 @@ async function getMyFormResponse(req, res) {
   }
 }
 
-const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData, getMyFormResponse };
+// ---------- DELETE /delete-form-builder-data/:data ----------
+// Same rule as Sagarmanthan 2.0: deleting a form always goes through and removes its
+// submissions with it (the confirm dialog warns about this). Unlike 2.0, the definition
+// row and its tbl_fb_<id> table go together in one transaction, and the table name is the
+// stored server-generated one, never derived from request text.
+async function deleteForm(req, res) {
+  const formId = Number(req.params.data);
+  if (!Number.isInteger(formId) || formId <= 0) {
+    return res.status(400).json({ message: 'Invalid form id' });
+  }
+
+  let transaction;
+  try {
+    const conn = await pool;
+    transaction = new sql.Transaction(conn);
+    await transaction.begin();
+
+    const lookup = await transaction.request()
+      .input('id', sql.Int, formId)
+      .query(`SELECT form_name, table_name FROM mmt_form_definitions WITH (UPDLOCK, HOLDLOCK) WHERE id = @id;`);
+    if (lookup.recordset.length === 0) {
+      await rollbackQuietly(transaction);
+      return res.status(404).json({ message: 'Form not found' });
+    }
+    const { form_name: formName, table_name: tableName } = lookup.recordset[0];
+    if (!isSafeIdentifier(tableName)) {
+      await rollbackQuietly(transaction);
+      return res.status(500).json({ message: 'Stored table name failed safety check' });
+    }
+
+    let deletedResponses = 0;
+    const exists = await transaction.request()
+      .input('t', sql.NVarChar(128), tableName)
+      .query(`SELECT OBJECT_ID(@t, 'U') AS oid;`);
+    if (exists.recordset[0].oid !== null) {
+      // Exclusive lock so no submission lands between the count and the drop.
+      const counted = await transaction.request()
+        .query(`SELECT COUNT(*) AS n FROM [${tableName}] WITH (TABLOCKX, HOLDLOCK);`);
+      deletedResponses = counted.recordset[0].n;
+      await transaction.request().query(`DROP TABLE [${tableName}];`);
+    }
+
+    await transaction.request()
+      .input('id', sql.Int, formId)
+      .query(`DELETE FROM mmt_form_definitions WHERE id = @id;`);
+
+    await transaction.commit();
+    res.json({ id: formId, formName, deletedResponses, message: 'Form deleted successfully' });
+  } catch (err) {
+    await rollbackQuietly(transaction);
+    console.error('deleteForm error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData, getMyFormResponse, deleteForm };
 export default formBuilderController;
