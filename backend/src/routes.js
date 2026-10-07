@@ -268,7 +268,6 @@ import { getContainerTwoLeg } from "./controllers/traffic-container-two-leg.js";
 
 import formBuilderController from "./controllers/formBuilder/formBuilderController.js";
 import { acceptFormFiles } from "./controllers/formBuilder/formBuilderFiles.js";
-import formBuilderInputTab from "./controllers/formBuilder/formBuilderInput.js";
 
 const router = express.Router();
 
@@ -2851,10 +2850,6 @@ router.post(
 );
 router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "delete"), formBuilderController.deleteForm); // replaces the legacy formBuilderInput.js implementation -- see formBuilderController.js
 
-// Legacy 2.0 file routes: kept until Form Builder file uploads are rebuilt; the rest of
-// formBuilderInput.js is unused and goes with them.
-router.post('/upload-formbuilder-documents', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderInputTab.upload.array('files[]'), formBuilderInputTab.UploadFormDocument);//req upload
-router.get('/download-formbuilder-documents/:uid/:field', auth, requireModulePermission("FORM_BUILDER", "read"), formBuilderInputTab.downloadDocument);//req download
 
 
 // form builder status
