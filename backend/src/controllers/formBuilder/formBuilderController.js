@@ -10,6 +10,21 @@ import {
 
 // ---------- shared helpers ----------
 
+// Today's date in India, so a form due on the 7th stays open until midnight IST
+// (the DB server's own clock may be UTC).
+const TODAY_IST_SQL = `CAST(SWITCHOFFSET(SYSDATETIMEOFFSET(), '+05:30') AS DATE)`;
+
+// Same rule as Sagarmanthan 2.0: a form past its due date stops taking responses.
+// Unlike 2.0 this is worked out on read instead of rewriting active_status, so a form
+// switched OFF by hand stays OFF. Needs the definition aliased as `d`.
+const FORM_OPEN_SQL = `(d.active_status = '1' AND (d.due_date IS NULL OR d.due_date >= ${TODAY_IST_SQL}))`;
+
+// Directory badge: Inactive (switched OFF), Overdue (ON but past due), else Active.
+function formStatus(activeStatus, isPastDue) {
+  if (activeStatus !== '1') return 'Inactive';
+  return isPastDue ? 'Overdue' : 'Active';
+}
+
 const toCSV = (v) => (Array.isArray(v) ? v.filter(Boolean).join(',') : (v || ''));
 
 async function rollbackQuietly(transaction) {
@@ -258,9 +273,11 @@ async function getCreatedFormData(req, res) {
   try {
     const conn = await pool;
     const result = await conn.request().query(`
-      SELECT id, form_name, form_description, due_date, organisation, wing, active_status, submission_count, form_fields
-      FROM mmt_form_definitions
-      ORDER BY created_date DESC;
+      SELECT d.id, d.form_name, d.form_description, d.due_date, d.organisation, d.wing, d.active_status,
+             d.submission_count, d.form_fields,
+             CASE WHEN d.due_date < ${TODAY_IST_SQL} THEN 1 ELSE 0 END AS is_past_due
+      FROM mmt_form_definitions d
+      ORDER BY d.created_date DESC;
     `);
 
     const forms = result.recordset.map((row) => {
@@ -286,7 +303,8 @@ async function getCreatedFormData(req, res) {
         organisation: row.organisation,
         wing: row.wing,
         dueDate: row.due_date ? new Date(row.due_date).toISOString().split('T')[0] : null,
-        status: row.active_status === '1' ? 'Active' : 'Inactive',
+        status: formStatus(row.active_status, row.is_past_due === 1),
+        isActive: row.active_status === '1',
         submissionsCount: row.submission_count,
         fields,
       };
@@ -444,7 +462,7 @@ async function getInboxForms(req, res) {
         FROM mmt_form_definitions d
         LEFT JOIN tbl_user u ON u.user_id = d.created_by
         LEFT JOIN mmt_organisation o ON o.organisation_id = u.organisation_id
-        WHERE d.active_status = '1'
+        WHERE ${FORM_OPEN_SQL}
           AND ${ASSIGNED_TO_CALLER_SQL}
         ORDER BY d.due_date, d.id;
       `);
@@ -580,7 +598,8 @@ async function submitFormData(req, res) {
       .query(`
         ${DECLARE_CALLER_ASSIGNMENT_SQL}
         SELECT d.table_name, d.form_fields, d.active_status,
-               CASE WHEN ${ASSIGNED_TO_CALLER_SQL} THEN 1 ELSE 0 END AS is_assigned
+               CASE WHEN ${ASSIGNED_TO_CALLER_SQL} THEN 1 ELSE 0 END AS is_assigned,
+               CASE WHEN ${FORM_OPEN_SQL} THEN 1 ELSE 0 END AS is_open
         FROM mmt_form_definitions d WITH (UPDLOCK, HOLDLOCK)
         WHERE d.id = @id;
       `);
@@ -593,9 +612,13 @@ async function submitFormData(req, res) {
       await rollbackQuietly(transaction);
       return res.status(403).json({ message: 'This form is not assigned to you' });
     }
-    if (form.active_status !== '1') {
+    if (!form.is_open) {
       await rollbackQuietly(transaction);
-      return res.status(409).json({ message: 'This form is not accepting responses' });
+      return res.status(409).json({
+        message: form.active_status === '1'
+          ? 'The due date for this form has passed, so it is no longer accepting responses'
+          : 'This form is not accepting responses',
+      });
     }
     if (!isSafeIdentifier(form.table_name)) {
       await rollbackQuietly(transaction);
@@ -809,5 +832,50 @@ async function deleteForm(req, res) {
   }
 }
 
-const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData, getMyFormResponse, deleteForm };
+// ---------- POST /toggle-form-status/:formId ----------
+// The Directory ON/OFF switch. Body: { active: true | false }. Returns the resulting
+// badge status, which is Overdue (not Active) when switched ON past the due date.
+async function toggleFormStatus(req, res) {
+  const formId = Number(req.params.formId);
+  if (!Number.isInteger(formId) || formId <= 0) {
+    return res.status(400).json({ message: 'Invalid form id' });
+  }
+  const active = req.body?.active;
+  if (typeof active !== 'boolean') {
+    return res.status(400).json({ message: 'active must be true or false' });
+  }
+
+  try {
+    const conn = await pool;
+    const result = await conn.request()
+      .input('id', sql.Int, formId)
+      .input('active_status', sql.NVarChar(10), active ? '1' : '0')
+      .query(`
+        UPDATE d
+        SET active_status = @active_status, updated_date = GETDATE()
+        OUTPUT INSERTED.active_status,
+               CASE WHEN INSERTED.due_date < ${TODAY_IST_SQL} THEN 1 ELSE 0 END AS is_past_due
+        FROM mmt_form_definitions d
+        WHERE d.id = @id;
+      `);
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Form not found' });
+    }
+    const row = result.recordset[0];
+    const status = formStatus(row.active_status, row.is_past_due === 1);
+    res.json({
+      id: formId,
+      isActive: row.active_status === '1',
+      status,
+      message: status === 'Overdue'
+        ? 'Form switched ON, but its due date has passed, so it stays closed until the due date is extended'
+        : `Form switched ${active ? 'ON' : 'OFF'}`,
+    });
+  } catch (err) {
+    console.error('toggleFormStatus error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData, getMyFormResponse, deleteForm, toggleFormStatus };
 export default formBuilderController;

@@ -165,15 +165,26 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
     triggerNotification && triggerNotification(`Form "${target.formName}" deleted successfully`, 'success');
   };
 
-  const handleToggleStatus = (id) => {
-    setForms(forms.map(f => {
-      if (f.id === id) {
-        const newStatus = f.status === 'Active' ? 'Inactive' : 'Active';
-        triggerNotification && triggerNotification(`Status changed to ${newStatus}`, 'success');
-        return { ...f, status: newStatus };
-      }
-      return f;
-    }));
+  // Real forms send isActive (the switch) separately from status (the badge), so a
+  // form switched ON past its due date shows ON with an OVERDUE badge.
+  const isSwitchOn = (form) => (typeof form.isActive === 'boolean' ? form.isActive : form.status === 'Active');
+
+  const handleToggleStatus = async (form) => {
+    // Mock cards (non-numeric ids) only change on screen.
+    if (!/^\d+$/.test(String(form.id))) {
+      const newStatus = form.status === 'Active' ? 'Inactive' : 'Active';
+      setForms(prev => prev.map(f => (f.id === form.id ? { ...f, status: newStatus } : f)));
+      triggerNotification && triggerNotification(`Status changed to ${newStatus}`, 'success');
+      return;
+    }
+    try {
+      const res = await api.post(`/toggle-form-status/${form.id}`, { active: !isSwitchOn(form) });
+      setForms(prev => prev.map(f => (f.id === form.id ? { ...f, status: res.data.status, isActive: res.data.isActive } : f)));
+      triggerNotification && triggerNotification(res.data.message, res.data.status === 'Overdue' ? 'warning' : 'success');
+    } catch (err) {
+      console.error('Error changing form status:', err);
+      triggerNotification && triggerNotification(err.response?.data?.message || 'Could not change the form status', 'error');
+    }
   };
 
   const filteredForms = forms.filter(f => 
@@ -334,22 +345,22 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
                     </button>
 
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleToggleStatus(form.id); }}
+                      onClick={(e) => { e.stopPropagation(); handleToggleStatus(form); }}
                       className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 font-bold text-xs rounded-xl transition cursor-pointer min-w-[max-content] ${
-                        form.status === 'Active' 
+                        isSwitchOn(form) 
                           ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' 
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-500'
                       }`}
                       title="Toggle Status"
                     >
                       <div className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
-                        form.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-300'
+                        isSwitchOn(form) ? 'bg-emerald-500' : 'bg-slate-300'
                       }`}>
                         <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform shadow-sm ${
-                          form.status === 'Active' ? 'translate-x-3.5' : 'translate-x-0.5'
+                          isSwitchOn(form) ? 'translate-x-3.5' : 'translate-x-0.5'
                         }`} />
                       </div>
-                      <span>{form.status === 'Active' ? 'ON' : 'OFF'}</span>
+                      <span>{isSwitchOn(form) ? 'ON' : 'OFF'}</span>
                     </button>
                   </>
                 )}

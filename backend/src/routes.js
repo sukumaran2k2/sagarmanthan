@@ -2830,6 +2830,12 @@ router.get(
   requireModulePermission("FORM_BUILDER", "read"),
   formBuilderController.getMyFormResponse
 );
+router.post(
+  '/toggle-form-status/:formId',
+  auth,
+  requireModulePermission("FORM_BUILDER", "update"),
+  formBuilderController.toggleFormStatus
+);
 router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "delete"), formBuilderController.deleteForm); // replaces the legacy formBuilderInput.js implementation -- see formBuilderController.js
 router.post("/edit-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "update"), formBuilderInputTab.editMmtFormBuilder); //req //edit forms
 
