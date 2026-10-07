@@ -265,7 +265,7 @@ import { getContainerTwoLeg } from "./controllers/traffic-container-two-leg.js";
 
 
 //Form Builder tab
-import formBuilderTab from "./controllers/formBuilder/formBuilderV1.js";
+
 import formBuilderController from "./controllers/formBuilder/formBuilderController.js";
 import formBuilderInputTab from "./controllers/formBuilder/formBuilderInput.js";
 
@@ -2792,7 +2792,6 @@ router.get("/traffic-container-single-leg", getContainerSingleLeg);
 router.get("/traffic-container-two-leg", getContainerTwoLeg);
 
 //Form Builder Fields
-router.post('/store-form-builder-input-form', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderTab.storeFormBuilderInputForm); //req
 router.post(
   '/modify-form-builder-input-form',
   auth,
@@ -2843,18 +2842,14 @@ router.post(
   formBuilderController.cloneForm
 );
 router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "delete"), formBuilderController.deleteForm); // replaces the legacy formBuilderInput.js implementation -- see formBuilderController.js
-router.post("/edit-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "update"), formBuilderInputTab.editMmtFormBuilder); //req //edit forms
 
+// Legacy 2.0 file routes: kept until Form Builder file uploads are rebuilt; the rest of
+// formBuilderInput.js is unused and goes with them.
 router.post('/upload-formbuilder-documents', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderInputTab.upload.array('files[]'), formBuilderInputTab.UploadFormDocument);//req upload
 router.get('/download-formbuilder-documents/:uid/:field', auth, requireModulePermission("FORM_BUILDER", "read"), formBuilderInputTab.downloadDocument);//req download
 
-router.post('/create-FormBuilder-data', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderInputTab.createFormBuilderData); //req generic Create 
-router.get('/get-FormBuilder-Report/:data', auth, requireModulePermission("FORM_BUILDER", "read"), formBuilderInputTab.getFormBuilderReport); //req generic Report
 
 // form builder status
-router.get('/get-form-builder-status/:data/:code', auth, requireModulePermission("FORM_BUILDER", "read"), formBuilderInputTab.getFormBuilderSatus); //req //get created forms
-router.get('/get-form-builder-user-wise-data/:data/:userID', auth, requireModulePermission("FORM_BUILDER", "read"), formBuilderInputTab.getFormBuilderUserWiseData); //req //get created forms
-router.get('/get-user-edit-Form-Data/:userID/:currentPage', auth, requireModulePermission("FORM_BUILDER", "read"), formBuilderInputTab.getUserEditFormData); //not required //get created forms data for only one data retrival for one form
 // AI Report Copilot (OpenAI / Vercel AI SDK)
 import reportCopilotTab from "./controllers/ai/reportCopilot.js";
 router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);
