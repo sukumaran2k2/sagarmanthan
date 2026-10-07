@@ -152,6 +152,9 @@ export const INDIAN_STATES = [
   'Lakshadweep', 'Puducherry'
 ];
 
+// Today's date in India as YYYY-MM-DD, matching the server's due-date rule.
+const todayIST = () => new Date(Date.now() + 330 * 60 * 1000).toISOString().slice(0, 10);
+
 export default function FormBuilderStudio({ triggerNotification, onFormPublished, formToEdit }) {
   // Form Config State
   const [formName, setFormName] = useState('');
@@ -339,6 +342,12 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
 
     if (fields.length === 0) {
       triggerNotification && triggerNotification('Please add at least one field to the form', 'warning');
+      return;
+    }
+
+    // Same rule as the server: no past due date, except an overdue form keeping its date.
+    if (dueDate && dueDate < todayIST() && dueDate !== formToEdit?.dueDate) {
+      triggerNotification && triggerNotification('The due date cannot be in the past', 'warning');
       return;
     }
 
@@ -718,6 +727,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
               <input
                 type="date"
                 value={dueDate}
+                min={todayIST()}
                 onChange={(e) => setDueDate(e.target.value)}
                 className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
               />

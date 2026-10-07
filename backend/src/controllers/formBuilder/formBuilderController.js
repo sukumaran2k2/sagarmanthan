@@ -22,6 +22,25 @@ const TODAY_IST_SQL = `CAST(SWITCHOFFSET(SYSDATETIMEOFFSET(), '+05:30') AS DATE)
 // switched OFF by hand stays OFF. Needs the definition aliased as `d`.
 const FORM_OPEN_SQL = `(d.active_status = '1' AND (d.due_date IS NULL OR d.due_date >= ${TODAY_IST_SQL}))`;
 
+// A real calendar date in YYYY-MM-DD. Round-trip check: Date quietly rolls
+// 2027-02-30 over to 2027-03-02.
+function isRealDate(d) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d))) return false;
+  const parsed = new Date(`${d}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === d;
+}
+
+const toIsoDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+
+// True when the date is before today in India (same clock as the due-date close rule).
+async function isBeforeTodayIST(request, isoDate) {
+  const r = await request.input('checkDate', sql.Date, isoDate)
+    .query(`SELECT CASE WHEN @checkDate < ${TODAY_IST_SQL} THEN 1 ELSE 0 END AS past;`);
+  return r.recordset[0].past === 1;
+}
+
+const PAST_DUE_MESSAGE = 'The due date cannot be in the past';
+
 // Directory badge: Inactive (switched OFF), Overdue (ON but past due), else Active.
 function formStatus(activeStatus, isPastDue) {
   if (activeStatus !== '1') return 'Inactive';
@@ -138,6 +157,13 @@ async function modifyFormBuilderInputForm(req, res) {
     return res.status(400).json({ message: error });
   }
 
+  // Due date is optional (no date = never closes by date); when given it must be real.
+  const due = String(meta.formDueDate ?? '').trim();
+  if (due && !isRealDate(due)) {
+    return res.status(400).json({ message: 'The due date must be a valid date' });
+  }
+  meta.formDueDate = due || null;
+
   const rawId = req.body.formId;
   const hasFormId = rawId !== undefined && rawId !== null && rawId !== '';
   if (hasFormId) {
@@ -183,6 +209,11 @@ async function createForm(req, res, { formName, meta, storableFields }) {
     transaction = new sql.Transaction(conn);
     await transaction.begin();
 
+    if (meta.formDueDate && await isBeforeTodayIST(transaction.request(), meta.formDueDate)) {
+      await rollbackQuietly(transaction);
+      return res.status(400).json({ message: PAST_DUE_MESSAGE });
+    }
+
     const { formId, tableName } = await insertFormWithTable(transaction, {
       formName,
       meta,
@@ -215,7 +246,7 @@ async function updateForm(req, res, { formName, meta, storableFields }) {
     const lookup = await transaction.request()
       .input('id', sql.Int, formId)
       .query(`
-        SELECT table_name, form_fields, created_by
+        SELECT table_name, form_fields, created_by, due_date
         FROM mmt_form_definitions WITH (UPDLOCK, HOLDLOCK)
         WHERE id = @id;
       `);
@@ -226,6 +257,13 @@ async function updateForm(req, res, { formName, meta, storableFields }) {
     if (!canManage(scopeOf(req.user), lookup.recordset[0].created_by)) {
       await rollbackQuietly(transaction);
       return res.status(403).json({ message: MANAGE_DENIED });
+    }
+    // Moving the date into the past is refused; an overdue form keeping its date while
+    // other details are edited is fine, and extending it is how it reopens.
+    const dueChanged = meta.formDueDate !== toIsoDate(lookup.recordset[0].due_date);
+    if (dueChanged && meta.formDueDate && await isBeforeTodayIST(transaction.request(), meta.formDueDate)) {
+      await rollbackQuietly(transaction);
+      return res.status(400).json({ message: PAST_DUE_MESSAGE });
     }
 
     const { table_name: tableName, form_fields: storedFieldsJson } = lookup.recordset[0];
@@ -644,7 +682,6 @@ async function getInboxForms(req, res) {
 // Validates one submitted value against its field and returns { value, sqlType }
 // ready to bind, or { error }. Empty values become NULL.
 const isEmptyValue = (v) => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INT_MIN = -2147483648, INT_MAX = 2147483647;
 
@@ -665,11 +702,7 @@ function coerceFieldValue(field, raw) {
     }
     case 'date': {
       const d = String(raw);
-      // Round-trip check: Date quietly rolls 2027-02-30 over to 2027-03-02.
-      const parsed = DATE_RE.test(d) ? new Date(`${d}T00:00:00Z`) : null;
-      if (!parsed || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== d) {
-        return { error: `${label} must be a valid date` };
-      }
+      if (!isRealDate(d)) return { error: `${label} must be a valid date` };
       return { value: d, sqlType: sql.Date };
     }
     case 'checkbox': {
