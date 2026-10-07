@@ -1214,5 +1214,132 @@ async function downloadFormFile(req, res) {
   }
 }
 
-const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData, getMyFormResponse, deleteForm, toggleFormStatus, cloneForm, downloadFormFile };
+// ---------- Studio drafts: GET /get-form-drafts, POST /save-form-draft, DELETE /delete-form-draft/:id ----------
+// Unpublished form designs, private to the person who saved them. Stored as the Studio's
+// own JSON (name, description, due date, assignment, fields): nothing queries inside a
+// draft, and it only becomes a real table when published.
+const MAX_DRAFT_BYTES = 1024 * 1024;
+
+function draftFromRow(row) {
+  let draft = {};
+  try { draft = JSON.parse(row.draft_json || '{}'); } catch { draft = {}; }
+  return { ...draft, id: row.id, updatedDate: formatDateTime(row.updated_date) };
+}
+
+async function getFormDrafts(req, res) {
+  const userId = Number(req.user?.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(401).json({ message: 'Unauthorized!' });
+  }
+  try {
+    const conn = await pool;
+    const result = await conn.request()
+      .input('userId', sql.Int, userId)
+      .query(`
+        SELECT id, draft_json, updated_date FROM mmt_form_drafts
+        WHERE created_by = @userId
+        ORDER BY updated_date DESC, id DESC;
+      `);
+    res.json(result.recordset.map(draftFromRow));
+  } catch (err) {
+    console.error('getFormDrafts error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+// Body: { draftId?, draft }. With draftId, updates that draft (only if it's the caller's).
+async function saveFormDraft(req, res) {
+  const userId = Number(req.user?.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(401).json({ message: 'Unauthorized!' });
+  }
+  const draft = req.body?.draft;
+  if (!draft || typeof draft !== 'object' || Array.isArray(draft)) {
+    return res.status(400).json({ message: 'draft must be an object' });
+  }
+  const draftName = String(draft.formName || '').trim();
+  if (!draftName) {
+    return res.status(400).json({ message: 'Please enter a Form Name to save as draft' });
+  }
+  if (draftName.length > 255) {
+    return res.status(400).json({ message: 'Form Name is too long (max 255 characters)' });
+  }
+  if (draft.fields !== undefined && !Array.isArray(draft.fields)) {
+    return res.status(400).json({ message: 'fields must be a list' });
+  }
+  // Only the Studio's own keys are kept, so a draft can't smuggle in an id or owner.
+  const { formName, formDescription, dueDate, assignType, selectedWings, selectedOrgIds, activeStatus, fields } = draft;
+  const json = JSON.stringify({ formName: draftName, formDescription, dueDate, assignType, selectedWings, selectedOrgIds, activeStatus, fields: fields || [] });
+  if (Buffer.byteLength(json, 'utf8') > MAX_DRAFT_BYTES) {
+    return res.status(413).json({ message: 'This draft is too large to save' });
+  }
+
+  const rawId = req.body?.draftId;
+  const hasId = rawId !== undefined && rawId !== null && rawId !== '';
+  const draftId = Number(rawId);
+  if (hasId && (!Number.isInteger(draftId) || draftId <= 0)) {
+    return res.status(400).json({ message: 'Invalid draft id' });
+  }
+
+  try {
+    const conn = await pool;
+    const request = conn.request()
+      .input('userId', sql.Int, userId)
+      .input('name', sql.NVarChar(255), draftName)
+      .input('json', sql.NVarChar(sql.MAX), json);
+    let result;
+    if (hasId) {
+      result = await request.input('id', sql.Int, draftId).query(`
+        UPDATE mmt_form_drafts
+        SET draft_name = @name, draft_json = @json, updated_date = GETDATE()
+        OUTPUT INSERTED.id, INSERTED.draft_json, INSERTED.updated_date
+        WHERE id = @id AND created_by = @userId;
+      `);
+      if (result.recordset.length === 0) {
+        return res.status(404).json({ message: 'Draft not found' });
+      }
+    } else {
+      result = await request.query(`
+        INSERT INTO mmt_form_drafts (draft_name, draft_json, created_by)
+        OUTPUT INSERTED.id, INSERTED.draft_json, INSERTED.updated_date
+        VALUES (@name, @json, @userId);
+      `);
+    }
+    res.status(hasId ? 200 : 201).json({ draft: draftFromRow(result.recordset[0]), message: `Draft "${draftName}" saved` });
+  } catch (err) {
+    console.error('saveFormDraft error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+async function deleteFormDraft(req, res) {
+  const userId = Number(req.user?.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(401).json({ message: 'Unauthorized!' });
+  }
+  const draftId = Number(req.params.draftId);
+  if (!Number.isInteger(draftId) || draftId <= 0) {
+    return res.status(400).json({ message: 'Invalid draft id' });
+  }
+  try {
+    const conn = await pool;
+    const result = await conn.request()
+      .input('id', sql.Int, draftId)
+      .input('userId', sql.Int, userId)
+      .query(`DELETE FROM mmt_form_drafts OUTPUT DELETED.id WHERE id = @id AND created_by = @userId;`);
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Draft not found' });
+    }
+    res.json({ id: draftId, message: 'Draft deleted' });
+  } catch (err) {
+    console.error('deleteFormDraft error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+const formBuilderController = {
+  modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData,
+  getMyFormResponse, deleteForm, toggleFormStatus, cloneForm, downloadFormFile,
+  getFormDrafts, saveFormDraft, deleteFormDraft,
+};
 export default formBuilderController;

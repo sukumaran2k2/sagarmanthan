@@ -2836,6 +2836,10 @@ router.get(
   requireModulePermission("FORM_BUILDER", "read"),
   formBuilderController.downloadFormFile
 );
+// Studio drafts (unpublished form designs, private to their author)
+router.get('/get-form-drafts', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderController.getFormDrafts);
+router.post('/save-form-draft', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderController.saveFormDraft);
+router.delete('/delete-form-draft/:draftId', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderController.deleteFormDraft);
 router.post(
   '/toggle-form-status/:formId',
   auth,

@@ -39,97 +39,6 @@ import {
 } from 'lucide-react';
 import FormPreviewModal from './FormPreviewModal';
 
-const MOCK_DRAFTS = [
-  {
-    id: 'draft_1',
-    formName: 'Annual HR Performance Review',
-    formDescription: 'Draft for the upcoming annual HR performance review.',
-    dueDate: '2026-12-31',
-    assignType: 'wing',
-    selectedWings: ['Administration', 'Finance'],
-    fields: [
-      { id: 'f1', inputLabel: 'Employee ID', inputType: 'text', required: true },
-      { id: 'f2', inputLabel: 'Self Rating (1-10)', inputType: 'number', required: true }
-    ]
-  },
-  {
-    id: 'draft_2',
-    formName: 'Safety Audit Checklist',
-    formDescription: 'Safety inspection checklist draft.',
-    dueDate: '2026-11-30',
-    assignType: 'organisation',
-    selectedOrgIds: ['1', '8'],
-    fields: [
-      { id: 'f1', inputLabel: 'Terminal Zone', inputType: 'text', required: true }
-    ]
-  },
-  {
-    id: 'draft_3',
-    formName: 'Vessel Traffic Report',
-    formDescription: 'Monthly report on vessel traffic at major ports.',
-    dueDate: '2026-10-31',
-    assignType: 'organisation',
-    selectedOrgIds: ['2', '3', '5'],
-    fields: [
-      { id: 'f1', inputLabel: 'Port Name', inputType: 'text', required: true },
-      { id: 'f2', inputLabel: 'Total Vessels Berthed', inputType: 'number', required: true },
-      { id: 'f3', inputLabel: 'Report Date', inputType: 'date', required: true }
-    ]
-  },
-  {
-    id: 'draft_4',
-    formName: 'Port Expansion Feasibility Study',
-    formDescription: 'Survey data collection for proposed new cargo terminals.',
-    dueDate: '2027-01-15',
-    assignType: 'wing',
-    selectedWings: ['Engineering', 'Project Management'],
-    fields: [
-      { id: 'f1', inputLabel: 'Proposed Terminal Name', inputType: 'text', required: true },
-      { id: 'f2', inputLabel: 'Estimated Cost (Cr)', inputType: 'number', required: true },
-      { id: 'f3', inputLabel: 'Initial Feasibility Status', inputType: 'dropdown', options: ['High', 'Medium', 'Low'], required: false }
-    ]
-  },
-  {
-    id: 'draft_5',
-    formName: 'Employee Grievance Form',
-    formDescription: 'Standardized form for internal employee grievances.',
-    dueDate: '2026-12-15',
-    assignType: 'wing',
-    selectedWings: ['Administration'],
-    fields: [
-      { id: 'f1', inputLabel: 'Department', inputType: 'dropdown', options: ['HR', 'Finance', 'Engineering', 'Operations'], required: true },
-      { id: 'f2', inputLabel: 'Description of Grievance', inputType: 'long-text', required: true }
-    ]
-  },
-  {
-    id: 'draft_6',
-    formName: 'Environmental Impact Assessment',
-    formDescription: 'Draft form for quarterly environmental impact reporting.',
-    dueDate: '2027-03-01',
-    assignType: 'organisation',
-    selectedOrgIds: ['1', '2', '3', '4', '5'],
-    fields: [
-      { id: 'f1', inputLabel: 'Assessment Quarter', inputType: 'dropdown', options: ['Q1', 'Q2', 'Q3', 'Q4'], required: true },
-      { id: 'f2', inputLabel: 'Air Quality Index', inputType: 'number', required: true },
-      { id: 'f3', inputLabel: 'Water Quality Status', inputType: 'radio', options: ['Optimal', 'Warning', 'Critical'], required: true }
-    ]
-  },
-  {
-    id: 'draft_7',
-    formName: 'Cargo Handling Equipment Request',
-    formDescription: 'Request form for new cranes, forklifts, and other heavy equipment.',
-    dueDate: '2026-10-25',
-    assignType: 'wing',
-    selectedWings: ['Operations', 'Finance'],
-    fields: [
-      { id: 'f1', inputLabel: 'Equipment Type', inputType: 'dropdown', options: ['Crane', 'Forklift', 'Tractor', 'Other'], required: true },
-      { id: 'f2', inputLabel: 'Quantity Required', inputType: 'number', required: true },
-      { id: 'f3', inputLabel: 'Urgency', inputType: 'radio', options: ['High', 'Normal', 'Low'], required: true },
-      { id: 'f4', inputLabel: 'Justification', inputType: 'long-text', required: true }
-    ]
-  }
-];
-
 export const FULL_ORGANISATION_LIST = [
   { id: '1', name: 'Syama Prasad Mookerjee Port Authority', code: 'SMPA', category: '1' },
   { id: '2', name: 'Paradip Port Authority', code: 'PPA', category: '1' },
@@ -270,11 +179,31 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
   const [isClearMetadataModalOpen, setIsClearMetadataModalOpen] = useState(false);
   const [isDraftsModalOpen, setIsDraftsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [drafts, setDrafts] = useState(MOCK_DRAFTS);
+  // Drafts are saved on the server, private to the person who saved them.
+  const [drafts, setDrafts] = useState([]);
+  // The draft currently on the canvas, so saving again updates it instead of copying it.
+  const [currentDraftId, setCurrentDraftId] = useState(null);
 
-  const handleDeleteDraft = (draftId) => {
-    setDrafts(drafts.filter(d => d.id !== draftId));
-    triggerNotification && triggerNotification('Draft deleted successfully', 'info');
+  const loadDrafts = () => {
+    api.get('/get-form-drafts')
+      .then(res => setDrafts(Array.isArray(res.data) ? res.data : []))
+      .catch(err => console.error('Error loading drafts:', err));
+  };
+
+  useEffect(() => {
+    loadDrafts();
+  }, []);
+
+  const handleDeleteDraft = async (draftId) => {
+    try {
+      await api.delete(`/delete-form-draft/${draftId}`);
+      setDrafts(prev => prev.filter(d => d.id !== draftId));
+      if (draftId === currentDraftId) setCurrentDraftId(null);
+      triggerNotification && triggerNotification('Draft deleted successfully', 'info');
+    } catch (err) {
+      console.error('Error deleting draft:', err);
+      triggerNotification && triggerNotification(err.response?.data?.message || 'Could not delete the draft', 'error');
+    }
   };
   // Close org dropdown when clicking outside
   useEffect(() => {
@@ -448,6 +377,11 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       // axios resolves only on 2xx and throws otherwise, unlike fetch --
       // reaching this line at all means the request succeeded.
       await api.post('/modify-form-builder-input-form', payload);
+      // A published draft has done its job; remove it so it doesn't linger in Load Draft.
+      if (currentDraftId) {
+        api.delete(`/delete-form-draft/${currentDraftId}`).catch(err => console.error('Error removing published draft:', err));
+        setCurrentDraftId(null);
+      }
       triggerNotification && triggerNotification(`Form "${formName}" ${formToEdit?.id ? 'updated' : 'published'} successfully!`, 'success');
       onFormPublished && onFormPublished();
     } catch (err) {
@@ -462,12 +396,23 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
     }
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!formName.trim()) {
       triggerNotification && triggerNotification('Please enter a Form Name to save as draft', 'warning');
       return;
     }
-    triggerNotification && triggerNotification(`Draft "${formName}" saved successfully!`, 'success');
+    try {
+      const res = await api.post('/save-form-draft', {
+        draftId: currentDraftId,
+        draft: { formName, formDescription, dueDate, assignType, selectedWings, selectedOrgIds, activeStatus, fields },
+      });
+      setCurrentDraftId(res.data.draft.id);
+      loadDrafts();
+      triggerNotification && triggerNotification(`Draft "${formName}" saved successfully!`, 'success');
+    } catch (err) {
+      console.error('Error saving draft:', err);
+      triggerNotification && triggerNotification(err.response?.data?.message || 'Could not save the draft', 'error');
+    }
   };
 
   const generateHtmlContent = () => {
@@ -494,6 +439,8 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
     if (draft.assignType) setAssignType(draft.assignType);
     if (draft.selectedWings) setSelectedWings(draft.selectedWings);
     if (draft.selectedOrgIds) setSelectedOrgIds(draft.selectedOrgIds);
+    if (draft.activeStatus) setActiveStatus(draft.activeStatus);
+    setCurrentDraftId(draft.id);
     setIsDraftsModalOpen(false);
     triggerNotification && triggerNotification(`Draft "${draft.formName}" loaded successfully!`, 'success');
   };
@@ -516,7 +463,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
               <span>Clear</span>
             </button>
             <button
-              onClick={() => setIsDraftsModalOpen(true)}
+              onClick={() => { loadDrafts(); setIsDraftsModalOpen(true); }}
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-lg transition cursor-pointer"
             >
               <FolderOpen className="h-4 w-4" />
@@ -1191,6 +1138,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
           setDueDate('');
           setSelectedWings([]);
           setSelectedOrgIds([]);
+          setCurrentDraftId(null); // cleared form = new form; the next Save Draft creates a new draft
           setIsClearMetadataModalOpen(false);
           triggerNotification && triggerNotification('Form configuration and metadata cleared', 'info');
         }}
@@ -1223,7 +1171,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
               <div className="flex items-center space-x-3 text-[10px] font-semibold text-slate-400">
                 <span className="flex items-center space-x-1">
                   <List className="h-3 w-3" />
-                  <span>{draft.fields.length} Fields</span>
+                  <span>{(draft.fields || []).length} Fields</span>
                 </span>
                 <span className="flex items-center space-x-1">
                   <CalendarDays className="h-3 w-3" />
