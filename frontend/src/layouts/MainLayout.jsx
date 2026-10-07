@@ -144,6 +144,7 @@ export const ROUTE_MAP = {
   // HR nested routes
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
+  'HR Input Form': 'hr/hr-management/input-form',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -193,6 +194,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('projects/project/view-project') || cleanSlug.startsWith('projects/view-project') || cleanSlug.startsWith('projects/project/detail')) return 'projects-view-project';
   if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
 
+  if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
@@ -262,6 +264,7 @@ const getBreadcrumbs = (tab) => {
   const hrItems = {
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
+    'HR Input Form': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],

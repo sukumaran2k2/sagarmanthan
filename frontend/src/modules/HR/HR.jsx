@@ -3,12 +3,14 @@ import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-
 import { 
   UserPlus, 
   BookOpen, 
-  Users
+  Users,
+  FileEdit
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 
 import ContractualEmployment from './pages/ContractualEmployment';
 import TrainingDetails from './pages/TrainingDetails';
+import InputForm from './pages/InputForm';
 
 export default function HRDashboardView({ triggerNotification }) {
   const location = useLocation();
@@ -17,12 +19,14 @@ export default function HRDashboardView({ triggerNotification }) {
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
     if (path.includes('/training-details')) return 'training-details';
+    if (path.includes('/input-form')) return 'input-form';
     return 'contractual-employment';
   }, [location.pathname]);
 
   const tabs = [
     { id: 'contractual-employment', label: 'Contractual Employment', icon: UserPlus },
     { id: 'training-details', label: 'Training Details', icon: BookOpen },
+    { id: 'input-form', label: 'Input Form', icon: FileEdit },
   ];
 
   const handleTabChange = (tabId) => {
@@ -56,6 +60,7 @@ export default function HRDashboardView({ triggerNotification }) {
         <Routes>
           <Route path="contractual-employment" element={<ContractualEmployment triggerNotification={triggerNotification} />} />
           <Route path="training-details" element={<TrainingDetails triggerNotification={triggerNotification} />} />
+          <Route path="input-form/*" element={<InputForm triggerNotification={triggerNotification} />} />
 
           <Route index element={<Navigate to="contractual-employment" replace />} />
           <Route path="*" element={<Navigate to="contractual-employment" replace />} />

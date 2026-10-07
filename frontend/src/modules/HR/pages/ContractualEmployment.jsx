@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Search, ChevronDown, X, Pencil, Trash2 } from 'lucide-react';
+import { Search, ChevronDown, X, Pencil, Trash2, Filter, RotateCcw } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
@@ -14,6 +16,18 @@ export default function ContractualEmployment() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [pageSize, setPageSize] = useState(10);
+
+  const navigate = useNavigate();
+
+  const handleEdit = (data) => {
+    navigate('/hr/hr-management/input-form/contractual-data', { state: { editData: data } });
+  };
+
+  const handleDelete = (data) => {
+    if (window.confirm('Are you sure you want to delete this record?')) {
+      alert(`Delete record for ${data['Financial Year']} ? Backend API integration pending.`);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -50,16 +64,25 @@ export default function ContractualEmployment() {
     
     if (!isMinistryView) {
       cols.push({
-        headerName: 'Update',
+        field: 'Actions',
+        headerName: 'Actions',
         minWidth: 150,
         cellClass: 'text-center',
         headerClass: 'text-center',
         cellRenderer: (params) => (
           <div className="flex items-center justify-center space-x-2 h-full">
-            <button className="bg-amber-500 hover:bg-amber-600 text-white p-1.5 rounded transition cursor-pointer flex items-center justify-center">
+            <button 
+              onClick={() => handleEdit(params.data)}
+              className="bg-amber-500 hover:bg-amber-600 text-white p-1.5 rounded transition cursor-pointer flex items-center justify-center" 
+              title="Edit"
+            >
               <Pencil className="w-3.5 h-3.5" />
             </button>
-            <button className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded transition cursor-pointer flex items-center justify-center">
+            <button 
+              onClick={() => handleDelete(params.data)}
+              className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded transition cursor-pointer flex items-center justify-center" 
+              title="Delete"
+            >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -92,23 +115,46 @@ export default function ContractualEmployment() {
     });
   }, [staff, selectedOrg, selectedYear, searchTerm]);
 
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedYear) count++;
+    if (selectedOrg) count++;
+    return count;
+  }, [selectedYear, selectedOrg]);
+
+  const resetFilters = () => {
+    setSelectedOrg('');
+    setSelectedYear('');
+    setSearchTerm('');
+  };
+
   const [visibleCols, setVisibleCols] = useState(() => {
     const initial = {
       'Organisation Name': true,
       'Financial Year': true,
       'Total for officers level': true,
       'Total for Non-officers level': true,
-      'Update': true
+      'Actions': true
     };
     return initial;
   });
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = React.useRef(null);
+  
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalData, setModalData] = useState(null);
+  const [modalType, setModalType] = useState(''); // 'officer' or 'non-officer'
+
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterDropdownRef = React.useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
+      }
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target)) {
+        setFilterOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -116,7 +162,43 @@ export default function ContractualEmployment() {
   }, []);
 
   const activeColumnDefs = useMemo(() => {
-    return columnDefs.filter(col => {
+    return columnDefs.map(col => {
+      if (col.field === 'Total for officers level') {
+        return {
+          ...col,
+          cellRenderer: (params) => (
+            <div 
+              className="cursor-pointer hover:underline h-full flex items-center justify-center w-full"
+              onClick={() => {
+                setModalData(params.data);
+                setModalType('officer');
+                setModalOpen(true);
+              }}
+            >
+              {params.value}
+            </div>
+          )
+        };
+      }
+      if (col.field === 'Total for Non-officers level') {
+        return {
+          ...col,
+          cellRenderer: (params) => (
+            <div 
+              className="cursor-pointer hover:underline h-full flex items-center justify-center w-full"
+              onClick={() => {
+                setModalData(params.data);
+                setModalType('non-officer');
+                setModalOpen(true);
+              }}
+            >
+              {params.value}
+            </div>
+          )
+        };
+      }
+      return col;
+    }).filter(col => {
       if (col.headerName === 'S.No') return true;
       if (col.field) return visibleCols[col.field] !== false;
       return true;
@@ -129,7 +211,10 @@ export default function ContractualEmployment() {
       {/* Top Action Row for Org View */}
       {!isMinistryView && (
         <div className="flex justify-end mb-4">
-          <button className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded shadow-sm transition cursor-pointer">
+          <button 
+            onClick={() => navigate('/hr/hr-management/input-form/contractual-data')}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded shadow-sm transition cursor-pointer"
+          >
             Add Contractual Data
           </button>
         </div>
@@ -139,57 +224,46 @@ export default function ContractualEmployment() {
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">
         
         {/* Action Bar */}
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col lg:flex-row lg:items-center gap-4">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4 z-20 relative">
           
-          {/* 1. Left: Filter Drops */}
-          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-            {/* Org Dropdown (Only in Ministry View) */}
-            {isMinistryView && (
-              <div className="relative">
-                <select
-                  value={selectedOrg}
-                  onChange={(e) => setSelectedOrg(e.target.value)}
-                  className="appearance-none pl-3 pr-8 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm min-w-[140px] dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
-                >
-                  <option value="">All Organisations</option>
-                  {uniqueOrgs.map(org => (
-                    <option key={org} value={org}>{org}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-              </div>
-            )}
+          {/* 1. Left: Collapsible Filter Button */}
+          <div className="flex flex-wrap items-center gap-2.5">
 
-            {/* Year Dropdown */}
-            <div className="relative">
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="appearance-none pl-3 pr-8 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm min-w-[140px] dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
-              >
-                <option value="">All Years</option>
-                {uniqueYears.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            </div>
+            {/* Collapsible Filter Toggle Button */}
+            <button
+              onClick={() => setFilterOpen(prev => !prev)}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer border shadow-sm select-none
+                ${
+                filterOpen || activeFiltersCount > 0
+                  ? 'bg-blue-50/80 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Filter className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
+              <span>Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="flex items-center justify-center bg-blue-600 text-white text-[10px] h-4 w-4 rounded-full font-black">
+                  {activeFiltersCount}
+                </span>
+              )}
+              <ChevronDown
+                className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
+                  filterOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
 
-            {(selectedOrg || selectedYear) && (
+            {/* Quick Reset Button if filters active */}
+            {activeFiltersCount > 0 && (
               <button
-                type="button"
-                onClick={() => {
-                  setSelectedOrg('');
-                  setSelectedYear('');
-                }}
-                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-900 transition cursor-pointer"
+                onClick={resetFilters}
+                className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer dark:hover:bg-rose-900/30"
+                title="Reset Filters"
               >
-                Reset
+                <RotateCcw className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
-
-          <div className="hidden lg:block flex-1" />
 
           {/* Right: Actions */}
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
@@ -262,6 +336,61 @@ export default function ContractualEmployment() {
           </div>
         </div>
 
+        {/* Collapsible Filter Panel */}
+        {filterOpen && (
+          <div className="bg-white dark:bg-slate-900 border-x border-b border-slate-200 dark:border-slate-800 rounded-b-xl p-4 shadow-sm animate-fade-in -mt-1 z-10 relative">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
+                <span className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide">
+                  Filter Options
+                </span>
+              </div>
+              {activeFiltersCount > 0 && (
+                <button
+                  onClick={resetFilters}
+                  className="flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Clear all filters
+                </button>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isMinistryView && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Organisation</label>
+                  <select 
+                    value={selectedOrg} 
+                    onChange={(e) => setSelectedOrg(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
+                  >
+                    <option value="">All Organisations</option>
+                    {uniqueOrgs.map(org => (
+                      <option key={org} value={org}>{org}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Financial Year</label>
+                <select 
+                  value={selectedYear} 
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 cursor-pointer transition-colors"
+                >
+                  <option value="">All Years</option>
+                  {uniqueYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Table Area */}
         <div className="p-0 border-t border-slate-200 dark:border-slate-800">
           <Table
@@ -280,6 +409,118 @@ export default function ContractualEmployment() {
           />
         </div>
       </div>
+
+      {/* Breakdown Modal */}
+      {modalOpen && modalData && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setModalOpen(false)}
+          ></div>
+          
+          <div className="relative bg-slate-50 dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-scale-in border border-slate-200 dark:border-slate-700">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-5 bg-[#0f417a] text-white">
+              <div>
+                <h3 className="text-xl font-bold tracking-wide">
+                  {modalType === 'officer' ? 'Contractual Employees - Officer Level' : 'Contractual Employees - Non-Officer Level'}
+                </h3>
+                <p className="text-blue-100 text-sm mt-0.5 opacity-90">
+                  Detailed breakdown of employment categories
+                </p>
+              </div>
+              <button 
+                onClick={() => setModalOpen(false)}
+                className="text-white hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="p-8 space-y-8">
+              {/* Context Badges */}
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {modalData['Organisation Name'] && (
+                  <div className="inline-flex items-center space-x-2 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 px-4 py-1.5 rounded-full font-semibold border border-emerald-200 dark:border-emerald-800 shadow-sm">
+                    <span className="uppercase text-xs tracking-wider opacity-80">Organisation</span>
+                    <span className="text-sm">{modalData['Organisation Name']}</span>
+                  </div>
+                )}
+                <div className="inline-flex items-center space-x-2 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 px-4 py-1.5 rounded-full font-semibold border border-blue-200 dark:border-blue-800 shadow-sm">
+                  <span className="uppercase text-xs tracking-wider opacity-80">Financial Year</span>
+                  <span className="text-sm">{modalData['Financial Year'] || 'N/A'}</span>
+                </div>
+              </div>
+              {/* Grid of Info Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                
+                {/* Direct Engagement */}
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition duration-200 flex flex-col items-center text-center">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                    Direct Engagement
+                  </span>
+                  <span className="text-3xl font-extrabold text-[#0f417a] dark:text-blue-400">
+                    {modalType === 'officer' ? (modalData['Officer - Direct engagement'] || 0) : (modalData['Non-officer Direct engagement'] || 0)}
+                  </span>
+                </div>
+
+                {/* Retired from other Govt/PSU */}
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition duration-200 flex flex-col items-center text-center">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                    Retired from Govt/PSU
+                  </span>
+                  <span className="text-3xl font-extrabold text-[#0f417a] dark:text-blue-400">
+                    {modalType === 'officer' ? (modalData['Officer - Retired from Govt.'] || 0) : (modalData['Non-officer retired from Govt.'] || 0)}
+                  </span>
+                </div>
+
+                {/* Retired From own Organisation */}
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition duration-200 flex flex-col items-center text-center">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                    Retired from own Org
+                  </span>
+                  <span className="text-3xl font-extrabold text-[#0f417a] dark:text-blue-400">
+                    {modalType === 'officer' ? (modalData['Officer - Retired from own organisation'] || 0) : (modalData['Non-officer retired from own organisation'] || 0)}
+                  </span>
+                </div>
+
+                {/* Through Agency */}
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition duration-200 flex flex-col items-center text-center">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                    Through Agency
+                  </span>
+                  <span className="text-3xl font-extrabold text-[#0f417a] dark:text-blue-400">
+                    {modalType === 'officer' ? (modalData['Officer - Through agency'] || 0) : (modalData['Non-officer through agency'] || 0)}
+                  </span>
+                </div>
+
+                {/* For Ministry */}
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition duration-200 flex flex-col items-center text-center lg:col-span-2">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                    For Ministry
+                  </span>
+                  <span className="text-3xl font-extrabold text-[#0f417a] dark:text-blue-400">
+                    {modalType === 'officer' ? (modalData['Officer - For ministry'] || 0) : (modalData['Non-officer for ministry'] || 0)}
+                  </span>
+                </div>
+
+              </div>
+              
+              {/* Total Summary Footer */}
+              <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+                <div className="flex items-center space-x-3">
+                  <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Count:</span>
+                  <span className="text-2xl font-black text-slate-800 dark:text-slate-100">
+                    {modalType === 'officer' ? (modalData['Total for officers level'] || 0) : (modalData['Total for Non-officers level'] || 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

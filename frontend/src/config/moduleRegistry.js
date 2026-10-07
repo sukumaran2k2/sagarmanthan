@@ -204,6 +204,7 @@ export const MODULE_PAGES = {
       'Contractual Employment',
       'Training Details',
       'HR Reports',
+      'HR Input Form',
     ],
     uiTabs: [
       'HR Dashboard',
@@ -213,6 +214,7 @@ export const MODULE_PAGES = {
       'Contractual Employment',
       'Training Details',
       'HR Reports',
+      'HR Input Form',
     ],
   },
 

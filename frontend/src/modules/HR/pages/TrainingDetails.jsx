@@ -389,26 +389,8 @@ export default function TrainingDetails({ triggerNotification }) {
         {/* Action Bar */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           
-          {/* 1. Left: Show Entries, Total Count, and Collapsible Filter Button */}
+          {/* 1. Left: Collapsible Filter Button */}
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
-              <span className="text-[10px] uppercase font-bold text-slate-400">Show</span>
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
-              >
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-              <span className="text-[10px] uppercase font-bold text-slate-400">entries</span>
-            </div>
-
-            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-              Total: {filteredTrainings.length}
-            </div>
 
             {/* Collapsible Filter Toggle Button */}
             <button
@@ -453,9 +435,30 @@ export default function TrainingDetails({ triggerNotification }) {
             )}
           </div>
 
-          {/* 2. Right: Search, Column Visibility, Copy, Export */}
+          {/* 2. Right: Rows, Total Count, Search, Column Visibility, Copy, Export */}
           <div className="flex flex-wrap items-center gap-2.5 justify-end">
             
+            {/* Rows Limit */}
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Show</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <span className="text-[10px] uppercase font-bold text-slate-400">entries</span>
+            </div>
+
+            {/* Total Count */}
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              Total: {filteredTrainings.length}
+            </div>
+
             {/* Search Input */}
             <div className="relative min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
