@@ -373,7 +373,9 @@ function fromColumnValue(inputType, value) {
   return value;
 }
 
-const formatDateTime = (d) => (d ? new Date(d).toISOString().replace('T', ' ').slice(0, 16) : null);
+// DATETIME columns hold the DB server's clock, which is UTC (Azure SQL always is); shown in IST.
+const IST_OFFSET_MS = 330 * 60 * 1000;
+const formatDateTime = (d) => (d ? new Date(new Date(d).getTime() + IST_OFFSET_MS).toISOString().replace('T', ' ').slice(0, 16) : null);
 
 // ---------- GET /get-form-submissions/:formId ----------
 // Submitted rows only; drafts stay private to the person filling the form.
