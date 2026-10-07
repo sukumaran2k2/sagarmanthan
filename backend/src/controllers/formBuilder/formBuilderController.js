@@ -2,6 +2,7 @@ import sql from 'mssql';
 import fs from 'fs';
 import { pool } from '../../db.js';
 import { storedFilePath, removeFiles, attachmentHeader, originalNameOf } from './formBuilderFiles.js';
+import { getDataScope } from '../../middleware/dataScope.js';
 import {
   buildTableName,
   buildColumnName,
@@ -214,13 +215,17 @@ async function updateForm(req, res, { formName, meta, storableFields }) {
     const lookup = await transaction.request()
       .input('id', sql.Int, formId)
       .query(`
-        SELECT table_name, form_fields
+        SELECT table_name, form_fields, created_by
         FROM mmt_form_definitions WITH (UPDLOCK, HOLDLOCK)
         WHERE id = @id;
       `);
     if (lookup.recordset.length === 0) {
       await rollbackQuietly(transaction);
       return res.status(404).json({ message: 'Form not found' });
+    }
+    if (!canManage(scopeOf(req.user), lookup.recordset[0].created_by)) {
+      await rollbackQuietly(transaction);
+      return res.status(403).json({ message: MANAGE_DENIED });
     }
 
     const { table_name: tableName, form_fields: storedFieldsJson } = lookup.recordset[0];
@@ -292,11 +297,15 @@ async function updateForm(req, res, { formName, meta, storableFields }) {
 async function getCreatedFormData(req, res) {
   try {
     const conn = await pool;
-    const result = await conn.request().query(`
+    const scope = scopeOf(req.user);
+    const result = await bindVisibility(conn.request(), req.user).query(`
+      ${DECLARE_CALLER_ASSIGNMENT_SQL}
       SELECT d.id, d.form_name, d.form_description, d.due_date, d.organisation, d.wing, d.active_status,
              d.submission_count, d.form_fields,
-             CASE WHEN d.due_date < ${TODAY_IST_SQL} THEN 1 ELSE 0 END AS is_past_due
+             CASE WHEN d.due_date < ${TODAY_IST_SQL} THEN 1 ELSE 0 END AS is_past_due,
+             CASE WHEN ${manageableFormsSql(scope)} THEN 1 ELSE 0 END AS can_manage
       FROM mmt_form_definitions d
+      WHERE ${visibleFormsSql(scope)}
       ORDER BY d.created_date DESC;
     `);
 
@@ -325,6 +334,7 @@ async function getCreatedFormData(req, res) {
         dueDate: row.due_date ? new Date(row.due_date).toISOString().split('T')[0] : null,
         status: formStatus(row.active_status, row.is_past_due === 1),
         isActive: row.active_status === '1',
+        canManage: row.can_manage === 1,
         submissionsCount: row.submission_count,
         fields,
       };
@@ -377,12 +387,14 @@ async function getFormSubmissions(req, res) {
 
   try {
     const conn = await pool;
-    const lookup = await conn.request()
+    const scope = scopeOf(req.user);
+    const lookup = await bindVisibility(conn.request(), req.user)
       .input('id', sql.Int, formId)
       .query(`
-        SELECT id, form_name, table_name, form_fields, organisation
-        FROM mmt_form_definitions
-        WHERE id = @id;
+        ${DECLARE_CALLER_ASSIGNMENT_SQL}
+        SELECT d.id, d.form_name, d.table_name, d.form_fields, d.organisation, d.created_by
+        FROM mmt_form_definitions d
+        WHERE d.id = @id AND ${visibleFormsSql(scope)};
       `);
     if (lookup.recordset.length === 0) {
       return res.status(404).json({ message: 'Form not found' });
@@ -397,7 +409,11 @@ async function getFormSubmissions(req, res) {
     const dataFields = fields.filter((f) => f.columnName && isSafeIdentifier(f.columnName));
     const columnList = dataFields.map((f) => `s.[${f.columnName}]`).join(', ');
 
-    const rows = await conn.request().query(`
+    // Organisation users see only their own organisation's responses on forms they didn't create.
+    const ownOrgOnly = !canManage(scope, form.created_by);
+    const rows = await conn.request()
+      .input('scopeOrgId', sql.Int, ownOrgOnly ? scope.organisationId : null)
+      .query(`
       SELECT s.id, s.submission_uid, s.submitted_by, s.submitted_date,
              ${columnList ? columnList + ',' : ''}
              u.name AS submitter_name, u.designation AS submitter_designation,
@@ -406,6 +422,7 @@ async function getFormSubmissions(req, res) {
       LEFT JOIN tbl_user u ON u.user_id = s.submitted_by
       LEFT JOIN mmt_organisation o ON o.organisation_id = u.organisation_id
       WHERE s.submission_status = 'Submitted'
+        ${ownOrgOnly ? 'AND u.organisation_id = @scopeOrgId' : ''}
       ORDER BY s.submitted_date DESC, s.id DESC;
     `);
 
@@ -477,6 +494,41 @@ const ASSIGNED_TO_CALLER_SQL = `(
 const bindCallerAssignment = (request, user) => request
   .input('orgId', sql.Int, Number(user?.organisationId) || null)
   .input('wingId', sql.Int, Number(user?.wingId) || null);
+
+// ---------- visibility (the app's dataScope) ----------
+// MASTER / MINISTRY users see and change every form. ORGANISATION users see forms they
+// created or that are assigned to their organisation or wing; on forms they didn't
+// create they see only their own organisation's responses; they can change (edit,
+// delete, ON/OFF) only forms they created. Any other scope sees nothing, as in
+// applyDataScope.
+function scopeOf(user) {
+  const { isWide, isOrganisation, organisationId } = getDataScope(user);
+  return {
+    isWide,
+    isOrganisation: isOrganisation && Number.isFinite(organisationId) && organisationId > 0,
+    organisationId,
+    userId: Number(user?.userId) || null,
+  };
+}
+
+// Forms the caller can see; needs alias `d`, DECLARE_CALLER_ASSIGNMENT_SQL and bindVisibility.
+function visibleFormsSql(scope) {
+  if (scope.isWide) return '1 = 1';
+  if (!scope.isOrganisation) return '1 = 0';
+  return `(d.created_by = @callerId OR ${ASSIGNED_TO_CALLER_SQL})`;
+}
+
+function manageableFormsSql(scope) {
+  if (scope.isWide) return '1 = 1';
+  if (!scope.isOrganisation) return '1 = 0';
+  return 'd.created_by = @callerId';
+}
+
+const bindVisibility = (request, user) => bindCallerAssignment(request, user)
+  .input('callerId', sql.Int, Number(user?.userId) || null);
+
+const canManage = (scope, createdBy) => scope.isWide || (scope.isOrganisation && createdBy === scope.userId);
+const MANAGE_DENIED = 'You can only change forms you created';
 
 // ---------- GET /get-inbox-forms ----------
 // Active forms assigned to the caller's organisation (by code) or wing (by name),
@@ -915,10 +967,14 @@ async function deleteForm(req, res) {
 
     const lookup = await transaction.request()
       .input('id', sql.Int, formId)
-      .query(`SELECT form_name, table_name FROM mmt_form_definitions WITH (UPDLOCK, HOLDLOCK) WHERE id = @id;`);
+      .query(`SELECT form_name, table_name, created_by FROM mmt_form_definitions WITH (UPDLOCK, HOLDLOCK) WHERE id = @id;`);
     if (lookup.recordset.length === 0) {
       await rollbackQuietly(transaction);
       return res.status(404).json({ message: 'Form not found' });
+    }
+    if (!canManage(scopeOf(req.user), lookup.recordset[0].created_by)) {
+      await rollbackQuietly(transaction);
+      return res.status(403).json({ message: MANAGE_DENIED });
     }
     const { form_name: formName, table_name: tableName } = lookup.recordset[0];
     if (!isSafeIdentifier(tableName)) {
@@ -976,6 +1032,15 @@ async function toggleFormStatus(req, res) {
 
   try {
     const conn = await pool;
+    const owner = await conn.request()
+      .input('id', sql.Int, formId)
+      .query(`SELECT created_by FROM mmt_form_definitions WHERE id = @id;`);
+    if (owner.recordset.length === 0) {
+      return res.status(404).json({ message: 'Form not found' });
+    }
+    if (!canManage(scopeOf(req.user), owner.recordset[0].created_by)) {
+      return res.status(403).json({ message: MANAGE_DENIED });
+    }
     const result = await conn.request()
       .input('id', sql.Int, formId)
       .input('active_status', sql.NVarChar(10), active ? '1' : '0')
@@ -1023,12 +1088,14 @@ async function cloneForm(req, res) {
     transaction = new sql.Transaction(conn);
     await transaction.begin();
 
-    const lookup = await transaction.request()
+    // Any form the caller can see may be cloned; the copy becomes theirs.
+    const lookup = await bindVisibility(transaction.request(), req.user)
       .input('id', sql.Int, sourceId)
       .query(`
-        SELECT form_name, form_description, due_date, organisation, wing, division, active_status, form_fields
-        FROM mmt_form_definitions
-        WHERE id = @id;
+        ${DECLARE_CALLER_ASSIGNMENT_SQL}
+        SELECT d.form_name, d.form_description, d.due_date, d.organisation, d.wing, d.division, d.active_status, d.form_fields
+        FROM mmt_form_definitions d
+        WHERE d.id = @id AND ${visibleFormsSql(scopeOf(req.user))};
       `);
     if (lookup.recordset.length === 0) {
       await rollbackQuietly(transaction);
@@ -1081,6 +1148,36 @@ async function cloneForm(req, res) {
 // Streams an uploaded file as a download (never rendered inline), under its original name.
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Ministry users may download any file. Organisation users may download a file if it is
+// on their own response, on a form they created, or on a submitted response from their
+// own organisation to a form they can see.
+async function canDownload(conn, user, submissionUid) {
+  const scope = scopeOf(user);
+  if (scope.isWide) return true;
+  if (!scope.isOrganisation) return false;
+
+  const visible = await bindVisibility(conn.request(), user).query(`
+    ${DECLARE_CALLER_ASSIGNMENT_SQL}
+    SELECT d.id, d.table_name, d.created_by FROM mmt_form_definitions d WHERE ${visibleFormsSql(scope)};
+  `);
+  const forms = visible.recordset.filter((f) => isSafeIdentifier(f.table_name));
+  if (!forms.length) return false;
+
+  const unions = forms.map((f) => `
+    SELECT ${Number(f.id)} AS form_id, s.submitted_by, s.submission_status, u.organisation_id
+    FROM [${f.table_name}] s LEFT JOIN tbl_user u ON u.user_id = s.submitted_by
+    WHERE s.submission_uid = @uid`).join('\n    UNION ALL');
+  const found = await conn.request()
+    .input('uid', sql.UniqueIdentifier, submissionUid)
+    .query(unions);
+  const row = found.recordset[0];
+  if (!row) return false;
+  const form = forms.find((f) => f.id === row.form_id);
+  return row.submitted_by === scope.userId
+    || form.created_by === scope.userId
+    || (row.submission_status === 'Submitted' && row.organisation_id === scope.organisationId);
+}
+
 async function downloadFormFile(req, res) {
   const { submissionUid, fieldId } = req.params;
   if (!GUID_RE.test(String(submissionUid)) || !/^file_\d+$/.test(String(fieldId))) {
@@ -1094,6 +1191,9 @@ async function downloadFormFile(req, res) {
       .input('field', sql.NVarChar(sql.MAX), fieldId)
       .query(`SELECT TOP 1 file_name, unique_file_name FROM ${FILE_MAPPING} WHERE uid = @uid AND field_name = @field;`);
     if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+    if (!(await canDownload(conn, req.user, submissionUid))) {
       return res.status(404).json({ message: 'File not found' });
     }
     const { file_name: fileName, unique_file_name: uniqueName } = result.recordset[0];

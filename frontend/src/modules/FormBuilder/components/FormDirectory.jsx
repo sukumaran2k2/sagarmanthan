@@ -343,6 +343,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
                       <span>Clone</span>
                     </button>
 
+                    {form.canManage !== false && (<>
                     <button
                       onClick={(e) => { 
                         e.stopPropagation(); 
@@ -375,9 +376,12 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
                       </div>
                       <span>{isSwitchOn(form) ? 'ON' : 'OFF'}</span>
                     </button>
+                    </>)}
                   </>
                 )}
 
+                {/* Organisation users can change only forms they created (canManage from the server). */}
+                {form.canManage !== false && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setFormToDelete(form); }}
                   className="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition cursor-pointer"
@@ -385,6 +389,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
+                )}
               </div>
             </div>
           );
