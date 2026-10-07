@@ -137,6 +137,36 @@ async function modifyFormBuilderInputForm(req, res) {
   return createForm(req, res, { formName, meta, storableFields });
 }
 
+// Inserts a definition row and creates its tbl_fb_<id> table inside the caller's
+// transaction. Shared by create and clone so both build forms the same way.
+async function insertFormWithTable(transaction, { formName, meta, storableFields, createdBy }) {
+  const insertReq = bindMetadata(transaction.request(), formName, meta);
+  insertReq.input('created_by', sql.Int, createdBy);
+  const insertResult = await insertReq.query(`
+      INSERT INTO mmt_form_definitions
+        (form_name, form_description, table_name, form_fields, due_date, organisation, wing, division, active_status, created_by)
+      OUTPUT INSERTED.id
+      VALUES
+        (@form_name, @form_description, '', '[]', @due_date, @organisation, @wing, @division, @active_status, @created_by);
+    `);
+  const formId = insertResult.recordset[0].id;
+  const tableName = buildTableName(formId);
+
+  const { ddl, fieldsForJson } = buildSubmissionsTable(tableName, storableFields);
+  await transaction.request().query(ddl);
+
+  const updateReq = transaction.request();
+  updateReq.input('id', sql.Int, formId);
+  updateReq.input('table_name', sql.NVarChar(128), tableName);
+  updateReq.input('form_fields', sql.NVarChar(sql.MAX), JSON.stringify(fieldsForJson));
+  await updateReq.query(`
+      UPDATE mmt_form_definitions
+      SET table_name = @table_name, form_fields = @form_fields, updated_date = GETDATE()
+      WHERE id = @id;
+    `);
+  return { formId, tableName };
+}
+
 async function createForm(req, res, { formName, meta, storableFields }) {
   let transaction;
   try {
@@ -144,31 +174,13 @@ async function createForm(req, res, { formName, meta, storableFields }) {
     transaction = new sql.Transaction(conn);
     await transaction.begin();
 
-    const insertReq = bindMetadata(transaction.request(), formName, meta);
-    // Creator comes from the verified token, never from the request body.
-    insertReq.input('created_by', sql.Int, Number(req.user?.userId) || null);
-    const insertResult = await insertReq.query(`
-      INSERT INTO mmt_form_definitions
-        (form_name, form_description, table_name, form_fields, due_date, organisation, wing, division, active_status, created_by)
-      OUTPUT INSERTED.id
-      VALUES
-        (@form_name, @form_description, '', '[]', @due_date, @organisation, @wing, @division, @active_status, @created_by);
-    `);
-    const formId = insertResult.recordset[0].id;
-    const tableName = buildTableName(formId);
-
-    const { ddl, fieldsForJson } = buildSubmissionsTable(tableName, storableFields);
-    await transaction.request().query(ddl);
-
-    const updateReq = transaction.request();
-    updateReq.input('id', sql.Int, formId);
-    updateReq.input('table_name', sql.NVarChar(128), tableName);
-    updateReq.input('form_fields', sql.NVarChar(sql.MAX), JSON.stringify(fieldsForJson));
-    await updateReq.query(`
-      UPDATE mmt_form_definitions
-      SET table_name = @table_name, form_fields = @form_fields, updated_date = GETDATE()
-      WHERE id = @id;
-    `);
+    const { formId, tableName } = await insertFormWithTable(transaction, {
+      formName,
+      meta,
+      storableFields,
+      // Creator comes from the verified token, never from the request body.
+      createdBy: Number(req.user?.userId) || null,
+    });
 
     await transaction.commit();
     res.status(201).json({ id: formId, tableName, message: 'Form created successfully' });
@@ -877,5 +889,76 @@ async function toggleFormStatus(req, res) {
   }
 }
 
-const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData, getMyFormResponse, deleteForm, toggleFormStatus };
+// ---------- POST /clone-form/:formId ----------
+// Copies a form's fields and settings (description, due date, organisations, wings,
+// ON/OFF) into a new form with its own empty table. Unlike 2.0, submissions are not
+// copied and the person cloning becomes the creator. Named "<name> (Copy)", then
+// "(Copy 2)", "(Copy 3)"... if that name is taken.
+async function cloneForm(req, res) {
+  const sourceId = Number(req.params.formId);
+  if (!Number.isInteger(sourceId) || sourceId <= 0) {
+    return res.status(400).json({ message: 'Invalid form id' });
+  }
+
+  let transaction;
+  try {
+    const conn = await pool;
+    transaction = new sql.Transaction(conn);
+    await transaction.begin();
+
+    const lookup = await transaction.request()
+      .input('id', sql.Int, sourceId)
+      .query(`
+        SELECT form_name, form_description, due_date, organisation, wing, division, active_status, form_fields
+        FROM mmt_form_definitions
+        WHERE id = @id;
+      `);
+    if (lookup.recordset.length === 0) {
+      await rollbackQuietly(transaction);
+      return res.status(404).json({ message: 'Form not found' });
+    }
+    const source = lookup.recordset[0];
+
+    let storedFields = [];
+    try { storedFields = JSON.parse(source.form_fields || '[]'); } catch { storedFields = []; }
+    const { error, storableFields } = normalizeFields(storedFields);
+    if (error) {
+      await rollbackQuietly(transaction);
+      return res.status(409).json({ message: `This form can't be cloned: ${error}` });
+    }
+
+    // Pick the first free "(Copy)" / "(Copy N)" name. Compared in JS, so the form
+    // name never goes into a LIKE pattern.
+    const base = `${source.form_name} (Copy`;
+    const taken = await transaction.request()
+      .input('base', sql.NVarChar(255), base)
+      .query(`SELECT form_name FROM mmt_form_definitions WHERE LEFT(form_name, LEN(@base)) = @base;`);
+    const takenNames = new Set(taken.recordset.map((r) => r.form_name));
+    let formName = `${base})`;
+    for (let n = 2; takenNames.has(formName); n++) formName = `${base} ${n})`;
+
+    const { formId, tableName } = await insertFormWithTable(transaction, {
+      formName,
+      meta: {
+        formDescription: source.form_description,
+        formDueDate: source.due_date,
+        organisation: source.organisation,
+        wing: source.wing,
+        division: source.division,
+        activeStatus: source.active_status,
+      },
+      storableFields,
+      createdBy: Number(req.user?.userId) || null,
+    });
+
+    await transaction.commit();
+    res.status(201).json({ id: formId, tableName, formName, message: `Cloned as "${formName}"` });
+  } catch (err) {
+    await rollbackQuietly(transaction);
+    console.error('cloneForm error:', err);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
+const formBuilderController = { modifyFormBuilderInputForm, getCreatedFormData, getFormSubmissions, getInboxForms, submitFormData, getMyFormResponse, deleteForm, toggleFormStatus, cloneForm };
 export default formBuilderController;

@@ -2836,6 +2836,12 @@ router.post(
   requireModulePermission("FORM_BUILDER", "update"),
   formBuilderController.toggleFormStatus
 );
+router.post(
+  '/clone-form/:formId',
+  auth,
+  requireModulePermission("FORM_BUILDER", "create"),
+  formBuilderController.cloneForm
+);
 router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "delete"), formBuilderController.deleteForm); // replaces the legacy formBuilderInput.js implementation -- see formBuilderController.js
 router.post("/edit-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "update"), formBuilderInputTab.editMmtFormBuilder); //req //edit forms
 

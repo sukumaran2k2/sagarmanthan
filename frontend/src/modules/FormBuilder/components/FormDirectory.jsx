@@ -136,7 +136,20 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
     loadForms();
   }, []);
 
-  const handleCloneForm = (form) => {
+  const handleCloneForm = async (form) => {
+    // Real forms are cloned on the server, then the list is reloaded so the new
+    // card comes back in the server's shape.
+    if (/^\d+$/.test(String(form.id))) {
+      try {
+        const res = await api.post(`/clone-form/${form.id}`);
+        triggerNotification && triggerNotification(res.data.message, 'success');
+        loadForms();
+      } catch (err) {
+        console.error('Error cloning form:', err);
+        triggerNotification && triggerNotification(err.response?.data?.message || `Could not clone "${form.formName}"`, 'error');
+      }
+      return;
+    }
     const clonedForm = {
       ...form,
       id: `form_${Date.now()}`,
