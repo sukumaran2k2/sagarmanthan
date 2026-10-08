@@ -58,11 +58,14 @@ Test users: a Ministry user (e.g. role 4, DIRECTOR) and an organisation user (ro
 45. File name with accents or quotes (e.g. `rép"ort.pdf`) → shown and downloaded with the same name.
 
 ## Submissions
-46. Columns: S.No, Port Authority, Submitted By, Submission Date, then one column per form field.
-47. Submission Date shown in IST.
-48. Drafts never appear.
-49. More than 10 responses → 10 per page, pager shows total entries; S.No continues across pages (page 2 starts at 11).
-50. Search by organisation or officer name → filters on the server, returns to page 1; `%` and `_` match literally.
-51. Stats strip (Total Submissions, Officers, Compliance %) counts all responses, not just the page or search.
-52. File column → download button saves the file under its original name.
-53. Export → Excel downloads a CSV with every matching row (not just the visible page) that opens correctly in Excel.
+46. Page uses the brown report theme (header, Export, table header, pager), like the other modules' Reports pages.
+47. Columns: S.No, Port Authority, Submitted By, Submission Date, Status, then one column per form field.
+48. Submission Date shown in IST.
+49. Submitted responses listed first (newest first), then one red "Not submitted" row per assigned organisation or wing that hasn't submitted, A-Z, with empty fields.
+50. An organisation with only a draft still shows as Not submitted; its row disappears once someone there submits.
+51. Organisation user → sees only their own organisation: their responses, or a single Not submitted row.
+52. More than 10 rows → 10 per page, pager shows total entries; S.No continues across pages (page 2 starts at 11).
+53. Search by organisation or officer name → filters on the server (including Not submitted rows), returns to page 1; `%` and `_` match literally.
+54. Stats strip (Total Submissions, Submission Rate, Not Submitted) covers all rows, not just the page or search.
+55. File column → download button saves the file under its original name.
+56. Export → Excel downloads a CSV with every matching row, including Not submitted rows and the Status column, that opens correctly in Excel.
