@@ -501,14 +501,19 @@ async function getFormSubmissions(req, res) {
       total = counted.recordset[0].n;
     }
 
-    // Header stats cover every visible response, not just this page or search.
+    // Header stats cover every visible response, not just this page or search. The
+    // responding organisations come back as a DISTINCT list (one row per organisation),
+    // not one code per response.
     const statsResult = await bindFilters(conn.request()).query(`
       SELECT COUNT(*) AS total_submissions,
-             COUNT(DISTINCT s.submitted_by) AS distinct_submitters,
-             STRING_AGG(CAST(o.organisation_code AS NVARCHAR(MAX)), ',') AS org_codes
+             COUNT(DISTINCT s.submitted_by) AS distinct_submitters
       ${baseFrom};
+      SELECT DISTINCT o.organisation_code AS code
+      ${baseFrom}
+        AND o.organisation_code IS NOT NULL;
     `);
-    const statsRow = statsResult.recordset[0];
+    const statsRow = statsResult.recordsets[0][0];
+    const respondedOrganisations = new Set(statsResult.recordsets[1].map((r) => r.code));
 
     // Uploaded files for the rows on this page, keyed by submission uid then field id.
     const filesByUid = new Map();
@@ -544,7 +549,6 @@ async function getFormSubmissions(req, res) {
     });
 
     const assignedOrganisations = String(form.organisation || '').split(',').filter(Boolean);
-    const respondedOrganisations = new Set(String(statsRow.org_codes || '').split(',').filter(Boolean));
     const pageSize = all ? Math.max(total, 1) : limit;
 
     res.json({
