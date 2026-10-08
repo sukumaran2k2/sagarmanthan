@@ -4,11 +4,11 @@ Test users: a Ministry user (e.g. role 4, DIRECTOR) and an organisation user (ro
 
 ## Access & visibility
 1. User without FORM_BUILDER access → cannot load Directory, Inbox or Studio data; the API returns 403.
-2. Ministry user → Form Directory lists every form; Edit, ON/OFF and Delete shown on all cards.
-3. Organisation user → Directory lists only forms they created plus forms assigned to their organisation or wing.
-4. Organisation user, form created by Ministry → only Submissions and Clone shown (no Edit, ON/OFF, trash).
-5. Organisation user, form they created → all buttons shown.
-6. Organisation user → Submissions on a Ministry form shows only their own organisation's responses; on their own form, everyone's.
+2. Ministry user → Form Studio tab and menu item shown; Directory lists every form with Clone, Edit, ON/OFF and Delete on all cards.
+3. Organisation user → no Form Studio tab or top-menu item; opening /form-builder/studio or /edit lands on Inbox.
+4. Organisation user → Directory lists only forms assigned to their organisation or wing; cards show Submissions only (no Clone, Edit, ON/OFF, trash).
+5. Organisation user → creating, editing, deleting, switching or cloning a form via the API returns 403 "Only Ministry users can create or change forms".
+6. Organisation user → Submissions shows only their own organisation's responses.
 7. Expired session → Directory and Inbox show a red "session has expired" banner with Retry, not mock forms.
 8. Backend unreachable → red "Could not load ..." banner with Retry; Retry after recovery loads real forms.
 
