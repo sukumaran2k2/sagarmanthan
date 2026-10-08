@@ -134,7 +134,6 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
   const pagination = realData?.pagination;
 
   const stats = realData?.stats;
-  const officersText = isRealForm ? `${stats?.distinctSubmitters ?? 0} Officers` : '3 Nodal Officers';
   const complianceText = !isRealForm
     ? '84% Compliance'
     : stats?.assignedOrganisations
@@ -180,7 +179,7 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
             <button
               type="button"
               onClick={() => downloadFile(params.data.submissionUid, f.id, file.fileName)}
-              className="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
+              className="inline-flex items-center space-x-1 text-[#4b2424] hover:text-[#6b3535] font-semibold cursor-pointer"
               title={`Download ${file.fileName}`}
             >
               <Download className="h-3.5 w-3.5 shrink-0" />
@@ -206,6 +205,24 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
     { field: 'portName', headerName: 'Port Authority', cellStyle: { fontWeight: 'bold', color: '#0f172a', fontSize: '11px' }, flex: 2.5 },
     { field: 'submittedBy', headerName: 'Submitted By', cellStyle: { fontSize: '11px' }, flex: 1.5 },
     { field: 'submittedOn', headerName: 'Submission Date', cellStyle: { color: '#64748b', fontSize: '11px' } },
+    {
+      colId: 'status',
+      headerName: 'Status',
+      // Mock rows carry no status; they are all submitted responses.
+      valueGetter: (p) => p.data?.status || 'Submitted',
+      cellRenderer: (params) => (
+        <div className="flex items-center h-full">
+          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border leading-none whitespace-nowrap ${
+            params.value === 'Not submitted'
+              ? 'bg-red-100 text-red-700 border-red-200'
+              : 'bg-[#f7f3f3] text-[#4b2424] border-[#eadede]'
+          }`}>
+            {params.value}
+          </span>
+        </div>
+      ),
+      width: 130,
+    },
   ];
 
   const mockColumnDefs = [
@@ -216,7 +233,7 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
       valueGetter: (p) => p.data.data['Implementation Stage'],
       cellRenderer: (params) => (
         <div className="flex items-center h-full">
-          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold rounded text-[10px] uppercase border border-blue-200 shadow-sm inline-block whitespace-nowrap leading-none">
+          <span className="px-2 py-0.5 bg-[#f7f3f3] text-[#4b2424] font-bold rounded text-[10px] uppercase border border-[#eadede] shadow-sm inline-block whitespace-nowrap leading-none">
             {params.value}
           </span>
         </div>
@@ -233,36 +250,43 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
         <div>
           <button
             onClick={onBackToDirectory}
-            className="flex items-center space-x-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 mb-2 cursor-pointer transition-colors"
+            className="flex items-center space-x-1.5 text-xs font-bold text-[#4b2424] hover:text-[#6b3535] dark:text-[#eadede] mb-2 cursor-pointer transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <span>Back to Form Directory</span>
           </button>
 
-          <h2 className="text-xl font-black text-slate-900 flex items-center space-x-2">
-            <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
-            <span>Submissions & Responses — {formTitle}</span>
-          </h2>
+          {/* Brown report styling, same palette as the other modules' Reports pages */}
+          <div className="flex items-center gap-1.5 mb-1">
+            <FileSpreadsheet size={14} className="text-[#8c4242] dark:text-[#eadede]" strokeWidth={2.5} />
+            <span className="text-[10.5px] font-black text-[#8c4242] dark:text-[#eadede] uppercase tracking-widest">Form Builder - Submissions & Responses</span>
+          </div>
+          <h2 className="text-xl font-bold text-[#4b2424] dark:text-[#eadede] tracking-wide">{formTitle}</h2>
+          <div className="text-xs text-slate-500 mt-1">
+            As on date: <strong className="text-[#4b2424] dark:text-[#eadede]">{new Date(Date.now() + 330 * 60 * 1000).toISOString().split('T')[0]}</strong>
+          </div>
         </div>
         
         <ExportDropdown 
           onExportExcel={handleExportExcel} 
           onExportPdf={() => window.print()} 
+          color="#4b2424"
+          hoverColor="#6b3535"
         />
       </div>
 
       {/* Toolbar & Stats Section */}
-      <div className="p-5 border-b border-slate-200/80 bg-slate-50/50 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+      <div className="p-5 border-b border-slate-200/80 bg-[#f7f3f3]/60 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
         
         {/* Search Bar */}
         <div className="relative w-full lg:w-96">
-          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-[#4b2424]" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by port authority or officer name..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500/20 transition shadow-sm"
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:border-[#4b2424] focus:ring-[3px] focus:ring-[#4b2424]/10 outline-none transition shadow-sm"
           />
         </div>
 
@@ -270,36 +294,45 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
         <div className="flex items-center space-x-8">
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Total Submissions</span>
-            <div className="text-lg font-black text-slate-800">{isRealForm ? (stats?.totalSubmissions ?? 0) : filtered.length}</div>
-          </div>
-          
-          <div className="w-px h-8 bg-slate-200 hidden md:block"></div>
-
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Verified Officers</span>
-            <div className="text-lg font-black text-blue-600">{officersText}</div>
+            <div className="text-lg font-black text-[#4b2424]">{isRealForm ? (stats?.totalSubmissions ?? 0) : filtered.length}</div>
           </div>
           
           <div className="w-px h-8 bg-slate-200 hidden md:block"></div>
 
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Submission Rate</span>
-            <div className="text-lg font-black text-emerald-600">{complianceText}</div>
+            <div className="text-lg font-black text-[#8c4242]">{complianceText}</div>
           </div>
+
+          {isRealForm && (
+            <>
+              <div className="w-px h-8 bg-slate-200 hidden md:block"></div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Not Submitted</span>
+                <div className="text-lg font-black text-red-600">{stats?.notSubmitted ?? 0}</div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       {/* Submissions Data Table */}
       <div className="w-full">
+        {/* Assigned organisations/wings that haven't submitted are listed in red. */}
+        <style>{`
+          .fb-row-pending .ag-cell { background-color: #fef2f2 !important; color: #b91c1c !important; }
+          .fb-row-pending.ag-row-hover .ag-cell { background-color: #fee2e2 !important; }
+        `}</style>
         <Table 
           ref={gridRef}
           rowData={filtered} 
           columnDefs={columnDefs} 
+          rowClassRules={{ 'fb-row-pending': (p) => !!p.data?.isPending }}
           pagination={!isRealForm}
           paginationPageSize={10}
           enableExport={false}
           domLayout="autoHeight"
-          color="#0f417a"
+          color="#4b2424"
           rowHeight={34}
         />
         {isRealForm && pagination?.totalPages > 0 && (
@@ -309,7 +342,7 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
             totalRows={pagination.total}
             pageSize={PAGE_SIZE}
             onPageChange={(pageIndex) => setPage(pageIndex + 1)}
-            color="#0f417a"
+            color="#4b2424"
           />
         )}
       </div>

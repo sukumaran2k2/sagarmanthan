@@ -543,33 +543,67 @@ async function getFormSubmissions(req, res) {
       LEFT JOIN mmt_organisation o ON o.organisation_id = u.organisation_id
       WHERE s.submission_status = 'Submitted'
         ${ownOrgOnly ? 'AND u.organisation_id = @scopeOrgId' : ''}`;
-    const searchSql = search
-      ? `AND (o.organisation_name LIKE @search ESCAPE '\\' OR u.name LIKE @search ESCAPE '\\' OR u.designation LIKE @search ESCAPE '\\')`
-      : '';
     const bindFilters = (request) => request
       .input('scopeOrgId', sql.Int, ownOrgOnly ? scope.organisationId : null)
       .input('search', sql.NVarChar(110), searchPattern);
 
-    const rows = await bindFilters(conn.request())
+    // Rows = every submitted response, then one "Not submitted" row for each assigned
+    // organisation (or wing) none of whose users has submitted. Organisation users only
+    // see their own organisation's row(s). Paged and searched together.
+    const subCols = dataFields.map((f) => `s.[${f.columnName}], `).join('');
+    const plainCols = dataFields.map((f) => `[${f.columnName}], `).join('');
+    const nullCols = dataFields.map(() => 'NULL, ').join('');
+    const rowsCte = `
+      WITH sub AS (
+        SELECT s.id, s.submission_uid, s.submitted_by, s.submitted_date, ${subCols}
+               u.name AS submitter_name, u.designation AS submitter_designation, u.wing_id AS submitter_wing_id,
+               o.organisation_name, o.organisation_code
+        ${baseFrom}
+      ),
+      rows_all AS (
+        SELECT id, submission_uid, submitted_by, submitted_date, ${plainCols}
+               submitter_name, submitter_designation, organisation_name, organisation_code, 0 AS is_pending
+        FROM sub
+        UNION ALL
+        SELECT NULL, NULL, NULL, NULL, ${nullCols}
+               NULL, NULL, COALESCE(org.organisation_name, a.value), a.value, 1
+        FROM mmt_form_assignments a
+        LEFT JOIN mmt_organisation org ON org.organisation_code = a.value
+        WHERE a.form_id = @formId AND a.kind = 'O'
+          AND NOT EXISTS (SELECT 1 FROM sub WHERE sub.organisation_code = a.value)
+          ${ownOrgOnly ? 'AND org.organisation_id = @scopeOrgId' : ''}
+        ${ownOrgOnly ? '' : `UNION ALL
+        SELECT NULL, NULL, NULL, NULL, ${nullCols}
+               NULL, NULL, N'Wing: ' + a.value, NULL, 1
+        FROM mmt_form_assignments a
+        LEFT JOIN mmt_wings w ON w.wing_name = a.value
+        WHERE a.form_id = @formId AND a.kind = 'W'
+          AND NOT EXISTS (SELECT 1 FROM sub WHERE sub.submitter_wing_id = w.wing_id)`}
+      )`;
+    const rowsSearchSql = search
+      ? `WHERE (organisation_name LIKE @search ESCAPE '\\' OR submitter_name LIKE @search ESCAPE '\\' OR submitter_designation LIKE @search ESCAPE '\\')`
+      : '';
+    const bindRows = (request) => bindFilters(request).input('formId', sql.Int, form.id);
+
+    const rows = await bindRows(conn.request())
       .input('offset', sql.Int, (page - 1) * limit)
       .input('limit', sql.Int, limit)
       .query(`
-      SELECT s.id, s.submission_uid, s.submitted_by, s.submitted_date,
-             ${columnList ? columnList + ',' : ''}
-             u.name AS submitter_name, u.designation AS submitter_designation,
-             o.organisation_name, o.organisation_code,
-             COUNT(*) OVER () AS total_count
-      ${baseFrom}
-        ${searchSql}
-      ORDER BY s.submitted_date DESC, s.id DESC
+      ${rowsCte}
+      SELECT *, COUNT(*) OVER () AS total_count
+      FROM rows_all
+      ${rowsSearchSql}
+      ORDER BY is_pending, submitted_date DESC, id DESC, organisation_name
       ${all ? '' : 'OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY'};
     `);
     let total = rows.recordset[0]?.total_count || 0;
     if (!all && rows.recordset.length === 0 && page > 1) {
       // Past the last page: report the real total so the pager can recover.
-      const counted = await bindFilters(conn.request()).query(`SELECT COUNT(*) AS n ${baseFrom} ${searchSql};`);
+      const counted = await bindRows(conn.request()).query(`${rowsCte} SELECT COUNT(*) AS n FROM rows_all ${rowsSearchSql};`);
       total = counted.recordset[0].n;
     }
+    const notSubmitted = (await bindRows(conn.request())
+      .query(`${rowsCte} SELECT COUNT(*) AS n FROM rows_all WHERE is_pending = 1;`)).recordset[0].n;
 
     // Header stats cover every visible response, not just this page or search. The
     // responding organisations come back as a DISTINCT list (one row per organisation),
@@ -587,7 +621,7 @@ async function getFormSubmissions(req, res) {
 
     // Uploaded files for the rows on this page, keyed by submission uid then field id.
     const filesByUid = new Map();
-    const pageUids = rows.recordset.map((r) => String(r.submission_uid).toUpperCase());
+    const pageUids = rows.recordset.filter((r) => r.submission_uid).map((r) => String(r.submission_uid).toUpperCase());
     if (fields.some((f) => f.inputType === 'file') && pageUids.length) {
       const fileReq = conn.request();
       pageUids.forEach((u, i) => fileReq.input(`u${i}`, sql.NVarChar(100), u));
@@ -602,6 +636,19 @@ async function getFormSubmissions(req, res) {
     }
 
     const submissions = rows.recordset.map((r) => {
+      if (r.is_pending) {
+        return {
+          id: null,
+          submissionUid: null,
+          isPending: true,
+          status: 'Not submitted',
+          portName: r.organisation_name,
+          organisationCode: r.organisation_code || null,
+          submittedBy: null,
+          submittedOn: null,
+          data: {},
+        };
+      }
       const data = {};
       for (const f of dataFields) data[f.id] = fromColumnValue(f.inputType, r[f.columnName]);
       Object.assign(data, filesByUid.get(String(r.submission_uid).toUpperCase()) || {});
@@ -614,6 +661,8 @@ async function getFormSubmissions(req, res) {
           ? (r.submitter_designation ? `${r.submitter_name} (${r.submitter_designation})` : r.submitter_name)
           : null,
         submittedOn: formatDateTime(r.submitted_date),
+        isPending: false,
+        status: 'Submitted',
         data,
       };
     });
@@ -629,6 +678,7 @@ async function getFormSubmissions(req, res) {
         distinctSubmitters: statsRow.distinct_submitters,
         assignedOrganisations: assignedOrganisations.length,
         respondedOrganisations: assignedOrganisations.filter((c) => respondedOrganisations.has(c)).length,
+        notSubmitted,
       },
       pagination: {
         total,
