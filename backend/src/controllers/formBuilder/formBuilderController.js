@@ -384,6 +384,7 @@ async function getCreatedFormData(req, res) {
     const scope = scopeOf(req.user);
     // Paged and searched in SQL (name, organisation codes or wings); 9 cards = a 3 x 3 grid.
     const { page, limit, search, searchPattern } = pagingParams(req.query, { defaultLimit: 9, maxLimit: 60 });
+    const all = String(req.query.all) === 'true'; // every matching form (Directory Excel export)
     const searchSql = search
       ? `AND (d.form_name LIKE @search ESCAPE '\\' OR d.organisation LIKE @search ESCAPE '\\' OR d.wing LIKE @search ESCAPE '\\')`
       : '';
@@ -398,13 +399,20 @@ async function getCreatedFormData(req, res) {
       .query(`
       ${DECLARE_CALLER_ASSIGNMENT_SQL}
       SELECT d.id, d.form_name, d.form_description, d.due_date, d.organisation, d.wing, d.active_status,
-             d.submission_count, d.form_fields,
+             d.submission_count, d.form_fields, d.created_date,
+             (SELECT name FROM tbl_user cu WHERE cu.user_id = d.created_by) AS creator_name,
+             -- Assigned organisations by name (code if unknown), then wings.
+             (SELECT STRING_AGG(CASE WHEN a.kind = 'O' THEN COALESCE(o.organisation_name, a.value) ELSE N'Wing: ' + a.value END, ', ')
+                     WITHIN GROUP (ORDER BY a.kind, a.value)
+              FROM mmt_form_assignments a
+              LEFT JOIN mmt_organisation o ON a.kind = 'O' AND o.organisation_code = a.value
+              WHERE a.form_id = d.id) AS assigned_to,
              CASE WHEN d.due_date < ${TODAY_IST_SQL} THEN 1 ELSE 0 END AS is_past_due,
              CASE WHEN ${manageableFormsSql(scope)} THEN 1 ELSE 0 END AS can_manage,
              COUNT(*) OVER () AS total_count
       ${listFrom}
       ORDER BY d.created_date DESC, d.id DESC
-      OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
+      ${all ? '' : 'OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY'};
     `);
     let total = result.recordset[0]?.total_count || 0;
     if (result.recordset.length === 0 && page > 1) {
@@ -441,6 +449,9 @@ async function getCreatedFormData(req, res) {
         status: formStatus(row.active_status, row.is_past_due === 1),
         isActive: row.active_status === '1',
         canManage: row.can_manage === 1,
+        createdBy: row.creator_name || null,
+        createdOn: formatDateTime(row.created_date),
+        assignedTo: row.assigned_to || '',
         submissionsCount: row.submission_count,
         fields,
       };
@@ -448,7 +459,9 @@ async function getCreatedFormData(req, res) {
 
     res.json({
       data: forms,
-      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+      pagination: all
+        ? { total, page: 1, limit: Math.max(total, 1), totalPages: 1 }
+        : { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
     });
   } catch (err) {
     console.error('getCreatedFormData error:', err);
@@ -1270,8 +1283,8 @@ async function toggleFormStatus(req, res) {
       isActive: row.active_status === '1',
       status,
       message: status === 'Overdue'
-        ? 'Form switched ON, but its due date has passed, so it stays closed until the due date is extended'
-        : `Form switched ${active ? 'ON' : 'OFF'}`,
+        ? 'Form set to Active, but its due date has passed, so it stays closed until the due date is extended'
+        : `Form set to ${active ? 'Active' : 'Inactive'}`,
     });
   } catch (err) {
     console.error('toggleFormStatus error:', err);

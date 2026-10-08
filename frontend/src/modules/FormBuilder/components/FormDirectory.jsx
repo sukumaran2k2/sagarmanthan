@@ -3,6 +3,8 @@ import api from '../api';
 import { useFormBuilderPermissions } from '../hooks/useFormBuilderPermissions';
 import ConfirmOverlay from '../../../components/ConfirmOverlay';
 import TablePagination from '../../../components/TablePagination';
+import ExportDropdown from '../../../components/ExportDropdown';
+import * as XLSX from 'xlsx';
 import { 
   FileText, 
   Search, 
@@ -231,6 +233,47 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
     }
   };
 
+  // Overview of every form (not just this page; honours the search) as an Excel file.
+  const EXPORT_HEADERS = ['S.No', 'Form Number', 'Form Name', 'Form Description', 'Created By', 'Created On', 'Organisations / Wings', 'Form Status'];
+  const todayIST = () => new Date(Date.now() + 330 * 60 * 1000).toISOString().slice(0, 10);
+
+  const fetchExportRows = async () => {
+    const res = await api.get('/get-created-form-data', { params: { all: true, search: debouncedSearch } });
+    return (res.data?.data || []).map((f, i) => [
+      i + 1,
+      f.id,
+      f.formName,
+      f.formDescription || '',
+      f.createdBy || '',
+      f.createdOn || '',
+      f.assignedTo || '',
+      f.isActive ? 'Active' : 'Not active',
+    ]);
+  };
+
+  const runExport = async (build) => {
+    try {
+      const rows = await fetchExportRows();
+      if (rows.length === 0) {
+        triggerNotification && triggerNotification('There are no forms to export', 'warning');
+        return;
+      }
+      build(rows);
+    } catch (err) {
+      console.error('Directory export failed', err);
+      triggerNotification && triggerNotification('Could not export the forms', 'error');
+    }
+  };
+
+  const handleExportExcel = () => runExport((rows) => {
+    const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS, ...rows]);
+    ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 40 }, { wch: 50 }, { wch: 24 }, { wch: 18 }, { wch: 60 }, { wch: 12 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Forms');
+    XLSX.writeFile(wb, `Form_Directory_${todayIST()}.xlsx`);
+    triggerNotification && triggerNotification(`Exported ${rows.length} forms to Excel`, 'success');
+  });
+
   // Real forms arrive already filtered and paged; mock forms are filtered here.
   const filteredForms = usingMock
     ? forms.filter(f => 
@@ -284,6 +327,16 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
           >
             Retry
           </button>
+        </div>
+      )}
+
+      {/* Export: right corner, just above the cards */}
+      {!usingMock && (
+        <div className="flex justify-end -mt-3 mb-0">
+          {/* A TOTAL-wide (100px) slot on the right, so Export is centred under TOTAL's midpoint */}
+          <div className="w-[100px] flex justify-center">
+            <ExportDropdown onExportExcel={handleExportExcel} showPdf={false} excelLabel="Excel" />
+          </div>
         </div>
       )}
 
@@ -401,7 +454,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
                           ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' 
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-500'
                       }`}
-                      title="Toggle Status"
+                      title={isSwitchOn(form) ? 'Click to make this form Inactive' : 'Click to make this form Active'}
                     >
                       <div className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
                         isSwitchOn(form) ? 'bg-emerald-500' : 'bg-slate-300'
@@ -410,7 +463,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
                           isSwitchOn(form) ? 'translate-x-3.5' : 'translate-x-0.5'
                         }`} />
                       </div>
-                      <span>{isSwitchOn(form) ? 'ON' : 'OFF'}</span>
+                      <span>{isSwitchOn(form) ? 'Active' : 'Inactive'}</span>
                     </button>
                     </>)}
                   </>

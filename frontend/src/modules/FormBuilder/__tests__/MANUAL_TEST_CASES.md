@@ -4,9 +4,9 @@ Test users: a Ministry user (e.g. role 4, DIRECTOR) and an organisation user (ro
 
 ## Access & visibility
 1. User without FORM_BUILDER access → cannot load Directory, Inbox or Studio data; the API returns 403.
-2. Ministry user → Form Studio tab and menu item shown; Directory lists every form with Clone, Edit, ON/OFF and Delete on all cards.
+2. Ministry user → Form Studio tab and menu item shown; Directory lists every form with Clone, Edit, the Active/Inactive switch and Delete on all cards.
 3. Organisation user → no Form Studio tab or top-menu item; opening /form-builder/studio or /edit lands on Inbox.
-4. Organisation user → Directory lists only forms assigned to their organisation or wing; cards show Submissions only (no Clone, Edit, ON/OFF, trash).
+4. Organisation user → Directory lists only forms assigned to their organisation or wing; cards show Submissions only (no Clone, Edit, Active/Inactive switch, trash).
 5. Organisation user → creating, editing, deleting, switching or cloning a form via the API returns 403 "Only Ministry users can create or change forms".
 6. Organisation user → Submissions shows only their own organisation's responses.
 7. Expired session → Directory and Inbox show a red "session has expired" banner with Retry, not mock forms.
@@ -28,10 +28,10 @@ Test users: a Ministry user (e.g. role 4, DIRECTOR) and an organisation user (ro
 
 ## Form Directory
 21. Card shows status badge (ACTIVE / INACTIVE / OVERDUE), submission count, organisations and due date.
-22. Switch OFF → INACTIVE; persists after reload; form leaves the Inbox and stops accepting responses.
-23. Switch ON → ACTIVE; back in the Inbox.
-24. Form past its due date → OVERDUE badge, switch still shows what was set; not in the Inbox.
-25. Switch ON a past-due form → warning that it stays closed until the due date is extended.
+22. Click the switch on an Active form → it reads Inactive, badge INACTIVE; persists after reload; form leaves the Inbox and stops accepting responses.
+23. Click it again → Active, badge ACTIVE; back in the Inbox.
+24. Form past its due date → OVERDUE badge, switch still reads Active/Inactive as set; not in the Inbox.
+25. Set a past-due form to Active → warning that it stays closed until the due date is extended.
 26. Extend the due date of an overdue form → ACTIVE again.
 27. Clone → "Name (Copy)" card with 0 submissions, same fields and assignment; cloning again gives "(Copy 2)".
 28. Delete → confirm dialog warns submissions are removed; card disappears and stays gone after reload.
@@ -47,7 +47,7 @@ Test users: a Ministry user (e.g. role 4, DIRECTOR) and an organisation user (ro
 36. Submit → "Form submitted", status Submitted, Directory count +1.
 37. Edit Response → answers filled in; submit again → "Response updated", count unchanged.
 38. Save Draft on an already submitted response → refused ("already been submitted"); the response stays Submitted.
-39. Form switched OFF or past its due date while open → submit refused with a clear message.
+39. Form set to Inactive or past its due date while open → submit refused with a clear message.
 
 ## File fields
 40. Required file field empty → "Please select a file", nothing submitted.
