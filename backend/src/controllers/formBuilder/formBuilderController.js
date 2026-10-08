@@ -107,7 +107,10 @@ function buildSubmissionsTable(tableName, storableFields) {
       updated_date DATETIME NOT NULL DEFAULT GETDATE()
     );
     CREATE INDEX idx_submitted_by ON [${tableName}] (submitted_by);
-    CREATE INDEX idx_submission_status ON [${tableName}] (submission_status);
+    -- Submissions list: filter by status and page in submitted order without a sort.
+    CREATE INDEX idx_status_submitted ON [${tableName}] (submission_status, submitted_date DESC, id DESC);
+    -- Lookups by submission uid (file download permission check).
+    CREATE UNIQUE INDEX idx_submission_uid ON [${tableName}] (submission_uid);
   `;
   return { ddl, fieldsForJson };
 }
