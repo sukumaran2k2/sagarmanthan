@@ -11,6 +11,7 @@ import InternalNavigation from '../../components/InternalNavigation';
 import ContractualEmployment from './pages/ContractualEmployment';
 import TrainingDetails from './pages/TrainingDetails';
 import InputForm from './pages/InputForm';
+import ListAbolishedPosts from './pages/ListAbolishedPosts';
 
 export default function HRDashboardView({ triggerNotification }) {
   const location = useLocation();
@@ -18,15 +19,19 @@ export default function HRDashboardView({ triggerNotification }) {
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
+    if (path.includes('/abolished-posts')) return 'abolished-posts';
     if (path.includes('/training-details')) return 'training-details';
     if (path.includes('/input-form')) return 'input-form';
     return 'contractual-employment';
   }, [location.pathname]);
 
+  const isEditMode = !!location.state?.editData;
+
   const tabs = [
+    { id: 'abolished-posts', label: 'List of Abolished Posts', icon: Users },
     { id: 'contractual-employment', label: 'Contractual Employment', icon: UserPlus },
     { id: 'training-details', label: 'Training Details', icon: BookOpen },
-    { id: 'input-form', label: 'Input Form', icon: FileEdit },
+    { id: 'input-form', label: isEditMode && currentTab === 'input-form' ? 'Update Form' : 'Input Form', icon: FileEdit },
   ];
 
   const handleTabChange = (tabId) => {
@@ -58,12 +63,13 @@ export default function HRDashboardView({ triggerNotification }) {
       {/* Child Routes */}
       <div>
         <Routes>
+          <Route path="abolished-posts" element={<ListAbolishedPosts triggerNotification={triggerNotification} />} />
           <Route path="contractual-employment" element={<ContractualEmployment triggerNotification={triggerNotification} />} />
           <Route path="training-details" element={<TrainingDetails triggerNotification={triggerNotification} />} />
           <Route path="input-form/*" element={<InputForm triggerNotification={triggerNotification} />} />
 
-          <Route index element={<Navigate to="contractual-employment" replace />} />
-          <Route path="*" element={<Navigate to="contractual-employment" replace />} />
+          <Route index element={<Navigate to="abolished-posts" replace />} />
+          <Route path="*" element={<Navigate to="abolished-posts" replace />} />
         </Routes>
       </div>
       

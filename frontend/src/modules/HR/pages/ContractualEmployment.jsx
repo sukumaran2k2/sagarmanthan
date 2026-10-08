@@ -208,17 +208,6 @@ export default function ContractualEmployment() {
   return (
     <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
       
-      {/* Top Action Row for Org View */}
-      {!isMinistryView && (
-        <div className="flex justify-end mb-4">
-          <button 
-            onClick={() => navigate('/hr/hr-management/input-form/contractual-data')}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded shadow-sm transition cursor-pointer"
-          >
-            Add Contractual Data
-          </button>
-        </div>
-      )}
 
       {/* Main Content Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">

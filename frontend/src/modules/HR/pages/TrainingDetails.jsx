@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Search, ChevronDown, Eye, X, Pencil, Filter } from 'lucide-react';
+import { Search, ChevronDown, Eye, X, Pencil, Filter, Trash2 } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
@@ -9,6 +10,7 @@ import { getCurrentUserId, isOrganisationUser } from '../../../utils/authSession
 import TrainingDetailView from './TrainingDetailView';
 
 export default function TrainingDetails({ triggerNotification }) {
+  const navigate = useNavigate();
   const [trainings, setTrainings] = useState([]);
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [selectedYear, setSelectedYear] = useState('');
@@ -166,9 +168,9 @@ export default function TrainingDetails({ triggerNotification }) {
       );
     } else {
       cols.push(
-        { field: 'Training Title', headerName: 'Training Title', minWidth: 200, pinned: 'left', cellClass: 'font-extrabold text-slate-900 text-center', headerClass: 'text-center' },
-        { field: 'Training Type', headerName: 'Training Type', minWidth: 150, cellClass: 'text-center', headerClass: 'text-center' },
-        { field: 'Training Source', headerName: 'Training Source', minWidth: 150, cellClass: 'text-center', headerClass: 'text-center' },
+        { field: 'Training Title', headerName: 'Training Title', minWidth: 200, pinned: 'left', wrapText: true, autoHeight: true, cellClass: 'font-extrabold text-slate-900 text-center whitespace-normal break-words', headerClass: 'text-center' },
+        { field: 'Training Type', headerName: 'Training Type', minWidth: 150, wrapText: true, autoHeight: true, cellClass: 'text-center whitespace-normal break-words', headerClass: 'text-center' },
+        { field: 'Training Source', headerName: 'Training Source', minWidth: 150, wrapText: true, autoHeight: true, cellClass: 'text-center whitespace-normal break-words', headerClass: 'text-center' },
         { field: 'Expenditure (In Lakh)', headerName: 'Expenditure (In Lakh)', minWidth: 180, cellClass: 'text-center font-semibold text-slate-800', headerClass: 'text-center' },
         { field: 'Year', headerName: 'Year', minWidth: 120, cellClass: 'text-center', headerClass: 'text-center' },
         { 
@@ -200,11 +202,11 @@ export default function TrainingDetails({ triggerNotification }) {
           }
         },
         {
-          headerName: 'View Details',
-          minWidth: 120,
+          headerName: 'Actions',
+          minWidth: 150,
           cellClass: 'text-center', headerClass: 'text-center',
           cellRenderer: (params) => (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center space-x-2 h-full">
               <button 
                 type="button"
                 onClick={() => setSelectedDetail({
@@ -214,22 +216,33 @@ export default function TrainingDetails({ triggerNotification }) {
                   trainingsList: [params.data?.raw || params.data],
                   initialSelectedTraining: params.data?.raw || params.data
                 })}
-                title="View Training Details & Participant Roster"
+                title="View Training Details"
                 className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 transition cursor-pointer p-1.5 rounded-lg flex items-center justify-center"
               >
                 <Eye className="w-4 h-4" />
               </button>
-            </div>
-          )
-        },
-        {
-          headerName: 'Edit',
-          minWidth: 100,
-          cellClass: 'text-center', headerClass: 'text-center',
-          cellRenderer: () => (
-            <div className="flex items-center justify-center space-x-2 h-full">
-              <button className="bg-amber-500 hover:bg-amber-600 text-white p-1.5 rounded transition cursor-pointer flex items-center justify-center">
-                <Pencil className="w-3.5 h-3.5" />
+              <button 
+                type="button"
+                onClick={() => {
+                  navigate('/hr/hr-management/input-form/training-data', { state: { editData: params.data?.raw || params.data } });
+                }}
+                title="Edit Training Data"
+                className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/40 transition cursor-pointer p-1.5 rounded-lg flex items-center justify-center"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to delete this training data?')) {
+                    // TODO: call delete API
+                    alert('Backend integration pending for deletion.');
+                  }
+                }}
+                title="Delete Training Data"
+                className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/40 transition cursor-pointer p-1.5 rounded-lg flex items-center justify-center"
+              >
+                <Trash2 className="w-4 h-4" />
               </button>
             </div>
           )
@@ -374,14 +387,6 @@ export default function TrainingDetails({ triggerNotification }) {
   return (
     <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
       
-      {/* Top Action Row for Org View */}
-      {!isMinistryView && (
-        <div className="flex justify-end mb-4">
-          <button className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded shadow-sm transition cursor-pointer">
-            Add Training Data
-          </button>
-        </div>
-      )}
 
       {/* Main Content Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">

@@ -142,6 +142,7 @@ export const ROUTE_MAP = {
   'admin/user-list': 'admin/user-list',
 
   // HR nested routes
+  'List of Abolished Posts': 'hr/hr-management/abolished-posts',
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
   'HR Input Form': 'hr/hr-management/input-form',
@@ -195,6 +196,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
 
   if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
+  if (cleanSlug.startsWith('hr/hr-management/abolished-posts')) return 'List of Abolished Posts';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
