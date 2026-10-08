@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
+import { useFormBuilderPermissions } from '../hooks/useFormBuilderPermissions';
 import ConfirmOverlay from '../../../components/ConfirmOverlay';
 import { 
   FileText, 
@@ -111,6 +112,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
   const [formToDelete, setFormToDelete] = useState(null);
+  const { canAuthor } = useFormBuilderPermissions();
   const [loadError, setLoadError] = useState(null);
 
   // Mock forms show only when the request succeeds and the DB has no forms.
@@ -334,6 +336,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
                       <span>Submissions</span>
                     </button>
 
+                    {canAuthor && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleCloneForm(form); }}
                       className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl transition cursor-pointer min-w-[max-content]"
@@ -342,6 +345,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
                       <Copy className="h-3.5 w-3.5" />
                       <span>Clone</span>
                     </button>
+                    )}
 
                     {form.canManage !== false && (<>
                     <button

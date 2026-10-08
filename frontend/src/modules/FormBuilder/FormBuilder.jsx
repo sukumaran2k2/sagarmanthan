@@ -17,10 +17,12 @@ import FormDirectory from './components/FormDirectory';
 import InboxForms from './components/InboxForms';
 import SubmissionsTable from './components/SubmissionsTable';
 import InternalNavigation from '../../components/InternalNavigation';
+import { useFormBuilderPermissions } from './hooks/useFormBuilderPermissions';
 
 export default function FormBuilder({ triggerNotification }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { canAuthor } = useFormBuilderPermissions();
 
   // Initialize active tab from the URL path
   const [activeTab, setActiveTab] = useState(() => {
@@ -51,13 +53,20 @@ export default function FormBuilder({ triggerNotification }) {
     navigate(`/form-builder/${tabId}`);
   };
 
+  // Organisation users only fill forms in: Studio and Edit send them to their Inbox.
+  useEffect(() => {
+    if (!canAuthor && (activeTab === 'studio' || activeTab === 'edit')) {
+      handleTabChange('inbox');
+    }
+  }, [canAuthor, activeTab]);
+
   const handleEditForm = (form) => {
     setFormToEdit(form);
     handleTabChange('edit');
   };
 
   const tabs = [
-    { id: 'studio', label: 'Form Studio' },
+    ...(canAuthor ? [{ id: 'studio', label: 'Form Studio' }] : []),
     { id: 'directory', label: 'Form Directory' },
     { id: 'inbox', label: 'Inbox Forms' }
   ];
@@ -107,14 +116,14 @@ export default function FormBuilder({ triggerNotification }) {
       )}
 
       {/* Main Tab Content */}
-      {activeTab === 'studio' && (
+      {activeTab === 'studio' && canAuthor && (
         <FormBuilderStudio 
           triggerNotification={triggerNotification} 
           onFormPublished={() => handleTabChange('directory')}
         />
       )}
 
-      {activeTab === 'edit' && formToEdit && (
+      {activeTab === 'edit' && formToEdit && canAuthor && (
         <FormBuilderStudio 
           formToEdit={formToEdit}
           triggerNotification={triggerNotification} 

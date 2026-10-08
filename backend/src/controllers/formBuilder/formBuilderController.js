@@ -164,6 +164,10 @@ async function modifyFormBuilderInputForm(req, res) {
   }
   meta.formDueDate = due || null;
 
+  if (!canAuthor(scopeOf(req.user))) {
+    return res.status(403).json({ message: AUTHOR_DENIED });
+  }
+
   const rawId = req.body.formId;
   const hasFormId = rawId !== undefined && rawId !== null && rawId !== '';
   if (hasFormId) {
@@ -254,9 +258,9 @@ async function updateForm(req, res, { formName, meta, storableFields }) {
       await rollbackQuietly(transaction);
       return res.status(404).json({ message: 'Form not found' });
     }
-    if (!canManage(scopeOf(req.user), lookup.recordset[0].created_by)) {
+    if (!canAuthor(scopeOf(req.user))) {
       await rollbackQuietly(transaction);
-      return res.status(403).json({ message: MANAGE_DENIED });
+      return res.status(403).json({ message: AUTHOR_DENIED });
     }
     // Moving the date into the past is refused; an overdue form keeping its date while
     // other details are edited is fine, and extending it is how it reopens.
@@ -449,8 +453,8 @@ async function getFormSubmissions(req, res) {
     const dataFields = fields.filter((f) => f.columnName && isSafeIdentifier(f.columnName));
     const columnList = dataFields.map((f) => `s.[${f.columnName}]`).join(', ');
 
-    // Organisation users see only their own organisation's responses on forms they didn't create.
-    const ownOrgOnly = !canManage(scope, form.created_by);
+    // Organisation users see only their own organisation's responses.
+    const ownOrgOnly = !canAuthor(scope);
 
     // Paging and search happen in SQL. ?all=true returns every matching row (for Export).
     const all = String(req.query.all) === 'true';
@@ -580,11 +584,11 @@ const bindCallerAssignment = (request, user) => request
   .input('wingId', sql.Int, Number(user?.wingId) || null);
 
 // ---------- visibility (the app's dataScope) ----------
-// MASTER / MINISTRY users see and change every form. ORGANISATION users see forms they
-// created or that are assigned to their organisation or wing; on forms they didn't
-// create they see only their own organisation's responses; they can change (edit,
-// delete, ON/OFF) only forms they created. Any other scope sees nothing, as in
-// applyDataScope.
+// Only MASTER / MINISTRY users author forms (create, edit, delete, ON/OFF, clone,
+// Studio drafts) and they see every form and response. ORGANISATION users only fill
+// forms in: they see forms assigned to their organisation or wing (plus any they created
+// before authoring was Ministry-only, now read-only) and only their own organisation's
+// responses. Any other scope sees nothing, as in applyDataScope.
 function scopeOf(user) {
   const { isWide, isOrganisation, organisationId } = getDataScope(user);
   return {
@@ -603,16 +607,14 @@ function visibleFormsSql(scope) {
 }
 
 function manageableFormsSql(scope) {
-  if (scope.isWide) return '1 = 1';
-  if (!scope.isOrganisation) return '1 = 0';
-  return 'd.created_by = @callerId';
+  return scope.isWide ? '1 = 1' : '1 = 0';
 }
 
 const bindVisibility = (request, user) => bindCallerAssignment(request, user)
   .input('callerId', sql.Int, Number(user?.userId) || null);
 
-const canManage = (scope, createdBy) => scope.isWide || (scope.isOrganisation && createdBy === scope.userId);
-const MANAGE_DENIED = 'You can only change forms you created';
+const canAuthor = (scope) => scope.isWide;
+const AUTHOR_DENIED = 'Only Ministry users can create or change forms';
 
 // ---------- GET /get-inbox-forms ----------
 // Active forms assigned to the caller's organisation (by code) or wing (by name),
@@ -1051,9 +1053,9 @@ async function deleteForm(req, res) {
       await rollbackQuietly(transaction);
       return res.status(404).json({ message: 'Form not found' });
     }
-    if (!canManage(scopeOf(req.user), lookup.recordset[0].created_by)) {
+    if (!canAuthor(scopeOf(req.user))) {
       await rollbackQuietly(transaction);
-      return res.status(403).json({ message: MANAGE_DENIED });
+      return res.status(403).json({ message: AUTHOR_DENIED });
     }
     const { form_name: formName, table_name: tableName } = lookup.recordset[0];
     if (!isSafeIdentifier(tableName)) {
@@ -1117,8 +1119,8 @@ async function toggleFormStatus(req, res) {
     if (owner.recordset.length === 0) {
       return res.status(404).json({ message: 'Form not found' });
     }
-    if (!canManage(scopeOf(req.user), owner.recordset[0].created_by)) {
-      return res.status(403).json({ message: MANAGE_DENIED });
+    if (!canAuthor(scopeOf(req.user))) {
+      return res.status(403).json({ message: AUTHOR_DENIED });
     }
     const result = await conn.request()
       .input('id', sql.Int, formId)
@@ -1156,6 +1158,9 @@ async function toggleFormStatus(req, res) {
 // copied and the person cloning becomes the creator. Named "<name> (Copy)", then
 // "(Copy 2)", "(Copy 3)"... if that name is taken.
 async function cloneForm(req, res) {
+  if (!canAuthor(scopeOf(req.user))) {
+    return res.status(403).json({ message: AUTHOR_DENIED });
+  }
   const sourceId = Number(req.params.formId);
   if (!Number.isInteger(sourceId) || sourceId <= 0) {
     return res.status(400).json({ message: 'Invalid form id' });
@@ -1167,7 +1172,7 @@ async function cloneForm(req, res) {
     transaction = new sql.Transaction(conn);
     await transaction.begin();
 
-    // Any form the caller can see may be cloned; the copy becomes theirs.
+    // Ministry users may clone any form; the copy becomes theirs.
     const lookup = await bindVisibility(transaction.request(), req.user)
       .input('id', sql.Int, sourceId)
       .query(`
@@ -1228,8 +1233,8 @@ async function cloneForm(req, res) {
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Ministry users may download any file. Organisation users may download a file if it is
-// on their own response, on a form they created, or on a submitted response from their
-// own organisation to a form they can see.
+// on their own response, or on a submitted response from their own organisation to a
+// form they can see.
 async function canDownload(conn, user, submissionUid) {
   const scope = scopeOf(user);
   if (scope.isWide) return true;
@@ -1253,7 +1258,6 @@ async function canDownload(conn, user, submissionUid) {
   if (!row) return false;
   const form = forms.find((f) => f.id === row.form_id);
   return row.submitted_by === scope.userId
-    || form.created_by === scope.userId
     || (row.submission_status === 'Submitted' && row.organisation_id === scope.organisationId);
 }
 
@@ -1306,6 +1310,9 @@ function draftFromRow(row) {
 }
 
 async function getFormDrafts(req, res) {
+  if (!canAuthor(scopeOf(req.user))) {
+    return res.status(403).json({ message: AUTHOR_DENIED });
+  }
   const userId = Number(req.user?.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
     return res.status(401).json({ message: 'Unauthorized!' });
@@ -1328,6 +1335,9 @@ async function getFormDrafts(req, res) {
 
 // Body: { draftId?, draft }. With draftId, updates that draft (only if it's the caller's).
 async function saveFormDraft(req, res) {
+  if (!canAuthor(scopeOf(req.user))) {
+    return res.status(403).json({ message: AUTHOR_DENIED });
+  }
   const userId = Number(req.user?.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
     return res.status(401).json({ message: 'Unauthorized!' });
@@ -1392,6 +1402,9 @@ async function saveFormDraft(req, res) {
 }
 
 async function deleteFormDraft(req, res) {
+  if (!canAuthor(scopeOf(req.user))) {
+    return res.status(403).json({ message: AUTHOR_DENIED });
+  }
   const userId = Number(req.user?.userId);
   if (!Number.isInteger(userId) || userId <= 0) {
     return res.status(401).json({ message: 'Unauthorized!' });
