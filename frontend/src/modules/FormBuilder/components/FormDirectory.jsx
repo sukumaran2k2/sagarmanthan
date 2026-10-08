@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { useFormBuilderPermissions } from '../hooks/useFormBuilderPermissions';
 import ConfirmOverlay from '../../../components/ConfirmOverlay';
+import TablePagination from '../../../components/TablePagination';
 import { 
   FileText, 
   Search, 
@@ -115,28 +116,52 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
   const { canAuthor } = useFormBuilderPermissions();
   const [loadError, setLoadError] = useState(null);
 
-  // Mock forms show only when the request succeeds and the DB has no forms.
-  // A failed request shows an error instead, so it can't pass for real data.
-  const loadForms = () => {
+  // Real forms are paged and searched on the server, 9 cards (a 3 x 3 grid) per page.
+  const PAGE_SIZE = 9;
+  const [page, setPage] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [pagination, setPagination] = useState(null);
+  const [usingMock, setUsingMock] = useState(true);
+
+  // Mock forms show only when the request succeeds, the DB has no forms and nothing is
+  // being searched. A failed request shows an error instead, so it can't pass for real data.
+  const loadForms = (p = page, q = debouncedSearch) => {
     setLoadError(null);
-    api.get('/get-created-form-data')
+    api.get('/get-created-form-data', { params: { page: p, limit: PAGE_SIZE, search: q } })
       .then(res => {
-        if (Array.isArray(res.data) && res.data.length > 0) {
-          setForms(res.data);
-        } else {
+        const { data = [], pagination: pg } = res.data || {};
+        if (pg && pg.total === 0 && !q) {
           setForms(mode === 'drafts' ? MOCK_DRAFT_FORMS : MOCK_PUBLISHED_FORMS);
+          setUsingMock(true);
+          setPagination(null);
+          return;
         }
+        // Past the last page (e.g. after deleting its last card): step back to the last one.
+        if (data.length === 0 && p > 1 && pg?.totalPages) {
+          setPage(Math.min(p - 1, pg.totalPages));
+          return;
+        }
+        setForms(data);
+        setUsingMock(false);
+        setPagination(pg || null);
       })
       .catch((err) => {
         console.error('Error loading forms:', err);
         setForms([]);
+        setUsingMock(false);
+        setPagination(null);
         setLoadError(loadErrorMessage(err, 'forms'));
       });
   };
 
   useEffect(() => {
-    loadForms();
-  }, []);
+    const t = setTimeout(() => { setDebouncedSearch(searchQuery.trim()); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    loadForms(page, debouncedSearch);
+  }, [page, debouncedSearch]);
 
   const handleCloneForm = async (form) => {
     // Real forms are cloned on the server, then the list is reloaded so the new
@@ -175,6 +200,10 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
         triggerNotification && triggerNotification(err.response?.data?.message || `Could not delete "${target.formName}"`, 'error');
         return;
       }
+      // Reload the page so it stays full (or steps back if it was the page's last card).
+      loadForms();
+      triggerNotification && triggerNotification(`Form "${target.formName}" deleted successfully`, 'success');
+      return;
     }
     setForms(prev => prev.filter(f => f.id !== target.id));
     triggerNotification && triggerNotification(`Form "${target.formName}" deleted successfully`, 'success');
@@ -202,10 +231,13 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
     }
   };
 
-  const filteredForms = forms.filter(f => 
-    f.formName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    f.organisation.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Real forms arrive already filtered and paged; mock forms are filtered here.
+  const filteredForms = usingMock
+    ? forms.filter(f => 
+      f.formName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      f.organisation.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    : forms;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-6">
@@ -237,7 +269,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
           </div>
           <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 min-w-[100px] text-center hidden md:block">
             <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Total</span>
-            <span className="text-xl font-black text-blue-800">{filteredForms.length}</span>
+            <span className="text-xl font-black text-blue-800">{usingMock ? filteredForms.length : (pagination?.total ?? 0)}</span>
           </div>
         </div>
       </div>
@@ -247,7 +279,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
           <span>{loadError}</span>
           <button
             type="button"
-            onClick={loadForms}
+            onClick={() => loadForms()}
             className="px-3 py-1.5 rounded-lg bg-white border border-rose-200 hover:bg-rose-100 font-bold cursor-pointer transition"
           >
             Retry
@@ -405,6 +437,17 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
           </div>
         )}
       </div>
+
+      {!usingMock && pagination?.totalPages > 1 && (
+        <TablePagination
+          currentPage={Math.max(0, page - 1)}
+          totalPages={pagination.totalPages}
+          totalRows={pagination.total}
+          pageSize={PAGE_SIZE}
+          onPageChange={(pageIndex) => setPage(pageIndex + 1)}
+          color="#0f417a"
+        />
+      )}
 
       {/* Fill Form Modal */}
       {selectedFormToFill && (

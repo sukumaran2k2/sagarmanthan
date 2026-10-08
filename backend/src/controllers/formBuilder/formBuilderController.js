@@ -382,16 +382,38 @@ async function getCreatedFormData(req, res) {
   try {
     const conn = await pool;
     const scope = scopeOf(req.user);
-    const result = await bindVisibility(conn.request(), req.user).query(`
+    // Paged and searched in SQL (name, organisation codes or wings); 9 cards = a 3 x 3 grid.
+    const { page, limit, search, searchPattern } = pagingParams(req.query, { defaultLimit: 9, maxLimit: 60 });
+    const searchSql = search
+      ? `AND (d.form_name LIKE @search ESCAPE '\\' OR d.organisation LIKE @search ESCAPE '\\' OR d.wing LIKE @search ESCAPE '\\')`
+      : '';
+    const listFrom = `
+      FROM mmt_form_definitions d
+      WHERE ${visibleFormsSql(scope)}
+        ${searchSql}`;
+    const result = await bindVisibility(conn.request(), req.user)
+      .input('search', sql.NVarChar(110), searchPattern)
+      .input('offset', sql.Int, (page - 1) * limit)
+      .input('limit', sql.Int, limit)
+      .query(`
       ${DECLARE_CALLER_ASSIGNMENT_SQL}
       SELECT d.id, d.form_name, d.form_description, d.due_date, d.organisation, d.wing, d.active_status,
              d.submission_count, d.form_fields,
              CASE WHEN d.due_date < ${TODAY_IST_SQL} THEN 1 ELSE 0 END AS is_past_due,
-             CASE WHEN ${manageableFormsSql(scope)} THEN 1 ELSE 0 END AS can_manage
-      FROM mmt_form_definitions d
-      WHERE ${visibleFormsSql(scope)}
-      ORDER BY d.created_date DESC;
+             CASE WHEN ${manageableFormsSql(scope)} THEN 1 ELSE 0 END AS can_manage,
+             COUNT(*) OVER () AS total_count
+      ${listFrom}
+      ORDER BY d.created_date DESC, d.id DESC
+      OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY;
     `);
+    let total = result.recordset[0]?.total_count || 0;
+    if (result.recordset.length === 0 && page > 1) {
+      // Past the last page (e.g. after a delete): report the real total so the pager can recover.
+      const counted = await bindVisibility(conn.request(), req.user)
+        .input('search', sql.NVarChar(110), searchPattern)
+        .query(`${DECLARE_CALLER_ASSIGNMENT_SQL} SELECT COUNT(*) AS n ${listFrom};`);
+      total = counted.recordset[0].n;
+    }
 
     const forms = result.recordset.map((row) => {
       let fields = [];
@@ -424,7 +446,10 @@ async function getCreatedFormData(req, res) {
       };
     });
 
-    res.json(forms);
+    res.json({
+      data: forms,
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+    });
   } catch (err) {
     console.error('getCreatedFormData error:', err);
     res.status(500).json({ message: 'Internal Server Error' });
@@ -455,6 +480,16 @@ function fromColumnValue(inputType, value) {
   if (inputType === 'checkbox') return !!value;
   if (inputType === 'date' && value instanceof Date) return value.toISOString().split('T')[0];
   return value;
+}
+
+// Page / limit / search from the query string, shared by the paged list endpoints.
+function pagingParams(query, { defaultLimit = 10, maxLimit = 100 } = {}) {
+  const page = Math.max(1, parseInt(query.page, 10) || 1);
+  const limit = Math.min(maxLimit, Math.max(1, parseInt(query.limit, 10) || defaultLimit));
+  const search = String(query.search || '').trim().slice(0, 100);
+  // LIKE wildcards in the search text are escaped with a backslash (queries use ESCAPE).
+  const searchPattern = `%${search.replace(/[\\%_[]/g, (ch) => `\\${ch}`)}%`;
+  return { page, limit, search, searchPattern };
 }
 
 // DATETIME columns hold the DB server's clock, which is UTC (Azure SQL always is); shown in IST.
@@ -500,11 +535,7 @@ async function getFormSubmissions(req, res) {
 
     // Paging and search happen in SQL. ?all=true returns every matching row (for Export).
     const all = String(req.query.all) === 'true';
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
-    const search = String(req.query.search || '').trim().slice(0, 100);
-    // LIKE wildcards in the search text are matched literally.
-    const searchPattern = `%${search.replace(/[\\%_[]/g, (ch) => `\\${ch}`)}%`;
+    const { page, limit, search, searchPattern } = pagingParams(req.query);
 
     const baseFrom = `
       FROM [${form.table_name}] s
