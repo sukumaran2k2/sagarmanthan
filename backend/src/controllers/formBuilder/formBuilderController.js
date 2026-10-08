@@ -179,9 +179,35 @@ async function modifyFormBuilderInputForm(req, res) {
   return createForm(req, res, { formName, meta, storableFields });
 }
 
+// ---------- assignments (mmt_form_assignments) ----------
+// One row per assigned organisation code ('O') or wing name ('W'), so assignment checks
+// are indexed lookups. The organisation / wing CSV columns on the definition stay for
+// display and Edit. Rows are written from the lists Studio sends, never by splitting the
+// CSV (wing names can contain commas).
+function assignmentValues(list) {
+  if (!Array.isArray(list)) return [];
+  return [...new Set(list.filter((v) => typeof v === 'string' && v.trim() && v.length <= 255))];
+}
+
+async function replaceAssignments(transaction, formId, meta) {
+  await transaction.request().input('formId', sql.Int, formId)
+    .query(`DELETE FROM mmt_form_assignments WHERE form_id = @formId;`);
+  const rows = [
+    ...assignmentValues(meta.organisation).map((v) => ['O', v]),
+    ...assignmentValues(meta.wing).map((v) => ['W', v]),
+  ];
+  for (const [kind, value] of rows) {
+    await transaction.request()
+      .input('formId', sql.Int, formId)
+      .input('kind', sql.Char(1), kind)
+      .input('value', sql.NVarChar(255), value)
+      .query(`INSERT INTO mmt_form_assignments (form_id, kind, value) VALUES (@formId, @kind, @value);`);
+  }
+}
+
 // Inserts a definition row and creates its tbl_fb_<id> table inside the caller's
 // transaction. Shared by create and clone so both build forms the same way.
-async function insertFormWithTable(transaction, { formName, meta, storableFields, createdBy }) {
+async function insertFormWithTable(transaction, { formName, meta, storableFields, createdBy, copyAssignmentsFrom }) {
   const insertReq = bindMetadata(transaction.request(), formName, meta);
   insertReq.input('created_by', sql.Int, createdBy);
   const insertResult = await insertReq.query(`
@@ -206,6 +232,18 @@ async function insertFormWithTable(transaction, { formName, meta, storableFields
       SET table_name = @table_name, form_fields = @form_fields, updated_date = GETDATE()
       WHERE id = @id;
     `);
+
+  if (copyAssignmentsFrom) {
+    await transaction.request()
+      .input('formId', sql.Int, formId)
+      .input('sourceId', sql.Int, copyAssignmentsFrom)
+      .query(`
+        INSERT INTO mmt_form_assignments (form_id, kind, value)
+        SELECT @formId, kind, value FROM mmt_form_assignments WHERE form_id = @sourceId;
+      `);
+  } else {
+    await replaceAssignments(transaction, formId, meta);
+  }
   return { formId, tableName };
 }
 
@@ -322,6 +360,7 @@ async function updateForm(req, res, { formName, meta, storableFields }) {
           updated_date = GETDATE()
       WHERE id = @id;
     `);
+    await replaceAssignments(transaction, formId, meta);
 
     await transaction.commit();
     res.json({
@@ -578,12 +617,12 @@ const DECLARE_CALLER_ASSIGNMENT_SQL = `
   DECLARE @orgCode NVARCHAR(100) = (SELECT organisation_code FROM mmt_organisation WHERE organisation_id = @orgId);
   DECLARE @wingName NVARCHAR(255) = (SELECT wing_name FROM mmt_wings WHERE wing_id = @wingId);`;
 
-// True when form row `d` is assigned to the caller. Assignment lists are stored as CSV and
-// wing names can contain commas ("DGLL, Parliament & TRW"), so this matches the whole
-// delimited name rather than splitting (which also keeps SMPA from matching SMPA-KDS).
-const ASSIGNED_TO_CALLER_SQL = `(
-  (@orgCode IS NOT NULL AND CHARINDEX(',' + @orgCode + ',', ',' + ISNULL(d.organisation, '') + ',') > 0)
-  OR (@wingName IS NOT NULL AND CHARINDEX(',' + @wingName + ',', ',' + ISNULL(d.wing, '') + ',') > 0)
+// True when form row `d` is assigned to the caller's organisation code or wing name:
+// an indexed lookup in mmt_form_assignments (exact values, so SMPA never matches SMPA-KDS).
+const ASSIGNED_TO_CALLER_SQL = `EXISTS (
+  SELECT 1 FROM mmt_form_assignments a
+  WHERE a.form_id = d.id
+    AND ((a.kind = 'O' AND a.value = @orgCode) OR (a.kind = 'W' AND a.value = @wingName))
 )`;
 
 const bindCallerAssignment = (request, user) => request
@@ -1224,6 +1263,7 @@ async function cloneForm(req, res) {
       },
       storableFields,
       createdBy: Number(req.user?.userId) || null,
+      copyAssignmentsFrom: sourceId,
     });
 
     await transaction.commit();
