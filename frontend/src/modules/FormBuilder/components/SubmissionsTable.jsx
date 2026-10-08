@@ -320,7 +320,7 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
       <div className="w-full">
         {/* Assigned organisations/wings that haven't submitted are listed in red. */}
         <style>{`
-          .fb-row-pending .ag-cell { background-color: #fef2f2 !important; color: #b91c1c !important; }
+          .fb-row-pending .ag-cell { background-color: #fef2f2 !important; color: #0f172a !important; }
           .fb-row-pending.ag-row-hover .ag-cell { background-color: #fee2e2 !important; }
         `}</style>
         <Table 
