@@ -6,7 +6,8 @@ import {
   Building2, 
   CheckCircle2, 
   Calendar,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronDown
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
@@ -60,6 +61,16 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
 
   const gridRef = useRef(null);
 
+  const [hiddenCols, setHiddenCols] = useState({});
+  const [colMenuOpen, setColMenuOpen] = useState(false);
+  const colMenuRef = useRef(null);
+  useEffect(() => {
+    const close = (e) => { if (colMenuRef.current && !colMenuRef.current.contains(e.target)) setColMenuOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+  useEffect(() => { setHiddenCols({}); }, [selectedForm?.id]);
+
   // Forms from the DB have numeric ids; mock forms ('form_101') keep showing mock submissions.
   const isRealForm = !!selectedForm && /^\d+$/.test(String(selectedForm.id));
   const [realData, setRealData] = useState(null);
@@ -101,8 +112,8 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
           return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
         };
         const lines = [
-          columnDefs.map(c => cell(c.headerName)).join(','),
-          ...res.data.submissions.map((row, i) => columnDefs.map(c => cell(
+          visibleColumnDefs.map(c => cell(c.headerName)).join(','),
+          ...res.data.submissions.map((row, i) => visibleColumnDefs.map(c => cell(
             c.colId === 'sno' ? i + 1 : c.valueGetter ? c.valueGetter({ data: row }) : row[c.field]
           )).join(',')),
         ];
@@ -167,24 +178,29 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
   const realFieldColumns = (realData?.form?.fields || [])
     .filter(f => f.columnName || f.inputType === 'file')
     .map(f => ({
+      colId: f.id,
       headerName: f.inputLabel,
       valueGetter: (p) => formatValue(p.data.data[f.id]),
-      cellStyle: { color: '#1e293b', fontSize: '11px' },
+      cellStyle: { color: '#1e293b', fontSize: '11px' }, cellClass: 'justify-center text-center',
       flex: 1.5,
       ...(f.inputType === 'file' && {
         cellRenderer: (params) => {
           const file = params.data.data[f.id];
           if (!file?.fileName) return null;
           return (
+            // min-w-0 / max-w-full let a long file name shrink and end in "..." instead of
+            // overflowing both sides of the centred cell; the full name is in the tooltip.
+            <div className="flex items-center justify-center h-full w-full min-w-0">
             <button
               type="button"
               onClick={() => downloadFile(params.data.submissionUid, f.id, file.fileName)}
-              className="inline-flex items-center space-x-1 text-[#4b2424] hover:text-[#6b3535] font-semibold cursor-pointer"
+              className="inline-flex items-center space-x-1 max-w-full min-w-0 text-[#4b2424] hover:text-[#6b3535] font-semibold cursor-pointer"
               title={`Download ${file.fileName}`}
             >
               <Download className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{file.fileName}</span>
+              <span className="truncate min-w-0">{file.fileName}</span>
             </button>
+            </div>
           );
         },
       }),
@@ -198,20 +214,24 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
       valueGetter: (params) => (params.node && !params.node.rowPinned
         ? params.node.rowIndex + 1 + (isRealForm ? (page - 1) * PAGE_SIZE : 0)
         : ''),
-      width: 70,
+      minWidth: 90,
       pinned: 'left',
+      filter: false,
+      sortable: false,
       cellClass: 'font-bold text-slate-500 text-center flex items-center justify-center',
     },
-    { field: 'portName', headerName: 'Port Authority', cellStyle: { fontWeight: 'bold', color: '#0f172a', fontSize: '11px' }, flex: 2.5 },
-    { field: 'submittedBy', headerName: 'Submitted By', cellStyle: { fontSize: '11px' }, flex: 1.5 },
-    { field: 'submittedOn', headerName: 'Submission Date', cellStyle: { color: '#64748b', fontSize: '11px' } },
+    // Values are centred under their (centred) headers. Cells are flex containers in the
+    // shared Table, so centring is done with justify-center rather than text-align.
+    { field: 'portName', headerName: 'Port Authority', cellStyle: { fontWeight: 'bold', color: '#0f172a', fontSize: '11px' }, cellClass: 'justify-center text-center', flex: 2.5 },
+    { field: 'submittedBy', headerName: 'Submitted By', cellStyle: { fontSize: '11px' }, cellClass: 'justify-center text-center', flex: 1.5 },
+    { field: 'submittedOn', headerName: 'Submission Date', cellStyle: { color: '#64748b', fontSize: '11px' }, cellClass: 'justify-center text-center' },
     {
       colId: 'status',
       headerName: 'Status',
       // Mock rows carry no status; they are all submitted responses.
       valueGetter: (p) => p.data?.status || 'Submitted',
       cellRenderer: (params) => (
-        <div className="flex items-center h-full">
+        <div className="flex items-center justify-center h-full">
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border leading-none whitespace-nowrap ${
             params.value === 'Not submitted'
               ? 'bg-red-100 text-red-700 border-red-200'
@@ -221,18 +241,21 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
           </span>
         </div>
       ),
-      width: 130,
+      // Wide enough for the uppercase "NOT SUBMITTED" badge.
+      cellClass: 'justify-center',
+      width: 170,
+      minWidth: 170,
     },
   ];
 
   const mockColumnDefs = [
-    { headerName: 'Project Name', valueGetter: (p) => p.data.data['Project Name'], cellStyle: { fontWeight: '600', color: '#1e293b', fontSize: '11px' }, flex: 1.5 },
-    { headerName: 'Cost (Rs Cr)', valueGetter: (p) => p.data.data['Sanctioned Cost (Rs Cr)'], type: 'rightAligned', cellStyle: { fontWeight: '900', color: '#0f172a', fontSize: '11px' } },
+    { headerName: 'Project Name', valueGetter: (p) => p.data.data['Project Name'], cellStyle: { fontWeight: '600', color: '#1e293b', fontSize: '11px' }, cellClass: 'justify-center text-center', flex: 1.5 },
+    { headerName: 'Cost (Rs Cr)', valueGetter: (p) => p.data.data['Sanctioned Cost (Rs Cr)'], cellStyle: { fontWeight: '900', color: '#0f172a', fontSize: '11px' }, cellClass: 'justify-center text-center' },
     { 
       headerName: 'Stage',
       valueGetter: (p) => p.data.data['Implementation Stage'],
       cellRenderer: (params) => (
-        <div className="flex items-center h-full">
+        <div className="flex items-center justify-center h-full">
           <span className="px-2 py-0.5 bg-[#f7f3f3] text-[#4b2424] font-bold rounded text-[10px] uppercase border border-[#eadede] shadow-sm inline-block whitespace-nowrap leading-none">
             {params.value}
           </span>
@@ -241,7 +264,12 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
     }
   ];
 
-  const columnDefs = [...baseColumnDefs, ...(isRealForm ? realFieldColumns : mockColumnDefs)];
+  // Column visibility ("Visibility" menu, as on other modules' Data List pages). Columns
+  // depend on the form, so hidden columns are tracked by key and reset per form.
+  const colKey = (c) => c.colId || c.field || c.headerName;
+  const columnDefs = [...baseColumnDefs, ...(isRealForm ? realFieldColumns : mockColumnDefs)]
+    .map(c => ({ ...c, hide: !!hiddenCols[colKey(c)] }));
+  const visibleColumnDefs = columnDefs.filter(c => !c.hide);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col overflow-hidden animate-fade-in">
@@ -267,12 +295,52 @@ export default function SubmissionsTable({ selectedForm, triggerNotification, on
           </div>
         </div>
         
-        <ExportDropdown 
-          onExportExcel={handleExportExcel} 
-          onExportPdf={() => window.print()} 
-          color="#4b2424"
-          hoverColor="#6b3535"
-        />
+        <div className="flex items-center gap-2">
+            {/* Column visibility, in the brown report theme */}
+            <div className="relative shrink-0" ref={colMenuRef}>
+              <button
+                type="button"
+                onClick={() => setColMenuOpen(!colMenuOpen)}
+                className="px-3.5 py-1.5 bg-[#4b2424] hover:bg-[#6b3535] rounded-xl text-xs font-bold text-white transition cursor-pointer flex items-center space-x-1.5 shadow-sm"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+              {colMenuOpen && (
+                <div className="absolute right-0 mt-1.5 w-56 max-h-80 overflow-y-auto bg-white border border-[#eadede] rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5">
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-[#f7f3f3]">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Toggle Columns</span>
+                    <button
+                      type="button"
+                      onClick={() => setHiddenCols({})}
+                      className="text-[10px] font-bold text-[#4b2424] hover:underline cursor-pointer"
+                    >
+                      Show All
+                    </button>
+                  </div>
+                  {columnDefs.map((c) => (
+                    <label key={colKey(c)} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-[#f7f3f3] rounded-lg text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={!c.hide}
+                        onChange={() => setHiddenCols(prev => ({ ...prev, [colKey(c)]: !prev[colKey(c)] }))}
+                        className="h-3.5 w-3.5 rounded cursor-pointer accent-[#4b2424]"
+                      />
+                      <span>{c.headerName}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          {/* Same look as the Visibility button: brown, white text, chevron */}
+          <ExportDropdown 
+            onExportExcel={handleExportExcel} 
+            onExportPdf={() => window.print()} 
+            color="#4b2424"
+            hoverColor="#6b3535"
+            chevron
+          />
+        </div>
       </div>
 
       {/* Toolbar & Stats Section */}

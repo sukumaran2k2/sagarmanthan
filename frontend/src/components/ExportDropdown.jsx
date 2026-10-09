@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileSpreadsheet, Download } from 'lucide-react';
+import { FileSpreadsheet, Download, ChevronDown } from 'lucide-react';
 
 export default function ExportDropdown({
   onExportExcel,
@@ -15,7 +15,9 @@ export default function ExportDropdown({
   className = '',
   // Optional: hide the Print / PDF option, and relabel the Excel option (e.g. for real .xlsx).
   showPdf = true,
-  excelLabel = 'CSV (Excel)'
+  excelLabel = 'CSV (Excel)',
+  // Optional: a chevron icon (as on Visibility menus) instead of the ▼ character.
+  chevron = false
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -180,7 +182,9 @@ export default function ExportDropdown({
         title="Export options"
       >
         <span>Export</span>
-        <span className="text-[10px]">▼</span>
+        {chevron
+          ? <ChevronDown className="h-3.5 w-3.5" />
+          : <span className="text-[10px]">▼</span>}
       </button>
 
       {isOpen && (
