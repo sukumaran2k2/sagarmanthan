@@ -268,8 +268,9 @@ import { getContainerTwoLeg } from "./controllers/traffic-container-two-leg.js";
 
 
 //Form Builder tab
-import formBuilderTab from "./controllers/formBuilder/formBuilderV1.js";
-import formBuilderInputTab from "./controllers/formBuilder/formBuilderInput.js";
+
+import formBuilderController from "./controllers/formBuilder/formBuilderController.js";
+import { acceptFormFiles } from "./controllers/formBuilder/formBuilderFiles.js";
 
 const router = express.Router();
 
@@ -3472,23 +3473,71 @@ router.get("/traffic-container-single-leg", getContainerSingleLeg);
 router.get("/traffic-container-two-leg", getContainerTwoLeg);
 
 //Form Builder Fields
-router.post('/store-form-builder-input-form', formBuilderTab.storeFormBuilderInputForm); //req
-router.post('/modify-form-builder-input-form', formBuilderTab.modifyFormBuilderInputForm); //req
+router.post(
+  '/modify-form-builder-input-form',
+  auth,
+  requireModulePermission("FORM_BUILDER", "create"),
+  formBuilderController.modifyFormBuilderInputForm
+); // replaces the legacy formBuilderV1.js implementation -- see formBuilderController.js
 
-router.get('/get-created-form-data', formBuilderTab.getCreatedFormData); //req //get created forms
-router.delete("/delete-form-builder-data/:data", formBuilderInputTab.deleteMmtFormBuilder); //req //delete created forms
-router.post("/edit-form-builder-data/:data", formBuilderInputTab.editMmtFormBuilder); //req //edit forms
+router.get(
+  '/get-created-form-data',
+  auth,
+  requireModulePermission("FORM_BUILDER", "read"),
+  formBuilderController.getCreatedFormData
+); // replaces the legacy formBuilderV1.js implementation -- see formBuilderController.js
+router.get(
+  '/get-form-submissions/:formId',
+  auth,
+  requireModulePermission("FORM_BUILDER", "read"),
+  formBuilderController.getFormSubmissions
+);
+router.get(
+  '/get-inbox-forms',
+  auth,
+  requireModulePermission("FORM_BUILDER", "read"),
+  formBuilderController.getInboxForms
+);
+router.post(
+  '/submit-form-data',
+  auth,
+  requireModulePermission("FORM_BUILDER", "read"),
+  acceptFormFiles, // after auth, so nothing is written to disk for rejected callers
+  formBuilderController.submitFormData
+); // filling an assigned form; the controller also checks the form is assigned to the caller
+router.get(
+  '/get-my-form-response/:formId',
+  auth,
+  requireModulePermission("FORM_BUILDER", "read"),
+  formBuilderController.getMyFormResponse
+);
+router.get(
+  '/download-form-file/:submissionUid/:fieldId',
+  auth,
+  requireModulePermission("FORM_BUILDER", "read"),
+  formBuilderController.downloadFormFile
+);
+// Studio drafts (unpublished form designs, private to their author)
+router.get('/get-form-drafts', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderController.getFormDrafts);
+router.post('/save-form-draft', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderController.saveFormDraft);
+router.delete('/delete-form-draft/:draftId', auth, requireModulePermission("FORM_BUILDER", "create"), formBuilderController.deleteFormDraft);
+router.post(
+  '/toggle-form-status/:formId',
+  auth,
+  requireModulePermission("FORM_BUILDER", "update"),
+  formBuilderController.toggleFormStatus
+);
+router.post(
+  '/clone-form/:formId',
+  auth,
+  requireModulePermission("FORM_BUILDER", "create"),
+  formBuilderController.cloneForm
+);
+router.delete("/delete-form-builder-data/:data", auth, requireModulePermission("FORM_BUILDER", "delete"), formBuilderController.deleteForm); // replaces the legacy formBuilderInput.js implementation -- see formBuilderController.js
 
-router.post('/upload-formbuilder-documents', formBuilderInputTab.upload.array('files[]'), formBuilderInputTab.UploadFormDocument);//req upload
-router.get('/download-formbuilder-documents/:uid/:field', formBuilderInputTab.downloadDocument);//req download
 
-router.post('/create-FormBuilder-data', formBuilderInputTab.createFormBuilderData); //req generic Create 
-router.get('/get-FormBuilder-Report/:data', formBuilderInputTab.getFormBuilderReport); //req generic Report
 
 // form builder status
-router.get('/get-form-builder-status/:data/:code', formBuilderInputTab.getFormBuilderSatus); //req //get created forms
-router.get('/get-form-builder-user-wise-data/:data/:userID', formBuilderInputTab.getFormBuilderUserWiseData); //req //get created forms
-router.get('/get-user-edit-Form-Data/:userID/:currentPage', formBuilderInputTab.getUserEditFormData); //not required //get created forms data for only one data retrival for one form
 // AI Report Copilot (OpenAI / Vercel AI SDK)
 import reportCopilotTab from "./controllers/ai/reportCopilot.js";
 router.post('/ai/report-copilot', reportCopilotTab.chatReportCopilot);

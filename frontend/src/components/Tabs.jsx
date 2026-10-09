@@ -458,8 +458,10 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'left-0',
       width: 'w-[220px]',
       items: [
-        m('FORM_BUILDER', { label: 'Create Dynamic Form', icon: FileText }),
-        m('FORM_BUILDER', { label: 'View Submissions', icon: ClipboardList }),
+        // Only Ministry users author forms; organisation users only fill them in.
+        ...(!isOrgUser ? [m('FORM_BUILDER', { label: 'Form Studio', tab: 'Form Studio', icon: FileEdit })] : []),
+        m('FORM_BUILDER', { label: 'Form Directory', tab: 'Form Directory', icon: FileText }),
+        m('FORM_BUILDER', { label: 'Inbox Forms', tab: 'Inbox Forms', icon: ClipboardList }),
       ]
     },
     {
