@@ -66,6 +66,10 @@ function normalizeFields(formFields) {
   if (!Array.isArray(formFields) || formFields.length === 0) {
     return { error: 'At least one field is required' };
   }
+  // Studio refers to fields by its own ids (inputid); stored definitions (clone) use
+  // positions. Either way a dependency becomes the parent's position (dependsOnIndex).
+  const indexById = new Map();
+  formFields.forEach((f, i) => { if (f?.inputid != null) indexById.set(String(f.inputid), i); });
   const storableFields = [];
   for (let i = 0; i < formFields.length; i++) {
     const f = formFields[i];
@@ -74,16 +78,107 @@ function normalizeFields(formFields) {
     if (!isFile && !STORABLE_INPUT_TYPES.includes(inputType)) {
       return { error: `Unsupported field type: ${inputType || '(blank)'}` };
     }
+    const inputLabel = String(f?.inputLabel || `Field ${i + 1}`);
+
+    const { error: depError, dependsOnIndex } = resolveDependency(f, i, inputType, inputLabel, indexById, storableFields);
+    if (depError) return { error: depError };
+
+    let options = [];
+    let optionsByParent = null;
+    if (dependsOnIndex !== null && inputType === 'dropdown') {
+      // Dependent dropdown: a list of options for each option of its parent.
+      const parent = storableFields[dependsOnIndex];
+      const raw = f?.optionsByParent && typeof f.optionsByParent === 'object' ? f.optionsByParent : {};
+      optionsByParent = {};
+      for (const parentOption of parent.options) {
+        const { error: groupError, options: group } = normalizeOptions(`${inputLabel}" for "${parentOption}`, raw[parentOption]);
+        if (groupError) return { error: groupError };
+        optionsByParent[parentOption] = group;
+      }
+      options = [...new Set(Object.values(optionsByParent).flat())];
+    } else if (OPTION_TYPES.includes(inputType)) {
+      const { error: optionError, options: cleaned } = normalizeOptions(inputLabel, f?.options);
+      if (optionError) return { error: optionError };
+      options = cleaned;
+    }
     storableFields.push({
-      inputLabel: String(f?.inputLabel || `Field ${i + 1}`),
+      inputLabel,
       inputType,
       isFile,
       placeholder: f?.placeholder || null,
       required: !!f?.required,
-      options: Array.isArray(f?.options) ? f.options : [],
+      options,
+      dependsOnIndex,
+      optionsByParent,
     });
   }
   return { storableFields };
+}
+
+// Dependent dropdowns: a dropdown may depend on an earlier dropdown or radio, and its
+// options then come per parent option. The parent must come first, which also rules
+// out loops. Returns { dependsOnIndex } (null when the field has no parent) or { error }.
+function resolveDependency(f, index, inputType, label, indexById, earlierFields) {
+  let parentIndex = null;
+  if (Number.isInteger(f?.dependsOnIndex)) parentIndex = f.dependsOnIndex;
+  else if (f?.dependsOn != null && f.dependsOn !== '') {
+    if (!indexById.has(String(f.dependsOn))) return { error: `"${label}" depends on a field that is not in this form` };
+    parentIndex = indexById.get(String(f.dependsOn));
+  }
+  if (parentIndex === null) return { dependsOnIndex: null };
+  if (parentIndex < 0 || parentIndex >= index) return { error: `"${label}" must come after the field it depends on` };
+  const parentType = earlierFields[parentIndex].inputType;
+  if (inputType === 'dropdown' && !['dropdown', 'radio'].includes(parentType)) {
+    return { error: `"${label}" can only depend on a dropdown or radio field` };
+  }
+  if (inputType !== 'dropdown') {
+    return { error: `"${label}" can't depend on another field` };
+  }
+  return { dependsOnIndex: parentIndex };
+}
+
+// Field types whose answer must be one of the field's options.
+const OPTION_TYPES = ['dropdown', 'radio', 'multiple-select'];
+const MAX_OPTION_LENGTH = 255; // dropdown / radio answers are stored in NVARCHAR(255)
+
+// Options must be at least one non-empty, unique (ignoring case) piece of text of at
+// most 255 characters; surrounding spaces are trimmed.
+function normalizeOptions(label, rawOptions) {
+  if (!Array.isArray(rawOptions) || rawOptions.length === 0) {
+    return { error: `"${label}" needs at least one option` };
+  }
+  const options = [];
+  const seen = new Set();
+  for (const raw of rawOptions) {
+    if (typeof raw !== 'string' && typeof raw !== 'number') {
+      return { error: `"${label}" has an option that is not text` };
+    }
+    const text = String(raw).trim();
+    if (!text) return { error: `"${label}" has an empty option` };
+    if (text.length > MAX_OPTION_LENGTH) {
+      return { error: `"${label}" has an option longer than ${MAX_OPTION_LENGTH} characters` };
+    }
+    if (seen.has(text.toLowerCase())) return { error: `"${label}" has the option "${text}" more than once` };
+    seen.add(text.toLowerCase());
+    options.push(text);
+  }
+  return { options };
+}
+
+// True when the only difference between two field lists is options added to existing
+// fields (in any order). That changes no column, so it is allowed even once a form has
+// responses; removing or renaming an option is not, since stored answers may use it.
+function onlyOptionsAdded(storedFields, newFields) {
+  if (storedFields.length !== newFields.length) return false;
+  const withoutOptions = (list) => JSON.parse(fieldSignature(list)).map(({ options, optionsByParent, ...rest }) => rest);
+  if (JSON.stringify(withoutOptions(storedFields)) !== JSON.stringify(withoutOptions(newFields))) return false;
+  const keepsAll = (oldList, newList) => {
+    const next = new Set(newList || []);
+    return (oldList || []).every((opt) => next.has(opt));
+  };
+  return storedFields.every((f, i) => keepsAll(f.options, newFields[i].options)
+    && Object.entries(f.optionsByParent || {}).every(([parentOption, group]) =>
+      keepsAll(group, (newFields[i].optionsByParent || {})[parentOption])));
 }
 
 // Builds the per-form submissions table DDL. Column names are positional
@@ -124,6 +219,8 @@ function fieldSignature(fields) {
       placeholder: f.placeholder || null,
       required: !!f.required,
       options: Array.isArray(f.options) ? f.options : [],
+      dependsOnIndex: Number.isInteger(f.dependsOnIndex) ? f.dependsOnIndex : null,
+      optionsByParent: f.optionsByParent || null,
     }))
   );
 }
@@ -326,17 +423,22 @@ async function updateForm(req, res, { formName, meta, storableFields }) {
     const rowCount = countResult.recordset[0].n;
 
     const fieldsChanged = fieldSignature(storedFields) !== fieldSignature(storableFields);
+    const optionsAddedOnly = fieldsChanged && onlyOptionsAdded(storedFields, storableFields);
 
-    if (fieldsChanged && rowCount > 0) {
+    if (fieldsChanged && rowCount > 0 && !optionsAddedOnly) {
       await rollbackQuietly(transaction);
       return res.status(409).json({
-        message: 'This form already has submissions, so its fields are locked. Only the form details (name, description, due date, assignment, status) can be changed.',
+        message: 'This form already has submissions, so its fields are locked. You can still add new options to dropdowns, radio buttons and multi-selects, and change the form details (name, description, due date, assignment, status); existing options can\'t be removed or renamed.',
         fieldsLocked: true,
       });
     }
 
     let formFieldsJson = storedFieldsJson;
-    if (fieldsChanged) {
+    if (optionsAddedOnly && rowCount > 0) {
+      // Same fields in the same positions, so the table and its columns stay as they are;
+      // only the stored field definitions gain the new options.
+      formFieldsJson = JSON.stringify(buildSubmissionsTable(tableName, storableFields).fieldsForJson);
+    } else if (fieldsChanged) {
       // Table is empty (checked under lock above), so rebuilding it loses nothing.
       const { ddl, fieldsForJson } = buildSubmissionsTable(tableName, storableFields);
       await transaction.request().query(`DROP TABLE [${tableName}];`);
@@ -367,6 +469,7 @@ async function updateForm(req, res, { formName, meta, storableFields }) {
       id: formId,
       tableName,
       fieldsChanged,
+      optionsAdded: optionsAddedOnly && rowCount > 0,
       fieldsLocked: rowCount > 0,
       message: 'Form updated successfully',
     });
@@ -429,20 +532,8 @@ async function getCreatedFormData(req, res) {
     }
 
     const forms = result.recordset.map((row) => {
-      let fields = [];
-      try {
-        const parsed = JSON.parse(row.form_fields || '[]');
-        fields = parsed.map((f, i) => ({
-          id: clientFieldId(f, i),
-          inputLabel: f.inputLabel,
-          inputType: f.inputType,
-          options: f.options || [],
-          required: !!f.required,
-          placeholder: f.placeholder || '',
-        }));
-      } catch {
-        fields = [];
-      }
+      // Same field shape as everywhere else (incl. dependsOn / optionsByParent for Edit).
+      const fields = toClientFields(row.form_fields);
 
       return {
         id: row.id,
@@ -487,6 +578,11 @@ function toClientFields(formFieldsJson) {
     options: f.options || [],
     required: !!f.required,
     placeholder: f.placeholder || '',
+    // The parent's client id (same id space as `id`), and per-parent options.
+    dependsOn: Number.isInteger(f.dependsOnIndex) && parsed[f.dependsOnIndex]
+      ? clientFieldId(parsed[f.dependsOnIndex], f.dependsOnIndex)
+      : null,
+    optionsByParent: f.optionsByParent || null,
   }));
 }
 
@@ -861,7 +957,7 @@ function coerceFieldValue(field, raw) {
     case 'multiple-select': {
       if (!Array.isArray(raw) || raw.some((v) => typeof v !== 'string')) return { error: `${label} must be a list of options` };
       if (options.length && raw.some((v) => !options.includes(v))) return { error: `${label} has an option that is not allowed` };
-      return { value: JSON.stringify(raw), sqlType: sql.NVarChar(sql.MAX) };
+      return { value: JSON.stringify([...new Set(raw)]), sqlType: sql.NVarChar(sql.MAX) };
     }
     default: {
       if (typeof raw !== 'string' && typeof raw !== 'number') return { error: `${label} must be text` };
@@ -875,6 +971,24 @@ function coerceFieldValue(field, raw) {
       return { value: text, sqlType: sql.NVarChar(sql.MAX) };
     }
   }
+}
+
+// A dependent answer must be one of the options listed for its parent's chosen option,
+// and can't be given without the parent's answer.
+function dependencyErrors(dataFields, valueById) {
+  const errors = [];
+  for (const f of dataFields) {
+    const value = valueById.get(f.id);
+    if (value === null || value === undefined || !f.dependsOn) continue;
+    const parent = dataFields.find((p) => p.id === f.dependsOn);
+    const parentValue = valueById.get(f.dependsOn);
+    if (parentValue === null || parentValue === undefined) {
+      errors.push(`Choose ${parent ? parent.inputLabel : 'the field it depends on'} before ${f.inputLabel}`);
+    } else if (!((f.optionsByParent || {})[parentValue] || []).includes(value)) {
+      errors.push(`${f.inputLabel} doesn't match the chosen ${parent ? parent.inputLabel : 'option'}`);
+    }
+  }
+  return errors;
 }
 
 // ---------- POST /submit-form-data ----------
@@ -984,12 +1098,15 @@ async function handleSubmitFormData(req, res) {
 
     const errors = [];
     const columns = [];
+    const valueById = new Map();
     for (const f of dataFields) {
       const { value, sqlType, error } = coerceFieldValue(f, values[f.id]);
       if (error) { errors.push(error); continue; }
       if (action === 'submit' && f.required && value === null) errors.push(`${f.inputLabel} is required`);
+      valueById.set(f.id, value);
       columns.push({ name: f.columnName, value, sqlType: sqlType || sql.NVarChar(sql.MAX) });
     }
+    if (!errors.length) errors.push(...dependencyErrors(dataFields, valueById));
     if (errors.length) {
       await rollbackQuietly(transaction);
       return res.status(400).json({ message: errors[0], errors });
