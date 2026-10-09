@@ -92,6 +92,60 @@ function buildIdentityCols(page, pageSize) {
   ];
 }
 
+function renderTenderingStructuredIssueCell(params) {
+  const row = params?.data || {};
+  const hasStructuredIssue =
+    row.issueTargetLabel != null && row.issueActualLabel != null;
+
+  if (!hasStructuredIssue) {
+    return renderWrappedText(
+      params.value,
+      'font-semibold text-slate-700',
+      '—'
+    );
+  }
+
+  const headingClass =
+    'text-[11px] font-bold uppercase tracking-wide text-slate-600';
+  const bodyClass = 'mt-1 font-semibold text-slate-700 leading-snug break-words';
+  const sectionClass = 'mt-4 border-t border-slate-200/90 pt-3';
+
+  return (
+    <div className="w-full max-w-full py-1">
+      {row.issueOverdueLabel != null ? (
+        <div>
+          <div className={headingClass}>{row.issueOverdueLabel}</div>
+          <div className={bodyClass}>{row.issueOverdueValue || 'none'}</div>
+        </div>
+      ) : null}
+
+      <div className={row.issueOverdueLabel != null ? sectionClass : undefined}>
+        <div className={headingClass}>{row.issueTargetLabel}</div>
+        <div className={bodyClass}>{row.issueTargetValue || 'none'}</div>
+      </div>
+
+      <div className={sectionClass}>
+        <div className={headingClass}>{row.issueActualLabel}</div>
+        <div className={bodyClass}>{row.issueActualValue || 'none'}</div>
+      </div>
+    </div>
+  );
+}
+
+function tenderingStructuredIssueCol() {
+  const base = textCol({
+    field: 'issue',
+    headerName: 'Current Status/Issue',
+    flex: 2,
+    minWidth: 230,
+  });
+
+  return {
+    ...base,
+    cellRenderer: renderTenderingStructuredIssueCell,
+  };
+}
+
 function issueActionCols() {
   return [
     textCol({
@@ -115,6 +169,8 @@ export function buildDataQcColumnDefs(checkId, { page = 1, pageSize = 10 } = {})
   switch (checkId) {
     case 'tendering-missing':
     case 'tendering-overdue':
+    case 'implementation-missing':
+    case 'implementation-overdue':
       return [
         ...identity,
         textCol({
@@ -132,7 +188,13 @@ export function buildDataQcColumnDefs(checkId, { page = 1, pageSize = 10 } = {})
           maxWidth: 150,
           align: 'center',
         }),
-        ...issueActionCols(),
+        tenderingStructuredIssueCol(),
+        textCol({
+          field: 'action',
+          headerName: 'Required Action/Update',
+          flex: 1.7,
+          minWidth: 210,
+        }),
       ];
 
     case 'tendering-foundation':
@@ -144,22 +206,6 @@ export function buildDataQcColumnDefs(checkId, { page = 1, pageSize = 10 } = {})
           headerName: 'Target Date',
           flex: 1,
           minWidth: 130,
-          align: 'center',
-        }),
-        ...issueActionCols(),
-      ];
-
-    case 'implementation-missing':
-      return [...identity, ...issueActionCols()];
-
-    case 'implementation-overdue':
-      return [
-        ...identity,
-        textCol({
-          field: 'targetDate',
-          headerName: 'Existing Target Date',
-          flex: 1.3,
-          minWidth: 170,
           align: 'center',
         }),
         ...issueActionCols(),
