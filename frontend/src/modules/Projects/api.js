@@ -441,4 +441,12 @@ export function fetchProjectsDataQcCheck(checkId) {
   return api.get(`/projects-data-qc/${encodeURIComponent(checkId)}`);
 }
 
+export function fetchProjectsMisSummary() {
+  return api.get('/projects-mis/summary');
+}
+
+export function fetchProjectsMisReport(reportId) {
+  return api.get(`/projects-mis/${encodeURIComponent(reportId)}`);
+}
+
 export default api;

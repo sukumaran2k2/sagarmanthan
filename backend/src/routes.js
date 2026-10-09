@@ -137,6 +137,7 @@ import projectReport from "./controllers/Reports/projectReport.js";
 import lumpsumReportTab from "./controllers/Reports/lumpsumReport.js";
 import capexReportTab from "./controllers/Reports/capexReport.js";
 import projectsDataQcReportTab from "./controllers/Reports/dataQc/index.js";
+import projectsMisReportTab from "./controllers/Reports/projectMis/index.js";
 import kpiDgs1_0Tab from "./controllers/Reports/kpiDgs1_0.js";
 import kpiDgs2_0Tab from "./controllers/Reports/kpiDgs2_0.js";
 import kpiDgs3_0Tab from "./controllers/Reports/kpiDgs2_3.js";
@@ -954,6 +955,8 @@ router.get("/project-list/:userID", auth, requireModulePermission("PROJECTS", "r
 router.get("/project-schedule-alerts/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectScheduleAlerts);
 router.get("/projects-data-qc/summary", auth, requireModulePermission("PROJECTS", "read"), projectsDataQcReportTab.getDataQcSummary);
 router.get("/projects-data-qc/:checkId", auth, requireModulePermission("PROJECTS", "read"), projectsDataQcReportTab.getDataQcCheckDetail);
+router.get("/projects-mis/summary", auth, requireModulePermission("PROJECTS", "read"), projectsMisReportTab.getMisSummary);
+router.get("/projects-mis/:reportId", auth, requireModulePermission("PROJECTS", "read"), projectsMisReportTab.getMisReport);
 router.get("/project-list-data/:userID", auth, requireModulePermission("PROJECTS", "read"), projectListTab.getProjectAllData);
 router.get("/project-folder-download/:userID/:emailId", auth, requireModulePermission("PROJECTS", "read"), projectListTab.projectFolderDownloadLog);
 // Email link download — keep public (tokenised filename)

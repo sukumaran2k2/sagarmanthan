@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, FileBarChart2, ShieldCheck } from 'lucide-react';
+import { FileBarChart2, ShieldCheck } from 'lucide-react';
 import RestrictedAccess from '../../../components/RestrictedAccess';
 import { useProjectsPermissions } from '../hooks/useProjectsPermissions';
 import DataQcGapAnalysis, { DataQcMinistryOnlyNotice } from '../components/reports/DataQcGapAnalysis';
+import MisReports from '../components/reports/mis/MisReports';
 
 const CATEGORIES = [
   {
@@ -18,31 +19,6 @@ const CATEGORIES = [
     icon: ShieldCheck,
   },
 ];
-
-function MisReportsShell() {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-8 sm:p-12 text-center">
-      <ClipboardList className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-      <h3 className="text-base font-black text-slate-700 dark:text-slate-200">
-        MIS Reports
-      </h3>
-      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto leading-relaxed">
-        Placeholder shell for organisation and ministry MIS reports. Report list and tables will
-        be added here once the MIS pack is shared.
-      </p>
-      <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-        {['Summary', 'Detailed', 'Stage-wise'].map((label) => (
-          <span
-            key={label}
-            className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400"
-          >
-            {label} · Coming soon
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function ProjectReportsPage() {
   const permissions = useProjectsPermissions();
@@ -99,7 +75,7 @@ export default function ProjectReportsPage() {
       </div>
 
       <div>
-        {activeCategory === 'mis' ? <MisReportsShell /> : null}
+        {activeCategory === 'mis' ? <MisReports /> : null}
 
         {activeCategory === 'data-qc' ? (
           isMinistryAudience ? <DataQcGapAnalysis /> : <DataQcMinistryOnlyNotice />
