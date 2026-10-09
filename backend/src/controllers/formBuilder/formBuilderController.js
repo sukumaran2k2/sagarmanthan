@@ -74,16 +74,64 @@ function normalizeFields(formFields) {
     if (!isFile && !STORABLE_INPUT_TYPES.includes(inputType)) {
       return { error: `Unsupported field type: ${inputType || '(blank)'}` };
     }
+    const inputLabel = String(f?.inputLabel || `Field ${i + 1}`);
+    let options = [];
+    if (OPTION_TYPES.includes(inputType)) {
+      const { error: optionError, options: cleaned } = normalizeOptions(inputLabel, f?.options);
+      if (optionError) return { error: optionError };
+      options = cleaned;
+    }
     storableFields.push({
-      inputLabel: String(f?.inputLabel || `Field ${i + 1}`),
+      inputLabel,
       inputType,
       isFile,
       placeholder: f?.placeholder || null,
       required: !!f?.required,
-      options: Array.isArray(f?.options) ? f.options : [],
+      options,
     });
   }
   return { storableFields };
+}
+
+// Field types whose answer must be one of the field's options.
+const OPTION_TYPES = ['dropdown', 'radio', 'multiple-select'];
+const MAX_OPTION_LENGTH = 255; // dropdown / radio answers are stored in NVARCHAR(255)
+
+// Options must be at least one non-empty, unique (ignoring case) piece of text of at
+// most 255 characters; surrounding spaces are trimmed.
+function normalizeOptions(label, rawOptions) {
+  if (!Array.isArray(rawOptions) || rawOptions.length === 0) {
+    return { error: `"${label}" needs at least one option` };
+  }
+  const options = [];
+  const seen = new Set();
+  for (const raw of rawOptions) {
+    if (typeof raw !== 'string' && typeof raw !== 'number') {
+      return { error: `"${label}" has an option that is not text` };
+    }
+    const text = String(raw).trim();
+    if (!text) return { error: `"${label}" has an empty option` };
+    if (text.length > MAX_OPTION_LENGTH) {
+      return { error: `"${label}" has an option longer than ${MAX_OPTION_LENGTH} characters` };
+    }
+    if (seen.has(text.toLowerCase())) return { error: `"${label}" has the option "${text}" more than once` };
+    seen.add(text.toLowerCase());
+    options.push(text);
+  }
+  return { options };
+}
+
+// True when the only difference between two field lists is options added to existing
+// fields (in any order). That changes no column, so it is allowed even once a form has
+// responses; removing or renaming an option is not, since stored answers may use it.
+function onlyOptionsAdded(storedFields, newFields) {
+  if (storedFields.length !== newFields.length) return false;
+  const withoutOptions = (list) => JSON.parse(fieldSignature(list)).map(({ options, ...rest }) => rest);
+  if (JSON.stringify(withoutOptions(storedFields)) !== JSON.stringify(withoutOptions(newFields))) return false;
+  return storedFields.every((f, i) => {
+    const next = new Set(newFields[i].options || []);
+    return (f.options || []).every((opt) => next.has(opt));
+  });
 }
 
 // Builds the per-form submissions table DDL. Column names are positional
@@ -326,17 +374,22 @@ async function updateForm(req, res, { formName, meta, storableFields }) {
     const rowCount = countResult.recordset[0].n;
 
     const fieldsChanged = fieldSignature(storedFields) !== fieldSignature(storableFields);
+    const optionsAddedOnly = fieldsChanged && onlyOptionsAdded(storedFields, storableFields);
 
-    if (fieldsChanged && rowCount > 0) {
+    if (fieldsChanged && rowCount > 0 && !optionsAddedOnly) {
       await rollbackQuietly(transaction);
       return res.status(409).json({
-        message: 'This form already has submissions, so its fields are locked. Only the form details (name, description, due date, assignment, status) can be changed.',
+        message: 'This form already has submissions, so its fields are locked. You can still add new options to dropdowns, radio buttons and multi-selects, and change the form details (name, description, due date, assignment, status); existing options can\'t be removed or renamed.',
         fieldsLocked: true,
       });
     }
 
     let formFieldsJson = storedFieldsJson;
-    if (fieldsChanged) {
+    if (optionsAddedOnly && rowCount > 0) {
+      // Same fields in the same positions, so the table and its columns stay as they are;
+      // only the stored field definitions gain the new options.
+      formFieldsJson = JSON.stringify(buildSubmissionsTable(tableName, storableFields).fieldsForJson);
+    } else if (fieldsChanged) {
       // Table is empty (checked under lock above), so rebuilding it loses nothing.
       const { ddl, fieldsForJson } = buildSubmissionsTable(tableName, storableFields);
       await transaction.request().query(`DROP TABLE [${tableName}];`);
@@ -367,6 +420,7 @@ async function updateForm(req, res, { formName, meta, storableFields }) {
       id: formId,
       tableName,
       fieldsChanged,
+      optionsAdded: optionsAddedOnly && rowCount > 0,
       fieldsLocked: rowCount > 0,
       message: 'Form updated successfully',
     });
@@ -861,7 +915,7 @@ function coerceFieldValue(field, raw) {
     case 'multiple-select': {
       if (!Array.isArray(raw) || raw.some((v) => typeof v !== 'string')) return { error: `${label} must be a list of options` };
       if (options.length && raw.some((v) => !options.includes(v))) return { error: `${label} has an option that is not allowed` };
-      return { value: JSON.stringify(raw), sqlType: sql.NVarChar(sql.MAX) };
+      return { value: JSON.stringify([...new Set(raw)]), sqlType: sql.NVarChar(sql.MAX) };
     }
     default: {
       if (typeof raw !== 'string' && typeof raw !== 'number') return { error: `${label} must be text` };

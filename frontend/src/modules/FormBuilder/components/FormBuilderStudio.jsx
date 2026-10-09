@@ -345,6 +345,25 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       return;
     }
 
+    // Same rules as the server for options: at least one, none blank, no repeats.
+    for (const f of fields) {
+      if (!['dropdown', 'radio', 'multiple-select'].includes(f.inputType)) continue;
+      const opts = (f.options || []).map(o => String(o).trim());
+      if (opts.length === 0) {
+        triggerNotification && triggerNotification(`"${f.inputLabel}" needs at least one option`, 'warning');
+        return;
+      }
+      if (opts.some(o => !o)) {
+        triggerNotification && triggerNotification(`"${f.inputLabel}" has an empty option`, 'warning');
+        return;
+      }
+      const dup = opts.find((o, i) => opts.findIndex(x => x.toLowerCase() === o.toLowerCase()) !== i);
+      if (dup) {
+        triggerNotification && triggerNotification(`"${f.inputLabel}" has the option "${dup}" more than once`, 'warning');
+        return;
+      }
+    }
+
     // Same rule as the server: no past due date, except an overdue form keeping its date.
     if (dueDate && dueDate < todayIST() && dueDate !== formToEdit?.dueDate) {
       triggerNotification && triggerNotification('The due date cannot be in the past', 'warning');
@@ -1081,6 +1100,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                               handleUpdateField(selectedField.id, 'options', updated);
                             }}
                             placeholder={`Option ${idx + 1}`}
+                            maxLength={255}
                             className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:bg-white focus:ring-1 focus:ring-blue-500"
                           />
                           <button
