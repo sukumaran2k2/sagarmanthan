@@ -57,7 +57,6 @@ export function mapTenderingOverdueRows(stageRows) {
       group.stages
     );
 
-    // Report 2: only projects with at least one overdue stage target.
     if (state.overdueStages.length === 0) continue;
 
     const milestones =

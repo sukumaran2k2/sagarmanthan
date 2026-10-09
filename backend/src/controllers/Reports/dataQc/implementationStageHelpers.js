@@ -5,10 +5,7 @@ import {
   resolveProjectIds,
 } from "./shared.js";
 
-/**
- * Join latest physical progress by varchar keys.
- * Progress.sub_project_id can be non-numeric (e.g. SPR0002); do not coerce to int.
- */
+// Progress.sub_project_id can be non-numeric (e.g. SPR0002) — match as varchar, don't coerce to int.
 export const LATEST_PHYSICAL_PROGRESS_JOIN = `
   LEFT JOIN (
     SELECT
@@ -103,7 +100,6 @@ export function getOverdueDays(effectiveTarget, today = startOfToday()) {
   return Math.floor(diffMs / (24 * 60 * 60 * 1000));
 }
 
-/** Current milestone is driven only by physical progress %, not dates. */
 export function milestoneIdFromPhysicalProgress(progressValue) {
   const pct = Number(progressValue);
   if (!Number.isFinite(pct) || pct < 20) return 0;
@@ -132,7 +128,6 @@ export function buildProjectMilestoneState(project, milestoneRows) {
   const currentMilestone =
     milestones.find((m) => m.milestoneId === currentMilestoneId) || null;
 
-  // Target = start_date only (no revised-date concept for implementation).
   const targetsWithDates = milestones.filter((m) => m.effectiveTarget);
   const actualsBeforeCurrent = milestones.filter(
     (m) => m.milestoneId < currentMilestoneId && m.actualDate
@@ -264,7 +259,6 @@ export function groupImplementationMilestoneRows(stageRows) {
       milestoneId: Number(row.milestone_id),
       label: def?.label || row.milestone_label,
       shortLabel: def?.shortLabel || row.milestone_label,
-      // Implementation has no revised date — target is start_date only.
       effectiveTarget: row.start_date || null,
       actualDate: row.end_date || null,
     });
