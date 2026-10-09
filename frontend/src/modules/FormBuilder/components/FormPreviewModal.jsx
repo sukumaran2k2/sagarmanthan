@@ -28,8 +28,26 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
     }
   };
 
+  // A dependent dropdown's options follow its parent's current answer.
+  const optionsFor = (field) => {
+    if (!field.dependsOn) return field.options || [];
+    const parentValue = formData[field.dependsOn];
+    return parentValue ? ((field.optionsByParent || {})[parentValue] || []) : [];
+  };
+
+  // Changing an answer clears every field that depends on it (and their dependents).
   const handleChange = (fieldId, value) => {
-    setFormData(prev => ({ ...prev, [fieldId]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [fieldId]: value };
+      const clear = (parentId) => {
+        (fields || []).filter(f => f.dependsOn === parentId).forEach(child => {
+          if (next[child.id] !== undefined && next[child.id] !== '') next[child.id] = '';
+          clear(child.id);
+        });
+      };
+      if (prev[fieldId] !== value) clear(fieldId);
+      return next;
+    });
   };
 
   const handleMultiSelectToggle = (fieldId, option) => {
@@ -230,12 +248,17 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
                   {field.inputType === 'dropdown' && (
                     <select
                       required={field.required}
+                      disabled={!!field.dependsOn && !formData[field.dependsOn]}
                       value={formData[field.id] || ''}
                       onChange={(e) => handleChange(field.id, e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      <option value="">Select Option</option>
-                      {field.options.map((opt, idx) => (
+                      <option value="">
+                        {field.dependsOn && !formData[field.dependsOn]
+                          ? `Select ${(fields.find(f => f.id === field.dependsOn) || {}).inputLabel || 'the field above'} first`
+                          : 'Select Option'}
+                      </option>
+                      {optionsFor(field).map((opt, idx) => (
                         <option key={idx} value={opt}>{opt}</option>
                       ))}
                     </select>
