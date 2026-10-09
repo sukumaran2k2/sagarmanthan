@@ -123,6 +123,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [pagination, setPagination] = useState(null);
+  const [activeCount, setActiveCount] = useState(0);
   const [usingMock, setUsingMock] = useState(true);
 
   // Mock forms show only when the request succeeds, the DB has no forms and nothing is
@@ -146,6 +147,7 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
         setForms(data);
         setUsingMock(false);
         setPagination(pg || null);
+        setActiveCount(res.data?.counts?.active ?? 0);
       })
       .catch((err) => {
         console.error('Error loading forms:', err);
@@ -226,6 +228,8 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
     try {
       const res = await api.post(`/toggle-form-status/${form.id}`, { active: !isSwitchOn(form) });
       setForms(prev => prev.map(f => (f.id === form.id ? { ...f, status: res.data.status, isActive: res.data.isActive } : f)));
+      // Keep the TOTAL (active forms) count in step without reloading the page.
+      if (res.data.isActive !== isSwitchOn(form)) setActiveCount(c => c + (res.data.isActive ? 1 : -1));
       triggerNotification && triggerNotification(res.data.message, res.data.status === 'Overdue' ? 'warning' : 'success');
     } catch (err) {
       console.error('Error changing form status:', err);
@@ -311,8 +315,9 @@ export default function FormDirectory({ triggerNotification, onViewSubmissions, 
             />
           </div>
           <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 min-w-[100px] text-center hidden md:block">
-            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Total</span>
-            <span className="text-xl font-black text-blue-800">{usingMock ? filteredForms.length : (pagination?.total ?? 0)}</span>
+            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Active</span>
+            {/* Active forms only (switch on), across all pages; follows the search. */}
+            <span className="text-xl font-black text-blue-800">{usingMock ? filteredForms.filter(f => f.status === 'Active').length : activeCount}</span>
           </div>
         </div>
       </div>

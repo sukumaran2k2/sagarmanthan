@@ -409,18 +409,23 @@ async function getCreatedFormData(req, res) {
               WHERE a.form_id = d.id) AS assigned_to,
              CASE WHEN d.due_date < ${TODAY_IST_SQL} THEN 1 ELSE 0 END AS is_past_due,
              CASE WHEN ${manageableFormsSql(scope)} THEN 1 ELSE 0 END AS can_manage,
-             COUNT(*) OVER () AS total_count
+             COUNT(*) OVER () AS total_count,
+             SUM(CASE WHEN d.active_status = '1' THEN 1 ELSE 0 END) OVER () AS active_count
       ${listFrom}
       ORDER BY d.created_date DESC, d.id DESC
       ${all ? '' : 'OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY'};
     `);
     let total = result.recordset[0]?.total_count || 0;
+    // Forms switched to Active (the Directory TOTAL box), across all pages; honours the search.
+    let activeCount = result.recordset[0]?.active_count || 0;
     if (result.recordset.length === 0 && page > 1) {
-      // Past the last page (e.g. after a delete): report the real total so the pager can recover.
+      // Past the last page (e.g. after a delete): report the real totals so the pager can recover.
       const counted = await bindVisibility(conn.request(), req.user)
         .input('search', sql.NVarChar(110), searchPattern)
-        .query(`${DECLARE_CALLER_ASSIGNMENT_SQL} SELECT COUNT(*) AS n ${listFrom};`);
+        .query(`${DECLARE_CALLER_ASSIGNMENT_SQL}
+          SELECT COUNT(*) AS n, ISNULL(SUM(CASE WHEN d.active_status = '1' THEN 1 ELSE 0 END), 0) AS active ${listFrom};`);
       total = counted.recordset[0].n;
+      activeCount = counted.recordset[0].active;
     }
 
     const forms = result.recordset.map((row) => {
@@ -462,6 +467,7 @@ async function getCreatedFormData(req, res) {
       pagination: all
         ? { total, page: 1, limit: Math.max(total, 1), totalPages: 1 }
         : { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+      counts: { total, active: activeCount },
     });
   } catch (err) {
     console.error('getCreatedFormData error:', err);
