@@ -113,6 +113,9 @@ async function getMonthlySocialParameter(req, res) {
     const conn = await pool;
     const request = conn.request();
     const userID = req.params.userID;
+    const page = req.query.page ? parseInt(req.query.page, 10) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : null;
+    const search = req.query.search ? req.query.search.trim() : null;
 
     request.input("userID", userID);
 
@@ -124,50 +127,61 @@ async function getMonthlySocialParameter(req, res) {
         `);
 
         const { role_id } = userResult.recordset[0];
+        let whereClause = '';
 
-        let query;
-
-        if (role_id == 2 || role_id == 3 || role_id == 4 || role_id == 5 || role_id == 8) {
-
-            query = `
-                SELECT 
-                    sm.*,
-                    o.organisation_name,
-                    c.organisation_category_name
-                FROM tbl_social_media sm
-                LEFT JOIN mmt_organisation o ON sm.organisation_id = o.organisation_id
-                LEFT JOIN mmt_organisation_category c ON o.organisation_category_id = c.organisation_category_id
-                ORDER BY
-                    sm.financial_year DESC,
-                    CASE sm.month
-                        WHEN 'January' THEN 1
-                        WHEN 'February' THEN 2
-                        WHEN 'March' THEN 3
-                        WHEN 'April' THEN 4
-                        WHEN 'May' THEN 5
-                        WHEN 'June' THEN 6
-                        WHEN 'July' THEN 7
-                        WHEN 'August' THEN 8
-                        WHEN 'September' THEN 9
-                        WHEN 'October' THEN 10
-                        WHEN 'November' THEN 11
-                        WHEN 'December' THEN 12
-                    END DESC;
-            `;
-
-        } else {
-
+        if (role_id != 2 && role_id != 3 && role_id != 4 && role_id != 5 && role_id != 8) {
             const orgResult = await request.query(`
                 SELECT organisation_id
                 FROM tbl_user
                 WHERE user_id = @userID
             `);
 
-            const organisationID = orgResult.recordset[0].organisation_id;
-
+            const organisationID = orgResult.recordset[0]?.organisation_id;
             request.input("organisationID", organisationID);
+            whereClause = `WHERE sm.organisation_id = @organisationID`;
+        }
 
-            query = `
+        if (search) {
+            request.input("search", `%${search}%`);
+            whereClause = whereClause
+                ? `${whereClause} AND (o.organisation_name LIKE @search OR sm.month LIKE @search OR sm.financial_year LIKE @search)`
+                : `WHERE (o.organisation_name LIKE @search OR sm.month LIKE @search OR sm.financial_year LIKE @search)`;
+        }
+
+        const orderByClause = `
+            ORDER BY
+                sm.financial_year DESC,
+                CASE sm.month
+                    WHEN 'January' THEN 1
+                    WHEN 'February' THEN 2
+                    WHEN 'March' THEN 3
+                    WHEN 'April' THEN 4
+                    WHEN 'May' THEN 5
+                    WHEN 'June' THEN 6
+                    WHEN 'July' THEN 7
+                    WHEN 'August' THEN 8
+                    WHEN 'September' THEN 9
+                    WHEN 'October' THEN 10
+                    WHEN 'November' THEN 11
+                    WHEN 'December' THEN 12
+                END DESC
+        `;
+
+        if (page && limit) {
+            const offset = (page - 1) * limit;
+            request.input("offset", offset);
+            request.input("limit", limit);
+
+            const countQuery = `
+                SELECT COUNT(1) AS total
+                FROM tbl_social_media sm
+                LEFT JOIN mmt_organisation o ON sm.organisation_id = o.organisation_id
+                ${whereClause}
+            `;
+            const countResult = await request.query(countQuery);
+            const total = countResult.recordset[0]?.total || 0;
+
+            const paginatedQuery = `
                 SELECT 
                     sm.*,
                     o.organisation_name,
@@ -175,30 +189,36 @@ async function getMonthlySocialParameter(req, res) {
                 FROM tbl_social_media sm
                 LEFT JOIN mmt_organisation o ON sm.organisation_id = o.organisation_id
                 LEFT JOIN mmt_organisation_category c ON o.organisation_category_id = c.organisation_category_id
-                WHERE sm.organisation_id = @organisationID
-                ORDER BY
-                    sm.financial_year DESC,
-                    CASE sm.month
-                        WHEN 'January' THEN 1
-                        WHEN 'February' THEN 2
-                        WHEN 'March' THEN 3
-                        WHEN 'April' THEN 4
-                        WHEN 'May' THEN 5
-                        WHEN 'June' THEN 6
-                        WHEN 'July' THEN 7
-                        WHEN 'August' THEN 8
-                        WHEN 'September' THEN 9
-                        WHEN 'October' THEN 10
-                        WHEN 'November' THEN 11
-                        WHEN 'December' THEN 12
-                    END DESC;
+                ${whereClause}
+                ${orderByClause}
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
             `;
+            const result = await request.query(paginatedQuery);
+            return res.json({
+                data: result.recordset,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit)
+                }
+            });
+        } else {
+            const fullQuery = `
+                SELECT 
+                    sm.*,
+                    o.organisation_name,
+                    c.organisation_category_name
+                FROM tbl_social_media sm
+                LEFT JOIN mmt_organisation o ON sm.organisation_id = o.organisation_id
+                LEFT JOIN mmt_organisation_category c ON o.organisation_category_id = c.organisation_category_id
+                ${whereClause}
+                ${orderByClause};
+            `;
+            const result = await request.query(fullQuery);
+            return res.json(result.recordset);
         }
-        console.log(query)
-        const result = await request.query(query);
-
-        // console.log(result.recordset);
-        res.json(result.recordset);
 
     } catch (err) {
         console.error(err);

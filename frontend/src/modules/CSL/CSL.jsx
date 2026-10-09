@@ -2,22 +2,17 @@ import { useState, useEffect } from 'react';
 import { Ship, Anchor, Truck, Gauge, Hammer, Wrench, Construction } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
-import VesselsBuiltDataList from './pages/VesselsBuilt/DataList';
+import { resolveCSLListView } from './views';
 import VesselsBuiltInputForm from './pages/VesselsBuilt/InputForm';
 import VesselsBuiltReports from './pages/VesselsBuilt/Reports';
-import ShipBuildingOrdersDataList from './pages/ShipBuildingOrders/DataList';
 import ShipBuildingOrdersInputForm from './pages/ShipBuildingOrders/InputForm';
 import ShipBuildingOrdersReports from './pages/ShipBuildingOrders/Reports';
-import ShipDeliveryPerformanceDataList from './pages/ShipDeliveryPerformance/DataList';
 import ShipDeliveryPerformanceInputForm from './pages/ShipDeliveryPerformance/InputForm';
 import ShipDeliveryPerformanceReports from './pages/ShipDeliveryPerformance/Reports';
-import CapacityUtilizationDataList from './pages/CapacityUtilization/DataList';
 import CapacityUtilizationInputForm from './pages/CapacityUtilization/InputForm';
 import CapacityUtilizationReports from './pages/CapacityUtilization/Reports';
-import FabricationOfSteelsDataList from './pages/FabricationOfSteels/DataList';
 import FabricationOfSteelsInputForm from './pages/FabricationOfSteels/InputForm';
 import FabricationOfSteelsReports from './pages/FabricationOfSteels/Reports';
-import ShipsRepairedDataList from './pages/ShipsRepaired/DataList';
 import ShipsRepairedInputForm from './pages/ShipsRepaired/InputForm';
 import ShipsRepairedReports from './pages/ShipsRepaired/Reports';
 import { useCSLPermissions } from './hooks/useCSLPermissions';
@@ -69,6 +64,14 @@ export default function CSLView({ activeTab, triggerNotification }) {
   const [loading, setLoading] = useState(false);
   const [editData, setEditData] = useState(null);
 
+  // Server-side pagination + search, one entry per section
+  const LIST_LIMIT = 10;
+  const [listState, setListState] = useState({});
+  const [listPagination, setListPagination] = useState({});
+  const [listYears, setListYears] = useState({});
+  const setSectionPage = (page) => setListState((p) => ({ ...p, [activeSection]: { ...(p[activeSection] || { search: '' }), page } }));
+  const setSectionSearch = (search) => setListState((p) => ({ ...p, [activeSection]: { page: 1, search } }));
+
   // Keep the URL's ?section=&tab= query params in sync with the current view,
   // so refreshing, bookmarking, or using browser back/forward preserves the
   // exact section and tab the user was on.
@@ -79,6 +82,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
     const newSearch = `?${params.toString()}`;
     if (window.location.search !== newSearch) {
       window.history.pushState(null, '', `${window.location.pathname}${newSearch}`);
+      window.dispatchEvent(new Event('kpi-subtab-change'));
     }
   }, [activeSection, activeSubTab]);
 
@@ -100,50 +104,42 @@ export default function CSLView({ activeTab, triggerNotification }) {
   if (canView) tabs.push({ id: 'list', label: 'Data List' });
   if (canView) tabs.push({ id: 'report', label: 'Reports' });
 
+  const LIST_FETCHERS = {
+    vesselsBuilt: fetchVesselsBuilt,
+    shipBuildingOrders: fetchShipBuildingOrders,
+    shipDelivery: fetchShipDeliveryPerformance,
+    capacityUtilization: fetchCapacityUtilization,
+    fabricationOfSteels: fetchFabricationOfSteels,
+    shipsRepaired: fetchShipsRepaired,
+  };
+
   const fetchData = () => {
-    if (activeSection === 'vesselsBuilt') {
-      setLoading(true);
-      fetchVesselsBuilt(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Vessels Built data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'shipBuildingOrders') {
-      setLoading(true);
-      fetchShipBuildingOrders(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Ship Building Orders data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'shipDelivery') {
-      setLoading(true);
-      fetchShipDeliveryPerformance(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Ship Delivery Performance data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'capacityUtilization') {
-      setLoading(true);
-      fetchCapacityUtilization(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Capacity Utilization data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'fabricationOfSteels') {
-      setLoading(true);
-      fetchFabricationOfSteels(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Fabrication of Steels data:', err))
-        .finally(() => setLoading(false));
-    } else if (activeSection === 'shipsRepaired') {
-      setLoading(true);
-      fetchShipsRepaired(1) // backend takes userID but query is currently unfiltered by it
-        .then((res) => setRowData(res.data || []))
-        .catch((err) => console.error('Error loading Ships Repaired data:', err))
-        .finally(() => setLoading(false));
+    const fetcher = LIST_FETCHERS[activeSection];
+    if (!fetcher) return;
+    const st = listState[activeSection] || { page: 1, search: '' };
+    setLoading(true);
+    fetcher(1, { page: st.page, limit: LIST_LIMIT, search: st.search }) // backend takes userID but query is currently unfiltered by it
+      .then((res) => {
+        setRowData(res.data?.data || []);
+        setListPagination((prev) => ({ ...prev, [activeSection]: res.data?.pagination || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 } }));
+      })
+      .catch((err) => console.error('Error loading CSL list data:', err))
+      .finally(() => setLoading(false));
+    if (!listYears[activeSection]) {
+      fetcher(1, { page: 1, limit: 100 })
+        .then((res) => {
+          const all = res.data?.data || [];
+          const yrs = [...new Set(all.map((r) => r.financial_year))].sort().reverse();
+          setListYears((prev) => ({ ...prev, [activeSection]: yrs }));
+        })
+        .catch(() => {});
     }
   };
 
     useEffect(() => {
     setEditData(null);
     fetchData();
-  }, [activeSection]);
+  }, [activeSection, listState[activeSection]?.page, listState[activeSection]?.search]);
 
   const handleEdit = (row) => {
     setEditData(row);
@@ -226,6 +222,16 @@ export default function CSLView({ activeTab, triggerNotification }) {
     }
   };
 
+  const ListView = resolveCSLListView(activeSection);
+  const listProps = {
+    rowData, loading, onEdit: handleEdit, onDelete: handleDelete, canEdit, canRemove,
+    pagination: listPagination[activeSection] || { total: 0, page: 1, limit: LIST_LIMIT, totalPages: 0 },
+    onPageChange: setSectionPage,
+    searchQuery: listState[activeSection]?.search || '',
+    onSearchChange: setSectionSearch,
+    years: listYears[activeSection] || [],
+  };
+
   if (!canAdd && !canView && !canEdit) {
     return <RestrictedAccess moduleName="KPI - CSL" />;
   }
@@ -302,14 +308,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <VesselsBuiltDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listProps} />
           )
         ) : activeSection === 'shipBuildingOrders' ? (
           activeSubTab === 'report' ? (
@@ -322,14 +321,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <ShipBuildingOrdersDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listProps} />
           )
         ) : activeSection === 'shipDelivery' ? (
           activeSubTab === 'report' ? (
@@ -342,14 +334,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <ShipDeliveryPerformanceDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listProps} />
           )
         ) : activeSection === 'capacityUtilization' ? (
           activeSubTab === 'report' ? (
@@ -362,14 +347,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <CapacityUtilizationDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listProps} />
           )
         ) : activeSection === 'fabricationOfSteels' ? (
           activeSubTab === 'report' ? (
@@ -382,14 +360,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <FabricationOfSteelsDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listProps} />
           )
         ) : activeSection === 'shipsRepaired' ? (
           activeSubTab === 'report' ? (
@@ -402,14 +373,7 @@ export default function CSLView({ activeTab, triggerNotification }) {
               triggerNotification={triggerNotification}
             />
           ) : (
-            <ShipsRepairedDataList
-              rowData={rowData}
-              loading={loading}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              canEdit={canEdit}
-              canRemove={canRemove}
-            />
+            <ListView {...listProps} />
           )
         ) : null}
       </div>

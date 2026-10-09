@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Table from '../../../components/Table';
-import { Search, X, Edit, Trash2, ChevronDown, BarChart3, List } from 'lucide-react';
+import { Search, X, Edit, Trash2, ChevronDown, BarChart3, List, Filter } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { deleteBill } from '../api';
 import ExportDropdown from '../../../components/ExportDropdown';
@@ -53,6 +53,7 @@ export default function DataList({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
   const [selectedStage, setSelectedStage] = useState('');
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // table or chart switching
   const [gridApi, setGridApi] = useState(null); // Ag Grid API reference
   const [dropdownOpen, setDropdownOpen] = useState(false); // Visibility checklist dropdown
@@ -163,6 +164,14 @@ export default function DataList({
     });
   }, [rowData, selectedWing, selectedDivision, selectedStage, searchQuery, activeCategory]);
 
+  const activeFiltersCount = [selectedWing, selectedDivision, selectedStage].filter(Boolean).length;
+
+  const clearFilters = () => {
+    setSelectedWing('');
+    setSelectedDivision('');
+    setSelectedStage('');
+  };
+
   const activeCount = useMemo(() => rowData.filter(item => !(!!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date)).length, [rowData]);
   const disposedCount = useMemo(() => rowData.filter(item => (!!item.bill_passed_date || !!item.bill_notified_date || !!item.completed_date)).length, [rowData]);
 
@@ -209,9 +218,10 @@ export default function DataList({
       flex: 1,
       minWidth: 250,
       pinned: 'left',
-      cellStyle: { textAlign: 'left' },
-      cellClass: 'text-left font-semibold text-slate-800 dark:text-slate-200 whitespace-normal leading-normal py-2 border-r border-slate-150 dark:border-slate-800',
+      cellStyle: { textAlign: 'center' },
+      cellClass: 'text-center font-semibold text-slate-800 dark:text-slate-200 whitespace-normal leading-normal py-2 border-r border-slate-150 dark:border-slate-800 flex items-center justify-center',
       headerClass: 'border-r border-slate-150 dark:border-slate-800',
+      wrapText: true,
       autoHeight: true,
       hide: !visibleCols.subject
     },
@@ -220,8 +230,7 @@ export default function DataList({
       headerName: 'Wing',
       flex: 1.2,
       minWidth: 150,
-      cellStyle: { textAlign: 'left' },
-      cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+      cellClass: 'text-center flex items-center justify-center text-slate-700 dark:text-slate-300 font-medium',
       hide: !visibleCols.wing
     },
     {
@@ -229,8 +238,7 @@ export default function DataList({
       headerName: 'Division',
       flex: 1.2,
       minWidth: 150,
-      cellStyle: { textAlign: 'left' },
-      cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+      cellClass: 'text-center flex items-center justify-center text-slate-700 dark:text-slate-300 font-medium',
       hide: !visibleCols.division
     },
     {
@@ -259,7 +267,7 @@ export default function DataList({
           <>
             <button
               onClick={() => onEdit(bill)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+              className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
               title={canEdit ? "Update Bill" : "View Bill"}
             >
               <Edit className="h-4.5 w-4.5" />
@@ -407,48 +415,37 @@ export default function DataList({
         {/* Filter Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Wing Dropdown */}
-            <div className="w-36 relative">
-              <select
-                value={selectedWing}
-                onChange={(e) => setSelectedWing(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
-              >
-                <option value="">Show all Wings</option>
-                {wingOptions.map(w => (
-                  <option key={w.value} value={w.value}>{w.label}</option>
-                ))}
-              </select>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                showFilterPanel || activeFiltersCount > 0
+                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200'
+              }`}
+            >
+              <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
+              <span>Filter</span>
+              {activeFiltersCount > 0 && (
+                <span className="bg-[#0f417a] dark:bg-blue-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                  {activeFiltersCount}
+                </span>
+              )}
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`}
+              />
+            </button>
 
-            {/* Division Dropdown */}
-            <div className="w-36 relative">
-              <select
-                value={selectedDivision}
-                onChange={(e) => setSelectedDivision(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
+            {activeFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
               >
-                <option value="">Show all Divisions</option>
-                {divisionOptions.map(d => (
-                  <option key={d.value} value={d.value}>{d.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Stage Dropdown */}
-            {activeCategory === 'active' && (
-              <div className="w-36 relative">
-                <select
-                  value={selectedStage}
-                  onChange={(e) => setSelectedStage(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-950 dark:border-slate-850 dark:text-slate-200 cursor-pointer"
-                >
-                  <option value="">Show all Stages</option>
-                  {stageOptions.map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
+                <X className="h-3.5 w-3.5" />
+                <span>Reset Filters</span>
+              </button>
             )}
 
             {/* Search input */}
@@ -470,17 +467,6 @@ export default function DataList({
                 </button>
               )}
             </div>
-
-            {/* Clear Button */}
-            {(selectedWing || selectedDivision || selectedStage || searchQuery) && (
-              <button
-                onClick={() => { setSelectedWing(''); setSelectedDivision(''); setSelectedStage(''); setSearchQuery(''); }}
-                className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 px-3.5 py-2 rounded-xl border border-rose-200 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20 transition cursor-pointer"
-              >
-                <span className="h-3.5 w-3.5 text-center">✕</span>
-                <span>Clear</span>
-              </button>
-            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -562,6 +548,81 @@ export default function DataList({
             </div>
             */}
         </div>
+
+        {showFilterPanel && (
+          <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Filter className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                  Filter Bills
+                </span>
+              </div>
+              {activeFiltersCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center space-x-1 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Reset All Filters</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Wing
+                </label>
+                <select
+                  value={selectedWing}
+                  onChange={(e) => setSelectedWing(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">Show all Wings</option>
+                  {wingOptions.map(w => (
+                    <option key={w.value} value={w.value}>{w.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Division
+                </label>
+                <select
+                  value={selectedDivision}
+                  onChange={(e) => setSelectedDivision(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="">Show all Divisions</option>
+                  {divisionOptions.map(d => (
+                    <option key={d.value} value={d.value}>{d.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {activeCategory === 'active' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                    Stage
+                  </label>
+                  <select
+                    value={selectedStage}
+                    onChange={(e) => setSelectedStage(e.target.value)}
+                    className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 font-semibold text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 cursor-pointer"
+                  >
+                    <option value="">Show all Stages</option>
+                    {stageOptions.map(s => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         </div>
 
         {viewMode === 'table' ? (

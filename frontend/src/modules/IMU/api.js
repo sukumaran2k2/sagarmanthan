@@ -59,8 +59,8 @@ api.interceptors.response.use(
 // createStudentEnrollment on the backend is itself an upsert (keyed on
 // financial_year) -- there's no separate update endpoint, so the frontend
 // always calls this same create function for both add and edit.
-export function fetchStudentEnrollment() {
-  return api.get('/get-imu-k-5-1');
+export function fetchStudentEnrollment(params = {}) {
+  return api.get('/get-imu-k-5-1', { params });
 }
 
 export function fetchStudentEnrollmentById(studentId) {
@@ -108,8 +108,8 @@ export function deleteFinalYearPassPercentage(studentId, userId) {
 
 // ---- New Course Upgradation (K-5.2) ----
 // createimunewCourseUpgradation is an upsert keyed on financial_year.
-export function fetchNewCourseUpgradation() {
-  return api.get('/get-imu-k-5-2');
+export function fetchNewCourseUpgradation(params = {}) {
+  return api.get('/get-imu-k-5-2', { params });
 }
 
 export function fetchNewCourseUpgradationById(courseId) {
@@ -130,8 +130,8 @@ export function deleteNewCourseUpgradation(courseId, userId) {
 
 // ---- Facilities (K-5.3) ----
 // createimuFacilities is an upsert keyed on financial_year.
-export function fetchFacilities() {
-  return api.get('/get-imu-k-5-3');
+export function fetchFacilities(params = {}) {
+  return api.get('/get-imu-k-5-3', { params });
 }
 
 export function fetchFacilitiesById(facilitiesId) {
@@ -152,8 +152,8 @@ export function deleteFacilities(facilitiesId, userId) {
 
 // ---- Partnership (K-5.4) ----
 // createimuPartnership is an upsert keyed on financial_year.
-export function fetchPartnership() {
-  return api.get('/get-imu-k-5-4');
+export function fetchPartnership(params = {}) {
+  return api.get('/get-imu-k-5-4', { params });
 }
 
 export function fetchPartnershipById(partnershipId) {
@@ -174,8 +174,8 @@ export function deletePartnership(partnershipId, userId) {
 
 // ---- Research, Innovation & Startups (K-5.5) ----
 // createImuResearch is an upsert keyed on financial_year.
-export function fetchResearch() {
-  return api.get('/get-imu-k-5-5');
+export function fetchResearch(params = {}) {
+  return api.get('/get-imu-k-5-5', { params });
 }
 
 export function fetchResearchById(researchId) {

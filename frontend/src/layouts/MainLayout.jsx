@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Tabs from '../components/Tabs';
@@ -11,7 +11,8 @@ import {
   canAccessTab, 
   normalizeTab, 
   usesOwnPageHeader, 
-  TAB_USER_MODULE_PERMISSION 
+  TAB_USER_MODULE_PERMISSION,
+  TAB_USER_LIST,
 } from '../utils/moduleAccess';
 import { Home } from 'lucide-react';
 
@@ -74,7 +75,7 @@ export const ROUTE_MAP = {
   'Parliamentary Issues': 'governance/parliamentary-issues/data-list',
   'Audit Paras': 'governance/audit-paras/input-form',
   'Audit Para': 'governance/audit-paras/input-form',
-  'GEM Procurements': 'governance/gem-procurements',
+  'GEM Procurements': 'governance/gem-procurements/total',
 
   // Legal nested routes
   'Courtcases': 'legal/courtcases',
@@ -138,8 +139,8 @@ export const ROUTE_MAP = {
   'Contact Us': 'contact',
 
   // SUPERADMIN
-  [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission',
-  'admin/user-list': 'admin/user-list',
+  [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission/users',
+  [TAB_USER_LIST]: 'admin/user-list',
 
   // HR nested routes
   'HR Dashboard': 'hr/hr-management/hr-dashboard',
@@ -176,11 +177,11 @@ export const ROUTE_MAP = {
   'CSR Reports': 'projects/csr-projects/reports',
 
   // Finance / Capex routes
-  'Capex': 'finance/capex/dashboard',
+  'Capex': 'finance/capex/data-list',
   'Capex Dashboard': 'finance/capex/dashboard',
   'Capex Datalist': 'finance/capex/data-list',
   'Capex Input Form': 'finance/capex/input-form',
-  'Estimate Values': 'finance/capex/estimate-values',
+  'Estimate Values': 'finance/capex/data-list',
   'Capex Reports': 'finance/capex/reports',
 };
 
@@ -204,6 +205,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('strategies/miv-2030')) return 'MIV 2030';
   if (cleanSlug.startsWith('strategies/drishti-portal') || cleanSlug.startsWith('strategies/ovod') || cleanSlug.startsWith('strategies/one-vision-one-document')) return 'Drishti Portal';
   if (cleanSlug.startsWith('finance/capex')) return 'Capex';
+  if (cleanSlug.startsWith('governance/gem-procurements')) return 'GEM Procurements';
   if (cleanSlug.startsWith('governance/vip-reference')) return 'VIP Reference';
   if (cleanSlug.startsWith('governance/audit-paras')) return 'Audit Paras';
   if (cleanSlug.startsWith('governance/cabinet-notes-other-ministry')) return 'Cabinet Notes - Other Ministries';
@@ -219,6 +221,8 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('form-builder/directory')) return 'Form Directory';
   if (cleanSlug.startsWith('form-builder/inbox')) return 'Inbox Forms';
   if (cleanSlug.startsWith('form-builder/edit')) return 'Edit Form';
+  if (cleanSlug.startsWith('admin/user-module-permission')) return TAB_USER_MODULE_PERMISSION;
+  if (cleanSlug.startsWith('admin/user-list')) return TAB_USER_LIST;
 
   // Exact match
   const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);
@@ -229,6 +233,19 @@ export const getTabFromSlug = (slug) => {
   if (prefixEntry) return normalizeTab(prefixEntry[0]);
 
   return normalizeTab(cleanSlug);
+};
+
+const KPI_SUBTAB_SUFFIX = { add: 'Input Form', list: 'Data List', report: 'Reports' };
+const KPI_MODULE_LABEL = { 'kpi/imu': 'IMU', 'kpi/csl': 'CSL', 'kpi/dgll': 'DGLL', 'kpi/sci': 'SCI' };
+
+// For the four KPI modules that switch tabs via ?tab=, show the real sub-tab in the last crumb.
+// Returns the replacement label, or null when the default crumb should be used.
+const getKpiSubTabCrumb = (pathname, search) => {
+  const cleanPath = pathname.replace(/^\//, '').replace(/\/$/, '');
+  const moduleKey = Object.keys(KPI_MODULE_LABEL).find((k) => cleanPath.startsWith(k));
+  if (!moduleKey) return null;
+  const suffix = KPI_SUBTAB_SUFFIX[new URLSearchParams(search).get('tab')];
+  return suffix ? `${KPI_MODULE_LABEL[moduleKey]} ${suffix}` : null;
 };
 
 const getBreadcrumbs = (tab) => {
@@ -340,6 +357,16 @@ export default function MainLayout({
   const location = useLocation();
   const navigate = useNavigate();
 
+  // KPI modules switch tabs with a raw history.pushState, which React Router never sees.
+  // They fire 'kpi-subtab-change' afterwards; keep the live query string in state so the breadcrumb follows.
+  const [liveSearch, setLiveSearch] = useState(() => window.location.search);
+  useEffect(() => {
+    const sync = () => setLiveSearch(window.location.search);
+    sync();
+    window.addEventListener('kpi-subtab-change', sync);
+    return () => window.removeEventListener('kpi-subtab-change', sync);
+  }, [location.pathname, location.search]);
+
   // Active tab is derived directly from the current URL path
   const activeTab = useMemo(() => {
     const cleanSlug = location.pathname.replace(/^\//, '');
@@ -398,7 +425,7 @@ export default function MainLayout({
               <div key={idx} className="flex items-center space-x-2">
                 <span className="text-slate-350">/</span>
                 <span className={idx === arr.length - 1 ? "text-blue-800 font-bold" : "text-slate-550"}>
-                  {crumb}
+                  {idx === arr.length - 1 ? (getKpiSubTabCrumb(location.pathname, liveSearch) || crumb) : crumb}
                 </span>
               </div>
             ))}

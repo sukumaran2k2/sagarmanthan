@@ -472,7 +472,7 @@ export default function App() {
             <Route path="governance/parliamentary-issue/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
             <Route path="governance/parliamentary-issues/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
             <Route path="governance/audit-paras/*" element={<AuditParaView triggerNotification={triggerNotification} />} />
-            <Route path="governance/gem-procurements" element={<GEMProcurementView triggerNotification={triggerNotification} />} />
+            <Route path="governance/gem-procurements/*" element={<GEMProcurementView triggerNotification={triggerNotification} />} />
 
             {/* Legal Routes */}
             <Route path="legal/courtcases" element={<ActsAndRulesView />} />
@@ -485,8 +485,8 @@ export default function App() {
             <Route path="hr/consultant-appointment/*" element={<ConsultantAppointmentView triggerNotification={triggerNotification} />} />
 
             {/* Admin Routes */}
-            <Route path="admin/user-module-permission" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
-            <Route path="admin/user-list" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-module-permission/*" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-list/*" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
 
             {/* Form Builder Routes */}
             <Route path="form-builder/*" element={<FormBuilderView triggerNotification={triggerNotification} />} />

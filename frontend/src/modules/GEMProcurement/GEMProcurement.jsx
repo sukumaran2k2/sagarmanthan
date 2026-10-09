@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { Calendar, Edit } from 'lucide-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
@@ -32,22 +33,33 @@ import {
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
+const GEM_BASE = '/governance/gem-procurements';
 const INIT_TAB_KEY = 'gemInitTab';
 
-function resolveSubTabId(label) {
+function resolvePathSegment(label) {
   const key = String(label || '').toLowerCase().trim();
-  if (!key || key.includes('gem')) {
-    if (key.includes('report')) return 'report';
-    if (key.includes('goods')) return 'goods';
-    if (key.includes('service')) return 'services';
-    if (key.includes('work')) return 'works';
-    if (key.includes('total') || key.includes('datalist') || key.includes('data list')) {
-      return 'total';
-    }
+  if (key.includes('report')) return 'reports';
+  if (key.includes('goods')) return 'goods';
+  if (key.includes('service')) return 'services';
+  if (key.includes('work')) return 'works';
+  if (key.includes('total') || key.includes('datalist') || key.includes('data list')) {
     return 'total';
   }
-  if (key.includes('report')) return 'report';
   return 'total';
+}
+
+function getTabKeyFromPath(pathname = '') {
+  const path = pathname.toLowerCase();
+  if (path.includes('/reports') || path.endsWith('/report')) return 'report';
+  if (path.includes('/goods')) return 'goods';
+  if (path.includes('/services')) return 'services';
+  if (path.includes('/works')) return 'works';
+  if (path.includes('/total')) return 'total';
+  return 'total';
+}
+
+function pathSegmentForTab(tabId) {
+  return tabId === 'report' ? 'reports' : tabId;
 }
 
 function listCategoryForTab(tab) {
@@ -61,6 +73,8 @@ export default function GEMProcurementView({
   activeSubTab: activeSubTabProp,
   triggerNotification,
 }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const permissions = useGemPermissions();
   const viewMode = permissions.viewMode;
   const canManageTargets = Boolean(
@@ -71,8 +85,8 @@ export default function GEMProcurementView({
   );
 
   const elapsedMonths = getElapsedFinancialMonths();
+  const activeTab = getTabKeyFromPath(location.pathname);
 
-  const [activeTab, setActiveTab] = useState('total');
   const [selectedOrgId, setSelectedOrgId] = useState(
     permissions.organisationId ? String(permissions.organisationId) : ''
   );
@@ -94,6 +108,13 @@ export default function GEMProcurementView({
 
   const [activePage, setActivePage] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
+
+  const goToGemTab = useCallback(
+    (segment) => {
+      navigate(`${GEM_BASE}/${segment}`);
+    },
+    [navigate]
+  );
 
   const canAddForTab = Boolean(
     canManageTargets && permissions.canAdd && activeTab !== 'total'
@@ -142,7 +163,11 @@ export default function GEMProcurementView({
   }, [permissions.organisationId]);
 
   useEffect(() => {
-    const apply = (label) => setActiveTab(resolveSubTabId(label));
+    const apply = (label) => {
+      setActivePage(null);
+      setSelectedRecord(null);
+      goToGemTab(resolvePathSegment(label));
+    };
     const init = sessionStorage.getItem(INIT_TAB_KEY);
     if (init) {
       sessionStorage.removeItem(INIT_TAB_KEY);
@@ -151,11 +176,14 @@ export default function GEMProcurementView({
     const onMenu = (e) => apply(e.detail);
     window.addEventListener('gem-subtab', onMenu);
     return () => window.removeEventListener('gem-subtab', onMenu);
-  }, []);
+  }, [goToGemTab]);
 
   useEffect(() => {
-    if (activeSubTabProp) setActiveTab(resolveSubTabId(activeSubTabProp));
-  }, [activeSubTabProp]);
+    if (!activeSubTabProp) return;
+    setActivePage(null);
+    setSelectedRecord(null);
+    goToGemTab(resolvePathSegment(activeSubTabProp));
+  }, [activeSubTabProp, goToGemTab]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -167,6 +195,11 @@ export default function GEMProcurementView({
     if (activePage === 'target' && !canUpdateTarget) setActivePage(null);
     if (activePage === 'monthly' && activeTab === 'total') setActivePage(null);
   }, [activePage, canAddForTab, canUpdateTarget, activeTab]);
+
+  useEffect(() => {
+    setActivePage(null);
+    setSelectedRecord(null);
+  }, [activeTab]);
 
   useEffect(() => {
     setPage(1);
@@ -276,6 +309,14 @@ export default function GEMProcurementView({
     setActivePage(null);
     setSelectedRecord(null);
   }, []);
+
+  const handleTabChange = useCallback(
+    (tabId) => {
+      closeUpdatePage();
+      goToGemTab(pathSegmentForTab(tabId));
+    },
+    [closeUpdatePage, goToGemTab]
+  );
 
   const categoryTitle =
     activeTab === 'total'
@@ -537,6 +578,85 @@ export default function GEMProcurementView({
     return <RestrictedAccess moduleName="GEM Procurement" />;
   }
 
+  const listOrOverlayPanel =
+    activePage === 'add' && canAddForTab ? (
+      <GEMInputForm
+        organisations={organisations}
+        categoryTitle={categoryTitle}
+        existingData={rows}
+        onSubmit={handleAddSubmit}
+        onBack={closeUpdatePage}
+        onSuccess={() => {
+          closeUpdatePage();
+          fetchList();
+        }}
+        notify={(msg, type) =>
+          showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
+        }
+      />
+    ) : activePage === 'target' && selectedRecord && canUpdateTarget ? (
+      <GEMUpdateForm
+        record={selectedRecord}
+        category={listCategoryForTab(activeTab)}
+        categoryTitle={categoryTitle}
+        onSubmit={handleTargetUpdate}
+        onBack={closeUpdatePage}
+        onSuccess={() => {
+          closeUpdatePage();
+          fetchList();
+        }}
+        notify={(msg, type) =>
+          showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
+        }
+      />
+    ) : activePage === 'monthly' && selectedRecord ? (
+      <GEMMonthlyDataPage
+        record={selectedRecord}
+        category={listCategoryForTab(activeTab)}
+        categoryTitle={categoryTitle}
+        canEdit={canUpdateMonthly}
+        onBack={closeUpdatePage}
+        onSaved={() => {
+          closeUpdatePage();
+          fetchList();
+        }}
+        notify={(msg, type) =>
+          showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
+        }
+      />
+    ) : (
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
+        <GEMDataListView
+          categoryTitle={categoryTitle}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          page={page}
+          pageSize={pageSize}
+          setPageSize={setPageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(n) => {
+            setPageSize(n);
+            setPage(1);
+          }}
+          pagination={pagination}
+          rowData={rows}
+          colDefs={colDefs}
+          loading={loading}
+          showAddButton={canAddForTab}
+          onOpenAddPage={openAddPage}
+          handleCopyData={handleCopyData}
+          handleExportExcel={handleExportExcel}
+          handleExportPdf={() => showToast('PDF export coming soon', '#0f417a')}
+          organisations={organisations}
+          filterYear={filterYear}
+          setFilterYear={setFilterYear}
+          filterOrg={filterOrg}
+          setFilterOrg={setFilterOrg}
+          viewMode={viewMode}
+        />
+      </div>
+    );
+
   return (
     <div className="space-y-5 animate-fade-in">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -551,93 +671,20 @@ export default function GEMProcurementView({
         <InternalNavigation
           tabs={visibleTabs}
           currentTab={activeTab}
-          onTabChange={(tabId) => {
-            closeUpdatePage();
-            setActiveTab(tabId);
-          }}
+          onTabChange={handleTabChange}
         />
       </div>
 
-      {activeTab !== 'report' &&
-        (activePage === 'add' && canAddForTab ? (
-          <GEMInputForm
-            organisations={organisations}
-            categoryTitle={categoryTitle}
-            existingData={rows}
-            onSubmit={handleAddSubmit}
-            onBack={closeUpdatePage}
-            onSuccess={() => {
-              closeUpdatePage();
-              fetchList();
-            }}
-            notify={(msg, type) =>
-              showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
-            }
-          />
-        ) : activePage === 'target' && selectedRecord && canUpdateTarget ? (
-          <GEMUpdateForm
-            record={selectedRecord}
-            category={listCategoryForTab(activeTab)}
-            categoryTitle={categoryTitle}
-            onSubmit={handleTargetUpdate}
-            onBack={closeUpdatePage}
-            onSuccess={() => {
-              closeUpdatePage();
-              fetchList();
-            }}
-            notify={(msg, type) =>
-              showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
-            }
-          />
-        ) : activePage === 'monthly' && selectedRecord ? (
-          <GEMMonthlyDataPage
-            record={selectedRecord}
-            category={listCategoryForTab(activeTab)}
-            categoryTitle={categoryTitle}
-            canEdit={canUpdateMonthly}
-            onBack={closeUpdatePage}
-            onSaved={() => {
-              closeUpdatePage();
-              fetchList();
-            }}
-            notify={(msg, type) =>
-              showToast(msg, type === 'error' ? '#EF4444' : '#10B981')
-            }
-          />
-        ) : (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-            <GEMDataListView
-              categoryTitle={categoryTitle}
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              page={page}
-              pageSize={pageSize}
-              setPageSize={setPageSize}
-              onPageChange={setPage}
-              onPageSizeChange={(n) => {
-                setPageSize(n);
-                setPage(1);
-              }}
-              pagination={pagination}
-              rowData={rows}
-              colDefs={colDefs}
-              loading={loading}
-              showAddButton={canAddForTab}
-              onOpenAddPage={openAddPage}
-              handleCopyData={handleCopyData}
-              handleExportExcel={handleExportExcel}
-              handleExportPdf={() => showToast('PDF export coming soon', '#0f417a')}
-              organisations={organisations}
-              filterYear={filterYear}
-              setFilterYear={setFilterYear}
-              filterOrg={filterOrg}
-              setFilterOrg={setFilterOrg}
-              viewMode={viewMode}
-            />
-          </div>
-        ))}
-
-      {activeTab === 'report' && <GEMReports showToast={showToast} viewMode={viewMode} />}
+      <Routes>
+        <Route path="total" element={listOrOverlayPanel} />
+        <Route path="goods" element={listOrOverlayPanel} />
+        <Route path="services" element={listOrOverlayPanel} />
+        <Route path="works" element={listOrOverlayPanel} />
+        <Route path="reports" element={<GEMReports showToast={showToast} viewMode={viewMode} />} />
+        <Route path="report" element={<Navigate to="../reports" replace />} />
+        <Route index element={<Navigate to="total" replace />} />
+        <Route path="*" element={<Navigate to="total" replace />} />
+      </Routes>
 
       {toastVisible && (
         <div

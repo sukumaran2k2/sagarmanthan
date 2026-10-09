@@ -535,42 +535,33 @@ async function saveMonthly(req, res, cfg) {
       WHERE ${cfg.idCol} = @gemId
     `);
 
-    const monthlyColumns = await getTableColumns(cfg.monthlyTable);
-    const parentColumns = await getTableColumns(cfg.table);
+    const setParts = [
+      ...MONTHS.flatMap((month) => {
+        const cap = monthCap(month);
+        return [
+          `procurement_through_gem_${month} = @through${cap}`,
+          `procurement_outside_gem_${month} = @outside${cap}`,
+          `reason_for_non_procurement_${month} = @reason${cap}`,
+        ];
+      }),
+      "updated_by = @userId",
+      "updated_date = GETDATE()",
+    ];
 
-    const setParts = MONTHS.flatMap((month) => {
-      const cap = monthCap(month);
-      return [
-        `procurement_through_gem_${month} = @through${cap}`,
-        `procurement_outside_gem_${month} = @outside${cap}`,
-        `reason_for_non_procurement_${month} = @reason${cap}`,
-      ];
-    });
-
-    if (monthlyColumns.has("updated_by")) setParts.push("updated_by = @userId");
-    if (monthlyColumns.has("updated_date")) setParts.push("updated_date = GETDATE()");
-
-    const setColsWithAudit = setParts.join(",\n        ");
-
-    const insertCols = [cfg.idCol];
-    const insertVals = ["@gemId"];
-
-    if (monthlyColumns.has("created_by")) {
-      insertCols.push("created_by");
-      insertVals.push("@userId");
-    }
-    if (monthlyColumns.has("created_date")) {
-      insertCols.push("created_date");
-      insertVals.push("GETDATE()");
-    }
-    if (monthlyColumns.has("updated_by")) {
-      insertCols.push("updated_by");
-      insertVals.push("@userId");
-    }
-    if (monthlyColumns.has("updated_date")) {
-      insertCols.push("updated_date");
-      insertVals.push("GETDATE()");
-    }
+    const insertCols = [
+      cfg.idCol,
+      "created_by",
+      "created_date",
+      "updated_by",
+      "updated_date",
+    ];
+    const insertVals = [
+      "@gemId",
+      "@userId",
+      "GETDATE()",
+      "@userId",
+      "GETDATE()",
+    ];
 
     for (const month of MONTHS) {
       const cap = monthCap(month);
@@ -585,28 +576,13 @@ async function saveMonthly(req, res, cfg) {
     if (exists.recordset.length > 0) {
       await request.query(`
         UPDATE ${cfg.monthlyTable}
-        SET ${setColsWithAudit}
+        SET ${setParts.join(",\n        ")}
         WHERE ${cfg.idCol} = @gemId
       `);
     } else {
       await request.query(`
         INSERT INTO ${cfg.monthlyTable} (${insertCols.join(", ")})
         VALUES (${insertVals.join(", ")})
-      `);
-    }
-
-    const parentSetParts = [];
-    if (parentColumns.has("updated_by")) parentSetParts.push("updated_by = @userId");
-    if (parentColumns.has("updated_date")) parentSetParts.push("updated_date = GETDATE()");
-
-    if (parentSetParts.length > 0) {
-      const touch = transaction.request();
-      touch.input("gemId", sql.Int, gemId);
-      touch.input("userId", sql.Int, userId);
-      await touch.query(`
-        UPDATE ${cfg.table}
-        SET ${parentSetParts.join(", ")}
-        WHERE ${cfg.idCol} = @gemId
       `);
     }
 

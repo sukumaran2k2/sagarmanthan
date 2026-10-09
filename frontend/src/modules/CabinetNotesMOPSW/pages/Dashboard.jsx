@@ -3,12 +3,12 @@ import { RefreshCw, TrendingUp, BarChart3, Layers, Clock } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
-import { fetchCabinetMopswDashboard } from '../api';
+import { fetchCabinetMopswDashboard, fetchWings } from '../api';
 import ChartExportMenu from '../../../components/ChartExportMenu';
-import { MoreVertical, FileSpreadsheet, Printer } from 'lucide-react';
+import { MoreVertical, FileSpreadsheet, Printer, Filter, ChevronDown } from 'lucide-react';
 
 function SlaBadge({ status }) {
-  if (!status) return <span className="text-slate-400 text-[10px]">—</span>;
+  if (!status) return <span className="text-slate-600 dark:text-slate-300 text-[10px]">—</span>;
   const map = {
     Good:     'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800',
     'At Risk':'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800',
@@ -46,23 +46,23 @@ function StageDistributionChart({ data, onRootReady }) {
     root.setThemes([am5themes_Animated.new(root)]);
     const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingRight: 20 }));
     const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10 });
-    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x64748b), maxWidth: 180, oversizedBehavior: 'truncate' });
+    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x1e293b), fontWeight: '600', maxWidth: 180, oversizedBehavior: 'truncate' });
     yRenderer.grid.template.set('visible', false);
     const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'stage_name', renderer: yRenderer }));
     const xRenderer = am5xy.AxisRendererX.new(root, {});
-    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x64748b) });
+    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x1e293b), fontWeight: '600' });
     xRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeDasharray: [3, 3] });
     const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0 }));
     const series = chart.series.push(am5xy.ColumnSeries.new(root, { xAxis, yAxis, valueXField: 'note_count', categoryYField: 'stage_name', tooltip: am5.Tooltip.new(root, { labelText: '{categoryY}: [bold]{valueX}[/]' }) }));
     series.columns.template.setAll({ fill: am5.color(0x6366f1), stroke: am5.color(0x6366f1), height: am5.percent(60), cornerRadiusTR: 3, cornerRadiusBR: 3 });
-    series.bullets.push(() => am5.Bullet.new(root, { sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(0x6366f1), centerY: am5.p50, centerX: am5.p0, dx: 4, fontSize: 10, fontWeight: '600', populateText: true }) }));
+    series.bullets.push(() => am5.Bullet.new(root, { locationX: 1, sprite: am5.Label.new(root, { text: '{valueX}', fill: am5.color(0x334155), centerY: am5.p50, centerX: am5.p0, dx: 6, fontSize: 11, fontWeight: '700', populateText: true }) }));
     const sorted = [...data].sort((a, b) => a.note_count - b.note_count);
     yAxis.data.setAll(sorted);
     series.data.setAll(sorted);
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
   }, [data]);
-  return <div ref={divRef} style={{ width: '100%', height: 280, overflow: 'hidden' }} />;
+  return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
 const WING_WISE_LEGEND = [
@@ -84,11 +84,11 @@ function WingWiseChart({ data, onRootReady }) {
     root.setThemes([am5themes_Animated.new(root)]);
     const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingRight: 20 }));
     const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10 });
-    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x64748b), maxWidth: 120, oversizedBehavior: 'truncate' });
+    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x1e293b), fontWeight: '600', maxWidth: 220, oversizedBehavior: 'wrap', textAlign: 'end' });
     yRenderer.grid.template.set('visible', false);
     const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'wing_name', renderer: yRenderer }));
     const xRenderer = am5xy.AxisRendererX.new(root, {});
-    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x64748b) });
+    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(0x1e293b), fontWeight: '600' });
     xRenderer.grid.template.setAll({ stroke: am5.color(0xe2e8f0), strokeDasharray: [3, 3] });
     const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0 }));
     const makeSeries = (field, name, color) => {
@@ -108,7 +108,7 @@ function WingWiseChart({ data, onRootReady }) {
     chart.appear(600, 100);
     return () => { root.dispose(); onRootReady?.(null); };
   }, [data]);
-  return <div ref={divRef} style={{ width: '100%', height: chartHeight, overflow: 'hidden' }} />;
+  return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
 }
 
 function WingWiseLegend() {
@@ -221,17 +221,37 @@ export default function CabinetNotesMopswDashboard() {
   const [error, setError] = useState(null);
   const [distChartRoot, setDistChartRoot] = useState(null);
   const [wingChartRoot, setWingChartRoot] = useState(null);
+  const [wings, setWings] = useState([]);
+  const [selectedWing, setSelectedWing] = useState('All');
+  const [wingDropdownOpen, setWingDropdownOpen] = useState(false);
 
-  const load = () => {
+  const load = (wingId) => {
     setLoading(true);
     setError(null);
-    fetchCabinetMopswDashboard()
+    fetchCabinetMopswDashboard(wingId)
       .then((res) => setData(res.data))
       .catch(() => setError('Failed to load dashboard data.'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(selectedWing); }, [selectedWing]);
+
+  useEffect(() => {
+    fetchWings()
+      .then((res) => setWings(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setWings([]));
+  }, []);
+
+  const wingDropdownRef = useRef(null);
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wingDropdownRef.current && !wingDropdownRef.current.contains(event.target)) {
+        setWingDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const { kpi, lastDataUpdate, heatMap = [], wingWise = [], longPending = [] } = data || {};
   // Exclude On Hold (9), Completed (10), DCM Been Approved (11 — unconfirmed stage, not in reference)
@@ -249,7 +269,7 @@ export default function CabinetNotesMopswDashboard() {
   if (error) return (
     <div className="flex flex-col items-center justify-center py-20 gap-3">
       <p className="text-sm text-red-500">{error}</p>
-      <button onClick={load} className="text-xs font-semibold text-[#6366f1] underline cursor-pointer">Retry</button>
+      <button onClick={() => load(selectedWing)} className="text-xs font-semibold text-[#6366f1] underline cursor-pointer">Retry</button>
     </div>
   );
 
@@ -263,24 +283,61 @@ export default function CabinetNotesMopswDashboard() {
       'SLA status': row.sla_status || '—',
     }));
 
-  const longPendingExportData = longPending.map((row) => ({
+  const longPendingExportData = longPending.map((row, i) => ({
+    'S.No': i + 1,
     Subject: row.subject,
     Wing: row.wing_name,
     'Current stage': row.current_stage,
+    'Last Updated': row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
     Days: row.pending_days,
   }));
 
   return (
     <div className="space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-3xl p-6">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">
-          Last updated date: {lastDataUpdate
-            ? new Date(lastDataUpdate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-            : '—'}
-        </p>
-        <button onClick={load} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-[#6366f1] dark:hover:text-indigo-400 transition cursor-pointer">
-          <RefreshCw size={13} /> Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">
+            Last updated date: {lastDataUpdate
+              ? new Date(lastDataUpdate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+              : '—'}
+          </p>
+          <div className="relative" ref={wingDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setWingDropdownOpen((o) => !o)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
+                selectedWing !== 'All'
+                  ? 'bg-indigo-50 border-indigo-200 text-[#6366f1] dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-400'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400'
+              }`}
+            >
+              <Filter className="h-3 w-3" />
+              {selectedWing === 'All' ? 'All Wings' : (wings.find((w) => String(w.wing_id) === String(selectedWing))?.wing_name || 'Wing')}
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            {wingDropdownOpen && (
+              <div className="absolute left-0 top-full mt-1.5 w-48 max-h-64 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50">
+                <button
+                  type="button"
+                  onClick={() => { setSelectedWing('All'); setWingDropdownOpen(false); }}
+                  className={`flex w-full items-center px-3 py-2 text-xs font-semibold text-left cursor-pointer border-none bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 ${selectedWing === 'All' ? 'text-[#6366f1]' : 'text-slate-700 dark:text-slate-200'}`}
+                >
+                  All Wings
+                </button>
+                {wings.map((w) => (
+                  <button
+                    key={w.wing_id}
+                    type="button"
+                    onClick={() => { setSelectedWing(w.wing_id); setWingDropdownOpen(false); }}
+                    className={`flex w-full items-center px-3 py-2 text-xs font-semibold text-left cursor-pointer border-none bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 ${String(selectedWing) === String(w.wing_id) ? 'text-[#6366f1]' : 'text-slate-700 dark:text-slate-200'}`}
+                  >
+                    {w.wing_name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -335,7 +392,8 @@ export default function CabinetNotesMopswDashboard() {
               title="Stage-wise Heat Map"
             />
           </div>
-          <div className="overflow-auto flex-1">
+          <div className="overflow-hidden flex-1 p-3">
+            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 h-full">
             <table className="w-full text-[11px] border-collapse">
               <thead>
                 <tr className="bg-[#4f46e5] text-white relative z-10">
@@ -347,15 +405,16 @@ export default function CabinetNotesMopswDashboard() {
               <tbody>
                 {heatMap.filter((row) => row.stage_id !== 11).map((row, i) => (
                   <tr key={row.stage_id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
-                    <td className="px-3 py-2 text-slate-700 dark:text-slate-200 font-medium">{row.stage_name}</td>
+                    <td className="px-3 py-2 text-slate-800 dark:text-slate-100 font-semibold">{row.stage_name}</td>
                     <td className="px-3 py-2 text-center font-bold text-[#6366f1] dark:text-indigo-400">{row.note_count}</td>
-                    <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300">{row.note_count ? row.avg_days : '—'}</td>
-                    <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300">{row.note_count ? row.max_days : '—'}</td>
+                    <td className="px-3 py-2 text-center text-slate-800 dark:text-slate-100 font-semibold">{row.note_count ? row.avg_days : '—'}</td>
+                    <td className="px-3 py-2 text-center text-slate-800 dark:text-slate-100 font-semibold">{row.note_count ? row.max_days : '—'}</td>
                     <td className="px-3 py-2"><SlaBadge status={row.sla_status} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 
@@ -366,9 +425,11 @@ export default function CabinetNotesMopswDashboard() {
             </h3>
             <ChartExportMenu chartRoot={distChartRoot} fileName="stage_distribution_chart" color="#6366f1" variant="plain" />
           </div>
-          <div className="p-5 flex-1 overflow-auto">
-            <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
-            <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
+          <div className="p-5 flex-1 overflow-hidden flex flex-col">
+            <div className="flex-1 min-h-0">
+              <StageDistributionChart data={distData} onRootReady={setDistChartRoot} />
+            </div>
+            <p className="text-[9px] text-slate-600 dark:text-slate-300 text-center mt-1 flex-shrink-0">Number of notes →</p>
           </div>
         </div>
       </div>
@@ -381,10 +442,14 @@ export default function CabinetNotesMopswDashboard() {
             </h3>
             <ChartExportMenu chartRoot={wingChartRoot} fileName="wing_wise_pending_chart" color="#6366f1" variant="plain" />
           </div>
-          <div className="p-5 flex-1 overflow-auto">
-            <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
-            <p className="text-[9px] text-slate-400 text-center mt-1">Number of notes →</p>
-            <WingWiseLegend />
+          <div className="p-5 flex-1 overflow-hidden flex flex-col">
+            <div className="flex-1 min-h-0">
+              <WingWiseChart data={wingWise} onRootReady={setWingChartRoot} />
+            </div>
+            <p className="text-[9px] text-slate-600 dark:text-slate-300 text-center mt-1 flex-shrink-0">Number of notes →</p>
+            <div className="flex-shrink-0">
+              <WingWiseLegend />
+            </div>
           </div>
         </div>
 
@@ -395,37 +460,43 @@ export default function CabinetNotesMopswDashboard() {
               <span className="text-[10px] font-medium text-indigo-200/80 ml-1">(Top 10)</span>
             </h3>
             <TableExportMenu
-              headers={['Subject', 'Wing', 'Current stage', 'Days']}
+              headers={['S.No', 'Subject', 'Wing', 'Current stage', 'Last Updated', 'Days']}
               data={longPendingExportData}
               fileName="long_pending_cabinet_notes"
               title="Long Pending Cabinet Notes (Top 10)"
             />
           </div>
-          <div className="overflow-auto flex-1">
-            <table className="w-full text-[11px] border-collapse">
+          <div className="flex-1 p-3 overflow-hidden flex flex-col">
+            <div className="overflow-auto flex-1">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800">
+            <table className="w-full text-[11px] border-separate border-spacing-0 [&_thead_tr:first-child_th:first-child]:rounded-tl-xl [&_thead_tr:first-child_th:last-child]:rounded-tr-xl [&_tbody_tr:last-child_td:first-child]:rounded-bl-xl [&_tbody_tr:last-child_td:last-child]:rounded-br-xl">
               <thead className="sticky top-0 z-20">
                 <tr className="bg-[#4f46e5] text-white relative z-10">
-                  {['Subject','Wing','Current stage','Days'].map((h) => (
-                    <th key={h} className="px-2.5 py-2 text-center font-semibold tracking-wide whitespace-nowrap">{h}</th>
+                  {['S.No','Subject','Wing','Current stage','Last Updated','Days'].map((h) => (
+                    <th key={h} className="px-2.5 py-2 text-center font-semibold tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {longPending.map((row, i) => (
                   <tr key={row.cabinet_notes_mopsw_id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
-                    <td className="px-2.5 py-2 text-slate-700 dark:text-slate-200 min-w-[180px] max-w-[260px] whitespace-normal break-words align-top">{row.subject}</td>
-                    <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.wing_name}</td>
-                    <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.current_stage}</td>
+                    <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 text-center font-mono">{i + 1}</td>
+                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold max-w-[220px] whitespace-normal break-words align-top">{row.subject}</td>
+                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold whitespace-normal break-words">{row.wing_name}</td>
+                    <td className="px-2.5 py-2 text-slate-800 dark:text-slate-100 font-semibold whitespace-normal break-words">{row.current_stage}</td>
+                    <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap font-mono">{row.updated_date ? new Date(row.updated_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
                     <td className="px-2.5 py-2 text-right"><PendingDays days={row.pending_days} /></td>
                   </tr>
                 ))}
                 {!longPending.length && (
-                  <tr><td colSpan={4} className="px-3 py-6 text-center text-slate-400 dark:text-slate-500">No long-pending notes</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-600 dark:text-slate-300">No long-pending notes</td></tr>
                 )}
               </tbody>
             </table>
+            </div>
+            </div>
           </div>
-          <p className="text-[9px] text-slate-400 px-5 py-2 flex-shrink-0">Days calculated from date of entry into current stage till today.</p>
+          <p className="text-[9px] text-slate-600 dark:text-slate-300 px-5 py-2 flex-shrink-0">Days calculated from date of entry into current stage till today.</p>
         </div>
       </div>
     </div>
