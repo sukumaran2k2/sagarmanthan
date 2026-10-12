@@ -7,28 +7,35 @@ import {
   FileEdit
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
+import { isOrganisationUser } from '../../utils/authSession';
 
 import ContractualEmployment from './pages/ContractualEmployment';
 import TrainingDetails from './pages/TrainingDetails';
 import InputForm from './pages/InputForm';
 import ListAbolishedPosts from './pages/ListAbolishedPosts';
+import EmployeeDatabase from './pages/EmployeeDatabase';
+import EmployeeDataForm from './components/EmployeeDataForm';
 
 export default function HRDashboardView({ triggerNotification }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const isOrg = isOrganisationUser();
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
+    if (path.includes('/employee-database')) return 'employee-database';
     if (path.includes('/abolished-posts')) return 'abolished-posts';
+    if (path.includes('/contractual-employment')) return 'contractual-employment';
     if (path.includes('/training-details')) return 'training-details';
     if (path.includes('/input-form')) return 'input-form';
-    return 'contractual-employment';
+    return 'employee-database';
   }, [location.pathname]);
 
   const isEditMode = !!location.state?.editData;
 
   const tabs = [
-    { id: 'abolished-posts', label: 'List of Abolished Posts', icon: Users },
+    { id: 'employee-database', label: 'Employee Database', icon: Users },
+    { id: 'abolished-posts', label: isOrg ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users },
     { id: 'contractual-employment', label: 'Contractual Employment', icon: UserPlus },
     { id: 'training-details', label: 'Training Details', icon: BookOpen },
     { id: 'input-form', label: isEditMode && currentTab === 'input-form' ? 'Update Form' : 'Input Form', icon: FileEdit },
@@ -49,7 +56,7 @@ export default function HRDashboardView({ triggerNotification }) {
             <span>HR Management</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
-            Manage contractual employment and training details.
+            Manage employee database, abolished posts, contractual employment and training details.
           </p>
         </div>
 
@@ -63,13 +70,15 @@ export default function HRDashboardView({ triggerNotification }) {
       {/* Child Routes */}
       <div>
         <Routes>
+          <Route path="employee-database" element={<EmployeeDatabase triggerNotification={triggerNotification} />} />
+          <Route path="add-employee" element={<EmployeeDataForm triggerNotification={triggerNotification} />} />
           <Route path="abolished-posts" element={<ListAbolishedPosts triggerNotification={triggerNotification} />} />
           <Route path="contractual-employment" element={<ContractualEmployment triggerNotification={triggerNotification} />} />
           <Route path="training-details" element={<TrainingDetails triggerNotification={triggerNotification} />} />
           <Route path="input-form/*" element={<InputForm triggerNotification={triggerNotification} />} />
 
-          <Route index element={<Navigate to="abolished-posts" replace />} />
-          <Route path="*" element={<Navigate to="abolished-posts" replace />} />
+          <Route index element={<Navigate to="employee-database" replace />} />
+          <Route path="*" element={<Navigate to="employee-database" replace />} />
         </Routes>
       </div>
       

@@ -13,6 +13,7 @@ import {
   usesOwnPageHeader, 
   TAB_USER_MODULE_PERMISSION 
 } from '../utils/moduleAccess';
+import { isOrganisationUser } from '../utils/authSession';
 import { Home } from 'lucide-react';
 
 export const ROUTE_MAP = {
@@ -142,7 +143,9 @@ export const ROUTE_MAP = {
   'admin/user-list': 'admin/user-list',
 
   // HR nested routes
+  'Employee Database': 'hr/hr-management/employee-database',
   'List of Abolished Posts': 'hr/hr-management/abolished-posts',
+  'Abolished Posts': 'hr/hr-management/abolished-posts',
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
   'HR Input Form': 'hr/hr-management/input-form',
@@ -196,7 +199,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
 
   if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
-  if (cleanSlug.startsWith('hr/hr-management/abolished-posts')) return 'List of Abolished Posts';
+  if (cleanSlug.startsWith('hr/hr-management/abolished-posts')) return isOrganisationUser() ? 'Abolished Posts' : 'List of Abolished Posts';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
@@ -264,6 +267,9 @@ const getBreadcrumbs = (tab) => {
   if (kpiItems[tab]) return ['Home', ...kpiItems[tab], tab];
 
   const hrItems = {
+    'Employee Database': ['HR & Institutional', 'HR Management'],
+    'List of Abolished Posts': ['HR & Institutional', 'HR Management'],
+    'Abolished Posts': ['HR & Institutional', 'HR Management'],
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
     'HR Input Form': ['HR & Institutional', 'HR Management'],

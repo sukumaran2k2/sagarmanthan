@@ -341,6 +341,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'HR Management',
           icon: Users,
           items: [
+            m('HR_MANAGEMENT', { label: 'Employee Database', tab: 'Employee Database', icon: Users }),
+            m('HR_MANAGEMENT', { label: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', tab: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users }),
             m('HR_MANAGEMENT', { label: 'Contractual Employment', tab: 'Contractual Employment', icon: UserPlus }),
             m('HR_MANAGEMENT', { label: 'Training Details', tab: 'Training Details', icon: BookOpen }),
           ]
@@ -545,7 +547,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
             const Icon = menu.icon;
             const hasDropdown = !menu.directTab && (menu.subcategories || menu.items);
             const isHrActiveTab = [
-              'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts',
+              'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Abolished Posts',
               'Contractual Employment', 'Training Details', 'HR Reports'
             ].includes(activeTab);
             const isMainMenuActive =

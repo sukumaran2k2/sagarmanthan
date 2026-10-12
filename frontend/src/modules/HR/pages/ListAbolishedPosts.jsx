@@ -1,21 +1,24 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
-import { Search, Filter, X, ChevronDown, Check } from 'lucide-react';
+import { Search, Filter, X, ChevronDown, Check, FileText } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { API_BASE_URL } from '../../../config/api';
 import { getCurrentUserId, isOrganisationUser, getSessionOrganisationId } from '../../../utils/authSession';
+import ViewAbolishedPostDetails from './ViewAbolishedPostDetails';
 
 export default function ListAbolishedPosts() {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPostForDetails, setSelectedPostForDetails] = useState(null);
   
   // Filter States
   const [selectedOrg, setSelectedOrg] = useState('');
   const [selectedDept, setSelectedDept] = useState('');
   const [selectedPostName, setSelectedPostName] = useState('');
+  const [selectedClass, setSelectedClass] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [pageSize, setPageSize] = useState(10);
@@ -73,16 +76,6 @@ export default function ListAbolishedPosts() {
       .then(res => {
         if (!isMounted) return;
         const rawData = res.data?.query1Result || res.data || [];
-        
-        const formatDate = (dateStr) => {
-          if (!dateStr) return '--';
-          const d = new Date(dateStr);
-          if (isNaN(d.getTime())) return '--';
-          const day = String(d.getDate()).padStart(2, '0');
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const year = d.getFullYear();
-          return `${day}-${month}-${year}`;
-        };
 
         const formatDatePlus5 = (dateStr) => {
           if (!dateStr) return '--';
@@ -95,29 +88,48 @@ export default function ListAbolishedPosts() {
           return `${day}-${month}-${year}`;
         };
 
-        const getStatus = (stageId) => {
-          const id = Number(stageId);
-          if (id === 9) return { label: 'Request Approved', color: 'bg-emerald-500' };
-          if (id === 8) return { label: 'Request Rejected', color: 'bg-rose-500' };
-          if (id >= 5 && id <= 7) return { label: 'Request Pending', color: 'bg-blue-500' };
-          return { label: 'Request Yet to be Submitted', color: 'bg-sky-400' };
+        const getStatusInfo = (row) => {
+          const stageId = Number(row.revival_stage_id || 0);
+          if (stageId === 9 || row.order_of_revival_issued_date) {
+            return {
+              label: 'Approved by Ministry',
+              color: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+              targetView: 'both'
+            };
+          }
+          if (stageId === 8 || row.revive_rejection_date_from_doe) {
+            return {
+              label: 'Rejected by Ministry',
+              color: 'bg-rose-600 hover:bg-rose-700 text-white',
+              targetView: 'both'
+            };
+          }
+          if (stageId >= 5 || row.revival_submission_date) {
+            return {
+              label: 'Request Sent',
+              color: 'bg-amber-600 hover:bg-amber-700 text-white',
+              targetView: 'request'
+            };
+          }
+          return {
+            label: 'Request',
+            color: 'bg-blue-600 hover:bg-blue-700 text-white',
+            targetView: 'request'
+          };
         };
 
         const formattedData = rawData.map(row => {
-          const statusObj = getStatus(row.revival_stage_id);
+          const statusObj = getStatusInfo(row);
           return {
             Organisation: row.organisation_name || '--',
             Department: row.department_name || '--',
             'Post Name': row.post_name || '--',
             'Post code': row.post_code || '--',
-            'Date of Vacancy': formatDate(row.date_of_arise_in_vacancy),
-            'Post Abolition Date': formatDate(row.date_of_arise_in_vacancy),
-            'Date of Expiry': formatDatePlus5(row.date_of_arise_in_vacancy),
-            'Updated Date': row.updated_date ? formatDate(row.updated_date) : '--',
+            Class: row.class_name || '--',
+            'Post Abolition Date': formatDatePlus5(row.date_of_arise_in_vacancy),
             Status: statusObj.label,
             StatusColor: statusObj.color,
-            'Revival Status': statusObj.label,
-            RevivalStatusColor: statusObj.color,
+            StatusTargetView: statusObj.targetView,
             RevivalStageId: row.revival_stage_id,
             _raw: row,
           };
@@ -138,13 +150,15 @@ export default function ListAbolishedPosts() {
   const uniqueOrgs = useMemo(() => [...new Set(posts.map(item => item['Organisation']).filter(Boolean))].sort(), [posts]);
   const uniqueDepts = useMemo(() => [...new Set(posts.map(item => item['Department']).filter(Boolean))].sort(), [posts]);
   const uniquePostNames = useMemo(() => [...new Set(posts.map(item => item['Post Name']).filter(Boolean))].sort(), [posts]);
+  const uniqueClasses = useMemo(() => [...new Set(posts.map(item => item['Class']).filter(c => c && c !== '--'))].sort(), [posts]);
 
-  const activeFiltersCount = (selectedOrg ? 1 : 0) + (selectedDept ? 1 : 0) + (selectedPostName ? 1 : 0);
+  const activeFiltersCount = (selectedOrg ? 1 : 0) + (selectedDept ? 1 : 0) + (selectedPostName ? 1 : 0) + (selectedClass ? 1 : 0);
 
   const clearFilters = () => {
     setSelectedOrg('');
     setSelectedDept('');
     setSelectedPostName('');
+    setSelectedClass('');
     setSearchTerm('');
   };
 
@@ -153,6 +167,7 @@ export default function ListAbolishedPosts() {
       if (selectedOrg && item['Organisation'] !== selectedOrg) return false;
       if (selectedDept && item['Department'] !== selectedDept) return false;
       if (selectedPostName && item['Post Name'] !== selectedPostName) return false;
+      if (selectedClass && item['Class'] !== selectedClass) return false;
 
       if (searchTerm) {
         const s = searchTerm.toLowerCase();
@@ -160,12 +175,14 @@ export default function ListAbolishedPosts() {
           String(item['Organisation']).toLowerCase().includes(s) ||
           String(item['Department']).toLowerCase().includes(s) ||
           String(item['Post Name']).toLowerCase().includes(s) ||
-          String(item['Post code']).toLowerCase().includes(s)
+          String(item['Post code']).toLowerCase().includes(s) ||
+          String(item['Post Abolition Date']).toLowerCase().includes(s) ||
+          String(item['Status']).toLowerCase().includes(s)
         );
       }
       return true;
     });
-  }, [posts, selectedOrg, selectedDept, selectedPostName, searchTerm]);
+  }, [posts, selectedOrg, selectedDept, selectedPostName, selectedClass, searchTerm]);
 
   const [visibleCols, setVisibleCols] = useState({});
   const handleToggleColumn = (field) => {
@@ -177,93 +194,155 @@ export default function ListAbolishedPosts() {
       { 
         headerName: 'S.No', 
         valueGetter: (params) => params.node.rowIndex + 1,
-        minWidth: 70, maxWidth: 90,
+        minWidth: 70, maxWidth: 85,
         pinned: 'left',
-        cellClass: 'text-center font-bold text-slate-500 bg-slate-50',
-        headerClass: 'text-center'
+        cellClass: 'text-center font-bold text-slate-500 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center',
+        headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
+        cellRenderer: (params) => (
+          <div className="w-full text-center font-bold text-slate-500">
+            {params.node.rowIndex + 1}
+          </div>
+        )
       }
     ];
 
     if (isMinistryView) {
       cols.push(
-        { field: 'Organisation', headerName: 'Organisation', minWidth: 200, pinned: 'left', wrapText: true, autoHeight: true, cellClass: 'font-extrabold text-slate-900 text-center whitespace-normal break-words', headerClass: 'text-center' }
+        { 
+          field: 'Organisation', 
+          headerName: 'Organisation', 
+          minWidth: 180, 
+          pinned: 'left', 
+          wrapText: true, 
+          autoHeight: true, 
+          cellClass: 'font-semibold text-slate-900 dark:text-slate-100 text-center flex items-center justify-center whitespace-normal break-words', 
+          headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
+          cellRenderer: (params) => (
+            <div className="w-full text-center">
+              {params.value}
+            </div>
+          )
+        }
       );
     }
 
     cols.push(
-      { field: 'Department', headerName: 'Department', minWidth: 150, wrapText: true, autoHeight: true, cellClass: 'text-center whitespace-normal break-words', headerClass: 'text-center' },
-      { field: 'Post Name', headerName: 'Post Name', minWidth: 200, wrapText: true, autoHeight: true, cellClass: 'text-center font-semibold text-slate-800 whitespace-normal break-words', headerClass: 'text-center' },
-      { field: 'Post code', headerName: 'Post code', minWidth: 150, cellClass: 'text-center text-blue-600 font-bold', headerClass: 'text-center' },
-      { field: 'Date of Vacancy', headerName: 'Date of Vacancy', minWidth: 180, cellClass: 'text-center font-medium', headerClass: 'text-center' }
-    );
-
-    if (isMinistryView) {
-      cols.push({
+      { 
+        field: 'Department', 
+        headerName: 'Department', 
+        minWidth: 160, 
+        wrapText: true, 
+        autoHeight: true, 
+        cellClass: 'text-center flex items-center justify-center whitespace-normal break-words', 
+        headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
+        cellRenderer: (params) => (
+          <div className="w-full text-center">
+            {params.value}
+          </div>
+        )
+      },
+      { 
+        field: 'Post Name', 
+        headerName: 'Post Name', 
+        minWidth: 200, 
+        wrapText: true, 
+        autoHeight: true, 
+        cellClass: 'text-center flex items-center justify-center font-semibold text-slate-800 dark:text-slate-200 whitespace-normal break-words', 
+        headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
+        cellRenderer: (params) => (
+          <div className="w-full text-center">
+            {params.value}
+          </div>
+        )
+      },
+      { 
+        field: 'Post code', 
+        headerName: 'Post code', 
+        minWidth: 140, 
+        cellClass: 'text-center flex items-center justify-center font-bold text-blue-600 dark:text-blue-400', 
+        headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
+        cellRenderer: (params) => (
+          <div className="w-full text-center">
+            <button
+              type="button"
+              onClick={() => setSelectedPostForDetails({
+                data: params.data,
+                viewMode: params.data?.StatusTargetView || 'request'
+              })}
+              className="text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+            >
+              {params.value}
+            </button>
+          </div>
+        )
+      },
+      { 
+        field: 'Post Abolition Date', 
+        headerName: 'Post Abolition Date', 
+        minWidth: 170, 
+        cellClass: 'text-center flex items-center justify-center font-medium', 
+        headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
+        cellRenderer: (params) => (
+          <div className="w-full text-center">
+            {params.value}
+          </div>
+        )
+      },
+      {
         field: 'Status',
         headerName: 'Status',
-        minWidth: 250,
-        cellClass: 'text-center', headerClass: 'text-center',
+        minWidth: 200,
+        cellClass: 'text-center flex items-center justify-center', 
+        headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
         cellRenderer: (params) => {
-          const color = params.data?.StatusColor || 'bg-sky-400';
+          const statusText = params.value || 'Request';
+          const colorClass = params.data?.StatusColor || 'bg-blue-600 hover:bg-blue-700 text-white';
+          const targetView = params.data?.StatusTargetView || 'request';
+
           return (
-            <div className="flex items-center justify-center h-full py-1">
-              <span className={`${color} text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm whitespace-nowrap`}>
-                {params.value}
-              </span>
+            <div className="flex items-center justify-center w-full h-full py-1">
+              <button 
+                type="button"
+                onClick={() => setSelectedPostForDetails({
+                  data: params.data,
+                  viewMode: targetView
+                })}
+                className={`flex items-center space-x-1.5 ${colorClass} text-xs font-semibold px-3 py-1.5 rounded-md shadow-xs transition cursor-pointer`}
+                title={`Open ${statusText}`}
+              >
+                <span>{statusText}</span>
+              </button>
+            </div>
+          );
+        }
+      }
+    );
+
+    if (!isMinistryView) {
+      cols.push({
+        field: 'Revive abolition',
+        headerName: 'Revive abolition',
+        minWidth: 160,
+        cellClass: 'text-center flex items-center justify-center', 
+        headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
+        cellRenderer: (params) => {
+          return (
+            <div className="flex items-center justify-center w-full h-full py-1">
+              <button 
+                type="button"
+                onClick={() => {
+                  setSelectedRevokePost(params.data);
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-md shadow-xs transition cursor-pointer"
+              >
+                <span>⟲</span>
+                <span>Revoke</span>
+              </button>
             </div>
           );
         }
       });
-    } else {
-      cols.push(
-        { field: 'Date of Expiry', headerName: 'Date of Expiry (5 yr)', minWidth: 180, cellClass: 'text-center font-medium text-amber-600', headerClass: 'text-center' },
-        {
-          field: 'Revival Status',
-          headerName: 'Revival Status',
-          minWidth: 220,
-          cellClass: 'text-center', headerClass: 'text-center',
-          cellRenderer: (params) => {
-            const color = params.data?.RevivalStatusColor || 'bg-sky-400';
-            return (
-              <div className="flex items-center justify-center h-full py-1">
-                <span className={`${color} text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm whitespace-nowrap`}>
-                  {params.value}
-                </span>
-              </div>
-            );
-          }
-        },
-        {
-          field: 'Updated Date',
-          headerName: 'Updated Date',
-          minWidth: 160,
-          cellClass: 'text-center font-medium', headerClass: 'text-center',
-        },
-        {
-          field: 'Revive abolition',
-          headerName: 'Revive abolition',
-          minWidth: 180,
-          cellClass: 'text-center', headerClass: 'text-center',
-          cellRenderer: (params) => {
-            const isApproved = params.data?.RevivalStageId === 9;
-            if (isApproved) return null;
-            return (
-              <div className="flex items-center justify-center h-full py-1">
-                <button 
-                  onClick={() => {
-                    setSelectedRevokePost(params.data);
-                    setIsModalOpen(true);
-                  }}
-                  className="flex items-center space-x-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-1.5 rounded shadow-sm transition"
-                >
-                  <span>⟲</span>
-                  <span>Revoke</span>
-                </button>
-              </div>
-            );
-          }
-        }
-      );
     }
 
     return cols.filter(col => {
@@ -271,7 +350,20 @@ export default function ListAbolishedPosts() {
       if (col.field) return visibleCols[col.field] !== false;
       return true;
     });
-  }, [visibleCols]);
+  }, [isMinistryView, visibleCols]);
+
+  if (selectedPostForDetails) {
+    const postData = selectedPostForDetails.data || selectedPostForDetails;
+    const viewMode = selectedPostForDetails.viewMode || (postData?.StatusTargetView || 'request');
+    return (
+      <ViewAbolishedPostDetails
+        postCode={postData['Post code']}
+        initialData={postData}
+        initialViewMode={viewMode}
+        onBack={() => setSelectedPostForDetails(null)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100">
@@ -378,12 +470,34 @@ export default function ListAbolishedPosts() {
               )}
             </div>
 
-            <CopyButton text={() => filteredPosts.map(p => Object.values(p).join('\\t')).join('\\n')} />
+            <CopyButton
+              text={() => {
+                const headers = [
+                  'S.No',
+                  ...(isMinistryView ? ['Organisation'] : []),
+                  'Department',
+                  'Post Name',
+                  'Post code',
+                  'Post Abolition Date',
+                  'Status'
+                ];
+                const rows = filteredPosts.map((p, idx) => [
+                  idx + 1,
+                  ...(isMinistryView ? [p['Organisation']] : []),
+                  p['Department'],
+                  p['Post Name'],
+                  p['Post code'],
+                  p['Post Abolition Date'],
+                  p['Status']
+                ].join('\t'));
+                return [headers.join('\t'), ...rows].join('\n');
+              }}
+            />
             <ExportDropdown
               data={filteredPosts}
               filename="Abolished_Posts"
               columns={[
-                { header: 'Organisation', key: 'Organisation' },
+                ...(isMinistryView ? [{ header: 'Organisation', key: 'Organisation' }] : []),
                 { header: 'Department', key: 'Department' },
                 { header: 'Post Name', key: 'Post Name' },
                 { header: 'Post code', key: 'Post code' },
@@ -396,7 +510,7 @@ export default function ListAbolishedPosts() {
 
         {/* Collapsible Filter Panel */}
         <div className={`border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 overflow-hidden transition-all duration-300 ease-in-out ${showFilterPanel ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className={`p-5 grid grid-cols-1 md:grid-cols-2 ${isMinistryView ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
+          <div className={`p-5 grid grid-cols-1 md:grid-cols-2 ${isMinistryView ? 'lg:grid-cols-3' : 'lg:grid-cols-3'} gap-4`}>
             {isMinistryView && (
               <div>
                 <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">Organisation</label>
@@ -436,9 +550,12 @@ export default function ListAbolishedPosts() {
               <div>
                 <label className="block text-xs font-bold mb-1.5 text-slate-700 dark:text-slate-300">Class</label>
                 <select
+                  value={selectedClass}
+                  onChange={e => setSelectedClass(e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm"
                 >
                   <option value="">-- Show All --</option>
+                  {uniqueClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
                 </select>
               </div>
             )}
@@ -463,9 +580,11 @@ export default function ListAbolishedPosts() {
                 filter: true,
                 sortable: true,
                 resizable: true,
+                cellClass: 'text-center flex items-center justify-center',
+                headerClass: 'text-center [&_.ag-header-cell-label]:justify-center',
               }}
               domLayout="autoHeight"
-              className="border-none [&_.ag-header]:bg-blue-900 [&_.ag-header-cell-text]:text-white"
+              className="border-none [&_.ag-header]:bg-[#28408f] [&_.ag-header-cell-text]:text-white [&_.ag-header-cell-label]:justify-center [&_.ag-cell]:justify-center [&_.ag-cell]:text-center"
             />
           )}
         </div>

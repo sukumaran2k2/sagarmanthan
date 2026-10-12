@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../../components/InternalNavigation';
-import { FileText, GraduationCap } from 'lucide-react';
+import { FileText, GraduationCap, UserPlus } from 'lucide-react';
 import ContractualDataForm from '../components/ContractualDataForm';
 import TrainingDataForm from '../components/TrainingDataForm';
+import EmployeeDataForm from '../components/EmployeeDataForm';
 
 export default function InputForm({ triggerNotification }) {
   const location = useLocation();
@@ -12,6 +13,7 @@ export default function InputForm({ triggerNotification }) {
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
     if (path.includes('/training-data')) return 'training-data';
+    if (path.includes('/employee-data')) return 'employee-data';
     return 'contractual-data';
   }, [location.pathname]);
 
@@ -20,6 +22,7 @@ export default function InputForm({ triggerNotification }) {
   const tabs = [
     { id: 'contractual-data', label: isEditMode && currentTab === 'contractual-data' ? 'Update Contractual Data' : 'Contractual Data', icon: FileText },
     { id: 'training-data', label: isEditMode && currentTab === 'training-data' ? 'Update Training Data' : 'Training Data', icon: GraduationCap },
+    { id: 'employee-data', label: 'Employee Data', icon: UserPlus },
   ];
 
   const visibleTabs = isEditMode ? tabs.filter(t => t.id === currentTab) : tabs;
@@ -58,26 +61,34 @@ export default function InputForm({ triggerNotification }) {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in min-h-[500px]">
-        <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
-          <div>
-            <h3 className="text-sm font-black uppercase tracking-wider font-display">
-              {currentTab === 'training-data' 
-                ? (isEditMode ? 'Update Training Data' : 'Training Data Input Form') 
-                : (isEditMode ? 'Update Contractual Data' : 'Contractual Data Input Form')}
-            </h3>
-            <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
-          </div>
-        </div>
-        <div className="p-6">
+      {currentTab === 'employee-data' ? (
+        <div className="animate-fade-in">
           <Routes>
-            <Route path="contractual-data" element={<ContractualDataForm triggerNotification={triggerNotification} />} />
-            <Route path="training-data" element={<TrainingDataForm triggerNotification={triggerNotification} />} />
-            <Route index element={<Navigate to="contractual-data" replace />} />
-            <Route path="*" element={<Navigate to="contractual-data" replace />} />
+            <Route path="employee-data" element={<EmployeeDataForm triggerNotification={triggerNotification} />} />
           </Routes>
         </div>
-      </div>
+      ) : (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in min-h-[500px]">
+          <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wider font-display">
+                {currentTab === 'training-data' 
+                  ? (isEditMode ? 'Update Training Data' : 'Training Data Input Form') 
+                  : (isEditMode ? 'Update Contractual Data' : 'Contractual Data Input Form')}
+              </h3>
+              <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+            </div>
+          </div>
+          <div className="p-6">
+            <Routes>
+              <Route path="contractual-data" element={<ContractualDataForm triggerNotification={triggerNotification} />} />
+              <Route path="training-data" element={<TrainingDataForm triggerNotification={triggerNotification} />} />
+              <Route index element={<Navigate to="contractual-data" replace />} />
+              <Route path="*" element={<Navigate to="contractual-data" replace />} />
+            </Routes>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
