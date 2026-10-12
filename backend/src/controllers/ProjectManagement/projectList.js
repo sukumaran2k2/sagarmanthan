@@ -110,6 +110,8 @@ function bindProjectListFilterInputs(request, {
     financialProgressMax,
     hasUnderTenderingSubStage,
     underTenderingSubStage,
+    hasPlanningSubStage,
+    planningSubStage,
 }) {
     if (Number.isFinite(effectiveOrganisationId) && effectiveOrganisationId > 0) {
         request.input('organisationId', sql.Int, effectiveOrganisationId);
@@ -157,6 +159,9 @@ function bindProjectListFilterInputs(request, {
     if (hasUnderTenderingSubStage) {
         request.input('underTenderingSubStage', sql.Int, underTenderingSubStage);
     }
+    if (hasPlanningSubStage) {
+        request.input('planningSubStage', sql.Int, planningSubStage);
+    }
 }
 
 async function getProjectList(req, res) {
@@ -191,13 +196,17 @@ async function getProjectList(req, res) {
     const financialProgressMax = financialProgressMaxRaw === '' || financialProgressMaxRaw == null ? null : Number(financialProgressMaxRaw);
 
     const underTenderingSubStage = Number.parseInt(req.query.underTenderingSubStage, 10);
-    const hasUnderTenderingSubStage = Number.isInteger(underTenderingSubStage) && underTenderingSubStage >= 3 && underTenderingSubStage <= 9;
+    const hasUnderTenderingSubStage = Number.isInteger(underTenderingSubStage) && underTenderingSubStage >= 3 && underTenderingSubStage <= 10;
     const needsProgressFilter =
         Number.isFinite(physicalProgressMin) ||
         Number.isFinite(physicalProgressMax) ||
         Number.isFinite(financialProgressMin) ||
         Number.isFinite(financialProgressMax);
+  
 
+    const planningSubStage = Number.parseInt(req.query.planningSubStage, 10);
+    const hasPlanningSubStage = Number.isInteger(planningSubStage) && planningSubStage >= 0 && planningSubStage <= 11 && planningSubStage !== 4;
+    
     try {
         const dataScope = getDataScope(req.user || {});
         const jwtOrgId = Number(dataScope.organisationId);
@@ -249,42 +258,210 @@ async function getProjectList(req, res) {
             ? ' AND ISNULL(sp.sub_organisation_id, p.organisation_id) = @organisationId'
             : '';
 
+
+        //  const selectedStageJoin = hasUnderTenderingSubStage
+        // ? `
+        //     OUTER APPLY (
+        //         SELECT
+        //             MAX(CASE
+        //                 WHEN TRY_CAST(pd.sub_stage_id AS INT) = ${underTenderingSubStage}
+        //                     AND pd.actual_date IS NOT NULL
+        //                 THEN 1
+        //                 ELSE 0
+        //             END) AS selected_stage_completed,
+
+        //             MAX(CASE
+        //                 WHEN TRY_CAST(pd.sub_stage_id AS INT) = ${underTenderingSubStage + 1}
+        //                     AND pd.actual_date IS NOT NULL
+        //                 THEN 1
+        //                 ELSE 0
+        //             END) AS next_stage_completed
+        //         FROM tbl_project_date pd
+        //         WHERE pd.project_id = p.project_id
+        //         AND (
+        //                 sp.sub_project_id IS NULL
+        //                 OR pd.sub_project_id = sp.sub_project_id
+        //                 OR pd.sub_project_id IS NULL
+        //                 OR TRY_CAST(pd.sub_project_id AS INT) = -1
+        //             )
+        //     ) latestSubStage
+        // `
+        // : '';
+        
+
         const selectedStageJoin = hasUnderTenderingSubStage
-            ? `
+        ? `
             OUTER APPLY (
                 SELECT
-                    MAX(CASE
-                        WHEN TRY_CAST(pd.sub_stage_id AS INT) = ${underTenderingSubStage}
-                            AND pd.actual_date IS NOT NULL
-                        THEN 1 ELSE 0
-                    END) AS selected_stage_completed,
-                    MAX(CASE
-                        WHEN TRY_CAST(pd.sub_stage_id AS INT) = ${underTenderingSubStage + 1}
-                            AND pd.actual_date IS NOT NULL
-                        THEN 1 ELSE 0
-                    END) AS next_stage_completed
-                FROM tbl_project_date pd
-                WHERE pd.project_id = p.project_id
-                AND (
-                    sp.sub_project_id IS NULL
-                    OR pd.sub_project_id = sp.sub_project_id
-                    OR pd.sub_project_id IS NULL
-                    OR TRY_CAST(pd.sub_project_id AS INT) = -1
-                )
+                    CASE
+                        WHEN ${underTenderingSubStage} = 3 THEN
+                            CASE
+                                WHEN NOT EXISTS (
+                                    SELECT 1
+                                    FROM tbl_project_date pd3
+                                    WHERE pd3.project_id = p.project_id
+                                    AND TRY_CAST(pd3.sub_stage_id AS INT) = 3
+                                    AND pd3.actual_date IS NOT NULL
+                                    AND (
+                                        sp.sub_project_id IS NULL
+                                        OR pd3.sub_project_id = sp.sub_project_id
+                                        OR pd3.sub_project_id IS NULL
+                                        OR TRY_CAST(pd3.sub_project_id AS INT) = -1
+                                    )
+                                )
+                                THEN 1
+                                ELSE 0
+                            END
+
+                        ELSE
+                            CASE
+                                WHEN NOT EXISTS (
+                                    SELECT 1
+                                    FROM tbl_project_date pdCurrent
+                                    WHERE pdCurrent.project_id = p.project_id
+                                    AND TRY_CAST(pdCurrent.sub_stage_id AS INT) = ${underTenderingSubStage}
+                                    AND pdCurrent.actual_date IS NOT NULL
+                                    AND (
+                                        sp.sub_project_id IS NULL
+                                        OR pdCurrent.sub_project_id = sp.sub_project_id
+                                        OR pdCurrent.sub_project_id IS NULL
+                                        OR TRY_CAST(pdCurrent.sub_project_id AS INT) = -1
+                                    )
+                                )
+                                AND EXISTS (
+                                    SELECT 1
+                                    FROM tbl_project_date pdPrevious
+                                    WHERE pdPrevious.project_id = p.project_id
+                                    AND TRY_CAST(pdPrevious.sub_stage_id AS INT) = ${underTenderingSubStage - 1}
+                                    AND pdPrevious.actual_date IS NOT NULL
+                                    AND (
+                                        sp.sub_project_id IS NULL
+                                        OR pdPrevious.sub_project_id = sp.sub_project_id
+                                        OR pdPrevious.sub_project_id IS NULL
+                                        OR TRY_CAST(pdPrevious.sub_project_id AS INT) = -1
+                                    )
+                                )
+                                THEN 1
+                                ELSE 0
+                            END
+                    END AS selected_stage_current
             ) latestSubStage
         `
-            : '';
+        : '';
 
+    
         const selectedStageActualDateSelect = hasUnderTenderingSubStage
-            ? `
+        ? `
             CASE
-                WHEN latestSubStage.selected_stage_completed = 1
-                AND ISNULL(latestSubStage.next_stage_completed, 0) = 0
+                WHEN latestSubStage.selected_stage_current = 1
                 THEN @underTenderingSubStage
                 ELSE NULL
             END AS latest_actual_sub_stage_id
         `
-            : `CAST(NULL AS INT) AS latest_actual_sub_stage_id`;
+        : `
+            CAST(NULL AS INT) AS latest_actual_sub_stage_id
+        `;
+
+        const planningSelectedStageActualDateSelect = `
+    CASE
+        -- No actual dates: Project Initiated
+        WHEN latestPlanningDate.stage_id IS NULL
+            THEN 0
+
+        -- Port Level Approval: after DPR, Chairman / Board Approval is active
+        WHEN LOWER(LTRIM(RTRIM(
+                 CONVERT(VARCHAR(100),
+                     ISNULL(sp.sub_project_type, p.project_type)
+                 )
+             ))) = 'port level approval'
+             AND latestPlanningDate.stage_id = 2
+            THEN 3
+
+        -- Other project types: skip stage 3 and go to stage 5
+        WHEN LOWER(LTRIM(RTRIM(
+                 CONVERT(VARCHAR(100),
+                     ISNULL(sp.sub_project_type, p.project_type)
+                 )
+             ))) <> 'port level approval'
+             AND latestPlanningDate.stage_id = 2
+            THEN 5
+
+        -- Stage 10: IMC approval date alone must not activate stage 11.
+        -- Keep SFC Approval active until the SFC actual date is entered.
+        WHEN latestPlanningDate.stage_id = 10
+             AND ISNULL(
+                 sp.sub_sfc_approval_date,
+                 p.sfc_approval_date
+             ) IS NULL
+            THEN 10
+
+        -- Stage 3 has no next stage under the current rule
+        WHEN latestPlanningDate.stage_id = 3
+            THEN NULL
+
+        -- Normal progression
+        WHEN latestPlanningDate.stage_id BETWEEN 0 AND 1
+            THEN latestPlanningDate.stage_id + 1
+
+        WHEN latestPlanningDate.stage_id BETWEEN 5 AND 9
+            THEN latestPlanningDate.stage_id + 1
+
+        -- SFC date entered: move to Admin Approval
+        WHEN latestPlanningDate.stage_id = 10
+            THEN 11
+
+        -- Admin Approval completed: Under Tendering
+        WHEN latestPlanningDate.stage_id = 11
+            THEN 12
+
+        ELSE NULL
+    END AS latest_planning_sub_stage_id
+`;
+
+
+// const planningSelectedStageActualDateSelect = `
+//     CASE
+//         -- No actual date at any stage
+//         WHEN latestPlanningDate.stage_id IS NULL
+//             THEN 0
+
+//         -- First check: Port Level Approval
+//         -- If stage 2 actual date exists, Chairman / Board Approval (stage 3) is active
+//         WHEN LOWER(LTRIM(RTRIM(
+//                  CONVERT(VARCHAR(100),
+//                      ISNULL(sp.sub_project_type, p.project_type)
+//                  )
+//              ))) = 'port level approval'
+//              AND latestPlanningDate.stage_id = 2
+//             THEN 3
+
+//         -- Non-Port Level Approval: skip stage 3 and go directly to stage 5
+//         WHEN LOWER(LTRIM(RTRIM(
+//                  CONVERT(VARCHAR(100),
+//                      ISNULL(sp.sub_project_type, p.project_type)
+//                  )
+//              ))) <> 'port level approval'
+//              AND latestPlanningDate.stage_id = 2
+//             THEN 5
+
+//         -- Normal next-stage progression
+//         WHEN latestPlanningDate.stage_id BETWEEN 0 AND 1
+//             THEN latestPlanningDate.stage_id + 1
+
+//         WHEN latestPlanningDate.stage_id = 3
+//             THEN NULL
+
+//         WHEN latestPlanningDate.stage_id BETWEEN 5 AND 10
+//             THEN latestPlanningDate.stage_id + 1
+
+//         -- Admin Approval is followed by Under Tendering (12)
+//         WHEN latestPlanningDate.stage_id = 11
+//             THEN 12
+
+//         ELSE NULL
+//     END AS latest_planning_sub_stage_id
+// `;
+
 
         const progressSelect = needsProgressFilter
             ? `
@@ -379,6 +556,7 @@ async function getProjectList(req, res) {
                     ISNULL(ia.ia_name, '') AS primary_ia_name,
                     ${progressSelect}
                     ${selectedStageActualDateSelect},
+                    ${planningSelectedStageActualDateSelect},
                     ISNULL(sp.sub_is_sagarmala_funded, p.is_sagarmala_funded) AS is_sagarmala_funded,
                     ISNULL(sp.sub_source_of_funding_id, p.source_of_funding_id) AS source_of_funding_id,
                     ISNULL(sp.sub_sagarmala_components, p.sagarmala_components) AS sagarmala_components,
@@ -388,6 +566,43 @@ async function getProjectList(req, res) {
                     CAST(ISNULL(sp.sub_project_id, -1) AS varchar(50)) AS sub_project_id_text
                 FROM tbl_project p
                 LEFT JOIN tbl_sub_project sp ON sp.project_id = p.project_id
+                OUTER APPLY
+                (
+                    SELECT TOP (1)
+                        v.stage_id,
+                        v.actual_date
+                    FROM
+                    (
+                        VALUES
+                            (0, ISNULL(sp.sub_project_intiated_date, p.project_intiated_date)),
+                            (1, ISNULL(sp.sub_prefeasiblity_actual_date, p.prefeasiblity_actual_date)),
+                            (2, ISNULL(sp.sub_dpr_actual_date, p.dpr_actual_date)),
+                            (3, ISNULL(sp.sub_chairman_approval_date, p.chairman_approval_date)),
+                            (5, ISNULL(sp.sub_ministry_submission_date, p.ministry_submission_date)),
+                            (6, ISNULL(sp.sub_da_approval_date, p.da_approval_date)),
+                            (7, ISNULL(sp.sub_ifw_approval_date, p.ifw_approval_date)),
+                            (8, ISNULL(sp.sub_imc_circulation_date, p.imc_circulation_date)),
+                            (9, ISNULL(sp.sub_response_com_rec_approval_date, p.response_com_rec_approval_date)),
+                            (10, ISNULL(sp.sub_imc_approval_date, p.imc_approval_date)),
+                            (10, ISNULL(sp.sub_sfc_approval_date, p.sfc_approval_date)),
+                            (11, ISNULL(sp.sub_admin_approval_approval_date, p.admin_approval_approval_date))
+                    ) v(stage_id, actual_date)
+                    WHERE v.actual_date IS NOT NULL
+                    AND
+                    (
+                        LOWER(LTRIM(RTRIM(
+                            CONVERT(VARCHAR(100),
+                                ISNULL(sp.sub_project_type, p.project_type)
+                            )
+                        ))) <> 'port level approval'
+                        OR v.stage_id <= 3
+                    )
+                    ORDER BY
+                        v.actual_date DESC,
+                        v.stage_id DESC
+                ) latestPlanningDate
+
+
                 ${selectedStageJoin}
                 LEFT JOIN mmt_organisation org ON org.organisation_id = ISNULL(sp.sub_organisation_id, p.organisation_id)
                 LEFT JOIN mmt_implementing_agency ia ON ia.ia_id = ISNULL(sp.sub_primary_ia_id, p.primary_ia_id)
@@ -506,7 +721,24 @@ async function getProjectList(req, res) {
             filterWhereClauses.push('latest_actual_sub_stage_id = @underTenderingSubStage');
         }
 
+        
+
         const whereClauses = [...filterWhereClauses];
+           if (
+                hasPlanningSubStage &&
+                (
+                    projectStage === 'Planning & Sanctioning' ||
+                    projectStage === 'Planning' ||
+                    projectStage === 'Project Initiated' ||
+                    projectStage === 'planning'
+                )
+            ) {
+                whereClauses.push(
+                    'latest_planning_sub_stage_id = @planningSubStage'
+                );
+            }
+
+
         if (projectStage && projectStage !== 'All') {
             if (projectStage === 'Planning & Sanctioning' || projectStage === 'Planning' || projectStage === 'Project Initiated' || projectStage === 'planning') {
                 whereClauses.push('(stage_name != \'Dropped\' AND current_project_stage_id != 99 AND (current_project_stage_id BETWEEN 0 AND 11 OR ISNULL(stage_name, \'\') LIKE \'%Planning%\' OR ISNULL(stage_name, \'\') LIKE \'%Initiated%\' OR current_project_stage_id IS NULL))');
@@ -543,6 +775,8 @@ async function getProjectList(req, res) {
             financialProgressMax,
             hasUnderTenderingSubStage,
             underTenderingSubStage,
+            hasPlanningSubStage,
+            planningSubStage,
         };
 
         const countsSql = `

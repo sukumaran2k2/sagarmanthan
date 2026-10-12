@@ -134,10 +134,23 @@ function toProjectListParams(params = {}) {
   if (
     Number.isInteger(underTenderingSubStage) &&
     underTenderingSubStage >= 3 &&
-    underTenderingSubStage <= 9
+    underTenderingSubStage <= 10
   ) {
     query.underTenderingSubStage = underTenderingSubStage;
   }
+
+const planningSubStage = Number(params.planningSubStage);
+
+if (
+    params.planningSubStage !== '' &&
+    params.planningSubStage !== null &&
+    params.planningSubStage !== undefined &&
+    Number.isInteger(planningSubStage) &&
+    planningSubStage >= 0 &&
+    planningSubStage <= 11
+) {
+    query.planningSubStage = planningSubStage;
+}
 
 
   return query;

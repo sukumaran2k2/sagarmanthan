@@ -38,6 +38,8 @@ const DEFAULT_FILTERS = {
   financialProgressMin: '',
   financialProgressMax: '',
   underTenderingSubStage: '',
+  planningSubStage: '',
+
 };
 
 const DEFAULT_PROGRESS_FILTERS = {
@@ -76,6 +78,8 @@ function getCountsFilterKey(filters = {}) {
     financialProgressMin: filters.financialProgressMin ?? '',
     financialProgressMax: filters.financialProgressMax ?? '',
     underTenderingSubStage: filters.underTenderingSubStage || '',
+    planningSubStage: filters.planningSubStage || '',
+
   });
 }
 
@@ -106,6 +110,8 @@ export default function ProjectListPage({
   const [states, setStates] = useState([]);
   const [districts, setDistricts] = useState([]);
   const [underTenderingSubStages, setUnderTenderingSubStages] = useState([]);
+  const [planningSubStages, setPlanningSubStages] = useState([]);
+
   const [stageCounts, setStageCounts] = useState({
     all: 0,
     planning: 0,
@@ -151,7 +157,28 @@ export default function ProjectListPage({
       fetchMmtDropdown('mmt_project_category'),
       fetchMmtDropdown('mmt_scheme'),
       fetchMmtDropdown('tbl_project_sub_stage'),
-    ]).then(([orgRes, stateRes, catRes, schemeRes, subStageRes]) => {
+      fetchMmtDropdown('tbl_project_stage'),
+    ]).then(([orgRes, stateRes, catRes, schemeRes, subStageRes, planningRes ]) => {
+      if (
+        subStageRes.status === 'fulfilled' &&
+        Array.isArray(subStageRes.value?.data)
+      ) {
+        setUnderTenderingSubStages(subStageRes.value.data);
+      }
+
+      if (
+        planningRes.status === 'fulfilled' &&
+        Array.isArray(planningRes.value?.data)
+      ) {
+        const planningOptions = planningRes.value.data.filter((item) => {
+          const id = Number(item.id ?? item.value ?? item.stage_id);
+            return id >= 0 && id <= 11 && id !== 4;
+        });
+
+        setPlanningSubStages(planningOptions);
+      }
+      
+  
       if (!mounted) return;
       if (orgRes.status === 'fulfilled' && Array.isArray(orgRes.value?.data)) {
         setOrganisations(orgRes.value.data);
@@ -165,12 +192,7 @@ export default function ProjectListPage({
       if (schemeRes.status === 'fulfilled' && Array.isArray(schemeRes.value?.data)) {
         setSchemes(schemeRes.value.data);
       }
-      if (
-        subStageRes.status === 'fulfilled' &&
-        Array.isArray(subStageRes.value?.data)
-      ) {
-        setUnderTenderingSubStages(subStageRes.value.data);
-      }
+    
     });
 
     return () => {
@@ -236,6 +258,8 @@ export default function ProjectListPage({
       state: filters.state,
       district: filters.district,
       underTenderingSubStage: filters.underTenderingSubStage,
+      planningSubStage: filters.planningSubStage,
+
       ...debouncedProgressFilters,
     }),
     [
@@ -250,6 +274,7 @@ export default function ProjectListPage({
       filters.state,
       filters.district,
       filters.underTenderingSubStage,
+      filters.planningSubStage,
       debouncedProgressFilters,
     ]
   );
@@ -280,6 +305,8 @@ export default function ProjectListPage({
         financialProgressMin: effectiveFilters.financialProgressMin,
         financialProgressMax: effectiveFilters.financialProgressMax,
         underTenderingSubStage: effectiveFilters.underTenderingSubStage,
+        planningSubStage: effectiveFilters.planningSubStage,
+
         includeCounts: false,
         ...overrides,
       };
@@ -740,8 +767,9 @@ export default function ProjectListPage({
         states={states}
         districts={districts}
         underTenderingSubStageOptions={underTenderingSubStages}
-        canAdd={Boolean(permissions.canAdd && permissions.isOrgScope)}
-        canEdit={Boolean(permissions.canEdit && !permissions.isViewOnlyAdmin)}
+        planningSubStageOptions={planningSubStages}
+        canAdd={Boolean(permissions.canAdd && (permissions.isOrganisationUser || permissions.viewMode === 'org'))}
+        canEdit={permissions.canEdit}
         canView={permissions.canView}
         canDropProject={canRequestDrop}
         isOrganisationUser={permissions.isOrganisationUser}

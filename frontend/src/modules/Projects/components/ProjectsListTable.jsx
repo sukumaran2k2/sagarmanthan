@@ -103,6 +103,7 @@ export default function ProjectsListTable({
   filters,
   onFiltersChange,
   underTenderingSubStageOptions = [],
+  planningSubStageOptions = [],
   categoryOptions = [],
   schemeOptions = [],
   implementationModeOptions = [],
@@ -195,11 +196,15 @@ export default function ProjectsListTable({
     { 
       count++;
     }
+    if (filters?.projectStage === 'Project Initiated' && filters?.planningSubStage) 
+    { 
+      count++;
+    }
 
     return count;
   }, [filters]);
 
-  //  console.log("Current projectStage:", filters?.projectStage);
+  // console.log("Current projectStage:", filters?.projectStage);
   // console.log("Current projectStage type:", typeof filters?.projectStage);
 
   const setFilter = (key, value) => {
@@ -222,8 +227,8 @@ export default function ProjectsListTable({
       physicalProgressMax: '',
       financialProgressMin: '',
       financialProgressMax: '',
-      underTenderingSubStage: ''
-
+      underTenderingSubStage: '',
+      planningSubStage: ''
     });
   };
 
@@ -1497,6 +1502,134 @@ export default function ProjectsListTable({
                   ))}
                 </select>
               </div>
+
+              {filters?.projectStage === 'Project Initiated' && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                      Planning and Santioning Sub Stage
+                    </label>
+
+                    {/* <select
+                      value={filters?.planningSubStage || ''}
+                      onChange={(e) =>
+                        setFilter('planningSubStage', e.target.value)
+                      }
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                    >
+                      <option value="">
+                        All Sub Stages ({planningSubStageOptions.length})
+                      </option>
+
+                      {planningSubStageOptions.map((subStage) => {
+                        const planninmgSubStageId =
+                          subStage.stage_id || subStage.id;
+
+                        const planninmgSubStageName =
+                          subStage.stage_name || subStage.name;
+
+                        return (
+                          <option
+                            key={planninmgSubStageId}
+                            value={planninmgSubStageId}
+                          >
+                            {planninmgSubStageName}
+                          </option>
+                        );
+                      })}
+                    </select> */}
+
+                      <select
+                        value={
+                          filters?.planningSubStage !== undefined &&
+                          filters?.planningSubStage !== null
+                            ? String(filters.planningSubStage)
+                            : ''
+                        }
+                        onChange={(e) => {
+                          console.log(
+                            '========== PLANNING DROPDOWN CHANGE ==========',
+                            {
+                              selectedValue: e.target.value,
+                              selectedText: e.target.options[e.target.selectedIndex]?.text,
+                              selectedType: typeof e.target.value,
+                            }
+                          );
+
+                          setFilter('planningSubStage', e.target.value);
+                        }}
+                        className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                      >
+                        <option value="">
+                          All Sub Stages ({planningSubStageOptions.length})
+                        </option>
+
+                        {planningSubStageOptions.map((subStage) => {
+                          const planningSubStageId =
+                            subStage.stage_id !== undefined &&
+                            subStage.stage_id !== null
+                              ? subStage.stage_id
+                              : subStage.id;
+
+                          const planningSubStageName =
+                            subStage.stage_name || subStage.name;
+
+                          console.log('PLANNING OPTION:', {
+                            subStage,
+                            planningSubStageId,
+                            planningSubStageName,
+                            idType: typeof planningSubStageId,
+                          });
+
+                          return (
+                            <option
+                              key={planningSubStageId}
+                              value={String(planningSubStageId)}
+                            >
+                              {planningSubStageName}
+                            </option>
+                          );
+                        })}
+                      </select>
+                  </div>
+              )}
+
+              {filters?.projectStage === 'Under Tendering' && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                      Sub Stage
+                    </label>
+
+                    <select
+                      value={filters?.underTenderingSubStage || ''}
+                      onChange={(e) =>
+                        setFilter('underTenderingSubStage', e.target.value)
+                      }
+                      className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                    >
+                      <option value="">
+                        All Sub Stages ({underTenderingSubStageOptions.length})
+                      </option>
+
+                      {underTenderingSubStageOptions.map((subStage) => {
+                        const subStageId =
+                          subStage.sub_stage_id || subStage.id;
+
+                        const subStageName =
+                          subStage.sub_stage_name || subStage.name;
+
+                        return (
+                          <option
+                            key={subStageId}
+                            value={subStageId}
+                          >
+                            {subStageName}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+              )}
+
               {filters?.projectStage === 'Under Tendering' && (
                   <div>
                     <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">

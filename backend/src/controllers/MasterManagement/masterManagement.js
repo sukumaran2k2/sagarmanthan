@@ -560,7 +560,7 @@ async function getDropDownData(req, res) {
             break;
 
         case "tbl_project_sub_stage":
-            query = "SELECT sub_stage_id, sub_stage_name FROM tbl_project_sub_stage WHERE sub_stage_id BETWEEN 3 AND 9 ORDER BY sub_stage_id";
+            query = "SELECT sub_stage_id, sub_stage_name FROM tbl_project_sub_stage WHERE sub_stage_id BETWEEN 3 AND 10 ORDER BY sub_stage_id";
             break;
 
         // case "tbl_project":
