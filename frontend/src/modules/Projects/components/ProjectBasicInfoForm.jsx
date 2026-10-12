@@ -17,6 +17,10 @@ import {
   formatFileSize,
 } from '../utils/constants';
 import {
+  createTypedObjectUrl,
+  triggerBrowserDownload,
+} from '../utils/documentPreview';
+import {
   addRevisedTargetCompletionDate,
   fetchMmtDropdown,
   fetchRevisedTargetCompletionHistory,
@@ -25,6 +29,7 @@ import {
   deriveImplementationMode,
   deriveSagarmalaFunding,
 } from '../utils/mapProject';
+import ProjectDocumentViewerModal from './ProjectDocumentViewerModal';
 import {
   clearProjectBasicInfoDraft,
   loadProjectBasicInfoDraft,
@@ -543,6 +548,7 @@ export default function ProjectBasicInfoForm({
   onUploadDocuments,
   onDeleteDocument,
   onDownloadDocument,
+  onFetchDocumentBlob,
   outlayProps = null,
 }) {
   const [formData, setFormData] = useState(() => getInitialForm(initialData));
@@ -556,6 +562,14 @@ export default function ProjectBasicInfoForm({
   const [documentInputKeyByType, setDocumentInputKeyByType] = useState(() =>
     Object.fromEntries(PROJECT_DOCUMENT_TYPES.map((item) => [item.folderName, 0]))
   );
+  const [documentViewer, setDocumentViewer] = useState({
+    open: false,
+    documentName: '',
+    objectUrl: null,
+    loading: false,
+    error: '',
+  });
+  const documentViewerUrlRef = useRef(null);
   const [targetRevisionModal, setTargetRevisionModal] = useState({
     open: false,
     date: '',
@@ -1265,6 +1279,99 @@ export default function ProjectBasicInfoForm({
       [folderName]: (prev[folderName] || 0) + 1,
     }));
   };
+
+  const revokeDocumentViewerUrl = (url) => {
+    if (!url) return;
+    URL.revokeObjectURL(url);
+    if (documentViewerUrlRef.current === url) {
+      documentViewerUrlRef.current = null;
+    }
+  };
+
+  const closeDocumentViewer = () => {
+    setDocumentViewer((prev) => {
+      revokeDocumentViewerUrl(prev.objectUrl);
+      return {
+        open: false,
+        documentName: '',
+        objectUrl: null,
+        loading: false,
+        error: '',
+      };
+    });
+  };
+
+  const openDocumentViewer = ({ documentName, objectUrl = null, loading = false, error = '' }) => {
+    setDocumentViewer((prev) => {
+      if (prev.objectUrl && prev.objectUrl !== objectUrl) {
+        revokeDocumentViewerUrl(prev.objectUrl);
+      }
+      documentViewerUrlRef.current = objectUrl;
+      return {
+        open: true,
+        documentName: documentName || '',
+        objectUrl,
+        loading,
+        error,
+      };
+    });
+  };
+
+  const handleViewPendingDocument = (file) => {
+    if (!file) return;
+    try {
+      const objectUrl = createTypedObjectUrl(file, file.name);
+      openDocumentViewer({ documentName: file.name, objectUrl });
+    } catch (error) {
+      console.error(error);
+      notify?.('Failed to open file preview.', 'error');
+    }
+  };
+
+  const handleViewSavedDocument = async (docOrName) => {
+    const documentName =
+      typeof docOrName === 'string'
+        ? docOrName
+        : docOrName?.document_name || docOrName?.name || docOrName?.file_name || '';
+    if (!documentName) {
+      notify?.('Document name is missing.', 'error');
+      return;
+    }
+    if (typeof onFetchDocumentBlob !== 'function') {
+      notify?.('Document preview is not available yet. Save the project first.', 'error');
+      return;
+    }
+
+    openDocumentViewer({ documentName, loading: true });
+    try {
+      const blobData = await onFetchDocumentBlob(documentName);
+      const objectUrl = createTypedObjectUrl(blobData, documentName);
+      openDocumentViewer({ documentName, objectUrl });
+    } catch (error) {
+      console.error(error);
+      openDocumentViewer({
+        documentName,
+        error: error?.response?.data?.message || 'Failed to load document preview.',
+      });
+    }
+  };
+
+  const handleDownloadFromViewer = () => {
+    const { documentName, objectUrl } = documentViewer;
+    if (objectUrl && documentName) {
+      triggerBrowserDownload(objectUrl, documentName);
+      return;
+    }
+    if (documentName && onDownloadDocument) {
+      onDownloadDocument(documentName);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      revokeDocumentViewerUrl(documentViewerUrlRef.current);
+    };
+  }, []);
 
   const uploadPendingDocuments = (folderName) => {
     const files = pendingFilesByType[folderName] || [];
@@ -2821,18 +2928,34 @@ export default function ProjectBasicInfoForm({
                                 key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
                                 className="flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-700"
                               >
-                                <span className="truncate" title={`${file.name} (${formatFileSize(file.size)})`}>
-                                  {file.name} ({formatFileSize(file.size)})
-                                </span>
                                 <button
                                   type="button"
-                                  onClick={() => removePendingDocument(docType.folderName, index)}
-                                  className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-rose-600 hover:bg-rose-50"
-                                  title="Remove from selection"
+                                  onClick={() => handleViewPendingDocument(file)}
+                                  className="min-w-0 truncate text-left text-slate-700 hover:text-[#0f417a] hover:underline"
+                                  title={`View ${file.name} (${formatFileSize(file.size)})`}
                                 >
-                                  <X className="h-3.5 w-3.5" />
-                                  <span>Remove</span>
+                                  {file.name} ({formatFileSize(file.size)})
                                 </button>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleViewPendingDocument(file)}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[#0f417a] hover:bg-blue-50"
+                                    title="View"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    <span>View</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removePendingDocument(docType.folderName, index)}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-rose-600 hover:bg-rose-50"
+                                    title="Remove from selection"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                    <span>Remove</span>
+                                  </button>
+                                </div>
                               </li>
                             ))}
                           </ul>
@@ -2854,15 +2977,28 @@ export default function ProjectBasicInfoForm({
                                 key={doc.id || `${docType.folderName}-${name}-${idx}`}
                                 className="flex items-center justify-between gap-2 px-3 py-2 text-[11px] font-semibold bg-white dark:bg-slate-900/30"
                               >
-                                <div className="min-w-0">
-                                  <p className="truncate text-slate-800 dark:text-slate-100" title={name}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewSavedDocument(name || doc)}
+                                  className="min-w-0 text-left rounded-md hover:bg-slate-50 dark:hover:bg-slate-800/60 px-1 -mx-1 py-0.5 transition"
+                                  title={`View ${name || 'document'}`}
+                                >
+                                  <p className="truncate text-slate-800 dark:text-slate-100 hover:text-[#0f417a] hover:underline" title={name}>
                                     {name}
                                   </p>
                                   <p className="text-[10px] text-slate-400">
                                     {doc.created_date ? String(doc.created_date).slice(0, 10) : '-'}
                                   </p>
-                                </div>
+                                </button>
                                 <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleViewSavedDocument(name || doc)}
+                                    className="p-1 hover:bg-slate-100 text-slate-600 rounded"
+                                    title="View"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </button>
                                   {onDownloadDocument ? (
                                     <button
                                       type="button"
@@ -2902,15 +3038,30 @@ export default function ProjectBasicInfoForm({
                       const name = doc.document_name || doc.name || doc.file_name;
                       return (
                         <li key={doc.id || `other-${name}-${idx}`} className="flex items-center justify-between gap-2 text-[11px] font-semibold">
-                          <span className="truncate">{name}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleViewSavedDocument(name || doc)}
+                            className="min-w-0 truncate text-left text-slate-700 hover:text-[#0f417a] hover:underline"
+                            title={`View ${name || 'document'}`}
+                          >
+                            {name}
+                          </button>
                           <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleViewSavedDocument(name || doc)}
+                              className="p-1 text-slate-600"
+                              title="View"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
                             {onDownloadDocument ? (
-                              <button type="button" onClick={() => onDownloadDocument(name || doc)} className="p-1 text-blue-600">
+                              <button type="button" onClick={() => onDownloadDocument(name || doc)} className="p-1 text-blue-600" title="Download">
                                 <Download className="h-3.5 w-3.5" />
                               </button>
                             ) : null}
                             {canInteract && onDeleteDocument ? (
-                              <button type="button" onClick={() => onDeleteDocument(name || doc)} className="p-1 text-rose-600">
+                              <button type="button" onClick={() => onDeleteDocument(name || doc)} className="p-1 text-rose-600" title="Delete">
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             ) : null}
@@ -3105,6 +3256,16 @@ export default function ProjectBasicInfoForm({
             </div>
           )
         : null}
+
+      <ProjectDocumentViewerModal
+        open={documentViewer.open}
+        documentName={documentViewer.documentName}
+        objectUrl={documentViewer.objectUrl}
+        loading={documentViewer.loading}
+        error={documentViewer.error}
+        onClose={closeDocumentViewer}
+        onDownload={handleDownloadFromViewer}
+      />
 
     </div>
   );

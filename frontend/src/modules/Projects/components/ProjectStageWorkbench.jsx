@@ -56,6 +56,7 @@ export default function ProjectStageWorkbench({
   onUploadDocuments,
   onDeleteDocument,
   onDownloadDocument,
+  onFetchDocumentBlob,
   outlayProps = null,
 }) {
   const isUpdateMode = Boolean(initialData?.id || initialData?.projectId || initialData?.raw?.project_id);
@@ -329,6 +330,7 @@ export default function ProjectStageWorkbench({
             onUploadDocuments={onUploadDocuments}
             onDeleteDocument={onDeleteDocument}
             onDownloadDocument={onDownloadDocument}
+            onFetchDocumentBlob={onFetchDocumentBlob}
           />
         )}
 

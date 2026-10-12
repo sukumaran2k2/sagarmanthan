@@ -430,6 +430,22 @@ export default function ProjectBasicInformationPage({
     }
   };
 
+  const handleFetchDocumentBlob = async (documentName) => {
+    const name = normalizeDocumentName(documentName);
+    if (!name) {
+      throw new Error('Document name is missing.');
+    }
+    if (!identity.projectID) {
+      throw new Error('Project identity is missing.');
+    }
+    const response = await downloadProjectDocumentFile(
+      identity.projectID,
+      identity.subProjectID,
+      name
+    );
+    return response.data;
+  };
+
   const handleSubmit = async (formData) => {
     if (!canSubmit) {
       notify?.('You do not have permission to submit project details.', 'error');
@@ -857,6 +873,7 @@ export default function ProjectBasicInformationPage({
         onUploadDocuments={handleUploadDocuments}
         onDeleteDocument={handleDeleteDocument}
         onDownloadDocument={handleDownloadDocument}
+        onFetchDocumentBlob={handleFetchDocumentBlob}
         outlayProps={
           isUpdateMode
             ? {
