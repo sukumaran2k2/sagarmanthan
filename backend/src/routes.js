@@ -214,6 +214,7 @@ import mopswTracker from "./controllers/MopswTracker/mopsw_tracker.js";
 import MIVTab from "./controllers/LongTermStrategies/miv.js";
 import AKVTab from "./controllers/LongTermStrategies/amritKaal.js";
 import gmisMouTab from "./controllers/LongTermStrategies/gmisMou.js";
+import gmisMouDashboard from "./controllers/LongTermStrategies/gmisMouDashboard.js";
 
 //User manuals
 import userManualMenu from "./controllers/UserManuals/userManual.js";
@@ -3256,6 +3257,8 @@ router.put('/update-cruise-data-edit',cruisePortsTab.updateCruiseshippingData);
 
 // GMIS & IMW MoU Tracking
 router.get('/get-gmis-mou-paginated', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouPaginated);
+router.get('/get-gmis-mou-dashboard', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouDashboard.getGmisMouDashboard);
+router.get('/get-gmis-mou-summits', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouDashboard.getGmisMouSummits);
 router.get('/get-mou-category-names', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouCategory);
 router.post('/submit-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.submitGmisMouData);
 router.post("/gmisdocumentUploader", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "create"), gmisMouTab.upload.single('file'), gmisMouTab.addNewgmisFileupload);
