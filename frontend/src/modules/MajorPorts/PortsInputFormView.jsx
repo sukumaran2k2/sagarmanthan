@@ -1,229 +1,157 @@
-import { useState, useEffect } from 'react';
-import { ChevronDown, Plus, Search, ArrowLeft } from 'lucide-react';
-import axios from 'axios';
+import { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import CommonTable from '../../components/CommonTable';
-import { API_BASE_URL } from '../../config/api';
+import InternalNavigation from '../../components/InternalNavigation';
+import RestrictedAccess from '../../components/RestrictedAccess';
+import { useMajorPortsPermissions } from './hooks/useMajorPortsPermissions';
+import { MAJOR_PORTS_SECTIONS, MAJOR_PORTS_SECTION_IDS } from './constants';
 
-export default function PortsInputFormView() {
-  const [subView, setSubView] = useState('list'); // 'list' or 'details'
-  const [activeTab, setActiveTab] = useState('actuals'); // 'targets' or 'actuals'
-  const [selectedFy, setSelectedFy] = useState('Show All');
-  const [selectedMonth, setSelectedMonth] = useState('Show All');
-  const [selectedOrg, setSelectedOrg] = useState('Show All');
-  const [searchTerm, setSearchTerm] = useState('');
+import FinancialParametersInputForm from './pages/FinancialParameters/InputForm';
+import FinancialParametersDataList from './pages/FinancialParameters/DataList';
+import TrafficInputForm from './pages/Traffic/InputForm';
+import TrafficDataList from './pages/Traffic/DataList';
+import CruisePassengerTrafficInputForm from './pages/CruisePassengerTraffic/InputForm';
+import CruisePassengerTrafficDataList from './pages/CruisePassengerTraffic/DataList';
+import PortPerformanceInputForm from './pages/PortPerformance/InputForm';
+import PortPerformanceDataList from './pages/PortPerformance/DataList';
+import RenewableEnergyInputForm from './pages/RenewableEnergy/InputForm';
+import RenewableEnergyDataList from './pages/RenewableEnergy/DataList';
 
-  // Paged Traffic states
-  const [selectedForm, setSelectedForm] = useState('financial'); // 'financial' or 'traffic'
-  const [trafficData, setTrafficData] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalEntries, setTotalEntries] = useState(0);
-  const [entriesLimit, setEntriesLimit] = useState(10);
-  const [loading, setLoading] = useState(false);
+/**
+ * KPI Major Ports — tabular input hub (legacy-style list), then drill into a section.
+ * Reports are intentionally excluded.
+ */
+export default function PortsInputFormView({ triggerNotification: _triggerNotification }) {
+  const permissions = useMajorPortsPermissions();
+  const { canAdd, canView, canEdit } = permissions;
+
+  const getInitialStateFromURL = () => {
+    const params = new URLSearchParams(window.location.search);
+    const urlSection = params.get('section');
+    const urlTab = params.get('tab');
+    return {
+      section: MAJOR_PORTS_SECTION_IDS.includes(urlSection) ? urlSection : null,
+      subTab: ['add', 'list'].includes(urlTab) ? urlTab : 'list',
+    };
+  };
+
+  const [activeSection, setActiveSection] = useState(() => getInitialStateFromURL().section);
+  const [activeSubTab, setActiveSubTab] = useState(() => getInitialStateFromURL().subTab);
 
   useEffect(() => {
-    if (subView === 'details' && selectedForm === 'traffic') {
-      setLoading(true);
-      axios.get(`${API_BASE_URL}/get-traffic-actual-data`, {
-        params: {
-          page: currentPage,
-          limit: entriesLimit
-        }
-      })
-      .then(res => {
-        const resData = res.data;
-        if (resData && Array.isArray(resData.data)) {
-          setTrafficData(resData.data);
-          if (resData.pagination) {
-            setTotalPages(resData.pagination.totalPages || 1);
-            setTotalEntries(resData.pagination.total || 0);
-          }
-        } else if (Array.isArray(resData)) {
-          setTrafficData(resData);
-          setTotalPages(1);
-          setTotalEntries(resData.length);
-        }
-      })
-      .catch(err => {
-        console.error("Error fetching traffic data:", err);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    const params = new URLSearchParams(window.location.search);
+    if (activeSection) {
+      params.set('section', activeSection);
+      params.set('tab', activeSubTab);
+    } else {
+      params.delete('section');
+      params.delete('tab');
     }
-  }, [subView, selectedForm, currentPage, entriesLimit]);
-
-  // Main list data
-  const formList = [
-    { sno: 1, coding: 'K-1.1', desc: 'Financial Parameters for Major Ports' },
-    { sno: 2, coding: 'K-2.1', desc: 'Traffic' },
-    { sno: 3, coding: 'K-3.1', desc: 'Cruise and Passenger Traffic' },
-    { sno: 4, coding: 'K-4.1', desc: 'Port Performance' },
-    { sno: 5, coding: 'K-5.1', desc: 'Renewable Energy' }
-  ];
-
-  // Table data for Financial Parameters
-  const tableData = [
-    {
-      sno: 1,
-      org: 'Chennai Port Authority',
-      fy: '2026-2027',
-      month: 'May',
-      opIncome: '100.52',
-      opExpend: '51.12',
-      totIncome: '101.22',
-      totExpend: '92.32',
-      opSurplus: '49.4',
-      netSurplus: '8.9',
-      opRatio: '50.86',
-      handlingCost: '105.1',
-      profitTonne: '101.56',
-      profitTeu: '1455.69',
-      profitDry: '0',
-      profitBreak: '315.51',
-      profitLiquid: '111.73'
-    },
-    {
-      sno: 2,
-      org: 'Cochin Port Authority',
-      fy: '2026-2027',
-      month: 'May',
-      opIncome: '80.07',
-      opExpend: '40.96',
-      totIncome: '81.00',
-      totExpend: '81.46',
-      opSurplus: '39.11',
-      netSurplus: '-0.46',
-      opRatio: '51.16',
-      handlingCost: '133.18',
-      profitTonne: '65.21',
-      profitTeu: '1211.51',
-      profitDry: '0',
-      profitBreak: '241.12',
-      profitLiquid: '89.15'
-    },
-    {
-      sno: 3,
-      org: 'Kamarajar Port Limited',
-      fy: '2026-2027',
-      month: 'May',
-      opIncome: '101.59',
-      opExpend: '25.44',
-      totIncome: '102.81',
-      totExpend: '31.21',
-      opSurplus: '76.15',
-      netSurplus: '71.6',
-      opRatio: '25.04',
-      handlingCost: '57.88',
-      profitTonne: '185.12',
-      profitTeu: '0',
-      profitDry: '151.12',
-      profitBreak: '98.54',
-      profitLiquid: '162.24'
-    },
-    {
-      sno: 4,
-      org: 'Deendayal Port Authority',
-      fy: '2026-2027',
-      month: 'May',
-      opIncome: '112.50',
-      opExpend: '45.10',
-      totIncome: '115.00',
-      totExpend: '110.20',
-      opSurplus: '67.40',
-      netSurplus: '5.20',
-      opRatio: '40.08',
-      handlingCost: '92.30',
-      profitTonne: '110.25',
-      profitTeu: '990.15',
-      profitDry: '78.50',
-      profitBreak: '190.20',
-      profitLiquid: '105.40'
+    const newSearch = params.toString() ? `?${params.toString()}` : '';
+    const next = `${window.location.pathname}${newSearch}`;
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (current !== next) {
+      window.history.pushState(null, '', next);
     }
-  ];
+  }, [activeSection, activeSubTab]);
 
-  const handleRowClick = (desc) => {
-    if (desc === 'Financial Parameters for Major Ports') {
-      setSelectedForm('financial');
-      setSubView('details');
-    } else if (desc === 'Traffic') {
-      setSelectedForm('traffic');
-      setCurrentPage(1);
-      setSubView('details');
-    }
+  useEffect(() => {
+    const handlePopState = () => {
+      const { section, subTab } = getInitialStateFromURL();
+      setActiveSection(section);
+      setActiveSubTab(subTab);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (activeSubTab === 'add' && !canAdd && canView) setActiveSubTab('list');
+    if (activeSubTab === 'list' && !canView && canAdd) setActiveSubTab('add');
+  }, [activeSubTab, canAdd, canView]);
+
+  const currentSection = MAJOR_PORTS_SECTIONS.find((s) => s.id === activeSection);
+
+  const formList = useMemo(
+    () =>
+      MAJOR_PORTS_SECTIONS.map((s, index) => ({
+        sno: index + 1,
+        desc: s.fullLabel,
+        sectionId: s.id,
+      })),
+    []
+  );
+
+  const tabs = [];
+  if (canAdd) tabs.push({ id: 'add', label: 'Input Form' });
+  if (canView) tabs.push({ id: 'list', label: 'Data List' });
+
+  const handleRowClick = (sectionId) => {
+    setActiveSection(sectionId);
+    setActiveSubTab(canView ? 'list' : 'add');
   };
+
+  const handleBackToList = () => {
+    setActiveSection(null);
+  };
+
+  const handleSwitchTab = (tabId) => setActiveSubTab(tabId);
 
   const listColDefs = [
     { headerName: 'S.No.', field: 'sno', width: 100, cellClass: 'text-slate-500 font-bold' },
-    { headerName: 'Coding', field: 'coding', width: 150, cellClass: 'text-slate-800 font-bold font-mono' },
     {
       headerName: 'Description',
       field: 'desc',
       flex: 1,
-      cellRenderer: (params) => {
-        const desc = params.value;
-        const isClickable = desc === 'Financial Parameters for Major Ports' || desc === 'Traffic';
-        return (
-          <button
-            onClick={() => handleRowClick(desc)}
-            className={`text-left font-extrabold hover:text-blue-700 transition-colors cursor-pointer ${
-              isClickable ? 'underline text-[#1d428a]' : 'text-slate-700'
-            }`}
-          >
-            {desc}
-          </button>
-        );
-      }
+      cellRenderer: (params) => (
+        <button
+          type="button"
+          onClick={() => handleRowClick(params.data.sectionId)}
+          className="text-left font-extrabold underline text-[#1d428a] hover:text-blue-700 transition-colors cursor-pointer"
+        >
+          {params.value}
+        </button>
+      ),
+    },
+  ];
+
+  const renderSectionContent = () => {
+    if (activeSection === 'financialParameters') {
+      return activeSubTab === 'add'
+        ? <FinancialParametersInputForm onSwitchTab={handleSwitchTab} />
+        : <FinancialParametersDataList onSwitchTab={handleSwitchTab} />;
     }
-  ];
+    if (activeSection === 'traffic') {
+      return activeSubTab === 'add'
+        ? <TrafficInputForm onSwitchTab={handleSwitchTab} />
+        : <TrafficDataList onSwitchTab={handleSwitchTab} />;
+    }
+    if (activeSection === 'cruisePassengerTraffic') {
+      return activeSubTab === 'add'
+        ? <CruisePassengerTrafficInputForm onSwitchTab={handleSwitchTab} />
+        : <CruisePassengerTrafficDataList onSwitchTab={handleSwitchTab} />;
+    }
+    if (activeSection === 'portPerformance') {
+      return activeSubTab === 'add'
+        ? <PortPerformanceInputForm onSwitchTab={handleSwitchTab} />
+        : <PortPerformanceDataList onSwitchTab={handleSwitchTab} />;
+    }
+    if (activeSection === 'renewableEnergy') {
+      return activeSubTab === 'add'
+        ? <RenewableEnergyInputForm onSwitchTab={handleSwitchTab} />
+        : <RenewableEnergyDataList onSwitchTab={handleSwitchTab} />;
+    }
+    return null;
+  };
 
-  const trafficColDefs = [
-    { headerName: 'S.No', valueGetter: (params) => params.node.rowIndex + 1 + (currentPage - 1) * entriesLimit, width: 80, pinned: 'left' },
-    { headerName: 'Fiscal Year', field: 'fiscal_year', width: 120 },
-    { headerName: 'Month', field: 'month', width: 120 },
-    { headerName: 'Organisation Name', field: 'organisation_name', width: 220, cellClass: 'font-extrabold text-slate-800' },
-    { headerName: 'Category Name', field: 'category_name', width: 180 },
-    { headerName: 'Commodity Group', field: 'commodity_group_name', width: 180 },
-    { headerName: 'Commodity Name', field: 'commodity_name', width: 180 },
-    { headerName: 'Direction Name', field: 'direction_name', width: 150 },
-    { headerName: 'Flag Type', field: 'flag_type_name', width: 150 },
-    { headerName: 'Value', field: 'value', width: 120, cellClass: 'text-right font-bold' }
-  ];
+  if (!canAdd && !canView && !canEdit) {
+    return <RestrictedAccess moduleName="KPI - Major Ports" />;
+  }
 
-  const detailColDefs = [
-    { headerName: 'S.No', field: 'sno', width: 80, pinned: 'left' },
-    { headerName: 'Organisation', field: 'org', width: 220, pinned: 'left', cellClass: 'font-extrabold text-slate-800' },
-    { headerName: 'Financial Year', field: 'fy', width: 120 },
-    { headerName: 'Month', field: 'month', width: 100 },
-    { headerName: 'Operating Income (In Cr.)', field: 'opIncome', width: 180 },
-    { headerName: 'Operating Expenditure (In Cr.)', field: 'opExpend', width: 200 },
-    { headerName: 'Total Income (In Cr.)', field: 'totIncome', width: 160 },
-    { headerName: 'Total Expenditure (In Cr.)', field: 'totExpend', width: 180 },
-    { headerName: 'Operating Surplus (In Cr.)', field: 'opSurplus', width: 180 },
-    { headerName: 'Net Surplus (In Cr.)', field: 'netSurplus', width: 150 },
-    { headerName: 'Operating Ratio (%)', field: 'opRatio', width: 150 },
-    { headerName: 'Per Tonne Handling Cost (In Rupees)', field: 'handlingCost', width: 230 },
-    { headerName: 'Operating Profit / Tonne (in INR Crs/Tonne)', field: 'profitTonne', width: 260 },
-    { headerName: 'Operating Profit / TEU of Container (in INR Crs/TEU)', field: 'profitTeu', width: 310 },
-    { headerName: 'Operating Profit / Tonne of Dry Bulk (in INR Crs/Tonne)', field: 'profitDry', width: 310 },
-    { headerName: 'Operating Profit / Tonne of Break Bulk (in INR Crs/Tonne)', field: 'profitBreak', width: 320 },
-    { headerName: 'Operating Profit / Tonne of Liquid Bulk (in INR Crs/Tonne)', field: 'profitLiquid', width: 320 }
-  ];
-
-  const filteredDetailsData = tableData.filter(row => {
-    const matchFy = selectedFy === 'Show All' || row.fy === selectedFy;
-    const matchMonth = selectedMonth === 'Show All' || row.month === selectedMonth;
-    const matchOrg = selectedOrg === 'Show All' || row.org === selectedOrg;
-    const matchSearch = searchTerm === '' || 
-      row.org.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchFy && matchMonth && matchOrg && matchSearch;
-  });
-
-  return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-
-      {subView === 'list' ? (
-        /* Form list view */
+  // Hub: tabular list of the 4 input forms
+  if (!activeSection) {
+    return (
+      <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
           <div className="text-center border-b border-slate-100 pb-4">
             <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-wide font-display">
@@ -231,7 +159,7 @@ export default function PortsInputFormView() {
             </h1>
           </div>
 
-          <CommonTable 
+          <CommonTable
             rowData={formList}
             columnDefs={listColDefs}
             rowHeight={46}
@@ -239,175 +167,42 @@ export default function PortsInputFormView() {
             autoSize={true}
           />
         </div>
-      ) : (
-        /* Details Grid View */
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-          {/* Title row */}
-          <div className="border-b border-slate-100 pb-3 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center space-x-3">
-              <button 
-                onClick={() => setSubView('list')}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-800 transition cursor-pointer"
-                title="Back to Input Forms"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight font-display">
-                {selectedForm === 'traffic' ? 'Traffic for Major Ports' : 'Financial Parameters for Major Ports'}
+      </div>
+    );
+  }
+
+  // Drill-in: selected section with Input Form / Data List tabs
+  return (
+    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm space-y-6">
+        <div className="border-b border-slate-100 dark:border-slate-800 pb-3 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center space-x-3 min-w-0">
+            <button
+              type="button"
+              onClick={handleBackToList}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 transition cursor-pointer flex-shrink-0"
+              title="Back to Input Forms"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight font-display truncate">
+                {currentSection?.fullLabel}
               </h1>
             </div>
-            
-            {/* Target vs Actual Switcher */}
-            <div className="flex border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto bg-slate-50 p-1">
-              <button
-                onClick={() => setActiveTab('targets')}
-                className={`px-4 py-2 text-xs font-bold transition-all cursor-pointer rounded-lg ${
-                  activeTab === 'targets'
-                    ? 'bg-[#0f417a] text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                Targets
-              </button>
-              <button
-                onClick={() => setActiveTab('actuals')}
-                className={`px-4 py-2 text-xs font-bold transition-all cursor-pointer rounded-lg ${
-                  activeTab === 'actuals'
-                    ? 'bg-[#0f417a] text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                Actuals
-              </button>
-            </div>
           </div>
 
-          {/* Filter row - only show for financial parameters, since traffic pagination is backend-driven without filters currently */}
-          {selectedForm === 'financial' && (
-            <div className="bg-slate-50/50 border border-slate-150 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-5 relative">
-              {/* Financial Year */}
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Financial Year</label>
-                <div className="relative">
-                  <select
-                    value={selectedFy}
-                    onChange={(e) => setSelectedFy(e.target.value)}
-                    className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
-                  >
-                    <option>Show All</option>
-                    <option>2026-2027</option>
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-
-              {/* Month */}
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Month</label>
-                <div className="relative">
-                  <select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
-                  >
-                    <option>Show All</option>
-                    <option>May</option>
-                    <option>June</option>
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-
-              {/* Organisation Name */}
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Organisation Name</label>
-                <div className="relative">
-                  <select
-                    value={selectedOrg}
-                    onChange={(e) => setSelectedOrg(e.target.value)}
-                    className="w-full text-xs pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-105 animate-none"
-                  >
-                    <option>Show All</option>
-                    <option>Chennai Port Authority</option>
-                    <option>Cochin Port Authority</option>
-                    <option>Kamarajar Port Limited</option>
-                    <option>Deendayal Port Authority</option>
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Table Controls and Search */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t border-slate-100 pt-4">
-            <div className="flex space-x-1">
-              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-655 transition cursor-pointer">Copy</button>
-              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-655 transition cursor-pointer">Excel</button>
-              <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-lg text-[10px] font-bold text-slate-655 transition cursor-pointer">PDF</button>
-            </div>
-
-            {/* Search Input and Add target Button */}
-            <div className="flex items-center space-x-3 self-end md:self-auto">
-              <div className="flex items-center space-x-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Search:</span>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-48 text-xs pl-3 pr-8 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 transition font-medium"
-                  />
-                  <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-              <button className="bg-[#2bab4f] hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer h-[30px]">
-                <Plus className="h-4 w-4" />
-                <span>Add target</span>
-              </button>
-            </div>
-          </div>
-
-          <CommonTable 
-            rowData={selectedForm === 'traffic' ? trafficData : filteredDetailsData}
-            columnDefs={selectedForm === 'traffic' ? trafficColDefs : detailColDefs}
-            rowHeight={46}
-            headerHeight={38}
-            autoSize={false}
-            loading={loading}
-          />
-
-          {/* Pagination Controls for Traffic */}
-          {selectedForm === 'traffic' && (
-            <div className="flex items-center justify-between border-t border-slate-100 pt-4 select-none">
-              <span className="text-xs text-slate-500 font-semibold">
-                Showing Page {currentPage} of {totalPages} ({totalEntries} total entries)
-              </span>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1 || loading}
-                  className={`px-3.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    currentPage === 1 ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages || loading}
-                  className={`px-3.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    currentPage === totalPages ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
+          {tabs.length > 0 && (
+            <InternalNavigation
+              tabs={tabs}
+              currentTab={activeSubTab}
+              onTabChange={setActiveSubTab}
+            />
           )}
         </div>
-      )}
 
+        {renderSectionContent()}
+      </div>
     </div>
   );
 }

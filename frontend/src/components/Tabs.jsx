@@ -208,7 +208,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
           items: [
             m('KPI_MAJOR_PORTS', { label: 'Major Ports Dashboard', icon: LayoutDashboard }),
             m('KPI_MAJOR_PORTS', { label: 'Major Ports Input Form', icon: FileEdit }),
-            m('KPI_MAJOR_PORTS', { label: 'Major Ports Reports', icon: FilePieChart }),
           ]
         },
         {

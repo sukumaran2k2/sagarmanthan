@@ -436,10 +436,15 @@ export default function App() {
             <Route path="projects/csr-projects/*" element={<CSRProjectsView triggerNotification={triggerNotification} />} />
             <Route path="projects/csr-project/*" element={<Navigate to="/projects/csr-projects/dashboard" replace />} />
 
-            {/* KPI - Major Ports */}
+            {/* KPI - Major Ports (Input Form shell hosts the 4 KPI sections; reports not used) */}
             <Route path="kpi/major-ports/major-ports-dashboard" element={<PortsDashboardView />} />
-            <Route path="kpi/major-ports/major-ports-input-form" element={<PortsInputFormView />} />
+            <Route
+              path="kpi/major-ports/major-ports-input-form"
+              element={<PortsInputFormView triggerNotification={triggerNotification} />}
+            />
             <Route path="kpi/major-ports/major-ports-reports" element={<PortsReportsView />} />
+            <Route path="kpi/major-ports" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
+            <Route path="kpi/major-ports/*" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
 
             {/* KPI - DGLL, CSL, IMU, SCI */}
             <Route path="kpi/dgll/*" element={<KPIDGLLView triggerNotification={triggerNotification} />} />

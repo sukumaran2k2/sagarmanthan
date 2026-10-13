@@ -211,6 +211,8 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('governance/cabinet-notes-other-ministry')) return 'Cabinet Notes - Other Ministries';
   if (cleanSlug.startsWith('governance/cabinet-notes')) return 'Cabinet Notes - MoPSW';
   if (cleanSlug.startsWith('governance/parliamentary-issue')) return 'Parliamentary Issues';
+  if (cleanSlug.startsWith('kpi/major-ports/major-ports-input-form')) return 'Major Ports Input Form';
+  if (cleanSlug.startsWith('kpi/major-ports/major-ports-reports')) return 'Major Ports Reports';
   if (cleanSlug.startsWith('kpi/major-ports')) return 'Major Ports Dashboard';
   if (cleanSlug.startsWith('kpi/dgll')) return 'DGLL Input Form';
   if (cleanSlug.startsWith('kpi/csl')) return 'CSL Input Form';
