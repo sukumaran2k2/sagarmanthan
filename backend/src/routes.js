@@ -1133,6 +1133,15 @@ router.get("/hr-management-post/:Id", hrPostTab.getHrManagementPost);
 router.get("/sanctioned-strength/:Id", hrPostTab.getSanctionedStrength);
 router.get("/get-filled-vacant-data-count/:Id", hrPostTab.getFilledVacantDataCount);
 router.get("/get-missing-post-data-count/:organisationId", hrPostTab.getMissingPostDataCount);
+
+// Organisation Structure Routes
+router.get("/get-organisation-structure-posts", hrPostTab.getOrganisationStructurePosts);
+router.get("/get-organisation-structure-posts/:organisationId", hrPostTab.getOrganisationStructurePosts);
+router.post("/add-organisation-structure-post", hrPostTab.addOrganisationStructurePost);
+router.put("/update-organisation-structure-post/:postId", hrPostTab.updateOrganisationStructurePost);
+router.delete("/delete-organisation-structure-post/:postId", hrPostTab.deleteOrganisationStructurePost);
+router.get("/get-organisation-structure-departments", hrPostTab.getOrganisationStructureDepartments);
+router.get("/get-organisation-structure-classes", hrPostTab.getOrganisationStructureClasses);
 router.get("/get-organisation-code/:organisationId", hrManagementTab.getOrganisationCode);
 router.get("/get-department-id/:postId", hrManagementTab.getDepartmentId);
 router.get("/check-post-code/:Id", hrManagementTab.checkPostCode);

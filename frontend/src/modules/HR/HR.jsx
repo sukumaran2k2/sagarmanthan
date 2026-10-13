@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import { 
+  Building2,
   UserPlus, 
   BookOpen, 
   Users,
@@ -9,12 +10,14 @@ import {
 import InternalNavigation from '../../components/InternalNavigation';
 import { isOrganisationUser } from '../../utils/authSession';
 
+import OrganisationStructure from './pages/OrganisationStructure';
 import ContractualEmployment from './pages/ContractualEmployment';
 import TrainingDetails from './pages/TrainingDetails';
 import InputForm from './pages/InputForm';
 import ListAbolishedPosts from './pages/ListAbolishedPosts';
 import EmployeeDatabase from './pages/EmployeeDatabase';
 import EmployeeDataForm from './components/EmployeeDataForm';
+import AddPostForm from './components/AddPostForm';
 
 export default function HRDashboardView({ triggerNotification }) {
   const location = useLocation();
@@ -23,6 +26,7 @@ export default function HRDashboardView({ triggerNotification }) {
 
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
+    if (path.includes('/organisation-structure')) return 'organisation-structure';
     if (path.includes('/employee-database')) return 'employee-database';
     if (path.includes('/abolished-posts')) return 'abolished-posts';
     if (path.includes('/contractual-employment')) return 'contractual-employment';
@@ -34,6 +38,7 @@ export default function HRDashboardView({ triggerNotification }) {
   const isEditMode = !!location.state?.editData;
 
   const tabs = [
+    { id: 'organisation-structure', label: 'Organisation Structure', icon: Building2 },
     { id: 'employee-database', label: 'Employee Database', icon: Users },
     { id: 'abolished-posts', label: isOrg ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users },
     { id: 'contractual-employment', label: 'Contractual Employment', icon: UserPlus },
@@ -56,7 +61,7 @@ export default function HRDashboardView({ triggerNotification }) {
             <span>HR Management</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
-            Manage employee database, abolished posts, contractual employment and training details.
+            Manage organization structure, employee database, abolished posts, contractual employment and training details.
           </p>
         </div>
 
@@ -70,8 +75,10 @@ export default function HRDashboardView({ triggerNotification }) {
       {/* Child Routes */}
       <div>
         <Routes>
+          <Route path="organisation-structure" element={<OrganisationStructure triggerNotification={triggerNotification} />} />
           <Route path="employee-database" element={<EmployeeDatabase triggerNotification={triggerNotification} />} />
           <Route path="add-employee" element={<EmployeeDataForm triggerNotification={triggerNotification} />} />
+          <Route path="add-post" element={<AddPostForm triggerNotification={triggerNotification} />} />
           <Route path="abolished-posts" element={<ListAbolishedPosts triggerNotification={triggerNotification} />} />
           <Route path="contractual-employment" element={<ContractualEmployment triggerNotification={triggerNotification} />} />
           <Route path="training-details" element={<TrainingDetails triggerNotification={triggerNotification} />} />

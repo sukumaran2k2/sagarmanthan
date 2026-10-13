@@ -143,12 +143,15 @@ export const ROUTE_MAP = {
   'admin/user-list': 'admin/user-list',
 
   // HR nested routes
+  'Organisation Structure': 'hr/hr-management/organisation-structure',
+  'Organization Structure': 'hr/hr-management/organisation-structure',
   'Employee Database': 'hr/hr-management/employee-database',
   'List of Abolished Posts': 'hr/hr-management/abolished-posts',
   'Abolished Posts': 'hr/hr-management/abolished-posts',
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
   'HR Input Form': 'hr/hr-management/input-form',
+  'Add Post': 'hr/hr-management/input-form/add-post',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -267,6 +270,8 @@ const getBreadcrumbs = (tab) => {
   if (kpiItems[tab]) return ['Home', ...kpiItems[tab], tab];
 
   const hrItems = {
+    'Organisation Structure': ['HR & Institutional', 'HR Management'],
+    'Organization Structure': ['HR & Institutional', 'HR Management'],
     'Employee Database': ['HR & Institutional', 'HR Management'],
     'List of Abolished Posts': ['HR & Institutional', 'HR Management'],
     'Abolished Posts': ['HR & Institutional', 'HR Management'],

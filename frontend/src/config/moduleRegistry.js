@@ -198,6 +198,8 @@ export const MODULE_PAGES = {
   HR_MANAGEMENT: {
     tabs: [
       'HR Dashboard',
+      'Organisation Structure',
+      'Organization Structure',
       'Employee Database',
       'List of Abolished Ports',
       'List of Abolished Posts',
@@ -206,9 +208,12 @@ export const MODULE_PAGES = {
       'Training Details',
       'HR Reports',
       'HR Input Form',
+      'Add Post',
     ],
     uiTabs: [
       'HR Dashboard',
+      'Organisation Structure',
+      'Organization Structure',
       'Employee Database',
       'List of Abolished Ports',
       'List of Abolished Posts',
@@ -217,6 +222,7 @@ export const MODULE_PAGES = {
       'Training Details',
       'HR Reports',
       'HR Input Form',
+      'Add Post',
     ],
   },
 
