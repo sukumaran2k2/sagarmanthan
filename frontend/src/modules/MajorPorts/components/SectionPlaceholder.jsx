@@ -1,9 +1,5 @@
 import { Construction, FilePlus2, List } from 'lucide-react';
 
-/**
- * Shared placeholder for Major Ports sections while forms/lists are built out.
- * Keeps navigation usable and visually aligned with the portal shell.
- */
 export default function SectionPlaceholder({
   section,
   mode = 'list',
@@ -32,7 +28,7 @@ export default function SectionPlaceholder({
         {section.description}
       </p>
       <p className="text-xs text-slate-400 dark:text-slate-500 mt-4 font-semibold">
-        Navigation is ready. This {isAdd ? 'input form' : 'data list'} will be implemented next.
+        Coming soon
       </p>
 
       {onSwitchTab && (

@@ -17,11 +17,7 @@ import PortPerformanceDataList from './pages/PortPerformance/DataList';
 import RenewableEnergyInputForm from './pages/RenewableEnergy/InputForm';
 import RenewableEnergyDataList from './pages/RenewableEnergy/DataList';
 
-/**
- * KPI Major Ports — tabular input hub (legacy-style list), then drill into a section.
- * Reports are intentionally excluded.
- */
-export default function PortsInputFormView({ triggerNotification: _triggerNotification }) {
+export default function PortsInputFormView() {
   const permissions = useMajorPortsPermissions();
   const { canAdd, canView, canEdit } = permissions;
 
@@ -148,7 +144,6 @@ export default function PortsInputFormView({ triggerNotification: _triggerNotifi
     return <RestrictedAccess moduleName="KPI - Major Ports" />;
   }
 
-  // Hub: tabular list of the 4 input forms
   if (!activeSection) {
     return (
       <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
@@ -171,7 +166,6 @@ export default function PortsInputFormView({ triggerNotification: _triggerNotifi
     );
   }
 
-  // Drill-in: selected section with Input Form / Data List tabs
   return (
     <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm space-y-6">

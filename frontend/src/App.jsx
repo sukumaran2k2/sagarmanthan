@@ -436,7 +436,7 @@ export default function App() {
             <Route path="projects/csr-projects/*" element={<CSRProjectsView triggerNotification={triggerNotification} />} />
             <Route path="projects/csr-project/*" element={<Navigate to="/projects/csr-projects/dashboard" replace />} />
 
-            {/* KPI - Major Ports (Input Form shell hosts the 4 KPI sections; reports not used) */}
+            {/* KPI - Major Ports */}
             <Route path="kpi/major-ports/major-ports-dashboard" element={<PortsDashboardView />} />
             <Route
               path="kpi/major-ports/major-ports-input-form"
