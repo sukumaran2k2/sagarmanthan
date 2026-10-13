@@ -1,294 +1,588 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Building2, TrendingUp, DollarSign, CheckCircle2, 
-  Clock, AlertTriangle, Layers, ArrowRight, PlusCircle, 
-  FilePieChart, Sparkles, Filter, RefreshCw
+import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
+import {
+  RefreshCw, Layers, CheckCircle2, Clock, ClipboardList, PlayCircle, XCircle,
+  Filter, ChevronDown, MoreVertical, FileSpreadsheet, Printer,
 } from 'lucide-react';
-import { 
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, 
-  PieChart, Pie, Cell, Legend 
-} from 'recharts';
-import { fetchGmisMouPaginated, fetchGmisMouChartData, fetchStatusWiseCount } from '../api';
+import * as am5 from '@amcharts/amcharts5';
+import * as am5xy from '@amcharts/amcharts5/xy';
+import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
+import { fetchGmisMouDashboard, fetchGmisMouSummits } from '../api';
+import ChartExportMenu from '../../../components/ChartExportMenu';
 
-const EVENT_TABS = [
-  { id: 'all', label: 'All Summits & MoUs' },
-  { id: 'GMIS 2025', label: 'GMIS 2025' },
-  { id: 'GMIS 2023', label: 'GMIS 2023' },
-  { id: 'GMIS 2021', label: 'GMIS 2021' },
-  { id: 'GMIS 2016', label: 'GMIS 2016' },
-  { id: 'IMW 2025', label: 'IMW 2025' },
-];
-
-const STATUS_COLORS = {
-  'Under Implementation': '#0284c7',
-  'Completed': '#10b981',
-  'Yet to be Started': '#f59e0b',
-  'Dropped': '#ef4444',
+// Stage colours, shared by the KPI cards, the summit trend and the organisation table.
+const STAGE_STYLE = {
+  completed: { color: '#10b981', icon: CheckCircle2, card: 'emerald' },
+  underImplementation: { color: '#f59e0b', icon: Clock, card: 'amber' },
+  preImplementation: { color: '#0ea5e9', icon: ClipboardList, card: 'sky' },
+  toBeStarted: { color: '#8b5cf6', icon: PlayCircle, card: 'violet' },
+  dropped: { color: '#f43f5e', icon: XCircle, card: 'rose' },
 };
 
-export default function GMISDashboard({ onNavigateToTab }) {
-  const [selectedEvent, setSelectedEvent] = useState('all');
-  const [loading, setLoading] = useState(true);
-  const [metrics, setMetrics] = useState({
-    totalCount: 0,
-    totalAmount: 0,
-    underImplementation: 0,
-    completed: 0,
-    yetToStart: 0,
-    dropped: 0,
+// Tailwind classes per card colour (spelled out so Tailwind keeps them).
+const CARD_THEME = {
+  indigo: { value: 'text-[#6366f1] dark:text-indigo-400', icon: 'bg-indigo-50 dark:bg-indigo-950/40 text-[#6366f1] dark:text-indigo-400 border-indigo-100 dark:border-indigo-900', bar: 'bg-[#6366f1]' },
+  emerald: { value: 'text-emerald-700 dark:text-emerald-400', icon: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900', bar: 'bg-emerald-500' },
+  amber: { value: 'text-amber-700 dark:text-amber-400', icon: 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900', bar: 'bg-amber-500' },
+  sky: { value: 'text-sky-700 dark:text-sky-400', icon: 'bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-900', bar: 'bg-sky-500' },
+  violet: { value: 'text-violet-700 dark:text-violet-400', icon: 'bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 border-violet-100 dark:border-violet-900', bar: 'bg-violet-500' },
+  rose: { value: 'text-rose-700 dark:text-rose-400', icon: 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-900', bar: 'bg-rose-500' },
+};
+
+// Both charts share one fixed height so the two cards line up.
+const CHART_HEIGHT = 540;
+
+const METRICS = [
+  { key: 'count', label: 'MoU Count' },
+  { key: 'value', label: 'MoU Cost' },
+];
+
+// Amounts are in ₹ crore; 1 lakh crore and above is shown in lakh crore, as in the reference.
+function formatCrore(v) {
+  const n = Number(v) || 0;
+  if (n >= 100000) return `₹ ${(n / 100000).toFixed(2)} Lakh Cr`;
+  return `₹ ${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })} Cr`;
+}
+const formatCount = (v) => (Number(v) || 0).toLocaleString('en-IN');
+
+function KpiCard({ label, count, value, theme, icon: Icon, share, details }) {
+  const t = CARD_THEME[theme];
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <span className="text-[10px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-widest block">{label}</span>
+          <span className={`text-2xl font-black block mt-1 ${t.value}`}>{formatCount(count)}</span>
+          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 block">{formatCrore(value)}</span>
+        </div>
+        <div className={`p-2.5 rounded-xl border flex-shrink-0 ${t.icon}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+      {share !== undefined && (
+        <div className="mt-3">
+          <div className="flex justify-between text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+            <span>Share of MoUs</span><span>{share}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 mt-1 overflow-hidden">
+            <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${Math.min(100, share)}%` }} />
+          </div>
+        </div>
+      )}
+      <dl className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
+        {details.map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-2">
+            <dt className="text-slate-500 dark:text-slate-400 truncate">{k}</dt>
+            <dd className="font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+// Section card in the shared dashboard theme: indigo gradient header, numbered title.
+function Section({ number, title, actions, children, className = '' }) {
+  return (
+    <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col ${className}`}>
+      <div className="bg-gradient-to-r from-[#1e1b4b] to-[#6366f1] px-5 py-3 flex items-center justify-between gap-3 flex-shrink-0">
+        <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+          <span className="text-indigo-200">{number}.</span> {title}
+        </h3>
+        <div className="flex items-center gap-2">{actions}</div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// MoU Count / MoU Cost switch, sitting in a section header.
+function MetricTabs({ metric, onChange }) {
+  return (
+    <div className="flex items-center bg-white/10 rounded-lg p-0.5">
+      {METRICS.map((m) => (
+        <button
+          key={m.key}
+          type="button"
+          onClick={() => onChange(m.key)}
+          className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition cursor-pointer ${
+            metric === m.key ? 'bg-white text-[#4f46e5] shadow' : 'text-indigo-100 hover:text-white'
+          }`}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Legend({ items }) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5">
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: item.color }} />
+          <span className="text-[11px] text-slate-600 dark:text-slate-300">{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// The app zooms the whole page (index.css: #root { zoom: 1.06 }). amCharts measures its
+// box in zoomed pixels and the browser then zooms the canvas again, so a chart came out
+// ~6% bigger than its box and its bottom/right labels were cut off. calculateSize undoes
+// that so the canvas fits its box exactly at any page zoom.
+function pageZoom() {
+  const el = document.getElementById('root');
+  return (el && Number(getComputedStyle(el).zoom)) || 1;
+}
+function newChartRoot(div) {
+  return am5.Root.new(div, {
+    calculateSize: (size) => {
+      const z = pageZoom();
+      return { width: size.width / z, height: size.height / z };
+    },
   });
-  const [chartData, setChartData] = useState([]);
-  const [orgData, setOrgData] = useState([]);
+}
 
-  const loadDashboardData = async () => {
+// Chart text/line colours for the app's light or dark theme (the `dark` class on <html>).
+function chartColors() {
+  const dark = document.documentElement.classList.contains('dark');
+  return dark
+    ? { text: 0xe2e8f0, muted: 0x94a3b8, grid: 0x334155, value: 0xcbd5e1, total: 0xc7d2fe, totalBullet: 0x0f172a }
+    : { text: 0x1e293b, muted: 0x475569, grid: 0xe2e8f0, value: 0x334155, total: 0x1e1b4b, totalBullet: 0xffffff };
+}
+
+// Re-renders when the light/dark theme is switched, so the charts can recolour.
+function useIsDark() {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    const obs = new MutationObserver(() => setDark(document.documentElement.classList.contains('dark')));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+  return dark;
+}
+
+// 1. MoUs by category: one bar per category, as MoU count or MoU cost (tabs).
+function CategoryChart({ data, metric, onRootReady, dark }) {
+  const divRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!divRef.current || !data?.length) return undefined;
+    const c = chartColors();
+    const root = newChartRoot(divRef.current);
+    onRootReady?.(root);
+    root.setThemes([am5themes_Animated.new(root)]);
+    const isValue = metric === 'value';
+    const color = am5.color(isValue ? 0x10b981 : 0x6366f1);
+    // Largest first for the selected measure; cost labels rounded, with Indian digit grouping.
+    const rows = [...data].sort((a, b) => b[metric] - a[metric])
+      .map((d) => ({ ...d, label: isValue ? `₹${Math.round(d.value).toLocaleString('en-IN')}` : formatCount(d.count) }));
+    // Side padding + axis headroom keep the end-of-bar labels inside the chart area.
+    const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingLeft: 10, paddingRight: 25, paddingBottom: 18 }));
+    const yRenderer = am5xy.AxisRendererY.new(root, { minGridDistance: 10, inversed: true, cellStartLocation: 0.2, cellEndLocation: 0.8 });
+    yRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(c.text), fontWeight: '600', maxWidth: 170, oversizedBehavior: 'wrap', textAlign: 'end' });
+    yRenderer.grid.template.set('visible', false);
+    const yAxis = chart.yAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'category', renderer: yRenderer }));
+    const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 60 });
+    xRenderer.labels.template.setAll({ fontSize: 9, fill: am5.color(c.muted), fontWeight: '600' });
+    xRenderer.grid.template.setAll({ stroke: am5.color(c.grid), strokeDasharray: [3, 3] });
+    const xAxis = chart.xAxes.push(am5xy.ValueAxis.new(root, { renderer: xRenderer, min: 0, extraMax: isValue ? 0.28 : 0.18, numberFormat: isValue ? "₹#,###" : "#,###" }));
+    const series = chart.series.push(am5xy.ColumnSeries.new(root, {
+      name: isValue ? 'MoU Cost' : 'MoU Count', xAxis, yAxis, valueXField: metric, categoryYField: 'category',
+      tooltip: am5.Tooltip.new(root, { labelText: '{categoryY}\nMoU Count: [bold]{count}[/]\nMoU Cost: [bold]₹ {value.formatNumber("#,###.##")} Cr[/]' }),
+    }));
+    series.columns.template.setAll({ fill: color, stroke: color, height: am5.percent(100), cornerRadiusTR: 4, cornerRadiusBR: 4 });
+    series.bullets.push(() => am5.Bullet.new(root, { locationX: 1, sprite: am5.Label.new(root, {
+      text: '{label}', populateText: true,
+      fill: am5.color(c.value), centerY: am5.p50, centerX: am5.p0, dx: 5, fontSize: 9, fontWeight: '700',
+    }) }));
+    series.data.setAll(rows);
+    yAxis.data.setAll(rows);
+    chart.appear(600, 100);
+    return () => { root.dispose(); onRootReady?.(null); };
+  }, [data, metric, dark]);
+  return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
+}
+
+// 2. Summit-wise trend: stacked stages per summit plus the total, as count or value.
+function SummitTrendChart({ data, stages, metric, onRootReady, dark }) {
+  const divRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!divRef.current || !data?.length) return undefined;
+    const c = chartColors();
+    const root = newChartRoot(divRef.current);
+    onRootReady?.(root);
+    root.setThemes([am5themes_Animated.new(root)]);
+    const isValue = metric === 'value';
+    const chart = root.container.children.push(am5xy.XYChart.new(root, { panX: false, panY: false, wheelX: 'none', wheelY: 'none', layout: root.verticalLayout, paddingTop: 20, paddingLeft: 10, paddingRight: 20, paddingBottom: 26 }));
+    const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 20, cellStartLocation: 0.2, cellEndLocation: 0.8 });
+    xRenderer.labels.template.setAll({ fontSize: 10, fill: am5.color(c.text), fontWeight: '600' });
+    xRenderer.grid.template.set('visible', false);
+    const xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, { categoryField: 'name', renderer: xRenderer }));
+    const yRenderer = am5xy.AxisRendererY.new(root, {});
+    yRenderer.labels.template.setAll({ fontSize: 9, fill: am5.color(c.muted), fontWeight: '600' });
+    yRenderer.grid.template.setAll({ stroke: am5.color(c.grid), strokeDasharray: [3, 3] });
+    // Headroom above the tallest column for the total labels.
+    const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: yRenderer, min: 0, extraMax: 0.15, numberFormat: isValue ? "₹#,###" : "#,###" }));
+    const fmt = isValue ? '₹ {valueY.formatNumber("#,###.##")} Cr' : '{valueY}';
+    stages.forEach((s) => {
+      const color = am5.color(STAGE_STYLE[s.key].color);
+      const series = chart.series.push(am5xy.ColumnSeries.new(root, { name: s.label, xAxis, yAxis, stacked: true, valueYField: `${s.key}_${metric}`, categoryXField: 'name', tooltip: am5.Tooltip.new(root, { labelText: `{categoryX} – ${s.label}: [bold]${fmt}[/]` }) }));
+      series.columns.template.setAll({ fill: color, stroke: color, width: am5.percent(70) });
+      series.data.setAll(data);
+    });
+    const total = chart.series.push(am5xy.LineSeries.new(root, { name: 'Total', xAxis, yAxis, valueYField: `total_${metric}`, categoryXField: 'name', stroke: am5.color(c.total), tooltip: am5.Tooltip.new(root, { labelText: `{categoryX} – Total: [bold]${fmt}[/]` }) }));
+    total.strokes.template.setAll({ strokeWidth: 2 });
+    total.bullets.push(() => am5.Bullet.new(root, { sprite: am5.Circle.new(root, { radius: 4, fill: am5.color(c.totalBullet), stroke: am5.color(c.total), strokeWidth: 2 }) }));
+    total.bullets.push(() => am5.Bullet.new(root, { sprite: am5.Label.new(root, { text: isValue ? '₹{valueY.formatNumber("#,###")}' : '{valueY}', centerX: am5.p50, centerY: am5.p100, dy: -8, fontSize: 10, fontWeight: '700', fill: am5.color(c.total), populateText: true }) }));
+    total.data.setAll(data);
+    xAxis.data.setAll(data);
+    chart.appear(600, 100);
+    return () => { root.dispose(); onRootReady?.(null); };
+  }, [data, metric, dark]);
+  return <div ref={divRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />;
+}
+
+// Kebab export menu for tables (CSV / print), as on the other dashboards.
+function TableExportMenu({ headers, rows, fileName, title }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+  useEffect(() => {
+    const close = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setIsOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+  const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const handleExcel = () => {
+    setIsOpen(false);
+    const csv = '﻿' + [headers, ...rows].map((r) => r.map(cell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fileName}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const handlePrint = () => {
+    setIsOpen(false);
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const head = headers.map((h) => `<th style="border:1px solid #cbd5e1;padding:8px 10px;background:#4f46e5;color:#fff;font-size:11px;text-transform:uppercase;">${escapeHtml(h)}</th>`).join('');
+    const body = rows.map((r, i) => `<tr style="background:${i % 2 ? '#f8fafc' : '#fff'}">${r.map((v) => `<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:11px;">${escapeHtml(v)}</td>`).join('')}</tr>`).join('');
+    w.document.write(`<!DOCTYPE html><html><head><title>${escapeHtml(title)}</title><style>body{font-family:-apple-system,sans-serif;color:#1e293b;padding:24px}h1{font-size:16px;color:#6366f1;font-weight:800;text-transform:uppercase}table{width:100%;border-collapse:collapse}</style></head><body><h1>${escapeHtml(title)}</h1><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print();},300);}</script></body></html>`);
+    w.document.close();
+  };
+  return (
+    <div className="relative inline-block" ref={menuRef}>
+      <button type="button" onClick={() => setIsOpen((v) => !v)} title="Export options" className="flex items-center justify-center w-8 h-8 rounded-lg text-white/90 hover:bg-white/10 transition cursor-pointer">
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+          <button type="button" onClick={handleExcel} className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer text-left">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" /><span>CSV (Excel)</span>
+          </button>
+          <button type="button" onClick={handlePrint} className="flex items-center gap-2.5 w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer text-left border-t border-slate-100 dark:border-slate-800">
+            <Printer className="h-4 w-4 text-rose-600" /><span>Print / PDF</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function GMISDashboard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [summits, setSummits] = useState([]);
+  const [summit, setSummit] = useState('all');
+  const [summitOpen, setSummitOpen] = useState(false);
+  const [categoryMetric, setCategoryMetric] = useState('count');
+  const [trendMetric, setTrendMetric] = useState('count');
+  const [orgMetric, setOrgMetric] = useState('count');
+  const [orgGroup, setOrgGroup] = useState('major'); // 'major' | 'other'
+  const [categoryRoot, setCategoryRoot] = useState(null);
+  const [trendRoot, setTrendRoot] = useState(null);
+  const summitRef = useRef(null);
+  const dark = useIsDark();
+
+  const [reloadKey, setReloadKey] = useState(0);
+  // Loading starts in the handlers that change the summit or retry; the effect only fetches.
+  // A response that arrives after a newer request started is ignored.
+  useEffect(() => {
+    let current = true;
+    fetchGmisMouDashboard(summit === 'all' ? '' : summit)
+      .then((res) => { if (current) setData(res.data); })
+      .catch(() => { if (current) setError('Failed to load dashboard data.'); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
+  }, [summit, reloadKey]);
+  const reload = (nextSummit) => {
     setLoading(true);
-    try {
-      const res = await fetchGmisMouPaginated({
-        page: 1,
-        pageSize: 100,
-        eventName: selectedEvent === 'all' ? '' : selectedEvent,
-      });
+    setError(null);
+    if (nextSummit === undefined) setReloadKey((k) => k + 1);
+    else setSummit(nextSummit);
+  };
+  useEffect(() => {
+    fetchGmisMouSummits().then((res) => setSummits(Array.isArray(res.data) ? res.data : [])).catch(() => setSummits([]));
+  }, []);
+  useEffect(() => {
+    const close = (e) => { if (summitRef.current && !summitRef.current.contains(e.target)) setSummitOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
 
-      const counts = res.data?.counts || {};
-      setMetrics({
-        totalCount: counts.all || 0,
-        totalAmount: counts.totalAmount || 0,
-        underImplementation: counts.underImplementation || 0,
-        completed: counts.completed || 0,
-        yetToStart: counts.yetToStart || 0,
-        dropped: counts.dropped || 0,
-      });
+  const stages = data?.stages || [];
+  // Memoized so the charts (whose effects call back into state) don't re-render in a loop.
+  const categoryData = useMemo(() => data?.byCategory || [], [data]);
+  // Only real summits (GMIS / IMW <year>); entries such as "MoU Signing" stay out of the
+  // trend but still count everywhere else on the dashboard.
+  const summitData = useMemo(() => (data?.bySummit || []).filter((s) => /\b(19|20)\d{2}\b/.test(s.name)).map((s) => {
+    const row = { name: s.name, total_count: s.count, total_value: s.value };
+    Object.entries(s.stages).forEach(([k, v]) => { row[`${k}_count`] = v.count; row[`${k}_value`] = v.value; });
+    return row;
+  }), [data]);
 
-      // Prepare status distribution
-      setChartData([
-        { name: 'Under Implementation', count: counts.underImplementation || 0, fill: '#0284c7' },
-        { name: 'Completed', count: counts.completed || 0, fill: '#10b981' },
-        { name: 'Yet to Start', count: counts.yetToStart || 0, fill: '#f59e0b' },
-        { name: 'Dropped', count: counts.dropped || 0, fill: '#ef4444' },
-      ]);
+  if (loading && !data) return (
+    <div className="flex items-center justify-center py-20 text-slate-400 text-sm">
+      <RefreshCw size={16} className="animate-spin mr-2" /> Loading dashboard...
+    </div>
+  );
+  if (error) return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3">
+      <p className="text-sm text-red-500">{error}</p>
+      <button onClick={() => reload()} className="text-xs font-semibold text-[#6366f1] underline cursor-pointer">Retry</button>
+    </div>
+  );
 
-      // Aggregate top organisations from data
-      const items = res.data?.data || [];
-      const orgMap = {};
-      items.forEach(item => {
-        const org = item.organisation_name || 'Other';
-        if (!orgMap[org]) {
-          orgMap[org] = { org, count: 0, amount: 0 };
-        }
-        orgMap[org].count += 1;
-        orgMap[org].amount += parseFloat(item.amount) || 0;
-      });
+  const { kpis, byOrganisation = [], lastUpdated } = data;
+  const stageKpis = kpis.stages.filter((s) => STAGE_STYLE[s.key]);
+  const notSpecified = kpis.stages.find((s) => s.key === 'notSpecified');
+  const total = kpis.total;
+  const avg = (count, value) => (count ? formatCrore(value / count) : '—');
 
-      const sortedOrgs = Object.values(orgMap)
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 7);
-      setOrgData(sortedOrgs);
-
-    } catch (err) {
-      console.error('Error loading GMIS dashboard metrics:', err);
-    } finally {
-      setLoading(false);
+  const stageDetails = (s) => {
+    // Several raw statuses grouped into this stage (e.g. Pre-implementation): list them.
+    if (s.breakdown.length > 1) {
+      return [
+        ...s.breakdown.map((b) => [b.status, formatCount(b.count)]),
+        ['Share of MoU cost', `${s.valueShare}%`],
+      ];
     }
+    return [
+      ['Share of MoU cost', `${s.valueShare}%`],
+      ['Avg. per MoU', avg(s.count, s.value)],
+    ];
   };
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [selectedEvent]);
+  // Major ports vs other organisations, each with its own tab.
+  const majorOrgs = byOrganisation.filter((o) => o.isMajorPort);
+  const otherOrgs = byOrganisation.filter((o) => !o.isMajorPort);
+  const orgList = orgGroup === 'major' ? majorOrgs : otherOrgs;
+  const orgGroupLabel = orgGroup === 'major' ? 'Major Ports' : 'Other Organisations';
+  const orgMax = Math.max(1, ...orgList.map((o) => (orgMetric === 'count' ? o.count : o.value)));
+  const orgHeaders = ['S.No', 'Organisation', ...stages.map((s) => s.label), 'Total MoUs', 'MoU Cost (₹ Cr)'];
+  const orgRows = orgList.map((o, i) => [
+    i + 1, o.name, ...stages.map((s) => o.stages[s.key][orgMetric]), o.count, o.value,
+  ]);
+  const stageLegend = stages.map((s) => ({ label: s.label, color: STAGE_STYLE[s.key].color }));
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      
-      {/* Event Tabs Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-        <div className="flex flex-wrap items-center gap-2 select-none">
-          {EVENT_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setSelectedEvent(tab.id)}
-              className={`px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center space-x-1.5 ${
-                selectedEvent === tab.id
-                  ? 'bg-[#0f417a] text-white shadow-md'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-              }`}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>{tab.label}</span>
-            </button>
-          ))}
+    <div className="space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-3xl p-6">
+      {/* Filter + last updated */}
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">
+          Last updated date: {lastUpdated ? new Date(lastUpdated).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+        </p>
+        <div className="relative" ref={summitRef}>
+          <button
+            type="button"
+            onClick={() => setSummitOpen((o) => !o)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
+              summit !== 'all'
+                ? 'bg-indigo-50 border-indigo-200 text-[#6366f1] dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-400'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400'
+            }`}
+          >
+            <Filter className="h-3 w-3" />
+            {summit === 'all' ? 'All Summits' : summit}
+            <ChevronDown className="h-3 w-3" />
+          </button>
+          {summitOpen && (
+            <div className="absolute left-0 top-full mt-1.5 w-48 max-h-64 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50">
+              {['all', ...summits].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => { if (s !== summit) reload(s); setSummitOpen(false); }}
+                  className={`flex w-full items-center px-3 py-2 text-xs font-semibold text-left cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 ${summit === s ? 'text-[#6366f1]' : 'text-slate-700 dark:text-slate-200'}`}
+                >
+                  {s === 'all' ? 'All Summits' : s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+        {loading && <RefreshCw size={12} className="animate-spin text-slate-400" />}
+      </div>
 
-        <button
-          onClick={loadDashboardData}
-          disabled={loading}
-          className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 rounded-xl transition cursor-pointer"
-          title="Refresh Dashboard"
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <KpiCard
+          label="Total MoUs"
+          count={total.count}
+          value={total.value}
+          theme="indigo"
+          icon={Layers}
+          details={[
+            ['Organisations', formatCount(total.organisations)],
+            // A single summit is already named in the filter, so its count of 1 adds nothing.
+            ...(summit === 'all' ? [['Summits', formatCount(total.summits)]] : []),
+            ['Avg. per MoU', avg(total.count, total.value)],
+            ...(notSpecified?.count ? [['Stage not recorded', formatCount(notSpecified.count)]] : []),
+          ]}
+        />
+        {stageKpis.map((s) => (
+          <KpiCard
+            key={s.key}
+            label={s.label}
+            count={s.count}
+            value={s.value}
+            theme={STAGE_STYLE[s.key].card}
+            icon={STAGE_STYLE[s.key].icon}
+            share={s.countShare}
+            details={stageDetails(s)}
+          />
+        ))}
+      </div>
+
+      {/* Category + summit trend, side by side across the full width */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Section
+          number={1}
+          title="MoUs by Category"
+          actions={<>
+            <MetricTabs metric={categoryMetric} onChange={setCategoryMetric} />
+            <ChartExportMenu chartRoot={categoryRoot} fileName={`gmis_mous_by_category_${categoryMetric}`} color="#6366f1" variant="plain" />
+          </>}
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+          {/* Fixed pixel height: a percentage height inside flex can leave the chart taller
+              than its box, clipping the axis labels. */}
+          <div className="p-4">
+            <div style={{ height: CHART_HEIGHT }}><CategoryChart data={categoryData} metric={categoryMetric} onRootReady={setCategoryRoot} dark={dark} /></div>
+            <div className="pt-2">
+              <Legend items={[categoryMetric === 'value' ? { label: 'MoU Cost (₹ Cr)', color: '#10b981' } : { label: 'MoU Count', color: '#6366f1' }]} />
+            </div>
+          </div>
+        </Section>
+
+        <Section
+          number={2}
+          title="Summit-wise Trend"
+          actions={<>
+            <MetricTabs metric={trendMetric} onChange={setTrendMetric} />
+            <ChartExportMenu chartRoot={trendRoot} fileName={`gmis_summit_trend_${trendMetric}`} color="#6366f1" variant="plain" />
+          </>}
+        >
+          <div className="p-4">
+            <div style={{ height: CHART_HEIGHT }}>
+              <SummitTrendChart data={summitData} stages={stages} metric={trendMetric} onRootReady={setTrendRoot} dark={dark} />
+            </div>
+            <div className="pt-2">
+              <Legend items={[...stageLegend, { label: `Total ${trendMetric === 'value' ? 'MoU cost (₹ Cr)' : 'MoUs'}`, color: dark ? '#c7d2fe' : '#1e1b4b' }]} />
+            </div>
+          </div>
+        </Section>
       </div>
 
-      {/* Top 4 Primary KPI Telemetry Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total MoUs Signed</span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-              {metrics.totalCount}
-            </div>
-            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold block mt-0.5">
-              {selectedEvent === 'all' ? 'Across all summits' : selectedEvent}
-            </span>
+      {/* Organisation-wise stage-wise MoUs, full width */}
+      <Section
+        number={3}
+        title="Organisation-wise Stage-wise MoUs"
+        actions={<>
+          <MetricTabs metric={orgMetric} onChange={setOrgMetric} />
+          <TableExportMenu headers={orgHeaders} rows={orgRows} fileName={`gmis_${orgGroup === 'major' ? 'major_ports' : 'other_organisations'}_stage_${orgMetric}`} title={`Organisation-wise Stage-wise MoUs - ${orgGroupLabel} (${orgMetric === 'count' ? 'MoU Count' : 'MoU Cost, ₹ Cr'})`} />
+        </>}
+      >
+        <div className="p-3">
+          <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-3 select-none px-1">
+            {[['major', 'Major Ports', majorOrgs.length], ['other', 'Other Organisations', otherOrgs.length]].map(([key, label, n]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setOrgGroup(key)}
+                className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                  orgGroup === key
+                    ? 'border-[#4f46e5] text-[#4f46e5] bg-indigo-100/70 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-400 rounded-t-lg'
+                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                }`}
+              >
+                {label} ({n})
+              </button>
+            ))}
           </div>
-          <div className="p-3.5 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-2xl border border-blue-100 dark:border-blue-900">
-            <Layers className="h-6 w-6" />
-          </div>
-        </div>
-
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total MoU Value</span>
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-              ₹ {Math.round(metrics.totalAmount).toLocaleString()} Cr
-            </div>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block mt-0.5">
-              Cumulated investment value
-            </span>
-          </div>
-          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-2xl border border-emerald-100 dark:border-emerald-900">
-            <DollarSign className="h-6 w-6" />
-          </div>
-        </div>
-
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Under Implementation</span>
-            <div className="text-2xl font-black text-blue-700 dark:text-blue-300 mt-1">
-              {metrics.underImplementation}
-            </div>
-            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
-              {metrics.totalCount > 0 ? Math.round((metrics.underImplementation / metrics.totalCount) * 100) : 0}% of all MoUs
-            </span>
-          </div>
-          <div className="p-3.5 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-2xl border border-blue-100 dark:border-blue-900">
-            <Clock className="h-6 w-6" />
-          </div>
-        </div>
-
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Completed MoUs</span>
-            <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">
-              {metrics.completed}
-            </div>
-            <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold block mt-0.5">
-              {metrics.totalCount > 0 ? Math.round((metrics.completed / metrics.totalCount) * 100) : 0}% delivery rate
-            </span>
-          </div>
-          <div className="p-3.5 bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 rounded-2xl border border-purple-100 dark:border-purple-900">
-            <CheckCircle2 className="h-6 w-6" />
-          </div>
-        </div>
-
-      </div>
-
-      {/* Visual Analytics Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Status Distribution Bar Chart */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center space-x-2">
-              <TrendingUp className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-              <span>MoUs Status Distribution</span>
-            </h3>
-            <span className="text-[10px] text-slate-400 font-bold uppercase">Real-Time</span>
-          </div>
-
-          <div className="h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
-                />
-                <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 max-h-[620px] overflow-auto">
+            <table className="w-full text-[11px] border-separate border-spacing-0">
+              <thead className="sticky top-0 z-20">
+                <tr className="bg-[#4f46e5] text-white">
+                  <th className="px-3 py-2 text-center font-semibold w-12">S.No</th>
+                  <th className="px-3 py-2 text-left font-semibold">Organisation</th>
+                  <th className="px-3 py-2 text-left font-semibold w-[34%]">{orgMetric === 'count' ? 'MoUs by stage' : 'MoU cost by stage (₹ Cr)'}</th>
+                  {stages.map((s) => (
+                    <th key={s.key} className="px-2 py-2 text-center font-semibold whitespace-nowrap">{s.label}</th>
                   ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                  <th className="px-3 py-2 text-center font-semibold whitespace-nowrap">Total MoUs</th>
+                  <th className="px-3 py-2 text-center font-semibold whitespace-nowrap">MoU Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orgList.map((o, i) => {
+                  const rowTotal = orgMetric === 'count' ? o.count : o.value;
+                  return (
+                    <tr key={o.name} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
+                      <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300 font-mono">{i + 1}</td>
+                      <td className="px-3 py-2 text-slate-800 dark:text-slate-100 font-semibold">{o.name}</td>
+                      <td className="px-3 py-2">
+                        {/* Stacked bar, scaled to the largest organisation */}
+                        <div className="flex h-5 rounded overflow-hidden bg-slate-100 dark:bg-slate-800" style={{ width: `${Math.max(2, (rowTotal / orgMax) * 100)}%` }}>
+                          {stages.map((s) => {
+                            const v = o.stages[s.key][orgMetric];
+                            if (!v) return null;
+                            return (
+                              <div
+                                key={s.key}
+                                title={`${s.label}: ${orgMetric === 'count' ? formatCount(v) : formatCrore(v)}`}
+                                className="h-full flex items-center justify-center text-[9px] font-bold text-white overflow-hidden"
+                                style={{ width: `${(v / rowTotal) * 100}%`, backgroundColor: STAGE_STYLE[s.key].color }}
+                              >
+                                {orgMetric === 'count' && (v / rowTotal) * (rowTotal / orgMax) > 0.06 ? v : ''}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+                      {stages.map((s) => (
+                        <td key={s.key} className="px-2 py-2 text-center text-slate-700 dark:text-slate-200 font-semibold">
+                          {orgMetric === 'count' ? (o.stages[s.key].count || '—') : (o.stages[s.key].value ? o.stages[s.key].value.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—')}
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 text-center font-black text-[#4f46e5] dark:text-indigo-400">{formatCount(o.count)}</td>
+                      <td className="px-3 py-2 text-center font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">{formatCrore(o.value)}</td>
+                    </tr>
+                  );
+                })}
+                {!orgList.length && (
+                  <tr><td colSpan={5 + stages.length} className="px-3 py-6 text-center text-slate-600 dark:text-slate-300">No MoUs for this selection</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
+          <div className="pt-3"><Legend items={stageLegend} /></div>
         </div>
-
-        {/* Top Organisations by Investment Value */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center space-x-2">
-              <Building2 className="h-4 w-4 text-emerald-600" />
-              <span>Top Organisations by Investment Value</span>
-            </h3>
-            <span className="text-[10px] text-emerald-600 font-bold uppercase">₹ in Crores</span>
-          </div>
-
-          <div className="space-y-3">
-            {orgData.length === 0 ? (
-              <div className="py-12 text-center text-xs text-slate-400 italic">
-                No organisation data available for this summit filter.
-              </div>
-            ) : (
-              orgData.map((o, idx) => (
-                <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-2">
-                    <span className="text-xs font-mono font-bold text-slate-400">#{idx + 1}</span>
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{o.org}</span>
-                    <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-bold">
-                      {o.count} MoUs
-                    </span>
-                  </div>
-                  <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 shrink-0">
-                    ₹ {Math.round(o.amount).toLocaleString()} Cr
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Quick Action Navigation Strip */}
-      <div className="bg-gradient-to-r from-blue-50 via-slate-50 to-indigo-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 p-5 rounded-2xl border border-blue-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          <h4 className="text-sm font-bold text-[#0f417a] dark:text-blue-300">
-            Global Maritime India Summit & India Maritime Week MoUs
-          </h4>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-            Monitor deliverables, physical and financial percentages, milestone dates, and partner agreements.
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-3 shrink-0">
-          <button
-            onClick={() => onNavigateToTab('list')}
-            className="px-4 py-2 bg-[#0f417a] hover:bg-[#164e8d] text-white text-xs font-bold rounded-xl shadow transition cursor-pointer flex items-center space-x-1.5"
-          >
-            <span>View All MoUs</span>
-            <ArrowRight className="h-4 w-4" />
-          </button>
-          
-          <button
-            onClick={() => onNavigateToTab('add')}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow transition cursor-pointer flex items-center space-x-1.5"
-          >
-            <PlusCircle className="h-4 w-4" />
-            <span>Add New MoU</span>
-          </button>
-        </div>
-      </div>
-
+      </Section>
     </div>
   );
 }
