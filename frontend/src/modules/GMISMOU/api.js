@@ -106,6 +106,16 @@ export function fetchMouTotalCountAmount() {
   return api.get('/get-mou-total-count-amount');
 }
 
+// Dashboard: every aggregate in one call (KPI cards, category chart, summit trend,
+// organisation-wise stages). eventName '' or 'all' = every summit.
+export function fetchGmisMouDashboard(eventName = '') {
+  return api.get('/get-gmis-mou-dashboard', { params: { eventName } });
+}
+
+export function fetchGmisMouSummits() {
+  return api.get('/get-gmis-mou-summits');
+}
+
 export function fetchYearWiseGmisData() {
   return api.get('/get-yearwise-gmis-data');
 }
