@@ -99,6 +99,7 @@ export default function NoteListTable({
         field: 'sNo',
         headerName: 'S.No',
         minWidth: 90,
+        pinned: 'left',
         cellClass: 'font-mono text-slate-600 text-center',
         headerClass: 'text-center',
       },

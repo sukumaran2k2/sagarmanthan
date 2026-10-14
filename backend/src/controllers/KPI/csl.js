@@ -45,17 +45,51 @@ import fs from 'fs';
 
             
     async function getVesselBuiltList(req, res) {
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-            const conn = await pool;
-            const request = conn.request();
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-            const result = await request.query(`
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (financial_year LIKE @search OR CAST(no_of_vessels_built AS VARCHAR(50)) LIKE @search OR CAST(tonnage_of_vessels_built AS VARCHAR(50)) LIKE @search OR CAST(value_of_vessels_built AS VARCHAR(50)) LIKE @search)';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_csl_vessels_built ${whereClause}`),
+            pageRequest.query(`
                 SELECT * FROM tbl_csl_vessels_built
-                ORDER BY financial_year DESC;
-            `);
+                ${whereClause}
+                ORDER BY financial_year DESC, csl_vessel_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
 
-            res.json(result.recordset);
-    } 
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+} 
 
     async function getUpdateVesselBuiltdata(req, res) 
     {
@@ -213,17 +247,51 @@ import fs from 'fs';
     }
        
    async function getshipbildingList(req, res) {
-
+    try {
         const conn = await pool;
-        const request = conn.request();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const result = await request.query(`
-            SELECT * FROM tbl_csl_ship_building_orders
-            ORDER BY financial_year DESC;
-        `);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        res.json(result.recordset);
-    } 
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (financial_year LIKE @search OR financial_quater LIKE @search OR CAST(ship_orders_received AS VARCHAR(50)) LIKE @search OR CAST(value_of_ship_orders_received AS VARCHAR(50)) LIKE @search)';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_csl_ship_building_orders ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_csl_ship_building_orders
+                ${whereClause}
+                ORDER BY financial_year DESC, csl_shipbuilding_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+} 
 
     async function getUpdateshipBuildingdata(req, res) 
             {
@@ -383,17 +451,51 @@ import fs from 'fs';
     }
     
         async function getdeliveryList(req, res) {
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-            const conn = await pool;
-                const request = conn.request();
-        
-                const result = await request.query(`
-                    SELECT * FROM tbl_csl_ship_delivery_performance
-                    ORDER BY financial_year DESC;
-                `);
-        
-                res.json(result.recordset);
-        } 
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (financial_year LIKE @search OR financial_quater LIKE @search OR CAST(total_no_ship_orders_received AS VARCHAR(50)) LIKE @search OR CAST(no_of_ships_delivered AS VARCHAR(50)) LIKE @search)';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_csl_ship_delivery_performance ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_csl_ship_delivery_performance
+                ${whereClause}
+                ORDER BY financial_year DESC, csl_shipdelivery_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+} 
 
         async function getUpdateshipdeliverydata(req, res) 
         {
@@ -534,17 +636,51 @@ import fs from 'fs';
         
 
         async function getcapacityUtilizationList(req, res) {
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-                const conn = await pool;
-                const request = conn.request();
-        
-                const result = await request.query(`
-                    SELECT * FROM tbl_csl_capacity_utilization
-                    ORDER BY financial_year DESC;
-                `);
-        
-                res.json(result.recordset);
-        } 
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (financial_year LIKE @search OR CAST(total_shipbuilding_capacity AS VARCHAR(50)) LIKE @search OR CAST(tonnage_of_vessels AS VARCHAR(50)) LIKE @search)';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_csl_capacity_utilization ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_csl_capacity_utilization
+                ${whereClause}
+                ORDER BY financial_year DESC, csl_capacity_utilization_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+} 
 
         async function getUpdatecapacityUtilizationdata(req, res) 
         {
@@ -692,17 +828,51 @@ import fs from 'fs';
         
         
         async function getfabricationList(req, res) {
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-                const conn = await pool;
-                const request = conn.request();
-        
-                const result = await request.query(`
-                    SELECT * FROM tbl_csl_fabrication_of_steels
-                    ORDER BY financial_year DESC;
-                `);
-        
-                res.json(result.recordset);
-            } 
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (financial_year LIKE @search OR month LIKE @search OR CAST(fabrication_of_steel_targets AS VARCHAR(50)) LIKE @search OR CAST(fabrication_of_steel_actual AS VARCHAR(50)) LIKE @search)';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_csl_fabrication_of_steels ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_csl_fabrication_of_steels
+                ${whereClause}
+                ORDER BY financial_year DESC, csl_fabrication_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+} 
 
         async function getUpdatefabricationofsteeldata(req, res) 
         {
@@ -865,17 +1035,51 @@ import fs from 'fs';
         
         
         async function getshipRepairedList(req, res) {
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-                const conn = await pool;
-                const request = conn.request();
-        
-                const result = await request.query(`
-                    SELECT * FROM tbl_csl_ships_repaired
-                    ORDER BY financial_year DESC;
-                `);
-        
-                res.json(result.recordset);
-        } 
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (financial_year LIKE @search OR financial_quater LIKE @search OR CAST(no_of_ships_repaired AS VARCHAR(50)) LIKE @search OR CAST(value_of_ships_repaired AS VARCHAR(50)) LIKE @search)';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_csl_ships_repaired ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_csl_ships_repaired
+                ${whereClause}
+                ORDER BY financial_year DESC, csl_ships_reapired_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+} 
 
         async function getUpdateshiptrapireddata(req, res) 
         {

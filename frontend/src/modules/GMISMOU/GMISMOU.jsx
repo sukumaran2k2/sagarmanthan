@@ -1,8 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, Layers, PlusCircle, Globe ,FilePieChart
-} from 'lucide-react';
+import { Globe } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import Dashboard from './pages/Dashboard';
@@ -45,10 +43,10 @@ export default function GMISMOUView({
 
   const tabs = useMemo(() => {
     const list = [];
-    if (canView) list.push({ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard });
-    if (canAdd) list.push({ id: 'add', label: editData ? 'Update MoU' : 'Input Form', icon: PlusCircle });
-    if (canView) list.push({ id: 'list', label: 'Data List', icon: Layers });
-    if (canView) list.push({ id: 'report', label: 'Report', icon: FilePieChart });
+    if (canView) list.push({ id: 'dashboard', label: 'Dashboard' });
+    if (canAdd) list.push({ id: 'add', label: editData ? 'Update MoU' : 'Input Form' });
+    if (canView) list.push({ id: 'list', label: 'Data List' });
+    if (canView) list.push({ id: 'report', label: 'Report' });
     return list;
   }, [canAdd, canView, editData]);
 

@@ -3,12 +3,51 @@ import { createPortal } from 'react-dom';
 import { X, CheckCircle, Upload, Calendar, Info } from 'lucide-react';
 import { INDIAN_STATES } from './FormBuilderStudio';
 
-export default function FormPreviewModal({ formName, formDescription, fields, onClose }) {
-  const [formData, setFormData] = useState({});
+// onSubmitResponse(action, values) is optional. Without it the modal is a preview that
+// saves nothing; with it, "Save Draft" / "Submit Form" call it (action 'draft' | 'submit')
+// and it should resolve to a success message or throw.
+export default function FormPreviewModal({ formName, formDescription, fields, onClose, onSubmitResponse, initialValues }) {
+  const isLive = typeof onSubmitResponse === 'function';
+  const [formData, setFormData] = useState(initialValues || {});
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
+  const saveResponse = async (action) => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const message = await onSubmitResponse(action, formData);
+      setSuccessMessage(message || (action === 'draft' ? 'Draft saved' : 'Form submitted'));
+      setSubmitted(true);
+    } catch (err) {
+      setSaveError(err.response?.data?.message || err.message || 'Could not save your response');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // A dependent dropdown's options follow its parent's current answer.
+  const optionsFor = (field) => {
+    if (!field.dependsOn) return field.options || [];
+    const parentValue = formData[field.dependsOn];
+    return parentValue ? ((field.optionsByParent || {})[parentValue] || []) : [];
+  };
+
+  // Changing an answer clears every field that depends on it (and their dependents).
   const handleChange = (fieldId, value) => {
-    setFormData(prev => ({ ...prev, [fieldId]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [fieldId]: value };
+      const clear = (parentId) => {
+        (fields || []).filter(f => f.dependsOn === parentId).forEach(child => {
+          if (next[child.id] !== undefined && next[child.id] !== '') next[child.id] = '';
+          clear(child.id);
+        });
+      };
+      if (prev[fieldId] !== value) clear(fieldId);
+      return next;
+    });
   };
 
   const handleMultiSelectToggle = (fieldId, option) => {
@@ -21,6 +60,10 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (isLive) {
+      saveResponse('submit');
+      return;
+    }
     setSubmitted(true);
   };
 
@@ -43,7 +86,7 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
         {/* Header */}
         <div className="flex items-start justify-between p-5 border-b border-slate-100 bg-slate-50 shrink-0">
           <div className="pr-4">
-            <span className="text-[10px] font-black tracking-widest text-blue-600 uppercase">Live Form Preview</span>
+            <span className="text-[10px] font-black tracking-widest text-blue-600 uppercase">{isLive ? 'Fill Form' : 'Live Form Preview'}</span>
             <h2 className="text-lg font-bold text-slate-800 leading-tight">{formName}</h2>
             <p className="text-xs text-slate-500 mt-1.5 max-w-xl leading-relaxed">
               {formDescription || 'Please complete all required fields below.'}
@@ -64,15 +107,19 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
               <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
                 <CheckCircle className="h-8 w-8" />
               </div>
-              <h3 className="text-xl font-bold text-slate-800">Preview Form Submitted Successfully!</h3>
-              <p className="text-xs text-slate-500 max-w-md mx-auto">
-                This is a simulation preview. All fields and validation criteria passed.
-              </p>
+              <h3 className="text-xl font-bold text-slate-800">
+                {isLive ? successMessage : 'Preview Form Submitted Successfully!'}
+              </h3>
+              {!isLive && (
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  This is a simulation preview. All fields and validation criteria passed.
+                </p>
+              )}
               <button
-                onClick={() => setSubmitted(false)}
+                onClick={() => (isLive ? onClose() : setSubmitted(false))}
                 className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer transition"
               >
-                Test Again
+                {isLive ? 'Close' : 'Test Again'}
               </button>
             </div>
           </div>
@@ -201,12 +248,17 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
                   {field.inputType === 'dropdown' && (
                     <select
                       required={field.required}
+                      disabled={!!field.dependsOn && !formData[field.dependsOn]}
                       value={formData[field.id] || ''}
                       onChange={(e) => handleChange(field.id, e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      <option value="">Select Option</option>
-                      {field.options.map((opt, idx) => (
+                      <option value="">
+                        {field.dependsOn && !formData[field.dependsOn]
+                          ? `Select ${(fields.find(f => f.id === field.dependsOn) || {}).inputLabel || 'the field above'} first`
+                          : 'Select Option'}
+                      </option>
+                      {optionsFor(field).map((opt, idx) => (
                         <option key={idx} value={opt}>{opt}</option>
                       ))}
                     </select>
@@ -273,11 +325,24 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
                   )}
 
                   {/* File Upload */}
+                  {/* Holds a File once chosen, or { fileName } for a file saved earlier. */}
                   {field.inputType === 'file' && (
-                    <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center bg-slate-50 hover:bg-slate-100 transition cursor-pointer">
+                    <label className="block border-2 border-dashed border-slate-200 rounded-xl p-4 text-center bg-slate-50 hover:bg-slate-100 transition cursor-pointer">
+                      <input
+                        type="file"
+                        className="sr-only"
+                        required={field.required && !formData[field.id]}
+                        onChange={(e) => handleChange(field.id, e.target.files?.[0] || formData[field.id])}
+                      />
                       <Upload className="h-5 w-5 text-slate-400 mx-auto mb-1" />
-                      <span className="text-xs text-slate-500 font-medium">Click to select attachment</span>
-                    </div>
+                      <span className="text-xs text-slate-500 font-medium">
+                        {formData[field.id] instanceof File
+                          ? formData[field.id].name
+                          : formData[field.id]?.fileName
+                            ? `Saved: ${formData[field.id].fileName} (click to replace)`
+                            : 'Click to select attachment'}
+                      </span>
+                    </label>
                   )}
 
                   {/* Checkbox */}
@@ -318,13 +383,27 @@ export default function FormPreviewModal({ formName, formDescription, fields, on
             </form>
           </div>
           
-          <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+          <div className="p-5 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3 shrink-0">
+            {saveError && (
+              <span className="mr-auto text-xs font-semibold text-rose-600">{saveError}</span>
+            )}
+            {isLive && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => saveResponse('draft')}
+                className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Save Draft
+              </button>
+            )}
             <button
               type="submit"
               form="preview-form"
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
+              disabled={saving}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Submit Form (Preview)
+              {isLive ? (saving ? 'Saving...' : 'Submit Form') : 'Submit Form (Preview)'}
             </button>
           </div>
         </>

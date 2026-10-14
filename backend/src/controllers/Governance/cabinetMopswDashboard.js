@@ -52,6 +52,11 @@ const COMPLETED_CONDITION = `(
 async function getCabinetMopswDashboard(req, res) {
   const conn = await pool;
   try {
+    // Optional wing filter — applied to KPI, heat map, and long-pending queries.
+    // Chart 3 (wing-wise breakdown) is intentionally left unfiltered since its
+    // purpose is comparing across wings.
+    const wingIdNum = Number(req.query.wingId);
+    const wingFilter = Number.isInteger(wingIdNum) && wingIdNum > 0 ? ` AND notes.wing = ${wingIdNum}` : '';
     // ── 1. KPI counters + average age of active notes ──────────────────────
     const kpiResult = await conn.query(`
       SELECT
@@ -69,7 +74,7 @@ async function getCabinetMopswDashboard(req, res) {
       FROM tbl_cabinet_notes_mopsw AS notes
       INNER JOIN mmt_cabinet_mopsw_stage AS stage
         ON stage.mopsw_stage_id = notes.stage_id
-      WHERE notes.stage_id != 11
+      WHERE notes.stage_id != 11${wingFilter}
     `);
 
     const kpi = kpiResult.recordset[0] || {};
@@ -123,7 +128,7 @@ async function getCabinetMopswDashboard(req, res) {
       FROM mmt_cabinet_mopsw_stage AS stage
       LEFT JOIN tbl_cabinet_notes_mopsw AS notes
         ON notes.stage_id = stage.mopsw_stage_id
-        AND NOT ${COMPLETED_CONDITION.replace(/notes\./g, 'notes.')}
+        AND NOT ${COMPLETED_CONDITION.replace(/notes\./g, 'notes.')}${wingFilter}
       WHERE stage.mopsw_stage_id != 11  -- DCM Been Approved excluded: unconfirmed stage not in reference
       GROUP BY stage.mopsw_stage_id, stage.mopsw_stage_name
       ORDER BY stage.mopsw_stage_id
@@ -168,6 +173,7 @@ async function getCabinetMopswDashboard(req, res) {
         notes.subject,
         wings.wing_name,
         stage.mopsw_stage_name                                          AS current_stage,
+        notes.updated_date,
         DATEDIFF(day,
           COALESCE(
             CASE notes.stage_id
@@ -191,7 +197,7 @@ async function getCabinetMopswDashboard(req, res) {
       INNER JOIN mmt_wings AS wings
         ON wings.wing_id = notes.wing
       WHERE NOT ${COMPLETED_CONDITION}
-        AND notes.stage_id != 11
+        AND notes.stage_id != 11${wingFilter}
       ORDER BY pending_days DESC
     `);
 

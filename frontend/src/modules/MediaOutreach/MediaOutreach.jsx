@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import InternalNavigation from '../../components/InternalNavigation';
+import ConfirmModal from '../../components/ConfirmModal';
 import InputForm from './pages/InputForm';
 import { useMediaOutreachPermissions } from './hooks/useMediaOutreachPermissions';
 import { resolveMediaOutreachListView } from './views';
@@ -74,6 +75,12 @@ export default function MediaOutreachView({ triggerNotification }) {
     }
   };
 
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    row: null,
+    loading: false
+  });
+
   const handleEdit = (row) => {
     if (!permissions.canEdit) return;
     setEditData(row);
@@ -82,16 +89,26 @@ export default function MediaOutreachView({ triggerNotification }) {
 
   const handleDelete = (row) => {
     if (!permissions.canRemove) return;
-    if (window.confirm("Are you sure you want to delete this record?")) {
-      deleteSocialMedia(row.media_outreach_id)
-        .then(() => {
-          fetchData();
-          if (triggerNotification) triggerNotification("Record deleted successfully.");
-        })
-        .catch(err => {
-          console.error("Delete error:", err);
-          if (triggerNotification) triggerNotification("Failed to delete record.", "error");
-        });
+    setDeleteModal({
+      open: true,
+      row,
+      loading: false
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    const row = deleteModal.row;
+    if (!row?.media_outreach_id) return;
+    setDeleteModal(prev => ({ ...prev, loading: true }));
+    try {
+      await deleteSocialMedia(row.media_outreach_id);
+      fetchData();
+      if (triggerNotification) triggerNotification("Record deleted successfully.");
+      setDeleteModal({ open: false, row: null, loading: false });
+    } catch (err) {
+      console.error("Delete error:", err);
+      if (triggerNotification) triggerNotification("Failed to delete record.", "error");
+      setDeleteModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -161,6 +178,18 @@ export default function MediaOutreachView({ triggerNotification }) {
           permissions={permissions}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, row: null, loading: false })}
+        onConfirm={handleConfirmDelete}
+        loading={deleteModal.loading}
+        title="Delete Media Outreach Record"
+        message="Deleting the record will also delete the stored data. Are you sure you want to delete?"
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
     </div>
   );
 }

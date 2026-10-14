@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   ArrowLeft, 
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import FormPreviewModal from './FormPreviewModal';
+import api from '../api';
 
 const MOCK_INBOX = [
   {
@@ -52,16 +53,88 @@ const MOCK_INBOX = [
   }
 ];
 
+// Turns a failed request into a message the user can act on.
+const loadErrorMessage = (err, what) => (
+  err.response?.status === 401
+    ? 'Your session has expired. Please log out and log in again.'
+    : err.response?.data?.message || `Could not load ${what} from the server.`
+);
+
 export default function InboxForms({ triggerNotification, onBackToDirectory }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormToFill, setSelectedFormToFill] = useState(null);
+  const [inboxForms, setInboxForms] = useState(MOCK_INBOX);
+  const [loadError, setLoadError] = useState(null);
 
-  const filtered = MOCK_INBOX.filter(s => 
-    s.formName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.assignedBy.toLowerCase().includes(searchQuery.toLowerCase())
+  // Same rule as Form Directory: mock list only when the request succeeds with
+  // nothing assigned; a failed request shows an error instead.
+  const loadInbox = () => {
+    setLoadError(null);
+    api.get('/get-inbox-forms')
+      .then(res => {
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          setInboxForms(res.data);
+        } else {
+          setInboxForms(MOCK_INBOX);
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading inbox forms:', err);
+        setInboxForms([]);
+        setLoadError(loadErrorMessage(err, 'your inbox'));
+      });
+  };
+
+  useEffect(() => {
+    loadInbox();
+  }, []);
+
+  // Real (numeric-id) forms save through the API; mock forms stay preview-only.
+  const isRealForm = (form) => /^\d+$/.test(String(form?.id));
+
+  // Opens the fill form; for a saved draft or submitted response, loads the earlier
+  // answers first so saving again doesn't overwrite them with blanks.
+  const openForm = async (form) => {
+    if (!isRealForm(form) || form.status === 'Pending') {
+      setSelectedFormToFill(form);
+      return;
+    }
+    try {
+      const res = await api.get(`/get-my-form-response/${form.id}`);
+      setSelectedFormToFill({ ...form, initialValues: res.data.values || {} });
+    } catch (err) {
+      console.error('Error loading saved response:', err);
+      triggerNotification && triggerNotification(err.response?.data?.message || 'Could not load your saved answers', 'error');
+    }
+  };
+
+  const submitResponse = async (form, action, values) => {
+    // Newly chosen files go as multipart, keyed by field id; a saved file ({ fileName })
+    // is left out so the server keeps it.
+    const files = Object.entries(values).filter(([, v]) => v instanceof File);
+    const plainValues = Object.fromEntries(
+      Object.entries(values).filter(([, v]) => !(v instanceof File) && !(v && typeof v === 'object' && 'fileName' in v))
+    );
+    let body = { formId: form.id, action, values: plainValues };
+    if (files.length) {
+      body = new FormData();
+      body.append('formId', String(form.id));
+      body.append('action', action);
+      body.append('values', JSON.stringify(plainValues));
+      files.forEach(([fieldId, file]) => body.append(fieldId, file, file.name));
+    }
+    const res = await api.post('/submit-form-data', body);
+    setInboxForms(prev => prev.map(f => (f.id === form.id ? { ...f, status: res.data.status } : f)));
+    triggerNotification && triggerNotification(res.data.message, 'success');
+    return res.data.message;
+  };
+
+  const filtered = inboxForms.filter(s => 
+    (s.formName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (s.assignedBy || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const pendingCount = MOCK_INBOX.filter(s => s.status !== 'Submitted').length;
+  const pendingCount = inboxForms.filter(s => s.status !== 'Submitted').length;
 
   const columnDefs = [
     {
@@ -128,7 +201,7 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
         return (
           <div className="flex items-center justify-end h-full">
             <button
-              onClick={() => setSelectedFormToFill(params.data)}
+              onClick={() => openForm(params.data)}
               className={`inline-flex items-center space-x-1 px-3 py-1.5 font-bold text-[11px] rounded-lg transition cursor-pointer ${
                 isSubmitted 
                   ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' 
@@ -184,6 +257,19 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
         </div>
       </div>
 
+      {loadError && (
+        <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl border border-rose-200 bg-rose-50 text-xs font-semibold text-rose-700">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={loadInbox}
+            className="px-3 py-1.5 rounded-lg bg-white border border-rose-200 hover:bg-rose-100 font-bold cursor-pointer transition"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Forms List (AG Grid Table) */}
       <div className="w-full">
         <Table 
@@ -204,7 +290,11 @@ export default function InboxForms({ triggerNotification, onBackToDirectory }) {
           formName={selectedFormToFill.formName}
           formDescription={selectedFormToFill.formDescription}
           fields={selectedFormToFill.fields}
+          initialValues={selectedFormToFill.initialValues}
           onClose={() => setSelectedFormToFill(null)}
+          onSubmitResponse={isRealForm(selectedFormToFill)
+            ? (action, values) => submitResponse(selectedFormToFill, action, values)
+            : undefined}
         />
       )}
     </div>

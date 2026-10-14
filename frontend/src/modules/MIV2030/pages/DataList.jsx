@@ -177,7 +177,7 @@ export default function MIVDataList({
     {
       headerName: 'S.No',
       field: 'sNo',
-      width: 75,
+      minWidth: 75,
       pinned: 'left',
       cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center font-bold',
       headerClass: 'text-center',
@@ -188,6 +188,8 @@ export default function MIVDataList({
       field: 'organisation_name',
       flex: 1.5,
       minWidth: 200,
+      wrapText: true,
+      autoHeight: true,
       pinned: 'left',
       cellClass: 'font-bold text-slate-800 dark:text-slate-200',
       hide: !visibleCols.org
@@ -197,6 +199,8 @@ export default function MIVDataList({
       field: 'initiative_name',
       flex: 2.2,
       minWidth: 260,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'font-semibold text-slate-800 dark:text-slate-200 text-left',
       headerClass: 'text-left',
       hide: !visibleCols.name,
@@ -224,7 +228,7 @@ export default function MIVDataList({
     {
       headerName: 'Category',
       field: 'category',
-      width: 150,
+      minWidth: 220,
       cellClass: 'capitalize text-slate-600 dark:text-slate-400 text-xs',
       hide: !visibleCols.category,
       cellRenderer: (params) => (
@@ -236,7 +240,7 @@ export default function MIVDataList({
     {
       headerName: 'Progress',
       field: 'physical_progress',
-      width: 110,
+      minWidth: 110,
       cellClass: 'font-mono text-center font-bold text-slate-700 dark:text-slate-300 text-xs',
       headerClass: 'text-center',
       hide: !visibleCols.progress,
@@ -250,7 +254,7 @@ export default function MIVDataList({
     {
       headerName: 'Status',
       field: 'status_current',
-      width: 170,
+      minWidth: 250,
       hide: !visibleCols.status,
       cellRenderer: (params) => {
         const status = params.value || params.data.status_on || 'Active';
@@ -279,7 +283,7 @@ export default function MIVDataList({
     {
       headerName: 'Updated Date',
       field: 'updated_date',
-      width: 120,
+      minWidth: 120,
       cellClass: 'text-slate-500 dark:text-slate-400 text-xs text-center',
       headerClass: 'text-center',
       hide: !visibleCols.updatedDate,
@@ -287,7 +291,7 @@ export default function MIVDataList({
     },
     {
       headerName: 'Action',
-      width: 110,
+      minWidth: 110,
       pinned: 'right',
       cellRenderer: (params) => (
         <div className="flex items-center justify-center space-x-1.5 h-full py-1">

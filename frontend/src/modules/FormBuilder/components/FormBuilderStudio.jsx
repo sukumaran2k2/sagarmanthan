@@ -39,97 +39,6 @@ import {
 } from 'lucide-react';
 import FormPreviewModal from './FormPreviewModal';
 
-const MOCK_DRAFTS = [
-  {
-    id: 'draft_1',
-    formName: 'Annual HR Performance Review',
-    formDescription: 'Draft for the upcoming annual HR performance review.',
-    dueDate: '2026-12-31',
-    assignType: 'wing',
-    selectedWings: ['Administration', 'Finance'],
-    fields: [
-      { id: 'f1', inputLabel: 'Employee ID', inputType: 'text', required: true },
-      { id: 'f2', inputLabel: 'Self Rating (1-10)', inputType: 'number', required: true }
-    ]
-  },
-  {
-    id: 'draft_2',
-    formName: 'Safety Audit Checklist',
-    formDescription: 'Safety inspection checklist draft.',
-    dueDate: '2026-11-30',
-    assignType: 'organisation',
-    selectedOrgIds: ['1', '8'],
-    fields: [
-      { id: 'f1', inputLabel: 'Terminal Zone', inputType: 'text', required: true }
-    ]
-  },
-  {
-    id: 'draft_3',
-    formName: 'Vessel Traffic Report',
-    formDescription: 'Monthly report on vessel traffic at major ports.',
-    dueDate: '2026-10-31',
-    assignType: 'organisation',
-    selectedOrgIds: ['2', '3', '5'],
-    fields: [
-      { id: 'f1', inputLabel: 'Port Name', inputType: 'text', required: true },
-      { id: 'f2', inputLabel: 'Total Vessels Berthed', inputType: 'number', required: true },
-      { id: 'f3', inputLabel: 'Report Date', inputType: 'date', required: true }
-    ]
-  },
-  {
-    id: 'draft_4',
-    formName: 'Port Expansion Feasibility Study',
-    formDescription: 'Survey data collection for proposed new cargo terminals.',
-    dueDate: '2027-01-15',
-    assignType: 'wing',
-    selectedWings: ['Engineering', 'Project Management'],
-    fields: [
-      { id: 'f1', inputLabel: 'Proposed Terminal Name', inputType: 'text', required: true },
-      { id: 'f2', inputLabel: 'Estimated Cost (Cr)', inputType: 'number', required: true },
-      { id: 'f3', inputLabel: 'Initial Feasibility Status', inputType: 'dropdown', options: ['High', 'Medium', 'Low'], required: false }
-    ]
-  },
-  {
-    id: 'draft_5',
-    formName: 'Employee Grievance Form',
-    formDescription: 'Standardized form for internal employee grievances.',
-    dueDate: '2026-12-15',
-    assignType: 'wing',
-    selectedWings: ['Administration'],
-    fields: [
-      { id: 'f1', inputLabel: 'Department', inputType: 'dropdown', options: ['HR', 'Finance', 'Engineering', 'Operations'], required: true },
-      { id: 'f2', inputLabel: 'Description of Grievance', inputType: 'long-text', required: true }
-    ]
-  },
-  {
-    id: 'draft_6',
-    formName: 'Environmental Impact Assessment',
-    formDescription: 'Draft form for quarterly environmental impact reporting.',
-    dueDate: '2027-03-01',
-    assignType: 'organisation',
-    selectedOrgIds: ['1', '2', '3', '4', '5'],
-    fields: [
-      { id: 'f1', inputLabel: 'Assessment Quarter', inputType: 'dropdown', options: ['Q1', 'Q2', 'Q3', 'Q4'], required: true },
-      { id: 'f2', inputLabel: 'Air Quality Index', inputType: 'number', required: true },
-      { id: 'f3', inputLabel: 'Water Quality Status', inputType: 'radio', options: ['Optimal', 'Warning', 'Critical'], required: true }
-    ]
-  },
-  {
-    id: 'draft_7',
-    formName: 'Cargo Handling Equipment Request',
-    formDescription: 'Request form for new cranes, forklifts, and other heavy equipment.',
-    dueDate: '2026-10-25',
-    assignType: 'wing',
-    selectedWings: ['Operations', 'Finance'],
-    fields: [
-      { id: 'f1', inputLabel: 'Equipment Type', inputType: 'dropdown', options: ['Crane', 'Forklift', 'Tractor', 'Other'], required: true },
-      { id: 'f2', inputLabel: 'Quantity Required', inputType: 'number', required: true },
-      { id: 'f3', inputLabel: 'Urgency', inputType: 'radio', options: ['High', 'Normal', 'Low'], required: true },
-      { id: 'f4', inputLabel: 'Justification', inputType: 'long-text', required: true }
-    ]
-  }
-];
-
 export const FULL_ORGANISATION_LIST = [
   { id: '1', name: 'Syama Prasad Mookerjee Port Authority', code: 'SMPA', category: '1' },
   { id: '2', name: 'Paradip Port Authority', code: 'PPA', category: '1' },
@@ -243,6 +152,9 @@ export const INDIAN_STATES = [
   'Lakshadweep', 'Puducherry'
 ];
 
+// Today's date in India as YYYY-MM-DD, matching the server's due-date rule.
+const todayIST = () => new Date(Date.now() + 330 * 60 * 1000).toISOString().slice(0, 10);
+
 export default function FormBuilderStudio({ triggerNotification, onFormPublished, formToEdit }) {
   // Form Config State
   const [formName, setFormName] = useState('');
@@ -270,11 +182,31 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
   const [isClearMetadataModalOpen, setIsClearMetadataModalOpen] = useState(false);
   const [isDraftsModalOpen, setIsDraftsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [drafts, setDrafts] = useState(MOCK_DRAFTS);
+  // Drafts are saved on the server, private to the person who saved them.
+  const [drafts, setDrafts] = useState([]);
+  // The draft currently on the canvas, so saving again updates it instead of copying it.
+  const [currentDraftId, setCurrentDraftId] = useState(null);
 
-  const handleDeleteDraft = (draftId) => {
-    setDrafts(drafts.filter(d => d.id !== draftId));
-    triggerNotification && triggerNotification('Draft deleted successfully', 'info');
+  const loadDrafts = () => {
+    api.get('/get-form-drafts')
+      .then(res => setDrafts(Array.isArray(res.data) ? res.data : []))
+      .catch(err => console.error('Error loading drafts:', err));
+  };
+
+  useEffect(() => {
+    loadDrafts();
+  }, []);
+
+  const handleDeleteDraft = async (draftId) => {
+    try {
+      await api.delete(`/delete-form-draft/${draftId}`);
+      setDrafts(prev => prev.filter(d => d.id !== draftId));
+      if (draftId === currentDraftId) setCurrentDraftId(null);
+      triggerNotification && triggerNotification('Draft deleted successfully', 'info');
+    } catch (err) {
+      console.error('Error deleting draft:', err);
+      triggerNotification && triggerNotification(err.response?.data?.message || 'Could not delete the draft', 'error');
+    }
   };
   // Close org dropdown when clicking outside
   useEffect(() => {
@@ -373,7 +305,10 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       triggerNotification && triggerNotification('Form must contain at least one field', 'warning');
       return;
     }
-    const filtered = fields.filter(f => f.id !== id);
+    // Fields that depended on the removed one go back to having no parent.
+    const filtered = fields
+      .filter(f => f.id !== id)
+      .map(f => (f.dependsOn === id ? { ...f, dependsOn: null, optionsByParent: null } : f));
     setFields(filtered);
     if (selectedFieldId === id) {
       setSelectedFieldId(filtered[0]?.id || null);
@@ -413,6 +348,57 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       return;
     }
 
+    // Same rules as the server for options: at least one, none blank, no repeats.
+    const optionProblem = (label, list) => {
+      const opts = (list || []).map(o => String(o).trim());
+      if (opts.length === 0) return `"${label}" needs at least one option`;
+      if (opts.some(o => !o)) return `"${label}" has an empty option`;
+      const dup = opts.find((o, i) => opts.findIndex(x => x.toLowerCase() === o.toLowerCase()) !== i);
+      return dup ? `"${label}" has the option "${dup}" more than once` : null;
+    };
+    for (const [i, f] of fields.entries()) {
+      if (!f.dependsOn) continue;
+      const parentIndex = fields.findIndex(p => p.id === f.dependsOn);
+      if (parentIndex === -1) continue; // unlinked on publish
+      if (parentIndex > i) {
+        triggerNotification && triggerNotification(`"${f.inputLabel}" must come after "${fields[parentIndex].inputLabel}", which it depends on`, 'warning');
+        return;
+      }
+      if (f.inputType === 'dropdown') {
+        for (const po of fields[parentIndex].options || []) {
+          const problem = optionProblem(`${f.inputLabel}" for "${String(po).trim()}`, (f.optionsByParent || {})[po]);
+          if (problem) {
+            triggerNotification && triggerNotification(problem, 'warning');
+            return;
+          }
+        }
+      }
+    }
+    for (const f of fields) {
+      if (!['dropdown', 'radio', 'multiple-select'].includes(f.inputType)) continue;
+      if (f.inputType === 'dropdown' && f.dependsOn && fields.some(p => p.id === f.dependsOn)) continue; // checked above
+      const opts = (f.options || []).map(o => String(o).trim());
+      if (opts.length === 0) {
+        triggerNotification && triggerNotification(`"${f.inputLabel}" needs at least one option`, 'warning');
+        return;
+      }
+      if (opts.some(o => !o)) {
+        triggerNotification && triggerNotification(`"${f.inputLabel}" has an empty option`, 'warning');
+        return;
+      }
+      const dup = opts.find((o, i) => opts.findIndex(x => x.toLowerCase() === o.toLowerCase()) !== i);
+      if (dup) {
+        triggerNotification && triggerNotification(`"${f.inputLabel}" has the option "${dup}" more than once`, 'warning');
+        return;
+      }
+    }
+
+    // Same rule as the server: no past due date, except an overdue form keeping its date.
+    if (dueDate && dueDate < todayIST() && dueDate !== formToEdit?.dueDate) {
+      triggerNotification && triggerNotification('The due date cannot be in the past', 'warning');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const selectedOrgNames = assignType === 'organisation' ? FULL_ORGANISATION_LIST.filter(o => selectedOrgIds.includes(o.id)).map(o => o.code) : [];
@@ -425,14 +411,24 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       formName,
       formattedFormId: formName.replace(/[^a-zA-Z0-9]/g, '_'),
       content: generateHtmlContent(),
-      formFields: fields.map(f => ({
-        inputLabel: f.inputLabel,
-        inputType: f.inputType,
-        inputid: f.id,
-        placeholder: f.placeholder,
-        required: f.required,
-        options: f.options
-      })),
+      formFields: fields.map(f => {
+        // Dependent dropdown: one option list per parent option (keys follow the
+        // parent's current options; stale keys from renamed options are dropped).
+        const parent = f.dependsOn ? fields.find(p => p.id === f.dependsOn) : null;
+        const byParent = parent && f.inputType === 'dropdown'
+          ? Object.fromEntries((parent.options || []).map(po => [String(po).trim(), (f.optionsByParent || {})[po] || []]))
+          : null;
+        return {
+          inputLabel: f.inputLabel,
+          inputType: f.inputType,
+          inputid: f.id,
+          placeholder: f.placeholder,
+          required: f.required,
+          options: byParent ? [...new Set(Object.values(byParent).flat())] : f.options,
+          dependsOn: parent ? f.dependsOn : null,
+          optionsByParent: byParent,
+        };
+      }),
       mmtData: [{
         formDescription,
         formDueDate: dueDate,
@@ -448,6 +444,11 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
       // axios resolves only on 2xx and throws otherwise, unlike fetch --
       // reaching this line at all means the request succeeded.
       await api.post('/modify-form-builder-input-form', payload);
+      // A published draft has done its job; remove it so it doesn't linger in Load Draft.
+      if (currentDraftId) {
+        api.delete(`/delete-form-draft/${currentDraftId}`).catch(err => console.error('Error removing published draft:', err));
+        setCurrentDraftId(null);
+      }
       triggerNotification && triggerNotification(`Form "${formName}" ${formToEdit?.id ? 'updated' : 'published'} successfully!`, 'success');
       onFormPublished && onFormPublished();
     } catch (err) {
@@ -462,12 +463,23 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
     }
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!formName.trim()) {
       triggerNotification && triggerNotification('Please enter a Form Name to save as draft', 'warning');
       return;
     }
-    triggerNotification && triggerNotification(`Draft "${formName}" saved successfully!`, 'success');
+    try {
+      const res = await api.post('/save-form-draft', {
+        draftId: currentDraftId,
+        draft: { formName, formDescription, dueDate, assignType, selectedWings, selectedOrgIds, activeStatus, fields },
+      });
+      setCurrentDraftId(res.data.draft.id);
+      loadDrafts();
+      triggerNotification && triggerNotification(`Draft "${formName}" saved successfully!`, 'success');
+    } catch (err) {
+      console.error('Error saving draft:', err);
+      triggerNotification && triggerNotification(err.response?.data?.message || 'Could not save the draft', 'error');
+    }
   };
 
   const generateHtmlContent = () => {
@@ -494,6 +506,8 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
     if (draft.assignType) setAssignType(draft.assignType);
     if (draft.selectedWings) setSelectedWings(draft.selectedWings);
     if (draft.selectedOrgIds) setSelectedOrgIds(draft.selectedOrgIds);
+    if (draft.activeStatus) setActiveStatus(draft.activeStatus);
+    setCurrentDraftId(draft.id);
     setIsDraftsModalOpen(false);
     triggerNotification && triggerNotification(`Draft "${draft.formName}" loaded successfully!`, 'success');
   };
@@ -516,7 +530,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
               <span>Clear</span>
             </button>
             <button
-              onClick={() => setIsDraftsModalOpen(true)}
+              onClick={() => { loadDrafts(); setIsDraftsModalOpen(true); }}
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-lg transition cursor-pointer"
             >
               <FolderOpen className="h-4 w-4" />
@@ -771,6 +785,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
               <input
                 type="date"
                 value={dueDate}
+                min={todayIST()}
                 onChange={(e) => setDueDate(e.target.value)}
                 className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
               />
@@ -1057,6 +1072,34 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                   </select>
                 </div>
 
+                {/* Depends On: a dropdown can follow an earlier dropdown / radio. Only fields above can be picked. */}
+                {selectedField.inputType === 'dropdown' && (() => {
+                  const index = fields.findIndex(f => f.id === selectedField.id);
+                  const candidates = fields.slice(0, index).filter(f => ['dropdown', 'radio'].includes(f.inputType));
+                  return (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Depends On
+                      </label>
+                      <select
+                        value={selectedField.dependsOn || ''}
+                        onChange={(e) => handleUpdateField(selectedField.id, 'dependsOn', e.target.value || null)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                      >
+                        <option value="">Nothing (fixed list of options)</option>
+                        {candidates.map(c => (
+                          <option key={c.id} value={c.id}>{`Options change with "${c.inputLabel}"`}</option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        {candidates.length === 0
+                          ? 'Add a dropdown or radio field above this one to link it.'
+                          : 'Only fields above this one can be chosen.'}
+                      </p>
+                    </div>
+                  );
+                })()}
+
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
                     Placeholder Text
@@ -1092,7 +1135,67 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                   />
                 </div>
 
-                {(selectedField.inputType === 'dropdown' || selectedField.inputType === 'multiple-select' || selectedField.inputType === 'radio') && (
+                {/* Dependent dropdown: one option list for each option of its parent. */}
+                {selectedField.inputType === 'dropdown' && selectedField.dependsOn && (() => {
+                  const parent = fields.find(f => f.id === selectedField.dependsOn);
+                  const byParent = selectedField.optionsByParent || {};
+                  const setGroup = (key, list) => handleUpdateField(selectedField.id, 'optionsByParent', { ...byParent, [key]: list });
+                  return (
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase">
+                        Options for each "{parent?.inputLabel}" choice
+                      </label>
+                      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {(parent?.options || []).map((po) => {
+                          const group = byParent[po] || [];
+                          return (
+                            <div key={po} className="border border-slate-200 rounded-lg p-2 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-slate-600 truncate">When "{po}"</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setGroup(po, [...group, `Option ${group.length + 1}`])}
+                                  className="text-[11px] text-blue-600 font-bold hover:underline flex items-center space-x-1 cursor-pointer shrink-0"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                  <span>Add</span>
+                                </button>
+                              </div>
+                              {group.map((opt, idx) => (
+                                <div key={idx} className="flex items-center space-x-1.5">
+                                  <input
+                                    type="text"
+                                    value={opt}
+                                    maxLength={255}
+                                    onChange={(e) => {
+                                      const updated = [...group];
+                                      updated[idx] = e.target.value;
+                                      setGroup(po, updated);
+                                    }}
+                                    className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:bg-white focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setGroup(po, group.filter((_, i) => i !== idx))}
+                                    className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                                    title="Remove Option"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                              {group.length === 0 && (
+                                <p className="text-[10px] font-semibold text-amber-600">No options yet: add at least one.</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {(selectedField.inputType === 'dropdown' || selectedField.inputType === 'multiple-select' || selectedField.inputType === 'radio') && !(selectedField.inputType === 'dropdown' && selectedField.dependsOn) && (
                   <div className="space-y-2 pt-2 border-t border-slate-100">
                     <div className="flex items-center justify-between">
                       <label className="block text-[11px] font-bold text-slate-700 uppercase">
@@ -1124,6 +1227,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
                               handleUpdateField(selectedField.id, 'options', updated);
                             }}
                             placeholder={`Option ${idx + 1}`}
+                            maxLength={255}
                             className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:bg-white focus:ring-1 focus:ring-blue-500"
                           />
                           <button
@@ -1191,6 +1295,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
           setDueDate('');
           setSelectedWings([]);
           setSelectedOrgIds([]);
+          setCurrentDraftId(null); // cleared form = new form; the next Save Draft creates a new draft
           setIsClearMetadataModalOpen(false);
           triggerNotification && triggerNotification('Form configuration and metadata cleared', 'info');
         }}
@@ -1223,7 +1328,7 @@ export default function FormBuilderStudio({ triggerNotification, onFormPublished
               <div className="flex items-center space-x-3 text-[10px] font-semibold text-slate-400">
                 <span className="flex items-center space-x-1">
                   <List className="h-3 w-3" />
-                  <span>{draft.fields.length} Fields</span>
+                  <span>{(draft.fields || []).length} Fields</span>
                 </span>
                 <span className="flex items-center space-x-1">
                   <CalendarDays className="h-3 w-3" />

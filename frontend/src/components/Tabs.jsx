@@ -208,7 +208,6 @@ export default function Tabs({ activeTab, setActiveTab }) {
           items: [
             m('KPI_MAJOR_PORTS', { label: 'Major Ports Dashboard', icon: LayoutDashboard }),
             m('KPI_MAJOR_PORTS', { label: 'Major Ports Input Form', icon: FileEdit }),
-            m('KPI_MAJOR_PORTS', { label: 'Major Ports Reports', icon: FilePieChart }),
           ]
         },
         {
@@ -455,7 +454,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'left-0',
       width: 'w-[220px]',
       items: [
-        m('FORM_BUILDER', { label: 'Form Studio', tab: 'Form Studio', icon: FileEdit }),
+        // Only Ministry users author forms; organisation users only fill them in.
+        ...(!isOrgUser ? [m('FORM_BUILDER', { label: 'Form Studio', tab: 'Form Studio', icon: FileEdit })] : []),
         m('FORM_BUILDER', { label: 'Form Directory', tab: 'Form Directory', icon: FileText }),
         m('FORM_BUILDER', { label: 'Inbox Forms', tab: 'Inbox Forms', icon: ClipboardList }),
       ]

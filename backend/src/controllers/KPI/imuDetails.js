@@ -75,15 +75,47 @@ async function createStudentEnrollment(req,res) {
 
 async function getStudentEnrollment(req,res) {
     try {
-        const conn = await pool; 
-        const request = conn.request();
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const getQuery = `SELECT * FROM tbl_imu_k_5_1
-        ORDER BY financial_year DESC`
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        const result = await request.query(getQuery);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
 
-        res.json(result.recordset);
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_imu_k_5_1 ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_imu_k_5_1
+                ${whereClause}
+                ORDER BY financial_year DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        const rows = pageResult.recordset || [];
+
+        res.json({
+            data: rows,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
     } catch (error) {
         console.log("error",error)
         return res.status(500).json({ message: 'Internal Server Error'});
@@ -210,15 +242,47 @@ async function createimunewCourseUpgradation(req, res) {
 
 async function getimuNewCourseUpgradation(req,res) {
     try {
-        const conn = await pool; 
-        const request = conn.request();
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const getQuery = `SELECT * FROM tbl_imu_k_5_2
-        ORDER BY financial_year DESC`
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        const result = await request.query(getQuery);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
 
-        res.json(result.recordset);
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_imu_k_5_2 ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_imu_k_5_2
+                ${whereClause}
+                ORDER BY financial_year DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        const rows = pageResult.recordset || [];
+
+        res.json({
+            data: rows,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
     } catch (error) {
         console.log("error",error)
         return res.status(500).json({ message: 'Internal Server Error'});
@@ -368,15 +432,47 @@ async function createimuFacilities(req,res) {
 
 async function getimuFacilities(req,res) {
     try {
-        const conn = await pool; 
-        const request = conn.request();
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const getQuery = `SELECT * FROM tbl_imu_k_5_3 
-        ORDER BY financial_year DESC`
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        const result = await request.query(getQuery);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
 
-        res.json(result.recordset);
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_imu_k_5_3 ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_imu_k_5_3
+                ${whereClause}
+                ORDER BY financial_year DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        const rows = pageResult.recordset || [];
+
+        res.json({
+            data: rows,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
     } catch (error) {
         console.log("error",error)
         return res.status(500).json({ message: 'Internal Server Error'});
@@ -527,15 +623,47 @@ async function createimuPartnership(req,res) {
 
 async function getimuPartnership(req,res) {
     try {
-        const conn = await pool; 
-        const request = conn.request();
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const getQuery = `SELECT * FROM tbl_imu_k_5_4
-        ORDER BY financial_year DESC`
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        const result = await request.query(getQuery);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
 
-        res.json(result.recordset);
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_imu_k_5_4 ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_imu_k_5_4
+                ${whereClause}
+                ORDER BY financial_year DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        const rows = pageResult.recordset || [];
+
+        res.json({
+            data: rows,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
     } catch (error) {
         console.log("error",error)
         return res.status(500).json({ message: 'Internal Server Error'});
@@ -670,15 +798,47 @@ async function createImuResearch(req,res) {
 
 async function getImuResearch(req,res) {
     try {
-        const conn = await pool; 
-        const request = conn.request();
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const getQuery = `SELECT * FROM tbl_imu_k_5_5
-        ORDER BY financial_year DESC`
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        const result = await request.query(getQuery);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE financial_year LIKE @search';
+        }
 
-        res.json(result.recordset);
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_imu_k_5_5 ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_imu_k_5_5
+                ${whereClause}
+                ORDER BY financial_year DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        const rows = pageResult.recordset || [];
+
+        res.json({
+            data: rows,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
     } catch (error) {
         console.log("error",error)
         return res.status(500).json({ message: 'Internal Server Error'});

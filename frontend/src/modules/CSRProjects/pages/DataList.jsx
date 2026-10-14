@@ -407,7 +407,7 @@ export default function DataList({
                 type="button"
                 onClick={() => onEdit(p.data)}
                 title="Edit Project"
-                className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-2xs transition cursor-pointer flex items-center justify-center"
+                className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer flex items-center justify-center"
               >
                 <Edit className="h-3.5 w-3.5" />
               </button>
