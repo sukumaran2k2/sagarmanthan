@@ -1,5 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import {
+    createContractualData
+} from '../api.js';
+import { getCurrentUserId,getSessionOrganisationId } from '../../../utils/authSession.js';
+
+const organisationID = getSessionOrganisationId();
 
 export default function ContractualDataForm({ triggerNotification }) {
   const navigate = useNavigate();
@@ -60,14 +66,56 @@ export default function ContractualDataForm({ triggerNotification }) {
   const totalOfficer = calculateTotal('officer');
   const totalNonOfficer = calculateTotal('nonOfficer');
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (triggerNotification) {
-      triggerNotification(editData ? 'Contractual Data updated successfully' : 'Contractual Data submitted successfully', 'success');
-    }
-    // API call would go here
-  };
+  const handleSubmit = async (e) => {
+  e.preventDefault();
 
+  try {
+      const payload = {
+          contractId: editData?.id || null,
+
+          financialYear: formData.financialYear,
+
+          OffDirectEngage: Number(formData.officerDirectEngagement) || 0,
+          OffRetiredFromOther: Number(formData.officerRetiredGovt) || 0,
+          OffRetiredFromOwnOrgan: Number(formData.officerRetiredOwnOrg) || 0,
+          OffThroughAgency: Number(formData.officerThroughAgency) || 0,
+          OffForMinistry: Number(formData.officerForMinistry) || 0,
+
+          NonOffDirectEngage: Number(formData.nonOfficerDirectEngagement) || 0,
+          NonOffRetiredFromOther: Number(formData.nonOfficerRetiredGovt) || 0,
+          NonOffRetiredFromOwnOrgan: Number(formData.nonOfficerRetiredOwnOrg) || 0,
+          NonOffThroughAgency: Number(formData.nonOfficerThroughAgency) || 0,
+          NonOffForMinistry: Number(formData.nonOfficerForMinistry) || 0,
+
+          TotalOfficial: totalOfficer,
+          NonOffTotal: totalNonOfficer,
+          organisationID: organisationID,
+          userID: getCurrentUserId(),
+      };
+
+       const response = await createContractualData(payload);
+
+        if (response.data?.success) {
+
+            const msg = editData
+                ? 'Contractual Data updated successfully'
+                : 'Contractual Data submitted successfully';
+
+            if (typeof triggerNotification === 'function') {
+                triggerNotification(msg, 'success');
+            }
+
+            navigate('/hr/hr-management/contractual-employment');
+        }
+
+  } catch (error) {
+    console.error('Contractual API error:', error);
+    const msg = error.response?.data?.message || 'Failed to save contractual data';
+    if (typeof triggerNotification === 'function') triggerNotification(msg, 'error');
+    else triggerNotification(msg);
+  }
+
+};
   const currentYear = new Date().getFullYear();
   const years = Array.from(new Array(5), (val, index) => `${currentYear - index}-${currentYear - index + 1}`);
 

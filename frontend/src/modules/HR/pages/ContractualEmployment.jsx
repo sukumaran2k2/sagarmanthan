@@ -8,6 +8,7 @@ import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { API_BASE_URL } from '../../../config/api';
 import { getCurrentUserId, isOrganisationUser } from '../../../utils/authSession';
+import { deleteContractualData } from '../api.js';
 
 export default function ContractualEmployment() {
   const [staff, setStaff] = useState([]);
@@ -23,11 +24,34 @@ export default function ContractualEmployment() {
     navigate('/hr/hr-management/input-form/contractual-data', { state: { editData: data } });
   };
 
-  const handleDelete = (data) => {
-    if (window.confirm('Are you sure you want to delete this record?')) {
-      alert(`Delete record for ${data['Financial Year']} ? Backend API integration pending.`);
-    }
-  };
+  const getRowIds = (row) => ({
+  contractId: row.contract_id ?? row.contractId ?? row.ContractId ?? row.id,
+  organisationID: row.organisation_id ?? row.organisationID ?? row.organisationId ?? row.OrganisationID,
+});
+
+const handleDelete = async (data) => {
+  if (!window.confirm('Are you sure you want to delete this record?')) return;
+
+  const { contractId, organisationID: rowOrgId } = getRowIds(data);
+  const organisationID = rowOrgId ?? getCurrentUserId();
+
+  if (!contractId || !organisationID) {
+    console.error('Missing ids for delete. Row was:', data);
+    alert('Cannot delete: record id is missing.');
+    return;
+  }
+
+  try {
+    const res = await deleteContractualData(contractId, organisationID);
+    console.log('Delete response:', res.status, res.data);
+
+    // remove the row immediately
+    setStaff(prev => prev.filter(r => getRowIds(r).contractId !== contractId));
+  } catch (err) {
+    console.error('Delete error:', err.response?.status, err.response?.data || err.message);
+    alert(err.response?.data?.message || 'Failed to delete record');
+  }
+};
 
   useEffect(() => {
     let isMounted = true;
@@ -56,8 +80,8 @@ export default function ContractualEmployment() {
   const columnDefs = useMemo(() => {
     const cols = [
       { headerName: 'S.No', valueGetter: 'node.rowIndex + 1', minWidth: 80, maxWidth: 100, pinned: 'left', cellClass: 'text-center font-bold text-slate-500', headerClass: 'text-center' },
-      { field: 'Organisation Name', headerName: 'Organisation Name', minWidth: 250, pinned: 'left', cellClass: 'font-extrabold text-slate-900 text-center', headerClass: 'text-center' },
-      { field: 'Financial Year', headerName: 'Financial Year', minWidth: 150, cellClass: 'text-center', headerClass: 'text-center' },
+      { field: 'Organisation Name', headerName: 'Organisation', minWidth: 250, pinned: 'left', cellClass: 'font-extrabold text-slate-900 text-center flex justify-center', headerClass: 'text-center' },
+      { field: 'Financial Year', headerName: 'Financial Year', minWidth: 150, cellClass: 'text-center flex justify-center', headerClass: 'text-center' },
       { field: 'Total for officers level', headerName: 'Total Contractual Employees at Officer level', minWidth: 250, cellClass: 'text-center font-bold text-blue-600', headerClass: 'text-center' },
       { field: 'Total for Non-officers level', headerName: 'Total Contractual Employees at Non Officer level', minWidth: 250, cellClass: 'text-center font-bold text-blue-600', headerClass: 'text-center' }
     ];

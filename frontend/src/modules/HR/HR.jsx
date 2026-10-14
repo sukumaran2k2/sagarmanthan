@@ -19,6 +19,7 @@ import EmployeeDatabase from './pages/EmployeeDatabase';
 import EmployeeDataForm from './components/EmployeeDataForm';
 import AddPostForm from './components/AddPostForm';
 
+
 export default function HRDashboardView({ triggerNotification }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -82,7 +83,7 @@ export default function HRDashboardView({ triggerNotification }) {
           <Route path="abolished-posts" element={<ListAbolishedPosts triggerNotification={triggerNotification} />} />
           <Route path="contractual-employment" element={<ContractualEmployment triggerNotification={triggerNotification} />} />
           <Route path="training-details" element={<TrainingDetails triggerNotification={triggerNotification} />} />
-          <Route path="input-form/*" element={<InputForm triggerNotification={triggerNotification} />} />
+         <Route path="input-form/*" element={<InputForm triggerNotification={triggerNotification} />} />
 
           <Route index element={<Navigate to="employee-database" replace />} />
           <Route path="*" element={<Navigate to="employee-database" replace />} />

@@ -10,6 +10,18 @@ import CopyButton from '../../../components/CopyButton';
 import { API_BASE_URL } from '../../../config/api';
 import { getCurrentUserId } from '../../../utils/authSession';
 
+const getParticipantCount = (row) => {
+  const value = row?.NO_OF_PARTICIPANTS;
+
+  if (value === null || value === undefined || value === '') {
+    return 0;
+  }
+
+  const count = Number(value);
+
+  return Number.isFinite(count) ? count : 0;
+};
+
 export default function TrainingDetailView({
   detail,
   onBack,
@@ -82,128 +94,146 @@ export default function TrainingDetailView({
 
   // Load data: either from detail.trainingsList or fetch from API
   useEffect(() => {
-    if (detail?.trainingsList && detail.trainingsList.length > 0) {
-      return;
-    }
+  let isMounted = true;
 
-    let isMounted = true;
-    const userId = getCurrentUserId() || '1';
-    axios.get(`${API_BASE_URL}/get-all-training-data/${userId}`)
-      .then(res => {
-        if (!isMounted) return;
-        const rawData = res.data || [];
-        const filtered = rawData.filter(row => {
-          const rowOrg = (row['Organisation Name'] || '').trim().toLowerCase();
-          const targetOrg = organisationName.trim().toLowerCase();
-          const matchOrg = rowOrg === targetOrg;
+  const userId = getCurrentUserId() || '1';
 
-          const toDate = row['To date'] ? new Date(row['To date']) : null;
-          const fromDate = row['From date'] ? new Date(row['From date']) : null;
-          const rowYear = toDate ? toDate.getFullYear().toString() : (fromDate ? fromDate.getFullYear().toString() : '');
-          const matchYear = !year || year === 'All Years' || year === 'N/A' || rowYear === String(year);
+  console.log("Fetching training data for user:", userId);
 
-          return matchOrg && matchYear;
-        });
-        setTrainings(filtered);
-      })
-      .catch(err => {
-        console.error("Error loading training detail records:", err);
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
+  axios
+    .get(`${API_BASE_URL}/get-all-training-data/${userId}`)
+    .then(res => {
+      if (!isMounted) return;
+
+      const rawData = Array.isArray(res.data) ? res.data : [];
+
+      console.log("RAW TRAINING API DATA:", rawData);
+
+      console.log(
+        "PARTICIPANT COUNTS FROM API:",
+        rawData.map(row => ({
+          trainingId: row['Training ID'],
+          participants: row['NO_OF_PARTICIPANTS']
+        }))
+      );
+
+      const filtered = rawData.filter(row => {
+        const rowOrg = (row['Organisation Name'] || '')
+          .trim()
+          .toLowerCase();
+
+        const targetOrg = organisationName
+          .trim()
+          .toLowerCase();
+
+        const matchOrg = rowOrg === targetOrg;
+
+        const toDate = row['To date']
+          ? new Date(row['To date'])
+          : null;
+
+        const fromDate = row['From date']
+          ? new Date(row['From date'])
+          : null;
+
+        const rowYear = toDate
+          ? toDate.getFullYear().toString()
+          : fromDate
+            ? fromDate.getFullYear().toString()
+            : '';
+
+        const matchYear =
+          !year ||
+          year === 'All Years' ||
+          year === 'N/A' ||
+          rowYear === String(year);
+
+        return matchOrg && matchYear;
       });
 
-    return () => { isMounted = false; };
-  }, [detail, organisationName, year]);
+      console.log("FILTERED TRAININGS:", filtered);
+
+      setTrainings(filtered);
+    })
+    .catch(err => {
+      console.error(
+        "Error loading training detail records:",
+        err
+      );
+    })
+    .finally(() => {
+      if (isMounted) {
+        setLoading(false);
+      }
+    });
+
+  return () => {
+    isMounted = false;
+  };
+}, [organisationName, year]);
 
   // Load participant records and full training details when a training is selected
   useEffect(() => {
-    if (!selectedTrainingForParticipants) {
-      setParticipantStaffList([]);
-      setTrainingFullDetails(null);
-      return;
-    }
+  if (!selectedTrainingForParticipants) {
+    setParticipantStaffList([]);
+    setTrainingFullDetails(null);
+    return;
+  }
 
-    const trainingId = 
-      selectedTrainingForParticipants['Training ID'] || 
-      selectedTrainingForParticipants.training_id || 
-      selectedTrainingForParticipants.TRAINING_ID ||
-      selectedTrainingForParticipants['Training tile ID'];
+  const trainingId =
+    selectedTrainingForParticipants['Training ID'] ||
+    selectedTrainingForParticipants.training_id ||
+    selectedTrainingForParticipants.TRAINING_ID;
 
-    const expectedCount = parseInt(
-      selectedTrainingForParticipants['No of Participants'] ?? 
-      selectedTrainingForParticipants['Number of Participants'] ?? 
-      selectedTrainingForParticipants['NUMBER OF PARTICIPANTS'] ?? 
-      selectedTrainingForParticipants.number_of_participants ?? 
-      selectedTrainingForParticipants.NO_OF_PARTICIPANTS ?? 
-      1, 
-      10
-    );
+  let isMounted = true;
 
-    const buildStaffList = (count) => {
-      const rowEmp = selectedTrainingForParticipants['Employ name'] || selectedTrainingForParticipants.emp_name;
-      const rowEmpId = selectedTrainingForParticipants.employee_id || selectedTrainingForParticipants['Employee ID'];
-      const rowPost = selectedTrainingForParticipants['Designation'] || selectedTrainingForParticipants.post_name;
-      const rowDept = selectedTrainingForParticipants['Department name'] || selectedTrainingForParticipants.department_name;
-      const orgCode = organisationName.replace(/[^A-Z]/g, '').slice(0, 4) || 'EMP';
+  setParticipantLoading(true);
+  setParticipantStaffList([]);
+  setTrainingFullDetails(null);
 
-      const list = [];
-      if (rowEmp) {
-        list.push({
-          emp_name: rowEmp,
-          employee_id: rowEmpId || `${orgCode}-101`,
-          emp_post_name: rowPost || 'Officer',
-          emp_department_name: rowDept || 'Operations'
-        });
+  if (!trainingId) {
+    setParticipantLoading(false);
+    return;
+  }
+
+  axios
+    .get(`${API_BASE_URL}/get-hr-training-data-by-id/${trainingId}`)
+    .then(res => {
+      if (!isMounted) return;
+
+      console.log('Training ID:', trainingId);
+      console.log('Selected training:', selectedTrainingForParticipants);
+      console.log('Training API response:', res.data);
+
+      if (res.data?.training) {
+        setTrainingFullDetails(res.data.training);
       }
 
-      const targetCount = isNaN(count) || count < 1 ? 1 : count;
-      while (list.length < targetCount) {
-        const idx = list.length + 1;
-        list.push({
-          emp_name: `Registered Participant ${idx}`,
-          employee_id: `${orgCode}-${100 + idx}`,
-          emp_post_name: rowPost && rowPost !== '-' ? rowPost : 'Registered Trainee',
-          emp_department_name: rowDept && rowDept !== '-' ? rowDept : 'Operations'
-        });
+      const participants = Array.isArray(res.data?.participants)
+        ? res.data.participants
+        : [];
+
+      console.log('Actual participant records:', participants);
+
+      setParticipantStaffList(participants);
+    })
+    .catch(err => {
+      console.error('Error fetching participant roster:', err);
+
+      if (isMounted) {
+        setParticipantStaffList([]);
       }
-      setParticipantStaffList(list);
-    };
+    })
+    .finally(() => {
+      if (isMounted) {
+        setParticipantLoading(false);
+      }
+    });
 
-    if (!trainingId) {
-      buildStaffList(expectedCount);
-      return;
-    }
-
-    let isMounted = true;
-    setParticipantLoading(true);
-
-    axios.get(`${API_BASE_URL}/get-hr-training-data-by-id/${trainingId}`)
-      .then(res => {
-        if (!isMounted) return;
-        if (res.data?.training) {
-          setTrainingFullDetails(res.data.training);
-        }
-        const participants = res.data?.participants || [];
-        if (participants.length > 0) {
-          setParticipantStaffList(participants);
-        } else {
-          buildStaffList(expectedCount);
-        }
-      })
-      .catch(err => {
-        console.error("Error fetching participant roster:", err);
-        if (isMounted) {
-          buildStaffList(expectedCount);
-        }
-      })
-      .finally(() => {
-        if (isMounted) setParticipantLoading(false);
-      });
-
-    return () => { isMounted = false; };
-  }, [selectedTrainingForParticipants, organisationName]);
-
+  return () => {
+    isMounted = false;
+  };
+}, [selectedTrainingForParticipants]);
   // Unique filters from loaded data
   const uniqueTitles = useMemo(() => {
     const titles = trainings.map(t => t['Title'] || t['Training Title'] || t['TRAINING TITLE']).filter(Boolean);
@@ -244,34 +274,35 @@ export default function TrainingDetailView({
 
   // Summary Metrics for Trainings Table
   const summaryMetrics = useMemo(() => {
-    let totalExpenditure = 0;
-    let totalParticipants = 0;
+  let totalExpenditure = 0;
+  let totalParticipants = 0;
 
-    filteredRows.forEach(row => {
-      const exp = parseFloat(row['Expenditure'] || row['Expenditure (In Lakh)'] || row.expenditure || 0);
-      if (!isNaN(exp) && exp > 0) {
-        totalExpenditure += exp < 1000 ? exp : exp / 100000;
-      }
+  filteredRows.forEach(row => {
+    const exp = parseFloat(
+      row['Expenditure'] ??
+      row['Expenditure (In Lakh)'] ??
+      row.expenditure ??
+      0
+    );
 
-      const parts = parseInt(
-        row['No of Participants'] || 
-        row['Number of Participants'] || 
-        row['NUMBER OF PARTICIPANTS'] || 
-        row.number_of_participants || 
-        1, 
-        10
-      );
-      if (!isNaN(parts) && parts > 0) totalParticipants += parts;
-    });
+    if (!isNaN(exp) && exp > 0) {
+      totalExpenditure += exp < 1000 ? exp : exp / 100000;
+    }
 
-    const expLakh = totalExpenditure > 0 ? totalExpenditure.toFixed(2) : '0.00';
+    const parts = getParticipantCount(row);
 
-    return {
-      totalTrainings: filteredRows.length,
-      totalParticipants,
-      totalExpenditureLakh: expLakh
-    };
-  }, [filteredRows]);
+    totalParticipants += parts;
+  });
+
+  return {
+    totalTrainings: filteredRows.length,
+    totalParticipants,
+    totalExpenditureLakh:
+      totalExpenditure > 0
+        ? totalExpenditure.toFixed(2)
+        : '0.00'
+  };
+}, [filteredRows]);
 
   // Filtered Participants List
   const filteredParticipants = useMemo(() => {
@@ -304,7 +335,7 @@ export default function TrainingDetailView({
         minWidth: 70,
         maxWidth: 90,
         pinned: 'left',
-        cellClass: 'text-center font-bold text-slate-500',
+        cellClass: 'text-center flex justify-center items-center font-bold text-slate-500',
         headerClass: 'text-center'
       },
       {
@@ -314,7 +345,7 @@ export default function TrainingDetailView({
         minWidth: 260,
         flex: 2,
         pinned: 'left',
-        cellClass: 'font-extrabold text-slate-900 dark:text-slate-100 flex items-center',
+        cellClass: 'text-center flex justify-center items-center font-extrabold text-slate-900 dark:text-slate-100 flex items-center',
         headerClass: 'text-center'
       },
       {
@@ -322,7 +353,7 @@ export default function TrainingDetailView({
         field: 'Training Type',
         valueGetter: (params) => params.data?.['Training Type'] || params.data?.['TRAINING TYPE'] || params.data?.['TRAINING_TYPE_NAME'] || '-',
         minWidth: 170,
-        cellClass: 'text-center font-medium text-slate-700 dark:text-slate-300',
+        cellClass: 'text-center flex justify-center items-center font-medium text-slate-700 dark:text-slate-300',
         headerClass: 'text-center'
       },
       {
@@ -330,7 +361,7 @@ export default function TrainingDetailView({
         field: 'From date',
         valueGetter: (params) => formatDateYYYYMMDD(params.data?.['From date'] || params.data?.['From Date'] || params.data?.from_date),
         minWidth: 130,
-        cellClass: 'text-center font-mono text-slate-600 dark:text-slate-400',
+        cellClass: 'text-center flex justify-center items-center font-mono text-slate-600 dark:text-slate-400',
         headerClass: 'text-center'
       },
       {
@@ -338,7 +369,7 @@ export default function TrainingDetailView({
         field: 'To date',
         valueGetter: (params) => formatDateYYYYMMDD(params.data?.['To date'] || params.data?.['To Date'] || params.data?.to_date),
         minWidth: 130,
-        cellClass: 'text-center font-mono text-slate-600 dark:text-slate-400',
+        cellClass: 'text-center flex justify-center items-center font-mono text-slate-600 dark:text-slate-400',
         headerClass: 'text-center'
       },
       {
@@ -346,37 +377,33 @@ export default function TrainingDetailView({
         field: 'Expenditure',
         valueGetter: (params) => formatExpenditureInLakh(params.data?.['Expenditure'] || params.data?.['Expenditure (In Lakh)'] || params.data?.expenditure),
         minWidth: 170,
-        cellClass: 'text-center font-bold text-slate-800 dark:text-slate-200',
+        cellClass: 'text-center flex justify-center items-center font-bold text-slate-800 dark:text-slate-200',
         headerClass: 'text-center'
       },
       {
-        headerName: 'Number of Participants',
-        field: 'No of Participants',
-        minWidth: 170,
-        cellClass: 'text-center',
-        headerClass: 'text-center',
-        cellRenderer: (params) => {
-          const count = params.data?.['No of Participants'] ?? 
-                        params.data?.['Number of Participants'] ?? 
-                        params.data?.['NUMBER OF PARTICIPANTS'] ?? 
-                        params.data?.number_of_participants ?? 
-                        1;
-          return (
-            <div className="flex items-center justify-center h-full">
-              <button
-                type="button"
-                onClick={() => handleOpenParticipants(params.data)}
-                title="Click to view details & participant roster"
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 font-extrabold hover:underline cursor-pointer px-2.5 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition text-xs flex items-center gap-1"
-              >
-                <span>{count}</span>
-              </button>
-            </div>
-          );
-        }
+  headerName: 'Number of Participants',
+  field: 'NO_OF_PARTICIPANTS',
+  minWidth: 170,
+  cellClass: 'text-center flex justify-center items-center',
+  headerClass: 'text-center',
+  cellRenderer: (params) => {
+    const count = getParticipantCount(params.data);
+
+    return (
+      <div className="flex items-center justify-center h-full">
+        <button
+          type="button"
+          onClick={() => handleOpenParticipants(params.data)}
+          className="text-blue-600 hover:underline"
+        >
+          {count}
+        </button>
+      </div>
+    );
+  }
       }
     ];
-  }, [handleOpenParticipants]);
+  }, [handleOpenParticipants, getParticipantCount]);
 
   // Column Definitions for Participant Details Table View (Matching user specification)
   // S. No | Staff ID | Name | Designation | Department
@@ -388,7 +415,7 @@ export default function TrainingDetailView({
         minWidth: 70,
         maxWidth: 90,
         pinned: 'left',
-        cellClass: 'text-center font-bold text-slate-500',
+        cellClass: 'text-center flex justify-center items-center font-bold text-slate-500',
         headerClass: 'text-center'
       },
       {
@@ -403,7 +430,7 @@ export default function TrainingDetailView({
         },
         minWidth: 230,
         flex: 1.5,
-        cellClass: 'font-mono font-semibold text-slate-800 dark:text-slate-200 flex items-center',
+        cellClass: 'text-center flex justify-center items-center font-mono font-semibold text-slate-800 dark:text-slate-200 flex items-center',
         headerClass: 'text-center'
       },
       {
@@ -413,7 +440,7 @@ export default function TrainingDetailView({
         minWidth: 200,
         flex: 2,
         pinned: 'left',
-        cellClass: 'font-extrabold text-slate-900 dark:text-slate-100 flex items-center',
+        cellClass: 'text-center flex justify-center items-center font-extrabold text-slate-900 dark:text-slate-100 flex items-center',
         headerClass: 'text-center'
       },
       {
@@ -421,7 +448,7 @@ export default function TrainingDetailView({
         field: 'emp_post_name',
         valueGetter: (params) => params.data?.emp_post_name || params.data?.post_name || params.data?.designation || '-',
         minWidth: 200,
-        cellClass: 'text-center font-medium text-slate-700 dark:text-slate-300',
+        cellClass: 'text-center flex justify-center items-center font-medium text-slate-700 dark:text-slate-300',
         headerClass: 'text-center'
       },
       {
@@ -429,7 +456,7 @@ export default function TrainingDetailView({
         field: 'emp_department_name',
         valueGetter: (params) => params.data?.emp_department_name || params.data?.department_name || params.data?.department || '-',
         minWidth: 200,
-        cellClass: 'text-center font-medium text-slate-700 dark:text-slate-300',
+        cellClass: 'text-center flex justify-center items-center font-medium text-slate-700 dark:text-slate-300',
         headerClass: 'text-center'
       }
     ];
@@ -493,16 +520,20 @@ export default function TrainingDetailView({
   // Export Data preparation for Trainings
   const exportHeaders = ['S.No', 'Training Title', 'Training Type', 'From Date', 'To Date', 'Expenditure (In Lakh)', 'Number of Participants'];
   const exportRows = useMemo(() => {
-    return filteredRows.map((r, i) => [
-      i + 1,
-      r['Title'] || r['Training Title'] || r['TRAINING TITLE'] || '-',
-      r['Training Type'] || r['TRAINING TYPE'] || '-',
-      formatDateYYYYMMDD(r['From date'] || r.from_date),
-      formatDateYYYYMMDD(r['To date'] || r.to_date),
-      formatExpenditureInLakh(r['Expenditure'] || r['Expenditure (In Lakh)'] || r.expenditure),
-      r['No of Participants'] ?? r['Number of Participants'] ?? r['NUMBER OF PARTICIPANTS'] ?? 1
-    ]);
-  }, [filteredRows]);
+  return filteredRows.map((r, i) => [
+    i + 1,
+    r['Title'] || r['Training Title'] || r['TRAINING TITLE'] || '-',
+    r['Training Type'] || r['TRAINING TYPE'] || '-',
+    formatDateYYYYMMDD(r['From date'] || r.from_date),
+    formatDateYYYYMMDD(r['To date'] || r.to_date),
+    formatExpenditureInLakh(
+      r['Expenditure'] ??
+      r['Expenditure (In Lakh)'] ??
+      r.expenditure
+    ),
+    getParticipantCount(r)
+  ]);
+}, [filteredRows]);
 
   // Export Data preparation for Participants
   const participantExportHeaders = ['S. No', 'Staff ID', 'Name', 'Designation', 'Department'];
@@ -592,18 +623,11 @@ export default function TrainingDetailView({
       selectedTrainingForParticipants.expenditure
     );
 
-    const participantCount = 
-      participantStaffList.length > 0 
-        ? participantStaffList.length 
-        : parseInt(
-            selectedTrainingForParticipants['No of Participants'] ?? 
-            selectedTrainingForParticipants['Number of Participants'] ?? 
-            selectedTrainingForParticipants['NUMBER OF PARTICIPANTS'] ?? 
-            trainingFullDetails?.NO_OF_PARTICIPANTS ?? 
-            1, 
-            10
-          );
-
+    const participantCount =
+  selectedTrainingForParticipants?.NO_OF_PARTICIPANTS !== null &&
+  selectedTrainingForParticipants?.NO_OF_PARTICIPANTS !== undefined
+    ? getParticipantCount(selectedTrainingForParticipants)
+    : getParticipantCount(trainingFullDetails);
     return (
       <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100 pb-6">
         

@@ -1325,20 +1325,20 @@ router.get('/get-deputed-end-employee-data-org/:organisationID',hrEmployeeTab.ge
 router.get('/get-training-details-report/:roleID/:organisationID',hrReportTab.getTrainingDetailsReport);
 router.get('/get-contract-details-report/:roleID/:organisationID',hrReportTab.getContractDetailsReport);
 
-router.post('/create-hr-training-data', hrTrainingTab.createHRTraining);
-router.put('/update-hr-training-data', hrTrainingTab.updateHRTraining);
-router.get('/get-hr-staff-transact-data/:organisationID/:trainingID',hrTrainingTab.getHRStaffTransactData);
+router.post('/hr/create-hr-training-data', hrTrainingTab.createHRTraining);
+router.put('/hr/update-hr-training-data/:trainingID', hrTrainingTab.updateHRTraining);
+router.get('/hr/get-hr-staff-transact-data/:organisationID/:trainingID',hrTrainingTab.getHRStaffTransactData);
 router.get('/get-hr-training-data-by-org/:organisationID/:roleID',hrTrainingTab.getHRTrainingDataByOrg);
-router.get('/get-hr-training-data-by-id/:trainingID',hrTrainingTab.getHRTrainingDataByID);
-router.post("/submit-contract-data", hrTrainingTab.createContractData);
+router.get('/hr/get-hr-training-data-by-id/:trainingID',hrTrainingTab.getHRTrainingDataByID);
+router.post("/hr/contractual-employment", hrTrainingTab.createContractData);
 router.get("/get-contract-data/:roleId/:organisationID", hrTrainingTab.getContractData);
 router.get("/get-official-data-by-total/:contractId/:officialTotal", hrTrainingTab.getOfficialDataByTotal);
 router.get("/get-non-official-data-by-total/:contractId/:NonOffTotal", hrTrainingTab.getNonOfficialDataByTotal);
 router.get("/get-contractual-data-by-id/:contractId", hrTrainingTab.getContractualDataByID);
 router.get("/check-aadhar-number-existence/:aadharNumber", hrHelperTab.checkAadharNumberExistence);
 router.get("/check-reference-number-existence/:refNo/:orgID", hrHelperTab.checkReferenceNumberExistence);
-router.get("/get-hr-training-title-by-org/:organisationID/:trainingType", hrTrainingTab.getTrainingTitleData);
-router.get("/get-hr-training-type", hrTrainingTab.getHRTrainingType);
+router.get("/hr/get-hr-training-title-by-org/:organisationID/:trainingType", hrTrainingTab.getTrainingTitleData);
+router.get("/hr/get-hr-training-type", hrTrainingTab.getHRTrainingType);
 router.get("/get-hr-assessment-data-by-org/:organisationID", vacancyStatusTab.getHRAssessmentData);
 router.post("/submit-hr-vacancy-anticipation",vacancyStatusTab.saveHrVacancyAnticipation);
 router.get("/get-hr-anticipated-vacancies-by-org/:departmentId/:postId/:className/:organisationID/:selectedYears", vacancyStatusTab.getAnticipatedVacanciesByOrg);
@@ -1346,7 +1346,7 @@ router.post("/submit-anticipated-vacancies",vacancyStatusTab.submitAnticipatedVa
 router.get("/get-mmt-organisation-by-cluster-id/:clusterID",vacancyStatusTab.getOrganisationByCluster);
 router.put("/update-hr-post-activity",vacancyStatusTab.updateHRPostActivitiy);
 router.put("/update-reason-process-not-initiated",vacancyStatusTab.updateReasonForProcessNotInitiated)
-router.delete("/delete-contractual-data/:contractId/:organisationID",hrTrainingTab.deleteContracturalData);
+router.delete("/delete-contractual-data/:contractId/:organisationID", hrTrainingTab.deleteContracturalData);
 router.get('/get-hr-training-details-data-by-org',hrTrainingTab.getHRTrainingDetailsDataByOrg);
 router.delete("/delete-training-data/:trainingID/:organisationID",hrTrainingTab.deleteTrainingData);
 router.get("/get-all-training-data/:userID",hrTrainingTab.getAllTrainingData);

@@ -5,11 +5,25 @@ import sql from 'mssql';
 
 async function createHRTraining(req, res) {
     let {
-        trainingTitle,otherTitleName,trainingType,otherTypeName,fromDate, toDate, trainingSource,
-        outsideAgencyName, country, location, expenditure,
-        participantData, organisationID, userID,numberOfParticipant
-    } = req.body;
-    
+    trainingTitle,
+    otherTitleName,
+    trainingType,
+    otherTypeName,
+    fromDate,
+    toDate,
+    trainingSource,
+    outsideAgencyName,
+    country,
+    location,
+    expenditure,
+    organisationID,
+    userID,
+    numberOfParticipant
+} = req.body;
+
+const participantData = Array.isArray(req.body.participantData)
+    ? req.body.participantData
+    : [];
 
     const conn = await pool;
     const transaction = new sql.Transaction(conn);
@@ -108,6 +122,7 @@ async function createHRTraining(req, res) {
         await transaction.commit();
         return res.status(201).json({ message: "Training added successfully", trainingID });
     } catch (err) {
+        console.log("err",err)
         await transaction.rollback();
         return res.status(500).json({ message: "Failed to add training", error: err.message });
     }
@@ -115,8 +130,15 @@ async function createHRTraining(req, res) {
 
 
 async function updateHRTraining(req, res) {
+    const trainingID = Number(req.params.trainingID);
+
+    if (!Number.isInteger(trainingID) || trainingID <= 0) {
+        return res.status(400).json({
+            message: "Valid training ID is required"
+        });
+    }
     let {
-        trainingID, trainingTitle,otherTypeName,otherTitleName,trainingType, fromDate, toDate, trainingSource,
+        trainingTitle,otherTypeName,otherTitleName,trainingType, fromDate, toDate, trainingSource,
         outsideAgencyName, country, location, expenditure,
         participantData, organisationID, userID,numberOfParticipant
     } = req.body;
@@ -190,7 +212,7 @@ async function updateHRTraining(req, res) {
         await request.query(`
             UPDATE tbl_hr_training SET
                 training_title_id = @trainingTitle,
-                other_type = otherTypeName,
+                other_type = @otherTypeName,
                 from_date = @fromDate,
                 to_date = @toDate,
                 training_source = @trainingSource,
@@ -228,6 +250,7 @@ async function updateHRTraining(req, res) {
         await transaction.commit();
         return res.status(200).json({ message: "Training updated successfully" });
     } catch (err) {
+        console.log("err",err)
         await transaction.rollback();
         return res.status(500).json({ message: "Failed to update training", error: err.message });
     }
@@ -332,7 +355,7 @@ async function getHRTrainingDataByOrg(req, res) {
                     ht.expenditure,
                     ht.organisation_id,
                     o.organisation_name,
-                    COUNT(hst.emp_master_id) AS number_of_participants,
+                    COUNT(hst.emp_master_id) AS NO_OF_PARTICIPANTS,
                     ht.NO_OF_PARTICIPANTS,
                     MAX(ht.updated_date) AS updated_date
 
@@ -494,7 +517,10 @@ try {
         .input("userID", userID)
         .input("organisationID", organisationID)
         .query(updateQuery);
-    res.status(201).json({ message: "Updated successfully" });
+    return res.status(200).json({
+    success: true,
+    message: "Updated successfully"
+});
 
     }else{
         const insertQuery = `
@@ -527,7 +553,11 @@ try {
     insertRequest.input("organisationID", organisationID);
 
     const result = await insertRequest.query(insertQuery)
-    return res.status(201).json({ result });
+    return res.status(201).json({
+    success: true,
+    message: "Created successfully",
+    result
+});
     }
 } catch (error) {
     //console.log("error",error)
@@ -771,23 +801,29 @@ async function submitHrVacancyAnticipation(req,res){
     }
 }
 
-async function deleteContracturalData(req,res) {
-    const contractId = req.params.contractId;
-    const organisationID = req.params.organisationID;
+async function deleteContracturalData(req, res) {
+    const { contractId, organisationID } = req.params;
 
-    const conn = await pool;
-    const request = conn.request();
-    request.input("contractId", contractId);
-    request.input("organisationID", organisationID);
+    try {
+        const conn = await pool;
+        const request = conn.request();
+        request.input("contractId", contractId);
+        request.input("organisationID", organisationID);
 
-   try {
-       let contractIdQuery = `DELETE FROM tbl_hr_contract_data WHERE contract_id = @contractId AND organisation_id= @organisationID`;
-       const result = await request.query(contractIdQuery);
-       res.json(result.recordset);
-    }
-    catch (err) {
-        // console.log(err);
-       return res.status(500).json({error: "failed to load data" });
+        const result = await request.query(`
+            DELETE FROM tbl_hr_contract_data
+            WHERE contract_id = @contractId
+              AND organisation_id = @organisationID
+        `);
+
+        if (!result.rowsAffected[0]) {
+            return res.status(404).json({ success: false, message: "Record not found" });
+        }
+
+        return res.json({ success: true, message: "Record deleted successfully" });
+    } catch (err) {
+        console.error("deleteContracturalData error:", err);
+        return res.status(500).json({ success: false, message: "Failed to delete record" });
     }
 }
 
@@ -848,7 +884,7 @@ async function getHRTrainingDetailsDataByOrg(req, res) {
                 ht.expenditure,
                 ht.organisation_id,
                 o.organisation_name,
-                ISNULL(ht.NO_OF_PARTICIPANTS, 0) + ISNULL(sc.staff_count, 0) AS number_of_participants
+                ISNULL(ht.NO_OF_PARTICIPANTS, 0) + ISNULL(sc.staff_count, 0) AS NO_OF_PARTICIPANTS
             FROM tbl_hr_training ht
             LEFT JOIN StaffCounts sc ON ht.training_id = sc.training_id
             LEFT JOIN mmt_organisation o ON o.organisation_id = ht.organisation_id
@@ -937,7 +973,7 @@ async function getAllTrainingData(req, res) {
                 SELECT 
                     ROW_NUMBER() OVER (ORDER BY org.organisation_id) AS [S.No],
                     org.organisation_name AS [Organisation Name],
-                     org.organisation_id AS [Organisation ID],
+                    org.organisation_id AS [Organisation ID],
                     ht.TRAINING_ID AS [Training ID],
                     typ.TRAINING_TYPE_NAME AS [Training Type],
                     ht.TRAINING_TITLE_ID AS [Training tile ID],
@@ -949,7 +985,7 @@ async function getAllTrainingData(req, res) {
                     mmt.country AS [Country],
                     ht.LOCATION AS [Location],
                     ht.EXPENDITURE AS [Expenditure],
-                    ht.NO_OF_PARTICIPANTS AS [No of Participants],
+                    ht.NO_OF_PARTICIPANTS AS [NO_OF_PARTICIPANTS],
                     sr.emp_name AS [Employ name],
                     sr.post_name AS [Designation],
                     sr.emp_department_name AS [Department name],
@@ -998,7 +1034,7 @@ async function getAllTrainingData(req, res) {
                     mmt.country AS [Country],
                     ht.LOCATION AS [Location],
                     ht.EXPENDITURE AS [Expenditure],
-                    ht.NO_OF_PARTICIPANTS AS [No of Participants],
+                    ht.NO_OF_PARTICIPANTS AS [NO_OF_PARTICIPANTS],
                     ht.created_date AS [Date Created],
                     ht.updated_date AS [Date Updated],
                     ht.created_by AS [Created By],
@@ -1046,6 +1082,7 @@ async function getAllTrainingData(req, res) {
                     mmt.country AS [Country],
                     ht.LOCATION AS [Location],
                     ht.EXPENDITURE AS [Expenditure],
+                    ht.NO_OF_PARTICIPANTS AS [NO_OF_PARTICIPANTS],
                     sr.emp_name AS [Employ name],
                     sr.post_name AS [Designation],
                     sr.emp_department_name AS [Department name],

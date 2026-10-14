@@ -10,7 +10,7 @@ import { getCurrentUserId, isOrganisationUser } from '../../../utils/authSession
 import TrainingDetailView from './TrainingDetailView';
 
 export default function TrainingDetails({ triggerNotification }) {
-  const navigate = useNavigate();
+ 
   const [trainings, setTrainings] = useState([]);
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [selectedYear, setSelectedYear] = useState('');
@@ -21,6 +21,15 @@ export default function TrainingDetails({ triggerNotification }) {
   const [loading, setLoading] = useState(true);
   const [pageSize, setPageSize] = useState(10);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  const navigate = useNavigate();
+  const handleEdit = (data) => {
+    navigate('/hr/hr-management/input-form/training-data', { state: { editData: data } });
+  };
+
+  const getRowIds = (row) => ({
+    trainingId: row.training_id ?? row.trainingId ?? row.trainingId ?? row.id
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -136,22 +145,22 @@ export default function TrainingDetails({ triggerNotification }) {
 
     if (isMinistryView) {
       cols.push(
-        { field: 'Organisation', headerName: 'Organisation', minWidth: 200, pinned: 'left', cellClass: 'font-extrabold text-slate-900 text-center', headerClass: 'text-center' },
-        { field: 'Year', headerName: 'Year', minWidth: 120, cellClass: 'text-center', headerClass: 'text-center' },
-        { field: 'Total Trainings', headerName: 'Total Trainings', minWidth: 150, cellClass: 'text-center font-semibold text-slate-800', headerClass: 'text-center' },
-        { field: 'Total Participants', headerName: 'Total Participants', minWidth: 160, cellClass: 'text-center font-semibold text-slate-800', headerClass: 'text-center' },
-        { field: 'Total Expenditure (In Lakh)', headerName: 'Total Expenditure (In Lakh)', minWidth: 220, cellClass: 'text-center font-semibold text-slate-800', headerClass: 'text-center' },
+        { field: 'Organisation', headerName: 'Organisation', minWidth: 200, pinned: 'left', cellClass: 'font-extrabold text-slate-900 text-center flex justify-center', headerClass: 'text-center' },
+        { field: 'Year', headerName: 'Year', minWidth: 120, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center' },
+        { field: 'Total Trainings', headerName: 'Total Trainings', minWidth: 150, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
+        { field: 'Total Participants', headerName: 'Total Participants', minWidth: 160, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
+        { field: 'Total Expenditure (In Lakh)', headerName: 'Total Expenditure (In Lakh)', minWidth: 220, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
         { 
           field: 'Last Training Date', 
           headerName: 'Last Training Date', 
           minWidth: 180,
-          cellClass: 'text-center', headerClass: 'text-center',
+          cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center',
           valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('en-CA') : '-'
         },
         {
           headerName: 'View Details',
           minWidth: 150,
-          cellClass: 'text-center', headerClass: 'text-center',
+          cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center',
           cellRenderer: (params) => (
             <div className="flex items-center justify-center h-full">
               <button 
@@ -168,16 +177,16 @@ export default function TrainingDetails({ triggerNotification }) {
       );
     } else {
       cols.push(
-        { field: 'Training Title', headerName: 'Training Title', minWidth: 200, pinned: 'left', wrapText: true, autoHeight: true, cellClass: 'font-extrabold text-slate-900 text-center whitespace-normal break-words', headerClass: 'text-center' },
-        { field: 'Training Type', headerName: 'Training Type', minWidth: 150, wrapText: true, autoHeight: true, cellClass: 'text-center whitespace-normal break-words', headerClass: 'text-center' },
-        { field: 'Training Source', headerName: 'Training Source', minWidth: 150, wrapText: true, autoHeight: true, cellClass: 'text-center whitespace-normal break-words', headerClass: 'text-center' },
-        { field: 'Expenditure (In Lakh)', headerName: 'Expenditure (In Lakh)', minWidth: 180, cellClass: 'text-center font-semibold text-slate-800', headerClass: 'text-center' },
-        { field: 'Year', headerName: 'Year', minWidth: 120, cellClass: 'text-center', headerClass: 'text-center' },
+        { field: 'Training Title', headerName: 'Training Title', minWidth: 200, pinned: 'left', cellClass: 'font-extrabold text-slate-900 text-center flex justify-center items-center', headerClass: 'text-center' },
+        { field: 'Training Type', headerName: 'Training Type', minWidth: 150, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center' },
+        { field: 'Training Source', headerName: 'Training Source', minWidth: 150, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center' },
+        { field: 'Expenditure (In Lakh)', headerName: 'Expenditure (In Lakh)', minWidth: 180, cellClass: 'text-center flex justify-center items-center font-semibold text-slate-800', headerClass: 'text-center' },
+        { field: 'Year', headerName: 'Year', minWidth: 120, cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center' },
         { 
           field: 'Number of Participants', 
           headerName: 'Number of Participants', 
           minWidth: 180, 
-          cellClass: 'text-center', 
+          cellClass: 'text-center flex justify-center items-center', 
           headerClass: 'text-center',
           cellRenderer: (params) => {
             const count = params.value ?? 1;
@@ -202,9 +211,9 @@ export default function TrainingDetails({ triggerNotification }) {
           }
         },
         {
-          headerName: 'Actions',
-          minWidth: 150,
-          cellClass: 'text-center', headerClass: 'text-center',
+          headerName: 'View Details',
+          minWidth: 120,
+          cellClass: 'text-center flex justify-center items-center', headerClass: 'text-center',
           cellRenderer: (params) => (
             <div className="flex items-center justify-center space-x-2 h-full">
               <button 
@@ -221,28 +230,22 @@ export default function TrainingDetails({ triggerNotification }) {
               >
                 <Eye className="w-4 h-4" />
               </button>
-              <button 
-                type="button"
-                onClick={() => {
-                  navigate('/hr/hr-management/input-form/training-data', { state: { editData: params.data?.raw || params.data } });
-                }}
-                title="Edit Training Data"
-                className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/40 transition cursor-pointer p-1.5 rounded-lg flex items-center justify-center"
+            </div>
+          )
+        },
+        {
+          headerName: 'Edit',
+          minWidth: 100,
+          cellClass: 'text-center flex justify-center items-center',
+          headerClass: 'text-center',
+          cellRenderer: (params) => (
+            <div className="flex items-center justify-center space-x-2 h-full">
+              <button
+                onClick={() => handleEdit(params.data)}
+                className="bg-amber-500 hover:bg-amber-600 text-white p-1.5 rounded transition cursor-pointer flex items-center justify-center"
+                title="Edit"
               >
-                <Pencil className="w-4 h-4" />
-              </button>
-              <button 
-                type="button"
-                onClick={() => {
-                  if (window.confirm('Are you sure you want to delete this training data?')) {
-                    // TODO: call delete API
-                    alert('Backend integration pending for deletion.');
-                  }
-                }}
-                title="Delete Training Data"
-                className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/40 transition cursor-pointer p-1.5 rounded-lg flex items-center justify-center"
-              >
-                <Trash2 className="w-4 h-4" />
+                <Pencil className="w-3.5 h-3.5" />
               </button>
             </div>
           )
