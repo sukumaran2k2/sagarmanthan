@@ -186,13 +186,31 @@ async function submitCommodityData(req, res) {
         organisationId,
         userId,
         commodityData,
-        trafficData
+        trafficData,
+        saveMode = 'submit',
     } = req.body;
 
-    if (!Array.isArray(commodityData)) {
+    if (!fiscalYear || month == null || month === '' || !organisationId || !userId) {
+        return res.status(400).json({
+            success: false,
+            message: "Financial year, month, organisation and user are required."
+        });
+    }
+
+    if (commodityData !== undefined && !Array.isArray(commodityData)) {
         return res.status(400).json({
             success: false,
             message: "Invalid commodity data format. Expected an array."
+        });
+    }
+
+    const hasCommodityPayload = Array.isArray(commodityData);
+    const hasTrafficPayload = trafficData != null && typeof trafficData === 'object';
+
+    if (!hasCommodityPayload && !hasTrafficPayload) {
+        return res.status(400).json({
+            success: false,
+            message: "Provide commodityData and/or trafficData to save."
         });
     }
 
@@ -202,121 +220,130 @@ async function submitCommodityData(req, res) {
     try {
         await transaction.begin();
 
-        const mappingRequest = new sql.Request(transaction);
-        const commodityIds = [...new Set(commodityData.map(d => d.commodity_id))];
-        let mappings = { recordset: [] };
-        if (commodityIds.length > 0) {
-            mappings = await mappingRequest.query(`
-                SELECT commodity_id, commodity_group_id 
-                FROM mmt_traffic_commodity
-                WHERE commodity_id IN (${commodityIds.map(id => `'${id}'`).join(',')})
-            `);
-        }
-
-        const commodityGroupMap = {};
-        mappings.recordset.forEach(row => {
-            commodityGroupMap[row.commodity_id] = row.commodity_group_id;
-        });
-
-        for (const data of commodityData) {
-            const commodityGroupId = commodityGroupMap[data.commodity_id];
-            if (!commodityGroupId) {
-                throw new Error(`No group found for commodity ID ${data.commodity_id}`);
+        if (hasCommodityPayload && commodityData.length > 0) {
+            const mappingRequest = new sql.Request(transaction);
+            const commodityIds = [...new Set(commodityData.map(d => d.commodity_id))];
+            let mappings = { recordset: [] };
+            if (commodityIds.length > 0) {
+                mappings = await mappingRequest.query(`
+                    SELECT commodity_id, commodity_group_id 
+                    FROM mmt_traffic_commodity
+                    WHERE commodity_id IN (${commodityIds.map(id => `'${id}'`).join(',')})
+                `);
             }
 
-            const request = new sql.Request(transaction);
+            const commodityGroupMap = {};
+            mappings.recordset.forEach(row => {
+                commodityGroupMap[row.commodity_id] = row.commodity_group_id;
+            });
 
-            request.input("fiscalYear", fiscalYear);
-            request.input("month", month);
-            request.input("organisationId", organisationId);
-            request.input("categoryId", data.category_id);
-            request.input("commodityId", data.commodity_id);
-            request.input("directionId", data.direction_id);
-            request.input("flagTypeId", data.flag_type_id);
-            request.input("value", data.value);
-            request.input("userId", userId);
-            request.input("commodityGroupId", commodityGroupId);
+            for (const data of commodityData) {
+                const commodityGroupId = commodityGroupMap[data.commodity_id];
+                if (!commodityGroupId) {
+                    throw new Error(`No group found for commodity ID ${data.commodity_id}`);
+                }
 
-            const existingRecord = await request.query(`
-                SELECT id FROM tbl_traffic_commodity_data
+                const request = new sql.Request(transaction);
+
+                request.input("fiscalYear", fiscalYear);
+                request.input("month", month);
+                request.input("organisationId", organisationId);
+                request.input("categoryId", data.category_id);
+                request.input("commodityId", data.commodity_id);
+                request.input("directionId", data.direction_id);
+                request.input("flagTypeId", data.flag_type_id);
+                request.input("value", data.value);
+                request.input("userId", userId);
+                request.input("commodityGroupId", commodityGroupId);
+
+                const existingRecord = await request.query(`
+                    SELECT id FROM tbl_traffic_commodity_data
+                    WHERE fiscal_year = @fiscalYear
+                    AND month = @month
+                    AND organisation_id = @organisationId
+                    AND commodity_id = @commodityId
+                    AND category_id = @categoryId
+                    AND direction_id = @directionId
+                    AND flag_type_id = @flagTypeId
+                `);
+
+                if (existingRecord.recordset.length > 0) {
+                    await request.query(`
+                        UPDATE tbl_traffic_commodity_data
+                        SET value = @value,
+                            updated_by = @userId,
+                            updated_date = GETDATE()
+                        WHERE id = ${existingRecord.recordset[0].id}
+                    `);
+                } else {
+                    await request.query(`
+                        INSERT INTO tbl_traffic_commodity_data (
+                            fiscal_year, month, organisation_id,
+                            commodity_group_id, commodity_id, category_id,
+                            direction_id, flag_type_id, value,
+                            created_by, created_date
+                        ) VALUES (
+                            @fiscalYear, @month, @organisationId,
+                            @commodityGroupId, @commodityId, @categoryId,
+                            @directionId, @flagTypeId, @value,
+                            @userId, GETDATE()
+                        )
+                    `);
+                }
+            }
+        }
+
+        // Only update Ro-Ro / Ro-Pax when trafficData is in the payload
+        if (hasTrafficPayload) {
+            const trafficRequest = new sql.Request(transaction);
+            trafficRequest.input("fiscalYear", fiscalYear);
+            trafficRequest.input("month", month);
+            trafficRequest.input("organisationId", organisationId);
+            trafficRequest.input("roRoTraffic", trafficData.ro_ro_traffic ?? null);
+            trafficRequest.input("roPaxTraffic", trafficData.ro_pax_traffic ?? null);
+            trafficRequest.input("userId", userId);
+
+            const existingTraffic = await trafficRequest.query(`
+                SELECT id FROM tbl_traffic_ro_ro_pax_data
                 WHERE fiscal_year = @fiscalYear
                 AND month = @month
                 AND organisation_id = @organisationId
-                AND commodity_id = @commodityId
-                AND category_id = @categoryId
-                AND direction_id = @directionId
-                AND flag_type_id = @flagTypeId
             `);
 
-            if (existingRecord.recordset.length > 0) {
-                await request.query(`
-                    UPDATE tbl_traffic_commodity_data
-                    SET value = @value,
+            if (existingTraffic.recordset.length > 0) {
+                await trafficRequest.query(`
+                    UPDATE tbl_traffic_ro_ro_pax_data
+                    SET ro_ro_traffic = @roRoTraffic,
+                        ro_pax_traffic = @roPaxTraffic,
                         updated_by = @userId,
                         updated_date = GETDATE()
-                    WHERE id = ${existingRecord.recordset[0].id}
+                    WHERE fiscal_year = @fiscalYear
+                    AND month = @month
+                    AND organisation_id = @organisationId
                 `);
             } else {
-                await request.query(`
-                    INSERT INTO tbl_traffic_commodity_data (
+                await trafficRequest.query(`
+                    INSERT INTO tbl_traffic_ro_ro_pax_data (
                         fiscal_year, month, organisation_id,
-                        commodity_group_id, commodity_id, category_id,
-                        direction_id, flag_type_id, value,
+                        ro_ro_traffic, ro_pax_traffic,
                         created_by, created_date
                     ) VALUES (
                         @fiscalYear, @month, @organisationId,
-                        @commodityGroupId, @commodityId, @categoryId,
-                        @directionId, @flagTypeId, @value,
+                        @roRoTraffic, @roPaxTraffic,
                         @userId, GETDATE()
                     )
                 `);
             }
         }
 
-        const trafficRequest = new sql.Request(transaction);
-        trafficRequest.input("fiscalYear", fiscalYear);
-        trafficRequest.input("month", month);
-        trafficRequest.input("organisationId", organisationId);
-        trafficRequest.input("roRoTraffic", trafficData.ro_ro_traffic ?? null);
-        trafficRequest.input("roPaxTraffic", trafficData.ro_pax_traffic ?? null);
-        trafficRequest.input("userId", userId);
-
-        const existingTraffic = await trafficRequest.query(`
-            SELECT id FROM tbl_traffic_ro_ro_pax_data
-            WHERE fiscal_year = @fiscalYear
-            AND month = @month
-            AND organisation_id = @organisationId
-        `);
-
-        if (existingTraffic.recordset.length > 0) {
-            await trafficRequest.query(`
-                UPDATE tbl_traffic_ro_ro_pax_data
-                SET ro_ro_traffic = @roRoTraffic,
-                    ro_pax_traffic = @roPaxTraffic,
-                    updated_by = @userId,
-                    updated_date = GETDATE()
-                WHERE fiscal_year = @fiscalYear
-                AND month = @month
-                AND organisation_id = @organisationId
-            `);
-        } else {
-            await trafficRequest.query(`
-                INSERT INTO tbl_traffic_ro_ro_pax_data (
-                    fiscal_year, month, organisation_id,
-                    ro_ro_traffic, ro_pax_traffic,
-                    created_by, created_date
-                ) VALUES (
-                    @fiscalYear, @month, @organisationId,
-                    @roRoTraffic, @roPaxTraffic,
-                    @userId, GETDATE()
-                )
-            `);
-        }
-
         await transaction.commit();
+        const isDraft = String(saveMode).toLowerCase() === 'draft';
         return res.status(200).json({
             success: true,
-            message: "Data submitted successfully"
+            message: isDraft
+                ? "Draft saved successfully"
+                : "Data submitted successfully",
+            saveMode: isDraft ? 'draft' : 'submit',
         });
 
     } catch (error) {
@@ -567,98 +594,265 @@ async function getTrafficActualData(req, res) {
 
 async function getTrafficActualData(req, res) {
     const conn = await pool;
-    const page = req.query.page ? parseInt(req.query.page) : null;
-    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+    const page = req.query.page ? parseInt(req.query.page, 10) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : null;
+    const organisationId = req.query.organisationId || null;
+    const fiscalYear = req.query.fiscalYear || null;
+    const commodityGroupId = req.query.commodityGroupId || null;
+    const commodityId = req.query.commodityId || null;
+    const search = String(req.query.search || '').trim();
+    const view = String(req.query.view || 'commodity-row').toLowerCase();
 
     try {
-        const request = conn.request();
+        const buildWhere = (request) => {
+            const parts = ['1=1'];
+            if (organisationId) {
+                request.input('organisationId', organisationId);
+                parts.push('data.organisation_id = @organisationId');
+            }
+            if (fiscalYear) {
+                request.input('fiscalYear', fiscalYear);
+                parts.push('data.fiscal_year = @fiscalYear');
+            }
+            if (commodityGroupId) {
+                request.input('commodityGroupId', commodityGroupId);
+                parts.push('data.commodity_group_id = @commodityGroupId');
+            }
+            if (commodityId) {
+                request.input('commodityId', commodityId);
+                parts.push('data.commodity_id = @commodityId');
+            }
+            if (search) {
+                request.input('search', `%${search}%`);
+                parts.push(`(
+                    org.organisation_name LIKE @search
+                    OR cg.commodity_group_name LIKE @search
+                    OR com.commodity_name LIKE @search
+                    OR data.fiscal_year LIKE @search
+                )`);
+            }
+            return parts.join(' AND ');
+        };
 
-        if (page && limit) {
-            const offset = (page - 1) * limit;
-            request.input('offset', offset);
-            request.input('limit', limit);
+        const baseFrom = `
+            FROM tbl_traffic_commodity_data data WITH (NOLOCK)
+            INNER JOIN mmt_organisation org WITH (NOLOCK) ON data.organisation_id = org.organisation_id
+            INNER JOIN mmt_traffic_category cat WITH (NOLOCK) ON data.category_id = cat.category_id
+            INNER JOIN mmt_traffic_commodity_group cg WITH (NOLOCK) ON data.commodity_group_id = cg.commodity_group_id
+            INNER JOIN mmt_traffic_commodity com WITH (NOLOCK) ON data.commodity_id = com.commodity_id
+            INNER JOIN mmt_traffic_direction dir WITH (NOLOCK) ON data.direction_id = dir.direction_id
+            INNER JOIN mmt_traffic_flag_type flag WITH (NOLOCK) ON data.flag_type_id = flag.flag_type_id
+        `;
 
-            const countResult = await conn.query(`
-                -- SELECT SUM(row_count) AS total_count 
-                -- FROM sys.dm_db_partition_stats WITH (NOLOCK) 
-                -- WHERE object_id = OBJECT_ID('tbl_traffic_commodity_data') 
-                --   AND index_id < 2;
-                SELECT COUNT(*) AS total_count FROM tbl_traffic_commodity_data data;
+        const selectCols = `
+            data.id,
+            data.fiscal_year,
+            DATENAME(MONTH, DATEFROMPARTS(2000, data.month, 1)) AS month,
+            data.month AS month_num,
+            data.organisation_id,
+            org.organisation_name,
+            cat.category_name,
+            cg.commodity_group_name,
+            com.commodity_name,
+            dir.direction_name,
+            flag.flag_type_name,
+            data.value,
+            data.category_id,
+            data.commodity_group_id,
+            data.commodity_id,
+            data.direction_id,
+            data.flag_type_id
+        `;
+
+        if (view === 'period') {
+            const safePage = Math.max(1, page || 1);
+            const safeLimit = Math.min(100, Math.max(1, limit || 10));
+            const offset = (safePage - 1) * safeLimit;
+
+            const countReq = conn.request();
+            const countWhere = buildWhere(countReq);
+            const countResult = await countReq.query(`
+                SELECT COUNT(*) AS total_count
+                FROM (
+                    SELECT DISTINCT data.fiscal_year, data.month, data.organisation_id
+                    ${baseFrom}
+                    WHERE ${countWhere}
+                ) keys
             `);
             const total = countResult.recordset[0]?.total_count || 0;
 
-            const result = await request.query(`
+            const dataReq = conn.request();
+            const dataWhere = buildWhere(dataReq);
+            dataReq.input('offset', offset);
+            dataReq.input('limit', safeLimit);
+            const result = await dataReq.query(`
                 SELECT
-                    data.id,
                     data.fiscal_year,
+                    data.month AS month_num,
                     DATENAME(MONTH, DATEFROMPARTS(2000, data.month, 1)) AS month,
-                    data.organisation_id,      
+                    data.organisation_id,
                     org.organisation_name,
-                    cat.category_name,
-                    cg.commodity_group_name,
-                    com.commodity_name,
-                    dir.direction_name,
-                    flag.flag_type_name,
-                    data.value,
-                    data.category_id,
-                    data.commodity_group_id,
-                    data.commodity_id,
-                    data.direction_id,
-                    data.flag_type_id
-                FROM tbl_traffic_commodity_data data WITH (NOLOCK)
-                INNER JOIN mmt_organisation org WITH (NOLOCK) ON data.organisation_id = org.organisation_id
-                INNER JOIN mmt_traffic_category cat WITH (NOLOCK) ON data.category_id = cat.category_id
-                INNER JOIN mmt_traffic_commodity_group cg WITH (NOLOCK) ON data.commodity_group_id = cg.commodity_group_id
-                INNER JOIN mmt_traffic_commodity com WITH (NOLOCK) ON data.commodity_id = com.commodity_id
-                INNER JOIN mmt_traffic_direction dir WITH (NOLOCK) ON data.direction_id = dir.direction_id
-                INNER JOIN mmt_traffic_flag_type flag WITH (NOLOCK) ON data.flag_type_id = flag.flag_type_id
-                ORDER BY data.id DESC
+                    SUM(CASE WHEN data.commodity_id <> 28 THEN ISNULL(data.value, 0) ELSE 0 END) AS total_value,
+                    SUM(CASE WHEN data.commodity_id = 28 THEN ISNULL(data.value, 0) ELSE 0 END) AS total_teu,
+                    COUNT(DISTINCT data.commodity_id) AS commodity_count
+                ${baseFrom}
+                WHERE ${dataWhere}
+                GROUP BY data.fiscal_year, data.month, data.organisation_id, org.organisation_name
+                ORDER BY data.fiscal_year DESC, data.month DESC, org.organisation_name
                 OFFSET @offset ROWS
-                FETCH NEXT @limit ROWS ONLY;
+                FETCH NEXT @limit ROWS ONLY
             `);
 
             return res.status(200).json({
                 data: result.recordset,
                 pagination: {
                     total,
-                    page,
-                    limit,
-                    totalPages: Math.ceil(total / limit)
-                }
+                    page: safePage,
+                    limit: safeLimit,
+                    totalPages: total ? Math.ceil(total / safeLimit) : 0,
+                },
             });
-        } else {
-            const result = await request.query(`
+        }
+
+        if (page && limit && view === 'commodity-row') {
+            const safePage = Math.max(1, page);
+            const safeLimit = Math.min(100, Math.max(1, limit));
+            const offset = (safePage - 1) * safeLimit;
+
+            const countReq = conn.request();
+            const countWhere = buildWhere(countReq);
+            const countResult = await countReq.query(`
+                SELECT COUNT(*) AS total_count
+                FROM (
+                    SELECT DISTINCT
+                        data.fiscal_year,
+                        data.month,
+                        data.organisation_id,
+                        data.commodity_group_id,
+                        data.commodity_id
+                    ${baseFrom}
+                    WHERE ${countWhere}
+                ) keys
+            `);
+            const total = countResult.recordset[0]?.total_count || 0;
+
+            const keysReq = conn.request();
+            const keysWhere = buildWhere(keysReq);
+            keysReq.input('offset', offset);
+            keysReq.input('limit', safeLimit);
+            const keysResult = await keysReq.query(`
                 SELECT
-                    data.id,
                     data.fiscal_year,
-                    DATENAME(MONTH, DATEFROMPARTS(2000, data.month, 1)) AS month,
-                    data.organisation_id,      
-                    org.organisation_name,
-                    cat.category_name,
-                    cg.commodity_group_name,
-                    com.commodity_name,
-                    dir.direction_name,
-                    flag.flag_type_name,
-                    data.value,
-                    data.category_id,
+                    data.month,
+                    data.organisation_id,
+                    data.commodity_group_id,
+                    data.commodity_id
+                ${baseFrom}
+                WHERE ${keysWhere}
+                GROUP BY
+                    data.fiscal_year,
+                    data.month,
+                    data.organisation_id,
                     data.commodity_group_id,
                     data.commodity_id,
-                    data.direction_id,
-                    data.flag_type_id
-                FROM tbl_traffic_commodity_data data WITH (NOLOCK)
-                INNER JOIN mmt_organisation org WITH (NOLOCK) ON data.organisation_id = org.organisation_id
-                INNER JOIN mmt_traffic_category cat WITH (NOLOCK) ON data.category_id = cat.category_id
-                INNER JOIN mmt_traffic_commodity_group cg WITH (NOLOCK) ON data.commodity_group_id = cg.commodity_group_id
-                INNER JOIN mmt_traffic_commodity com WITH (NOLOCK) ON data.commodity_id = com.commodity_id
-                INNER JOIN mmt_traffic_direction dir WITH (NOLOCK) ON data.direction_id = dir.direction_id
-                INNER JOIN mmt_traffic_flag_type flag WITH (NOLOCK) ON data.flag_type_id = flag.flag_type_id
-                ORDER BY data.id DESC
+                    org.organisation_name,
+                    cg.commodity_group_name,
+                    com.commodity_name
+                ORDER BY data.fiscal_year DESC, data.month DESC, org.organisation_name, cg.commodity_group_name, com.commodity_name
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY
             `);
-            return res.status(200).json(result.recordset);
+
+            const keys = keysResult.recordset || [];
+            if (keys.length === 0) {
+                return res.status(200).json({
+                    data: [],
+                    pagination: {
+                        total,
+                        page: safePage,
+                        limit: safeLimit,
+                        totalPages: total ? Math.ceil(total / safeLimit) : 0,
+                    },
+                });
+            }
+
+            const dataReq = conn.request();
+            const keyPredicates = keys.map((k, i) => {
+                dataReq.input(`fy${i}`, k.fiscal_year);
+                dataReq.input(`mo${i}`, k.month);
+                dataReq.input(`org${i}`, k.organisation_id);
+                dataReq.input(`cg${i}`, k.commodity_group_id);
+                dataReq.input(`cm${i}`, k.commodity_id);
+                return `(data.fiscal_year = @fy${i} AND data.month = @mo${i} AND data.organisation_id = @org${i} AND data.commodity_group_id = @cg${i} AND data.commodity_id = @cm${i})`;
+            });
+
+            const result = await dataReq.query(`
+                SELECT ${selectCols}
+                ${baseFrom}
+                WHERE (${keyPredicates.join(' OR ')})
+                ORDER BY data.fiscal_year DESC, data.month DESC, org.organisation_name, cg.commodity_group_name, com.commodity_name, data.commodity_id, data.category_id, data.direction_id, data.flag_type_id
+            `);
+
+            return res.status(200).json({
+                data: result.recordset,
+                pagination: {
+                    total,
+                    page: safePage,
+                    limit: safeLimit,
+                    totalPages: total ? Math.ceil(total / safeLimit) : 0,
+                },
+            });
         }
+
+        if (page && limit) {
+            const safePage = Math.max(1, page);
+            const safeLimit = Math.min(500, Math.max(1, limit));
+            const offset = (safePage - 1) * safeLimit;
+            const countReq = conn.request();
+            const countWhere = buildWhere(countReq);
+            const countResult = await countReq.query(`
+                SELECT COUNT(*) AS total_count
+                ${baseFrom}
+                WHERE ${countWhere}
+            `);
+            const total = countResult.recordset[0]?.total_count || 0;
+
+            const dataReq = conn.request();
+            const dataWhere = buildWhere(dataReq);
+            dataReq.input('offset', offset);
+            dataReq.input('limit', safeLimit);
+            const result = await dataReq.query(`
+                SELECT ${selectCols}
+                ${baseFrom}
+                WHERE ${dataWhere}
+                ORDER BY data.id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY
+            `);
+
+            return res.status(200).json({
+                data: result.recordset,
+                pagination: {
+                    total,
+                    page: safePage,
+                    limit: safeLimit,
+                    totalPages: total ? Math.ceil(total / safeLimit) : 0,
+                },
+            });
+        }
+
+        const dataReq = conn.request();
+        const dataWhere = buildWhere(dataReq);
+        const result = await dataReq.query(`
+            SELECT ${selectCols}
+            ${baseFrom}
+            WHERE ${dataWhere}
+            ORDER BY data.fiscal_year DESC, data.month DESC, org.organisation_name, com.commodity_name
+        `);
+        return res.status(200).json(result.recordset);
     } catch (error) {
         console.error("Error fetching traffic actual data:", error);
-        return res.sendStatus(500);
+        return res.status(500).json({ message: "Error fetching traffic actual data." });
     }
 }
 

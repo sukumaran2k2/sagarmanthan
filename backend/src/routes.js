@@ -2061,17 +2061,17 @@ router.get('/annually-major-ports-data/:userID', MajorPorts.getAnnuallyMajorPort
 // router.get("/quarterly-traffic-data/:userID", TrafficTab.getQuarterlyTrafficData);
 // router.get("/annually-traffic-data/:userID", TrafficTab.getAnnuallyTrafficData);
 
-router.get('/get-fiscal-year-target-data', TrafficTab.getFiscalYearTargetData);
-router.post('/submit-fiscal-year-target-data', TrafficTab.submitFiscalYearTargetData);
-router.get('/get-fiscal-year-target-list', TrafficTab.getFiscalYearTargetList);
-router.post('/update-fiscal-year-target-data', TrafficTab.updateFiscalYearTargetData);
-router.post('/submit-commodity-data', TrafficTab.submitCommodityData);
-router.get('/get-commodity-data', TrafficTab.getCommodityData);
-router.get('/get-commodities-by-group', TrafficTab.getCommoditiesByGroup);
-router.get('/get-traffic-actual-data', TrafficTab.getTrafficActualData);
-router.get('/get-roro-traffic-actual-data', TrafficTab.getrorotrafficData);
-router.get('/get-traffic-commodity-groups', TrafficTab.getTrafficCommodityGroup);
-router.get('/get-traffic-commodities', TrafficTab.getTrafficCommodities);
+router.get('/get-fiscal-year-target-data', auth, TrafficTab.getFiscalYearTargetData);
+router.post('/submit-fiscal-year-target-data', auth, TrafficTab.submitFiscalYearTargetData);
+router.get('/get-fiscal-year-target-list', auth, TrafficTab.getFiscalYearTargetList);
+router.post('/update-fiscal-year-target-data', auth, TrafficTab.updateFiscalYearTargetData);
+router.post('/submit-commodity-data', auth, TrafficTab.submitCommodityData);
+router.get('/get-commodity-data', auth, TrafficTab.getCommodityData);
+router.get('/get-commodities-by-group', auth, TrafficTab.getCommoditiesByGroup);
+router.get('/get-traffic-actual-data', auth, TrafficTab.getTrafficActualData);
+router.get('/get-roro-traffic-actual-data', auth, TrafficTab.getrorotrafficData);
+router.get('/get-traffic-commodity-groups', auth, TrafficTab.getTrafficCommodityGroup);
+router.get('/get-traffic-commodities', auth, TrafficTab.getTrafficCommodities);
 
 router.get('/get-kpi-traffic-dashboard/:organisationID/:fy/:months',TrafficTab.getKPITrafficDashboard);
 router.get('/get-kpi-traffic-commodies-wise-dashboard/:organisationID/:fy/:months',TrafficTab.getKPICargoDashboard);

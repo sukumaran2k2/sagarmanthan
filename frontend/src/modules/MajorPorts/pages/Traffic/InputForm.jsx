@@ -1,8 +1,19 @@
-import SectionPlaceholder from '../../components/SectionPlaceholder';
-import { MAJOR_PORTS_SECTIONS } from '../../constants';
+import TrafficWizardForm from './components/TrafficWizardForm';
 
-const SECTION = MAJOR_PORTS_SECTIONS.find((s) => s.id === 'traffic');
-
-export default function TrafficInputForm({ onSwitchTab }) {
-  return <SectionPlaceholder section={SECTION} mode="add" onSwitchTab={onSwitchTab} />;
+export default function TrafficInputForm({
+  onSwitchTab,
+  onSuccess,
+  triggerNotification,
+}) {
+  return (
+    <TrafficWizardForm
+      mode="add"
+      onBack={onSwitchTab ? () => onSwitchTab('list') : undefined}
+      onSuccess={() => {
+        onSuccess?.();
+        onSwitchTab?.('list');
+      }}
+      triggerNotification={triggerNotification}
+    />
+  );
 }
