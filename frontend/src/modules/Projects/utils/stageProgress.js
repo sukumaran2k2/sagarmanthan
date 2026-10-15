@@ -1,11 +1,3 @@
-export const WORKBENCH_STAGES = [
-  'basic',
-  'planning',
-  'tendering',
-  'implementation',
-  'completion',
-];
-
 export const DEFAULT_STAGE_UNLOCK = {
   basic: true,
   planning: false,
@@ -30,10 +22,6 @@ export function stageLabelFromStageId(stageId) {
   if (id === 12) return 'Under Tendering';
   if (id >= 1) return 'Planning & Sanctioning';
   return 'Project Initiated';
-}
-
-export function workbenchStageFromStageId(stageId) {
-  return WORKBENCH_STAGES[workbenchLevelFromStageId(stageId)] || 'basic';
 }
 
 export function workbenchLevelFromStageName(stageName) {
@@ -125,14 +113,6 @@ export function getStageLockMessage(stageId) {
   return messages[stageId] || 'Please complete the previous stage before proceeding.';
 }
 
-export function maxUnlockedStageIndex(unlockState = DEFAULT_STAGE_UNLOCK) {
-  let max = 0;
-  WORKBENCH_STAGES.forEach((id, idx) => {
-    if (unlockState?.[id]) max = idx;
-  });
-  return max;
-}
-
 export function nextActiveStageAfterSave(savedStageId, checkpoints = {}) {
   const current = String(savedStageId || '');
   if (current === 'completion') return 'completion';
@@ -150,9 +130,4 @@ export function countWords(text) {
     .trim()
     .split(/\s+/)
     .filter(Boolean).length;
-}
-
-export function isValidDateOrder(later, earlier) {
-  if (!later || !earlier) return true;
-  return new Date(later) >= new Date(earlier);
 }

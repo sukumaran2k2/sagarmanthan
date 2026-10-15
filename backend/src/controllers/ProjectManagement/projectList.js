@@ -48,8 +48,6 @@ async function projectMediaLinkDownload(req, res) {
         const request = conn.request();
         request.input('fileName', fileName);
 
-        // console.log(fileName, "fileName")
-
         const file_path = path.join(__dirname, "../../../fileuploads/project-media-files-download", fileName);
         const staticFileName = "Project Media Files.zip";  // Desired filename for download
 
@@ -66,22 +64,6 @@ async function projectMediaLinkDownload(req, res) {
                 fs.rm(file_path, () => {});
             })
                      
-            // // Listen for the "finish" event to know when the file has been fully downloaded
-            // fileStream.on('end', () => {
-            //     console.log('Download complete, removing the file.');
-            //     fs.rm(file_path, (err) => {
-            //         if (err) {
-            //             console.error('Error removing file:', err);
-            //         }
-            //     });
-            // });
-
-            // // Listen for the "close" event to handle download cancellation
-            // res.on('close', () => {
-            //     console.log('Download canceled, file will not be removed.');
-            //     // You can optionally handle cleanup if needed, but for now, we just log that the download was canceled.
-            // });
-
         } else {
             console.error("File not found on the server.");
             res.status(404).send({ message: "File not found" });
@@ -1030,22 +1012,6 @@ async function getProjectListLegacy(req, res) {
 
         ;`);
 
-            // LEFT JOIN 
-            // (
-            //     SELECT tbl_project_activity.project_id, tbl_project_activity.updated_date
-            //     FROM tbl_project
-            //     LEFT JOIN tbl_project_activity ON tbl_project_activity.project_id = tbl_project.project_id
-            //     WHERE tbl_project_activity.sub_project_id = '-1'
-
-            //     UNION 
-
-            //     SELECT tbl_project_activity.sub_project_id, tbl_project_activity.updated_date
-            //     FROM tbl_sub_project
-            //     LEFT JOIN tbl_project_activity ON tbl_project_activity.sub_project_id = tbl_sub_project.sub_project_id
-            //     WHERE tbl_project_activity.sub_project_id != '-1'
-
-            // ) AS lastUpdatedProject_activity ON lastUpdatedProject_activity.project_id = ISNULL(tbl_sub_project.sub_project_id, tbl_project.project_id)
-
             res.json(result.recordset);
         }
         else {
@@ -1454,7 +1420,6 @@ async function viewProjectData(req, res)
 
     let editProjectDetailsData;
     if (subProjectID == -1) {
-        // console.log(subProjectID, "nosubproject")
 
         editProjectDetailsData = (`SELECT tbl_project.organisation_id, organisation_name, tbl_project.project_id, tbl_project.sagarmala_project_id, project_name,
             tbl_project.current_project_stage_id, stage_name, project_type, implememtation_type, 
@@ -1718,7 +1683,6 @@ async function viewProjectData(req, res)
     try {
         const result = await request.query(editProjectDetailsData);
 
-        // const result = await request.query(`SELECT * from tbl_project WHERE tbl_project.project_id = @projectID;`);
         res.json(result.recordset);
     }
     catch (err) {
@@ -1726,55 +1690,6 @@ async function viewProjectData(req, res)
         return res.sendStatus(500);
     }
 };
-
-// async function viewProjectImages(req, res) {
-//     const projectID = req.params.projectID;
-//     const subProjectID = req.params.subProjectID;
-
-//     const conn = await pool;
-//     const request = conn.request();
-
-//     try {
-//         const baseFolder = './fileuploads/Project_Documents/project_images';
-//         const projectFolder = subProjectID === '-1' ? 'mainProject' : 'subProject';
-        
-//         const query = `
-//             SELECT document_name
-//             FROM tbl_project_document
-//             WHERE project_id = @projectID
-//             AND sub_project_id = @subProjectID
-//             AND document_type = 'project_images'
-//         `;
-
-//         request.input('projectID', projectID);
-//         request.input('subProjectID', subProjectID);
-
-//         const result = await request.query(query);
-
-//         if (result.recordset.length === 0) {
-//             return res.json({ message: 'No images found for this project' });
-//         }
-//         const images = [];
-
-//         for (const row of result.recordset) {
-//             const imagePath = path.join(baseFolder, projectFolder, row.document_name);
-            
-//             if (fs.existsSync(imagePath)) {
-//                 const imageBuffer = fs.readFileSync(imagePath);
-//                 const base64Image = imageBuffer.toString('base64');
-//                 images.push({
-//                     name: row.document_name,
-//                     data: base64Image
-//                 });
-//             }
-//         }
-
-//         res.json(images);
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).json({ message: 'Internal server error' });
-//     }
-// }
 
 async function viewProjectImages(req, res) 
 {

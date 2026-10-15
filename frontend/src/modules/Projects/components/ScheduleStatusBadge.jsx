@@ -227,17 +227,3 @@ export function ScheduleStatusSummary({
     </div>
   );
 }
-
-/** Alias for milestone screens. */
-export function MilestoneScheduleSummary(props) {
-  return (
-    <ScheduleStatusSummary
-      titleWhenWatch="Upcoming milestone watch"
-      {...props}
-    />
-  );
-}
-
-export function scheduleRowClassName() {
-  return '';
-}

@@ -14,12 +14,6 @@ export const SCHEDULE_STATUS = Object.freeze({
   ON_TIME: 'completed_on_time',
 });
 
-const OPEN_STATUS_KEYS = new Set([
-  SCHEDULE_STATUS.OVERDUE,
-  SCHEDULE_STATUS.AT_RISK,
-  SCHEDULE_STATUS.ON_TRACK,
-]);
-
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function toDateOnly(value) {
@@ -247,39 +241,6 @@ const ATTENTION_STATUS_KEYS = new Set([
   SCHEDULE_STATUS.AT_RISK,
   SCHEDULE_STATUS.COMPLETED_LATE,
 ]);
-
-/**
- * First open step that still has work remaining (current bottleneck).
- * @param {Array} rows
- * @param {(row: object) => object|null} [getStatus]
- */
-export function findCurrentBottleneck(rows = [], getStatus) {
-  const resolveStatus =
-    typeof getStatus === 'function'
-      ? getStatus
-      : (row) =>
-          getScheduleStatus({
-            targetDate: row.targetedEndDate,
-            actualDate: row.actualEndDate,
-          });
-
-  for (const row of rows) {
-    const status = resolveStatus(row);
-    if (!status) continue;
-    if (OPEN_STATUS_KEYS.has(status.key)) {
-      return { row, status, label: resolveBottleneckLabel(row) };
-    }
-  }
-  return null;
-}
-
-export function findTenderBottleneck(rows = [], options = {}) {
-  return findCurrentBottleneck(rows, (row) => {
-    const status = getTenderStepScheduleStatus(row, options);
-    if (status.key === SCHEDULE_STATUS.NOT_APPLICABLE) return null;
-    return status;
-  });
-}
 
 /**
  * All tendering steps that need review (Overdue / At Risk / Completed Late).

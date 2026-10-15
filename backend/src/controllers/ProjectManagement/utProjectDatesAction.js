@@ -44,7 +44,6 @@ async function utProjectDatesAction(req, res)
     let workAwardedActualDate = req.body.workAwardedActualDate;
     let contractSignedPlannedDate = req.body.contractSignedPlannedDate;
     let contractSignedActualDate = req.body.contractSignedActualDate;
-    // let projectStageID = req.body.projectStageID;
 
     if (techSanctionPlannedDate == "") {
         techSanctionPlannedDate = null;
@@ -94,7 +93,6 @@ async function utProjectDatesAction(req, res)
     if (contractSignedActualDate == "") {
         contractSignedActualDate = null;
     }
-    // console.log(techSanctionPlannedDate, "2")
 
     if(onNominationBasisAwarded == 1)
     {
@@ -115,8 +113,6 @@ async function utProjectDatesAction(req, res)
         }
     }
 
-    // console.log(techSanctionPlannedDate, "3")
-    
     const conn = await pool;
     const request = conn.request();
     request.input("projectID", projectID);
@@ -150,7 +146,6 @@ async function utProjectDatesAction(req, res)
     request.input("workAwardedActualDate", workAwardedActualDate);
     request.input("contractSignedPlannedDate", contractSignedPlannedDate);
     request.input("contractSignedActualDate", contractSignedActualDate);
-    // request.input("projectStageID", projectStageID);
     request.input("userID", userID);
     
     try {
@@ -171,7 +166,6 @@ async function utProjectDatesAction(req, res)
             isTechExists = await request.query(`SELECT sub_project_id FROM tbl_project_date WHERE sub_project_id = @subProjectID AND sub_stage_id = 3;`);
         }
         if (isTechExists.recordset.length > 0) {
-            // console.log("update")
             if (subProjectID == -1) {
                 const result = await request.query(`UPDATE tbl_project_date SET not_applicable_date = @isTechSancNotApplicable, planned_date = @techSanctionPlannedDate, 
                 actual_date = @techSanctionActualDate WHERE project_id = @projectID AND sub_stage_id = 3`);
@@ -187,7 +181,6 @@ async function utProjectDatesAction(req, res)
 
         }
         else {
-            // console.log("insert")  
             const result = await request.query(`INSERT INTO tbl_project_date (project_id, sub_project_id, sub_stage_id, not_applicable_date,
                 planned_date, actual_date)
                 VALUES (@projectID, @subProjectID, 3, @isTechSancNotApplicable, @techSanctionPlannedDate, @techSanctionActualDate)`);
@@ -430,7 +423,6 @@ async function utProjectDatesAction(req, res)
 async function getDisplayUtProjectDates(req, res) {
     const projectID = req.params.projectID;
     const subProjectID = req.params.subProjectID;
-    // console.log("projectdatesui", projectID)
 
     const conn = await pool;
     const request = conn.request();
@@ -482,9 +474,7 @@ async function getRevisionHistory(req, res) {
             where sub_project_id = @subProjectID AND sub_stage_id = @projectSubStageID order by revised_on DESC`);
         }
 
-        // res.sendStatus(200);  
         res.json(result.recordset);
-        // console.log(result.recordset.length)  
     }
     catch (err) {
         console.log(err);
@@ -503,7 +493,6 @@ async function addUtCostandCalls(req, res) {
     let foundationLaid = req.body.foundationLaid;
     let foundationLaidDate = req.body.foundationLaidDate;
     let foundationTentativeDate = req.body.foundationTentativeDate;
-    // let projectStageID = req.body.projectStageID;
 
     if (!awardProjectCost) {
         awardProjectCost = null;
@@ -529,15 +518,9 @@ async function addUtCostandCalls(req, res) {
     request.input("foundationLaid", foundationLaid);
     request.input("foundationLaidDate", foundationLaidDate);
     request.input("foundationTentativeDate", foundationTentativeDate);
-    // request.input("projectStageID", projectStageID);
-
-    // console.log("techSanctionCost", techSanctionCost)
-    // console.log("awardProjectCost", awardProjectCost)
-    // console.log("projectStageID",projectStageID) 
 
     let awardedCostQuery;
     if (subProjectID == -1) {
-        // console.log("projectStageID",projectStageID) 
 
         awardedCostQuery = (` UPDATE tbl_project SET 
             technical_sanction_cost = @techSanctionCost,award_project_cost = @awardProjectCost, on_nomination_basis = @onNominationBasisAwarded,
@@ -628,7 +611,6 @@ async function checkProjectStageID(req, res) {
         }
         const result1 = await request.query(checkProStageId)
 
-        // res.json(result.recordset);
         res.json({ result1: result1.recordset[0] });
     }
     catch (err) {
@@ -760,11 +742,6 @@ async function getUnderTenderingCheckPoints(req, res) {
                 WHERE tbl_project_date.sub_project_id = @subProjectID AND sub_stage_id = 10;`);
         }
 
-        // const resultValue = result.recordsets[0][0].resultValue;
-
-        // const actualDate = result.recordsets[1].length > 0 ? result.recordsets[1][0].actualDate : null;
-
-        // res.json({ resultValue, actualDate });
         if (result.recordset.length === 0) {
             res.json([{ actualDate: null }]);
         } else {

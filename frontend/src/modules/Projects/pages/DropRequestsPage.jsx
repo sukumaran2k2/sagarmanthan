@@ -371,8 +371,8 @@ export default function DropRequestsPage({ notify }) {
             )}
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {isMinistry
-              ? 'Ministry View: Review, accept (drop), or reject project drop requests submitted by organisations.'
+            {isMinistryAudience
+              ?'Ministry View: Review, accept (drop), or reject project drop requests submitted by organisations.'
               : 'Organisation View: Track the review status and decisions for your submitted project drop requests.'}
           </p>
         </div>

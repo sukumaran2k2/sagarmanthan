@@ -262,7 +262,6 @@ async function addPhysicalProgress(req, res) {
             const result = await request.query(`UPDATE tbl_project_activity SET
                 end_date = @progressDate, updated_by = @userID, updated_date = getDate()
                 WHERE milestone_id = ${milestone} AND project_id = '${projectID}'`);
-                // console.log(progressDate, "progressDate")
         }
         else 
         {
