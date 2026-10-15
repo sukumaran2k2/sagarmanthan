@@ -5,7 +5,7 @@ import { create } from 'zustand';
  * Centralized control for platform-wide styling properties, layout density,
  * and module aesthetics.
  */
-export const useUiStore = create((set, get) => ({
+export const useUiStore = create((set) => ({
   // Global layout theme properties
   density: 'comfortable', // 'compact' | 'comfortable' | 'spacious'
   headerColor: '#0f417a',

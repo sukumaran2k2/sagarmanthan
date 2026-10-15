@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
@@ -16,16 +16,14 @@ export default function YoungProfessionalsView({
   const permissions = useYpPermissions();
   const { canAdd, canEdit, canRemove, canView } = permissions;
 
-  // Zustand YP Store
-  const {
-    editData,
-    setEditData,
-    clearEditData,
-    wings,
-    divisions,
-    loadWingsAndDivisions,
-    setActiveTab
-  } = useYpStore();
+  // Zustand YP Store (atomic selectors so DataList filter/search updates don't re-render the shell)
+  const wings = useYpStore(state => state.wings);
+  const divisions = useYpStore(state => state.divisions);
+  const loadWingsAndDivisions = useYpStore(state => state.loadWingsAndDivisions);
+
+  // The record being edited travels with the route entry, so it is gone as soon as
+  // the user navigates to the form any other way (tab, sidebar, new session)
+  const editData = location.state?.item ?? null;
 
   // Dynamically render internal sub-tabs based on permissions
   const tabs = useMemo(() => {
@@ -43,30 +41,23 @@ export default function YoungProfessionalsView({
     return 'list-view';
   }, [location.pathname]);
 
-  // Sync tab with store
-  useEffect(() => {
-    setActiveTab(currentTab);
-  }, [currentTab, setActiveTab]);
-
   // Load wings and divisions once via store
   useEffect(() => {
     loadWingsAndDivisions();
   }, [loadWingsAndDivisions]);
 
-  const handleEdit = (yp) => {
-    setEditData(yp);
+  const handleEdit = useCallback((yp) => {
     navigate('/hr/young-professionals/input-form', { state: { item: yp } });
-  };
+  }, [navigate]);
 
-  const handleSuccess = () => {
-    clearEditData();
-    navigate('/hr/young-professionals/list-view');
-  };
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleSuccess = useCallback(() => {
+    navigate('/hr/young-professionals/list-view', { replace: true });
+  }, [navigate]);
 
-  const handleBack = () => {
-    clearEditData();
+  const handleBack = useCallback(() => {
     navigate('/hr/young-professionals/list-view');
-  };
+  }, [navigate]);
 
   // Render RestrictedAccess component if user has no permissions at all
   if (!canAdd && !canView && !canEdit) {
@@ -89,7 +80,6 @@ export default function YoungProfessionalsView({
           tabs={tabs}
           currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'input-form') clearEditData();
             if (tabId === 'input-form') navigate('/hr/young-professionals/input-form');
             else if (tabId === 'report') navigate('/hr/young-professionals/report');
             else navigate('/hr/young-professionals/list-view');
@@ -113,6 +103,7 @@ export default function YoungProfessionalsView({
 
           <Route path="input-form" element={
             <InputForm
+              key={editData?.yp_id ?? 'new'}
               wings={wings}
               divisions={divisions}
               onBack={handleBack}

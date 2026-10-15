@@ -76,13 +76,15 @@
   --ag-selected-row-background-color: var(--module-report-odd-row-bg);
 }
 
+/* Follow the table's own brandColor (ReportTable sets --theme-primary-color);
+   fall back to the report palette for grids rendered outside ReportTable */
 .yp-pro-grid .ag-header,
 .yp-pro-grid .ag-header-cell,
 .yp-pro-grid .ag-header-group-cell,
 .mopsw-pro-grid .ag-header,
 .mopsw-pro-grid .ag-header-cell,
 .mopsw-pro-grid .ag-header-group-cell {
-  background-color: var(--module-report-header-bg) !important;
+  background-color: var(--theme-primary-color, var(--module-report-header-bg)) !important;
   color: var(--module-report-header-text) !important;
 }
 

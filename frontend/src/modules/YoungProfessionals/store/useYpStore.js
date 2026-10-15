@@ -1,23 +1,23 @@
 import { create } from 'zustand';
 import { fetchWings, fetchDivisions } from '../api';
+import { registerStoreReset } from '../../../stores/resetRegistry';
 
 /**
  * Young Professionals Module Zustand Store
- * Centralizes state management across InputForm, DataList, and Reports:
- *  - Active tab / routing view
- *  - Form edit data (preserves edit state across views)
+ * Holds state that should survive switching between the module's tabs:
  *  - Cached reference metadata (Wings and Divisions)
  *  - DataList filters, search term, pagination, and column visibility
+ *
+ * The record being edited is NOT kept here; it travels with the route
+ * (location.state.item) so it can never leak into a later "Add" form or
+ * into another user's session.
  */
-export const useYpStore = create((set, get) => ({
-  // Navigation / View State
-  activeTab: 'list-view', // 'list-view' | 'input-form' | 'report'
-  editData: null,
-
+const initialState = {
   // Reference Metadata
   wings: [],
   divisions: [],
   loadingMetadata: false,
+  metadataError: null,
 
   // DataList Filter & Pagination States
   activeStatusTab: 'active', // 'active' | 'relieved'
@@ -34,77 +34,76 @@ export const useYpStore = create((set, get) => ({
     wing: true,
     division: true,
   },
+};
+
+// Accepts either a value or an updater function, like React's setState
+const resolve = (updater, prev) => (typeof updater === 'function' ? updater(prev) : updater);
+
+export const useYpStore = create((set, get) => ({
+  ...initialState,
 
   // Actions
-  setActiveTab: (tab) => set({ activeTab: tab }),
-
-  setEditData: (item) => set({ editData: item }),
-
-  clearEditData: () => set({ editData: null }),
-
   setActiveStatusTab: (status) => set({ activeStatusTab: status, currentPage: 1 }),
 
   setSearchTerm: (searchTerm) => set({ searchTerm }),
 
-  setDebouncedSearch: (debouncedSearch) => set({ debouncedSearch, currentPage: 1 }),
+  // Only reset pagination when the search actually changed (the debounce also fires on mount)
+  setDebouncedSearch: (debouncedSearch) => {
+    if (get().debouncedSearch === debouncedSearch) return;
+    set({ debouncedSearch, currentPage: 1 });
+  },
 
-  setSelectedWing: (selectedWing) => set({ 
-    selectedWing, 
-    selectedDivision: '', 
-    currentPage: 1 
+  setSelectedWing: (selectedWing) => set({
+    selectedWing,
+    selectedDivision: '',
+    currentPage: 1
   }),
 
-  setSelectedDivision: (selectedDivision) => set({ 
-    selectedDivision, 
-    currentPage: 1 
+  setSelectedDivision: (selectedDivision) => set({
+    selectedDivision,
+    currentPage: 1
   }),
 
   setShowFilterPanel: (updater) => set((state) => ({
-    showFilterPanel: typeof updater === 'function' ? updater(state.showFilterPanel) : updater
+    showFilterPanel: resolve(updater, state.showFilterPanel)
   })),
 
-  setCurrentPage: (currentPage) => set({ currentPage }),
+  setCurrentPage: (updater) => set((state) => ({
+    currentPage: resolve(updater, state.currentPage)
+  })),
 
   setPageSize: (pageSize) => set({ pageSize, currentPage: 1 }),
 
   setVisibleCols: (updater) => set((state) => ({
-    visibleCols: typeof updater === 'function' ? updater(state.visibleCols) : updater
-  })),
-
-  toggleCol: (colKey) => set((state) => ({
-    visibleCols: {
-      ...state.visibleCols,
-      [colKey]: !state.visibleCols[colKey]
-    }
+    visibleCols: resolve(updater, state.visibleCols)
   })),
 
   resetFilters: () => set({
     selectedWing: '',
     selectedDivision: '',
-    searchTerm: '',
-    debouncedSearch: '',
     currentPage: 1
   }),
+
+  // Restore defaults (called on logout so nothing carries over to the next session)
+  reset: () => set(initialState),
 
   // Asynchronous action to fetch wings and divisions once and cache them
   loadWingsAndDivisions: async () => {
     const { wings, divisions, loadingMetadata } = get();
     if ((wings.length > 0 && divisions.length > 0) || loadingMetadata) return;
 
-    set({ loadingMetadata: true });
-    try {
-      const [wRes, dRes] = await Promise.all([
-        fetchWings().catch(() => ({ data: [] })),
-        fetchDivisions().catch(() => ({ data: [] }))
-      ]);
-      set({
-        wings: wRes.data || [],
-        divisions: dRes.data || [],
-        loadingMetadata: false
-      });
-    } catch (err) {
-      console.error("Failed to load YP wings & divisions in store:", err);
-      set({ loadingMetadata: false });
-    }
+    set({ loadingMetadata: true, metadataError: null });
+    const [wRes, dRes] = await Promise.allSettled([fetchWings(), fetchDivisions()]);
+    const failed = [wRes, dRes].filter(r => r.status === 'rejected');
+    failed.forEach(r => console.error("Failed to load YP wings & divisions:", r.reason));
+
+    set({
+      wings: wRes.status === 'fulfilled' ? (wRes.value.data || []) : [],
+      divisions: dRes.status === 'fulfilled' ? (dRes.value.data || []) : [],
+      loadingMetadata: false,
+      metadataError: failed.length > 0 ? 'Failed to load wings and divisions.' : null
+    });
   }
 }));
+
+registerStoreReset(() => useYpStore.getState().reset());

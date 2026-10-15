@@ -170,10 +170,11 @@
 .module-search-input::placeholder {
   color: var(--module-search-placeholder);
 }
+/* Solid 2px ring keeps the focus indicator clearly visible (WCAG 2.4.7 / 1.4.11) */
 .module-search-input:focus {
   outline: none;
   border-color: var(--module-search-focus-ring);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 2px var(--module-search-focus-ring);
 }
 
 /* Filter Button */
@@ -199,11 +200,15 @@
 }
 
 /* ==============================================================================
- * AG-GRID QUARTZ TABLE STYLING RULES (Global DataList Table Access)
+ * AG-GRID QUARTZ TABLE STYLING RULES
  * ==============================================================================
+ * Scoped to `.module-datalist-grid` (add it next to `ag-theme-quartz` on the grid
+ * wrapper) so these overrides never leak into other modules' AG Grid tables.
  */
 
-.ag-theme-quartz {
+/* Also match the inner themed element (components/Table.jsx renders its own .ag-theme-quartz) */
+.module-datalist-grid.ag-theme-quartz,
+.module-datalist-grid .ag-theme-quartz {
   font-family: var(--datalist-table-font-family) !important;
   --ag-font-family: var(--datalist-table-font-family);
   --ag-font-size: var(--datalist-table-row-font-size);
@@ -216,23 +221,25 @@
   --ag-cell-horizontal-padding: var(--datalist-table-cell-padding-x);
 }
 
-.ag-theme-quartz.rounded-xl,
-.ag-theme-quartz.rounded-2xl {
+.module-datalist-grid.ag-theme-quartz.rounded-xl,
+.module-datalist-grid.ag-theme-quartz.rounded-2xl,
+.module-datalist-grid .ag-theme-quartz.rounded-xl,
+.module-datalist-grid .ag-theme-quartz.rounded-2xl {
   border-radius: var(--datalist-table-border-radius) !important;
 }
 
-.ag-theme-quartz .ag-root-wrapper {
+.module-datalist-grid .ag-root-wrapper {
   border-radius: var(--datalist-table-border-radius) var(--datalist-table-border-radius) 0 0 !important;
   border-color: var(--datalist-table-border-color) !important;
 }
 
-.ag-theme-quartz .ag-header {
+.module-datalist-grid .ag-header {
   background-color: var(--datalist-table-header-bg) !important;
   border-bottom: 2px solid var(--datalist-table-header-border) !important;
 }
 
-.ag-theme-quartz .ag-header-cell,
-.ag-theme-quartz .ag-header-group-cell {
+.module-datalist-grid .ag-header-cell,
+.module-datalist-grid .ag-header-group-cell {
   color: var(--datalist-table-header-text) !important;
   font-weight: var(--datalist-table-header-font-weight) !important;
   text-transform: uppercase !important;
@@ -240,20 +247,17 @@
   letter-spacing: var(--datalist-table-header-letter-spacing) !important;
 }
 
-.ag-theme-quartz .ag-header-cell .ag-icon,
-.ag-theme-quartz .ag-header-cell-label {
+.module-datalist-grid .ag-header-cell .ag-icon,
+.module-datalist-grid .ag-header-cell-label {
   color: var(--datalist-table-header-text) !important;
 }
 
-.ag-theme-quartz .ag-row {
+.module-datalist-grid .ag-row {
   font-size: var(--datalist-table-row-font-size) !important;
   border-bottom: 1px solid var(--datalist-table-row-border) !important;
 }
 
-.ag-theme-quartz .ag-row-hover {
-  background-color: var(--datalist-table-row-hover-bg) !important;
-}
-
-.dark .ag-theme-quartz .ag-row-hover {
+/* Row hover token already switches in `.dark`, so one rule covers both themes */
+.module-datalist-grid .ag-row-hover {
   background-color: var(--datalist-table-row-hover-bg) !important;
 }

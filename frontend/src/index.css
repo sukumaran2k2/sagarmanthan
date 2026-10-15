@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap');
+/* Google Sans is loaded once via <link> in index.html (with preconnect) */
 @import "tailwindcss";
 @variant dark (&:where(.dark, .dark *));
 @import "ag-grid-community/styles/ag-grid.css";
@@ -83,7 +83,7 @@ body {
   --ag-header-foreground-color: #ffffff !important;
   --ag-border-color: #e2e8f0 !important;
   --ag-row-hover-color: #f8fafc/60 !important;
-  --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  --ag-font-family: var(--font-sans, 'Google Sans', system-ui, -apple-system, sans-serif) !important;
   --ag-font-size: 11.5px !important;
 }
 

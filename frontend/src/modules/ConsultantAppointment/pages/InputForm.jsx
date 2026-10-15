@@ -12,7 +12,8 @@ import {
   addConsultantID
 } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
-import { useCaStore } from '../store/useCaStore';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { CA_TOASTS } from '../toastMessages';
 
 /**
  * Milestone Workflow Configuration
@@ -37,17 +38,8 @@ export default function InputForm({
   onSuccess,
   triggerNotification
 }) {
-  const {
-    editData: storeEditData,
-    clearEditData,
-    wings: storeWings,
-    divisions: storeDivisions
-  } = useCaStore();
-
-  const activeEditData = editData || storeEditData;
-  const isEdit = !!activeEditData;
-  const effectiveWings = (wings && wings.length > 0) ? wings : storeWings;
-  const effectiveDivisions = (divisions && divisions.length > 0) ? divisions : storeDivisions;
+  const isEdit = !!editData;
+  const notify = useNotifier(triggerNotification);
 
   // Form states
   const [wing, setWing] = useState('');
@@ -156,41 +148,41 @@ export default function InputForm({
   };
 
   useEffect(() => {
-    if (activeEditData) {
-      setWing(activeEditData.wing_id || '');
-      setDivision(activeEditData.division_id || '');
-      setAppointmentType(activeEditData.appointmentType || 'Full Time');
-      setNumResources(activeEditData.numResources || 1);
-      setConsultingFirmName(activeEditData.consultingFirmName || activeEditData.raw?.name_of_consulting_firm || '');
+    if (editData) {
+      setWing(editData.wing_id || '');
+      setDivision(editData.division_id || '');
+      setAppointmentType(editData.appointmentType || 'Full Time');
+      setNumResources(editData.numResources || 1);
+      setConsultingFirmName(editData.consultingFirmName || editData.raw?.name_of_consulting_firm || '');
       setRemarks({
-        adminApproval: activeEditData.remarks?.adminApproval || activeEditData.raw?.admin_approval_for_nkg_consultant_remarks || '',
-        tenderPublished: activeEditData.remarks?.tenderPublished || activeEditData.raw?.tender_published_remarks || '',
-        preBidQueries: activeEditData.remarks?.preBidQueries || activeEditData.raw?.pre_bid_queries_responded_remarks || '',
-        bidReceived: activeEditData.remarks?.bidReceived || activeEditData.raw?.bid_received_remarks || '',
-        techBidFinalized: activeEditData.remarks?.techBidFinalized || activeEditData.raw?.technical_bid_finalized_remarks || '',
-        finBidFinalized: activeEditData.remarks?.finBidFinalized || activeEditData.raw?.financial_bid_finalized_remarks || '',
-        workOrderIssued: activeEditData.remarks?.workOrderIssued || activeEditData.raw?.work_order_issued_remarks || '',
-        contractSigned: activeEditData.remarks?.contractSigned || activeEditData.raw?.contract_signed_remarks || ''
+        adminApproval: editData.remarks?.adminApproval || editData.raw?.admin_approval_for_nkg_consultant_remarks || '',
+        tenderPublished: editData.remarks?.tenderPublished || editData.raw?.tender_published_remarks || '',
+        preBidQueries: editData.remarks?.preBidQueries || editData.raw?.pre_bid_queries_responded_remarks || '',
+        bidReceived: editData.remarks?.bidReceived || editData.raw?.bid_received_remarks || '',
+        techBidFinalized: editData.remarks?.techBidFinalized || editData.raw?.technical_bid_finalized_remarks || '',
+        finBidFinalized: editData.remarks?.finBidFinalized || editData.raw?.financial_bid_finalized_remarks || '',
+        workOrderIssued: editData.remarks?.workOrderIssued || editData.raw?.work_order_issued_remarks || '',
+        contractSigned: editData.remarks?.contractSigned || editData.raw?.contract_signed_remarks || ''
       });
       setDates({
-        adminApprovalDate: activeEditData.stages?.adminApprovalDate || '',
-        tenderPublishedDate: activeEditData.stages?.tenderPublishedDate || '',
-        preBidQueriesDate: activeEditData.stages?.preBidQueriesDate || '',
-        bidReceivedDate: activeEditData.stages?.bidReceivedDate || '',
-        techBidFinalizedDate: activeEditData.stages?.techBidFinalizedDate || '',
-        finBidFinalizedDate: activeEditData.stages?.finBidFinalizedDate || '',
-        workOrderIssuedDate: activeEditData.stages?.workOrderIssuedDate || '',
-        contractSignedDate: activeEditData.stages?.contractSignedDate || '',
+        adminApprovalDate: editData.stages?.adminApprovalDate || '',
+        tenderPublishedDate: editData.stages?.tenderPublishedDate || '',
+        preBidQueriesDate: editData.stages?.preBidQueriesDate || '',
+        bidReceivedDate: editData.stages?.bidReceivedDate || '',
+        techBidFinalizedDate: editData.stages?.techBidFinalizedDate || '',
+        finBidFinalizedDate: editData.stages?.finBidFinalizedDate || '',
+        workOrderIssuedDate: editData.stages?.workOrderIssuedDate || '',
+        contractSignedDate: editData.stages?.contractSignedDate || '',
       });
 
       // Load candidate details
-      if (activeEditData.id) {
-        fetchCandidatesByConsultantAppointmentId(activeEditData.id)
+      if (editData.id) {
+        fetchCandidatesByConsultantAppointmentId(editData.id)
           .then((res) => {
             if (res.data && res.data.length > 0) {
               setCandidates(res.data);
             } else {
-              const candIdsStr = activeEditData.raw?.candidate_id || '';
+              const candIdsStr = editData.raw?.candidate_id || '';
               if (candIdsStr) {
                 const idList = candIdsStr.split(',').map(s => s.trim()).filter(Boolean);
                 Promise.all(
@@ -212,7 +204,7 @@ export default function InputForm({
             }
           })
           .catch(() => {
-            const candIdsStr = activeEditData.raw?.candidate_id || '';
+            const candIdsStr = editData.raw?.candidate_id || '';
             if (candIdsStr) {
               const idList = candIdsStr.split(',').map(s => s.trim()).filter(Boolean);
               Promise.all(
@@ -234,13 +226,13 @@ export default function InputForm({
           });
       }
     }
-  }, [activeEditData]);
+  }, [editData]);
 
   // Dynamically filter divisions based on the selected wing
   const filteredDivisions = useMemo(() => {
     if (!wing) return [];
-    return effectiveDivisions.filter(d => String(d.wing_id) === String(wing));
-  }, [wing, effectiveDivisions]);
+    return divisions.filter(d => String(d.wing_id) === String(wing));
+  }, [wing, divisions]);
 
   // Sync division selection if current division is not in filtered list
   useEffect(() => {
@@ -317,15 +309,15 @@ export default function InputForm({
     e.preventDefault();
 
     if (!wing) {
-      if (triggerNotification) triggerNotification("Please select a Wing.", "warning");
+      notify(COMMON_TOASTS.requiredSelect('Wing'));
       return;
     }
     if (!division) {
-      if (triggerNotification) triggerNotification("Please select a Division.", "warning");
+      notify(COMMON_TOASTS.requiredSelect('Division'));
       return;
     }
     if (Object.keys(errors).length > 0) {
-      if (triggerNotification) triggerNotification("Please correct validation errors before submitting.", "warning");
+      notify(COMMON_TOASTS.fixValidationErrors());
       return;
     }
 
@@ -374,7 +366,7 @@ export default function InputForm({
     try {
       if (isEdit) {
         await updateConsultantAppointment({
-          consultantAppointmentID: activeEditData.id,
+          consultantAppointmentID: editData.id,
           ...payload
         });
       } else {
@@ -383,21 +375,14 @@ export default function InputForm({
         });
       }
 
-      if (triggerNotification) {
-        triggerNotification(
-          isEdit ? "Consultant Appointment updated successfully." : "New Consultant Appointment registered successfully.",
-          "success"
-        );
-      }
+      const wingName = wings.find(w => String(w.wing_id) === String(wing))?.wing_name;
+      const divisionName = divisions.find(d => String(d.division_id) === String(division))?.division_name;
+      notify(isEdit ? CA_TOASTS.updated(wingName, divisionName) : CA_TOASTS.created(wingName, divisionName));
 
-      clearEditData();
       onSuccess();
     } catch (err) {
       console.error("Submit error details:", err.response?.data || err);
-      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
-      if (triggerNotification) {
-        triggerNotification(`Failed to save Consultant Appointment: ${serverMsg}`, "error");
-      }
+      notify(CA_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -452,7 +437,7 @@ export default function InputForm({
 
     if (Object.keys(errors).length > 0) {
       setCErrors(errors);
-      if (triggerNotification) triggerNotification('Please fill all mandatory candidate fields.', 'warning');
+      notify(COMMON_TOASTS.mandatoryFieldsMissing());
       return;
     }
 
@@ -519,16 +504,12 @@ export default function InputForm({
         return next;
       });
 
-      if (triggerNotification) {
-        triggerNotification(`Candidate ${activeCandidateIndex + 1} details saved!`, 'success');
-      }
+      notify(existingCand ? CA_TOASTS.candidateUpdated(cName) : CA_TOASTS.candidateAdded(cName));
 
       setIsCandidateFormOpen(false);
     } catch (err) {
       console.error('Error saving candidate inline:', err);
-      if (triggerNotification) {
-        triggerNotification(err.response?.data?.message || 'Failed to save candidate details.', 'error');
-      }
+      notify(CA_TOASTS.candidateSaveFailed(getErrorMessage(err)));
     } finally {
       setCSaving(false);
     }
@@ -577,7 +558,7 @@ export default function InputForm({
                   className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('wing', wing) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
                 >
                   <option value="">Select Wing</option>
-                  {effectiveWings.map((w) => (
+                  {wings.map((w) => (
                     <option key={w.wing_id} value={w.wing_id}>
                       {w.wing_name}
                     </option>
@@ -875,7 +856,7 @@ export default function InputForm({
                                     const file = e.target.files[0];
                                     if (file) {
                                       if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-                                        if (triggerNotification) triggerNotification('Only PDF files allowed.', 'error');
+                                        notify(COMMON_TOASTS.invalidFileType('PDF'));
                                         e.target.value = '';
                                         return;
                                       }

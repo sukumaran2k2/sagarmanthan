@@ -5,3 +5,4 @@
 export { useUiStore } from './useUiStore';
 export { useYpStore } from '../modules/YoungProfessionals/store/useYpStore';
 export { useCaStore } from '../modules/ConsultantAppointment/store/useCaStore';
+export { registerStoreReset, resetAllStores } from './resetRegistry';

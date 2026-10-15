@@ -6,6 +6,7 @@
  *  1. module-datalist.css -> DataList container, search, filters & AG-Grid Quartz table styles
  *  2. module-input.css    -> Input form cards, banners, section headers, inputs & labels
  *  3. module-report.css   -> Classic brown report theme, controls, and report AG-Grid styles
+ *  4. module-toast.css    -> Standardized toast notification colours (success/error/warning/info)
  *
  * Page layout, typography tokens, module headers & internal navigation remain
  * globally defined here.
@@ -16,6 +17,7 @@
 @import "./module-datalist.css";
 @import "./module-input.css";
 @import "./module-report.css";
+@import "./module-toast.css";
 
 :root {
   /* ── 0. Global Typography ──────────────────────────────────── */

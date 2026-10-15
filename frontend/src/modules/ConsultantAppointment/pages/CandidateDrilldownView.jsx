@@ -32,6 +32,8 @@ import {
   API_BASE
 } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { CA_TOASTS } from '../toastMessages';
 
 export default function CandidateDrilldownView({
   appointment,
@@ -41,6 +43,7 @@ export default function CandidateDrilldownView({
   canAdd = true,
   canRemove = true
 }) {
+  const notify = useNotifier(triggerNotification);
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -131,12 +134,10 @@ export default function CandidateDrilldownView({
           );
           setCandidates(loaded);
         } catch {
-          if (triggerNotification) {
-            triggerNotification('Failed to load candidate details.', 'error');
-          }
+          notify(CA_TOASTS.candidatesLoadFailed());
         }
-      } else if (triggerNotification) {
-        triggerNotification('Failed to load candidate details.', 'error');
+      } else {
+        notify(CA_TOASTS.candidatesLoadFailed());
       }
     } finally {
       setLoading(false);
@@ -222,7 +223,7 @@ export default function CandidateDrilldownView({
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
-      if (triggerNotification) triggerNotification('Please fill in all mandatory fields highlighted in red.', 'warning');
+      notify(COMMON_TOASTS.mandatoryFieldsMissing());
       return;
     }
 
@@ -271,21 +272,14 @@ export default function CandidateDrilldownView({
         }
       }
 
-      if (triggerNotification) {
-        triggerNotification(
-          existingCand ? 'Candidate details updated successfully!' : 'New candidate added successfully!',
-          'success'
-        );
-      }
+      notify(existingCand ? CA_TOASTS.candidateUpdated(candName) : CA_TOASTS.candidateAdded(candName));
 
       await loadCandidates();
       setEditMode(false);
       setEditingIndex(null);
     } catch (err) {
       console.error('Error saving candidate in-place:', err);
-      if (triggerNotification) {
-        triggerNotification(err.response?.data?.message || 'Failed to save candidate details.', 'error');
-      }
+      notify(CA_TOASTS.candidateSaveFailed(getErrorMessage(err)));
     } finally {
       setFormSaving(false);
     }
@@ -296,13 +290,13 @@ export default function CandidateDrilldownView({
     if (!file) return;
 
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      if (triggerNotification) triggerNotification('Invalid file format. Only PDF files are allowed.', 'error');
+      notify(COMMON_TOASTS.invalidFileType('PDF'));
       e.target.value = '';
       return;
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      if (triggerNotification) triggerNotification('File size exceeds 20 MB. Please choose a smaller file.', 'warning');
+      notify(COMMON_TOASTS.fileTooLarge(20));
       e.target.value = '';
       return;
     }
@@ -315,16 +309,12 @@ export default function CandidateDrilldownView({
 
       await uploadCandidateDocument(formData);
 
-      if (triggerNotification) {
-        triggerNotification('Appointment Order PDF uploaded successfully!', 'success');
-      }
+      notify(CA_TOASTS.orderUploaded());
 
       await loadCandidates();
     } catch (err) {
       console.error('Error uploading candidate PDF:', err);
-      if (triggerNotification) {
-        triggerNotification('Failed to upload Appointment Order document.', 'error');
-      }
+      notify(CA_TOASTS.orderUploadFailed(getErrorMessage(err)));
     } finally {
       setUploadingForCandidateId(null);
       e.target.value = '';
@@ -339,21 +329,17 @@ export default function CandidateDrilldownView({
     const userId = getCurrentUserId() || 1;
     try {
       await deleteCandidateDetail(candidate.candidate_id, userId);
-      if (triggerNotification) {
-        triggerNotification(`Candidate ${candidate.name || ''} deleted successfully.`, 'success');
-      }
+      notify(CA_TOASTS.candidateDeleted(candidate.name));
       await loadCandidates();
     } catch (err) {
       console.error('Error deleting candidate:', err);
-      if (triggerNotification) {
-        triggerNotification('Failed to delete candidate.', 'error');
-      }
+      notify(CA_TOASTS.candidateDeleteFailed(candidate.name, getErrorMessage(err)));
     }
   };
 
   const handleDownload = (documentName) => {
     if (!documentName) {
-      if (triggerNotification) triggerNotification('No document attached.', 'warning');
+      notify(COMMON_TOASTS.noDocument());
       return;
     }
     const downloadUrl = `${API_BASE}/ca-candidate-document-download/${encodeURIComponent(documentName)}`;
@@ -365,9 +351,7 @@ export default function CandidateDrilldownView({
     link.click();
     document.body.removeChild(link);
 
-    if (triggerNotification) {
-      triggerNotification(`Downloading ${documentName}...`, 'info');
-    }
+    notify(CA_TOASTS.orderDownloading(documentName));
   };
 
   const formatDateDisplay = (dateVal) => {
@@ -399,8 +383,8 @@ export default function CandidateDrilldownView({
         ].join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv)
-        .then(() => { if (triggerNotification) triggerNotification('Candidate details copied to clipboard!', 'success'); })
-        .catch(() => { if (triggerNotification) triggerNotification('Failed to copy table data.', 'error'); });
+        .then(() => notify(CA_TOASTS.candidatesCopied(filteredCandidates.length)))
+        .catch(() => notify(COMMON_TOASTS.copyFailed()));
     } else if (type === 'Excel') {
       let csv = exportHeaders.map(h => `"${h}"`).join(',') + '\n';
       filteredCandidates.forEach((c, idx) => {
@@ -423,9 +407,14 @@ export default function CandidateDrilldownView({
       link.download = `Candidate_Details_${appointment.wing || 'Consultant'}.csv`;
       link.click();
       URL.revokeObjectURL(url);
-      if (triggerNotification) triggerNotification('Candidate data exported to Excel (CSV) successfully!', 'success');
+      notify(COMMON_TOASTS.excelExported(link.download));
     } else if (type === 'PDF') {
       const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        notify(COMMON_TOASTS.popupBlocked());
+        return;
+      }
+      notify(COMMON_TOASTS.pdfPreparing());
       const title = `Candidate Details — ${appointment.wing} / ${appointment.division}`;
       let headersHtml = exportHeaders.map(h => `<th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; background-color: #0f417a; color: #ffffff; font-size: 10px; font-weight: bold; text-transform: uppercase;">${h}</th>`).join('');
       let rowsHtml = filteredCandidates.map((c, idx) => `
@@ -886,12 +875,12 @@ export default function CandidateDrilldownView({
                   const file = e.target.files[0];
                   if (file) {
                     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-                      if (triggerNotification) triggerNotification('Invalid file type. Only PDF files are allowed.', 'error');
+                      notify(COMMON_TOASTS.invalidFileType('PDF'));
                       e.target.value = '';
                       return;
                     }
                     if (file.size > 20 * 1024 * 1024) {
-                      if (triggerNotification) triggerNotification('File size exceeds 20 MB.', 'warning');
+                      notify(COMMON_TOASTS.fileTooLarge(20));
                       e.target.value = '';
                       return;
                     }

@@ -7,7 +7,10 @@ import api, { fetchYoungProfessionals, relieveYoungProfessional } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import { useShallow } from 'zustand/react/shallow';
 import { useYpStore } from '../store/useYpStore';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { YP_TOASTS } from '../toastMessages';
 
 export default function DataList({
   onEdit,
@@ -18,7 +21,7 @@ export default function DataList({
   canAdd = true,
   canRemove = true
 }) {
-  // Zustand YP Store
+  // Zustand YP Store (filter/pagination slice only; wings & divisions come from props)
   const {
     activeStatusTab,
     setActiveStatusTab,
@@ -38,10 +41,28 @@ export default function DataList({
     setPageSize,
     visibleCols,
     setVisibleCols,
-    resetFilters,
-    wings: storeWings,
-    divisions: storeDivisions
-  } = useYpStore();
+    resetFilters
+  } = useYpStore(useShallow(state => ({
+    activeStatusTab: state.activeStatusTab,
+    setActiveStatusTab: state.setActiveStatusTab,
+    searchTerm: state.searchTerm,
+    setSearchTerm: state.setSearchTerm,
+    debouncedSearch: state.debouncedSearch,
+    setDebouncedSearch: state.setDebouncedSearch,
+    selectedWing: state.selectedWing,
+    setSelectedWing: state.setSelectedWing,
+    selectedDivision: state.selectedDivision,
+    setSelectedDivision: state.setSelectedDivision,
+    showFilterPanel: state.showFilterPanel,
+    setShowFilterPanel: state.setShowFilterPanel,
+    currentPage: state.currentPage,
+    setCurrentPage: state.setCurrentPage,
+    pageSize: state.pageSize,
+    setPageSize: state.setPageSize,
+    visibleCols: state.visibleCols,
+    setVisibleCols: state.setVisibleCols,
+    resetFilters: state.resetFilters
+  })));
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -57,6 +78,7 @@ export default function DataList({
   const [remarks, setRemarks] = useState('');
   const [submittingRelieve, setSubmittingRelieve] = useState(false);
   const [gridApi, setGridApi] = useState(null);
+  const notify = useNotifier(triggerNotification);
 
   // Column visibility checklist dropdown states
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -70,22 +92,12 @@ export default function DataList({
     return () => clearTimeout(handler);
   }, [searchTerm, setDebouncedSearch]);
 
-  // Reset to page 1 on filter changes
-  const handleWingChange = (val) => {
-    setSelectedWing(val);
-    setSelectedDivision('');
-    setCurrentPage(1);
-  };
+  // Store setters already reset to page 1 (and clear division on wing change)
+  const handleWingChange = (val) => setSelectedWing(val);
 
-  const handleDivisionChange = (val) => {
-    setSelectedDivision(val);
-    setCurrentPage(1);
-  };
+  const handleDivisionChange = (val) => setSelectedDivision(val);
 
-  const handleStatusTabChange = (status) => {
-    setActiveStatusTab(status);
-    setCurrentPage(1);
-  };
+  const handleStatusTabChange = (status) => setActiveStatusTab(status);
 
   const activeFiltersCount = (selectedWing ? 1 : 0) + (selectedDivision ? 1 : 0);
 
@@ -99,8 +111,11 @@ export default function DataList({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch server data
+  // Fetch server data; only the latest request may update state (avoids out-of-order responses)
+  const latestRequestRef = useRef(0);
   const fetchData = useCallback(async () => {
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
     setLoading(true);
     try {
       const res = await fetchYoungProfessionals({
@@ -111,6 +126,7 @@ export default function DataList({
         division: selectedDivision,
         status: activeStatusTab
       });
+      if (isStale()) return;
 
       const payload = res.data;
       if (payload && payload.data && payload.pagination) {
@@ -131,10 +147,11 @@ export default function DataList({
         setTotalPages(Math.ceil(list.length / pageSize) || 1);
       }
     } catch (err) {
+      if (isStale()) return;
       console.error("Error loading young professionals:", err);
       setData([]);
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }, [currentPage, pageSize, debouncedSearch, selectedWing, selectedDivision, activeStatusTab]);
 
@@ -159,33 +176,30 @@ export default function DataList({
     'Special Initiatives & Projects'
   ];
 
-  const effectiveWings = (wings && wings.length > 0) ? wings : storeWings;
-  const effectiveDivisions = (divisions && divisions.length > 0) ? divisions : storeDivisions;
-
   const wingOptions = useMemo(() => {
-    if (effectiveWings.length > 0) {
-      return effectiveWings.map(w => ({
+    if (wings.length > 0) {
+      return wings.map(w => ({
         value: w.wing_name ?? w.label ?? w.value ?? String(w),
         label: w.wing_name ?? w.label ?? w.value ?? String(w),
         wing_id: w.wing_id
       }));
     }
     return STATIC_WINGS.map(name => ({ value: name, label: name }));
-  }, [effectiveWings]);
+  }, [wings]);
 
   const divisionOptions = useMemo(() => {
     if (!selectedWing) return [];
-    if (effectiveDivisions.length > 0) {
-      const matchingWing = effectiveWings.find(w => 
+    if (divisions.length > 0) {
+      const matchingWing = wings.find(w => 
         String(w.wing_name ?? w.label ?? w.value ?? '') === String(selectedWing) || 
         String(w.wing_id ?? '') === String(selectedWing)
       );
       const targetWingId = matchingWing ? matchingWing.wing_id : null;
-      let filtered = effectiveDivisions;
+      let filtered = divisions;
       if (targetWingId !== undefined && targetWingId !== null) {
-        filtered = effectiveDivisions.filter(d => String(d.wing_id) === String(targetWingId));
+        filtered = divisions.filter(d => String(d.wing_id) === String(targetWingId));
       } else {
-        filtered = effectiveDivisions.filter(d => 
+        filtered = divisions.filter(d => 
           String(d.wing_name ?? d.wing ?? '') === String(selectedWing)
         );
       }
@@ -195,7 +209,7 @@ export default function DataList({
       }));
     }
     return STATIC_DIVISIONS.map(name => ({ value: name, label: name }));
-  }, [effectiveDivisions, effectiveWings, selectedWing]);
+  }, [divisions, wings, selectedWing]);
 
   // Sync division selection if current division is not in filtered list
   useEffect(() => {
@@ -205,7 +219,7 @@ export default function DataList({
         setSelectedDivision('');
       }
     }
-  }, [divisionOptions, selectedDivision]);
+  }, [divisionOptions, selectedDivision, setSelectedDivision]);
 
   const handleOpenRelieve = (yp) => {
     setSelectedYp(yp);
@@ -217,7 +231,7 @@ export default function DataList({
   const handleRelieveSubmit = async (e) => {
     e.preventDefault();
     if (!lastWorkingDate) {
-      if (triggerNotification) triggerNotification("Please select the last working date.", "warning");
+      notify(YP_TOASTS.lastWorkingDateRequired());
       return;
     }
     setSubmittingRelieve(true);
@@ -231,14 +245,12 @@ export default function DataList({
         remarks,
         updated_by: activeUserId
       });
-      if (triggerNotification) {
-        triggerNotification(`${selectedYp.name} has been relieved successfully.`, 'success');
-      }
+      notify(YP_TOASTS.relieved(selectedYp.name));
       setRelieveModalOpen(false);
       fetchData();
     } catch (err) {
       console.error(err);
-      if (triggerNotification) triggerNotification("Failed to relieve young professional.", "error");
+      notify(YP_TOASTS.relieveFailed(selectedYp.name, getErrorMessage(err)));
     } finally {
       setSubmittingRelieve(false);
     }
@@ -275,32 +287,26 @@ export default function DataList({
         });
         
         navigator.clipboard.writeText(tsv)
-          .then(() => {
-            if (triggerNotification) triggerNotification('Current page data copied to clipboard!', 'success');
-          })
-          .catch(() => {
-            if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
-          });
+          .then(() => notify(COMMON_TOASTS.copySuccess(data.length)))
+          .catch(() => notify(COMMON_TOASTS.copyFailed()));
       } else {
-        if (triggerNotification) triggerNotification("Grid is not ready for copy yet.", "warning");
+        notify(COMMON_TOASTS.tableNotReady('copy'));
       }
     } else if (type === 'Excel') {
       if (gridApi) {
-        gridApi.exportDataAsCsv({
-          fileName: `Young_Professionals_Page_${currentPage}.csv`
-        });
-        if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
-        }
+        const fileName = `Young_Professionals_Page_${currentPage}.csv`;
+        gridApi.exportDataAsCsv({ fileName });
+        notify(COMMON_TOASTS.excelExported(fileName));
       } else {
-        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
+        notify(COMMON_TOASTS.tableNotReady('export'));
       }
     } else if (type === 'PDF') {
-      if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`, 'info');
-      }
-
       const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        notify(COMMON_TOASTS.popupBlocked());
+        return;
+      }
+      notify(COMMON_TOASTS.pdfPreparing());
       const title = 'Young Professionals - Data List';
 
       let headersHtml = '';
@@ -512,7 +518,7 @@ export default function DataList({
                 type="button"
                 onClick={() => {
                   resetFilters();
-                  triggerNotification?.('Filters have been reset', 'info');
+                  notify(COMMON_TOASTS.filtersReset());
                 }}
                 className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
@@ -554,7 +560,6 @@ export default function DataList({
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
                 }}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
@@ -664,7 +669,7 @@ export default function DataList({
           </div>
         )}
 
-        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
           <Table
             rowData={data}
             columnDefs={columnDefs}

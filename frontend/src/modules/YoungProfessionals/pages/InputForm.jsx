@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Upload, X, ArrowLeft, Plus, FileText } from 'lucide-react';
 import api, { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
-import { useYpStore } from '../store/useYpStore';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { YP_TOASTS } from '../toastMessages';
 
 const COMMON_SKILLS = [
   'SQL', 'Python', 'Java', 'React', 'Javascript', 'HTML', 'CSS',
@@ -19,17 +20,8 @@ export default function InputForm({
   onSuccess, 
   triggerNotification 
 }) {
-  const { 
-    editData: storeEditData, 
-    clearEditData, 
-    wings: storeWings, 
-    divisions: storeDivisions 
-  } = useYpStore();
-
-  const activeEditData = editData || storeEditData;
-  const isEdit = !!activeEditData;
-  const effectiveWings = (wings && wings.length > 0) ? wings : storeWings;
-  const effectiveDivisions = (divisions && divisions.length > 0) ? divisions : storeDivisions;
+  const isEdit = !!editData;
+  const notify = useNotifier(triggerNotification);
   const fileInputRef = useRef(null);
 
   // Form states
@@ -171,22 +163,22 @@ export default function InputForm({
     let initSkillsList = [];
     let initDocumentName = '';
 
-    if (activeEditData) {
-      initWing = activeEditData.wing_id || '';
-      initDivision = activeEditData.division_id || '';
-      initName = activeEditData.name || '';
-      initQualification = activeEditData.qualification || '';
-      initRole = activeEditData.role || '';
-      initAppointmentDate = activeEditData.appointment_date ? activeEditData.appointment_date.split('T')[0] : '';
-      initSalary = activeEditData.salary !== undefined && activeEditData.salary !== null ? String(activeEditData.salary) : '';
-      initExperience = activeEditData.total_experience !== undefined && activeEditData.total_experience !== null ? String(activeEditData.total_experience) : '';
+    if (editData) {
+      initWing = editData.wing_id || '';
+      initDivision = editData.division_id || '';
+      initName = editData.name || '';
+      initQualification = editData.qualification || '';
+      initRole = editData.role || '';
+      initAppointmentDate = editData.appointment_date ? editData.appointment_date.split('T')[0] : '';
+      initSalary = editData.salary !== undefined && editData.salary !== null ? String(editData.salary) : '';
+      initExperience = editData.total_experience !== undefined && editData.total_experience !== null ? String(editData.total_experience) : '';
       
-      if (activeEditData.skills) {
-        initSkillsList = Array.isArray(activeEditData.skills) 
-          ? activeEditData.skills 
-          : activeEditData.skills.split(',').map(s => s.trim()).filter(Boolean);
+      if (editData.skills) {
+        initSkillsList = Array.isArray(editData.skills) 
+          ? editData.skills 
+          : editData.skills.split(',').map(s => s.trim()).filter(Boolean);
       }
-      initDocumentName = activeEditData.appointment_document || '';
+      initDocumentName = editData.appointment_document || '';
 
       setWing(initWing);
       setDivision(initDivision);
@@ -225,13 +217,13 @@ export default function InputForm({
     });
 
     setTouched({});
-  }, [activeEditData]);
+  }, [editData]);
 
   // Dynamically filter divisions based on the selected wing
   const filteredDivisions = useMemo(() => {
     if (!wing) return [];
-    return effectiveDivisions.filter(d => String(d.wing_id) === String(wing));
-  }, [wing, effectiveDivisions]);
+    return divisions.filter(d => String(d.wing_id) === String(wing));
+  }, [wing, divisions]);
 
   // Sync division selection if current division is not in filtered list
   useEffect(() => {
@@ -294,23 +286,23 @@ export default function InputForm({
     e.preventDefault();
 
     if (!wing) {
-      if (triggerNotification) triggerNotification("Please select a Wing.", "warning");
+      notify(COMMON_TOASTS.requiredSelect('Wing'));
       return;
     }
     if (!division) {
-      if (triggerNotification) triggerNotification("Please select a Division.", "warning");
+      notify(COMMON_TOASTS.requiredSelect('Division'));
       return;
     }
     if (!name.trim()) {
-      if (triggerNotification) triggerNotification("Name is required.", "warning");
+      notify(COMMON_TOASTS.requiredInput('Name'));
       return;
     }
     if (Object.keys(errors).length > 0) {
-      if (triggerNotification) triggerNotification("Please correct validation errors: " + Object.values(errors).join(" "), "warning");
+      notify(COMMON_TOASTS.fixValidationErrors(Object.values(errors).join(' ')));
       return;
     }
     if (!isEdit && (!fileInputRef.current || !fileInputRef.current.files[0])) {
-      if (triggerNotification) triggerNotification("Appointment order document is required.", "warning");
+      notify(YP_TOASTS.documentRequired());
       return;
     }
 
@@ -335,34 +327,33 @@ export default function InputForm({
     try {
       let ypId = null;
       if (isEdit) {
-        await updateYoungProfessional(activeEditData.yp_id, payload);
-        ypId = activeEditData.yp_id;
+        await updateYoungProfessional(editData.yp_id, payload);
+        ypId = editData.yp_id;
       } else {
         const response = await createYoungProfessional(payload);
         ypId = response.data?.insertedYPId;
       }
 
+      // The record is saved at this point; report an upload failure separately
+      // so the user isn't told the whole save failed
       if (fileInputRef.current && fileInputRef.current.files[0]) {
         const formData = new FormData();
         formData.append("file", fileInputRef.current.files[0]);
-        await uploadYPDocument(ypId, formData);
+        try {
+          await uploadYPDocument(ypId, formData);
+        } catch (uploadErr) {
+          console.error(uploadErr);
+          notify(YP_TOASTS.documentUploadFailed(payload.name, getErrorMessage(uploadErr)));
+          onSuccess();
+          return;
+        }
       }
 
-      if (triggerNotification) {
-        triggerNotification(
-          isEdit ? "Young Professional updated successfully." : "New Young Professional registered successfully.",
-          "success"
-        );
-      }
-
-      clearEditData();
+      notify(isEdit ? YP_TOASTS.updated(payload.name) : YP_TOASTS.created(payload.name));
       onSuccess();
     } catch (err) {
       console.error(err);
-      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
-      if (triggerNotification) {
-        triggerNotification(`Failed to save Young Professional details: ${serverMsg || ''}`, "error");
-      }
+      notify(YP_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -411,7 +402,7 @@ export default function InputForm({
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
             >
               <option value="" className="dark:bg-slate-955 dark:text-slate-300">--Select Wing--</option>
-              {effectiveWings.map(w => <option key={w.wing_id} value={w.wing_id} className="dark:bg-slate-955 dark:text-slate-300">{w.wing_name}</option>)}
+              {wings.map(w => <option key={w.wing_id} value={w.wing_id} className="dark:bg-slate-955 dark:text-slate-300">{w.wing_name}</option>)}
             </select>
           </div>
 
@@ -593,14 +584,14 @@ export default function InputForm({
                 const file = e.target.files[0];
                 if (file) {
                   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-                    if (triggerNotification) triggerNotification("Invalid file type. Only PDF files are allowed.", "error");
+                    notify(COMMON_TOASTS.invalidFileType('PDF'));
                     e.target.value = '';
                     setDocumentName('');
                     if (touched.documentName) handleBlur('documentName');
                     return;
                   }
                   if (file.size > 10 * 1024 * 1024) {
-                    if (triggerNotification) triggerNotification("File size exceeds 10 MB. Please choose a smaller file.", "warning");
+                    notify(COMMON_TOASTS.fileTooLarge(10));
                     e.target.value = '';
                     setDocumentName('');
                     if (touched.documentName) handleBlur('documentName');

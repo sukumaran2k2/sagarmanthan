@@ -6,7 +6,9 @@ import CopyButton from '../../../components/CopyButton';
 import CandidateDrilldownView from './CandidateDrilldownView';
 import TablePagination from '../../../components/TablePagination';
 import { fetchConsultantAppointments } from '../api';
+import { useShallow } from 'zustand/react/shallow';
 import { useCaStore } from '../store/useCaStore';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
 const STAGES = [
   { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
@@ -128,7 +130,7 @@ export default function DataList({
   canAdd = true,
   canRemove = true
 }) {
-  // Zustand CA Store
+  // Zustand CA Store (filter/pagination slice only; wings & divisions come from props)
   const {
     activeStatusTab: activeTab,
     setActiveStatusTab: setActiveTab,
@@ -148,27 +150,46 @@ export default function DataList({
     setCurrentPage,
     pageSize,
     setPageSize,
-    drilldownAppointment,
-    setDrilldownAppointment,
-    resetFilters,
-    wings: storeWings,
-    divisions: storeDivisions
-  } = useCaStore();
+    resetFilters
+  } = useCaStore(useShallow(state => ({
+    activeStatusTab: state.activeStatusTab,
+    setActiveStatusTab: state.setActiveStatusTab,
+    searchTerm: state.searchTerm,
+    setSearchTerm: state.setSearchTerm,
+    debouncedSearch: state.debouncedSearch,
+    setDebouncedSearch: state.setDebouncedSearch,
+    selectedWing: state.selectedWing,
+    setSelectedWing: state.setSelectedWing,
+    selectedDivision: state.selectedDivision,
+    setSelectedDivision: state.setSelectedDivision,
+    selectedStage: state.selectedStage,
+    setSelectedStage: state.setSelectedStage,
+    showFilterPanel: state.showFilterPanel,
+    setShowFilterPanel: state.setShowFilterPanel,
+    currentPage: state.currentPage,
+    setCurrentPage: state.setCurrentPage,
+    pageSize: state.pageSize,
+    setPageSize: state.setPageSize,
+    resetFilters: state.resetFilters
+  })));
+
+  // Drilldown is view state for this page only; it must not outlive the Data List
+  const [drilldownAppointment, setDrilldownAppointment] = useState(null);
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [gridApi, setGridApi] = useState(null);
+  const notify = useNotifier(triggerNotification);
 
   const [allCount, setAllCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
 
-  // Reset stage filter when switching tabs
+  // Reset stage filter when switching tabs (store setters already reset to page 1)
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    setCurrentPage(1);
     if (tab === 'completed') setSelectedStage('');
   };
 
@@ -194,16 +215,10 @@ export default function DataList({
     return () => clearTimeout(handler);
   }, [searchTerm, setDebouncedSearch]);
 
-  const handleWingChange = (val) => {
-    setSelectedWing(val);
-    setSelectedDivision('');
-    setCurrentPage(1);
-  };
+  // Store setters already reset to page 1 (and clear division on wing change)
+  const handleWingChange = (val) => setSelectedWing(val);
 
-  const handleDivisionChange = (val) => {
-    setSelectedDivision(val);
-    setCurrentPage(1);
-  };
+  const handleDivisionChange = (val) => setSelectedDivision(val);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -215,7 +230,11 @@ export default function DataList({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Only the latest request may update state (avoids out-of-order responses)
+  const latestRequestRef = useRef(0);
   const fetchData = useCallback(async () => {
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
     setLoading(true);
     try {
       const res = await fetchConsultantAppointments({
@@ -227,6 +246,7 @@ export default function DataList({
         status: activeTab,
         stage: selectedStage
       });
+      if (isStale()) return;
 
       const payload = res.data;
       if (payload && payload.data && payload.pagination) {
@@ -269,10 +289,11 @@ export default function DataList({
         setTotalPages(Math.ceil(filtered.length / pageSize) || 1);
       }
     } catch (err) {
+      if (isStale()) return;
       console.error("Error fetching consultant appointments:", err);
       setData([]);
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }, [currentPage, pageSize, debouncedSearch, selectedWing, selectedDivision, activeTab, selectedStage]);
 
@@ -280,35 +301,32 @@ export default function DataList({
     fetchData();
   }, [fetchData]);
 
-  const effectiveWings = (wings && wings.length > 0) ? wings : storeWings;
-  const effectiveDivisions = (divisions && divisions.length > 0) ? divisions : storeDivisions;
-
   const wingOptions = useMemo(() => {
-    return effectiveWings.map(w => ({
+    return wings.map(w => ({
       value: w.wing_name,
       label: w.wing_name,
       wing_id: w.wing_id
     }));
-  }, [effectiveWings]);
+  }, [wings]);
 
   const divisionOptions = useMemo(() => {
     if (!selectedWing) return [];
-    let filtered = effectiveDivisions;
-    const matchingWing = effectiveWings.find(w => 
+    let filtered = divisions;
+    const matchingWing = wings.find(w => 
       (w.wing_name && String(w.wing_name) === String(selectedWing)) || 
       (w.wing_id && String(w.wing_id) === String(selectedWing))
     );
     const targetWingId = matchingWing ? matchingWing.wing_id : null;
     if (targetWingId !== undefined && targetWingId !== null) {
-      filtered = effectiveDivisions.filter(d => String(d.wing_id) === String(targetWingId));
+      filtered = divisions.filter(d => String(d.wing_id) === String(targetWingId));
     } else {
-      filtered = effectiveDivisions.filter(d => String(d.wing_name) === String(selectedWing));
+      filtered = divisions.filter(d => String(d.wing_name) === String(selectedWing));
     }
     return filtered.map(d => ({
       value: d.division_name,
       label: d.division_name
     }));
-  }, [effectiveDivisions, effectiveWings, selectedWing]);
+  }, [divisions, wings, selectedWing]);
 
   // Sync division selection if current division is not in filtered list
   useEffect(() => {
@@ -318,7 +336,7 @@ export default function DataList({
         setSelectedDivision('');
       }
     }
-  }, [divisionOptions, selectedDivision]);
+  }, [divisionOptions, selectedDivision, setSelectedDivision]);
   const handleExport = (type) => {
     if (type === 'Copy') {
       if (gridApi) {
@@ -343,32 +361,26 @@ export default function DataList({
         });
         
         navigator.clipboard.writeText(tsv)
-          .then(() => {
-            if (triggerNotification) triggerNotification('Current page data copied to clipboard!', 'success');
-          })
-          .catch(() => {
-            if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
-          });
+          .then(() => notify(COMMON_TOASTS.copySuccess(data.length)))
+          .catch(() => notify(COMMON_TOASTS.copyFailed()));
       } else {
-        if (triggerNotification) triggerNotification('Grid is not ready for copy yet.', 'warning');
+        notify(COMMON_TOASTS.tableNotReady('copy'));
       }
     } else if (type === 'Excel') {
       if (gridApi) {
-        gridApi.exportDataAsCsv({
-          fileName: `Consultant_Appointment_Page_${currentPage}.csv`
-        });
-        if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
-        }
+        const fileName = `Consultant_Appointment_Page_${currentPage}.csv`;
+        gridApi.exportDataAsCsv({ fileName });
+        notify(COMMON_TOASTS.excelExported(fileName));
       } else {
-        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
+        notify(COMMON_TOASTS.tableNotReady('export'));
       }
     } else if (type === 'PDF') {
-      if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`, 'info');
-      }
-
       const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        notify(COMMON_TOASTS.popupBlocked());
+        return;
+      }
+      notify(COMMON_TOASTS.pdfPreparing());
       const title = 'Consultant Appointment - Data List';
 
       let headersHtml = '';
@@ -635,7 +647,7 @@ export default function DataList({
                 type="button"
                 onClick={() => {
                   resetFilters();
-                  triggerNotification?.('Filters have been reset', 'info');
+                  notify(COMMON_TOASTS.filtersReset());
                 }}
                 className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
@@ -677,7 +689,6 @@ export default function DataList({
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
                 }}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
@@ -808,7 +819,7 @@ export default function DataList({
           </div>
         )}
 
-      <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+      <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
         <Table
           rowData={data}
           columnDefs={columnDefs}
