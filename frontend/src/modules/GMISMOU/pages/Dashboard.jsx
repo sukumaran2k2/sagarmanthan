@@ -359,6 +359,9 @@ export default function GMISDashboard() {
   );
 
   const { kpis, byOrganisation = [], lastUpdated } = data;
+  // Organisation users get their own organisation's view: KPI cards and the two charts only.
+  // The backend decides this, so it always matches the data it returned.
+  const isOrgView = data.view?.level === 'organisation';
   const stageKpis = kpis.stages.filter((s) => STAGE_STYLE[s.key]);
   const notSpecified = kpis.stages.find((s) => s.key === 'notSpecified');
   const total = kpis.total;
@@ -394,6 +397,11 @@ export default function GMISDashboard() {
     <div className="space-y-5 bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-indigo-950/25 dark:via-slate-950 dark:to-purple-950/20 rounded-3xl p-6">
       {/* Filter + last updated */}
       <div className="flex flex-wrap items-center gap-3">
+        {isOrgView && data.view.organisationName && (
+          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-100 text-[#4f46e5] dark:bg-indigo-900/40 dark:text-indigo-300">
+            {data.view.organisationName}
+          </span>
+        )}
         <p className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold">
           Last updated date: {lastUpdated ? new Date(lastUpdated).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
         </p>
@@ -438,7 +446,7 @@ export default function GMISDashboard() {
           theme="indigo"
           icon={Layers}
           details={[
-            ['Organisations', formatCount(total.organisations)],
+            ...(isOrgView ? [] : [['Organisations', formatCount(total.organisations)]]),
             // A single summit is already named in the filter, so its count of 1 adds nothing.
             ...(summit === 'all' ? [['Summits', formatCount(total.summits)]] : []),
             ['Avg. per MoU', avg(total.count, total.value)],
@@ -498,91 +506,93 @@ export default function GMISDashboard() {
         </Section>
       </div>
 
-      {/* Organisation-wise stage-wise MoUs, full width */}
-      <Section
-        number={3}
-        title="Organisation-wise Stage-wise MoUs"
-        actions={<>
-          <MetricTabs metric={orgMetric} onChange={setOrgMetric} />
-          <TableExportMenu headers={orgHeaders} rows={orgRows} fileName={`gmis_${orgGroup === 'major' ? 'major_ports' : 'other_organisations'}_stage_${orgMetric}`} title={`Organisation-wise Stage-wise MoUs - ${orgGroupLabel} (${orgMetric === 'count' ? 'MoU Count' : 'MoU Cost, ₹ Cr'})`} />
-        </>}
-      >
-        <div className="p-3">
-          <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-3 select-none px-1">
-            {[['major', 'Major Ports', majorOrgs.length], ['other', 'Other Organisations', otherOrgs.length]].map(([key, label, n]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setOrgGroup(key)}
-                className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-                  orgGroup === key
-                    ? 'border-[#4f46e5] text-[#4f46e5] bg-indigo-100/70 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-400 rounded-t-lg'
-                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                }`}
-              >
-                {label} ({n})
-              </button>
-            ))}
-          </div>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 max-h-[620px] overflow-auto">
-            <table className="w-full text-[11px] border-separate border-spacing-0">
-              <thead className="sticky top-0 z-20">
-                <tr className="bg-[#4f46e5] text-white">
-                  <th className="px-3 py-2 text-center font-semibold w-12">S.No</th>
-                  <th className="px-3 py-2 text-left font-semibold">Organisation</th>
-                  <th className="px-3 py-2 text-left font-semibold w-[34%]">{orgMetric === 'count' ? 'MoUs by stage' : 'MoU cost by stage (₹ Cr)'}</th>
-                  {stages.map((s) => (
-                    <th key={s.key} className="px-2 py-2 text-center font-semibold whitespace-nowrap">{s.label}</th>
-                  ))}
-                  <th className="px-3 py-2 text-center font-semibold whitespace-nowrap">Total MoUs</th>
-                  <th className="px-3 py-2 text-center font-semibold whitespace-nowrap">MoU Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orgList.map((o, i) => {
-                  const rowTotal = orgMetric === 'count' ? o.count : o.value;
-                  return (
-                    <tr key={o.name} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
-                      <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300 font-mono">{i + 1}</td>
-                      <td className="px-3 py-2 text-slate-800 dark:text-slate-100 font-semibold">{o.name}</td>
-                      <td className="px-3 py-2">
-                        {/* Stacked bar, scaled to the largest organisation */}
-                        <div className="flex h-5 rounded overflow-hidden bg-slate-100 dark:bg-slate-800" style={{ width: `${Math.max(2, (rowTotal / orgMax) * 100)}%` }}>
-                          {stages.map((s) => {
-                            const v = o.stages[s.key][orgMetric];
-                            if (!v) return null;
-                            return (
-                              <div
-                                key={s.key}
-                                title={`${s.label}: ${orgMetric === 'count' ? formatCount(v) : formatCrore(v)}`}
-                                className="h-full flex items-center justify-center text-[9px] font-bold text-white overflow-hidden"
-                                style={{ width: `${(v / rowTotal) * 100}%`, backgroundColor: STAGE_STYLE[s.key].color }}
-                              >
-                                {orgMetric === 'count' && (v / rowTotal) * (rowTotal / orgMax) > 0.06 ? v : ''}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </td>
-                      {stages.map((s) => (
-                        <td key={s.key} className="px-2 py-2 text-center text-slate-700 dark:text-slate-200 font-semibold">
-                          {orgMetric === 'count' ? (o.stages[s.key].count || '—') : (o.stages[s.key].value ? o.stages[s.key].value.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—')}
+      {/* Organisation-wise stage-wise MoUs, full width (not in the organisation view) */}
+      {!isOrgView && (
+        <Section
+          number={3}
+          title="Organisation-wise Stage-wise MoUs"
+          actions={<>
+            <MetricTabs metric={orgMetric} onChange={setOrgMetric} />
+            <TableExportMenu headers={orgHeaders} rows={orgRows} fileName={`gmis_${orgGroup === 'major' ? 'major_ports' : 'other_organisations'}_stage_${orgMetric}`} title={`Organisation-wise Stage-wise MoUs - ${orgGroupLabel} (${orgMetric === 'count' ? 'MoU Count' : 'MoU Cost, ₹ Cr'})`} />
+          </>}
+        >
+          <div className="p-3">
+            <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-3 select-none px-1">
+              {[['major', 'Major Ports', majorOrgs.length], ['other', 'Other Organisations', otherOrgs.length]].map(([key, label, n]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setOrgGroup(key)}
+                  className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                    orgGroup === key
+                      ? 'border-[#4f46e5] text-[#4f46e5] bg-indigo-100/70 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-400 rounded-t-lg'
+                      : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                  }`}
+                >
+                  {label} ({n})
+                </button>
+              ))}
+            </div>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 max-h-[620px] overflow-auto">
+              <table className="w-full text-[11px] border-separate border-spacing-0">
+                <thead className="sticky top-0 z-20">
+                  <tr className="bg-[#4f46e5] text-white">
+                    <th className="px-3 py-2 text-center font-semibold w-12">S.No</th>
+                    <th className="px-3 py-2 text-left font-semibold">Organisation</th>
+                    <th className="px-3 py-2 text-left font-semibold w-[34%]">{orgMetric === 'count' ? 'MoUs by stage' : 'MoU cost by stage (₹ Cr)'}</th>
+                    {stages.map((s) => (
+                      <th key={s.key} className="px-2 py-2 text-center font-semibold whitespace-nowrap">{s.label}</th>
+                    ))}
+                    <th className="px-3 py-2 text-center font-semibold whitespace-nowrap">Total MoUs</th>
+                    <th className="px-3 py-2 text-center font-semibold whitespace-nowrap">MoU Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orgList.map((o, i) => {
+                    const rowTotal = orgMetric === 'count' ? o.count : o.value;
+                    return (
+                      <tr key={o.name} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'}>
+                        <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-300 font-mono">{i + 1}</td>
+                        <td className="px-3 py-2 text-slate-800 dark:text-slate-100 font-semibold">{o.name}</td>
+                        <td className="px-3 py-2">
+                          {/* Stacked bar, scaled to the largest organisation */}
+                          <div className="flex h-5 rounded overflow-hidden bg-slate-100 dark:bg-slate-800" style={{ width: `${Math.max(2, (rowTotal / orgMax) * 100)}%` }}>
+                            {stages.map((s) => {
+                              const v = o.stages[s.key][orgMetric];
+                              if (!v) return null;
+                              return (
+                                <div
+                                  key={s.key}
+                                  title={`${s.label}: ${orgMetric === 'count' ? formatCount(v) : formatCrore(v)}`}
+                                  className="h-full flex items-center justify-center text-[9px] font-bold text-white overflow-hidden"
+                                  style={{ width: `${(v / rowTotal) * 100}%`, backgroundColor: STAGE_STYLE[s.key].color }}
+                                >
+                                  {orgMetric === 'count' && (v / rowTotal) * (rowTotal / orgMax) > 0.06 ? v : ''}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </td>
-                      ))}
-                      <td className="px-3 py-2 text-center font-black text-[#4f46e5] dark:text-indigo-400">{formatCount(o.count)}</td>
-                      <td className="px-3 py-2 text-center font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">{formatCrore(o.value)}</td>
-                    </tr>
-                  );
-                })}
-                {!orgList.length && (
-                  <tr><td colSpan={5 + stages.length} className="px-3 py-6 text-center text-slate-600 dark:text-slate-300">No MoUs for this selection</td></tr>
-                )}
-              </tbody>
-            </table>
+                        {stages.map((s) => (
+                          <td key={s.key} className="px-2 py-2 text-center text-slate-700 dark:text-slate-200 font-semibold">
+                            {orgMetric === 'count' ? (o.stages[s.key].count || '—') : (o.stages[s.key].value ? o.stages[s.key].value.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—')}
+                          </td>
+                        ))}
+                        <td className="px-3 py-2 text-center font-black text-[#4f46e5] dark:text-indigo-400">{formatCount(o.count)}</td>
+                        <td className="px-3 py-2 text-center font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">{formatCrore(o.value)}</td>
+                      </tr>
+                    );
+                  })}
+                  {!orgList.length && (
+                    <tr><td colSpan={5 + stages.length} className="px-3 py-6 text-center text-slate-600 dark:text-slate-300">No MoUs for this selection</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="pt-3"><Legend items={stageLegend} /></div>
           </div>
-          <div className="pt-3"><Legend items={stageLegend} /></div>
-        </div>
-      </Section>
+        </Section>
+      )}
     </div>
   );
 }

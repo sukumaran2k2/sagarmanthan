@@ -140,6 +140,11 @@ export function fetchRevisedPhysicalProgressDate(mouId) {
   return api.get(`/get-revised-physical-progress-date/${mouId}`);
 }
 
+// Signed MoU document; sent with the login token, so it is fetched as a blob.
+export function downloadGmisDocument(fileName) {
+  return api.get('/download-gmismou-pdf-document', { params: { fileName }, responseType: 'blob' });
+}
+
 export function fetchRevisedFinancialProgressDate(mouId) {
   return api.get(`/get-revised-financial-progress-date/${mouId}`);
 }
