@@ -3,8 +3,45 @@ import sql from 'mssql';
 import fs from 'fs';
 import path from 'path';
 import { pool } from "../../db.js";
-import { addLastUpdatedDate, addContractPhysicalProgress } from "./lastUpdatedDate.js";
-import { addLastUpdatedStageUT } from "./lastUpdatedStage.js";
+import { addLastUpdatedDate } from "./lastUpdatedDate.js";
+import {
+    loadStageSnapshot,
+    getGateRemovalBlockMessage,
+    syncProjectStage,
+    STAGE_GATE_LOCKED,
+} from "./projectStage.js";
+
+/**
+ * Mirrors the planning UPDATE below so the stage gate can be checked before
+ * anything is written. A chairman date means only the Port Level Approval
+ * fields are saved; otherwise the standard approval fields are saved.
+ */
+function applyPlanningChanges(before, changes) {
+    if (changes.chairmanApprovalDate !== null) {
+        return {
+            ...before,
+            prefeasibilityDate: changes.preFeasibilityActualDate,
+            dprDate: changes.dprActualDate,
+            chairmanDate: changes.chairmanApprovalDate,
+            sanctionedCost: changes.chairmanSanctionCost,
+        };
+    }
+
+    return {
+        ...before,
+        prefeasibilityDate: changes.preFeasibilityActualDate,
+        dprDate: changes.dprActualDate,
+        ministryDate: changes.submittedMinistryDate,
+        daDate: changes.daConcurrenceApprovalDate,
+        ifwDate: changes.ifwConcurrenceApprovalDate,
+        imcDate: changes.ciruculatedImcApprovalDate,
+        responseDate: changes.responseToComRecApprovalDate,
+        sfcDate: changes.approvedBySfcDate,
+        adminDate: changes.adminApprovalApprovalDate,
+        sanctionedCost: changes.adminSanctionCost,
+        chairmanDate: before.isPortLevelApproval ? null : before.chairmanDate,
+    };
+}
 
 
 
@@ -87,10 +124,8 @@ async function updatePlanningSanctionedData(req, res)
     let chairmanRemarks = req.body.chairmanRemarks;
     let chairmanSanctionCost = req.body.chairmanSanctionCost;
     let adminSanctionCost = req.body.adminSanctionCost;
-    let selectedStage = req.body.selectedStage;
     let submittedMinistryDate = req.body.submittedMinistryDate;
     let submittedMinistryRemarks = req.body.submittedMinistryRemarks;
-    let lastUpdatedStatus;
 
 
 
@@ -188,125 +223,75 @@ async function updatePlanningSanctionedData(req, res)
     request.input("chairmanRemarks", chairmanRemarks);
     request.input("chairmanSanctionCost", chairmanSanctionCost);
     request.input("adminSanctionCost", adminSanctionCost);
-    request.input("selectedStage", selectedStage);
     request.input("submittedMinistryDate", submittedMinistryDate);
     request.input("submittedMinistryRemarks", submittedMinistryRemarks);
 
     try {
+        const before = await loadStageSnapshot(projectID, subProjectID);
+        const after = applyPlanningChanges(before, {
+            preFeasibilityActualDate, dprActualDate, submittedMinistryDate, daConcurrenceApprovalDate,
+            ifwConcurrenceApprovalDate, ciruculatedImcApprovalDate, responseToComRecApprovalDate,
+            approvedBySfcDate, adminApprovalApprovalDate, adminSanctionCost,
+            chairmanApprovalDate, chairmanSanctionCost,
+        });
+
+        const blockMessage = getGateRemovalBlockMessage(before, after);
+        if (blockMessage) {
+            return res.status(409).json({ message: blockMessage, error: STAGE_GATE_LOCKED });
+        }
+
+        // Port Level Approval projects only show the chairman row, so an empty
+        // chairman date there means it was removed and must be cleared.
+        request.input("clearChairmanApproval", before.isPortLevelApproval ? 1 : 0);
+
         if (subProjectID == -1) {
             if (chairmanApprovalDate === null) {
-
-                const result = await request.query(`UPDATE tbl_project SET is_dpr_notapplicable = @isDprNotApplicable, dpr_actual_date = @dprActualDate, 
+                await request.query(`UPDATE tbl_project SET is_dpr_notapplicable = @isDprNotApplicable, dpr_actual_date = @dprActualDate,
                 dpr_remarks = @dprRemarks, is_prefeasibility_notapplicable = @isPreFeasibilityNotApplicable,
                 prefeasiblity_actual_date = @preFeasibilityActualDate, prefeasibility_remarks = @preFeasibilityRemarks,
                 da_approval_date = @daConcurrenceApprovalDate, da_remarks = @daConcurrenceRemarks,ifw_approval_date = @ifwConcurrenceApprovalDate,
                 ifw_remarks = @ifwConcurrenceRemarks, imc_approval_date = @ciruculatedImcApprovalDate, imc_approval_remarks = @ciruculatedImcApprovalRemarks,
-                response_com_rec_approval_date = @responseToComRecApprovalDate, response_com_rec_remarks = @responseToComRecRemarks, 
-                sfc_approval_date = @approvedBySfcDate, sfc_remarks = @approvedBySfcRemarks, 
+                response_com_rec_approval_date = @responseToComRecApprovalDate, response_com_rec_remarks = @responseToComRecRemarks,
+                sfc_approval_date = @approvedBySfcDate, sfc_remarks = @approvedBySfcRemarks,
                 admin_approval_approval_date = @adminApprovalApprovalDate,admin_approval_remarks = @adminApprovalRemarks, sanctioned_cost = @adminSanctionCost,
-                ministry_submission_date = @submittedMinistryDate, ministry_remarks = @submittedMinistryRemarks
+                ministry_submission_date = @submittedMinistryDate, ministry_remarks = @submittedMinistryRemarks,
+                chairman_approval_date = CASE WHEN @clearChairmanApproval = 1 THEN NULL ELSE chairman_approval_date END,
+                chairman_approval_remarks = CASE WHEN @clearChairmanApproval = 1 THEN NULL ELSE chairman_approval_remarks END
                 WHERE project_id = @projectID`);
-
-                const stageCheck = await request.query(`Select current_project_stage_id From tbl_project WHERE project_id = @projectID`);
-                const stageID = stageCheck.recordset[0].current_project_stage_id;
-
-                if (stageID < selectedStage) {
-                    const result = await request.query(`UPDATE tbl_project SET project_stage_id = @selectedStage, current_project_stage_id = @selectedStage WHERE project_id = @projectID`);
-                }
-
-                if (
-                    (adminApprovalApprovalDate !== null && adminSanctionCost !== null)
-                ) {
-                    const lastUpdatedStage = await addLastUpdatedStageUT(projectID, subProjectID, req, res);
-                }
-
-
-                lastUpdatedStatus = await addLastUpdatedDate(projectID, subProjectID, req, res);
-
             } else {
-                const result = await request.query(` UPDATE tbl_project SET is_dpr_notapplicable = @isDprNotApplicable, dpr_actual_date = @dprActualDate, 
+                await request.query(` UPDATE tbl_project SET is_dpr_notapplicable = @isDprNotApplicable, dpr_actual_date = @dprActualDate,
                 dpr_remarks = @dprRemarks, is_prefeasibility_notapplicable = @isPreFeasibilityNotApplicable,
                 prefeasiblity_actual_date = @preFeasibilityActualDate, prefeasibility_remarks = @preFeasibilityRemarks,
                 chairman_approval_date = @chairmanApprovalDate, chairman_approval_remarks = @chairmanRemarks, sanctioned_cost = @chairmanSanctionCost
                 WHERE project_id = @projectID`);
-
-                const stageCheck = await request.query(`Select current_project_stage_id From tbl_project WHERE project_id = @projectID`);
-                const stageID = stageCheck.recordset[0].current_project_stage_id;
-
-                if (stageID < selectedStage) {
-                    const result = await request.query(`UPDATE tbl_project SET project_stage_id = @selectedStage, current_project_stage_id = @selectedStage WHERE project_id = @projectID`);
-                }
-
-                if (
-                    (chairmanApprovalDate !== null && chairmanSanctionCost !== null)
-                ) {
-                    const lastUpdatedStage = await addLastUpdatedStageUT(projectID, subProjectID, req, res);
-                }
-
-                lastUpdatedStatus = await addLastUpdatedDate(projectID, subProjectID, req, res);
-
             }
-
         } else {
-
             if (chairmanApprovalDate === null) {
-
-                const result = await request.query(`UPDATE tbl_sub_project SET sub_is_dpr_notapplicable = @isDprNotApplicable, 
-                sub_dpr_actual_date = @dprActualDate, sub_dpr_remarks = @dprRemarks, sub_is_prefeasibility_notapplicable = @isPreFeasibilityNotApplicable, 
+                await request.query(`UPDATE tbl_sub_project SET sub_is_dpr_notapplicable = @isDprNotApplicable,
+                sub_dpr_actual_date = @dprActualDate, sub_dpr_remarks = @dprRemarks, sub_is_prefeasibility_notapplicable = @isPreFeasibilityNotApplicable,
                 sub_prefeasiblity_actual_date = @preFeasibilityActualDate, sub_prefeasibility_remarks = @preFeasibilityRemarks,
                 sub_da_approval_date = @daConcurrenceApprovalDate, sub_da_remarks = @daConcurrenceRemarks,sub_ifw_approval_date = @ifwConcurrenceApprovalDate,
                 sub_ifw_remarks = @ifwConcurrenceRemarks, sub_imc_approval_date = @ciruculatedImcApprovalDate, sub_imc_approval_remarks = @ciruculatedImcApprovalRemarks,
-                sub_response_com_rec_approval_date = @responseToComRecApprovalDate, sub_response_com_rec_remarks = @responseToComRecRemarks, 
+                sub_response_com_rec_approval_date = @responseToComRecApprovalDate, sub_response_com_rec_remarks = @responseToComRecRemarks,
                 sub_sfc_approval_date = @approvedBySfcDate, sub_sfc_remarks = @approvedBySfcRemarks, sub_admin_approval_approval_date = @adminApprovalApprovalDate,
                 sub_admin_approval_remarks = @adminApprovalRemarks, sub_sanctioned_cost = @adminSanctionCost,
-                sub_ministry_submission_date = @submittedMinistryDate, sub_ministry_remarks = @submittedMinistryRemarks
+                sub_ministry_submission_date = @submittedMinistryDate, sub_ministry_remarks = @submittedMinistryRemarks,
+                sub_chairman_approval_date = CASE WHEN @clearChairmanApproval = 1 THEN NULL ELSE sub_chairman_approval_date END,
+                sub_chairman_approval_remarks = CASE WHEN @clearChairmanApproval = 1 THEN NULL ELSE sub_chairman_approval_remarks END
                 WHERE sub_project_id = @subProjectID`);
-
-                const stageCheck = await request.query(`Select sub_current_project_stage_id From tbl_sub_project WHERE sub_project_id = @subProjectID`);
-                const stageID = stageCheck.recordset[0].sub_current_project_stage_id;
-
-                if (stageID < selectedStage) {
-                    const result = await request.query(`UPDATE tbl_sub_project SET sub_project_stage_id = @selectedStage, sub_current_project_stage_id = @selectedStage WHERE sub_project_id = @subProjectID`);
-                }
-
-                if (
-                    (adminApprovalApprovalDate !== null && adminSanctionCost !== null)
-                ) {
-                    const lastUpdatedStage = await addLastUpdatedStageUT(projectID, subProjectID, req, res);
-                }
-
-                lastUpdatedStatus = await addLastUpdatedDate(projectID, subProjectID, req, res);
-
             } else {
-
-                const result = await request.query(`UPDATE tbl_sub_project SET sub_is_dpr_notapplicable = @isDprNotApplicable,
+                await request.query(`UPDATE tbl_sub_project SET sub_is_dpr_notapplicable = @isDprNotApplicable,
                 sub_dpr_actual_date = @dprActualDate, sub_dpr_remarks = @dprRemarks, sub_is_prefeasibility_notapplicable = @isPreFeasibilityNotApplicable,
-                sub_prefeasiblity_actual_date = @preFeasibilityActualDate, sub_prefeasibility_remarks = @preFeasibilityRemarks, 
+                sub_prefeasiblity_actual_date = @preFeasibilityActualDate, sub_prefeasibility_remarks = @preFeasibilityRemarks,
                 sub_chairman_approval_date = @chairmanApprovalDate, sub_chairman_approval_remarks = @chairmanRemarks, sub_sanctioned_cost = @chairmanSanctionCost
                 WHERE sub_project_id = @subProjectID`);
-                console.log("subProjectID", subProjectID);
-
-                const stageCheck = await request.query(`Select sub_current_project_stage_id From tbl_sub_project WHERE sub_project_id = @subProjectID`);
-                const stageID = stageCheck.recordset[0].sub_current_project_stage_id;
-
-                if (stageID < selectedStage) {
-                    const result = await request.query(`UPDATE tbl_sub_project SET sub_project_stage_id = @selectedStage, sub_current_project_stage_id = @selectedStage WHERE sub_project_id = @subProjectID`);
-                }
-
-                if (
-                    (chairmanApprovalDate !== null && chairmanSanctionCost !== null)
-                ) {
-                    const lastUpdatedStage = await addLastUpdatedStageUT(projectID, subProjectID, req, res);
-                }
-
-                lastUpdatedStatus = await addLastUpdatedDate(projectID, subProjectID, req, res);
-
             }
-
         }
 
-        return res.sendStatus(200);
+        await syncProjectStage(projectID, subProjectID, before);
+        await addLastUpdatedDate(projectID, subProjectID, req, res);
 
+        return res.sendStatus(200);
     }
     catch (err) {
         console.log(err);

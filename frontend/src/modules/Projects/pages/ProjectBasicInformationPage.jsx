@@ -49,18 +49,12 @@ function getApiErrorMessage(error, fallbackMessage) {
   return data?.message || data?.error || fallbackMessage;
 }
 
-function computePlanningStageId(payload) {
-  if (payload.chairmanApprovalDate) return '3';
-  if (payload.adminApprovalApprovalDate) return '11';
-  if (payload.approvedBySfcDate) return '10';
-  if (payload.responseToComRecApprovalDate) return '9';
-  if (payload.ciruculatedImcApprovalDate) return '8';
-  if (payload.ifwConcurrenceApprovalDate) return '7';
-  if (payload.daConcurrenceApprovalDate) return '6';
-  if (payload.submittedMinistryDate) return '5';
-  if (payload.dprActualDate) return '2';
-  if (payload.preFeasibilityActualDate) return '1';
-  return '0';
+/** Uses the server message only when a stage gate blocked the save (HTTP 409). */
+function getStageGateErrorMessage(error, fallbackMessage) {
+  if (error?.response?.status === 409) {
+    return getApiErrorMessage(error, fallbackMessage);
+  }
+  return fallbackMessage;
 }
 
 function normalizeDocumentName(docOrName) {
@@ -664,7 +658,6 @@ export default function ProjectBasicInformationPage({
           chairmanSanctionCost: byKey('chairmanApproval').sanctionedCost || '',
         };
 
-        payload.selectedStage = computePlanningStageId(payload);
         await submitPlanningSanctioning(payload);
         notify?.('Planning & Sanctioning details updated successfully.', 'success');
         await syncWorkbenchAfterStageSave('planning', liveIdentity.projectID, liveIdentity.subProjectID);
@@ -714,7 +707,10 @@ export default function ProjectBasicInformationPage({
           });
         } catch (error) {
           notify?.(
-            'Please check required Under Tendering date fields and their sequence, then try again.',
+            getStageGateErrorMessage(
+              error,
+              'Please check required Under Tendering date fields and their sequence, then try again.'
+            ),
             'error'
           );
           return false;
@@ -739,7 +735,10 @@ export default function ProjectBasicInformationPage({
           });
         } catch (error) {
           notify?.(
-            'Please check required tendering cost/calls details (especially Awarded Project Cost), then try again.',
+            getStageGateErrorMessage(
+              error,
+              'Please check required tendering cost/calls details (especially Awarded Project Cost), then try again.'
+            ),
             'error'
           );
           return false;

@@ -8,7 +8,12 @@ import { fileURLToPath } from 'url';
 import { CONNREFUSED } from 'dns';
 import { count } from 'console';
 import { addLastUpdatedDate, addContractPhysicalProgress } from "./lastUpdatedDate.js";
-import { addLastUpdatedStagePP } from "./lastUpdatedStage.js";
+import {
+    loadStageSnapshot,
+    getGateRemovalBlockMessage,
+    syncProjectStage,
+    STAGE_GATE_LOCKED,
+} from "./projectStage.js";
 
 async function utProjectDatesAction(req, res) 
 {
@@ -149,6 +154,15 @@ async function utProjectDatesAction(req, res)
     request.input("userID", userID);
     
     try {
+        const before = await loadStageSnapshot(projectID, subProjectID);
+        const blockMessage = getGateRemovalBlockMessage(before, {
+            ...before,
+            contractSignedDate: contractSignedActualDate,
+        });
+        if (blockMessage) {
+            return res.status(409).json({ message: blockMessage, error: STAGE_GATE_LOCKED });
+        }
+
         let isTechExists, lastUpdatedStatus;
         if (subProjectID == -1) {
             isTechExists = await request.query(`SELECT project_id FROM tbl_project_date WHERE project_id = @projectID AND sub_stage_id = 3;`);
@@ -400,67 +414,7 @@ async function utProjectDatesAction(req, res)
             addContractPhysicalProgress(projectID, subProjectID, userID, req, res);
         }
 
-        // if (subProjectID == -1) {
-        //     // console.log("utStageId", projectStageID);
-        //     const result = await request.query(`UPDATE tbl_project SET project_stage_id = @projectStageID WHERE project_id = @projectID;`);
-        // }
-        // else {
-        //     const result = await request.query(`UPDATE tbl_sub_project SET sub_project_stage_id = @projectStageID WHERE sub_project_id = @subProjectID;`);
-        // }
-        let awardProjectCost;
-
-        if( subProjectID == -1 ){
-
-            awardProjectCost = await request.query(`Select ISNULL(tbl_sub_project.sub_award_project_cost,tbl_project.award_project_cost)
-        FROM 
-            tbl_project
-        LEFT JOIN 
-            tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id
-        WHERE 
-            tbl_project.project_id = @projectID`);
-
-        } else {
-            awardProjectCost = await request.query(`Select ISNULL(tbl_sub_project.sub_award_project_cost,tbl_project.award_project_cost)
-        FROM 
-            tbl_project
-        LEFT JOIN 
-            tbl_sub_project ON tbl_sub_project.project_id = tbl_project.project_id
-        WHERE 
-            tbl_sub_project.project_id = @projectID AND tbl_sub_project.sub_project_id = @subProjectID;`);
-        }
-
-        if( awardProjectCost == ""){
-            awardProjectCost = null;
-        }
-
-        if (
-            contractSignedActualDate !== null &&
-            awardProjectCost !== null 
-        ) {
-            const lastUpdatedStage = await addLastUpdatedStagePP(projectID, subProjectID, req, res);
-        }
-
-        // if (
-        //     techSanctionPlannedDate !== null ||
-        //     techSanctionActualDate !== null ||
-        //     tenderDocumentPlannedDate !== null ||
-        //     tenderDocumentActualDate !== null ||
-        //     tenderNoticePlannedDate !== null ||
-        //     tenderNoticeActualDate !== null ||
-        //     techEvalPlannedDate !== null ||
-        //     techEvalActualDate !== null ||
-        //     finEvalPlannedDate !== null ||
-        //     finEvalActualDate !== null ||
-        //     sanctCompetentAuthPlannedDate !== null ||
-        //     sanctCompetentAuthActualDate !== null ||
-        //     workAwardedPlannedDate !== null ||
-        //     workAwardedActualDate !== null ||
-        //     contractSignedPlannedDate !== null ||
-        //     contractSignedActualDate !== null
-        // ) {
-        //     const lastUpdatedStage = await addLastUpdatedStageUT(projectID, subProjectID, req, res);
-        // }
-
+        await syncProjectStage(projectID, subProjectID, before);
 
         res.sendStatus(lastUpdatedStatus);
     }
@@ -599,7 +553,14 @@ async function addUtCostandCalls(req, res) {
         WHERE sub_project_id = @subProjectID ` )
     }
     try {
-        const result = await request.query(awardedCostQuery);
+        const before = await loadStageSnapshot(projectID, subProjectID);
+        const blockMessage = getGateRemovalBlockMessage(before, { ...before, awardCost: awardProjectCost });
+        if (blockMessage) {
+            return res.status(409).json({ message: blockMessage, error: STAGE_GATE_LOCKED });
+        }
+
+        await request.query(awardedCostQuery);
+        await syncProjectStage(projectID, subProjectID, before);
 
         res.sendStatus(200);
     }
