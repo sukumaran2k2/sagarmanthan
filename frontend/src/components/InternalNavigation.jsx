@@ -38,7 +38,14 @@ const InternalNavigation = ({
 
   return (
     <div className="flex justify-end">
-      <div className="inline-flex items-center gap-0.5 border border-slate-200 rounded-xl shadow-sm bg-white p-1 dark:bg-slate-900 dark:border-slate-800">
+      <div 
+        className="inline-flex items-center gap-0.5 border rounded-xl shadow-sm p-1 transition-colors"
+        style={{
+          backgroundColor: 'var(--module-internal-nav-bg, #ffffff)',
+          borderColor: 'var(--module-internal-nav-border, #e2e8f0)',
+          borderRadius: 'var(--module-internal-nav-radius, 0.75rem)'
+        }}
+      >
         {tabs.map((tab) => {
           const TabIcon = tab.icon;
           const isActive = effectiveCurrentTab === tab.id;
@@ -60,10 +67,16 @@ const InternalNavigation = ({
                     setOpenMenu(isOpen ? null : tab.id);
                   }
                 }}
+                style={isActive ? {
+                  backgroundColor: 'var(--module-internal-nav-active-bg, #0f417a)',
+                  color: 'var(--module-internal-nav-active-text, #ffffff)'
+                } : {
+                  color: 'var(--module-internal-nav-text, #475569)'
+                }}
                 className={`flex items-center gap-2 px-3.5 py-2 text-xs font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg whitespace-nowrap ${
                   isActive
-                    ? 'bg-[#0f417a] text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'shadow-md'
+                    : 'hover:text-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:text-white'
                 }`}
               >
                 {TabIcon && (
@@ -112,12 +125,15 @@ const InternalNavigation = ({
                           }}
                           className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-left transition-colors cursor-pointer ${
                             isSubActive
-                              ? 'bg-blue-50 text-[#0f417a] border-l-2 border-[#0f417a]'
-                              : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent'
-                          } ${idx !== 0 ? 'border-t border-slate-100' : ''}`}
+                              ? 'bg-blue-50/80 text-[var(--module-internal-nav-active-bg,#0f417a)] border-l-2 border-[var(--module-internal-nav-active-bg,#0f417a)] dark:bg-slate-800'
+                              : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                          } ${idx !== 0 ? 'border-t border-slate-100 dark:border-slate-800' : ''}`}
                         >
                           {isSubActive && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-[#0f417a] flex-shrink-0" />
+                            <span 
+                              className="h-1.5 w-1.5 rounded-full flex-shrink-0" 
+                              style={{ backgroundColor: 'var(--module-internal-nav-active-bg, #0f417a)' }}
+                            />
                           )}
                           {item.label}
                         </button>

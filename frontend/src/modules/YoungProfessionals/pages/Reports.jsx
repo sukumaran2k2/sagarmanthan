@@ -118,7 +118,7 @@ export default function Reports({ triggerNotification }) {
             return '';
           }
           return (
-            <span style={{ fontWeight: 800, fontSize: 11, fontFamily: 'monospace' }}>
+            <span style={{ fontWeight: 800, fontSize: 11 }}>
               {p.value}
             </span>
           );
@@ -258,7 +258,7 @@ export default function Reports({ triggerNotification }) {
         width: 80,
         suppressMovable: true,
         cellRenderer: (p) => (
-          <span style={{ fontWeight: 800, fontSize: 11, fontFamily: 'monospace' }}>
+          <span style={{ fontWeight: 800, fontSize: 11 }}>
             {p.value}
           </span>
         )
@@ -379,7 +379,6 @@ export default function Reports({ triggerNotification }) {
           return (
             <span
               style={{
-                fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 650,
                 fontSize: 13.5,
                 wordBreak: 'break-word',
@@ -586,17 +585,17 @@ export default function Reports({ triggerNotification }) {
   ), []);
 
   const toolbarExtra = currentView.type === 'summary' ? (
-    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border-2 border-indigo-400/60 dark:border-indigo-500/60 text-xs shadow-xs">
-      <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold shrink-0">
-        <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-        <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-800 dark:text-indigo-300 whitespace-nowrap">
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#f7f3f3] dark:bg-slate-900 border border-[#e8d5d5] dark:border-slate-800 text-xs shadow-xs">
+      <div className="flex items-center gap-1.5 text-[#4b2424] dark:text-amber-300 font-bold shrink-0">
+        <Building2 className="h-4 w-4 text-[#4b2424] dark:text-amber-400 shrink-0" />
+        <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#4b2424] dark:text-amber-300 whitespace-nowrap">
           Report View:
         </span>
       </div>
       <select
         value={reportView}
         onChange={(e) => setReportView(e.target.value)}
-        className="bg-transparent border-none text-xs font-extrabold text-indigo-950 dark:text-indigo-100 outline-none cursor-pointer pr-1 max-w-[200px]"
+        className="bg-transparent border-none text-xs font-bold text-[#4b2424] dark:text-slate-100 outline-none cursor-pointer pr-1 max-w-[200px]"
       >
         <option value="wing" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">Wing</option>
         <option value="division" className="dark:bg-slate-900 dark:text-slate-200 font-semibold">Division</option>
@@ -629,10 +628,10 @@ export default function Reports({ triggerNotification }) {
         triggerNotification={triggerNotification}
         pagination={true}
         themeClass="yp-pro-grid"
-        brandColor="#4b2424"
-        brandColorHover="#6b3535"
-        accentColor="#f3f7f5ff"
-        oddRowColor="#f8faf6"
+        brandColor="var(--module-report-brand-color, #4b2424)"
+        brandColorHover="var(--module-report-brand-color-hover, #6b3535)"
+        accentColor="var(--module-report-accent-color, #f7f3f3)"
+        oddRowColor="var(--module-report-odd-row-bg, #f8faf6)"
         totalLabel="Total Active"
         toolbarExtra={toolbarExtra}
       />

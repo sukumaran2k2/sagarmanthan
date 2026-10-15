@@ -1,0 +1,119 @@
+/**
+ * ==============================================================================
+ * SAGARMANTHAN - CENTRALIZED MODULE DESIGN SYSTEM (MASTER HUB)
+ * ==============================================================================
+ * This master stylesheet unifies the three dedicated module design subsystems:
+ *  1. module-datalist.css -> DataList container, search, filters & AG-Grid Quartz table styles
+ *  2. module-input.css    -> Input form cards, banners, section headers, inputs & labels
+ *  3. module-report.css   -> Classic brown report theme, controls, and report AG-Grid styles
+ *
+ * Page layout, typography tokens, module headers & internal navigation remain
+ * globally defined here.
+ * ==============================================================================
+ */
+
+/* ── Import 3 Dedicated Module Subsystems ──────────────────────── */
+@import "./module-datalist.css";
+@import "./module-input.css";
+@import "./module-report.css";
+
+:root {
+  /* ── 0. Global Typography ──────────────────────────────────── */
+  --module-font-family: var(--font-sans, 'Google Sans', sans-serif);
+
+  /* ── 1. Page Background & Layout ───────────────────────────── */
+  --module-page-bg: #f8fafc;
+  --module-page-text: #1e293b;
+  --module-page-padding-x: 0.5rem;
+  --module-page-padding-y: 1rem;
+  --module-page-max-width: 100%;
+
+  /* ── 2. Module Header ───────────────────────────────────────── */
+  --module-header-title-color: #0f417a;
+  --module-header-title-size: 1.25rem; /* 20px / text-xl */
+  --module-header-title-weight: 900;
+  --module-header-title-tracking: 0.05em;
+  --module-header-subtitle-color: #64748b; /* text-slate-500 */
+  --module-header-subtitle-size: 0.75rem; /* 12px / text-xs */
+  --module-header-border-color: #e2e8f0;
+
+  /* ── 3. Internal Navigation ─────────────────────────────────── */
+  --module-internal-nav-bg: #ffffff;
+  --module-internal-nav-border: #e2e8f0;
+  --module-internal-nav-text: #475569;
+  --module-internal-nav-hover-bg: #f8fafc;
+  --module-internal-nav-hover-text: #0f172a;
+  --module-internal-nav-active-bg: #0f417a;
+  --module-internal-nav-active-text: #ffffff;
+  --module-internal-nav-font-size: 0.75rem; /* 12px */
+  --module-internal-nav-radius: 0.75rem; /* rounded-xl */
+  --module-internal-nav-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+/* ── Dark Mode Master Overrides ──────────────────────────────── */
+.dark {
+  --module-page-bg: #0b0f19;
+  --module-page-text: #f1f5f9;
+
+  --module-header-title-color: #60a5fa;
+  --module-header-subtitle-color: #94a3b8;
+  --module-header-border-color: #1e293b;
+
+  --module-internal-nav-bg: #090d16;
+  --module-internal-nav-border: #1e293b;
+  --module-internal-nav-text: #94a3b8;
+  --module-internal-nav-hover-bg: #1e293b;
+  --module-internal-nav-hover-text: #ffffff;
+  --module-internal-nav-active-bg: #1d4ed8;
+  --module-internal-nav-active-text: #ffffff;
+}
+
+/* ── General Module Containers ───────────────────────────────── */
+
+/* Module Page Root Wrapper */
+.module-page-container {
+  font-family: var(--module-font-family);
+  padding-left: var(--module-page-padding-x);
+  padding-right: var(--module-page-padding-x);
+  padding-top: var(--module-page-padding-y);
+  padding-bottom: var(--module-page-padding-y);
+  color: var(--module-page-text);
+  max-width: var(--module-page-max-width);
+}
+
+/* Module Header Bar */
+.module-header-container {
+  font-family: var(--module-font-family);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--module-header-border-color);
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  user-select: none;
+}
+@media (min-width: 1024px) {
+  .module-header-container {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.module-header-title {
+  color: var(--module-header-title-color);
+  font-size: var(--module-header-title-size);
+  font-weight: var(--module-header-title-weight);
+  letter-spacing: var(--module-header-title-tracking);
+  text-transform: uppercase;
+  font-family: var(--module-font-family);
+  line-height: 1.25;
+}
+
+.module-header-subtitle {
+  color: var(--module-header-subtitle-color);
+  font-size: var(--module-header-subtitle-size);
+  margin-top: 0.25rem;
+  font-weight: 500;
+  font-family: var(--module-font-family);
+}

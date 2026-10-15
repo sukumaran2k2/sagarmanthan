@@ -6,6 +6,7 @@ import CopyButton from '../../../components/CopyButton';
 import CandidateDrilldownView from './CandidateDrilldownView';
 import TablePagination from '../../../components/TablePagination';
 import { fetchConsultantAppointments } from '../api';
+import { useCaStore } from '../store/useCaStore';
 
 const STAGES = [
   { key: 'adminApproval', label: 'Admin Approval for engaging Consultant' },
@@ -127,22 +128,38 @@ export default function DataList({
   canAdd = true,
   canRemove = true
 }) {
+  // Zustand CA Store
+  const {
+    activeStatusTab: activeTab,
+    setActiveStatusTab: setActiveTab,
+    searchTerm,
+    setSearchTerm,
+    debouncedSearch,
+    setDebouncedSearch,
+    selectedWing,
+    setSelectedWing,
+    selectedDivision,
+    setSelectedDivision,
+    selectedStage,
+    setSelectedStage,
+    showFilterPanel,
+    setShowFilterPanel,
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    drilldownAppointment,
+    setDrilldownAppointment,
+    resetFilters,
+    wings: storeWings,
+    divisions: storeDivisions
+  } = useCaStore();
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [selectedWing, setSelectedWing] = useState('');
-  const [selectedDivision, setSelectedDivision] = useState('');
   const [gridApi, setGridApi] = useState(null);
-  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'completed'
-  const [selectedStage, setSelectedStage] = useState(''); // stage filter for pending tab
-  const [drilldownAppointment, setDrilldownAppointment] = useState(null);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   const [allCount, setAllCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
@@ -173,10 +190,9 @@ export default function DataList({
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-      setCurrentPage(1);
     }, 300);
     return () => clearTimeout(handler);
-  }, [searchTerm]);
+  }, [searchTerm, setDebouncedSearch]);
 
   const handleWingChange = (val) => {
     setSelectedWing(val);
@@ -264,32 +280,35 @@ export default function DataList({
     fetchData();
   }, [fetchData]);
 
+  const effectiveWings = (wings && wings.length > 0) ? wings : storeWings;
+  const effectiveDivisions = (divisions && divisions.length > 0) ? divisions : storeDivisions;
+
   const wingOptions = useMemo(() => {
-    return wings.map(w => ({
+    return effectiveWings.map(w => ({
       value: w.wing_name,
       label: w.wing_name,
       wing_id: w.wing_id
     }));
-  }, [wings]);
+  }, [effectiveWings]);
 
   const divisionOptions = useMemo(() => {
     if (!selectedWing) return [];
-    let filtered = divisions;
-    const matchingWing = wings.find(w => 
+    let filtered = effectiveDivisions;
+    const matchingWing = effectiveWings.find(w => 
       (w.wing_name && String(w.wing_name) === String(selectedWing)) || 
       (w.wing_id && String(w.wing_id) === String(selectedWing))
     );
     const targetWingId = matchingWing ? matchingWing.wing_id : null;
     if (targetWingId !== undefined && targetWingId !== null) {
-      filtered = divisions.filter(d => String(d.wing_id) === String(targetWingId));
+      filtered = effectiveDivisions.filter(d => String(d.wing_id) === String(targetWingId));
     } else {
-      filtered = divisions.filter(d => String(d.wing_name) === String(selectedWing));
+      filtered = effectiveDivisions.filter(d => String(d.wing_name) === String(selectedWing));
     }
     return filtered.map(d => ({
       value: d.division_name,
       label: d.division_name
     }));
-  }, [divisions, wings, selectedWing]);
+  }, [effectiveDivisions, effectiveWings, selectedWing]);
 
   // Sync division selection if current division is not in filtered list
   useEffect(() => {
@@ -376,7 +395,7 @@ export default function DataList({
           <head>
             <title>${title}</title>
             <style>
-              body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
+              body { font-family: 'Google Sans', system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
               h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
               table { width: 100%; border-collapse: collapse; margin-top: 15px; }
             </style>
@@ -574,32 +593,24 @@ export default function DataList({
   return (
     <div className="space-y-6 animate-fade-in relative">
       {/* Sub-Tabs: PENDING, CONTRACT SIGNED */}
-      <div className="flex items-center space-x-1 border-b border-slate-200 dark:border-slate-800 pb-0 mb-4 select-none px-1">
+      <div className="module-subtabs-strip">
         <button
           onClick={() => handleTabChange('pending')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeTab === 'pending'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-          }`}
+          className={`module-subtab-btn ${activeTab === 'pending' ? 'active' : ''}`}
         >
           PENDING ({pendingCount})
         </button>
         <button
           onClick={() => handleTabChange('completed')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeTab === 'completed'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-          }`}
+          className={`module-subtab-btn ${activeTab === 'completed' ? 'active' : ''}`}
         >
           CONTRACT SIGNED ({completedCount})
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 dark:bg-slate-950 dark:border-slate-800">
+      <div className="module-card space-y-4">
 
-        {/* Search, Filters and Actions Toolbar matching YP format */}
+        {/* Search, Filters and Actions Toolbar matching centralized format */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           
           {/* 1. Left: Dedicated Filter Button + Reset */}
@@ -607,11 +618,7 @@ export default function DataList({
             <button
               type="button"
               onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
-              }`}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
               <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
               <span>Filter</span>
@@ -627,10 +634,7 @@ export default function DataList({
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedWing('');
-                  setSelectedDivision('');
-                  setSelectedStage('');
-                  setCurrentPage(1);
+                  resetFilters();
                   triggerNotification?.('Filters have been reset', 'info');
                 }}
                 className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
@@ -654,7 +658,7 @@ export default function DataList({
                 placeholder="Search Wing, Division or Status..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+                className="w-full module-search-input"
               />
               {searchTerm && (
                 <button
@@ -840,17 +844,6 @@ export default function DataList({
           onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
           color="#0f417a"
         />
-
-        <style dangerouslySetInnerHTML={{
-          __html: `
-          .ag-theme-quartz.rounded-xl,
-          .ag-theme-quartz.rounded-2xl {
-            border-radius: 16px !important;
-          }
-          .ag-theme-quartz .ag-root-wrapper {
-            border-radius: 16px 16px 0 0 !important;
-          }
-        `}} />
       </div>
       </div>
     </div>

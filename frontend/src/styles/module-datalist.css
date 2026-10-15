@@ -1,0 +1,259 @@
+/**
+ * ==============================================================================
+ * MODULE DATALIST & AG-GRID DESIGN SYSTEM
+ * ==============================================================================
+ * Centralized styles for all module DataLists:
+ *  - Main card wrapper & padding
+ *  - Category / status sub-tabs (Active, Relieved, Pending, etc.)
+ *  - Toolbar: Search input box, filter buttons, status badges
+ *  - FULL AG-GRID TABLE CUSTOMIZATION (Fonts, Header, Rows, Hover, Radius, Borders)
+ * ==============================================================================
+ */
+
+:root {
+  /* ── 1. DataList Card Container ────────────────────────────── */
+  --module-card-bg: #ffffff;
+  --module-card-border: #e2e8f0;
+  --module-card-radius: 1rem; /* rounded-2xl (16px) */
+  --module-card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+  --module-card-padding: 1.5rem; /* p-6 */
+
+  /* ── 2. Status / Category Sub-tabs ──────────────────────────── */
+  --module-subtab-active-color: #0f417a;
+  --module-subtab-active-bg: rgba(219, 234, 254, 0.7); /* blue-100/70 */
+  --module-subtab-active-border: #0f417a;
+  --module-subtab-inactive-color: #94a3b8; /* slate-400 */
+  --module-subtab-inactive-hover: #475569; /* slate-600 */
+  --module-subtab-font-size: 0.75rem; /* 12px */
+
+  /* ── 3. DataList Toolbar, Search & Filters ──────────────────── */
+  --module-search-bg: #f8fafc;
+  --module-search-border: #e2e8f0;
+  --module-search-text: #1e293b;
+  --module-search-placeholder: #94a3b8;
+  --module-search-focus-ring: #3b82f6;
+  --module-search-font-size: 0.75rem;
+  
+  --module-filter-btn-bg: #ffffff;
+  --module-filter-btn-border: #e2e8f0;
+  --module-filter-btn-color: #334155;
+  --module-filter-active-bg: #eff6ff;
+  --module-filter-active-border: #93c5fd;
+  --module-filter-active-color: #0f417a;
+
+  --module-badge-bg: #f1f5f9;
+  --module-badge-text: #64748b;
+  --module-badge-border: #e2e8f0;
+  --module-badge-font-size: 0.75rem;
+
+  --datalist-table-font-family: var(--font-sans, 'Google Sans', system-ui, -apple-system, sans-serif);
+  --datalist-table-border-radius: 16px;
+  --datalist-table-border-color: #e2e8f0;
+
+  /* AG Grid Header */
+  --datalist-table-header-bg: #0f417a;
+  --datalist-table-header-border: #0a2d55;
+  --datalist-table-header-text: #ffffff;
+  --datalist-table-header-font-size: 11px;
+  --datalist-table-header-font-weight: 700;
+  --datalist-table-header-letter-spacing: 0.05em;
+  --datalist-table-header-height: 42px;
+
+  /* AG Grid Rows & Cells */
+  --datalist-table-row-font-size: 13px;
+  --datalist-table-row-height: 42px;
+  --datalist-table-row-border: #f1f5f9;
+  --datalist-table-row-bg: #ffffff;
+  --datalist-table-row-hover-bg: #f8fafc;
+  --datalist-table-row-selected-bg: #eff6ff;
+  --datalist-table-cell-padding-x: 12px;
+}
+
+/* ── Dark Mode DataList & Table Overrides ─────────────────────── */
+.dark {
+  --module-card-bg: #090d16;
+  --module-card-border: #1e293b;
+
+  --module-subtab-active-color: #60a5fa;
+  --module-subtab-active-bg: rgba(30, 58, 138, 0.3);
+  --module-subtab-active-border: #60a5fa;
+  --module-subtab-inactive-color: #64748b;
+  --module-subtab-inactive-hover: #cbd5e1;
+
+  --module-search-bg: #0f172a;
+  --module-search-border: #334155;
+  --module-search-text: #f1f5f9;
+  --module-search-placeholder: #64748b;
+
+  --module-filter-btn-bg: #0f172a;
+  --module-filter-btn-border: #1e293b;
+  --module-filter-btn-color: #cbd5e1;
+  --module-filter-active-bg: rgba(30, 58, 138, 0.4);
+  --module-filter-active-border: #3b82f6;
+  --module-filter-active-color: #93c5fd;
+
+  --module-badge-bg: #1e293b;
+  --module-badge-text: #94a3b8;
+  --module-badge-border: #334155;
+
+  /* AG Grid Dark Theme */
+  --datalist-table-border-color: #1e293b;
+  --datalist-table-header-bg: #0f172a;
+  --datalist-table-header-border: #1e293b;
+  --datalist-table-row-bg: #090d16;
+  --datalist-table-row-border: #1e293b;
+  --datalist-table-row-hover-bg: #1e293b;
+  --datalist-table-row-selected-bg: rgba(30, 58, 138, 0.3);
+}
+
+/* ── DataList Utility Classes ────────────────────────────────── */
+
+/* Main Module Card Container */
+.module-card {
+  font-family: var(--font-sans, 'Google Sans', sans-serif);
+  background-color: var(--module-card-bg);
+  border: 1px solid var(--module-card-border);
+  border-radius: var(--module-card-radius);
+  padding: var(--module-card-padding);
+  box-shadow: var(--module-card-shadow);
+}
+
+/* Sub-tab strip (e.g. Active vs Relieved or Pending vs Completed) */
+.module-subtabs-strip {
+  font-family: var(--font-sans, 'Google Sans', sans-serif);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--module-header-border-color, #e2e8f0);
+  padding-bottom: 0.25rem;
+  margin-bottom: 1rem;
+  user-select: none;
+  padding-left: 0.25rem;
+}
+
+.module-subtab-btn {
+  font-family: var(--font-sans, 'Google Sans', sans-serif);
+  padding: 0.625rem 1rem;
+  font-size: var(--module-subtab-font-size);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom-width: 2px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  border-color: transparent;
+  color: var(--module-subtab-inactive-color);
+}
+.module-subtab-btn:hover {
+  color: var(--module-subtab-inactive-hover);
+}
+.module-subtab-btn.active {
+  border-color: var(--module-subtab-active-border);
+  color: var(--module-subtab-active-color);
+  background-color: var(--module-subtab-active-bg);
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+}
+
+/* DataList Search Box */
+.module-search-input {
+  font-family: var(--font-sans, 'Google Sans', sans-serif);
+  font-size: var(--module-search-font-size);
+  font-weight: 600;
+  background-color: var(--module-search-bg);
+  border: 1px solid var(--module-search-border);
+  color: var(--module-search-text);
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  transition: all 0.2s ease;
+}
+.module-search-input::placeholder {
+  color: var(--module-search-placeholder);
+}
+.module-search-input:focus {
+  outline: none;
+  border-color: var(--module-search-focus-ring);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Filter Button */
+.module-filter-btn {
+  font-family: var(--font-sans, 'Google Sans', sans-serif);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid var(--module-filter-btn-border);
+  background-color: var(--module-filter-btn-bg);
+  color: var(--module-filter-btn-color);
+}
+.module-filter-btn.active {
+  background-color: var(--module-filter-active-bg);
+  border-color: var(--module-filter-active-border);
+  color: var(--module-filter-active-color);
+}
+
+/* ==============================================================================
+ * AG-GRID QUARTZ TABLE STYLING RULES (Global DataList Table Access)
+ * ==============================================================================
+ */
+
+.ag-theme-quartz {
+  font-family: var(--datalist-table-font-family) !important;
+  --ag-font-family: var(--datalist-table-font-family);
+  --ag-font-size: var(--datalist-table-row-font-size);
+  --ag-border-color: var(--datalist-table-border-color);
+  --ag-row-border-color: var(--datalist-table-row-border);
+  --ag-row-hover-color: var(--datalist-table-row-hover-bg);
+  --ag-selected-row-background-color: var(--datalist-table-row-selected-bg);
+  --ag-header-height: var(--datalist-table-header-height);
+  --ag-row-height: var(--datalist-table-row-height);
+  --ag-cell-horizontal-padding: var(--datalist-table-cell-padding-x);
+}
+
+.ag-theme-quartz.rounded-xl,
+.ag-theme-quartz.rounded-2xl {
+  border-radius: var(--datalist-table-border-radius) !important;
+}
+
+.ag-theme-quartz .ag-root-wrapper {
+  border-radius: var(--datalist-table-border-radius) var(--datalist-table-border-radius) 0 0 !important;
+  border-color: var(--datalist-table-border-color) !important;
+}
+
+.ag-theme-quartz .ag-header {
+  background-color: var(--datalist-table-header-bg) !important;
+  border-bottom: 2px solid var(--datalist-table-header-border) !important;
+}
+
+.ag-theme-quartz .ag-header-cell,
+.ag-theme-quartz .ag-header-group-cell {
+  color: var(--datalist-table-header-text) !important;
+  font-weight: var(--datalist-table-header-font-weight) !important;
+  text-transform: uppercase !important;
+  font-size: var(--datalist-table-header-font-size) !important;
+  letter-spacing: var(--datalist-table-header-letter-spacing) !important;
+}
+
+.ag-theme-quartz .ag-header-cell .ag-icon,
+.ag-theme-quartz .ag-header-cell-label {
+  color: var(--datalist-table-header-text) !important;
+}
+
+.ag-theme-quartz .ag-row {
+  font-size: var(--datalist-table-row-font-size) !important;
+  border-bottom: 1px solid var(--datalist-table-row-border) !important;
+}
+
+.ag-theme-quartz .ag-row-hover {
+  background-color: var(--datalist-table-row-hover-bg) !important;
+}
+
+.dark .ag-theme-quartz .ag-row-hover {
+  background-color: var(--datalist-table-row-hover-bg) !important;
+}

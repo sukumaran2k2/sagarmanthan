@@ -1,0 +1,111 @@
+/**
+ * ==============================================================================
+ * MODULE REPORT DESIGN SYSTEM (CLASSIC BROWN THEME & AG-GRID REPORT STYLES)
+ * ==============================================================================
+ * Centralized styles for all module reports:
+ *  - Classic brown brand color palette (#4b2424 / #6b3535 / #f7f3f3)
+ *  - Report header banner & filter badges (.module-report-control-pill)
+ *  - Report metadata tags (.module-report-tag)
+ *  - AG-GRID REPORT TABLE STYLES (.yp-pro-grid, .mopsw-pro-grid)
+ * ==============================================================================
+ */
+
+:root {
+  /* ── Report Styling (Classic Maroon/Brown Palette) ───────────── */
+  --module-report-brand-color: #4b2424;
+  --module-report-brand-color-hover: #6b3535;
+  --module-report-accent-color: #f7f3f3;
+  --module-report-odd-row-bg: #f8faf6;
+  --module-report-border: #e8d5d5;
+  --module-report-header-bg: #4b2424;
+  --module-report-header-text: #ffffff;
+  
+  --module-report-font-family: var(--font-sans, 'Google Sans', system-ui, -apple-system, sans-serif);
+  --module-report-font-size: 13px;
+  --module-report-header-font-size: 11.5px;
+  --module-report-row-height: 40px;
+}
+
+/* ── Dark Mode Report Overrides ──────────────────────────────── */
+.dark {
+  --module-report-brand-color: #d48b8b;
+  --module-report-brand-color-hover: #e2a6a6;
+  --module-report-accent-color: rgba(75, 36, 36, 0.4);
+  --module-report-odd-row-bg: #0b0f19;
+  --module-report-border: #4b2424;
+  --module-report-header-bg: #321616;
+  --module-report-header-text: #ffffff;
+}
+
+/* ── Report Utility Classes ──────────────────────────────────── */
+
+/* Report View Selector, Dropdown Pills & Badges */
+.module-report-control-pill {
+  font-family: var(--module-report-font-family);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 0.625rem;
+  background-color: var(--module-report-accent-color);
+  border: 1px solid var(--module-report-border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--module-report-brand-color);
+}
+
+.module-report-tag {
+  font-family: var(--module-report-font-family);
+  color: var(--module-report-brand-color);
+  font-weight: 850;
+}
+
+/* ==============================================================================
+ * REPORT AG-GRID QUARTZ STYLES (.yp-pro-grid & .mopsw-pro-grid)
+ * ==============================================================================
+ */
+
+.yp-pro-grid.ag-theme-quartz,
+.mopsw-pro-grid.ag-theme-quartz {
+  font-family: var(--module-report-font-family) !important;
+  --ag-font-family: var(--module-report-font-family);
+  --ag-font-size: var(--module-report-font-size);
+  --ag-row-height: var(--module-report-row-height);
+  --ag-active-color: var(--module-report-brand-color);
+  --ag-checkbox-checked-color: var(--module-report-brand-color);
+  --ag-selected-row-background-color: var(--module-report-odd-row-bg);
+}
+
+.yp-pro-grid .ag-header,
+.yp-pro-grid .ag-header-cell,
+.yp-pro-grid .ag-header-group-cell,
+.mopsw-pro-grid .ag-header,
+.mopsw-pro-grid .ag-header-cell,
+.mopsw-pro-grid .ag-header-group-cell {
+  background-color: var(--module-report-header-bg) !important;
+  color: var(--module-report-header-text) !important;
+}
+
+.yp-pro-grid .ag-header-cell-text,
+.mopsw-pro-grid .ag-header-cell-text {
+  color: var(--module-report-header-text) !important;
+  font-weight: 800 !important;
+  font-size: var(--module-report-header-font-size) !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  white-space: normal !important;
+  hyphens: none !important;
+}
+
+.yp-pro-grid .ag-floating-bottom-row,
+.mopsw-pro-grid .ag-floating-bottom-row {
+  background-color: var(--module-report-odd-row-bg) !important;
+  font-weight: 900 !important;
+  border-top: 2px solid var(--module-report-border) !important;
+}
+
+/* Cell Wrapping Helper for Multi-line Report Headers & Content */
+.yp-wrap-cell {
+  white-space: normal !important;
+  line-height: 1.4 !important;
+}

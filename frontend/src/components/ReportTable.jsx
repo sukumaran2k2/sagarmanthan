@@ -18,11 +18,11 @@ export default function ReportTable({
   onRefresh,
   triggerNotification,
   pagination = false,
-  themeClass = 'mopsw-pro-grid',
-  brandColor = '#0f417a',
-  brandColorHover = '#1e3a8a',
-  accentColor = '#f1f5f9',
-  oddRowColor = '#f8fafc',
+  themeClass = 'yp-pro-grid',
+  brandColor = 'var(--module-report-brand-color, #4b2424)',
+  brandColorHover = 'var(--module-report-brand-color-hover, #6b3535)',
+  accentColor = 'var(--module-report-accent-color, #f7f3f3)',
+  oddRowColor = 'var(--module-report-odd-row-bg, #f8faf6)',
   totalLabel = 'Total',
   pinnedBottomRowData = undefined,
   toolbarExtra = null,
@@ -242,7 +242,7 @@ export default function ReportTable({
           return;
         }
 
-        printWindow.document.write(`<html><head><title>${docTitle}</title><style>body{font-family:'Inter',system-ui,sans-serif;color:#334155;padding:24px}h1{font-size:18px;margin-bottom:4px;color:${brandColor}}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${docTitle}</h1><p style="font-size:11px;color:#64748b;margin:0 0 20px">Generated on: ${new Date().toLocaleString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
+        printWindow.document.write(`<html><head><title>${docTitle}</title><style>body{font-family:'Google Sans',system-ui,sans-serif;color:#334155;padding:24px}h1{font-size:18px;margin-bottom:4px;color:${brandColor}}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${docTitle}</h1><p style="font-size:11px;color:#64748b;margin:0 0 20px">Generated on: ${new Date().toLocaleString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
         printWindow.document.close();
 
         if (triggerNotification && typeof triggerNotification === 'function') {
@@ -558,7 +558,7 @@ export default function ReportTable({
       <style dangerouslySetInnerHTML={{
         __html: `
         .${themeClass}.ag-theme-quartz {
-          --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          --ag-font-family: var(--font-sans, 'Google Sans', system-ui, -apple-system, sans-serif);
           --ag-font-size: 13px;
           --ag-border-color: #cbd5e1;
           --ag-row-border-color: #e2e8f0;

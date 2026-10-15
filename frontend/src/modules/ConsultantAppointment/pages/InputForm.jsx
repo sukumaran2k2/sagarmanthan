@@ -12,6 +12,7 @@ import {
   addConsultantID
 } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { useCaStore } from '../store/useCaStore';
 
 /**
  * Milestone Workflow Configuration
@@ -36,7 +37,17 @@ export default function InputForm({
   onSuccess,
   triggerNotification
 }) {
-  const isEdit = !!editData;
+  const {
+    editData: storeEditData,
+    clearEditData,
+    wings: storeWings,
+    divisions: storeDivisions
+  } = useCaStore();
+
+  const activeEditData = editData || storeEditData;
+  const isEdit = !!activeEditData;
+  const effectiveWings = (wings && wings.length > 0) ? wings : storeWings;
+  const effectiveDivisions = (divisions && divisions.length > 0) ? divisions : storeDivisions;
 
   // Form states
   const [wing, setWing] = useState('');
@@ -145,41 +156,41 @@ export default function InputForm({
   };
 
   useEffect(() => {
-    if (editData) {
-      setWing(editData.wing_id || '');
-      setDivision(editData.division_id || '');
-      setAppointmentType(editData.appointmentType || 'Full Time');
-      setNumResources(editData.numResources || 1);
-      setConsultingFirmName(editData.consultingFirmName || editData.raw?.name_of_consulting_firm || '');
+    if (activeEditData) {
+      setWing(activeEditData.wing_id || '');
+      setDivision(activeEditData.division_id || '');
+      setAppointmentType(activeEditData.appointmentType || 'Full Time');
+      setNumResources(activeEditData.numResources || 1);
+      setConsultingFirmName(activeEditData.consultingFirmName || activeEditData.raw?.name_of_consulting_firm || '');
       setRemarks({
-        adminApproval: editData.remarks?.adminApproval || editData.raw?.admin_approval_for_nkg_consultant_remarks || '',
-        tenderPublished: editData.remarks?.tenderPublished || editData.raw?.tender_published_remarks || '',
-        preBidQueries: editData.remarks?.preBidQueries || editData.raw?.pre_bid_queries_responded_remarks || '',
-        bidReceived: editData.remarks?.bidReceived || editData.raw?.bid_received_remarks || '',
-        techBidFinalized: editData.remarks?.techBidFinalized || editData.raw?.technical_bid_finalized_remarks || '',
-        finBidFinalized: editData.remarks?.finBidFinalized || editData.raw?.financial_bid_finalized_remarks || '',
-        workOrderIssued: editData.remarks?.workOrderIssued || editData.raw?.work_order_issued_remarks || '',
-        contractSigned: editData.remarks?.contractSigned || editData.raw?.contract_signed_remarks || ''
+        adminApproval: activeEditData.remarks?.adminApproval || activeEditData.raw?.admin_approval_for_nkg_consultant_remarks || '',
+        tenderPublished: activeEditData.remarks?.tenderPublished || activeEditData.raw?.tender_published_remarks || '',
+        preBidQueries: activeEditData.remarks?.preBidQueries || activeEditData.raw?.pre_bid_queries_responded_remarks || '',
+        bidReceived: activeEditData.remarks?.bidReceived || activeEditData.raw?.bid_received_remarks || '',
+        techBidFinalized: activeEditData.remarks?.techBidFinalized || activeEditData.raw?.technical_bid_finalized_remarks || '',
+        finBidFinalized: activeEditData.remarks?.finBidFinalized || activeEditData.raw?.financial_bid_finalized_remarks || '',
+        workOrderIssued: activeEditData.remarks?.workOrderIssued || activeEditData.raw?.work_order_issued_remarks || '',
+        contractSigned: activeEditData.remarks?.contractSigned || activeEditData.raw?.contract_signed_remarks || ''
       });
       setDates({
-        adminApprovalDate: editData.stages?.adminApprovalDate || '',
-        tenderPublishedDate: editData.stages?.tenderPublishedDate || '',
-        preBidQueriesDate: editData.stages?.preBidQueriesDate || '',
-        bidReceivedDate: editData.stages?.bidReceivedDate || '',
-        techBidFinalizedDate: editData.stages?.techBidFinalizedDate || '',
-        finBidFinalizedDate: editData.stages?.finBidFinalizedDate || '',
-        workOrderIssuedDate: editData.stages?.workOrderIssuedDate || '',
-        contractSignedDate: editData.stages?.contractSignedDate || '',
+        adminApprovalDate: activeEditData.stages?.adminApprovalDate || '',
+        tenderPublishedDate: activeEditData.stages?.tenderPublishedDate || '',
+        preBidQueriesDate: activeEditData.stages?.preBidQueriesDate || '',
+        bidReceivedDate: activeEditData.stages?.bidReceivedDate || '',
+        techBidFinalizedDate: activeEditData.stages?.techBidFinalizedDate || '',
+        finBidFinalizedDate: activeEditData.stages?.finBidFinalizedDate || '',
+        workOrderIssuedDate: activeEditData.stages?.workOrderIssuedDate || '',
+        contractSignedDate: activeEditData.stages?.contractSignedDate || '',
       });
 
       // Load candidate details
-      if (editData.id) {
-        fetchCandidatesByConsultantAppointmentId(editData.id)
+      if (activeEditData.id) {
+        fetchCandidatesByConsultantAppointmentId(activeEditData.id)
           .then((res) => {
             if (res.data && res.data.length > 0) {
               setCandidates(res.data);
             } else {
-              const candIdsStr = editData.raw?.candidate_id || '';
+              const candIdsStr = activeEditData.raw?.candidate_id || '';
               if (candIdsStr) {
                 const idList = candIdsStr.split(',').map(s => s.trim()).filter(Boolean);
                 Promise.all(
@@ -201,7 +212,7 @@ export default function InputForm({
             }
           })
           .catch(() => {
-            const candIdsStr = editData.raw?.candidate_id || '';
+            const candIdsStr = activeEditData.raw?.candidate_id || '';
             if (candIdsStr) {
               const idList = candIdsStr.split(',').map(s => s.trim()).filter(Boolean);
               Promise.all(
@@ -223,13 +234,13 @@ export default function InputForm({
           });
       }
     }
-  }, [editData]);
+  }, [activeEditData]);
 
   // Dynamically filter divisions based on the selected wing
   const filteredDivisions = useMemo(() => {
     if (!wing) return [];
-    return divisions.filter(d => String(d.wing_id) === String(wing));
-  }, [wing, divisions]);
+    return effectiveDivisions.filter(d => String(d.wing_id) === String(wing));
+  }, [wing, effectiveDivisions]);
 
   // Sync division selection if current division is not in filtered list
   useEffect(() => {
@@ -363,7 +374,7 @@ export default function InputForm({
     try {
       if (isEdit) {
         await updateConsultantAppointment({
-          consultantAppointmentID: editData.id,
+          consultantAppointmentID: activeEditData.id,
           ...payload
         });
       } else {
@@ -379,6 +390,7 @@ export default function InputForm({
         );
       }
 
+      clearEditData();
       onSuccess();
     } catch (err) {
       console.error("Submit error details:", err.response?.data || err);
@@ -531,13 +543,13 @@ export default function InputForm({
     submitting;
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+          <h3 className="module-form-banner-title">
             {isEdit ? "Update Consultant Appointment" : "Add Consultant Appointment"}
           </h3>
-          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+          <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
         </div>
       </div>
 
@@ -547,12 +559,12 @@ export default function InputForm({
           {/* Left Panel: Fixed Metadata (4 cols on lg screens) */}
           <div className="lg:col-span-4 space-y-4">
             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4">
-              <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800">
+              <h4 className="module-form-section-title !mt-0 !mb-4">
                 Appointment Information
               </h4>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
+                <label className="module-form-label">Wing <span className="text-red-500">*</span></label>
                 <select
                   value={wing}
                   onChange={(e) => {
@@ -565,7 +577,7 @@ export default function InputForm({
                   className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('wing', wing) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
                 >
                   <option value="">Select Wing</option>
-                  {wings.map((w) => (
+                  {effectiveWings.map((w) => (
                     <option key={w.wing_id} value={w.wing_id}>
                       {w.wing_name}
                     </option>
@@ -574,7 +586,7 @@ export default function InputForm({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
+                <label className="module-form-label">Division <span className="text-red-500">*</span></label>
                 <select
                   value={division}
                   onChange={(e) => {
@@ -595,7 +607,7 @@ export default function InputForm({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Number of Resources <span className="text-red-500">*</span></label>
+                <label className="module-form-label">Number of Resources <span className="text-red-500">*</span></label>
                 <input
                   type="number"
                   min="1"

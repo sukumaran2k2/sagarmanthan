@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
@@ -6,8 +6,9 @@ import DataList from './pages/DataList';
 import InputForm from './pages/InputForm';
 import Reports from './pages/Reports';
 import { useConsultantPermissions } from './hooks/useConsultantPermissions';
-import { fetchWings, fetchDivisions, deleteConsultantAppointment } from './api';
+import { deleteConsultantAppointment } from './api';
 import { getCurrentUserId } from '../../utils/authSession';
+import { useCaStore } from './store/useCaStore';
 
 export default function ConsultantAppointmentView({ triggerNotification }) {
   const location = useLocation();
@@ -15,9 +16,16 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
   const permissions = useConsultantPermissions();
   const { canAdd, canEdit, canRemove, canView } = permissions;
 
-  const [editData, setEditData] = useState(null);
-  const [wings, setWings] = useState([]);
-  const [divisions, setDivisions] = useState([]);
+  // Zustand CA Store
+  const {
+    editData,
+    setEditData,
+    clearEditData,
+    wings,
+    divisions,
+    loadWingsAndDivisions,
+    setActiveTab
+  } = useCaStore();
 
   const tabs = useMemo(() => {
     const list = [];
@@ -34,15 +42,15 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
     return 'data-list';
   }, [location.pathname]);
 
+  // Sync tab with store
   useEffect(() => {
-    fetchWings()
-      .then(res => setWings(res.data || []))
-      .catch(err => console.error("Error loading wings:", err));
+    setActiveTab(currentTab);
+  }, [currentTab, setActiveTab]);
 
-    fetchDivisions()
-      .then(res => setDivisions(res.data || []))
-      .catch(err => console.error("Error loading divisions:", err));
-  }, []);
+  // Load wings and divisions once via store
+  useEffect(() => {
+    loadWingsAndDivisions();
+  }, [loadWingsAndDivisions]);
 
   const handleEdit = (ca) => {
     setEditData(ca);
@@ -50,12 +58,12 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
   };
 
   const handleSuccess = () => {
-    setEditData(null);
+    clearEditData();
     navigate('/hr/consultant-appointment/data-list');
   };
 
   const handleBack = () => {
-    setEditData(null);
+    clearEditData();
     navigate('/hr/consultant-appointment/data-list');
   };
 
@@ -82,13 +90,13 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
   }
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6 select-none">
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] tracking-wide uppercase font-display">
+          <h1 className="module-header-title">
             Consultant Appointment
           </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium font-sans">
+          <p className="module-header-subtitle">
             Manage and monitor Consultant Appointments across various wings and divisions.
           </p>
         </div>
@@ -97,7 +105,7 @@ export default function ConsultantAppointmentView({ triggerNotification }) {
           tabs={tabs}
           currentTab={currentTab}
           onTabChange={(tabId) => {
-            if (tabId !== 'input-form') setEditData(null);
+            if (tabId !== 'input-form') clearEditData();
             if (tabId === 'input-form') navigate('/hr/consultant-appointment/input-form');
             else if (tabId === 'reports') navigate('/hr/consultant-appointment/reports');
             else navigate('/hr/consultant-appointment/data-list');

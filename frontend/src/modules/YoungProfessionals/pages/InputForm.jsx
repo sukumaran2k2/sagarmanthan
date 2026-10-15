@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Upload, X, ArrowLeft, Plus, FileText } from 'lucide-react';
 import api, { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { useYpStore } from '../store/useYpStore';
 
 const COMMON_SKILLS = [
   'SQL', 'Python', 'Java', 'React', 'Javascript', 'HTML', 'CSS',
@@ -18,7 +19,17 @@ export default function InputForm({
   onSuccess, 
   triggerNotification 
 }) {
-  const isEdit = !!editData;
+  const { 
+    editData: storeEditData, 
+    clearEditData, 
+    wings: storeWings, 
+    divisions: storeDivisions 
+  } = useYpStore();
+
+  const activeEditData = editData || storeEditData;
+  const isEdit = !!activeEditData;
+  const effectiveWings = (wings && wings.length > 0) ? wings : storeWings;
+  const effectiveDivisions = (divisions && divisions.length > 0) ? divisions : storeDivisions;
   const fileInputRef = useRef(null);
 
   // Form states
@@ -160,20 +171,22 @@ export default function InputForm({
     let initSkillsList = [];
     let initDocumentName = '';
 
-    if (editData) {
-      initWing = editData.wing_id || '';
-      initDivision = editData.division_id || '';
-      initName = editData.name || '';
-      initQualification = editData.qualification || '';
-      initRole = editData.role || '';
-      initAppointmentDate = editData.appointment_date ? editData.appointment_date.split('T')[0] : '';
-      initSalary = editData.salary !== undefined && editData.salary !== null ? String(editData.salary) : '';
-      initExperience = editData.total_experience !== undefined && editData.total_experience !== null ? String(editData.total_experience) : '';
+    if (activeEditData) {
+      initWing = activeEditData.wing_id || '';
+      initDivision = activeEditData.division_id || '';
+      initName = activeEditData.name || '';
+      initQualification = activeEditData.qualification || '';
+      initRole = activeEditData.role || '';
+      initAppointmentDate = activeEditData.appointment_date ? activeEditData.appointment_date.split('T')[0] : '';
+      initSalary = activeEditData.salary !== undefined && activeEditData.salary !== null ? String(activeEditData.salary) : '';
+      initExperience = activeEditData.total_experience !== undefined && activeEditData.total_experience !== null ? String(activeEditData.total_experience) : '';
       
-      if (editData.skills) {
-        initSkillsList = editData.skills.split(',').map(s => s.trim()).filter(Boolean);
+      if (activeEditData.skills) {
+        initSkillsList = Array.isArray(activeEditData.skills) 
+          ? activeEditData.skills 
+          : activeEditData.skills.split(',').map(s => s.trim()).filter(Boolean);
       }
-      initDocumentName = editData.appointment_document || '';
+      initDocumentName = activeEditData.appointment_document || '';
 
       setWing(initWing);
       setDivision(initDivision);
@@ -212,13 +225,13 @@ export default function InputForm({
     });
 
     setTouched({});
-  }, [editData]);
+  }, [activeEditData]);
 
   // Dynamically filter divisions based on the selected wing
   const filteredDivisions = useMemo(() => {
     if (!wing) return [];
-    return divisions.filter(d => String(d.wing_id) === String(wing));
-  }, [wing, divisions]);
+    return effectiveDivisions.filter(d => String(d.wing_id) === String(wing));
+  }, [wing, effectiveDivisions]);
 
   // Sync division selection if current division is not in filtered list
   useEffect(() => {
@@ -322,8 +335,8 @@ export default function InputForm({
     try {
       let ypId = null;
       if (isEdit) {
-        await updateYoungProfessional(editData.yp_id, payload);
-        ypId = editData.yp_id;
+        await updateYoungProfessional(activeEditData.yp_id, payload);
+        ypId = activeEditData.yp_id;
       } else {
         const response = await createYoungProfessional(payload);
         ypId = response.data?.insertedYPId;
@@ -342,6 +355,7 @@ export default function InputForm({
         );
       }
 
+      clearEditData();
       onSuccess();
     } catch (err) {
       console.error(err);
@@ -370,20 +384,20 @@ export default function InputForm({
     (isEdit && !isDirty);
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+          <h3 className="module-form-banner-title">
             {isEdit ? "Update Young Professional" : "Add Young Professional"}
           </h3>
-          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+          <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Wing <span className="text-red-500">*</span></label>
             <select
               value={wing}
               onChange={(e) => { 
@@ -397,12 +411,12 @@ export default function InputForm({
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
             >
               <option value="" className="dark:bg-slate-955 dark:text-slate-300">--Select Wing--</option>
-              {wings.map(w => <option key={w.wing_id} value={w.wing_id} className="dark:bg-slate-955 dark:text-slate-300">{w.wing_name}</option>)}
+              {effectiveWings.map(w => <option key={w.wing_id} value={w.wing_id} className="dark:bg-slate-955 dark:text-slate-300">{w.wing_name}</option>)}
             </select>
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Division <span className="text-red-500">*</span></label>
             <select
               value={division}
               onChange={(e) => { setDivision(e.target.value); if (touched.division) handleBlur('division'); }}
@@ -419,7 +433,7 @@ export default function InputForm({
           </div>
         </div>
 
-        <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mt-8 mb-5">Personal & Professional Info</h3>
+        <h3 className="module-form-section-title">Personal & Professional Info</h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">

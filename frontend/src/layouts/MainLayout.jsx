@@ -394,7 +394,10 @@ export default function MainLayout({
   const tabAllowed = canAccessTab(activeTab);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
+    <div 
+      className="min-h-screen flex flex-col font-sans relative antialiased selection:bg-blue-100 transition-colors"
+      style={{ backgroundColor: 'var(--module-page-bg, #f8fafc)' }}
+    >
       {showNetworkCheck && (
         <NetworkCheckView
           isManual={isManualNetworkCheck}

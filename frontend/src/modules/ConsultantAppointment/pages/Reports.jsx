@@ -266,10 +266,10 @@ export default function Reports({ wings = [], triggerNotification }) {
         triggerNotification={triggerNotification}
         pagination={true}
         themeClass="yp-pro-grid"
-        brandColor="#4b2424"
-        brandColorHover="#6b3535"
-        accentColor="#f3f7f5ff"
-        oddRowColor="#f8faf6"
+        brandColor="var(--module-report-brand-color, #4b2424)"
+        brandColorHover="var(--module-report-brand-color-hover, #6b3535)"
+        accentColor="var(--module-report-accent-color, #f7f3f3)"
+        oddRowColor="var(--module-report-odd-row-bg, #f8faf6)"
         totalLabel="Total"
       />
     </div>
