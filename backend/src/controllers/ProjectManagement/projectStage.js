@@ -293,6 +293,19 @@ export async function loadStageSnapshot(projectID, subProjectID) {
 }
 
 /**
+ * Value for the older project_stage_id column. Reports read it to find projects
+ * that reached sanction (3 or 11) or completion (14), so it holds the last
+ * planning stage while the project is Under Tendering or Under Implementation.
+ */
+export function getEntryStageId(stageId, isPortLevelApproval) {
+    if (stageId >= PROJECT_STAGE.COMPLETED) return PROJECT_STAGE.COMPLETED;
+    if (stageId >= PROJECT_STAGE.UNDER_TENDERING) {
+        return isPortLevelApproval ? PROJECT_STAGE.CHAIRMAN_APPROVAL : PROJECT_STAGE.ADMIN_APPROVAL;
+    }
+    return stageId;
+}
+
+/**
  * Recalculates and stores the stage after a save.
  * `before` is the snapshot taken before the save; it tells whether this save
  * removed the gate of the tab the project is currently in.
@@ -304,31 +317,26 @@ export async function syncProjectStage(projectID, subProjectID, before) {
 
     const allowStepBack = isTabGateMet(before, storedTab) && !isTabGateMet(after, storedTab);
     const nextStageId = resolveNextStageId(storedStageId, computeStageId(after), allowStepBack);
+    const nextEntryStageId = getEntryStageId(nextStageId, after.isPortLevelApproval);
 
-    if (nextStageId === storedStageId) {
+    if (nextStageId === storedStageId && nextEntryStageId === Number(after.projectStageId)) {
         return { previousStageId: storedStageId, nextStageId };
     }
-
-    // project_stage_id is read by reports to detect completed projects, so it is
-    // kept in step for planning stages, for completion, and when leaving completion.
-    const syncEntryStage =
-        nextStageId <= PROJECT_STAGE.ADMIN_APPROVAL ||
-        nextStageId === PROJECT_STAGE.COMPLETED ||
-        Number(after.projectStageId) === PROJECT_STAGE.COMPLETED;
 
     const conn = await pool;
     const request = conn.request();
     request.input("projectID", projectID);
     request.input("subProjectID", subProjectID);
     request.input("nextStageId", nextStageId);
+    request.input("nextEntryStageId", nextEntryStageId);
 
     if (isProjectLevel(subProjectID)) {
-        await request.query(`UPDATE tbl_project SET current_project_stage_id = @nextStageId
-            ${syncEntryStage ? ', project_stage_id = @nextStageId' : ''}
+        await request.query(`UPDATE tbl_project
+            SET current_project_stage_id = @nextStageId, project_stage_id = @nextEntryStageId
             WHERE project_id = @projectID`);
     } else {
-        await request.query(`UPDATE tbl_sub_project SET sub_current_project_stage_id = @nextStageId
-            ${syncEntryStage ? ', sub_project_stage_id = @nextStageId' : ''}
+        await request.query(`UPDATE tbl_sub_project
+            SET sub_current_project_stage_id = @nextStageId, sub_project_stage_id = @nextEntryStageId
             WHERE sub_project_id = @subProjectID`);
     }
 

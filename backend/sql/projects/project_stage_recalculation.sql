@@ -236,15 +236,17 @@ BEGIN
         INNER JOIN #SubProjectStage s ON s.sub_project_id = sp.sub_project_id
         WHERE s.change_type <> 'TAB_DOWNGRADE' OR @ApplyTabDowngrades = 1;
 
-        -- project_stage_id is read by reports to detect completed projects, so it
-        -- follows the same rule as the backend: planning stages, completion, and
-        -- leaving completion.
+        -- project_stage_id is read by reports to find projects that reached sanction
+        -- (3 or 11) or completion (14). It follows the same rule as the backend:
+        -- planning stages keep their own value, Under Tendering / Under Implementation
+        -- hold the last planning stage (3 for Port Level Approval, otherwise 11).
         UPDATE p
         SET current_project_stage_id = s.computed_stage_id,
             project_stage_id = CASE
-                WHEN s.computed_stage_id <= 11 OR s.computed_stage_id = 14 OR p.project_stage_id = 14
-                THEN s.computed_stage_id
-                ELSE p.project_stage_id
+                WHEN s.computed_stage_id >= 14 THEN 14
+                WHEN s.computed_stage_id >= 12 THEN
+                    CASE WHEN LOWER(LTRIM(RTRIM(CONVERT(VARCHAR(100), p.project_type)))) = 'port level approval' THEN 3 ELSE 11 END
+                ELSE s.computed_stage_id
             END
         FROM tbl_project p
         INNER JOIN #ProjectStage s ON s.project_id = p.project_id
@@ -253,9 +255,10 @@ BEGIN
         UPDATE sp
         SET sub_current_project_stage_id = s.computed_stage_id,
             sub_project_stage_id = CASE
-                WHEN s.computed_stage_id <= 11 OR s.computed_stage_id = 14 OR sp.sub_project_stage_id = 14
-                THEN s.computed_stage_id
-                ELSE sp.sub_project_stage_id
+                WHEN s.computed_stage_id >= 14 THEN 14
+                WHEN s.computed_stage_id >= 12 THEN
+                    CASE WHEN LOWER(LTRIM(RTRIM(CONVERT(VARCHAR(100), sp.sub_project_type)))) = 'port level approval' THEN 3 ELSE 11 END
+                ELSE s.computed_stage_id
             END
         FROM tbl_sub_project sp
         INNER JOIN #SubProjectStage s ON s.sub_project_id = sp.sub_project_id
