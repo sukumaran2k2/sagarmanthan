@@ -52,10 +52,6 @@ export function fetchGmisMouPaginated(params = {}) {
   return api.get('/get-gmis-mou-paginated', { params });
 }
 
-export function fetchGmisMouData(roleId = 2, organisationId = 0) {
-  return api.get(`/get-gmis-mou-data/${roleId}/${organisationId}`);
-}
-
 export function fetchGmisMouDataById(mouId) {
   return api.get(`/get-gmis-mou-data-by-id/${mouId}`);
 }
@@ -78,32 +74,8 @@ export function fetchMouCategoryNames() {
   return api.get('/get-mou-category-names');
 }
 
-export function fetchGmisMouChartData() {
-  return api.get('/get-gmis-mou-chart-data');
-}
-
-export function fetchOrganisationWiseCountAmount() {
-  return api.get('/get-organisation-wise-count-amount');
-}
-
-export function fetchStatusWiseCount() {
-  return api.get('/get-status-wise-count');
-}
-
-export function fetchGmisSecondParty() {
-  return api.get('/get-gismou-second-party');
-}
-
 export function fetchGmisNavicVibhas() {
   return api.get('/get-gismou-vibhas-navic-cell');
-}
-
-export function fetchGmisPresentStatus() {
-  return api.get('/get-gismou-present-status');
-}
-
-export function fetchMouTotalCountAmount() {
-  return api.get('/get-mou-total-count-amount');
 }
 
 // Dashboard: every aggregate in one call (KPI cards, category chart, summit trend,
@@ -114,14 +86,6 @@ export function fetchGmisMouDashboard(eventName = '') {
 
 export function fetchGmisMouSummits() {
   return api.get('/get-gmis-mou-summits');
-}
-
-export function fetchYearWiseGmisData() {
-  return api.get('/get-yearwise-gmis-data');
-}
-
-export function fetchGmisDrilldownData(params = {}) {
-  return api.get('/get-gmis-drilldown-data', { params });
 }
 
 export function fetchOrganisations() {
