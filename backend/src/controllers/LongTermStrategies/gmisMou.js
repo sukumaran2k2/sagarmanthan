@@ -3,6 +3,32 @@ import fs from 'fs';
 import path from 'path';
 import { pool } from "../../db.js";
 import moment from 'moment';
+import { getDataScope } from '../../middleware/dataScope.js';
+
+// Ministry / master users see every MoU; organisation users only their organisation's.
+// Decided from the signed token only (never from query or URL values). Returns the SQL
+// condition and the organisation id to bind as @scopeOrgId (null when not needed).
+function gmisScope(user, column = 'tbl_gmis_mou.organisation_id') {
+    const { isWide, isOrganisation, organisationId } = getDataScope(user);
+    if (isWide) return { sql: '1 = 1', orgId: null };
+    if (!isOrganisation || !Number.isFinite(organisationId) || organisationId <= 0) return { sql: '1 = 0', orgId: null };
+    return { sql: `${column} = @scopeOrgId`, orgId: organisationId };
+}
+
+// True when the MoU exists and is within the user's scope.
+async function canAccessMou(user, mouID) {
+    const id = Number(mouID);
+    if (!Number.isInteger(id) || id <= 0) return false;
+    const scope = gmisScope(user);
+    const request = (await pool).request();
+    request.input('scopeMouId', id);
+    if (scope.orgId) request.input('scopeOrgId', scope.orgId);
+    const result = await request.query(`SELECT TOP 1 1 AS ok FROM tbl_gmis_mou WHERE id = @scopeMouId AND ${scope.sql}`);
+    return result.recordset.length > 0;
+}
+
+// "To be started" is how the data records it; older entries may say "Yet to start".
+const YET_TO_START_SQL = "(tbl_gmis_mou.present_status LIKE '%Yet to%' OR tbl_gmis_mou.present_status LIKE '%to be started%')";
 
 const uploadDestination = "./fileuploads/gmis_mou_fileupload";
 if (!fs.existsSync(uploadDestination)) 
@@ -57,8 +83,11 @@ async function getMouCategory(req, res) {
 }
 
 async function submitGmisMouData(req, res) {
+    // Organisation users can only add MoUs for their own organisation.
+    const scope = gmisScope(req.user);
+    if (scope.sql === '1 = 0') return res.status(403).send("Not allowed to add MoUs");
     const eventName = req.body.eventName;
-    const organisationId = req.body.organisationName;
+    const organisationId = scope.orgId || req.body.organisationName;
     const navicId = req.body.vibhasNavicID;
     const nameOfMou = req.body.mouProjectName;
     const nameOfSecondParty = req.body.stakeholderName;
@@ -71,7 +100,7 @@ async function submitGmisMouData(req, res) {
     const reasonForDropping = req.body.reasonForDropping || null;
     const mouBrief = req.body.mouBrief || null;
     const revisedAmount = req.body.revisedAmount || null;
-    const userID = req.body.userID || null;
+    const userID = req.user?.userId || req.body.userID || null;
     let uniqueFileName = req.body.gmisDocumentFileName; 
     const nextSteps = req.body.nextSteps || null;
     const physicalProgressDate = req.body.physicalProgressDate || null;
@@ -193,7 +222,8 @@ const fileUpload= multer({
 async function updateGmisMouData(req, res) {
     const mouID = req.body.mouID || req.body.id || req.body.mou_id;
     const eventName = req.body.eventName || req.body.event_name;
-    const organisationId = req.body.organisationName || req.body.organisation_id;
+    // Organisation users keep the MoU in their own organisation.
+    const organisationId = gmisScope(req.user).orgId || req.body.organisationName || req.body.organisation_id;
     const navicId = req.body.vibhasNavicID || req.body.navic_vibhas_id;
     const nameOfMou = req.body.mouProjectName || req.body.name_of_mou;
     const nameOfSecondParty = req.body.stakeholderName || req.body.name_of_second_party;
@@ -218,6 +248,10 @@ async function updateGmisMouData(req, res) {
     }
     if (!uniqueFileName || uniqueFileName === '') {
         uniqueFileName = null;
+    }
+
+    if (!(await canAccessMou(req.user, mouID))) {
+        return res.status(404).send("MoU not found");
     }
 
     const conn = await pool;
@@ -388,19 +422,13 @@ async function getGmisMouPaginated(req, res) {
         const status = req.query.status || "";
         const offset = (page - 1) * pageSize;
 
-        const roleId = req.user?.role_id || req.query.roleId || 2;
-        const userOrgId = req.user?.organisation_id || req.query.userOrgId;
+        const scope = gmisScope(req.user);
 
         const conn = await pool;
         const request = conn.request();
 
-        let baseWhereClauses = ["1=1"];
-
-        // Org scoping if not admin
-        if (roleId != 2 && roleId != 3 && roleId != 4 && roleId != 5 && userOrgId) {
-            baseWhereClauses.push("tbl_gmis_mou.organisation_id = @userOrgId");
-            request.input("userOrgId", userOrgId);
-        }
+        let baseWhereClauses = ["1=1", scope.sql];
+        if (scope.orgId) request.input("scopeOrgId", scope.orgId);
 
         if (eventName && eventName !== "all" && eventName !== "All") {
             baseWhereClauses.push("tbl_gmis_mou.event_name = @eventName");
@@ -458,7 +486,7 @@ async function getGmisMouPaginated(req, res) {
             } else if (status.toLowerCase().includes("dropped")) {
                 dataWhereClauses.push("tbl_gmis_mou.present_status LIKE '%Dropped%'");
             } else if (status.toLowerCase().includes("yet")) {
-                dataWhereClauses.push("tbl_gmis_mou.present_status LIKE '%Yet to%'");
+                dataWhereClauses.push(YET_TO_START_SQL);
             } else {
                 dataWhereClauses.push("tbl_gmis_mou.present_status = @status");
                 request.input("status", status);
@@ -505,9 +533,7 @@ async function getGmisMouPaginated(req, res) {
         `;
 
         const countRequest = conn.request();
-        if (roleId != 2 && roleId != 3 && roleId != 4 && roleId != 5 && userOrgId) {
-            countRequest.input("userOrgId", userOrgId);
-        }
+        if (scope.orgId) countRequest.input("scopeOrgId", scope.orgId);
         if (eventName && eventName !== "all" && eventName !== "All") countRequest.input("eventName", eventName);
         if (organisationId && organisationId !== "all" && organisationId !== "All") countRequest.input("organisationId", organisationId);
         if (category && category !== "all" && category !== "All") {
@@ -527,7 +553,7 @@ async function getGmisMouPaginated(req, res) {
                 COUNT(*) AS count_all,
                 SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Under Implementation%' THEN 1 ELSE 0 END) AS count_ui,
                 SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Completed%' THEN 1 ELSE 0 END) AS count_completed,
-                SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Yet to%' THEN 1 ELSE 0 END) AS count_yet_to_start,
+                SUM(CASE WHEN ${YET_TO_START_SQL} THEN 1 ELSE 0 END) AS count_yet_to_start,
                 SUM(CASE WHEN tbl_gmis_mou.present_status LIKE '%Dropped%' THEN 1 ELSE 0 END) AS count_dropped,
                 SUM(CAST(ISNULL(tbl_gmis_mou.amount, 0) AS FLOAT)) AS total_amount
             FROM tbl_gmis_mou
@@ -571,8 +597,10 @@ async function getGmisMouDataByID(req, res) {
     const mouID = req.params.mouID;
     const conn = await pool;
     const request = conn.request();
+    const scope = gmisScope(req.user);
 
     request.input("mouID", mouID);
+    if (scope.orgId) request.input("scopeOrgId", scope.orgId);
 
     try {
         const result = await request.query(`
@@ -607,7 +635,7 @@ async function getGmisMouDataByID(req, res) {
         LEFT JOIN 
             mmt_mou_category ON tbl_gmis_mou.mou_category_id = mmt_mou_category.mou_category_id
         WHERE 
-            tbl_gmis_mou.id = @mouID;
+            tbl_gmis_mou.id = @mouID AND ${scope.sql};
         `);
 
         res.json(result.recordset);
@@ -3846,25 +3874,37 @@ async function getOrganisationWiseStatusCount_2025(req, res) {
         return res.sendStatus(500);
     }
 }
-    async function gmisPdfFileDownload(req, res) 
+    // GET /download-gmismou-pdf-document?fileName=<stored file name>
+    // Only a plain stored file name is accepted (no folders or "..", so nothing outside the
+    // upload folder can be read), and only for a MoU the user is allowed to see.
+    async function gmisPdfFileDownload(req, res)
     {
-        const { fileName } = req.query;
-    
-        // Base folder path
-        const uploadDestinationBase = './fileuploads/gmis_mou_fileupload';
-        // Construct the file path by directly joining the base path and fileName
-        const filePath = path.join(uploadDestinationBase, fileName); // Correct file path construction
-    
-        fs.readFile(filePath, (err, data) => {
-            if (err) {
-                // console.error("Error reading file:", err);
-                res.status(500).send({ error: "Internal Server Error" });
-            } else {
-                res.setHeader('Content-disposition', 'attachment; filename=' + fileName);
-                res.setHeader('Content-type', 'application/pdf');
-                res.send(data);
+        try {
+            const raw = String(req.query.fileName || req.query.filename || '');
+            const fileName = path.basename(raw);
+            if (!fileName || fileName !== raw || fileName.startsWith('.')) {
+                return res.status(400).send({ error: "Invalid file name" });
             }
-        });
+
+            const scope = gmisScope(req.user);
+            const request = (await pool).request();
+            request.input('fileName', fileName);
+            if (scope.orgId) request.input('scopeOrgId', scope.orgId);
+            const found = await request.query(`
+                SELECT TOP 1 1 AS ok FROM tbl_gmis_mou
+                WHERE document_uploader = @fileName AND ${scope.sql}
+            `);
+            if (!found.recordset.length) {
+                return res.status(404).send({ error: "File not found" });
+            }
+
+            res.download(path.resolve(uploadDestination, fileName), fileName, (err) => {
+                if (err && !res.headersSent) res.status(404).send({ error: "File not found" });
+            });
+        } catch (err) {
+            console.error("gmisPdfFileDownload error:", err);
+            res.status(500).send({ error: "Internal Server Error" });
+        }
     }
 
      async function gmisfileDelete(req, res) 
@@ -3876,6 +3916,11 @@ async function getOrganisationWiseStatusCount_2025(req, res) {
                 if (!fileName) {
                     return res.status(400).send({ error: "File name is required" });
                 }
+                if (path.basename(String(fileName)) !== fileName) {
+                    return res.status(400).send({ error: "Invalid file name" });
+                }
+                // Only detach the document of a MoU the user is allowed to see.
+                const scope = gmisScope(req.user);
         
                 const uploadDestination = './fileuploads/gmis_mou_fileupload'; // Base directory
                 const filePath = path.join(uploadDestination, fileName); // Construct the correct file path
@@ -3884,11 +3929,12 @@ async function getOrganisationWiseStatusCount_2025(req, res) {
                 const conn = await pool;
                 const request = conn.request();
                 request.input('fileName', fileName);
+                if (scope.orgId) request.input('scopeOrgId', scope.orgId);
         
                 const result = await request.query(`
                     UPDATE tbl_gmis_mou
                     SET document_uploader = NULL
-                    WHERE document_uploader = @fileName
+                    WHERE document_uploader = @fileName AND ${scope.sql}
                 `);
         
                 if (result.rowsAffected[0] > 0) {
@@ -3907,6 +3953,7 @@ async function getOrganisationWiseStatusCount_2025(req, res) {
         
 async function getRevisedfinancialprogressdate(req, res) {
     const mouID = req.params.mouID;
+    if (!(await canAccessMou(req.user, mouID))) return res.status(404).json({ message: "MoU not found" });
 
     try {
         const conn = await pool;
@@ -3948,6 +3995,7 @@ async function getRevisedfinancialprogressdate(req, res) {
 
 async function getRevisedphysicalprogressdate(req, res) {
     const mouID = req.params.mouID;
+    if (!(await canAccessMou(req.user, mouID))) return res.status(404).json({ message: "MoU not found" });
 
     try {
         const conn = await pool;
@@ -3989,6 +4037,7 @@ async function getRevisedphysicalprogressdate(req, res) {
 
 async function addRevisedphysicalprogressdate(req, res) {
     const mouID = req.body.mouID;
+    if (!(await canAccessMou(req.user, mouID))) return res.status(404).json({ message: "MoU not found" });
     let targetphysicalProgressDate = req.body.targetphysicalProgressDate || req.body.physicalProgressDate;
     let targetphysicalPercentage = req.body.targetphysicalPercentage !== undefined ? req.body.targetphysicalPercentage : req.body.physicalPercentage;
 
@@ -4033,6 +4082,7 @@ async function addRevisedphysicalprogressdate(req, res) {
 
 async function addRevisedfinancialprogressdate(req, res) {
     const mouID = req.body.mouID;
+    if (!(await canAccessMou(req.user, mouID))) return res.status(404).json({ message: "MoU not found" });
     let targetfinancialProgressDate = req.body.targetfinancialProgressDate || req.body.financialProgressDate;
     let targetfinancialPercentage = req.body.targetfinancialPercentage !== undefined ? req.body.targetfinancialPercentage : req.body.financialPercentage;
 
@@ -4076,52 +4126,24 @@ async function addRevisedfinancialprogressdate(req, res) {
 };
 
 //Report
-let ALL_ORGANISATION_ROLES = [1, 2, 3, 4, 5, 8];
 
 async function getEventWiseSummary(req, res) {
     try {
         const conn = await pool;
-        const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations =  ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
 
         let organisationFilter = "";
@@ -4144,8 +4166,8 @@ async function getEventWiseSummary(req, res) {
                 SUM(ISNULL(amount, 0)) AS [Total Amount],
                 SUM(
                     CASE
-                        WHEN LOWER(LTRIM(RTRIM(present_status)))
-                             LIKE '%yet%start%'
+                        WHEN (LOWER(LTRIM(RTRIM(present_status)))
+                             LIKE '%yet%start%' OR LOWER(LTRIM(RTRIM(present_status))) LIKE '%to be started%')
                         THEN 1
                         ELSE 0
                     END
@@ -4223,50 +4245,20 @@ async function getEventWiseSummary(req, res) {
 async function getorgWisePerformanceRankingReport(req, res) {
     try {
         const conn = await pool;
-        const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-
-        // Get user role and organisation
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations =
-            ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
 
         let organisationFilter = "";
@@ -4294,8 +4286,8 @@ async function getorgWisePerformanceRankingReport(req, res) {
 
                     -- Stage counts
                     SUM(CASE
-                        WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
-                             LIKE '%yet%start%'
+                        WHEN (LOWER(LTRIM(RTRIM(gmis.present_status)))
+                             LIKE '%yet%start%' OR LOWER(LTRIM(RTRIM(gmis.present_status))) LIKE '%to be started%')
                         THEN 1 ELSE 0
                     END) AS [Yet To be Started],
 
@@ -4427,49 +4419,20 @@ async function getorgWisePerformanceRankingReport(req, res) {
 async function getVibascellWiseSummary(req, res) {
     try {
         const conn = await pool;
-        const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations =
-            ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
 
         let organisationFilter = "";
@@ -4492,8 +4455,8 @@ async function getVibascellWiseSummary(req, res) {
                     SUM(ISNULL(gmis.amount, 0)) AS [Total Cost],
                     SUM(
                         CASE
-                            WHEN LOWER(LTRIM(RTRIM(gmis.present_status)))
-                                LIKE '%yet%start%'
+                            WHEN (LOWER(LTRIM(RTRIM(gmis.present_status)))
+                                LIKE '%yet%start%' OR LOWER(LTRIM(RTRIM(gmis.present_status))) LIKE '%to be started%')
                             THEN 1
                             ELSE 0
                         END
@@ -4643,47 +4606,20 @@ async function getVibascellWiseSummary(req, res) {
 async function getCategoryWiseSummary(req,res) {
     try {
         const conn = await pool;
-        const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-        const canViewAllOrganisations = ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
 
         let organisationFilter = "";
@@ -4703,7 +4639,7 @@ async function getCategoryWiseSummary(req,res) {
             COUNT(*) AS [Total MoUs],
             SUM(ISNULL(amount, 0)) AS [Total Amount],
             SUM(CASE
-                WHEN LOWER(LTRIM(RTRIM(present_status))) LIKE '%yet%start%'
+                WHEN (LOWER(LTRIM(RTRIM(present_status))) LIKE '%yet%start%' OR LOWER(LTRIM(RTRIM(present_status))) LIKE '%to be started%')
                 THEN 1 ELSE 0
             END) AS [Yet To be Started],
             SUM(CASE
@@ -4756,49 +4692,20 @@ async function getCategoryWiseSummary(req,res) {
 async function getPhysicalAndFinancialProgressWise(req, res) {
     try {
         const conn = await pool;
-        const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT 
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations =
-            ALL_ORGANISATION_ROLES.includes(userRoleId);
+        // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
 
         let organisationFilter = "";
@@ -4875,48 +4782,20 @@ async function getPhysicalAndFinancialProgressWise(req, res) {
 async function getDroppedMousReport(req, res) {
     try {
     const conn = await pool;
-    const userID = Number(req.params.userId);
-
-        if (!Number.isInteger(userID) || userID <= 0) {
-            return res.status(400).json({
-                message: "Invalid userID"
-            });
-        }
-
-        const userRequest = conn.request();
-        userRequest.input("userID", userID);
-
-        const userResult = await userRequest.query(`
-            SELECT 
-                role_id,
-                organisation_id
-            FROM tbl_user
-            WHERE user_id = @userID
-        `);
-
-        if (userResult.recordset.length === 0) {
-            return res.status(404).json({
-                message: "User not found"
-            });
-        }
-
-        const { role_id, organisation_id } = userResult.recordset[0];
-
-        const userRoleId = Number(role_id);
-        const userOrganisationId = Number(organisation_id);
-
-        const canViewAllOrganisations = ALL_ORGANISATION_ROLES.includes(userRoleId);
+    // Whose MoUs to report on comes from the signed token (as on the dashboard and data
+        // list), not from the userId in the URL.
+        const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+        const canViewAllOrganisations = isWide;
+        const userOrganisationId = organisationId;
 
         if (
             !canViewAllOrganisations &&
-            (!Number.isInteger(userOrganisationId) ||
-                userOrganisationId <= 0)
+            (!isOrganisation || !Number.isInteger(userOrganisationId) || userOrganisationId <= 0)
         ) {
             return res.status(403).json({
                 message: "User is not mapped to an organisation"
             });
         }
-
         const request = conn.request();
         let organisationFilter = "";
 

@@ -3321,7 +3321,7 @@ router.get('/get-gmis-mou-data/:roleId/:organisationId', auth, requireModulePerm
 router.get('/get-gmis-mou-chart-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouChartData);
 router.put('/update-gmis-mou-data', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "update"), gmisMouTab.updateGmisMouData);
 router.get('/get-gmis-mou-data-by-id/:mouID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouDataByID);
-router.get("/download-gmismou-pdf-document", gmisMouTab.gmisPdfFileDownload);
+router.get("/download-gmismou-pdf-document", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.gmisPdfFileDownload);
 router.delete("/delete-gmisfile", auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "delete"), gmisMouTab.gmisfileDelete);
 router.get('/get-organisation-wise-count-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmount);
 router.get('/get-status-wise-count', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getStatusWiseCountAmount);
@@ -3348,56 +3348,56 @@ router.get('/get-mou-categories', auth, requireModulePermission("GMIS_IMW_MOU_TR
 router.get('/get-total-mou-amount', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountCategoryWise);
 router.get('/get-total-mou-amount-yearwise', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountyearWise);
 router.get('/get-mou-org-order', auth, requireModulePermission("GMIS_MOU", "read"), gmisMouTab.getOrgWiseMouOrder);
-router.get('/get-organisation-wise-count-amount-status-orgview/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView);
-router.get('/get-organisation-wise-count-amount-status-orgview_2021/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2021);
-router.get('/get-organisation-wise-count-amount-status-orgview_2023/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2023);
-router.get('/get-organisation-wise-count-amount-status-orgview_2025/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2025);
-router.get('/get-organisation-wise-count-amount-status-orgview_2025-category/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2025_category);
-router.get('/get-organisation-wise-count-amount-status-orgview-category/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_category);
-router.get('/get-organisation-wise-count-amount-status-orgview_2021-category/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2021_category);
-router.get('/get-organisation-wise-count-amount-status-orgview_2023-category/:organisationID', gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2023_category);
+router.get('/get-organisation-wise-count-amount-status-orgview/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatusorgView);
+router.get('/get-organisation-wise-count-amount-status-orgview_2021/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2021);
+router.get('/get-organisation-wise-count-amount-status-orgview_2023/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2023);
+router.get('/get-organisation-wise-count-amount-status-orgview_2025/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2025);
+router.get('/get-organisation-wise-count-amount-status-orgview_2025-category/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2025_category);
+router.get('/get-organisation-wise-count-amount-status-orgview-category/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatusorgView_category);
+router.get('/get-organisation-wise-count-amount-status-orgview_2021-category/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2021_category);
+router.get('/get-organisation-wise-count-amount-status-orgview_2023-category/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatusorgView_2023_category);
 
 
-router.get('/get-org-wise-status-count-orgview_2021/:organisationID', gmisMouTab.getOrganisationWiseStatusCountorgView_2021);
-router.get('/get-org-wise-status-count-orgview_2023/:organisationID', gmisMouTab.getOrganisationWiseStatusCountorgView_2023);
-router.get('/get-org-wise-status-count-orgview_2025/:organisationID', gmisMouTab.getOrganisationWiseStatusCountorgView_2025);
-router.get('/get-organisation-wise-count-amount-status_2021/:category/:organisationId', gmisMouTab.getOrganisationWiseCountAmountStatus_2021);
-router.get('/get-org-wise-status-count_2021/:organisationId', gmisMouTab.getOrganisationWiseStatusCount_2021);
-router.get('/get-organisation-wise-count-amount_2021/:organisationId', gmisMouTab.getOrganisationWiseCountAmount_2021);
-router.get('/get-mou-total-count-amount-2021', gmisMouTab.getMouTotalCountAmount_2021);
+router.get('/get-org-wise-status-count-orgview_2021/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCountorgView_2021);
+router.get('/get-org-wise-status-count-orgview_2023/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCountorgView_2023);
+router.get('/get-org-wise-status-count-orgview_2025/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCountorgView_2025);
+router.get('/get-organisation-wise-count-amount-status_2021/:category/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatus_2021);
+router.get('/get-org-wise-status-count_2021/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCount_2021);
+router.get('/get-organisation-wise-count-amount_2021/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmount_2021);
+router.get('/get-mou-total-count-amount-2021', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouTotalCountAmount_2021);
 // router.get('/get-mou-total-count-amount-2021/:roleId/:organisationID', gmisMouTab.getMouTotalCountAmount_2021);
 // router.get('/get-gmis-mou-amount-count-2021/:roleId/:organisationID', gmisMouTab.getMouTotalAmountAndCount_2021);
-router.get('/get-total-mou-amount-2021/:category/:organisationId', gmisMouTab.getTotalMouAndAmountCategoryWise_2021),
-router.get('/get-mou-stage-details-2021/:organisationId', gmisMouTab.getGmisMouStageDetails_2021);
-router.get('/get-mou-stage-details-2021-org/:roleId/:organisationID', gmisMouTab.getGmisMouStageDetails_2021_org);
-router.get('/get-status-wise-count-2021/:category/:organisationId', gmisMouTab.getStatusWiseCountAmount_2021);
-router.get('/get-organisation-wise-count-amount-status_2023/:category/:organisationId', gmisMouTab.getOrganisationWiseCountAmountStatus_2023);
-router.get('/get-org-wise-status-count_2023/:organisationId', gmisMouTab.getOrganisationWiseStatusCount_2023);
-router.get('/get-total-mou-amount-2023/:category/:organisationId', gmisMouTab.getTotalMouAndAmountCategoryWise_2023),
-router.get('/get-status-wise-count-2023/:category/:organisationId', gmisMouTab.getStatusWiseCountAmount_2023);
-router.get('/get-organisation-wise-count-amount_2023/:organisationId', gmisMouTab.getOrganisationWiseCountAmount_2023);
+router.get('/get-total-mou-amount-2021/:category/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountCategoryWise_2021),
+router.get('/get-mou-stage-details-2021/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails_2021);
+router.get('/get-mou-stage-details-2021-org/:roleId/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails_2021_org);
+router.get('/get-status-wise-count-2021/:category/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getStatusWiseCountAmount_2021);
+router.get('/get-organisation-wise-count-amount-status_2023/:category/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatus_2023);
+router.get('/get-org-wise-status-count_2023/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCount_2023);
+router.get('/get-total-mou-amount-2023/:category/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountCategoryWise_2023),
+router.get('/get-status-wise-count-2023/:category/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getStatusWiseCountAmount_2023);
+router.get('/get-organisation-wise-count-amount_2023/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmount_2023);
 // router.get('/get-gmis-mou-amount-count-2023/:roleId/:organisationID', gmisMouTab.getMouTotalAmountAndCount_2023);
-router.get('/get-mou-stage-details-2023/:organisationId', gmisMouTab.getGmisMouStageDetails_2023);
-router.get('/get-mou-stage-details-2023-org/:roleId/:organisationID', gmisMouTab.getGmisMouStageDetails_2023_org);
-router.get('/get-mou-total-count-amount-2023/:roleId/:organisationID', gmisMouTab.getMouTotalCountAmount_2023);
+router.get('/get-mou-stage-details-2023/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails_2023);
+router.get('/get-mou-stage-details-2023-org/:roleId/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails_2023_org);
+router.get('/get-mou-total-count-amount-2023/:roleId/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouTotalCountAmount_2023);
 
-router.get('/get-organisation-wise-count-amount_2025/:organisationId', gmisMouTab.getOrganisationWiseCountAmount_2025);
+router.get('/get-organisation-wise-count-amount_2025/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmount_2025);
 // router.get('/get-mou-total-count-amount-2025/:roleId/:organisationID', gmisMouTab.getMouTotalCountAmount_2025);
-router.get('/get-mou-total-count-amount-2025', gmisMouTab.getMouTotalCountAmount_2025);
+router.get('/get-mou-total-count-amount-2025', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getMouTotalCountAmount_2025);
 // router.get('/get-gmis-mou-amount-count-2025/:roleId/:organisationID', gmisMouTab.getMouTotalAmountAndCount_2025);
-router.get('/get-mou-stage-details-2025-org/:roleId/:organisationID', gmisMouTab.getGmisMouStageDetails_2025_org);
-router.get('/get-mou-stage-details-2025/:organisationId', gmisMouTab.getGmisMouStageDetails_2025);
-router.get('/get-total-mou-amount-2025/:category/:organisationId', gmisMouTab.getTotalMouAndAmountCategoryWise_2025),
-router.get('/get-status-wise-count-2025/:category/:organisationId', gmisMouTab.getStatusWiseCountAmount_2025);
-router.get('/get-organisation-wise-count-amount-status_2025/:category/:organisationId', gmisMouTab.getOrganisationWiseCountAmountStatus_2025);
-router.get('/get-org-wise-status-count_2025/:organisationId', gmisMouTab.getOrganisationWiseStatusCount_2025);
+router.get('/get-mou-stage-details-2025-org/:roleId/:organisationID', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails_2025_org);
+router.get('/get-mou-stage-details-2025/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getGmisMouStageDetails_2025);
+router.get('/get-total-mou-amount-2025/:category/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getTotalMouAndAmountCategoryWise_2025),
+router.get('/get-status-wise-count-2025/:category/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getStatusWiseCountAmount_2025);
+router.get('/get-organisation-wise-count-amount-status_2025/:category/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseCountAmountStatus_2025);
+router.get('/get-org-wise-status-count_2025/:organisationId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getOrganisationWiseStatusCount_2025);
 //GIMS report 
-router.get('/get-event-wise-summary/:userId', gmisMouTab.getEventWiseSummary);
-router.get('/get-org-wise-performance-ranking-report/:userId', gmisMouTab.getorgWisePerformanceRankingReport);
-router.get('/get-vibas-cell-wise-summary/:userId', gmisMouTab.getVibascellWiseSummary);
-router.get('/get-category-wise-summary/:userId', gmisMouTab.getCategoryWiseSummary);
-router.get('/get-physical-and-financial-progress-wise/:userId', gmisMouTab.getPhysicalAndFinancialProgressWise);
-router.get('/get-dropped-mous-report/:userId', gmisMouTab.getDroppedMousReport);
+router.get('/get-event-wise-summary/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getEventWiseSummary);
+router.get('/get-org-wise-performance-ranking-report/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getorgWisePerformanceRankingReport);
+router.get('/get-vibas-cell-wise-summary/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getVibascellWiseSummary);
+router.get('/get-category-wise-summary/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getCategoryWiseSummary);
+router.get('/get-physical-and-financial-progress-wise/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getPhysicalAndFinancialProgressWise);
+router.get('/get-dropped-mous-report/:userId', auth, requireModulePermission("GMIS_IMW_MOU_TRACKING", "read"), gmisMouTab.getDroppedMousReport);
 
 //Marine Casualty
 router.post('/submit-marine-prev-data', marineTab.addMarinePrevIncident);
