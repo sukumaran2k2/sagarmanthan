@@ -1,37 +1,61 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Plus, 
-  Edit3, 
+  Edit, 
   Trash2, 
   Search, 
-  Filter, 
-  RotateCcw, 
+  X,
+  Filter,
   ChevronDown, 
-  X, 
-  Info, 
-  Sparkles,
-  Building2,
-  Calendar,
-  Layers,
-  Star,
-  DollarSign,
-  AlertCircle
+  RotateCcw, 
+  AlertCircle 
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import Table from '../../../components/Table';
-import ExportDropdown from '../../../components/ExportDropdown';
+import TablePagination from '../../../components/TablePagination';
 import CopyButton from '../../../components/CopyButton';
+import ExportDropdown from '../../../components/ExportDropdown';
 import { 
   fetchOvdOrgListData, 
-  fetchOrganisations, 
   deleteOvdAction, 
   getUserIdFromToken 
 } from '../api';
 import { 
   OVOD_WINGS, 
   OVOD_VIBHAS, 
-  OVOD_STATUSES, 
-  OVOD_PRIORITIES 
+  OVOD_STATUSES 
 } from '../utils/constants';
+
+const COLUMN_LIST = [
+  { key: 'sno', label: 'S.No' },
+  { key: 'org', label: 'Organisation' },
+  { key: 'a1', label: 'Goal (A1)' },
+  { key: 'a2', label: 'Intervention (A2)' },
+  { key: 'a3', label: 'Action (A3)' },
+  { key: 'b1', label: 'Goal (B1)' },
+  { key: 'b2', label: 'Intervention (B2)' },
+  { key: 'b3', label: 'Action (B3)' },
+  { key: 'status', label: 'Current Status' },
+  { key: 'date', label: 'Last Updated Date' },
+  { key: 'actions', label: 'Action' }
+];
+
+/* Sub-tab groups: Active covers both "Yet to ..." and "Under Implementation ..." statuses */
+const STATUS_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'active', label: 'Active' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'dropped', label: 'Dropped' }
+];
+
+const getStatusGroup = (status) => {
+  const v = String(status || '').toLowerCase();
+  if (v.includes('completed')) return 'completed';
+  if (v.includes('dropped')) return 'dropped';
+  if (v.includes('yet to') || v.includes('implement') || v.includes('in progress')) return 'active';
+  return null;
+};
 
 export default function DataList({ 
   onAddNew, 
@@ -39,11 +63,15 @@ export default function DataList({
   triggerNotification 
 }) {
   const gridRef = useRef(null);
+  const colVisRef = useRef(null);
 
-  // Filter Panel Toggle State (opens down when Filter button is clicked)
+  // Status Tabs: matching YP & CA DataList
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'completed' | 'dropped'
+
+  // Filter Toggle Panel
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
-  // Filters State matching the screenshot
+  // Filters State
   const [selectedWing, setSelectedWing] = useState('0');
   const [selectedOrg, setSelectedOrg] = useState('0');
   const [selectedGoalA1, setSelectedGoalA1] = useState('0');
@@ -54,11 +82,29 @@ export default function DataList({
   const [selectedActionB3, setSelectedActionB3] = useState('0');
   const [selectedStage, setSelectedStage] = useState('0');
   const [selectedVibhas, setSelectedVibhas] = useState('0');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [pageSize, setPageSize] = useState(10);
 
-  // Organisations & Raw Action Data
-  const [organisations, setOrganisations] = useState([]);
+  // Toolbar & Pagination State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [showColVisibility, setShowColVisibility] = useState(false);
+  const [gridApi, setGridApi] = useState(null);
+
+  const [colVisibility, setColVisibility] = useState({
+    sno: true,
+    org: true,
+    a1: true,
+    a2: true,
+    a3: true,
+    b1: true,
+    b2: true,
+    b3: true,
+    status: true,
+    date: true,
+    actions: true
+  });
+
+  // Data state
   const [actionItems, setActionItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -66,11 +112,15 @@ export default function DataList({
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Load Organisations
+  // Close column visibility menu when clicking outside
   useEffect(() => {
-    fetchOrganisations()
-      .then(res => setOrganisations(Array.isArray(res) ? res : []))
-      .catch(() => setOrganisations([]));
+    const handleOutsideClick = (e) => {
+      if (colVisRef.current && !colVisRef.current.contains(e.target)) {
+        setShowColVisibility(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
   // Fetch Action Items Dataset
@@ -79,65 +129,26 @@ export default function DataList({
     try {
       const userId = getUserIdFromToken();
       const res = await fetchOvdOrgListData(userId);
-      const rows = Array.isArray(res) ? res : (res?.data || []);
+      const rawRows = Array.isArray(res) ? res : (res?.data || []);
       
-      // Fallback sample data if empty
-      if (!rows.length) {
-        setActionItems([
-          {
-            id: 1,
-            organisation_name: "Indian Maritime University",
-            goal_a1: "N-CB-1 : Enhance maritime education ecosystem in the country",
-            intervention_a2: "N-CB-1.1 : Expand avenues for collaboration within the country and abroad for technical education",
-            action_a3: "N-CB-1.1.1 : Establish joint programs with leading global maritime universities",
-            goal_b1: "E-CB-1 : Expand avenues for collaboration within the country and abroad for technical education",
-            intervention_b2: "E-CB-1.1 : IMU to collaborate with institutes in the country; develop short-term courses and get registered distance learning platform for technical education",
-            action_b3: "E-CB-1.1.1 : Need assessment",
-            current_status: "Completed",
-            updated_at: "2026-07-25"
-          },
-          {
-            id: 2,
-            organisation_name: "Indian Maritime University",
-            goal_a1: "N-CB-1 : Enhance maritime education ecosystem in the country",
-            intervention_a2: "N-CB-1.1 : Expand avenues for collaboration within the country and abroad for technical education",
-            action_a3: "N-CB-1.1.1 : Establish joint programs with leading global maritime universities",
-            goal_b1: "E-CB-1 : Expand avenues for collaboration within the country and abroad for technical education",
-            intervention_b2: "E-CB-1.1 : IMU to collaborate with institutes in the country; develop short-term courses and get registered distance learning platform for technical education",
-            action_b3: "E-CB-1.1.2 : Partner identification and evaluation",
-            current_status: "Completed",
-            updated_at: "2026-07-22"
-          },
-          {
-            id: 3,
-            organisation_name: "Indian Maritime University",
-            goal_a1: "N-CB-1 : Enhance maritime education ecosystem in the country",
-            intervention_a2: "N-CB-1.1 : Expand avenues for collaboration within the country and abroad for technical education",
-            action_a3: "N-CB-1.1.1 : Establish joint programs with leading global maritime universities",
-            goal_b1: "E-CB-1 : Expand avenues for collaboration within the country and abroad for technical education",
-            intervention_b2: "E-CB-1.1 : IMU to collaborate with institutes in the country; develop short-term courses and get registered distance learning platform for technical education",
-            action_b3: "E-CB-1.1.3 : Formulation of agreements",
-            current_status: "Completed",
-            updated_at: "2026-08-07"
-          },
-          {
-            id: 4,
-            organisation_name: "Indian Maritime University",
-            goal_a1: "N-CB-1 : Enhance maritime education ecosystem in the country",
-            intervention_a2: "N-CB-1.1 : Expand avenues for collaboration within the country and abroad for technical education",
-            action_a3: "N-CB-1.1.1 : Establish joint programs with leading global maritime universities",
-            goal_b1: "E-CB-1 : Expand avenues for collaboration within the country and abroad for technical education",
-            intervention_b2: "E-CB-1.1 : IMU to collaborate with institutes in the country; develop short-term courses and get registered distance learning platform for technical education",
-            action_b3: "E-CB-1.1.4 : Implementation and coordination (e.g. Establish joint project team to manage)",
-            current_status: "Under Implementation On Time",
-            updated_at: "2026-08-31"
-          }
-        ]);
-      } else {
-        setActionItems(rows);
-      }
+      const normalized = rawRows.map((item, idx) => ({
+        id: item.id || item.Id || item.ID || idx + 1,
+        organisation_name: item.ia_name || item.organisation_name || 'Indian Maritime University',
+        goal_a1: item['Goal (A1)'] || item.goal_a1 || '-',
+        intervention_a2: item['Intervention (A2)'] || item.intervention_a2 || '-',
+        action_a3: item['Action (A3)'] || item.action_a3 || '-',
+        goal_b1: item['Goal (B1)'] || item.goal_b1 || '-',
+        intervention_b2: item['Intervention (B2)'] || item.intervention_b2 || '-',
+        action_b3: item['Action (B3)'] || item.action_b3 || '-',
+        current_status: item['Current Status'] || item.current_status || 'Completed',
+        updated_at: item['Last Updated Date'] ? String(item['Last Updated Date']).slice(0, 10) : '2026-08-31',
+        wing: item.Wing || item.wing || '',
+        vibhas: item.Vibhas || item.vibhas || ''
+      }));
+
+      setActionItems(normalized);
     } catch (err) {
-      console.warn("OVOD Org List Data notice:", err.message);
+      console.warn("OVOD Org List Data error:", err.message);
       setActionItems([]);
     } finally {
       setLoading(false);
@@ -148,8 +159,26 @@ export default function DataList({
     loadData();
   }, [loadData]);
 
-  // Unique Dropdown Options derived from Data
+  // Tab Status Counts
+  const allCount = actionItems.length;
+
+  const tabCounts = useMemo(() => {
+    const counts = { active: 0, completed: 0, dropped: 0 };
+    actionItems.forEach(item => {
+      const group = getStatusGroup(item.current_status);
+      if (group) counts[group]++;
+    });
+    return counts;
+  }, [actionItems]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+  };
+
+  // Unique Dropdown Options derived dynamically from Data
   const options = useMemo(() => {
+    const wings = new Set();
     const orgs = new Set();
     const ga1 = new Set();
     const ia2 = new Set();
@@ -157,25 +186,37 @@ export default function DataList({
     const gb1 = new Set();
     const ib2 = new Set();
     const ab3 = new Set();
+    const stages = new Set();
+    const vib = new Set();
 
     actionItems.forEach(item => {
-      if (item.organisation_name) orgs.add(item.organisation_name);
-      if (item.goal_a1) ga1.add(item.goal_a1);
-      if (item.intervention_a2) ia2.add(item.intervention_a2);
-      if (item.action_a3) aa3.add(item.action_a3);
-      if (item.goal_b1) gb1.add(item.goal_b1);
-      if (item.intervention_b2) ib2.add(item.intervention_b2);
-      if (item.action_b3) ab3.add(item.action_b3);
+      if (item.wing && item.wing !== '-') wings.add(item.wing);
+      if (item.organisation_name && item.organisation_name !== '-') orgs.add(item.organisation_name);
+      if (item.goal_a1 && item.goal_a1 !== '-') ga1.add(item.goal_a1);
+      if (item.intervention_a2 && item.intervention_a2 !== '-') ia2.add(item.intervention_a2);
+      if (item.action_a3 && item.action_a3 !== '-') aa3.add(item.action_a3);
+      if (item.goal_b1 && item.goal_b1 !== '-') gb1.add(item.goal_b1);
+      if (item.intervention_b2 && item.intervention_b2 !== '-') ib2.add(item.intervention_b2);
+      if (item.action_b3 && item.action_b3 !== '-') ab3.add(item.action_b3);
+      if (item.current_status && item.current_status !== '-') stages.add(item.current_status);
+      if (item.vibhas && item.vibhas !== '-') vib.add(item.vibhas);
     });
 
+    if (wings.size === 0) OVOD_WINGS.forEach(w => w.label !== 'All' && wings.add(w.label));
+    if (stages.size === 0) OVOD_STATUSES.forEach(s => s.label !== 'Show All' && stages.add(s.label));
+    if (vib.size === 0) OVOD_VIBHAS.forEach(v => v.label !== 'Show All' && vib.add(v.label));
+
     return {
-      organisations: Array.from(orgs),
-      goalsA1: Array.from(ga1),
-      interventionsA2: Array.from(ia2),
-      actionsA3: Array.from(aa3),
-      goalsB1: Array.from(gb1),
-      interventionsB2: Array.from(ib2),
-      actionsB3: Array.from(ab3),
+      wings: Array.from(wings).sort(),
+      organisations: Array.from(orgs).sort(),
+      goalsA1: Array.from(ga1).sort(),
+      interventionsA2: Array.from(ia2).sort(),
+      actionsA3: Array.from(aa3).sort(),
+      goalsB1: Array.from(gb1).sort(),
+      interventionsB2: Array.from(ib2).sort(),
+      actionsB3: Array.from(ab3).sort(),
+      stages: Array.from(stages).sort(),
+      vibhas: Array.from(vib).sort()
     };
   }, [actionItems]);
 
@@ -207,12 +248,18 @@ export default function DataList({
     setSelectedStage('0');
     setSelectedVibhas('0');
     setSearchTerm('');
+    setCurrentPage(1);
+    triggerNotification?.('Filters have been reset', 'info');
   };
 
   // Filtered rows for AG Grid
   const filteredData = useMemo(() => {
     return actionItems.filter(item => {
-      if (selectedOrg !== '0' && item.organisation_name !== selectedOrg && String(item.organisation_id) !== selectedOrg) return false;
+      // Tab status filter
+      if (activeTab !== 'all' && getStatusGroup(item.current_status) !== activeTab) return false;
+
+      if (selectedWing !== '0' && item.wing !== selectedWing) return false;
+      if (selectedOrg !== '0' && item.organisation_name !== selectedOrg) return false;
       if (selectedGoalA1 !== '0' && item.goal_a1 !== selectedGoalA1) return false;
       if (selectedInterventionA2 !== '0' && item.intervention_a2 !== selectedInterventionA2) return false;
       if (selectedActionA3 !== '0' && item.action_a3 !== selectedActionA3) return false;
@@ -220,18 +267,153 @@ export default function DataList({
       if (selectedInterventionB2 !== '0' && item.intervention_b2 !== selectedInterventionB2) return false;
       if (selectedActionB3 !== '0' && item.action_b3 !== selectedActionB3) return false;
       if (selectedStage !== '0' && String(item.current_status || '').toLowerCase() !== selectedStage.toLowerCase()) return false;
+      if (selectedVibhas !== '0' && item.vibhas !== selectedVibhas) return false;
       
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
-        const combined = `${item.organisation_name || ''} ${item.goal_a1 || ''} ${item.intervention_a2 || ''} ${item.action_a3 || ''} ${item.goal_b1 || ''} ${item.intervention_b2 || ''} ${item.action_b3 || ''} ${item.current_status || ''}`.toLowerCase();
+        const combined = `${item.organisation_name || ''} ${item.goal_a1 || ''} ${item.intervention_a2 || ''} ${item.action_a3 || ''} ${item.goal_b1 || ''} ${item.intervention_b2 || ''} ${item.action_b3 || ''} ${item.current_status || ''} ${item.updated_at || ''}`.toLowerCase();
         if (!combined.includes(q)) return false;
       }
 
       return true;
     });
-  }, [actionItems, selectedOrg, selectedGoalA1, selectedInterventionA2, selectedActionA3, selectedGoalB1, selectedInterventionB2, selectedActionB3, selectedStage, searchTerm]);
+  }, [actionItems, activeTab, selectedWing, selectedOrg, selectedGoalA1, selectedInterventionA2, selectedActionA3, selectedGoalB1, selectedInterventionB2, selectedActionB3, selectedStage, selectedVibhas, searchTerm]);
 
-  // Handle Delete
+  // Paginated Sliced Data
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredData.slice(start, start + pageSize).map((row, idx) => ({
+      ...row,
+      sNo: start + idx + 1
+    }));
+  }, [filteredData, currentPage, pageSize]);
+
+  // Handle Copy to clipboard matching YP & CA
+  const handleCopy = () => {
+    if (!filteredData.length) {
+      triggerNotification?.("No data to copy", "info");
+      return;
+    }
+    const headers = ['S.No', 'Organisation', 'Goal (A1)', 'Intervention (A2)', 'Action (A3)', 'Goal (B1)', 'Intervention (B2)', 'Action (B3)', 'Current Status', 'Last Updated Date'];
+    const lines = filteredData.map((r, i) => [
+      i + 1,
+      r.organisation_name,
+      r.goal_a1,
+      r.intervention_a2,
+      r.action_a3,
+      r.goal_b1,
+      r.intervention_b2,
+      r.action_b3,
+      r.current_status,
+      r.updated_at
+    ].join('\t'));
+
+    const text = [headers.join('\t'), ...lines].join('\n');
+    navigator.clipboard.writeText(text)
+      .then(() => triggerNotification?.("Table copied to clipboard!", "success"))
+      .catch(() => triggerNotification?.("Failed to copy table", "error"));
+  };
+
+  // Handle Export to Excel
+  const handleExportExcel = () => {
+    if (!filteredData.length) {
+      triggerNotification?.("No data to export", "info");
+      return;
+    }
+    const exportRows = filteredData.map((r, i) => ({
+      'S.No': i + 1,
+      'Organisation': r.organisation_name,
+      'Goal (A1)': r.goal_a1,
+      'Intervention (A2)': r.intervention_a2,
+      'Action (A3)': r.action_a3,
+      'Goal (B1)': r.goal_b1,
+      'Intervention (B2)': r.intervention_b2,
+      'Action (B3)': r.action_b3,
+      'Current Status': r.current_status,
+      'Last Updated Date': r.updated_at
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "DataList");
+    XLSX.writeFile(wb, `OVOD_DataList_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    triggerNotification?.("Excel file downloaded!", "success");
+  };
+
+  // Handle Export to PDF matching CA format
+  const handleExportPdf = () => {
+    if (!filteredData.length) {
+      triggerNotification?.("No data to export", "info");
+      return;
+    }
+    const printWindow = window.open('', '_blank');
+    const title = 'OVOD - Strategic Action Items';
+
+    const headers = [
+      'S.No', 'Organisation', 'Goal (A1)', 'Intervention (A2)', 
+      'Goal (B1)', 'Intervention (B2)', 'Action (B3)', 'Status', 'Date'
+    ];
+
+    let headersHtml = headers.map(h => 
+      `<th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; background-color: #f8fafc; font-size: 11px; font-weight: bold; text-transform: uppercase;">${h}</th>`
+    ).join('');
+
+    let rowsHtml = filteredData.slice(0, 500).map((r, idx) => `
+      <tr>
+        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${idx + 1}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.organisation_name || '-'}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.goal_a1 || '-'}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.intervention_a2 || '-'}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.goal_b1 || '-'}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.intervention_b2 || '-'}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.action_b3 || '-'}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.current_status || '-'}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px; font-size: 11px;">${r.updated_at || '-'}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
+            h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          </style>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          <p style="font-size: 11px; color: #64748b; margin-top: 0; margin-bottom: 20px;">Generated on: ${new Date().toLocaleDateString()}</p>
+          <table>
+            <thead><tr>${headersHtml}</tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <script>
+            window.onload = function() { window.print(); window.close(); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const toggleColVisibility = (key) => {
+    setColVisibility(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Handle Delete Confirmation
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -248,35 +430,43 @@ export default function DataList({
     }
   };
 
-  // Navy AG-Grid Column Definitions matching the Screenshot
+  // AG-Grid Column Definitions matching YP & CA style
   const columnDefs = useMemo(() => [
     {
       headerName: "S.No",
-      field: "sno",
-      width: 70,
-      minWidth: 60,
+      field: "sNo",
+      width: 80,
+      minWidth: 70,
       headerClass: "text-center",
-      cellClass: "text-center font-bold text-slate-700 dark:text-slate-200",
-      valueGetter: (params) => params.node ? params.node.rowIndex + 1 : ''
+      cellClass: "text-center font-bold font-mono text-slate-800 dark:text-white",
+      pinned: 'left',
+      hide: !colVisibility.sno
     },
     {
       headerName: "Organisation",
       field: "organisation_name",
-      minWidth: 160,
-      flex: 1.2,
+      width: 175,
+      minWidth: 150,
+      wrapText: true,
+      autoHeight: true,
+      pinned: 'left',
+      hide: !colVisibility.org,
       cellRenderer: (params) => (
-        <span className="font-bold text-slate-800 dark:text-slate-100">
-          {params.value || 'Indian Maritime University'}
+        <span className="font-bold text-slate-800 dark:text-white text-xs break-words whitespace-normal leading-snug py-1 block">
+          {params.value || '-'}
         </span>
       )
     },
     {
       headerName: "Goal (A1)",
       field: "goal_a1",
+      width: 230,
       minWidth: 200,
-      flex: 1.5,
+      wrapText: true,
+      autoHeight: true,
+      hide: !colVisibility.a1,
       cellRenderer: (params) => (
-        <span className="text-xs text-slate-700 dark:text-slate-200 leading-tight">
+        <span className="text-xs text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-snug py-1 block font-medium">
           {params.value || '-'}
         </span>
       )
@@ -284,10 +474,13 @@ export default function DataList({
     {
       headerName: "Intervention (A2)",
       field: "intervention_a2",
+      width: 230,
       minWidth: 200,
-      flex: 1.5,
+      wrapText: true,
+      autoHeight: true,
+      hide: !colVisibility.a2,
       cellRenderer: (params) => (
-        <span className="text-xs text-slate-700 dark:text-slate-200 leading-tight">
+        <span className="text-xs text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-snug py-1 block">
           {params.value || '-'}
         </span>
       )
@@ -295,10 +488,13 @@ export default function DataList({
     {
       headerName: "Action (A3)",
       field: "action_a3",
-      minWidth: 180,
-      flex: 1.4,
+      width: 190,
+      minWidth: 160,
+      wrapText: true,
+      autoHeight: true,
+      hide: !colVisibility.a3,
       cellRenderer: (params) => (
-        <span className="text-xs text-slate-700 dark:text-slate-200 leading-tight">
+        <span className="text-xs text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-snug py-1 block">
           {params.value || '-'}
         </span>
       )
@@ -306,10 +502,13 @@ export default function DataList({
     {
       headerName: "Goal (B1)",
       field: "goal_b1",
+      width: 230,
       minWidth: 200,
-      flex: 1.5,
+      wrapText: true,
+      autoHeight: true,
+      hide: !colVisibility.b1,
       cellRenderer: (params) => (
-        <span className="text-xs text-slate-700 dark:text-slate-200 leading-tight">
+        <span className="text-xs text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-snug py-1 block font-medium">
           {params.value || '-'}
         </span>
       )
@@ -317,10 +516,13 @@ export default function DataList({
     {
       headerName: "Intervention (B2)",
       field: "intervention_b2",
-      minWidth: 220,
-      flex: 1.7,
+      width: 240,
+      minWidth: 210,
+      wrapText: true,
+      autoHeight: true,
+      hide: !colVisibility.b2,
       cellRenderer: (params) => (
-        <span className="text-xs text-slate-700 dark:text-slate-200 leading-tight">
+        <span className="text-xs text-slate-700 dark:text-slate-300 break-words whitespace-normal leading-snug py-1 block">
           {params.value || '-'}
         </span>
       )
@@ -328,10 +530,13 @@ export default function DataList({
     {
       headerName: "Action (B3)",
       field: "action_b3",
+      width: 230,
       minWidth: 200,
-      flex: 1.5,
+      wrapText: true,
+      autoHeight: true,
+      hide: !colVisibility.b3,
       cellRenderer: (params) => (
-        <span className="text-xs text-slate-700 dark:text-slate-200 leading-tight font-semibold">
+        <span className="text-xs text-slate-800 dark:text-slate-200 font-medium break-words whitespace-normal leading-snug py-1 block">
           {params.value || '-'}
         </span>
       )
@@ -339,113 +544,92 @@ export default function DataList({
     {
       headerName: "Current Status",
       field: "current_status",
-      minWidth: 140,
-      flex: 1.1,
+      width: 145,
+      minWidth: 130,
       headerClass: "text-center",
-      cellClass: "text-center",
-      cellRenderer: (params) => {
-        const val = params.value || 'Completed';
-        const isCompleted = val.toLowerCase().includes('completed');
-        const isDelayed = val.toLowerCase().includes('delayed');
-        return (
-          <div className="w-full flex items-center justify-center">
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-extrabold ${
-              isCompleted 
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
-                : isDelayed
-                ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300'
-                : 'bg-blue-50 text-[#0f417a] border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
-            }`}>
-              {val}
-            </span>
-          </div>
-        );
-      }
+      cellClass: "text-center font-semibold text-blue-700 dark:text-blue-400 text-xs",
+      hide: !colVisibility.status
     },
     {
       headerName: "Last Updated Date",
       field: "updated_at",
+      width: 135,
       minWidth: 120,
-      flex: 0.9,
       headerClass: "text-center",
-      cellClass: "text-center font-medium text-slate-600 dark:text-slate-300",
+      cellClass: "font-mono text-slate-700 dark:text-slate-300 text-xs font-semibold text-center",
+      hide: !colVisibility.date,
       valueFormatter: (params) => params.value ? String(params.value).slice(0, 10) : '2026-08-31'
     },
     {
-      headerName: "Update",
-      field: "actions",
-      width: 100,
+      headerName: "Action",
+      width: 95,
       minWidth: 90,
+      pinned: 'right',
+      lockPinned: true,
+      suppressMovable: true,
       headerClass: "text-center",
       cellClass: "text-center",
-      cellRenderer: (params) => (
-        <div className="w-full flex items-center justify-center space-x-1.5 py-1">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit ? onEdit(params.data) : null;
-            }}
-            className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition shadow-2xs cursor-pointer"
-            title="Edit B2/B3 Action"
-          >
-            <Edit3 size={13} />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeleteTarget(params.data);
-            }}
-            className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-2xs cursor-pointer"
-            title="Delete Action"
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
-      )
+      hide: !colVisibility.actions,
+      cellRenderer: (params) => {
+        const row = params.data;
+        return (
+          <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onEdit) onEdit(row);
+              }}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+              title="Edit B2/B3 Action"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteTarget(row);
+              }}
+              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded text-red-600 dark:text-red-400 transition cursor-pointer"
+              title="Delete Action"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        );
+      }
     }
-  ], [onEdit]);
-
-  // Export headers definition
-  const exportHeaders = useMemo(() => [
-    { label: 'Organisation', key: 'organisation_name' },
-    { label: 'Goal (A1)', key: 'goal_a1' },
-    { label: 'Intervention (A2)', key: 'intervention_a2' },
-    { label: 'Action (A3)', key: 'action_a3' },
-    { label: 'Goal (B1)', key: 'goal_b1' },
-    { label: 'Intervention (B2)', key: 'intervention_b2' },
-    { label: 'Action (B3)', key: 'action_b3' },
-    { label: 'Current Status', key: 'current_status' },
-    { label: 'Last Updated Date', key: 'updated_at' }
-  ], []);
-
-  const exportData = useMemo(() => filteredData.map((r, i) => ({
-    sno: i + 1,
-    organisation_name: r.organisation_name,
-    goal_a1: r.goal_a1,
-    intervention_a2: r.intervention_a2,
-    action_a3: r.action_a3,
-    goal_b1: r.goal_b1,
-    intervention_b2: r.intervention_b2,
-    action_b3: r.action_b3,
-    current_status: r.current_status,
-    updated_at: r.updated_at ? String(r.updated_at).slice(0, 10) : '2026-08-31'
-  })), [filteredData]);
+  ], [colVisibility, onEdit]);
 
   return (
-    <div className="space-y-6 select-none animate-fade-in text-slate-800 dark:text-slate-100">
+    <div className="space-y-6 animate-fade-in relative">
       
-      {/* Main Table Card Container matching GMIS DataList */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5 dark:bg-slate-950 dark:border-slate-800">
+      {/* 1. Status Tabs matching YP & CA DataList */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+        {STATUS_TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => handleTabChange(tab.id)}
+            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+              activeTab === tab.id
+                ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
+            }`}
+          >
+            {tab.label} ({tab.id === 'all' ? allCount : tabCounts[tab.id]})
+          </button>
+        ))}
+      </div>
+
+      {/* 2. Main White/Dark Card Container */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 dark:bg-slate-950 dark:border-slate-800">
         
-        {/* Action Toolbar Header with Filter Toggle Button, Add B2/B3, Search, Copy & Export */}
+        {/* Toolbar Header matching YP & CA format */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           
-          {/* Left Side: Dedicated Filter Toggle Button & Add B2/B3 Button */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-            
-            {/* 1. Filter Toggle Button (opens down like GMIS) */}
+          {/* Left: Filter Toggle Button + Reset */}
+          <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
               onClick={() => setShowFilterPanel(prev => !prev)}
@@ -465,47 +649,42 @@ export default function DataList({
               <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* 2. Reset Button */}
             {activeFiltersCount > 0 && (
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer flex items-center space-x-1"
+                className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
-                <RotateCcw size={12} />
-                <span>Reset</span>
+                Reset
               </button>
             )}
-
-            {/* 3. Add B2/B3 Button */}
-            <button
-              type="button"
-              onClick={onAddNew}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
-            >
-              <Plus size={14} />
-              <span>Add B2/B3</span>
-            </button>
-
           </div>
 
-          {/* Right Side: Search Bar, Row Count Selector, Total Badge, Copy & Export */}
+          {/* Middle Spacer */}
+          <div className="hidden lg:block flex-1" />
+
+          {/* Right Toolbar Controls: Search + Rows + Total + Visibility + Copy + Export + Add */}
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
             
             {/* Search Input */}
-            <div className="relative min-w-[220px] flex-1 sm:flex-initial">
+            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search action items..."
+                placeholder="Search Action Items..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
               />
               {searchTerm && (
                 <button
-                  type="button"
-                  onClick={() => setSearchTerm('')}
+                  onClick={() => {
+                    setSearchTerm('');
+                    setCurrentPage(1);
+                  }}
                   className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -513,12 +692,15 @@ export default function DataList({
               )}
             </div>
 
-            {/* Row Count Selector */}
+            {/* Rows Limit Select Dropdown */}
             <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 <option value="10">10</option>
@@ -528,265 +710,385 @@ export default function DataList({
               </select>
             </div>
 
-            {/* Total Records Badge */}
-            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-              Total: <span className="text-[#0f417a] dark:text-blue-400 font-extrabold">{filteredData.length}</span>
+            {/* Total Count Badge */}
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              Total: {filteredData.length}
             </div>
 
+            {/* Column Visibility Dropdown */}
+            <div className="relative" ref={colVisRef}>
+              <button
+                onClick={() => setShowColVisibility(!showColVisibility)}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {showColVisibility && (
+                <div className="absolute right-0 mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  {COLUMN_LIST.map(col => (
+                    <label key={col.key} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={colVisibility[col.key] !== false}
+                        onChange={() => toggleColVisibility(col.key)}
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{col.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Copy Button */}
             <CopyButton
-              headers={exportHeaders}
-              data={exportData}
-              triggerNotification={triggerNotification}
+              onCopy={handleCopy}
+              color="#0f417a"
+              hoverBg="#f1f5f9"
             />
 
+            {/* Export Dropdown */}
             <ExportDropdown
-              headers={exportHeaders}
-              data={exportData}
-              title="OVOD Action Items Data List"
-              triggerNotification={triggerNotification}
+              onExportExcel={handleExportExcel}
+              onExportPdf={handleExportPdf}
+              color="#0f417a"
+              hoverColor="#1e5ea8"
             />
+
+            {/* Add B2/B3 Button */}
+            {onAddNew && (
+              <button
+                onClick={onAddNew}
+                className="px-3.5 py-1.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add B2/B3</span>
+              </button>
+            )}
 
           </div>
-
         </div>
 
-        {/* Collapsible Dedicated Filter Panel (opens down like GMIS) */}
+        {/* Collapsible Filter Panel matching YP / CA style */}
         {showFilterPanel && (
-          <div className="bg-slate-50/80 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 shadow-2xs space-y-4 animate-fade-in">
-            
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800">
-              <div className="flex items-center space-x-2">
-                <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
-                <span className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                  Filter Action Items Parameters
-                </span>
-              </div>
-              <div className="flex items-center space-x-3">
-                {activeFiltersCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleResetFilters}
-                    className="text-xs font-bold text-rose-600 hover:text-rose-700 transition flex items-center space-x-1 cursor-pointer"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    <span>Reset All</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowFilterPanel(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200/50 transition cursor-pointer"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            </div>
-
-            {/* Ministry Wing Filter Top Bar */}
-            <div className="max-w-md">
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                Ministry Wing:
+          <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in">
+            {/* Wing */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Ministry Wing
               </label>
-              <select
-                value={selectedWing}
-                onChange={(e) => setSelectedWing(e.target.value)}
-                className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-              >
-                {OVOD_WINGS.map(w => (
-                  <option key={w.id} value={w.id}>{w.label}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={selectedWing}
+                  onChange={(e) => { setSelectedWing(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="0">All Wings</option>
+                  {options.wings.map(w => (
+                    <option key={w} value={w}>{w}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
             </div>
 
-            {/* 9 Filter Dropdowns in Responsive Grid matching Screenshot */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
-              
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Organization
-                </label>
+            {/* Organisation */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Organisation
+              </label>
+              <div className="relative">
                 <select
                   value={selectedOrg}
-                  onChange={(e) => setSelectedOrg(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
-                  <option value="0">Show All</option>
+                  <option value="0">All Organisations</option>
                   {options.organisations.map(o => (
                     <option key={o} value={o}>{o}</option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  National Goal (A1)
-                </label>
+            {/* National Goal A1 */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                National Goal (A1)
+              </label>
+              <div className="relative">
                 <select
                   value={selectedGoalA1}
-                  onChange={(e) => setSelectedGoalA1(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  onChange={(e) => { setSelectedGoalA1(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
-                  <option value="0">Show All</option>
+                  <option value="0">All Goals (A1)</option>
                   {options.goalsA1.map(g => (
                     <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  National Intervention (A2)
-                </label>
+            {/* National Intervention A2 */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Intervention (A2)
+              </label>
+              <div className="relative">
                 <select
                   value={selectedInterventionA2}
-                  onChange={(e) => setSelectedInterventionA2(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  onChange={(e) => { setSelectedInterventionA2(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
-                  <option value="0">Show All</option>
+                  <option value="0">All Interventions (A2)</option>
                   {options.interventionsA2.map(i => (
                     <option key={i} value={i}>{i}</option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  National Action (A3)
-                </label>
+            {/* National Action A3 */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Action (A3)
+              </label>
+              <div className="relative">
                 <select
                   value={selectedActionA3}
-                  onChange={(e) => setSelectedActionA3(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  onChange={(e) => { setSelectedActionA3(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
-                  <option value="0">Show All</option>
+                  <option value="0">All Actions (A3)</option>
                   {options.actionsA3.map(a => (
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Goal (B1)
-                </label>
+            {/* Org Goal B1 */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Org Goal (B1)
+              </label>
+              <div className="relative">
                 <select
                   value={selectedGoalB1}
-                  onChange={(e) => setSelectedGoalB1(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  onChange={(e) => { setSelectedGoalB1(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
-                  <option value="0">Show All</option>
+                  <option value="0">All Goals (B1)</option>
                   {options.goalsB1.map(g => (
                     <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Intervention (B2)
-                </label>
+            {/* Org Intervention B2 */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Intervention (B2)
+              </label>
+              <div className="relative">
                 <select
                   value={selectedInterventionB2}
-                  onChange={(e) => setSelectedInterventionB2(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  onChange={(e) => { setSelectedInterventionB2(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
-                  <option value="0">Show All</option>
+                  <option value="0">All Interventions (B2)</option>
                   {options.interventionsB2.map(i => (
                     <option key={i} value={i}>{i}</option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Action (B3)
-                </label>
+            {/* Org Action B3 */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Action (B3)
+              </label>
+              <div className="relative">
                 <select
                   value={selectedActionB3}
-                  onChange={(e) => setSelectedActionB3(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  onChange={(e) => { setSelectedActionB3(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
-                  <option value="0">Show All</option>
+                  <option value="0">All Actions (B3)</option>
                   {options.actionsB3.map(a => (
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Current Stage
-                </label>
-                <select
-                  value={selectedStage}
-                  onChange={(e) => setSelectedStage(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  {OVOD_STATUSES.map(s => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                  Vibhas/Nawic
-                </label>
-                <select
-                  value={selectedVibhas}
-                  onChange={(e) => setSelectedVibhas(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                >
-                  {OVOD_VIBHAS.map(v => (
-                    <option key={v.id} value={v.id}>{v.label}</option>
-                  ))}
-                </select>
-              </div>
-
             </div>
 
-            {/* Note banner */}
-            <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800">
-              <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-                Note: Any newly added B2/B3 will be grouped and displayed under its corresponding A2/A3.
-              </p>
+            {/* Stage / Status */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Stage / Status
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedStage}
+                  onChange={(e) => { setSelectedStage(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                >
+                  <option value="0">All Stages</option>
+                  {options.stages.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </div>
+
+            {/* Vibhas / Navic */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Vibhas / Navic
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedVibhas}
+                  onChange={(e) => { setSelectedVibhas(e.target.value); setCurrentPage(1); }}
+                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
+                >
+                  <option value="0">All Vibhas</option>
+                  {options.vibhas.map(v => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              </div>
             </div>
 
           </div>
         )}
 
-        {/* Navy AG Grid Table */}
-        <Table
-          ref={gridRef}
-          rowData={filteredData}
-          columnDefs={columnDefs}
-          loading={loading}
-          pagination={true}
-          paginationPageSize={pageSize}
-          enableExport={false}
-          color="#0f417a"
-        />
+        {/* 3. The AG-Grid Table Container matching YP & CA style */}
+        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+          <Table
+            ref={gridRef}
+            rowData={paginatedData}
+            columnDefs={columnDefs}
+            loading={loading}
+            pagination={false}
+            enableExport={false}
+            onGridReady={(params) => setGridApi(params.api)}
+            color="#0f417a"
+            defaultColDef={{
+              minWidth: 90,
+              filter: false,
+              sortable: true,
+              resizable: true
+            }}
+          />
+
+          {/* 4. Table Pagination matching YP & CA style */}
+          <TablePagination
+            currentPage={currentPage - 1}
+            totalPages={totalPages}
+            totalRows={filteredData.length}
+            pageSize={pageSize}
+            onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
+            onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            color="#0f417a"
+          />
+
+          <style dangerouslySetInnerHTML={{
+            __html: `
+            .ag-theme-quartz.rounded-xl,
+            .ag-theme-quartz.rounded-2xl {
+              border-radius: 16px !important;
+            }
+            .ag-theme-quartz .ag-root-wrapper {
+              border-radius: 16px 16px 0 0 !important;
+            }
+            .ag-theme-quartz .ag-header {
+              background-color: #0f417a !important;
+              border-bottom: 2px solid #0a2d55 !important;
+            }
+            .ag-theme-quartz .ag-header-cell {
+              color: #ffffff !important;
+              font-weight: 700 !important;
+              text-transform: uppercase !important;
+              font-size: 11px !important;
+              letter-spacing: 0.05em !important;
+            }
+            .ag-theme-quartz .ag-header-cell .ag-icon {
+              color: #ffffff !important;
+            }
+            .ag-theme-quartz .ag-header-cell-label {
+              color: #ffffff !important;
+            }
+            .ag-theme-quartz .ag-row {
+              font-size: 13px !important;
+              border-bottom: 1px solid #f1f5f9 !important;
+            }
+            `
+          }} />
+        </div>
 
       </div>
 
       {/* Delete Confirmation Modal */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-in">
-            <div className="flex items-center space-x-3 text-rose-600">
-              <AlertCircle size={24} />
-              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-                Confirm Deletion
-              </h3>
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              Are you sure you want to delete this action item? This action cannot be undone.
-            </p>
-            <div className="flex justify-end space-x-3 pt-2">
+      {deleteTarget && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-fade-in"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div 
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                  Delete Action Item
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Are you sure you want to delete this action item? This cannot be undone.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
+                disabled={deleting}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              <div className="bg-slate-50 dark:bg-slate-950 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+                <p className="text-slate-800 dark:text-slate-200 font-bold truncate">
+                  {deleteTarget.action_b3 || deleteTarget['Action (B3)'] || deleteTarget.intervention_b2 || deleteTarget['Intervention (B2)']}
+                </p>
+                <p className="text-slate-500 dark:text-slate-400 text-[11px]">
+                  {deleteTarget.organisation_name || deleteTarget.ia_name} • {deleteTarget.current_status || deleteTarget['Current Status']}
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 bg-slate-50/60 dark:bg-slate-950/40">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-3.5 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-60 transition cursor-pointer"
               >
                 Cancel
               </button>
@@ -794,13 +1096,14 @@ export default function DataList({
                 type="button"
                 disabled={deleting}
                 onClick={confirmDelete}
-                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl cursor-pointer disabled:opacity-50 flex items-center space-x-1.5"
+                className="px-4 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 transition shadow-xs cursor-pointer"
               >
-                {deleting ? <span>Deleting...</span> : <span>Delete Item</span>}
+                {deleting ? 'Deleting...' : 'Delete Action'}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

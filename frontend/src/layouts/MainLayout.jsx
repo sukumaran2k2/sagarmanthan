@@ -93,6 +93,8 @@ export const ROUTE_MAP = {
   'One Vision One Document': 'strategies/drishti-portal/dashboard',
   'OVOD': 'strategies/drishti-portal/dashboard',
   'Intervention List': 'strategies/drishti-portal/intervention-list',
+  'Performance Report': 'strategies/drishti-portal/report',
+  'Data Entry Status Report': 'strategies/drishti-portal/data-entry-status',
   'Vision 2047': 'strategies/vision-2047',
   'Maritime India Summit': 'strategies/maritime-india-summit',
   'Blue Economy Policy': 'strategies/blue-economy-policy',

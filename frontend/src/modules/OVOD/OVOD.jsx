@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   ClipboardList, 
   PlusCircle, 
   Layers,
-  FilePieChart
+  FilePieChart,
+  FileSpreadsheet
 } from 'lucide-react';
 import InternalNavigation from '../../components/InternalNavigation';
 import Dashboard from './pages/Dashboard';
@@ -13,6 +14,7 @@ import InterventionList from './pages/InterventionList';
 import InputForm from './pages/InputForm';
 import DataList from './pages/DataList';
 import Reports from './pages/Reports';
+import DataEntryStatusReport from './pages/DataEntryStatusReport';
 
 export default function OVODModule({
   subTab: initialSubTab,
@@ -21,11 +23,18 @@ export default function OVODModule({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [editingItem, setEditingItem] = useState(null);
+  const [editingItem, setEditingItem] = useState(location.state?.item || null);
+
+  useEffect(() => {
+    if (location.state?.item) {
+      setEditingItem(location.state.item);
+    }
+  }, [location.state]);
 
   // Sync route / props
   const currentTab = useMemo(() => {
     const path = location.pathname.toLowerCase();
+    if (path.includes('/data-entry-status') || path.includes('/data-entry-report') || path.includes('/data-entry')) return 'data-entry-status';
     if (path.includes('/data-list') || path.includes('/list')) return 'data-list';
     if (path.includes('/intervention-list') || path.includes('/interventions')) return 'interventions';
     if (path.includes('/input-form') || path.includes('/form') || path.includes('/add') || path.includes('/edit')) return 'input-form';
@@ -36,9 +45,10 @@ export default function OVODModule({
   const tabs = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'interventions', label: 'Intervention List', icon: ClipboardList },
-    { id: 'input-form', label: editingItem ? 'Update B2/B3' : 'Input Form', icon: PlusCircle },
+    { id: 'input-form', label: editingItem ? 'Update Initiative' : 'Input Form', icon: PlusCircle },
     { id: 'data-list', label: 'Data List', icon: Layers },
-    { id: 'report', label: 'Reports', icon: FilePieChart },
+    { id: 'report', label: 'Performance Report', icon: FilePieChart },
+    { id: 'data-entry-status', label: 'Data Entry Status Report', icon: FileSpreadsheet },
   ], [editingItem]);
 
   const handleTabChange = (tabId) => {
@@ -54,6 +64,8 @@ export default function OVODModule({
       navigate('/strategies/drishti-portal/data-list');
     } else if (tabId === 'report') {
       navigate('/strategies/drishti-portal/report');
+    } else if (tabId === 'data-entry-status') {
+      navigate('/strategies/drishti-portal/data-entry-status');
     }
   };
 
@@ -123,6 +135,9 @@ export default function OVODModule({
         )}
         {currentTab === 'report' && (
           <Reports triggerNotification={triggerNotification} />
+        )}
+        {currentTab === 'data-entry-status' && (
+          <DataEntryStatusReport triggerNotification={triggerNotification} />
         )}
       </div>
 
