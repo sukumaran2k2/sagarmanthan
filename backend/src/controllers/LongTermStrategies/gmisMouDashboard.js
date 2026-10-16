@@ -39,6 +39,7 @@ async function getGmisMouDashboard(req, res) {
     // Ministry / master users see every MoU; organisation users only their organisation's.
     const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
     const where = ['1 = 1'];
+    const orgView = !isWide && isOrganisation && Number.isFinite(organisationId) && organisationId > 0;
     if (!isWide) {
       if (!isOrganisation || !Number.isFinite(organisationId) || organisationId <= 0) {
         where.push('1 = 0');
@@ -78,8 +79,16 @@ async function getGmisMouDashboard(req, res) {
              MAX(COALESCE(updated_on, created_on)) AS last_updated
       FROM #mou;
       DROP TABLE #mou;
+      ${orgView ? 'SELECT organisation_name FROM mmt_organisation WHERE organisation_id = @scopeOrgId;' : ''}
     `);
-    res.json(shapeDashboard(result.recordsets));
+    const dashboard = shapeDashboard(result.recordsets);
+    // Tells the page which layout to show: organisation users get their own organisation's
+    // view (no organisation-wise table), decided here so it always matches the data scope.
+    dashboard.view = orgView
+      ? { level: 'organisation', organisationId, organisationName: result.recordsets[5]?.[0]?.organisation_name || null }
+      : { level: 'all' };
+    if (orgView) dashboard.byOrganisation = [];
+    res.json(dashboard);
   } catch (err) {
     console.error('getGmisMouDashboard error:', err);
     res.status(500).json({ message: 'Internal Server Error' });
