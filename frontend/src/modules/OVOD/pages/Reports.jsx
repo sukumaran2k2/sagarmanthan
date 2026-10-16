@@ -18,6 +18,9 @@ import ReportTable from '../../../components/ReportTable';
 import { useAICopilot } from '../../../context/AICopilotContext';
 import { fetchOvdOrgListData, getUserIdFromToken } from '../api';
 import { OVOD_VISIONS } from '../utils/constants';
+import { useShallow } from 'zustand/react/shallow';
+import { useOvodStore } from '../store/useOvodStore';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
 /* ============================================================
    REPORT CONFIGURATION (Matching MIV 2030 Structure)
@@ -278,11 +281,17 @@ const OTHER_ORGS_NAMES = [
 export default function Reports({ triggerNotification }) {
   const { registerReport, clearReport } = useAICopilot();
 
-  // Active Sub-Tab: 'wing' | 'port' | 'org'
-  const [activeTab, setActiveTab] = useState('wing');
-  const [selectedVision, setSelectedVision] = useState('0');
+  const notify = useNotifier(triggerNotification);
+
+  // Active sub-tab ('wing' | 'port' | 'org'), vision filter and panel state live in the OVOD
+  // store so they survive switching tabs
+  const { activeTab, selectedVision, showFilterPanel } = useOvodStore(useShallow((s) => s.reports));
+  const { setReportsTab, setReportsVision, setReportsFilterPanel } = useOvodStore(useShallow((s) => ({
+    setReportsTab: s.setReportsTab,
+    setReportsVision: s.setReportsVision,
+    setReportsFilterPanel: s.setReportsFilterPanel
+  })));
   const [loading, setLoading] = useState(false);
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   // Raw dataset from database for real-time aggregation and drill-down
   const [allRows, setAllRows] = useState([]);
@@ -296,7 +305,7 @@ export default function Reports({ triggerNotification }) {
   );
 
   const handleTabChange = (newTab) => {
-    setActiveTab(newTab);
+    setReportsTab(newTab);
     setDrilldownTarget(null);
   };
 
@@ -324,10 +333,11 @@ export default function Reports({ triggerNotification }) {
       setAllRows(rows);
     } catch (err) {
       console.warn("OVOD Reports dataset notice:", err.message);
+      notify(COMMON_TOASTS.loadFailed('The report data'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
     loadData();
@@ -590,7 +600,7 @@ export default function Reports({ triggerNotification }) {
         {selectedVision !== '0' && (
           <button
             type="button"
-            onClick={() => setSelectedVision('0')}
+            onClick={() => setReportsVision('0')}
             className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center space-x-1 cursor-pointer transition"
           >
             <X className="h-3.5 w-3.5" />
@@ -607,7 +617,7 @@ export default function Reports({ triggerNotification }) {
           </label>
           <select
             value={selectedVision}
-            onChange={(e) => setSelectedVision(e.target.value)}
+            onChange={(e) => setReportsVision(e.target.value)}
             className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-[#8c4242]/30 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#8c4242]/40 focus:outline-none cursor-pointer shadow-2xs"
           >
             <option value="0">-- All Visions --</option>
@@ -627,7 +637,7 @@ export default function Reports({ triggerNotification }) {
     <div className="flex flex-wrap items-center gap-3">
       <button
         type="button"
-        onClick={() => setShowFilterPanel((prev) => !prev)}
+        onClick={() => setReportsFilterPanel((prev) => !prev)}
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
           showFilterPanel || selectedVision !== '0'
             ? 'bg-[#f7f3f3] border-[#4b2424] text-[#4b2424] dark:bg-amber-950/50 dark:border-amber-700 dark:text-amber-300'
@@ -649,7 +659,7 @@ export default function Reports({ triggerNotification }) {
       {selectedVision !== '0' && (
         <button
           type="button"
-          onClick={() => setSelectedVision('0')}
+          onClick={() => setReportsVision('0')}
           className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
         >
           <RotateCcw className="h-3 w-3" />
@@ -1351,10 +1361,10 @@ export default function Reports({ triggerNotification }) {
         triggerNotification={triggerNotification}
         pagination={true}
         themeClass="yp-pro-grid"
-        brandColor="#4b2424"
-        brandColorHover="#6b3535"
-        accentColor="#f7f3f3"
-        oddRowColor="#f8faf6"
+        brandColor="var(--module-report-brand-color, #4b2424)"
+        brandColorHover="var(--module-report-brand-color-hover, #6b3535)"
+        accentColor="var(--module-report-accent-color, #f7f3f3)"
+        oddRowColor="var(--module-report-odd-row-bg, #f8faf6)"
         totalLabel="Total"
         toolbarExtra={drilldownTarget ? null : toolbarExtra}
         filterPanel={drilldownTarget ? null : filterPanel}

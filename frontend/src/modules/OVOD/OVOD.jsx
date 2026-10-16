@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -23,13 +23,9 @@ export default function OVODModule({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [editingItem, setEditingItem] = useState(location.state?.item || null);
-
-  useEffect(() => {
-    if (location.state?.item) {
-      setEditingItem(location.state.item);
-    }
-  }, [location.state]);
+  // The record being edited travels with the route entry, so it is gone as soon as the user
+  // opens the form any other way (tab, sidebar, new session) and can never reopen stale
+  const editingItem = location.state?.item ?? null;
 
   // Sync route / props
   const currentTab = useMemo(() => {
@@ -57,10 +53,8 @@ export default function OVODModule({
     } else if (tabId === 'interventions') {
       navigate('/strategies/drishti-portal/intervention-list');
     } else if (tabId === 'input-form') {
-      setEditingItem(null);
       navigate('/strategies/drishti-portal/input-form');
     } else if (tabId === 'data-list') {
-      setEditingItem(null);
       navigate('/strategies/drishti-portal/data-list');
     } else if (tabId === 'report') {
       navigate('/strategies/drishti-portal/report');
@@ -69,36 +63,33 @@ export default function OVODModule({
     }
   };
 
-  const handleAddNew = () => {
-    setEditingItem(null);
+  const handleAddNew = useCallback(() => {
     navigate('/strategies/drishti-portal/input-form');
-  };
+  }, [navigate]);
 
-  const handleEdit = (item) => {
-    setEditingItem(item);
+  const handleEdit = useCallback((item) => {
     navigate('/strategies/drishti-portal/input-form', { state: { item } });
-  };
+  }, [navigate]);
 
-  const handleFormSuccess = () => {
-    setEditingItem(null);
-    navigate('/strategies/drishti-portal/data-list');
-  };
+  // Replace the form entry so browser Back can't reopen the pre-save snapshot
+  const handleFormSuccess = useCallback(() => {
+    navigate('/strategies/drishti-portal/data-list', { replace: true });
+  }, [navigate]);
 
-  const handleFormCancel = () => {
-    setEditingItem(null);
+  const handleFormCancel = useCallback(() => {
     navigate('/strategies/drishti-portal/data-list');
-  };
+  }, [navigate]);
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-2 animate-fade-in text-slate-800 dark:text-slate-100">
-      
+    <div className="module-page-container space-y-6 animate-fade-in">
+
       {/* Module Page Header matching GMIS / CA / YP */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-6 select-none">
+      <div className="module-header-container">
         <div>
-          <h1 className="text-xl font-black text-[#0f417a] dark:text-blue-400 tracking-wide uppercase font-display">
+          <h1 className="module-header-title">
             Drishti Portal (One Vision One Document)
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-sans">
+          <p className="module-header-subtitle">
             Strategic tracking, goal alignment, and action item monitoring across Ministry wings and organisations.
           </p>
         </div>
@@ -119,7 +110,8 @@ export default function OVODModule({
           <InterventionList triggerNotification={triggerNotification} />
         )}
         {currentTab === 'input-form' && (
-          <InputForm 
+          <InputForm
+            key={editingItem?.id ?? 'new'}
             editData={editingItem}
             onSuccess={handleFormSuccess}
             onCancel={handleFormCancel}

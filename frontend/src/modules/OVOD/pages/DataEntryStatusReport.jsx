@@ -14,6 +14,9 @@ import {
 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
 import { fetchOvdStatusReport } from '../api';
+import { useShallow } from 'zustand/react/shallow';
+import { useOvodStore } from '../store/useOvodStore';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
 /* ============================================================
    BASELINE DATASETS (Accurately matching screenshots & official baseline)
@@ -135,10 +138,17 @@ const updatedCellClass = (p) => {
 };
 
 export default function DataEntryStatusReport({ triggerNotification }) {
-  const [activeTabId, setActiveTabId] = useState('ministry');
+  const notify = useNotifier(triggerNotification);
+
+  // Selected sub-report and its search text live in the OVOD store so they survive switching
+  // tabs; switching to a different sub-report clears the search (done by the store action)
+  const { activeTab: activeTabId, searchQuery } = useOvodStore(useShallow((s) => s.statusReport));
+  const { setStatusReportTab, setStatusReportSearch } = useOvodStore(useShallow((s) => ({
+    setStatusReportTab: s.setStatusReportTab,
+    setStatusReportSearch: s.setStatusReportSearch
+  })));
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const activeTabConfig = useMemo(() => {
     return SUB_TABS.find(t => t.id === activeTabId) || SUB_TABS[0];
@@ -160,17 +170,17 @@ export default function DataEntryStatusReport({ triggerNotification }) {
       }
     } catch (err) {
       console.warn('Could not fetch remote status data, falling back to baseline:', err);
+      notify(COMMON_TOASTS.loadFailed('The latest status data'));
       if (activeTabConfig.id === 'ministry') setData(BASELINE_MINISTRY);
       else if (activeTabConfig.id === 'organization') setData(BASELINE_ORGANISATION);
       else setData(BASELINE_VIBHAS);
     } finally {
       setLoading(false);
     }
-  }, [activeTabConfig]);
+  }, [activeTabConfig, notify]);
 
   useEffect(() => {
     loadData();
-    setSearchQuery('');
   }, [loadData]);
 
   /* ── Formatters ────────────────────────────────────────────── */
@@ -643,7 +653,7 @@ export default function DataEntryStatusReport({ triggerNotification }) {
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => setStatusReportSearch(e.target.value)}
           placeholder={`Search ${activeTabConfig.label}...`}
           className="pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-stone-200 dark:border-stone-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#4b2424] text-stone-800 dark:text-stone-200 shadow-2xs w-48 sm:w-60"
         />
@@ -692,7 +702,7 @@ export default function DataEntryStatusReport({ triggerNotification }) {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTabId(tab.id)}
+                onClick={() => setStatusReportTab(tab.id)}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isActive
                     ? 'bg-gradient-to-r from-[#4b2424] to-[#6b3535] text-white shadow-sm ring-1 ring-[#4b2424]/20'
@@ -819,10 +829,10 @@ export default function DataEntryStatusReport({ triggerNotification }) {
           triggerNotification={triggerNotification}
           pagination={false}
           themeClass="yp-pro-grid"
-          brandColor="#4b2424"
-          brandColorHover="#6b3535"
-          accentColor="#f7f3f3"
-          oddRowColor="#fbf9f8"
+          brandColor="var(--module-report-brand-color, #4b2424)"
+          brandColorHover="var(--module-report-brand-color-hover, #6b3535)"
+          accentColor="var(--module-report-accent-color, #f7f3f3)"
+          oddRowColor="var(--module-report-odd-row-bg, #f8faf6)"
           totalLabel="Total"
           toolbarExtra={toolbarExtra}
         />

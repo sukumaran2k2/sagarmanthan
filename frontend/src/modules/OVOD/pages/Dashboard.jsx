@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Star,
   Layers,
@@ -29,7 +29,6 @@ import {
   fetchOvdMinistryChart,
   fetchOvdMinistryChartB2,
   fetchOvdStatusCounts,
-  fetchOrganisations,
   getUserIdFromToken
 } from '../api';
 import {
@@ -40,6 +39,9 @@ import {
   MIV_CHAPTERS,
   MAKV_THEMES
 } from '../utils/constants';
+import { useShallow } from 'zustand/react/shallow';
+import { useOvodStore } from '../store/useOvodStore';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
 
 /* ----------------------------------------------------------------------------
  * Progress buckets (average intervention progress). Ordinal, so one sequential
@@ -473,17 +475,29 @@ export default function Dashboard({ triggerNotification }) {
   const isDark = useIsDark();
   const theme = isDark ? THEME.dark : THEME.light;
 
-  const [showFilterPanel, setShowFilterPanel] = useState(true);
+  const notify = useNotifier(triggerNotification);
 
-  const [selectedVision, setSelectedVision] = useState('0');
-  const [selectedWing, setSelectedWing] = useState('0');
-  const [selectedOrg, setSelectedOrg] = useState('0');
-  const [selectedVibhas, setSelectedVibhas] = useState('0');
-  const [selectedPriority, setSelectedPriority] = useState('0');
-  const [selectedMivChapter, setSelectedMivChapter] = useState('0');
-  const [selectedMakvTheme, setSelectedMakvTheme] = useState('0');
+  // Filters and panel state live in the OVOD store so they survive switching tabs
+  const { filters, showFilterPanel } = useOvodStore(useShallow((s) => s.dashboard));
+  const { setDashboardFilter, setDashboardFilterPanel, resetDashboardFilters, loadOrganisations } = useOvodStore(
+    useShallow((s) => ({
+      setDashboardFilter: s.setDashboardFilter,
+      setDashboardFilterPanel: s.setDashboardFilterPanel,
+      resetDashboardFilters: s.resetDashboardFilters,
+      loadOrganisations: s.loadOrganisations
+    }))
+  );
+  const organisations = useOvodStore((s) => s.organisations);
 
-  const [organisations, setOrganisations] = useState([]);
+  const {
+    vision: selectedVision,
+    wing: selectedWing,
+    org: selectedOrg,
+    vibhas: selectedVibhas,
+    priority: selectedPriority,
+    mivChapter: selectedMivChapter,
+    makvTheme: selectedMakvTheme
+  } = filters;
 
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState({ a: false, b: false });
@@ -492,12 +506,13 @@ export default function Dashboard({ triggerNotification }) {
   const [statusCounts, setStatusCounts] = useState({ notApplicable: 0, dropped: 0 });
 
   useEffect(() => {
-    fetchOrganisations()
-      .then((res) => setOrganisations(Array.isArray(res) ? res : []))
-      .catch(() => setOrganisations([]));
-  }, []);
+    loadOrganisations();
+  }, [loadOrganisations]);
 
+  // Only the latest request may update state (filters can change faster than the API answers)
+  const latestRequestRef = useRef(0);
   const load = useCallback(async () => {
+    const requestId = ++latestRequestRef.current;
     setLoading(true);
     const params = {
       wingID: selectedWing,
@@ -514,6 +529,7 @@ export default function Dashboard({ triggerNotification }) {
       fetchOvdMinistryChartB2(params),
       fetchOvdStatusCounts({ ...params, userID: getUserIdFromToken() })
     ]);
+    if (requestId !== latestRequestRef.current) return;
 
     setLevelA(a.status === 'fulfilled' ? shapeLevel(a.value) : EMPTY_LEVEL);
     setLevelB(b.status === 'fulfilled' ? shapeLevel(b.value) : EMPTY_LEVEL);
@@ -525,34 +541,34 @@ export default function Dashboard({ triggerNotification }) {
     setFailed({ a: a.status === 'rejected', b: b.status === 'rejected' });
 
     if (a.status === 'rejected' && b.status === 'rejected') {
-      triggerNotification?.('Unable to load Drishti dashboard analytics.', 'error');
+      notify(COMMON_TOASTS.loadFailed('The dashboard analytics'));
     }
     setLoading(false);
-  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme, triggerNotification]);
+  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme, notify]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   const filterDefs = useMemo(() => [
-    { id: 'vision', label: 'Vision', value: selectedVision, set: setSelectedVision, options: OVOD_VISIONS },
-    { id: 'wing', label: 'Wing', value: selectedWing, set: setSelectedWing, options: OVOD_WINGS },
+    { id: 'vision', label: 'Vision', value: selectedVision, set: (v) => setDashboardFilter('vision', v), options: OVOD_VISIONS },
+    { id: 'wing', label: 'Wing', value: selectedWing, set: (v) => setDashboardFilter('wing', v), options: OVOD_WINGS },
     {
       id: 'org',
       label: 'Organisation',
       value: selectedOrg,
-      set: setSelectedOrg,
-      options: [{ id: '0', label: 'Show All' }, ...organisations.map((o) => ({ id: String(o.organisation_id), label: o.organisation_name }))]
+      set: (v) => setDashboardFilter('org', v),
+      options: [{ id: '0', label: 'Show All' }, ...organisations.map((o) => ({ id: String(o.ia_id), label: o.ia_name }))]
     },
-    { id: 'vibhas', label: 'VIBHAS / NAVIC Cell', value: selectedVibhas, set: setSelectedVibhas, options: OVOD_VIBHAS },
-    { id: 'priority', label: 'Priority', value: selectedPriority, set: setSelectedPriority, options: OVOD_PRIORITIES },
-    { id: 'miv', label: 'MIV Chapter', value: selectedMivChapter, set: setSelectedMivChapter, options: MIV_CHAPTERS },
-    { id: 'makv', label: 'MAKV Theme', value: selectedMakvTheme, set: setSelectedMakvTheme, options: MAKV_THEMES }
-  ], [selectedVision, selectedWing, selectedOrg, selectedVibhas, selectedPriority, selectedMivChapter, selectedMakvTheme, organisations]);
+    { id: 'vibhas', label: 'VIBHAS / NAVIC Cell', value: selectedVibhas, set: (v) => setDashboardFilter('vibhas', v), options: OVOD_VIBHAS },
+    { id: 'priority', label: 'Priority', value: selectedPriority, set: (v) => setDashboardFilter('priority', v), options: OVOD_PRIORITIES },
+    { id: 'miv', label: 'MIV Chapter', value: selectedMivChapter, set: (v) => setDashboardFilter('mivChapter', v), options: MIV_CHAPTERS },
+    { id: 'makv', label: 'MAKV Theme', value: selectedMakvTheme, set: (v) => setDashboardFilter('makvTheme', v), options: MAKV_THEMES }
+  ], [selectedVision, selectedWing, selectedOrg, selectedVibhas, selectedPriority, selectedMivChapter, selectedMakvTheme, organisations, setDashboardFilter]);
 
   const activeFilters = filterDefs.filter((f) => f.value !== '0');
 
-  const handleResetFilters = () => filterDefs.forEach((f) => f.set('0'));
+  const handleResetFilters = () => resetDashboardFilters();
 
   const labelOf = (f) => f.options.find((o) => String(o.id) === String(f.value))?.label || f.value;
 
@@ -564,12 +580,8 @@ export default function Dashboard({ triggerNotification }) {
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
-            onClick={() => setShowFilterPanel((p) => !p)}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-              showFilterPanel || activeFilters.length > 0
-                ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/60 dark:border-blue-700 dark:text-blue-300'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200'
-            }`}
+            onClick={() => setDashboardFilterPanel((p) => !p)}
+            className={`module-filter-btn ${showFilterPanel || activeFilters.length > 0 ? 'active' : ''}`}
           >
             <Filter size={14} className="text-[#0f417a] dark:text-blue-400" />
             <span>Filters</span>

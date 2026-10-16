@@ -21,11 +21,15 @@ import {
   deleteOvdAction, 
   getUserIdFromToken 
 } from '../api';
-import { 
-  OVOD_WINGS, 
-  OVOD_VIBHAS, 
-  OVOD_STATUSES 
+import {
+  OVOD_WINGS,
+  OVOD_VIBHAS,
+  OVOD_STATUSES
 } from '../utils/constants';
+import { useShallow } from 'zustand/react/shallow';
+import { useOvodStore } from '../store/useOvodStore';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { OVOD_TOASTS } from '../toastMessages';
 
 const COLUMN_LIST = [
   { key: 'sno', label: 'S.No' },
@@ -64,45 +68,43 @@ export default function DataList({
 }) {
   const gridRef = useRef(null);
   const colVisRef = useRef(null);
+  const notify = useNotifier(triggerNotification);
 
-  // Status Tabs: matching YP & CA DataList
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'completed' | 'dropped'
+  // Status tab, filters, search, pagination and column visibility live in the OVOD store so
+  // they survive switching tabs; everything below that is view-only state
+  const {
+    activeTab, filters, searchTerm, currentPage, pageSize, showFilterPanel, colVisibility
+  } = useOvodStore(useShallow((s) => s.dataList));
 
-  // Filter Toggle Panel
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const {
+    setDataListTab, setDataListFilter, setDataListSearch, setDataListPage, setDataListPageSize,
+    setDataListFilterPanel, toggleDataListColumn, resetDataListFilters
+  } = useOvodStore(useShallow((s) => ({
+    setDataListTab: s.setDataListTab,
+    setDataListFilter: s.setDataListFilter,
+    setDataListSearch: s.setDataListSearch,
+    setDataListPage: s.setDataListPage,
+    setDataListPageSize: s.setDataListPageSize,
+    setDataListFilterPanel: s.setDataListFilterPanel,
+    toggleDataListColumn: s.toggleDataListColumn,
+    resetDataListFilters: s.resetDataListFilters
+  })));
 
-  // Filters State
-  const [selectedWing, setSelectedWing] = useState('0');
-  const [selectedOrg, setSelectedOrg] = useState('0');
-  const [selectedGoalA1, setSelectedGoalA1] = useState('0');
-  const [selectedInterventionA2, setSelectedInterventionA2] = useState('0');
-  const [selectedActionA3, setSelectedActionA3] = useState('0');
-  const [selectedGoalB1, setSelectedGoalB1] = useState('0');
-  const [selectedInterventionB2, setSelectedInterventionB2] = useState('0');
-  const [selectedActionB3, setSelectedActionB3] = useState('0');
-  const [selectedStage, setSelectedStage] = useState('0');
-  const [selectedVibhas, setSelectedVibhas] = useState('0');
+  const {
+    wing: selectedWing,
+    org: selectedOrg,
+    goalA1: selectedGoalA1,
+    interventionA2: selectedInterventionA2,
+    actionA3: selectedActionA3,
+    goalB1: selectedGoalB1,
+    interventionB2: selectedInterventionB2,
+    actionB3: selectedActionB3,
+    stage: selectedStage,
+    vibhas: selectedVibhas
+  } = filters;
 
-  // Toolbar & Pagination State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [showColVisibility, setShowColVisibility] = useState(false);
   const [gridApi, setGridApi] = useState(null);
-
-  const [colVisibility, setColVisibility] = useState({
-    sno: true,
-    org: true,
-    a1: true,
-    a2: true,
-    a3: true,
-    b1: true,
-    b2: true,
-    b3: true,
-    status: true,
-    date: true,
-    actions: true
-  });
 
   // Data state
   const [actionItems, setActionItems] = useState([]);
@@ -123,14 +125,18 @@ export default function DataList({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Fetch Action Items Dataset
+  // Fetch Action Items Dataset; only the latest request may update state
+  const latestRequestRef = useRef(0);
   const loadData = useCallback(async () => {
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
     setLoading(true);
     try {
       const userId = getUserIdFromToken();
       const res = await fetchOvdOrgListData(userId);
+      if (isStale()) return;
       const rawRows = Array.isArray(res) ? res : (res?.data || []);
-      
+
       const normalized = rawRows.map((item, idx) => ({
         id: item.id || item.Id || item.ID || idx + 1,
         organisation_name: item.ia_name || item.organisation_name || 'Indian Maritime University',
@@ -148,12 +154,14 @@ export default function DataList({
 
       setActionItems(normalized);
     } catch (err) {
+      if (isStale()) return;
       console.warn("OVOD Org List Data error:", err.message);
       setActionItems([]);
+      notify(COMMON_TOASTS.loadFailed('The action item list'));
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
     loadData();
@@ -171,10 +179,8 @@ export default function DataList({
     return counts;
   }, [actionItems]);
 
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    setCurrentPage(1);
-  };
+  // Store setters already return to page 1
+  const handleTabChange = (tab) => setDataListTab(tab);
 
   // Unique Dropdown Options derived dynamically from Data
   const options = useMemo(() => {
@@ -237,19 +243,8 @@ export default function DataList({
   }, [selectedWing, selectedOrg, selectedGoalA1, selectedInterventionA2, selectedActionA3, selectedGoalB1, selectedInterventionB2, selectedActionB3, selectedStage, selectedVibhas]);
 
   const handleResetFilters = () => {
-    setSelectedWing('0');
-    setSelectedOrg('0');
-    setSelectedGoalA1('0');
-    setSelectedInterventionA2('0');
-    setSelectedActionA3('0');
-    setSelectedGoalB1('0');
-    setSelectedInterventionB2('0');
-    setSelectedActionB3('0');
-    setSelectedStage('0');
-    setSelectedVibhas('0');
-    setSearchTerm('');
-    setCurrentPage(1);
-    triggerNotification?.('Filters have been reset', 'info');
+    resetDataListFilters();
+    notify(COMMON_TOASTS.filtersReset());
   };
 
   // Filtered rows for AG Grid
@@ -270,7 +265,7 @@ export default function DataList({
       if (selectedVibhas !== '0' && item.vibhas !== selectedVibhas) return false;
       
       if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
+        const q = searchTerm.trim().toLowerCase();
         const combined = `${item.organisation_name || ''} ${item.goal_a1 || ''} ${item.intervention_a2 || ''} ${item.action_a3 || ''} ${item.goal_b1 || ''} ${item.intervention_b2 || ''} ${item.action_b3 || ''} ${item.current_status || ''} ${item.updated_at || ''}`.toLowerCase();
         if (!combined.includes(q)) return false;
       }
@@ -282,11 +277,13 @@ export default function DataList({
   // Paginated Sliced Data
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
 
+  // Only clamp once the rows have loaded: while loading, the list is empty (one page), and clamping
+  // then would wipe the page the store restored after a tab switch
   useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(1);
+    if (!loading && currentPage > totalPages && totalPages > 0) {
+      setDataListPage(1);
     }
-  }, [totalPages, currentPage]);
+  }, [loading, totalPages, currentPage, setDataListPage]);
 
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -299,7 +296,7 @@ export default function DataList({
   // Handle Copy to clipboard matching YP & CA
   const handleCopy = () => {
     if (!filteredData.length) {
-      triggerNotification?.("No data to copy", "info");
+      notify(COMMON_TOASTS.nothingToCopy());
       return;
     }
     const headers = ['S.No', 'Organisation', 'Goal (A1)', 'Intervention (A2)', 'Action (A3)', 'Goal (B1)', 'Intervention (B2)', 'Action (B3)', 'Current Status', 'Last Updated Date'];
@@ -318,14 +315,14 @@ export default function DataList({
 
     const text = [headers.join('\t'), ...lines].join('\n');
     navigator.clipboard.writeText(text)
-      .then(() => triggerNotification?.("Table copied to clipboard!", "success"))
-      .catch(() => triggerNotification?.("Failed to copy table", "error"));
+      .then(() => notify(COMMON_TOASTS.copySuccess(filteredData.length, 'matching the current filters')))
+      .catch(() => notify(COMMON_TOASTS.copyFailed()));
   };
 
   // Handle Export to Excel
   const handleExportExcel = () => {
     if (!filteredData.length) {
-      triggerNotification?.("No data to export", "info");
+      notify(COMMON_TOASTS.nothingToExport());
       return;
     }
     const exportRows = filteredData.map((r, i) => ({
@@ -344,17 +341,23 @@ export default function DataList({
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "DataList");
-    XLSX.writeFile(wb, `OVOD_DataList_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    triggerNotification?.("Excel file downloaded!", "success");
+    const fileName = `OVOD_DataList_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    notify(COMMON_TOASTS.excelExported(fileName, 'The filtered list'));
   };
 
   // Handle Export to PDF matching CA format
   const handleExportPdf = () => {
     if (!filteredData.length) {
-      triggerNotification?.("No data to export", "info");
+      notify(COMMON_TOASTS.nothingToExport());
       return;
     }
     const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      notify(COMMON_TOASTS.popupBlocked());
+      return;
+    }
+    notify(COMMON_TOASTS.pdfPreparing());
     const title = 'OVOD - Strategic Action Items';
 
     const headers = [
@@ -385,7 +388,7 @@ export default function DataList({
         <head>
           <title>${title}</title>
           <style>
-            body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
+            body { font-family: 'Google Sans', system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
             h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
             table { width: 100%; border-collapse: collapse; margin-top: 15px; }
           </style>
@@ -406,13 +409,6 @@ export default function DataList({
     printWindow.document.close();
   };
 
-  const toggleColVisibility = (key) => {
-    setColVisibility(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
   // Handle Delete Confirmation
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -420,11 +416,11 @@ export default function DataList({
     try {
       const userId = getUserIdFromToken();
       await deleteOvdAction(deleteTarget.id, userId);
-      triggerNotification?.("Action item deleted successfully", "success");
+      notify(OVOD_TOASTS.itemDeleted());
       setDeleteTarget(null);
       loadData();
     } catch (err) {
-      triggerNotification?.(err.message || "Failed to delete item", "error");
+      notify(OVOD_TOASTS.itemDeleteFailed(getErrorMessage(err)));
     } finally {
       setDeleting(false);
     }
@@ -606,16 +602,12 @@ export default function DataList({
     <div className="space-y-6 animate-fade-in relative">
       
       {/* 1. Status Tabs matching YP & CA DataList */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+      <div className="module-subtabs-strip">
         {STATUS_TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => handleTabChange(tab.id)}
-            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-              activeTab === tab.id
-                ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-            }`}
+            className={`module-subtab-btn ${activeTab === tab.id ? 'active' : ''}`}
           >
             {tab.label} ({tab.id === 'all' ? allCount : tabCounts[tab.id]})
           </button>
@@ -623,7 +615,7 @@ export default function DataList({
       </div>
 
       {/* 2. Main White/Dark Card Container */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 dark:bg-slate-950 dark:border-slate-800">
+      <div className="module-card space-y-4">
         
         {/* Toolbar Header matching YP & CA format */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
@@ -632,12 +624,8 @@ export default function DataList({
           <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
-              onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
-              }`}
+              onClick={() => setDataListFilterPanel(prev => !prev)}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
               <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
               <span>Filter</span>
@@ -673,18 +661,13 @@ export default function DataList({
                 type="text"
                 placeholder="Search Action Items..."
                 value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+                onChange={(e) => setDataListSearch(e.target.value)}
+                className="w-full module-search-input"
               />
               {searchTerm && (
                 <button
-                  onClick={() => {
-                    setSearchTerm('');
-                    setCurrentPage(1);
-                  }}
+                  onClick={() => setDataListSearch('')}
+                  aria-label="Clear search"
                   className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -697,10 +680,7 @@ export default function DataList({
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
                 value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
+                onChange={(e) => setDataListPageSize(Number(e.target.value))}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 <option value="10">10</option>
@@ -731,7 +711,7 @@ export default function DataList({
                       <input
                         type="checkbox"
                         checked={colVisibility[col.key] !== false}
-                        onChange={() => toggleColVisibility(col.key)}
+                        onChange={() => toggleDataListColumn(col.key)}
                         className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span>{col.label}</span>
@@ -781,7 +761,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedWing}
-                  onChange={(e) => { setSelectedWing(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setDataListFilter('wing', e.target.value)}
                   className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="0">All Wings</option>
@@ -801,7 +781,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedOrg}
-                  onChange={(e) => { setSelectedOrg(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setDataListFilter('org', e.target.value)}
                   className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="0">All Organisations</option>
@@ -821,7 +801,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedGoalA1}
-                  onChange={(e) => { setSelectedGoalA1(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setDataListFilter('goalA1', e.target.value)}
                   className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
                   <option value="0">All Goals (A1)</option>
@@ -841,7 +821,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedInterventionA2}
-                  onChange={(e) => { setSelectedInterventionA2(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setDataListFilter('interventionA2', e.target.value)}
                   className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
                   <option value="0">All Interventions (A2)</option>
@@ -861,7 +841,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedActionA3}
-                  onChange={(e) => { setSelectedActionA3(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setDataListFilter('actionA3', e.target.value)}
                   className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
                   <option value="0">All Actions (A3)</option>
@@ -881,7 +861,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedGoalB1}
-                  onChange={(e) => { setSelectedGoalB1(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setDataListFilter('goalB1', e.target.value)}
                   className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
                   <option value="0">All Goals (B1)</option>
@@ -901,7 +881,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedInterventionB2}
-                  onChange={(e) => { setSelectedInterventionB2(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setDataListFilter('interventionB2', e.target.value)}
                   className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
                   <option value="0">All Interventions (B2)</option>
@@ -921,7 +901,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedActionB3}
-                  onChange={(e) => { setSelectedActionB3(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setDataListFilter('actionB3', e.target.value)}
                   className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
                   <option value="0">All Actions (B3)</option>
@@ -941,7 +921,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedStage}
-                  onChange={(e) => { setSelectedStage(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setDataListFilter('stage', e.target.value)}
                   className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="0">All Stages</option>
@@ -961,7 +941,7 @@ export default function DataList({
               <div className="relative">
                 <select
                   value={selectedVibhas}
-                  onChange={(e) => { setSelectedVibhas(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setDataListFilter('vibhas', e.target.value)}
                   className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer truncate"
                 >
                   <option value="0">All Vibhas</option>
@@ -977,7 +957,7 @@ export default function DataList({
         )}
 
         {/* 3. The AG-Grid Table Container matching YP & CA style */}
-        <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
           <Table
             ref={gridRef}
             rowData={paginatedData}
@@ -1001,44 +981,11 @@ export default function DataList({
             totalPages={totalPages}
             totalRows={filteredData.length}
             pageSize={pageSize}
-            onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
-            onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            onPageChange={(zeroIdx) => setDataListPage(zeroIdx + 1)}
+            onPrevPage={() => setDataListPage(prev => Math.max(1, prev - 1))}
+            onNextPage={() => setDataListPage(prev => Math.min(totalPages, prev + 1))}
             color="#0f417a"
           />
-
-          <style dangerouslySetInnerHTML={{
-            __html: `
-            .ag-theme-quartz.rounded-xl,
-            .ag-theme-quartz.rounded-2xl {
-              border-radius: 16px !important;
-            }
-            .ag-theme-quartz .ag-root-wrapper {
-              border-radius: 16px 16px 0 0 !important;
-            }
-            .ag-theme-quartz .ag-header {
-              background-color: #0f417a !important;
-              border-bottom: 2px solid #0a2d55 !important;
-            }
-            .ag-theme-quartz .ag-header-cell {
-              color: #ffffff !important;
-              font-weight: 700 !important;
-              text-transform: uppercase !important;
-              font-size: 11px !important;
-              letter-spacing: 0.05em !important;
-            }
-            .ag-theme-quartz .ag-header-cell .ag-icon {
-              color: #ffffff !important;
-            }
-            .ag-theme-quartz .ag-header-cell-label {
-              color: #ffffff !important;
-            }
-            .ag-theme-quartz .ag-row {
-              font-size: 13px !important;
-              border-bottom: 1px solid #f1f5f9 !important;
-            }
-            `
-          }} />
         </div>
 
       </div>

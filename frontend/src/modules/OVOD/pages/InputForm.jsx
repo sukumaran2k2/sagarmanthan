@@ -23,7 +23,6 @@ import {
   Download
 } from 'lucide-react';
 import { 
-  fetchImplementingAgencies,
   fetchOvdDropDownData,
   fetchOvdAddData,
   saveOvdB2B3Action, 
@@ -41,6 +40,9 @@ import {
   VIBHAS_MAP,
   OVOD_STATUSES
 } from '../utils/constants';
+import { useOvodStore } from '../store/useOvodStore';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { OVOD_TOASTS } from '../toastMessages';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const YEARS = ['2020', '2021', '2022', '2023', '2024', '2025', '2026', '2027', '2028', '2029', '2030'];
@@ -92,6 +94,7 @@ export default function InputForm({
 // ==================== UPDATE INITIATIVE VIEW (EDIT MODE) ==================
 // =========================================================================
 function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotification }) {
+  const notify = useNotifier(triggerNotification);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -275,7 +278,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
         b3Actions: editTargetType === 'B3' ? formData.b3_id : undefined
       };
       await updateOvdAction(payload);
-      triggerNotification?.(`${editTargetType} name updated successfully`, 'success');
+      notify(OVOD_TOASTS.nameUpdated(editTargetType));
 
       if (editTargetType === 'B2') {
         const prefix = formData.intervention_b2_label.includes(':') 
@@ -297,7 +300,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
       setShowEditNameModal(false);
     } catch (err) {
       console.error("Error updating action name:", err);
-      triggerNotification?.(err.message || "Failed to update name", "error");
+      notify(OVOD_TOASTS.nameUpdateFailed(editTargetType, getErrorMessage(err)));
     } finally {
       setUpdatingName(false);
     }
@@ -357,19 +360,27 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
 
       await updateOvdFullItem(payload);
 
-      // Handle optional document upload
+      // The initiative is saved at this point; report an upload failure separately so the
+      // user isn't told the whole update failed
       if (selectedFile) {
         const docFormData = new FormData();
         docFormData.append('file', selectedFile);
         docFormData.append('ID', editData.id);
-        await uploadOvdDocument(docFormData);
+        try {
+          await uploadOvdDocument(docFormData);
+        } catch (uploadErr) {
+          console.error("Error uploading initiative document:", uploadErr);
+          notify(OVOD_TOASTS.documentUploadFailed(getErrorMessage(uploadErr)));
+          if (onSuccess) onSuccess();
+          return;
+        }
       }
 
-      triggerNotification?.("Initiative updated successfully", "success");
-      onSuccess ? onSuccess() : null;
+      notify(OVOD_TOASTS.updated());
+      if (onSuccess) onSuccess();
     } catch (err) {
       console.error("Error updating initiative:", err);
-      triggerNotification?.(err.message || "Failed to update initiative", "error");
+      notify(OVOD_TOASTS.updateFailed(getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -379,23 +390,23 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
     <div className="w-full space-y-6 text-slate-800 dark:text-slate-100 pb-12 animate-fade-in font-sans">
       
       {/* Form Container */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs overflow-hidden p-6 md:p-8">
+      <div className="module-form-card">
         
-        {/* Title matching screenshot */}
-        <div className="pb-3 mb-6 border-b border-slate-200 dark:border-slate-800">
-          <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight font-display">
-            Update Initiative
-          </h1>
+        <div className="module-form-banner">
+          <div>
+            <h3 className="module-form-banner-title">Update Initiative</h3>
+            <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmitUpdate} className="space-y-8">
+        <form onSubmit={handleSubmitUpdate} className="px-6 md:px-8 pt-6 md:pt-8 space-y-8">
           
           {/* ========================================================================= */}
           {/* ======================= SECTION 1: GENERAL DETAILS ====================== */}
           {/* ========================================================================= */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-amber-600/70 pb-1">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
                 General Details
               </h2>
               
@@ -413,7 +424,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             {/* Row 1: National Level Goal A1 & Intervention A2 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   National Level Goal (A1)<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -426,7 +437,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   National Level Intervention (A2)<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -442,7 +453,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             {/* Row 2: Goal B1 & Intervention B2 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Goal (B1)<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -455,7 +466,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Intervention (B2)<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -470,7 +481,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
 
             {/* Row 3: Actionable Item (B3) */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="module-form-label">
                 Actionable Item (B3)<span className="text-rose-500">*</span>
               </label>
               <input
@@ -485,7 +496,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             {/* Row 4: Category, Total Cost, Implementing Agency, Wing */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Category<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -498,7 +509,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Total Cost (In. Cr)
                 </label>
                 <div className="relative">
@@ -518,7 +529,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Implementing Agency<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -531,7 +542,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Wing<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -547,7 +558,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             {/* Row 5: Priority & Vibhas */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Priority<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -560,7 +571,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Vibhas/ Navic<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -579,14 +590,14 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
           {/* ============================ SECTION 2: STATUS ========================== */}
           {/* ========================================================================= */}
           <div className="space-y-4">
-            <div className="border-b border-amber-600/70 pb-1">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
                 Status
               </h2>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="module-form-label">
                 Current Status<span className="text-rose-500">*</span>
               </label>
               <div className="relative">
@@ -613,8 +624,8 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
           {/* ==================== SECTION 3: MONTHLY PROGRESS LOGS =================== */}
           {/* ========================================================================= */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-amber-600/70 pb-1">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
                 Monthly Progress Logs
               </h2>
               <button
@@ -743,8 +754,8 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
           {/* ======================= SECTION 4: OUTPUT / OUTCOME ===================== */}
           {/* ========================================================================= */}
           <div className="space-y-4">
-            <div className="border-b border-amber-600/70 pb-1">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
                 Output / Outcome
               </h2>
             </div>
@@ -752,7 +763,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             {/* Row 1: Direct & Indirect Employment Generated */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Direct Employment Generated (No. Of People)<span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -768,7 +779,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Indirect Employment Generated (No. Of People)<span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -787,7 +798,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             {/* Row 2: Direct & Indirect Investment Created */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Direct Investment Created (In Cr.)<span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -804,7 +815,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Indirect Investment Created (In Cr.)<span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -824,7 +835,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
             {/* Row 3: Output / Outcome Textareas */}
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 leading-snug">
+                <label className="module-form-label leading-snug">
                   Output / Outcome Of The Completed Initiative (Example : Reduction in turn-around time (hours), capacity created (MTPA), beneficiaries impacted (Number), Infrastructure Developed (road / rail with length in kilometres), etc.)
                 </label>
                 <textarea
@@ -837,7 +848,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Output/Outcomes (Remarks)
                 </label>
                 <textarea
@@ -856,15 +867,15 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
           {/* ========================== SECTION 5: TIMELINES ========================= */}
           {/* ========================================================================= */}
           <div className="space-y-4">
-            <div className="border-b border-amber-600/70 pb-1">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
                 Timelines
               </h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Timeline As Per Vision Document
                 </label>
                 <input
@@ -878,7 +889,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Expected/Actual Date Of Completion
                 </label>
                 <input
@@ -895,8 +906,8 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
           {/* ============================ SECTION 6: OTHERS ========================== */}
           {/* ========================================================================= */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-amber-600/70 pb-1">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
                 Others
               </h2>
               <button
@@ -910,7 +921,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Feedback By Ministry
                 </label>
                 <textarea
@@ -923,7 +934,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Remarks/Response By Organisation
                 </label>
                 <div className="relative">
@@ -941,7 +952,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
 
             {/* File Upload */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="module-form-label">
                 Recent Executive Summary & PPT Of Initiative(If Any)
               </label>
               <input
@@ -978,7 +989,7 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
         </form>
 
         {/* Footer Note */}
-        <div className="pt-8 text-center text-[10px] text-slate-400 dark:text-slate-500">
+        <div className="px-6 md:px-8 pb-6 md:pb-8 pt-8 text-center text-[10px] text-slate-400 dark:text-slate-500">
           Copyright © 2025 Ministry of Ports, Shipping and Waterways, Government of India, All Rights Reserved
         </div>
 
@@ -1224,7 +1235,13 @@ function UpdateInitiativeView({ editData, onSuccess, onCancel, triggerNotificati
 // ===================== ADD INITIATIVE VIEW (CREATE MODE) ==================
 // =========================================================================
 function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
-  const [agencies, setAgencies] = useState(DEFAULT_AGENCIES);
+  const notify = useNotifier(triggerNotification);
+
+  // Implementing agencies are cached once in the OVOD store; use the built-in list when the
+  // request returns nothing
+  const loadOrganisations = useOvodStore((s) => s.loadOrganisations);
+  const storedAgencies = useOvodStore((s) => s.organisations);
+  const agencies = storedAgencies.length > 0 ? storedAgencies : DEFAULT_AGENCIES;
   const [submitting, setSubmitting] = useState(false);
   const [validated, setValidated] = useState(false);
 
@@ -1283,17 +1300,8 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
 
   // Load Implementing Agencies on mount
   useEffect(() => {
-    fetchImplementingAgencies()
-      .then(res => {
-        const list = Array.isArray(res) && res.length > 0 ? res : (res?.data || []);
-        if (list.length > 0) {
-          setAgencies(list);
-        } else {
-          setAgencies(DEFAULT_AGENCIES);
-        }
-      })
-      .catch(() => setAgencies(DEFAULT_AGENCIES));
-  }, []);
+    loadOrganisations();
+  }, [loadOrganisations]);
 
   // When Implementing Agency is selected, fetch cascading A1, A2, B1, B2 lists
   useEffect(() => {
@@ -1571,34 +1579,34 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
     setValidated(true);
 
     if (!formData.organisation_id) {
-      triggerNotification?.("Please select an Implementing Agency", "error");
+      notify(COMMON_TOASTS.requiredSelect('Implementing Agency'));
       return;
     }
     if (!formData.goal_a1) {
-      triggerNotification?.("Please select a National Level Goal (A1)", "error");
+      notify(COMMON_TOASTS.requiredSelect('National Level Goal (A1)'));
       return;
     }
     if (!formData.intervention_a2) {
-      triggerNotification?.("Please select a National Level Intervention (A2)", "error");
+      notify(COMMON_TOASTS.requiredSelect('National Level Intervention (A2)'));
       return;
     }
     if (!formData.goal_b1) {
-      triggerNotification?.("Please select a Goal (B1)", "error");
+      notify(COMMON_TOASTS.requiredSelect('Goal (B1)'));
       return;
     }
     if (level === 'B2') {
       if (!formData.intervention_b2.trim()) {
-        triggerNotification?.("Please enter Intervention (B2)", "error");
+        notify(COMMON_TOASTS.requiredInput('Intervention (B2)'));
         return;
       }
       const hasB3 = b3Rows.some(r => r.actionDes && r.actionDes.trim().length > 0);
       if (!hasB3) {
-        triggerNotification?.("Please enter at least one Actionable Item (B3) along with the B2 intervention", "error");
+        notify(OVOD_TOASTS.actionableItemRequired());
         return;
       }
     } else {
       if (!formData.action_b3.trim()) {
-        triggerNotification?.("Please enter Actionable Item (B3)", "error");
+        notify(COMMON_TOASTS.requiredInput('Actionable Item (B3)'));
         return;
       }
     }
@@ -1642,11 +1650,11 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
       };
 
       await saveOvdB2B3Action(payload);
-      triggerNotification?.(`New ${level === 'B2' ? 'Initiative' : 'Actionable Item'} submitted successfully`, "success");
-      onSuccess ? onSuccess() : null;
+      notify(OVOD_TOASTS.added(level));
+      if (onSuccess) onSuccess();
     } catch (err) {
       console.error("OVOD Form submit error:", err);
-      triggerNotification?.(err.response?.data?.message || err.message || "Failed to submit item", "error");
+      notify(OVOD_TOASTS.addFailed(level, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -1656,15 +1664,17 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
     <div className="w-full space-y-6 text-slate-800 dark:text-slate-100 pb-12 animate-fade-in font-sans">
       
       {/* Main Container Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs overflow-hidden p-6 md:p-8">
+      <div className="module-form-card">
         
-        {/* Top Header Row matching screenshot */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-6 border-b border-slate-200 dark:border-slate-800">
+        <div className="module-form-banner">
           <div>
-            <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight font-display">
-              Add Initiative
-            </h1>
+            <h3 className="module-form-banner-title">Add Initiative</h3>
+            <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
           </div>
+        </div>
+
+        {/* Level row: add an Intervention (B2) or an Actionable Item (B3) */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mx-6 md:mx-8 mt-6 md:mt-8 pb-4 border-b border-slate-200 dark:border-slate-800">
 
           <div className="flex items-center gap-4">
             {/* Level Selector */}
@@ -1704,21 +1714,21 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmitAdd} className="space-y-8">
+        <form onSubmit={handleSubmitAdd} className="px-6 md:px-8 pt-6 md:pt-8 space-y-8">
           
           {/* ========================================================================= */}
           {/* ======================= SECTION 1: GENERAL DETAILS ====================== */}
           {/* ========================================================================= */}
           <div className="space-y-4">
-            <div className="border-b border-amber-600/70 pb-1">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
                 General Details
               </h2>
             </div>
 
             {/* Implementing Agency */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="module-form-label">
                 Implementing Agency<span className="text-rose-500">*</span>
               </label>
               <div className="relative">
@@ -1754,7 +1764,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* National Level Goal (A1) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   National Level Goal (A1)<span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -1789,7 +1799,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
 
               {/* National Level Intervention (A2) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   National Level Intervention (A2)<span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -1827,7 +1837,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Goal (B1) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Goal (B1)<span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -1862,7 +1872,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
 
               {/* Intervention (B2) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Intervention (B2)<span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
@@ -1913,7 +1923,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
 
               {/* Intervention Code (B2) - Read Only */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Intervention Code (B2)<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1931,7 +1941,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
             {/* Category, Wings, Priority, Vibhas/Navic - Read Only Auto populated */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Category<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1945,7 +1955,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Wings<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1959,7 +1969,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Priority<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1973,7 +1983,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Vibhas/ Navic<span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1994,8 +2004,8 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
           {/* ========================================================================= */}
           {level === 'B2' ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-amber-600/70 pb-1">
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              <div className="module-form-section-header">
+                <h2 className="module-form-section-heading">
                   Actionable Item
                 </h2>
                 <button
@@ -2084,14 +2094,14 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
           ) : (
             /* Single B3 Entry Mode */
             <div className="space-y-4">
-              <div className="border-b border-amber-600/70 pb-1">
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              <div className="module-form-section-header">
+                <h2 className="module-form-section-heading">
                   Actionable Item (B3) Details
                 </h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="module-form-label">
                     Actionable Item (B3) Description<span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -2105,7 +2115,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="module-form-label">
                     Actionable Item Code (B3)
                   </label>
                   <input
@@ -2125,8 +2135,8 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
           {/* ======================= SECTION 3: SOURCE DOCUMENT ====================== */}
           {/* ========================================================================= */}
           <div className="space-y-4">
-            <div className="border-b border-amber-600/70 pb-1">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
                 Source Document
               </h2>
             </div>
@@ -2134,7 +2144,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
             {/* Row 1: MIV 2030 (Y/N) & MIV Chapter */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="module-form-label">
                   Is it part of MIV 2030? (Y/N)
                 </label>
                 <div className="flex items-center space-x-6">
@@ -2166,7 +2176,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   MIV Chapter
                 </label>
                 <input
@@ -2183,7 +2193,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
             {/* Row 2: MAKV 2047 (Y/N) & MAKV Theme */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="module-form-label">
                   Is it part of MAKV 2047? (Y/N)
                 </label>
                 <div className="flex items-center space-x-6">
@@ -2215,7 +2225,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   MAKV Theme
                 </label>
                 <input
@@ -2232,7 +2242,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
             {/* Row 3: SGoS-2 & Additional Items */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="module-form-label">
                   Is it part of SGoS-2? (Y/N)
                 </label>
                 <div className="flex items-center space-x-6">
@@ -2264,7 +2274,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="module-form-label">
                   Is it part of Additional Items? (Y/N)
                 </label>
                 <div className="flex items-center space-x-6">
@@ -2299,7 +2309,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
             {/* Row 4: GMIS & Remarks */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="module-form-label">
                   Is it part of GMIS? (Y/N)
                 </label>
                 <div className="flex items-center space-x-6">
@@ -2331,7 +2341,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Remarks
                 </label>
                 <input
@@ -2352,15 +2362,15 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
           {/* ========================== SECTION 4: TIMELINES ========================= */}
           {/* ========================================================================= */}
           <div className="space-y-4">
-            <div className="border-b border-amber-600/70 pb-1">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+            <div className="module-form-section-header">
+              <h2 className="module-form-section-heading">
                 Timelines
               </h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Timeline As Per Vision Document
                 </label>
                 <input
@@ -2375,7 +2385,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="module-form-label">
                   Expected/Actual Date Of Completion
                 </label>
                 <input
@@ -2414,7 +2424,7 @@ function AddInitiativeView({ onSuccess, onCancel, triggerNotification }) {
         </form>
 
         {/* Footer Note */}
-        <div className="pt-8 text-center text-[10px] text-slate-400 dark:text-slate-500">
+        <div className="px-6 md:px-8 pb-6 md:pb-8 pt-8 text-center text-[10px] text-slate-400 dark:text-slate-500">
           Copyright © 2025 Ministry of Ports, Shipping and Waterways, Government of India, All Rights Reserved
         </div>
 

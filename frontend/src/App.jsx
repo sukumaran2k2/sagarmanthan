@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import MainLayout, { ROUTE_MAP, getTabFromSlug } from './layouts/MainLayout';
 import LoginView from './modules/Login/Login';
@@ -165,15 +165,17 @@ export default function App() {
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
 
   // options: { variant, duration } — used by the standardized notifier (utils/notify.js);
-  // legacy 3-argument calls keep the original look and 4s lifetime
-  const triggerNotification = (message, type = 'success', title = '', options = {}) => {
+  // legacy 3-argument calls keep the original look and 4s lifetime.
+  // Stable identity (only setToasts is used): modules list it in effect/callback dependencies,
+  // so a new function on every toast would make a failing fetch retry itself in a loop.
+  const triggerNotification = useCallback((message, type = 'success', title = '', options = {}) => {
     const id = Date.now() + Math.random();
     const duration = options.duration ?? 4000;
     setToasts(prev => [...prev, { id, message, type, title, variant: options.variant, duration }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, duration + 300);
-  };
+  }, []);
 
   const removeToast = (id) => {
     setToasts(prev => prev.filter(t => t.id !== id));

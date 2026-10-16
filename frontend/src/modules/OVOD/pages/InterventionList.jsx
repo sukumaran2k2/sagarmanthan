@@ -22,7 +22,6 @@ import CopyButton from '../../../components/CopyButton';
 import { 
   fetchOvdDashboardCounts, 
   fetchOvdInterventionsReport, 
-  fetchOrganisations, 
   getUserIdFromToken 
 } from '../api';
 import { 
@@ -34,30 +33,50 @@ import {
   MIV_CHAPTERS, 
   MAKV_THEMES 
 } from '../utils/constants';
+import { useShallow } from 'zustand/react/shallow';
+import { useOvodStore } from '../store/useOvodStore';
+import { useNotifier, COMMON_TOASTS } from '../../../utils/notify';
+import { OVOD_TOASTS } from '../toastMessages';
+
+// Thrown when the API returns no rows, to fall through to the built-in sample hierarchy
+const FALLBACK_NOTICE = 'Using fallback hierarchical dataset';
 
 export default function InterventionList({ triggerNotification }) {
   const gridRef = useRef(null);
 
-  // 8 Filters matching OVOD
-  const [selectedVision, setSelectedVision] = useState('0');
-  const [selectedWing, setSelectedWing] = useState('0');
-  const [selectedOrg, setSelectedOrg] = useState('0');
-  const [selectedVibhas, setSelectedVibhas] = useState('0');
-  const [selectedPriority, setSelectedPriority] = useState('0');
-  const [selectedMivChapter, setSelectedMivChapter] = useState('0');
-  const [selectedMakvTheme, setSelectedMakvTheme] = useState('0');
-  const [selectedStatus, setSelectedStatus] = useState('0');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [pageSize, setPageSize] = useState(25);
+  const notify = useNotifier(triggerNotification);
 
-  // Filter Panel Toggle State
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  // The 8 filters, quick search, page size and panel state live in the OVOD store so they
+  // survive switching tabs
+  const { filters, searchTerm, pageSize, showFilterPanel } = useOvodStore(useShallow((s) => s.interventions));
+  const {
+    setInterventionFilter, setInterventionSearch, setInterventionPageSize,
+    setInterventionFilterPanel, resetInterventionFilters, loadOrganisations
+  } = useOvodStore(useShallow((s) => ({
+    setInterventionFilter: s.setInterventionFilter,
+    setInterventionSearch: s.setInterventionSearch,
+    setInterventionPageSize: s.setInterventionPageSize,
+    setInterventionFilterPanel: s.setInterventionFilterPanel,
+    resetInterventionFilters: s.resetInterventionFilters,
+    loadOrganisations: s.loadOrganisations
+  })));
+
+  const {
+    vision: selectedVision,
+    wing: selectedWing,
+    org: selectedOrg,
+    vibhas: selectedVibhas,
+    priority: selectedPriority,
+    mivChapter: selectedMivChapter,
+    makvTheme: selectedMakvTheme,
+    status: selectedStatus
+  } = filters;
 
   // Remarks Modal State
   const [selectedRemarkRow, setSelectedRemarkRow] = useState(null);
 
-  // Organisations Master
-  const [organisations, setOrganisations] = useState([]);
+  // Organisations master (cached once in the store)
+  const organisations = useOvodStore((s) => s.organisations);
 
   // Data States
   const [countsData, setCountsData] = useState({
@@ -82,13 +101,13 @@ export default function InterventionList({ triggerNotification }) {
 
   // Load Organisations
   useEffect(() => {
-    fetchOrganisations()
-      .then(res => setOrganisations(Array.isArray(res) ? res : []))
-      .catch(() => setOrganisations([]));
-  }, []);
+    loadOrganisations();
+  }, [loadOrganisations]);
 
   // Fetch Counts
+  const countsRequestRef = useRef(0);
   const loadCounts = useCallback(async () => {
+    const requestId = ++countsRequestRef.current;
     try {
       const userId = getUserIdFromToken();
       const res = await fetchOvdDashboardCounts({
@@ -101,6 +120,7 @@ export default function InterventionList({ triggerNotification }) {
         mivChapterSelect: selectedMivChapter,
         makvThemeSelect: selectedMakvTheme
       });
+      if (requestId !== countsRequestRef.current) return;
 
       // /OVD-data-count returns a one-row array
       const t = Array.isArray(res) ? res[0] : res?.total?.[0];
@@ -122,7 +142,10 @@ export default function InterventionList({ triggerNotification }) {
   }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme]);
 
   // Fetch Interventions Report & Build Deepdown Hierarchy Tree
+  const tableRequestRef = useRef(0);
   const loadTableData = useCallback(async () => {
+    const requestId = ++tableRequestRef.current;
+    const isStale = () => requestId !== tableRequestRef.current;
     setLoading(true);
     try {
       const userId = getUserIdFromToken();
@@ -137,6 +160,7 @@ export default function InterventionList({ triggerNotification }) {
         makvThemeSelect: selectedMakvTheme,
         statusCurrent: selectedStatus
       });
+      if (isStale()) return;
 
       const rawRows = res?.rowData || (Array.isArray(res) ? res : []);
       
@@ -290,9 +314,12 @@ export default function InterventionList({ triggerNotification }) {
         }
       }
       
-      throw new Error("Using fallback hierarchical dataset");
+      throw new Error(FALLBACK_NOTICE);
     } catch (err) {
+      if (isStale()) return;
       console.warn("OVOD Interventions notice:", err.message);
+      // The deliberate fallback (no rows returned) is not an error; a failed request is
+      if (err.message !== FALLBACK_NOTICE) notify(COMMON_TOASTS.loadFailed('The intervention list'));
       // Full 5-Level Deepdown Hierarchy matching both user screenshots!
       setRawData([
         {
@@ -1147,9 +1174,9 @@ export default function InterventionList({ triggerNotification }) {
         }
       ]);
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
-  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme, selectedStatus]);
+  }, [selectedWing, selectedOrg, selectedVision, selectedPriority, selectedVibhas, selectedMivChapter, selectedMakvTheme, selectedStatus, notify]);
 
   useEffect(() => {
     loadCounts();
@@ -1172,15 +1199,8 @@ export default function InterventionList({ triggerNotification }) {
 
   // Reset Filters
   const handleResetFilters = () => {
-    setSelectedVision('0');
-    setSelectedWing('0');
-    setSelectedOrg('0');
-    setSelectedVibhas('0');
-    setSelectedPriority('0');
-    setSelectedMivChapter('0');
-    setSelectedMakvTheme('0');
-    setSelectedStatus('0');
-    setSearchTerm('');
+    resetInterventionFilters();
+    notify(COMMON_TOASTS.filtersReset());
   };
 
   // Toggle node expansion
@@ -1808,7 +1828,7 @@ export default function InterventionList({ triggerNotification }) {
       </div>
 
       {/* 3. Main Table Card Container matching GMIS DataList */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5 dark:bg-slate-950 dark:border-slate-800">
+      <div className="module-card space-y-5">
         
         {/* Action Toolbar Header matching GMIS DataList: Filter button on Left, Search, Copy & Export on Right */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
@@ -1817,12 +1837,8 @@ export default function InterventionList({ triggerNotification }) {
           <div className="flex items-center gap-2.5 w-full lg:w-auto">
             <button
               type="button"
-              onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
-              }`}
+              onClick={() => setInterventionFilterPanel(prev => !prev)}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
               <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
               <span>Filter</span>
@@ -1872,12 +1888,13 @@ export default function InterventionList({ triggerNotification }) {
                 type="text"
                 placeholder="Search interventions..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+                onChange={(e) => setInterventionSearch(e.target.value)}
+                className="w-full module-search-input"
               />
               {searchTerm && (
                 <button
-                  onClick={() => setSearchTerm('')}
+                  onClick={() => setInterventionSearch('')}
+                  aria-label="Clear search"
                   className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -1890,7 +1907,7 @@ export default function InterventionList({ triggerNotification }) {
               <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                onChange={(e) => setInterventionPageSize(Number(e.target.value))}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
                 <option value="10">10</option>
@@ -1951,7 +1968,7 @@ export default function InterventionList({ triggerNotification }) {
                 </label>
                 <select
                   value={selectedVision}
-                  onChange={(e) => setSelectedVision(e.target.value)}
+                  onChange={(e) => setInterventionFilter('vision', e.target.value)}
                   className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
                 >
                   {OVOD_VISIONS.map(v => (
@@ -1966,7 +1983,7 @@ export default function InterventionList({ triggerNotification }) {
                 </label>
                 <select
                   value={selectedWing}
-                  onChange={(e) => setSelectedWing(e.target.value)}
+                  onChange={(e) => setInterventionFilter('wing', e.target.value)}
                   className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
                 >
                   {OVOD_WINGS.map(w => (
@@ -1981,12 +1998,12 @@ export default function InterventionList({ triggerNotification }) {
                 </label>
                 <select
                   value={selectedOrg}
-                  onChange={(e) => setSelectedOrg(e.target.value)}
+                  onChange={(e) => setInterventionFilter('org', e.target.value)}
                   className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
                 >
                   <option value="0">Show All</option>
                   {organisations.map(o => (
-                    <option key={o.organisation_id} value={o.organisation_id}>{o.organisation_name}</option>
+                    <option key={o.ia_id} value={o.ia_id}>{o.ia_name}</option>
                   ))}
                 </select>
               </div>
@@ -1997,7 +2014,7 @@ export default function InterventionList({ triggerNotification }) {
                 </label>
                 <select
                   value={selectedVibhas}
-                  onChange={(e) => setSelectedVibhas(e.target.value)}
+                  onChange={(e) => setInterventionFilter('vibhas', e.target.value)}
                   className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
                 >
                   {OVOD_VIBHAS.map(v => (
@@ -2012,7 +2029,7 @@ export default function InterventionList({ triggerNotification }) {
                 </label>
                 <select
                   value={selectedPriority}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
+                  onChange={(e) => setInterventionFilter('priority', e.target.value)}
                   className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
                 >
                   {OVOD_PRIORITIES.map(p => (
@@ -2027,7 +2044,7 @@ export default function InterventionList({ triggerNotification }) {
                 </label>
                 <select
                   value={selectedMivChapter}
-                  onChange={(e) => setSelectedMivChapter(e.target.value)}
+                  onChange={(e) => setInterventionFilter('mivChapter', e.target.value)}
                   className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
                 >
                   {MIV_CHAPTERS.map(c => (
@@ -2042,7 +2059,7 @@ export default function InterventionList({ triggerNotification }) {
                 </label>
                 <select
                   value={selectedMakvTheme}
-                  onChange={(e) => setSelectedMakvTheme(e.target.value)}
+                  onChange={(e) => setInterventionFilter('makvTheme', e.target.value)}
                   className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
                 >
                   {MAKV_THEMES.map(t => (
@@ -2057,7 +2074,7 @@ export default function InterventionList({ triggerNotification }) {
                 </label>
                 <select
                   value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  onChange={(e) => setInterventionFilter('status', e.target.value)}
                   className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-semibold focus:ring-1 focus:ring-blue-500 cursor-pointer"
                 >
                   {OVOD_STATUSES.map(s => (
@@ -2224,13 +2241,7 @@ export default function InterventionList({ triggerNotification }) {
               <button
                 type="button"
                 onClick={() => {
-                  if (triggerNotification) {
-                    triggerNotification({
-                      title: 'Remarks Saved',
-                      message: 'Remarks updated successfully',
-                      type: 'success'
-                    });
-                  }
+                  notify(OVOD_TOASTS.remarksUpdated());
                   setSelectedRemarkRow(null);
                 }}
                 className="px-4 py-2 text-xs font-bold text-white bg-[#0f417a] hover:bg-blue-800 rounded-xl shadow-xs transition cursor-pointer"
