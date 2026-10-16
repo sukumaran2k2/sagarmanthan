@@ -56,8 +56,8 @@ api.interceptors.response.use(
 );
 
 // ---- Vessel Availability - Own Ships (K-6.1.1) ----
-export function fetchVesselAvailabilityOwnShips(userId) {
-  return api.get(`/sci-Vessel-list/${userId}`);
+export function fetchVesselAvailabilityOwnShips(userId, params = {}) {
+  return api.get(`/sci-Vessel-list/${userId}`, { params });
 }
 export function fetchVesselAvailabilityOwnShipsById(sciVesselId) {
   return api.get(`/update-sci-vessel-data/${sciVesselId}`);
@@ -76,8 +76,8 @@ export function deleteVesselAvailabilityOwnShips(sciVesselId, userId) {
 }
 
 // ---- Time & Voyage Chartered - Bulk (K-6.1.2) ----
-export function fetchTimeVoyageBulk(userId) {
-  return api.get(`/sci-time-voyage-bulk-list/${userId}`);
+export function fetchTimeVoyageBulk(userId, params = {}) {
+  return api.get(`/sci-time-voyage-bulk-list/${userId}`, { params });
 }
 export function fetchTimeVoyageBulkById(id) {
   return api.get(`/update-sci-time-voyage-data/${id}`);
@@ -96,8 +96,8 @@ export function deleteTimeVoyageBulk(id, userId) {
 }
 
 // ---- Time & Voyage Chartered - Tanker (K-6.1.3) ----
-export function fetchTimeVoyageTanker(userId) {
-  return api.get(`/sci-time-voyage-tanker-list/${userId}`);
+export function fetchTimeVoyageTanker(userId, params = {}) {
+  return api.get(`/sci-time-voyage-tanker-list/${userId}`, { params });
 }
 export function fetchTimeVoyageTankerById(id) {
   return api.get(`/update-sci-time-voyage-tanker-data/${id}`);
@@ -116,8 +116,8 @@ export function deleteTimeVoyageTanker(id, userId) {
 }
 
 // ---- Time & Voyage Chartered - Offshore (K-6.1.4) ----
-export function fetchTimeVoyageOffshore(userId) {
-  return api.get(`/sci-time-voyage-offshore-list/${userId}`);
+export function fetchTimeVoyageOffshore(userId, params = {}) {
+  return api.get(`/sci-time-voyage-offshore-list/${userId}`, { params });
 }
 export function fetchTimeVoyageOffshoreById(id) {
   return api.get(`/update-sci-time-voyage-offshore-data/${id}`);
@@ -136,8 +136,8 @@ export function deleteTimeVoyageOffshore(id, userId) {
 }
 
 // ---- Vessel Availability - Liner (K-6.1.5) ----
-export function fetchVesselAvailabilityLiner(userId) {
-  return api.get(`/sci-linear-vessel-list/${userId}`);
+export function fetchVesselAvailabilityLiner(userId, params = {}) {
+  return api.get(`/sci-linear-vessel-list/${userId}`, { params });
 }
 export function fetchVesselAvailabilityLinerById(id) {
   return api.get(`/update-sci-linear-vessel-data/${id}`);
@@ -156,8 +156,8 @@ export function deleteVesselAvailabilityLiner(id, userId) {
 }
 
 // ---- Vessel Procurement - New (K-6.2.1) ----
-export function fetchVesselProcurement(userId) {
-  return api.get(`/sci-vessel-procurement-list/${userId}`);
+export function fetchVesselProcurement(userId, params = {}) {
+  return api.get(`/sci-vessel-procurement-list/${userId}`, { params });
 }
 
 export function fetchVesselProcurementById(id) {
@@ -181,8 +181,8 @@ export function deleteVesselProcurement(id, userId) {
 }
 
 // ---- Vessel Procurement - Secondhand (K-6.2.2) ----
-export function fetchSecondhandVesselProcurement(userId) {
-  return api.get(`/sci-secondhand-vessel-procurement-list/${userId}`);
+export function fetchSecondhandVesselProcurement(userId, params = {}) {
+  return api.get(`/sci-secondhand-vessel-procurement-list/${userId}`, { params });
 }
 
 export function fetchSecondhandVesselProcurementById(id) {
@@ -206,8 +206,8 @@ export function deleteSecondhandVesselProcurement(id, userId) {
 }
 
 // ---- Ship Dry Docking (K-6.3.1) ----
-export function fetchShipDryDocking(userId) {
-  return api.get(`/sci-ship-dry-dock-list/${userId}`);
+export function fetchShipDryDocking(userId, params = {}) {
+  return api.get(`/sci-ship-dry-dock-list/${userId}`, { params });
 }
 
 export function fetchShipDryDockingById(id) {
@@ -231,8 +231,8 @@ export function deleteShipDryDocking(id, userId) {
 }
 
 // ---- Repair & Maintenance (K-6.3.2) ----
-export function fetchRepairAndMaintenance(userId) {
-  return api.get(`/sci-ship-repair-list/${userId}`);
+export function fetchRepairAndMaintenance(userId, params = {}) {
+  return api.get(`/sci-ship-repair-list/${userId}`, { params });
 }
 
 export function fetchRepairAndMaintenanceById(id) {
@@ -256,8 +256,8 @@ export function deleteRepairAndMaintenance(id, userId) {
 }
 
 // ---- Sale & Recycling of Old Vessels (K-6.4.1) ----
-export function fetchSaleAndRecycling(userId) {
-  return api.get(`/sci-sale-and-recycling-list/${userId}`);
+export function fetchSaleAndRecycling(userId, params = {}) {
+  return api.get(`/sci-sale-and-recycling-list/${userId}`, { params });
 }
 
 export function fetchSaleAndRecyclingById(id) {
@@ -281,8 +281,8 @@ export function deleteSaleAndRecycling(id, userId) {
 }
 
 // ---- Sale & Green Recycling of Old Vessels (K-6.4.2) ----
-export function fetchSaleAndGreenRecycling(userId) {
-  return api.get(`/sci-sale-and-green-recycling-list/${userId}`);
+export function fetchSaleAndGreenRecycling(userId, params = {}) {
+  return api.get(`/sci-sale-and-green-recycling-list/${userId}`, { params });
 }
 
 export function fetchSaleAndGreenRecyclingById(id) {
@@ -306,8 +306,8 @@ export function deleteSaleAndGreenRecycling(id, userId) {
 }
 
 // ---- Manning of Owned Ships (K-6.5.1) ----
-export function fetchManningOfOwnedShips(userId) {
-  return api.get(`/sci-manning-list/${userId}`);
+export function fetchManningOfOwnedShips(userId, params = {}) {
+  return api.get(`/sci-manning-list/${userId}`, { params });
 }
 
 export function fetchManningOfOwnedShipsById(id) {
@@ -331,8 +331,8 @@ export function deleteManningOfOwnedShips(id, userId) {
 }
 
 // ---- Ship Management Business (K-6.6.1) ----
-export function fetchShipManagementBusiness(userId) {
-  return api.get(`/sci-ship-management-list/${userId}`);
+export function fetchShipManagementBusiness(userId, params = {}) {
+  return api.get(`/sci-ship-management-list/${userId}`, { params });
 }
 
 export function fetchShipManagementBusinessById(id) {
