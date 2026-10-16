@@ -841,7 +841,10 @@ async function updateMmt(req, res)
 {
     const tid = req.body.TID;
     const ID = req.body.rowID;
-    const name = req.body.name;
+    const name = req.body.name ?? req.body.organisationName;
+    const category = req.body.category ?? req.body.organisationCategory;
+    const code = req.body.code?? req.body.organisationCode?? req.body.wingCode?? req.body.divisionCode?? req.body.iaCode;
+    const clearenceName = req.body.name;
     const wingId = req.body.wingId;
     const divId = req.body.divId;
     const stateId = req.body.stateId;
@@ -849,8 +852,7 @@ async function updateMmt(req, res)
     const projectOutputId = req.body.projectOutputId;
     const division = req.body.division;
     const district = req.body.district;
-    const category = req.body.category;
-    const code = req.body.code;
+   
     const portalCategory = req.body.portalCategory;
     const empID = req.body.empID;
     const Designation = req.body.Designation;
@@ -860,8 +862,8 @@ async function updateMmt(req, res)
     const conn = await pool;
     const request = conn.request();
     request.input("ID", ID);
+    request.input("clearenceName", clearenceName);
     request.input("name", name);
-
     request.input("divId", divId);
     request.input("wingId", wingId);
 
@@ -991,7 +993,7 @@ async function updateMmt(req, res)
             request.input("district", district);
             request.input("category", category);
             request.input("code", code);
-            query = "UPDATE mmt_organisation SET organisation_name = @name, organisation_code = @code, organisation_category_id = @category, state_id = @stateId, district_id = @district, wing_id = @wingId, division_id = @division WHERE organisation_id = @ID";
+            query = "UPDATE mmt_organisation SET organisation_name = @name, organisation_code = @code, organisation_category_id = @category WHERE organisation_id = @ID";
             break;
 
         case "mmt_employee_info":

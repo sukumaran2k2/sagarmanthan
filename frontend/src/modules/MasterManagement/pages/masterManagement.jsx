@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import { AgGridReact } from 'ag-grid-react';
-import { Home } from 'lucide-react';
+import { Home, Edit } from 'lucide-react';
 import { rbacApi } from '../../UserManagement/rbacApi';
 import '../../UserManagement/UserMatrix.css';
 import InputForm from './InputForm';
 import InternalNavigation from '../../../components/InternalNavigation';
 import { TAB_USER_MASTER_MANAGEMENT } from '../../../utils/moduleAccess';
+
 
 const HIDDEN_FIELDS = [
   'source_of_funding_id', 'sof_id',
@@ -20,11 +21,14 @@ const HIDDEN_FIELDS = [
   'project_output_id', 'output_id',
   'clearance_id', 'clearence_id',
   'organisation_id', 'organisation_category_id',
+  'ovd_status',
+  'ministry_code',
+  'district_id',
 ];
 
 const BASE = '/admin/user-master-management';
 
-const mmt = (table) => ({ table, load: () => rbacApi.getMmtData(table) });
+const mmt = (table) => ({ table, load: () => rbacApi.getMmtList(table) });
 
 const MASTERS = {
   sourceOfFunding:      { label: 'Source of Funding',        note: 'Sources from which projects are funded.',    ...mmt('mmt_source_of_funding') },
@@ -36,25 +40,76 @@ const MASTERS = {
   divisions:            { label: 'Divisions',                note: 'Divisions under each wing.',                 ...mmt('mmt_division') },
   sections:             { label: 'Sections',                 note: 'Sections under each division.',              ...mmt('mmt_section') },
   departments:          { label: 'Departments',              note: 'Departments of the Ministry.',               ...mmt('mmt_department') },
-  initiatives:          { label: 'Initiatives',              note: 'Ministry initiatives.',                      ...mmt('mmt_initiative') },
-  states:               { label: 'States & Districts',       note: 'States and their districts.',                ...mmt('mmt_state') },
-  mpConstituency: {
+  initiatives: {
+  label: 'Initiatives',
+  note: 'Ministry initiatives.',...mmt('mmt_initiative'),
+  fields: [{ name: 'initiative_name', label: 'Initiative Name', type: 'text', required: true },],
+},
+states: {
+  label: 'States',
+  note: 'List of states.',
+  ...mmt('mmt_state'),
+  fields: [
+    { name: 'state_name', label: 'State Name', type: 'text', required: true },
+  ],
+},
+districts: {
+  label: 'Districts',
+  note: 'Districts under each state.',
+  table: 'mmt_district',
+  load: () => rbacApi.getMmtList('mmt_district'),
+  fields: [
+    { name: 'state_id', label: 'State', type: 'select', required: true,
+      optionsFrom: 'mmt_state', optionValue: 'state_id', optionLabel: 'state_name',
+      placeholder: '--Select State--' },
+    { name: 'district_name', label: 'District Name', type: 'text', required: true },
+  ],
+},
+ sections: { label: 'Sections', note: '...', ...mmt('mmt_section'),
+    fields: [
+      { name: 'division_id', label: 'Division', type: 'select', required: true,
+        optionsFrom: 'mmt_division', optionValue: 'division_id', optionLabel: 'division_name',
+        placeholder: '--Select Division--' },
+      { name: 'section_name', label: 'Section Name', type: 'text', required: true },
+    ] },
+    sourceOfFunding: {
+  label: 'Source of Funding',
+  note: 'Sources from which projects are funded.',
+  ...mmt('mmt_source_of_funding'),
+  fields: [
+    { name: 'source_of_funding_name', label: 'Source of Funding Name', type: 'text', required: true, placeholder: 'Enter source of funding name' },
+  ],
+},
+mpConstituency: {
   label: 'MP Constituency',
   note: 'Parliamentary constituencies.',
   ...mmt('mmt_mp_constituency'),
   fields: [
-    { name: 'mp_constituency_name', label: 'MP Constituency Name', type: 'text', required: true },
-    {
-      name: 'state_id',
-      label: 'State',
-      type: 'select',
-      required: true,
-      placeholder: '--Select State--',
-      optionsFrom: 'mmt_state',
-      optionValue: 'state_id',
-      optionLabel: 'state_name',
-    },
+    { name: 'mpc_name', label: 'MP Constituency Name', type: 'text', required: true, placeholder: 'Enter MP constituency name' },
+    { name: 'state_id', label: 'State', type: 'select', required: true,
+      optionsFrom: 'mmt_state', optionValue: 'state_id', optionLabel: 'state_name', placeholder: '--Select State--' },
   ],
+  load: async () => {
+  },
+}, 
+mpConstituency: {
+  label: 'MP Constituency',
+  note: 'Parliamentary constituencies.',
+  ...mmt('mmt_mp_constituency'),
+  load: async () => {
+    const [list, states] = await Promise.all([
+      rbacApi.getMmtList('mmt_mp_constituency'),
+      rbacApi.getMmtData('mmt_state'),
+    ]);
+    const stateMap = Object.fromEntries(
+      (states.data || []).map((s) => [String(s.state_id), s.state_name])
+    );
+    const rows = (Array.isArray(list.data) ? list.data : []).map((r) => {
+      const { status, ...rest } = r;
+      return { ...rest, state_name: stateMap[String(r.state_id)] ?? '', status };
+    });
+    return { data: rows };
+  },
 },
   fundingAgencies:      { label: 'Funding Agencies',         note: 'Agencies that fund projects.',               ...mmt('mmt_funding_agency') },
   implementingAgencies: { label: 'Implementing Agencies',    note: 'Agencies that implement projects.',          ...mmt('mmt_implementing_agency') },
@@ -76,6 +131,15 @@ const TABS = [
 
 const HIDDEN_KEYS = /(^|_)(created|updated|modified)(_|$)|password|token/i;
 const prettify = (k) => k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+const HEADER_LABELS = {
+  ia_name: 'Implementing Agency Name',
+  ia_code: 'Implementing Agency Code',
+  mpc_name: 'MP Constituency Name',
+  state_name: 'State',
+  district_name: 'District Name',
+};
+
+
 
 export default function MasterManagement({ onGoHome, triggerNotification }) {
   const location = useLocation();
@@ -89,8 +153,33 @@ export default function MasterManagement({ onGoHome, triggerNotification }) {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [refreshKey, setRefreshKey] = useState(0);
-
+  const [mode, setMode] = useState('list');
+  const [formData, setFormData] = useState(null);
   const meta = MASTERS[activeMainTab];
+
+  const handleEdit = useCallback(
+  async (row) => {
+    const idField = Object.keys(row)[0]; // first column is the primary key
+    try {
+      // meta.load() calls rbacApi.getMmtData(table), or getOrganisations() for Organisations
+      const res = await meta.load();
+      const list = Array.isArray(res.data) ? res.data : [];
+      const record = list.find((r) => String(r[idField]) === String(row[idField])) || row;
+      setFormData(record);
+      setMode('form');
+    } catch (err) {
+      console.error(err);
+      triggerNotification?.(`Failed to load ${meta.label} for edit`, 'error');
+    }
+  },
+  [meta, triggerNotification]
+);
+  const closeForm = () => {
+    setMode('list');
+    setFormData(null);
+  };
+
+
 
   // Tab comes from the URL, same as VIPReference
   const currentTab = useMemo(() => {
@@ -99,7 +188,7 @@ export default function MasterManagement({ onGoHome, triggerNotification }) {
     return 'input-form';
   }, [location.pathname]);
 
-  const goTab = (tabId) => navigate(`${BASE}/${tabId}`);
+  const goTab = (tabId) => { closeForm(); navigate(`${BASE}/${tabId}`); };
   const fetchData = () => setRefreshKey((k) => k + 1);
 
   useEffect(() => {
@@ -117,7 +206,7 @@ export default function MasterManagement({ onGoHome, triggerNotification }) {
 
     MASTERS[activeMainTab]
       .load()
-      .then((res) => {
+      .then((res) => {  
         if (!cancelled) setRowData(Array.isArray(res.data) ? res.data : []);
       })
       .catch(() => {
@@ -139,32 +228,61 @@ export default function MasterManagement({ onGoHome, triggerNotification }) {
     return rowData.filter((r) => String(r.category_id) === String(selectedCategory));
   }, [rowData, selectedCategory, meta]);
 
- const columnDefs = useMemo(() => {
-  if (!rowData.length) return [];
-  return Object.keys(rowData[0])
-    .filter((k) => !HIDDEN_KEYS.test(k))
-    .map((k) => ({
-      field: k,
-      headerName: prettify(k),
-      hide: HIDDEN_FIELDS.includes(k),
-    }));
-}, [rowData]);
+  const columnDefs = useMemo(() => {
+    const dropped = meta.hideColumns || [];
+
+    // empty table: use the columns defined in the master's fields
+    if (!rowData.length) {
+      return (meta.fields || []).map((f) => ({
+        field: f.name,
+        headerName: HEADER_LABELS[f.name] || f.label || prettify(f.name),
+      }));
+    }
+
+    return Object.keys(rowData[0])
+      .filter((k) => !HIDDEN_KEYS.test(k) && !dropped.includes(k))
+      .map((k) => ({
+        field: k,
+        headerName: HEADER_LABELS[k] || prettify(k),
+        hide: HIDDEN_FIELDS.includes(k),
+      }));
+  }, [rowData, meta]);
   const gridColumnDefs = useMemo(() => {
   if (!columnDefs.length) return [];
   return [
     {
       headerName: 'S.No',
       valueGetter: (p) => p.node.rowIndex + 1,
-      width: 90,
-      minWidth: 80,
-      flex: 0,
-      sortable: false,
-      filter: false,
-      resizable: false,
+      width: 90, minWidth: 80, flex: 0,
+      sortable: false, filter: false, resizable: false,
     },
     ...columnDefs,
+    {
+      headerName: 'Update',
+      field: 'actions',
+      width: 110, minWidth: 110, flex: 0,
+      pinned: 'right',
+      sortable: false, filter: false, resizable: false,
+      headerClass: 'text-center',
+      cellClass: 'text-center flex items-center justify-center',
+      cellRenderer: (params) => {
+        if (!params.data) return null;
+        return (
+          <div className="flex items-center justify-center h-full w-full py-1">
+            <button
+              type="button"
+              onClick={() => handleEdit(params.data)}
+              title="Edit"
+              className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          </div>
+        );
+      },
+    },
   ];
-}, [columnDefs]);
+}, [columnDefs, handleEdit]);
 
   const defaultColDef = useMemo(
     () => ({ sortable: true, filter: true, resizable: true, flex: 1, minWidth: 120 }),
@@ -214,7 +332,7 @@ export default function MasterManagement({ onGoHome, triggerNotification }) {
               <select
                 id="mm-master"
                 value={activeMainTab}
-                onChange={(e) => setActiveMainTab(e.target.value)}
+                onChange={(e) => { closeForm(); setActiveMainTab(e.target.value); }}
               >
                 {Object.entries(MASTERS).map(([key, m]) => (
                   <option key={key} value={key}>{m.label}</option>
@@ -258,29 +376,40 @@ export default function MasterManagement({ onGoHome, triggerNotification }) {
 
         <div className="layout" style={{ overflow: 'auto' }}>
           <Routes>
-            <Route
-              path="data-list"
-              element={
-                loading ? (
-                  <p className="w-full text-center text-sm text-slate-500 py-16">Loading...</p>
-                ) : (
-                  <div className="ag-theme-quartz w-full">
-                    <AgGridReact
-                      ref={gridRef}
-                      theme="legacy"
-                      rowData={filteredRows}
-                      columnDefs={gridColumnDefs}
-                      defaultColDef={defaultColDef}
-                      quickFilterText={searchTerm}
-                      pagination={true}
-                      paginationPageSize={10}
-                      domLayout="autoHeight"
-                      overlayNoRowsTemplate="No records found."
-                    />
-                  </div>
-                )
-              }
+        <Route
+        path="data-list"
+        element={
+          mode === 'form' ? (
+            <InputForm
+              key={`${activeMainTab}-edit`}
+              meta={meta}
+              columns={columnDefs}
+              initialForm={formData}
+              idField={Object.keys(rowData[0] || {})[0]}
+              onBack={closeForm}
+              onSuccess={() => { closeForm(); fetchData(); }}
+              triggerNotification={triggerNotification}
             />
+          ) : loading ? (
+            <p className="w-full text-center text-sm text-slate-500 py-16">Loading...</p>
+          ) : (
+            <div className="ag-theme-quartz w-full">
+              <AgGridReact
+                ref={gridRef}
+                theme="legacy"
+                rowData={filteredRows}
+                columnDefs={gridColumnDefs}
+                defaultColDef={defaultColDef}
+                quickFilterText={searchTerm}
+                pagination={true}
+                paginationPageSize={10}
+                domLayout="autoHeight"
+                overlayNoRowsTemplate="No records found."
+              />
+            </div>
+          )
+        }
+      />
             <Route
               path="input-form"
               element={

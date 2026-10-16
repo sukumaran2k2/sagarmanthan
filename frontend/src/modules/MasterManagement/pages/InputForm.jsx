@@ -32,7 +32,10 @@ const POST_FIELDS = [
   { name: 'department_id', label: 'Department', type: 'select', required: true,
     optionsFrom: 'mmt_department', optionValue: 'department_id', optionLabel: 'department_name', placeholder: '--Select Department--' },
 ];
-
+const STATE_FIELDS = [
+  { name: 'state_name', label: 'State Name', type: 'text', required: true, placeholder: 'Enter state name' },
+  { name: 'district_name', label: 'District Name', type: 'text', required: true, placeholder: 'Enter district name' },
+];
 const isPostMeta = (meta) =>
   /(^|[\s_-])posts?([\s_-]|$)/i.test(`${meta?.table ?? ''} ${meta?.key ?? ''} ${meta?.label ?? ''}`);
 
@@ -47,9 +50,35 @@ const isAgencyMeta = (meta) =>
 
 const isOutputMeta = (meta) =>
   /output/i.test(`${meta?.table ?? ''} ${meta?.key ?? ''} ${meta?.label ?? ''}`);
-export default function InputForm({ meta, columns = [], onBack, fetchData, triggerNotification }) {
-  const [values, setValues] = useState({});
-  const [options, setOptions] = useState({});
+export default function InputForm({
+  meta,
+  columns = [],
+  initialForm = null,
+  idField,
+  onBack,
+  onSuccess,
+  fetchData,
+  triggerNotification,
+}) {
+  const isEdit = !!initialForm;
+
+
+  const [values, setValues] = useState(() => {
+    if (!initialForm) return {};
+    const v = Object.fromEntries(
+      Object.entries(initialForm).map(([k, val]) => [k, val == null ? '' : String(val)])
+    );
+    // Organisations list returns category_id, the form field is organisation_category_id
+    if (!v.organisation_category_id && v.category_id) {
+      v.organisation_category_id = v.category_id;
+    }
+    // MP Constituency list may return mp_constituency_name, the form field is mpc_name
+    if (!v.mpc_name && v.mp_constituency_name) {
+      v.mpc_name = v.mp_constituency_name;
+    }
+    return v;
+  });
+    const [options, setOptions] = useState({});
   const [touched, setTouched] = useState({});
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -60,6 +89,8 @@ export default function InputForm({ meta, columns = [], onBack, fetchData, trigg
 
   // Explicit fields if the master defines them, otherwise derive from columns
 const fields = useMemo(() => {
+  // if (meta?.table === 'mmt_state') return STATE_FIELDS;   // ADD THIS FIRST
+
   let base = meta?.fields
     ? meta.fields
     : columns
@@ -180,40 +211,57 @@ const handleSubmit = async (e) => {
   setFormSubmitted(true);
   if (!isFormValid) return;
 
-  // trim text values so stray spaces never reach the DB
-  const payload = Object.fromEntries(
-    Object.entries(values).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
-  );
-
   setSubmitting(true);
   try {
     const isOrg = /organi[sz]ation/i.test(`${meta?.table ?? ''} ${meta?.key ?? ''} ${meta?.label ?? ''}`);
-    const table = meta?.table ?? (isOrg ? 'mmt_organisation' : isOutputMeta(meta) ? 'mmt_output' : isAgencyMeta(meta) ? 'mmt_implementing_agency' : isPostMeta(meta) ? 'mmt_post' : isConstituencyMeta(meta) ? 'mmt_mp_constituency' : isFundingAgencyMeta(meta) ? 'mmt_funding_agency' : undefined);
-    await rbacApi.insertMmtData(table, payload);
-    notifyRef.current?.(`${meta.label} saved`, 'success');
-    fetchData?.();
-    setValues({});
-    setTouched({});
-    setFormSubmitted(false);
-  }  catch (err) {
-  console.error('Save failed →', {
-    status: err?.response?.status,
-    data: err?.response?.data,
-    url: err?.config?.url,
-    sent: err?.config?.data,
-    message: err?.message,
-  });
-  notifyRef.current?.(
-    err?.response?.data?.message ||
-      err?.response?.data?.error ||
-      `Failed to save ${meta.label}`,
-    'error'
-  );
-}finally {
+    const table =
+      meta?.table ??
+      (isOrg ? 'mmt_organisation'
+        : isOutputMeta(meta) ? 'mmt_output'
+        : isAgencyMeta(meta) ? 'mmt_implementing_agency'
+        : isPostMeta(meta) ? 'mmt_post'
+        : isConstituencyMeta(meta) ? 'mmt_mp_constituency'
+        : isFundingAgencyMeta(meta) ? 'mmt_funding_agency'
+        : undefined);
+
+    if (isEdit) {
+      const pkField = idField ?? Object.keys(initialForm)[0];
+      const updatePayload = Object.fromEntries(
+        fields.map((f) => [f.name, String(values[f.name] ?? '').trim()])
+      );
+      await rbacApi.updateMmtData(table, initialForm[pkField], updatePayload);
+      notifyRef.current?.(`${meta.label} updated`, 'success');
+      onSuccess?.();
+    } else {
+      // trim text values so stray spaces never reach the DB
+      const payload = Object.fromEntries(
+        Object.entries(values).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+      );
+      await rbacApi.insertMmtData(table, payload);
+      notifyRef.current?.(`${meta.label} saved`, 'success');
+      fetchData?.();
+      setValues({});
+      setTouched({});
+      setFormSubmitted(false);
+    }
+  } catch (err) {
+    console.error('Save failed →', {
+      status: err?.response?.status,
+      data: err?.response?.data,
+      url: err?.config?.url,
+      sent: err?.config?.data,
+      message: err?.message,
+    });
+    notifyRef.current?.(
+      err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        `Failed to ${isEdit ? 'update' : 'save'} ${meta.label}`,
+      'error'
+    );
+  } finally {
     setSubmitting(false);
   }
 };
-
   const fieldClass = (name) =>
     `w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
       shouldShowError(name)
@@ -228,7 +276,7 @@ const handleSubmit = async (e) => {
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider font-display flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            <span>Add {meta?.label}</span>
+            <span>{isEdit ? 'Edit' : 'Add'} {meta?.label}</span>
           </h3>
           <p className="text-[10px] text-blue-200 font-semibold tracking-wide mt-0.5">
             Ministry of Ports, Shipping and Waterways
@@ -342,7 +390,7 @@ const handleSubmit = async (e) => {
               }`}
             >
               <Save className="h-4 w-4" />
-              <span>{submitting ? 'Saving...' : `Save ${meta?.label}`}</span>
+              <span>{submitting ? 'Saving...' : `${isEdit ? 'Update' : 'Save'} ${meta?.label}`}</span>
             </button>
           </div>
         </div>

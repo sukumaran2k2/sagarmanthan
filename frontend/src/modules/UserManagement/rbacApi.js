@@ -60,6 +60,7 @@ const MMT_INSERT_MAP = {
   mmt_source_of_funding: { name: 'source_of_funding_name', extras: {} },
   mmt_output: { name: 'project_output_name', extras: { units: 'project_output_units' } },
   mmt_mp_constituency: { name: 'mpc_name', extras: { stateId: 'state_id' } },
+  mmt_district: { name: 'district_name', extras: { stateId: 'state_id' } },
   mmt_post: {
   name: null,
   extras: { postName: 'post_name', postCode: 'post_code', departmentId: 'department_id' },
@@ -106,8 +107,24 @@ export const rbacApi = {
   getSagarbotPermissions: () => api.get('/rbac/sagarbot-permissions'),
   saveSagarbotPermissions: (payload) => api.put('/rbac/sagarbot-permissions', payload),
   resetSagarbotPermissions: () => api.post('/rbac/sagarbot-permissions/reset'),
+  updateMmtData: (table, id, payload) => {
+  if (!table) return Promise.reject(new Error('No master table provided'));
 
-  getMmtData: (table) => api.get(`/mmt-dropdown/${table}`),
+  const keys = Object.keys(payload);
+  const nameKey = keys.find((k) => /_name$/i.test(k)) ?? keys[0];
+  const map = MMT_INSERT_MAP[table] || { name: nameKey, extras: {} };
+
+  const body = { TID: table, rowID: id };
+  if (map.name) body.name = payload[map.name];
+  Object.entries(map.extras).forEach(([backendKey, formKey]) => {
+    const v = payload[formKey];
+    body[backendKey] = v === '' || v === undefined ? null : v;
+  });
+  console.log('PUT body →', body);
+  return api.put('/mmt', body);
+},
+  getMmtList: (table) => api.get(`/mmt/${table}`),
+  getMmtData: (table) => api.get(`/mmt-dropdown/${table}`),   // keep for the form's selects
   insertMmtData: (table, payload) => {
     if (!table) return Promise.reject(new Error('No master table provided'));
 
