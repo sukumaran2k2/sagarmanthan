@@ -6,14 +6,23 @@ import {
 } from '../trafficConstants';
 import {
   cellKey,
-  commodityUnitLabel,
   isTeuCommodity,
   sumColumnTotals,
   sumCommodityRow,
 } from '../trafficUtils';
 
-const inputClass =
-  'w-full min-w-[4.5rem] text-[11px] px-1.5 py-1.5 text-right bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:border-[#0f417a] font-semibold text-slate-800 dark:text-slate-100 disabled:opacity-60';
+import { CheckCircle2 } from 'lucide-react';
+
+// Same look as the GeM monthly-data entry table
+const TH = 'p-2.5 border border-white/40 font-extrabold uppercase tracking-wider text-[11px] text-center';
+const cellInputClass = (val, hasError) =>
+  `w-full min-w-[4.5rem] px-2 py-1.5 border rounded-xl text-xs font-bold text-[#0f417a] dark:text-blue-200 text-center outline-none transition focus:ring-2 focus:ring-blue-100 focus:bg-white dark:focus:bg-slate-950 disabled:opacity-60 disabled:cursor-not-allowed ${
+    hasError
+      ? 'border-rose-400 bg-rose-50 dark:bg-rose-950/40 focus:ring-rose-100'
+      : Number(val) > 0
+        ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 font-black'
+        : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900'
+  }`;
 
 export default function CommodityGroupGrid({
   title,
@@ -71,58 +80,45 @@ export default function CommodityGroupGrid({
         ) : null}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-        <table className="min-w-max w-full border-collapse text-[11px]">
-          <thead>
-            <tr className="bg-[#0f417a] text-white">
-              <th rowSpan={4} className="sticky left-0 z-20 bg-[#0f417a] px-3 py-2 text-left min-w-[180px] border border-[#0a2d55]">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden bg-white dark:bg-slate-900">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-340px)] relative">
+        <table className="min-w-max w-full border-collapse text-xs text-slate-800 dark:text-slate-100">
+          <thead className="sticky top-0 z-30 bg-[#0f417a] text-white shadow-sm">
+            <tr>
+              <th rowSpan={4} className={`${TH} sticky left-0 z-40 bg-[#0f417a] min-w-[180px] text-left`}>
                 Commodity
               </th>
-              <th colSpan={8} className="px-2 py-1.5 border border-[#0a2d55] font-bold">
+              <th colSpan={8} className={TH}>
                 Direct
               </th>
-              <th colSpan={12} className="px-2 py-1.5 border border-[#0a2d55] font-bold bg-[#1a5ba3]">
+              <th colSpan={12} className={TH}>
                 Transhipment
               </th>
-              <th
-                rowSpan={4}
-                className="sticky right-0 z-20 bg-[#0f417a] px-3 py-2 border border-[#0a2d55] min-w-[96px] shadow-[-4px_0_8px_rgba(0,0,0,0.15)]"
-              >
-                TOTAL
+              <th rowSpan={4} className={`${TH} sticky right-0 z-40 bg-[#0f417a] min-w-[96px]`}>
+                Total
               </th>
             </tr>
-            <tr className="bg-[#134a8a] text-white">
+            <tr>
               {TRAFFIC_CATEGORIES.map((cat) => (
-                <th
-                  key={cat.id}
-                  colSpan={4}
-                  className={`px-2 py-1.5 border border-[#0a2d55] font-bold ${cat.transhipment ? 'bg-[#1a5ba3]' : ''}`}
-                >
+                <th key={cat.id} colSpan={4} className={TH}>
                   {cat.name}
                 </th>
               ))}
             </tr>
-            <tr className="bg-[#1a5ba3] text-white">
+            <tr>
               {TRAFFIC_CATEGORIES.map((cat) =>
                 TRAFFIC_DIRECTIONS.map((dir) => (
-                  <th
-                    key={`${cat.id}-${dir.id}`}
-                    colSpan={2}
-                    className="px-2 py-1 border border-[#0a2d55] font-semibold"
-                  >
+                  <th key={`${cat.id}-${dir.id}`} colSpan={2} className={TH}>
                     {dir.name}
                   </th>
                 ))
               )}
             </tr>
-            <tr className="bg-[#2466ad] text-white">
+            <tr>
               {TRAFFIC_CATEGORIES.map((cat) =>
                 TRAFFIC_DIRECTIONS.map((dir) =>
                   TRAFFIC_FLAG_TYPES.map((flag) => (
-                    <th
-                      key={`${cat.id}-${dir.id}-${flag.id}`}
-                      className="px-1.5 py-1 border border-[#0a2d55] font-medium whitespace-nowrap min-w-[78px]"
-                    >
+                    <th key={`${cat.id}-${dir.id}-${flag.id}`} className={`${TH} whitespace-nowrap min-w-[90px]`}>
                       {flag.name}
                     </th>
                   ))
@@ -131,19 +127,15 @@ export default function CommodityGroupGrid({
             </tr>
           </thead>
           <tbody>
-            {commodities.map((commodity, rowIndex) => {
+            {commodities.map((commodity) => {
               const rowTotal = sumCommodityRow(valuesMap, commodity.commodity_id);
-              const unit = commodityUnitLabel(commodity.commodity_id);
               return (
                 <tr
                   key={commodity.commodity_id}
-                  className={rowIndex % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/80 dark:bg-slate-900/60'}
+                  className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition border-b border-slate-100 dark:border-slate-800 text-center"
                 >
-                  <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-left font-bold text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 min-w-[180px]">
-                    <span>{commodity.commodity_name}</span>
-                    {unit ? (
-                      <span className="block text-[9px] font-semibold text-slate-400 mt-0.5">{unit}</span>
-                    ) : null}
+                  <td className="sticky left-0 z-10 p-3 border border-slate-200 dark:border-slate-700 font-black text-[#0f417a] dark:text-blue-200 text-sm bg-slate-50 dark:bg-slate-800 text-left min-w-[180px]">
+                    {commodity.commodity_name}
                   </td>
                   {TRAFFIC_CELL_DIMENSIONS.map((dim) => {
                     const key = cellKey(
@@ -154,53 +146,54 @@ export default function CommodityGroupGrid({
                     );
                     const hasError = Boolean(fieldErrors[key]);
                     return (
-                      <td key={key} className="px-1 py-1 border border-slate-200 dark:border-slate-700">
+                      <td key={key} className="p-2 border border-slate-100 dark:border-slate-800">
                         <input
                           type="number"
                           step="any"
                           min="0"
+                          placeholder="0.00"
                           disabled={disabled}
                           value={valuesMap[key] ?? ''}
                           onChange={(e) => onChange?.(key, e.target.value)}
                           title={fieldErrors[key] || undefined}
+                          aria-label={`${commodity.commodity_name}, ${dim.label}`}
                           aria-invalid={hasError}
-                          className={`${inputClass} ${
-                            hasError
-                              ? 'border-rose-400 bg-rose-50 dark:bg-rose-950/40 focus:border-rose-500'
-                              : ''
-                          }`}
+                          className={cellInputClass(valuesMap[key], hasError)}
                         />
                       </td>
                     );
                   })}
-                  <td className="sticky right-0 z-10 bg-inherit px-2 py-2 text-right font-black text-[#0f417a] dark:text-blue-300 border border-slate-200 dark:border-slate-700 tabular-nums shadow-[-4px_0_8px_rgba(0,0,0,0.08)] min-w-[96px]">
+                  <td className="sticky right-0 z-10 p-2.5 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-black text-[#0f417a] dark:text-blue-200 tabular-nums min-w-[96px]">
                     {rowTotal.toFixed(2)}
                   </td>
                 </tr>
               );
             })}
-          </tbody>
-          {!hasMixedUnits ? (
-            <tfoot>
-              <tr className="bg-slate-100 dark:bg-slate-800 font-bold">
-                <td className="sticky left-0 z-10 bg-slate-100 dark:bg-slate-800 px-3 py-2 border border-slate-200 dark:border-slate-700">
+
+            {!hasMixedUnits ? (
+              <tr className="bg-slate-100 dark:bg-slate-800 font-black border-b-2 border-slate-300 dark:border-slate-600 text-center text-[#0f417a] dark:text-blue-200">
+                <td className="sticky left-0 z-10 p-2.5 border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-xs uppercase tracking-wider text-left">
                   Total
                 </td>
                 {totals.map((sum, index) => (
                   <td
                     key={`col-total-${index}`}
-                    className="px-2 py-2 text-right tabular-nums border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                    className="p-2.5 border border-slate-300 dark:border-slate-600 tabular-nums"
                   >
                     {sum.toFixed(2)}
                   </td>
                 ))}
-                <td className="sticky right-0 z-10 bg-slate-100 dark:bg-slate-800 px-2 py-2 text-right font-black text-[#0f417a] dark:text-blue-300 border border-slate-200 dark:border-slate-700 tabular-nums shadow-[-4px_0_8px_rgba(0,0,0,0.08)] min-w-[96px]">
-                  {grand.toFixed(2)}
+                <td className="sticky right-0 z-10 p-2.5 border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800">
+                  <div className="flex items-center justify-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 px-3 py-1 rounded-xl text-xs font-black w-fit mx-auto tabular-nums">
+                    <span>{grand.toFixed(2)}</span>
+                    {grand > 0 && <CheckCircle2 size={14} className="text-emerald-700 dark:text-emerald-300 flex-shrink-0" />}
+                  </div>
                 </td>
               </tr>
-            </tfoot>
-          ) : null}
+            ) : null}
+          </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

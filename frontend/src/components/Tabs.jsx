@@ -40,6 +40,7 @@ import {
   GraduationCap,
   FileText,
   LayoutDashboard,
+  KeyRound,
   ListTodo,
   FolderSync,
   FilePieChart,
@@ -208,6 +209,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
           items: [
             m('KPI_MAJOR_PORTS', { label: 'Major Ports Dashboard', icon: LayoutDashboard }),
             m('KPI_MAJOR_PORTS', { label: 'Major Ports Input Form', icon: FileEdit }),
+            // Ministry unlocks late traffic entry (the earlier portal's Ministry Access Unlock)
+            ...(!isOrgUser ? [m('KPI_MAJOR_PORTS', { label: 'Major Ports Entry Access', icon: KeyRound })] : []),
           ]
         },
         {

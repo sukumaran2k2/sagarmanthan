@@ -32,15 +32,15 @@ export const TRAFFIC_FLAG_TYPES = [
   { id: 2, name: 'Foreign Flag' },
 ];
 
+// key matches the pivot columns returned by GET /kpi/traffic/actuals?view=commodity
 export const TRAFFIC_CELL_DIMENSIONS = TRAFFIC_CATEGORIES.flatMap((category) =>
   TRAFFIC_DIRECTIONS.flatMap((direction) =>
     TRAFFIC_FLAG_TYPES.map((flag) => ({
+      key: `c${category.id}_d${direction.id}_f${flag.id}`,
       categoryId: category.id,
       directionId: direction.id,
       flagTypeId: flag.id,
-      categoryName: category.name,
-      directionName: direction.name,
-      flagTypeName: flag.name,
+      label: `${category.name} · ${direction.name} · ${flag.name}`,
     }))
   )
 );
@@ -60,43 +60,46 @@ export const FY_MONTHS = [
   { value: 3, label: 'March' },
 ];
 
-export const MONTH_NAME_TO_NUM = Object.fromEntries(
-  FY_MONTHS.map((m) => [m.label.toLowerCase(), m.value])
-);
+export const MONTH_NUM_TO_NAME = Object.fromEntries(FY_MONTHS.map((m) => [m.value, m.label]));
 
-export const MONTH_NUM_TO_NAME = Object.fromEntries(
-  FY_MONTHS.map((m) => [m.value, m.label])
-);
+// commodity_id 28 = Container (In 000 TEUs); 27 = Container (In 000 Tonnes)
+export const TEU_COMMODITY_ID = 28;
 
-// commodity_id 28 = TEU; 27 = container tonnes (not TEU)
-export const TEU_COMMODITY_IDS = new Set([28]);
+// Days 1–8 of each month are open for entry; later changes need a ministry unlock
+export const ENTRY_WINDOW_LAST_DAY = 8;
 
-export const CONTAINER_TEU_COMMODITY_ID = 28;
-
-export function trafficDimensionColKey(dim) {
-  return `${dim.categoryName}_${dim.directionName}_${dim.flagTypeName}`;
+export function currentFinancialYear(today = new Date()) {
+  const start = today.getMonth() + 1 >= 4 ? today.getFullYear() : today.getFullYear() - 1;
+  return `${start}-${start + 1}`;
 }
 
-export function buildFinancialYearOptions(span = 8) {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth() + 1;
-  const startYear = month >= 4 ? year : year - 1;
+/** Newest first. ahead = future years to include (targets are set before the year starts). */
+export function buildFinancialYearOptions({ back = 6, ahead = 0 } = {}) {
+  const start = Number(currentFinancialYear().slice(0, 4));
   const options = [];
-  for (let i = 0; i < span; i += 1) {
-    const y = startYear - i + 2;
+  for (let y = start + ahead; y >= start - back; y -= 1) {
     options.push(`${y}-${y + 1}`);
   }
   return options;
 }
 
-export const LIST_VIEW_MODES = [
-  { id: 'actuals', label: 'Actuals' },
-  { id: 'targets', label: 'Targets' },
-];
+/** True when the month has not started yet (no actuals can exist for it). */
+export function isFuturePeriod(fiscalYear, month, today = new Date()) {
+  const startYear = Number(String(fiscalYear).slice(0, 4));
+  const m = Number(month);
+  if (!startYear || !m) return false;
+  const year = m >= 4 ? startYear : startYear + 1;
+  return new Date(year, m - 1, 1) > new Date(today.getFullYear(), today.getMonth(), 1);
+}
 
-export const ACTUALS_SUB_VIEWS = [
-  { id: 'periods', label: 'Period Summary' },
+export const DATA_LIST_VIEWS = [
+  { id: 'period', label: 'Period Summary' },
   { id: 'commodity', label: 'Commodity Data' },
   { id: 'roro', label: 'Ro-Ro / Ro-Pax' },
+];
+
+export const ACCESS_STATUS_TABS = [
+  { id: 'ACTIVE', label: 'Active' },
+  { id: 'EXPIRED', label: 'Expired' },
+  { id: 'REVOKED', label: 'Revoked' },
 ];

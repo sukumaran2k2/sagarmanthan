@@ -1,742 +1,489 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, FileText, Save, Ship } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Lock, Save, Ship } from 'lucide-react';
+import ConfirmModal from '../../../../../components/ConfirmModal';
+import { fetchTrafficEntryStatus, fetchTrafficPeriod, saveTrafficPeriod } from '../../../api';
+import { useNotifier, getErrorMessage } from '../../../../../utils/notify';
+import { TRAFFIC_TOASTS } from '../../../toastMessages';
 import {
-  fetchCommoditiesByGroup,
-  fetchCommodityData,
-  submitCommodityData,
-} from '../../../api';
-import {
-  buildFinancialYearOptions,
+  ENTRY_WINDOW_LAST_DAY,
   FY_MONTHS,
-  TRAFFIC_COMMODITY_GROUPS,
   TRAFFIC_WIZARD_STEPS,
+  buildFinancialYearOptions,
+  currentFinancialYear,
+  isFuturePeriod,
 } from '../trafficConstants';
 import {
   applyCommodityDataToMap,
   buildCommodityPayloadForGroup,
   emptyValuesMap,
-  hasExistingTrafficData,
   toNumberOrNull,
   validateCommodityStep,
-  validatePeriodFields,
   validateRoroStep,
 } from '../trafficUtils';
-import {
-  clearTrafficWizardDraft,
-  loadTrafficWizardDraft,
-  saveTrafficWizardDraft,
-} from '../trafficDraft';
+import { describePeriod } from '../trafficFormat';
+import { useLatestRef } from '../usePagedList';
 import CommodityGroupGrid from './CommodityGroupGrid';
-import { getCurrentUserId, getSessionOrganisationId } from '../../../../../utils/authSession';
 
-const labelClass =
-  'block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider';
-const inputClass =
-  'w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#0f417a] focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 disabled:opacity-60 disabled:cursor-not-allowed';
-const selectClass = `${inputClass} cursor-pointer`;
 const errorTextClass = 'text-[10px] font-semibold text-rose-600 dark:text-rose-400 mt-1';
+const ALL_FY_OPTIONS = buildFinancialYearOptions();
+const GROUP_STEP_IDS = Object.fromEntries(
+  TRAFFIC_WIZARD_STEPS.filter((s) => s.groupId).map((s) => [s.groupId, s.id])
+);
 
+/** Financial years and months the organisation may enter now (window or ministry unlock). */
+function useEntryOptions(entryStatus, fiscalYear) {
+  return useMemo(() => {
+    if (!entryStatus) return { fyOptions: [], monthOptions: [] };
+    const grants = entryStatus.grants || [];
+    const fyOptions = entryStatus.windowOpen || grants.some((g) => g.financialYear === 'ALL')
+      ? ALL_FY_OPTIONS
+      : ALL_FY_OPTIONS.filter((fy) => grants.some((g) => g.financialYear === fy));
+
+    const unlocked = new Set(
+      grants.filter((g) => g.financialYear === 'ALL' || g.financialYear === fiscalYear).flatMap((g) => g.months)
+    );
+    const monthOptions = FY_MONTHS.filter(
+      (m) => (entryStatus.windowOpen || unlocked.has(m.value)) && !isFuturePeriod(fiscalYear, m.value)
+    );
+    return { fyOptions, monthOptions };
+  }, [entryStatus, fiscalYear]);
+}
+
+/**
+ * Monthly traffic entry for the signed-in organisation, one page per step
+ * (Ro-Ro / Ro-Pax, then each commodity group). Each page is saved on its own;
+ * the server decides create vs update and checks the entry window.
+ *
+ * editData: { fiscal_year, month } when opened from Actuals, else null.
+ */
 export default function TrafficWizardForm({
-  mode = 'add',
-  record = null,
+  editData = null,
+  commodities = [],
+  organisationName,
+  onOpenExisting,
   onBack,
   onSuccess,
   triggerNotification,
 }) {
-  const isUpdate = mode === 'update';
-  const fyOptions = useMemo(() => buildFinancialYearOptions(8), []);
-  const organisationId = record?.organisation_id || getSessionOrganisationId();
-  const userId = getCurrentUserId();
+  const isUpdate = Boolean(editData);
+  const notify = useNotifier(triggerNotification);
+  const notifyRef = useLatestRef(notify);
 
+  const [entryStatus, setEntryStatus] = useState(null);
+  const [fiscalYear, setFiscalYear] = useState(editData?.fiscal_year || '');
+  const [month, setMonth] = useState(editData?.month != null ? String(editData.month) : '');
+  // Result of the last period lookup; it only counts while it matches the selected period
+  const [loadedPeriod, setLoadedPeriod] = useState({ key: null, failed: false, exists: false, entryOpen: false });
   const [stepIndex, setStepIndex] = useState(0);
-  const [fiscalYear, setFiscalYear] = useState(record?.fiscal_year || fyOptions[0] || '');
-  const [month, setMonth] = useState(
-    record?.month != null ? String(record.month) : ''
-  );
   const [roRoTraffic, setRoRoTraffic] = useState('');
   const [roPaxTraffic, setRoPaxTraffic] = useState('');
   const [valuesMap, setValuesMap] = useState({});
-  const [commoditiesByGroup, setCommoditiesByGroup] = useState({});
-  const [loadingMasters, setLoadingMasters] = useState(true);
-  const [loadingExisting, setLoadingExisting] = useState(false);
-  const [periodReady, setPeriodReady] = useState(false);
-  const [existsForPeriod, setExistsForPeriod] = useState(false);
-  // Set after first successful server save in add mode so the period can be continued
-  const [periodClaimed, setPeriodClaimed] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [savingDraft, setSavingDraft] = useState(false);
-  const [savedStepIds, setSavedStepIds] = useState(() => new Set());
+  const [savedSteps, setSavedSteps] = useState(() => new Set());
+  const [dirtySteps, setDirtySteps] = useState(() => new Set());
   const [errors, setErrors] = useState({});
   const [fieldErrors, setFieldErrors] = useState({});
-  const [draftMeta, setDraftMeta] = useState(null);
-  const draftRestoredRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
-  const notify = useCallback(
-    (message, type = 'success') => {
-      if (typeof triggerNotification === 'function') {
-        triggerNotification(message, type);
-      }
-    },
-    [triggerNotification]
-  );
+  const commoditiesByGroup = useMemo(() => {
+    const map = {};
+    commodities.forEach((c) => {
+      (map[c.commodity_group_id] ||= []).push(c);
+    });
+    return map;
+  }, [commodities]);
 
   const currentStep = TRAFFIC_WIZARD_STEPS[stepIndex];
   const isLastStep = stepIndex === TRAFFIC_WIZARD_STEPS.length - 1;
-  const periodLocked = isUpdate || (stepIndex > 0 && periodReady) || periodClaimed;
-  const blocksAddBecauseExists = !isUpdate && existsForPeriod && !periodClaimed;
+  const activeCommodities = currentStep.groupId ? commoditiesByGroup[currentStep.groupId] || [] : [];
+  const periodInfo = describePeriod(fiscalYear, month);
+  const periodKey = fiscalYear && month && commodities.length ? `${fiscalYear}|${month}` : null;
+  const periodMatches = Boolean(periodKey) && loadedPeriod.key === periodKey;
+  const period = {
+    loading: Boolean(periodKey) && !periodMatches,
+    loaded: periodMatches && !loadedPeriod.failed,
+    exists: periodMatches && loadedPeriod.exists,
+    entryOpen: periodMatches && loadedPeriod.entryOpen,
+  };
+  const hasSavedThisSession = savedSteps.size > 0 && !isUpdate;
+  // An existing period is only edited through Update, so Add never overwrites it by accident
+  const blockedAsExisting = !isUpdate && period.exists && !hasSavedThisSession;
+  // canBrowse: steps can be viewed (also read-only when locked); ready: values can be changed and saved
+  const canBrowse = period.loaded && !blockedAsExisting;
+  const ready = canBrowse && period.entryOpen;
 
+  // Entry window + ministry unlocks decide which periods Add may offer
   useEffect(() => {
+    if (isUpdate) return undefined;
     let cancelled = false;
-    async function loadMasters() {
-      setLoadingMasters(true);
-      try {
-        const results = await Promise.all(
-          TRAFFIC_COMMODITY_GROUPS.map(async (group) => {
-            try {
-              const res = await fetchCommoditiesByGroup(group.id);
-              return [group.id, Array.isArray(res.data) ? res.data : []];
-            } catch {
-              return [group.id, []];
-            }
-          })
-        );
+    fetchTrafficEntryStatus()
+      .then((res) => {
         if (cancelled) return;
-        const map = Object.fromEntries(results);
-        setCommoditiesByGroup(map);
-        const allCommodities = results.flatMap(([, list]) => list);
-        setValuesMap(emptyValuesMap(allCommodities));
-      } finally {
-        if (!cancelled) setLoadingMasters(false);
-      }
-    }
-    loadMasters();
+        setEntryStatus(res.data);
+        if (res.data?.windowOpen) setFiscalYear((fy) => fy || currentFinancialYear());
+      })
+      .catch((err) => {
+        if (!cancelled) notifyRef.current(TRAFFIC_TOASTS.periodLoadFailed(getErrorMessage(err)));
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isUpdate, notifyRef]);
 
-  const allCommodities = useMemo(
-    () => Object.values(commoditiesByGroup).flat(),
-    [commoditiesByGroup]
-  );
+  const { fyOptions, monthOptions } = useEntryOptions(entryStatus, fiscalYear);
 
+  // Load what is already saved for the chosen period. Runs once per period: the
+  // period is fixed after the first save, so saving never reloads over unsaved pages.
   useEffect(() => {
-    if (isUpdate || loadingMasters || !allCommodities.length || draftRestoredRef.current) return;
-    draftRestoredRef.current = true;
-    const draft = loadTrafficWizardDraft(organisationId);
-    if (!draft?.formData) return;
-    const data = draft.formData;
-    setFiscalYear(data.fiscalYear || '');
-    setMonth(data.month != null && data.month !== '' ? String(data.month) : '');
-    setRoRoTraffic(data.roRoTraffic ?? '');
-    setRoPaxTraffic(data.roPaxTraffic ?? '');
-    setValuesMap(applyCommodityDataToMap(emptyValuesMap(allCommodities), []));
-    if (data.valuesMap && typeof data.valuesMap === 'object') {
-      setValuesMap((prev) => ({ ...prev, ...data.valuesMap }));
-    }
-    if (typeof data.stepIndex === 'number') {
-      setStepIndex(Math.min(Math.max(0, data.stepIndex), TRAFFIC_WIZARD_STEPS.length - 1));
-    }
-    if (Array.isArray(data.savedStepIds)) {
-      setSavedStepIds(new Set(data.savedStepIds));
-    }
-    if (data.periodClaimed) setPeriodClaimed(true);
-    setDraftMeta(draft);
-    notify('Local draft restored. Continue editing or discard.', 'info');
-  }, [isUpdate, loadingMasters, allCommodities, organisationId, notify]);
-
-  const loadPeriodData = useCallback(
-    async ({ fy, monthValue, forUpdate }) => {
-      if (!fy || !monthValue || !organisationId) return;
-      setLoadingExisting(true);
-      try {
-        const res = await fetchCommodityData({
-          fiscalYear: fy,
-          month: monthValue,
-          organisationId,
+    if (!periodKey) return undefined;
+    let cancelled = false;
+    const [fy, monthValue] = periodKey.split('|');
+    fetchTrafficPeriod({ fiscalYear: fy, month: monthValue })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setValuesMap(applyCommodityDataToMap(emptyValuesMap(commodities), data.commodityData || []));
+        setRoRoTraffic(data.trafficData?.ro_ro_traffic != null ? String(data.trafficData.ro_ro_traffic) : '');
+        setRoPaxTraffic(data.trafficData?.ro_pax_traffic != null ? String(data.trafficData.ro_pax_traffic) : '');
+        const saved = new Set((data.savedGroupIds || []).map((id) => GROUP_STEP_IDS[id]).filter(Boolean));
+        if (data.roroSaved) saved.add('roro');
+        setSavedSteps(isUpdate ? saved : new Set());
+        setDirtySteps(new Set());
+        setErrors({});
+        setFieldErrors({});
+        setLoadedPeriod({
+          key: periodKey,
+          failed: false,
+          exists: Boolean(data.exists),
+          entryOpen: Boolean(data.entryAccess?.open),
         });
-        const data = res.data || {};
-        const exists = hasExistingTrafficData(data);
-
-        if (!forUpdate && exists && !periodClaimed) {
-          setExistsForPeriod(true);
-          setPeriodReady(false);
-          setValuesMap(emptyValuesMap(allCommodities));
-          setRoRoTraffic('');
-          setRoPaxTraffic('');
-          notify(
-            'Data already exists for this Financial Year and Month. Use Update from the Data List.',
-            'error'
-          );
-          return;
+        // Add never overwrites a period entered earlier; say so straight away
+        if (!isUpdate && data.exists) {
+          notifyRef.current(TRAFFIC_TOASTS.periodExists(describePeriod(fy, monthValue)));
         }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadedPeriod({ key: periodKey, failed: true, exists: false, entryOpen: false });
+        notifyRef.current(TRAFFIC_TOASTS.periodLoadFailed(getErrorMessage(err)));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [periodKey, commodities, isUpdate, notifyRef]);
 
-        if (forUpdate && !exists) {
-          setExistsForPeriod(false);
-          setPeriodReady(true);
-          notify('No existing data found for this period. You can still save new values.', 'info');
-        } else {
-          setExistsForPeriod(exists);
-          setPeriodReady(true);
-        }
+  const markDirty = (stepId) => setDirtySteps((prev) => (prev.has(stepId) ? prev : new Set(prev).add(stepId)));
 
-        setValuesMap(applyCommodityDataToMap(emptyValuesMap(allCommodities), data.commodityData || []));
-        setRoRoTraffic(
-          data.trafficData?.ro_ro_traffic != null ? String(data.trafficData.ro_ro_traffic) : ''
-        );
-        setRoPaxTraffic(
-          data.trafficData?.ro_pax_traffic != null ? String(data.trafficData.ro_pax_traffic) : ''
-        );
-      } catch (err) {
-        console.error(err);
-        notify('Failed to load traffic data for the selected period.', 'error');
-        setPeriodReady(false);
-      } finally {
-        setLoadingExisting(false);
-      }
-    },
-    [allCommodities, organisationId, notify, periodClaimed]
-  );
-
-  useEffect(() => {
-    if (!isUpdate || loadingMasters || !allCommodities.length) return;
-    if (!record?.fiscal_year || record?.month == null || !organisationId) return;
-    loadPeriodData({
-      fy: record.fiscal_year,
-      monthValue: record.month,
-      forUpdate: true,
-    });
-  }, [
-    isUpdate,
-    loadingMasters,
-    allCommodities.length,
-    record?.fiscal_year,
-    record?.month,
-    organisationId,
-    loadPeriodData,
-  ]);
-
-  useEffect(() => {
-    if (isUpdate || loadingMasters || !allCommodities.length) return;
-    if (!fiscalYear || !month || !organisationId) {
-      setPeriodReady(false);
-      setExistsForPeriod(false);
-      return;
-    }
-    if (periodClaimed) {
-      setPeriodReady(true);
-      return;
-    }
-    loadPeriodData({ fy: fiscalYear, monthValue: month, forUpdate: false });
-  }, [
-    isUpdate,
-    loadingMasters,
-    allCommodities.length,
-    fiscalYear,
-    month,
-    organisationId,
-    loadPeriodData,
-    periodClaimed,
-  ]);
-
-  const clearFieldError = (key) => {
+  const handleValueChange = (key, value) => {
+    setValuesMap((prev) => ({ ...prev, [key]: value }));
     setFieldErrors((prev) => {
       if (!prev[key]) return prev;
       const next = { ...prev };
       delete next[key];
       return next;
     });
+    markDirty(currentStep.id);
   };
 
-  const handleValueChange = (key, value) => {
-    setValuesMap((prev) => ({ ...prev, [key]: value }));
-    clearFieldError(key);
-  };
-
-  const canProceedFromPeriod = Boolean(
-    fiscalYear && month && organisationId && !blocksAddBecauseExists
+  const commoditiesForStep = useCallback(
+    (step) => (step.groupId ? commoditiesByGroup[step.groupId] || [] : []),
+    [commoditiesByGroup]
   );
 
-  const activeGroupId = currentStep?.groupId;
-  const activeCommodities = activeGroupId ? commoditiesByGroup[activeGroupId] || [] : [];
-
-  const validateCurrentStep = (modeHint = 'page') => {
-    const periodErrors = validatePeriodFields({ fiscalYear, month, organisationId });
-    if (Object.keys(periodErrors).length) {
-      setErrors(periodErrors);
-      setFieldErrors({});
-      notify('Please select Financial Year and Month first.', 'error');
-      return false;
+  /** Validates one step and shows its errors; returns { ok, isEmpty }. */
+  const validateStep = (step, { requireValue }) => {
+    if (step.id === 'roro') {
+      const result = validateRoroStep({ roRoTraffic, roPaxTraffic }, { requireValue });
+      setErrors(result.errors);
+      return { ok: !Object.keys(result.errors).length, isEmpty: result.isEmpty };
     }
-    if (!userId) {
-      notify('User session is invalid. Please sign in again.', 'error');
-      return false;
-    }
-    if (blocksAddBecauseExists) {
-      notify('This period already has data. Open Update from the Data List instead.', 'error');
-      return false;
-    }
-
-    setErrors({});
-
-    if (currentStep?.id === 'roro') {
-      const stepErrors = validateRoroStep({ roRoTraffic, roPaxTraffic }, modeHint);
-      setFieldErrors({});
-      setErrors(stepErrors);
-      if (Object.keys(stepErrors).length) {
-        notify(Object.values(stepErrors)[0], 'error');
-        return false;
-      }
-      return true;
-    }
-
-    const { fieldErrors: nextFieldErrors, message } = validateCommodityStep(
-      valuesMap,
-      activeCommodities,
-      modeHint
-    );
-    setFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length || message) {
-      notify(message || 'Fix highlighted invalid values before saving.', 'error');
-      return false;
-    }
-    return true;
+    // Cell keys are unique per commodity, so one map can hold any group's errors
+    const result = validateCommodityStep(valuesMap, commoditiesForStep(step), { requireValue });
+    setFieldErrors(result.fieldErrors);
+    return { ok: !Object.keys(result.fieldErrors).length, isEmpty: result.isEmpty };
   };
 
-  const buildStepPayload = (saveMode) => {
-    const base = {
-      fiscalYear,
-      month: Number(month),
-      organisationId,
-      userId,
-      saveMode,
-    };
-    if (currentStep?.id === 'roro') {
-      return {
-        ...base,
-        trafficData: {
-          ro_ro_traffic: toNumberOrNull(roRoTraffic),
-          ro_pax_traffic: toNumberOrNull(roPaxTraffic),
-        },
-      };
+  const buildPayload = (step) => {
+    const base = { fiscalYear, month: Number(month) };
+    if (step.id === 'roro') {
+      return { ...base, trafficData: { ro_ro_traffic: toNumberOrNull(roRoTraffic), ro_pax_traffic: toNumberOrNull(roPaxTraffic) } };
     }
-    return {
-      ...base,
-      commodityData: buildCommodityPayloadForGroup(valuesMap, activeCommodities),
-    };
+    return { ...base, commodityData: buildCommodityPayloadForGroup(valuesMap, commoditiesForStep(step)) };
   };
 
-  const markStepSaved = (stepId) => {
-    setSavedStepIds((prev) => {
-      const next = new Set(prev);
-      next.add(stepId);
-      return next;
-    });
+  /** Saves one step; returns the server action ('create' | 'update') or null on failure. */
+  const saveStep = async (step) => {
+    try {
+      const res = await saveTrafficPeriod(buildPayload(step));
+      setSavedSteps((prev) => new Set(prev).add(step.id));
+      setDirtySteps((prev) => {
+        const next = new Set(prev);
+        next.delete(step.id);
+        return next;
+      });
+      return res.data?.action || 'create';
+    } catch (err) {
+      notify(TRAFFIC_TOASTS.saveFailed(step.label, getErrorMessage(err)));
+      return null;
+    }
   };
 
-  const persistLocalDraft = (extra = {}) => {
-    if (isUpdate) return null;
-    const saved = saveTrafficWizardDraft({
-      organisationId,
-      fiscalYear,
-      month,
-      roRoTraffic,
-      roPaxTraffic,
-      valuesMap,
-      stepIndex,
-      savedStepIds: Array.from(savedStepIds),
-      periodClaimed,
-      ...extra,
-    });
-    setDraftMeta(saved);
-    return saved;
-  };
-
-  const saveCurrentPage = async ({ saveMode = 'submit', advance = false, complete = false } = {}) => {
-    const validationMode = saveMode === 'draft' ? 'draft' : 'page';
-    if (!validateCurrentStep(validationMode)) return false;
+  const handleSavePage = async () => {
+    const check = validateStep(currentStep, { requireValue: true });
+    if (!check.ok) return notify(TRAFFIC_TOASTS.invalidValues());
+    if (check.isEmpty) return notify(TRAFFIC_TOASTS.emptyPage(currentStep.label));
 
     setSubmitting(true);
-    try {
-      const payload = buildStepPayload(saveMode);
-      const res = await submitCommodityData(payload);
-      if (!res.data?.success) {
-        notify(res.data?.message || 'Failed to save traffic data.', 'error');
-        return false;
-      }
+    const action = await saveStep(currentStep);
+    setSubmitting(false);
+    if (action) notify(TRAFFIC_TOASTS.pageSaved(currentStep.label, periodInfo, action === 'update'));
+    return undefined;
+  };
 
-      markStepSaved(currentStep.id);
-      setPeriodClaimed(true);
-      setPeriodReady(true);
-      setExistsForPeriod(true);
-
-      if (!isUpdate) {
-        persistLocalDraft({
-          periodClaimed: true,
-          savedStepIds: Array.from(new Set([...savedStepIds, currentStep.id])),
-          stepIndex: advance && !isLastStep ? stepIndex + 1 : stepIndex,
-        });
-      }
-
-      if (complete) {
-        if (!isUpdate) clearTrafficWizardDraft();
-        setDraftMeta(null);
-        notify(
-          isUpdate ? 'Traffic data updated successfully.' : 'Traffic data saved successfully.',
-          'success'
-        );
-        onSuccess?.();
-        return true;
-      }
-
-      notify(
-        saveMode === 'draft'
-          ? `${currentStep.label} saved as draft.`
-          : `${currentStep.label} saved successfully.`,
-        'success'
-      );
-
-      if (advance && !isLastStep) {
-        setStepIndex((i) => Math.min(i + 1, TRAFFIC_WIZARD_STEPS.length - 1));
-      }
-      return true;
-    } catch (err) {
-      console.error(err);
-      notify(err.response?.data?.message || 'Failed to save traffic data.', 'error');
-      return false;
-    } finally {
+  // Saves this page when it has changes, then opens the next one (unchanged pages just move on)
+  const handleSaveAndNext = async () => {
+    if (dirtySteps.has(currentStep.id)) {
+      const check = validateStep(currentStep, { requireValue: false });
+      if (!check.ok) return notify(TRAFFIC_TOASTS.invalidValues());
+      setSubmitting(true);
+      const action = await saveStep(currentStep);
       setSubmitting(false);
+      if (!action) return undefined;
+      notify(TRAFFIC_TOASTS.pageSaved(currentStep.label, periodInfo, action === 'update'));
     }
-  };
-
-  const goNext = async () => {
-    if (stepIndex === 0 && !canProceedFromPeriod && !isUpdate) {
-      if (blocksAddBecauseExists) {
-        notify('This period already has data. Open Update from the Data List instead.', 'error');
-      } else {
-        notify('Please select Financial Year and Month first.', 'error');
-      }
-      return;
-    }
-    if (stepIndex === 0 && isUpdate && !periodReady && loadingExisting) return;
-
-    // Next allows empty pages; only block on invalid format
-    if (currentStep?.id === 'roro') {
-      const stepErrors = validateRoroStep({ roRoTraffic, roPaxTraffic }, 'draft');
-      if (Object.keys(stepErrors).length) {
-        setErrors(stepErrors);
-        notify(Object.values(stepErrors)[0], 'error');
-        return;
-      }
-      setErrors({});
-    } else {
-      const { fieldErrors: nextFieldErrors, message } = validateCommodityStep(
-        valuesMap,
-        activeCommodities,
-        'draft'
-      );
-      if (Object.keys(nextFieldErrors).length) {
-        setFieldErrors(nextFieldErrors);
-        notify(message || 'Fix highlighted invalid values before continuing.', 'error');
-        return;
-      }
-      setFieldErrors({});
-    }
-
-    setStepIndex((i) => Math.min(i + 1, TRAFFIC_WIZARD_STEPS.length - 1));
-  };
-
-  const goPrev = () => setStepIndex((i) => Math.max(i - 1, 0));
-
-  const handleSavePage = () => saveCurrentPage({ saveMode: 'submit', advance: false });
-
-  const handleSaveAndNext = () => saveCurrentPage({ saveMode: 'submit', advance: true });
-
-  const handleComplete = () => saveCurrentPage({ saveMode: 'submit', complete: true });
-
-  const currentPageHasValues = () => {
-    if (currentStep?.id === 'roro') {
-      return (
-        String(roRoTraffic ?? '').trim() !== '' || String(roPaxTraffic ?? '').trim() !== ''
-      );
-    }
-    return activeCommodities.some((c) =>
-      Object.keys(valuesMap).some((key) => {
-        if (!key.startsWith(`${c.commodity_id}_`)) return false;
-        return String(valuesMap[key] ?? '').trim() !== '';
-      })
-    );
-  };
-
-  const handleSaveDraft = async () => {
-    const periodErrors = validatePeriodFields({ fiscalYear, month, organisationId });
-    if (Object.keys(periodErrors).length) {
-      setErrors(periodErrors);
-      notify('Select Financial Year and Month before saving a draft.', 'error');
-      return;
-    }
-    if (!validateCurrentStep('draft')) return;
-
-    setSavingDraft(true);
-    try {
-      const hasValues = currentPageHasValues();
-
-      // Skip server save if page is empty — keep draft local only
-      if (hasValues) {
-        const payload = buildStepPayload('draft');
-        const res = await submitCommodityData(payload);
-        if (!res.data?.success) {
-          notify(res.data?.message || 'Unable to save draft.', 'error');
-          return;
-        }
-        markStepSaved(currentStep.id);
-        setPeriodClaimed(true);
-        setPeriodReady(true);
-      }
-
-      if (!isUpdate) {
-        const saved = persistLocalDraft({
-          periodClaimed: periodClaimed || hasValues,
-          savedStepIds: hasValues
-            ? Array.from(new Set([...savedStepIds, currentStep.id]))
-            : Array.from(savedStepIds),
-        });
-        setDraftMeta(saved);
-      }
-
-      notify(
-        hasValues
-          ? 'Draft saved. You can leave and resume later.'
-          : 'Local draft saved (page still empty). Fill values then Save Page when ready.',
-        'success'
-      );
-    } catch (err) {
-      console.error(err);
-      if (!isUpdate) {
-        try {
-          const saved = persistLocalDraft();
-          setDraftMeta(saved);
-          notify('Server draft failed; saved locally instead. Resume on this browser.', 'warning');
-        } catch {
-          notify('Unable to save draft. Please try again.', 'error');
-        }
-      } else {
-        notify(err.response?.data?.message || 'Unable to save draft.', 'error');
-      }
-    } finally {
-      setSavingDraft(false);
-    }
-  };
-
-  const handleDiscardDraft = () => {
-    clearTrafficWizardDraft();
-    setDraftMeta(null);
-    setPeriodClaimed(false);
-    setSavedStepIds(new Set());
-    setStepIndex(0);
-    setRoRoTraffic('');
-    setRoPaxTraffic('');
-    setValuesMap(emptyValuesMap(allCommodities));
     setErrors({});
     setFieldErrors({});
-    notify('Local draft discarded.', 'success');
+    setStepIndex((index) => Math.min(index + 1, TRAFFIC_WIZARD_STEPS.length - 1));
+    return undefined;
   };
 
-  const draftSavedLabel = draftMeta?.savedAt
-    ? new Date(draftMeta.savedAt).toLocaleString()
-    : null;
+  // Last page: saves every page with unsaved changes, then returns to the list
+  const handleFinish = async () => {
+    const pending = TRAFFIC_WIZARD_STEPS.filter((s) => dirtySteps.has(s.id));
+    for (const step of pending) {
+      if (!validateStep(step, { requireValue: false }).ok) {
+        setStepIndex(TRAFFIC_WIZARD_STEPS.indexOf(step));
+        return notify(TRAFFIC_TOASTS.invalidValues());
+      }
+    }
+    if (!pending.length) {
+      // Nothing changed: an empty new period needs data, a reviewed one just closes
+      if (!savedSteps.size) return notify(TRAFFIC_TOASTS.emptyPage(currentStep.label));
+      onSuccess?.();
+      return undefined;
+    }
 
-  const stepBadge = (stepId) => (savedStepIds.has(stepId) ? '✓' : null);
+    setSubmitting(true);
+    let anyUpdate = isUpdate;
+    for (const step of pending) {
+      const action = await saveStep(step);
+      if (!action) {
+        setStepIndex(TRAFFIC_WIZARD_STEPS.indexOf(step));
+        setSubmitting(false);
+        return undefined;
+      }
+      anyUpdate = anyUpdate || action === 'update';
+    }
+    setSubmitting(false);
+    notify(TRAFFIC_TOASTS.periodCompleted(periodInfo, anyUpdate));
+    onSuccess?.();
+    return undefined;
+  };
+
+  const goToStep = (index) => {
+    const check = validateStep(currentStep, { requireValue: false });
+    if (!check.ok) return notify(TRAFFIC_TOASTS.invalidValues());
+    setErrors({});
+    setFieldErrors({});
+    setStepIndex(index);
+    return undefined;
+  };
+
+  const handleCancel = () => {
+    if (dirtySteps.size) setConfirmLeave(true);
+    else onBack?.();
+  };
+
+  const periodLocked = isUpdate || hasSavedThisSession;
+  const inputsDisabled = !ready || submitting || period.loading;
+  const entryClosed = entryStatus && !entryStatus.windowOpen && !fyOptions.length;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card animate-fade-in">
+      <div className="module-form-banner">
         <div className="flex items-start gap-3 min-w-0">
           <div className="mt-0.5 rounded-lg bg-white/10 p-2">
             <Ship className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-black uppercase tracking-wider font-display">
-              {isUpdate ? 'Update Traffic Data' : 'Add Traffic Data'}
-            </h3>
-            <p className="text-[10px] text-blue-100 font-semibold tracking-wide mt-0.5">
-              KPI · Major Ports · Save each page independently · Draft supported
-            </p>
+            <h3 className="module-form-banner-title">{isUpdate ? 'Update Traffic Data' : 'Add Traffic Data'}</h3>
+            <p className="module-form-banner-subtext">KPI · Major Ports · Each page is saved on its own</p>
           </div>
         </div>
-        {record?.organisation_name ? (
+        {organisationName ? (
           <span className="hidden md:inline-flex text-[10px] font-bold uppercase tracking-wider bg-white/15 px-3 py-1.5 rounded-lg">
-            {record.organisation_name}
+            {organisationName}
           </span>
         ) : null}
       </div>
 
-      {!isUpdate && draftMeta ? (
-        <div className="px-5 py-3 border-b border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
-            Local draft available{draftSavedLabel ? ` (saved ${draftSavedLabel})` : ''}. Continue
-            editing, or discard to start fresh.
-          </p>
-          <button
-            type="button"
-            onClick={handleDiscardDraft}
-            className="text-xs font-bold text-amber-900 dark:text-amber-100 underline cursor-pointer"
-          >
-            Discard draft
-          </button>
-        </div>
-      ) : null}
-
-      <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 px-3 py-3 overflow-x-auto">
-        <div className="flex items-center gap-1 min-w-max">
+      <nav aria-label="Traffic entry steps" className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/40 px-3 py-3 overflow-x-auto">
+        <ol className="flex items-center gap-1 min-w-max">
           {TRAFFIC_WIZARD_STEPS.map((step, index) => {
             const active = index === stepIndex;
-            const done = index < stepIndex || savedStepIds.has(step.id);
-            const savedMark = stepBadge(step.id);
+            const saved = savedSteps.has(step.id) && !dirtySteps.has(step.id);
+            const dirty = dirtySteps.has(step.id);
             return (
-              <button
-                key={step.id}
-                type="button"
-                onClick={() => {
-                  if (index === 0 || periodReady || isUpdate || periodClaimed) setStepIndex(index);
-                }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-extrabold uppercase tracking-wide transition cursor-pointer ${
-                  active
-                    ? 'bg-[#0f417a] text-white shadow-md'
-                    : done
-                      ? 'bg-blue-50 text-[#0f417a] dark:bg-slate-800 dark:text-blue-300'
-                      : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <span
-                  className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-                    active ? 'bg-white text-[#0f417a]' : 'bg-slate-200 dark:bg-slate-700'
+              <li key={step.id}>
+                <button
+                  type="button"
+                  disabled={!canBrowse || submitting}
+                  aria-current={active ? 'step' : undefined}
+                  onClick={() => goToStep(index)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-extrabold uppercase tracking-wide transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
+                    active
+                      ? 'bg-[#0f417a] text-white shadow-md dark:bg-blue-600'
+                      : saved
+                        ? 'bg-blue-50 text-[#0f417a] dark:bg-slate-800 dark:text-blue-300'
+                        : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
                   }`}
                 >
-                  {savedMark || index + 1}
-                </span>
-                {step.label}
-              </button>
+                  <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
+                    active ? 'bg-white text-[#0f417a]' : 'bg-slate-200 dark:bg-slate-700'
+                  }`}>
+                    {saved ? <CheckCircle2 className="h-3.5 w-3.5" aria-label="saved" /> : index + 1}
+                  </span>
+                  {step.label}
+                  {dirty ? <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-label="unsaved changes" /> : null}
+                </button>
+              </li>
             );
           })}
-        </div>
-      </div>
+        </ol>
+      </nav>
 
       <div className="p-5 md:p-6 space-y-5">
+        {!isUpdate && entryStatus && (
+          <div className={`rounded-xl border px-4 py-3 text-xs font-semibold ${
+            entryStatus.windowOpen
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-200'
+              : 'border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-200'
+          }`}>
+            {entryStatus.windowOpen
+              ? `Data entry is open until the ${ENTRY_WINDOW_LAST_DAY}th of this month.`
+              : entryClosed
+                ? `Data entry closed on the ${ENTRY_WINDOW_LAST_DAY}th of this month. Ask the Ministry to unlock the period you need to enter.`
+                : 'The monthly entry window has closed. Only the periods unlocked by the Ministry are listed below.'}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-4">
-          <div className="space-y-1.5">
-            <label className={labelClass}>
+          <div>
+            <label htmlFor="traffic-fy" className="module-form-label">
               Financial Year <span className="text-red-500">*</span>
             </label>
-            <select
-              className={`${selectClass} ${errors.fiscalYear ? 'border-rose-400' : ''}`}
-              value={fiscalYear}
-              disabled={periodLocked || loadingExisting}
-              onChange={(e) => {
-                setFiscalYear(e.target.value);
-                setErrors((prev) => ({ ...prev, fiscalYear: undefined }));
-                setPeriodClaimed(false);
-                setSavedStepIds(new Set());
-              }}
-            >
-              <option value="">Select Financial Year</option>
-              {fyOptions.map((fy) => (
-                <option key={fy} value={fy}>
-                  {fy}
-                </option>
-              ))}
-            </select>
-            {errors.fiscalYear ? <p className={errorTextClass}>{errors.fiscalYear}</p> : null}
+            {periodLocked ? (
+              <input id="traffic-fy" className="module-form-input" value={fiscalYear} disabled />
+            ) : (
+              <select
+                id="traffic-fy"
+                className="module-form-select cursor-pointer"
+                value={fiscalYear}
+                disabled={!entryStatus || entryClosed || submitting}
+                onChange={(e) => {
+                  setFiscalYear(e.target.value);
+                  setMonth('');
+                }}
+              >
+                <option value="">Select Financial Year</option>
+                {fyOptions.map((fy) => (
+                  <option key={fy} value={fy}>{fy}</option>
+                ))}
+              </select>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <label className={labelClass}>
+          <div>
+            <label htmlFor="traffic-month" className="module-form-label">
               Month <span className="text-red-500">*</span>
             </label>
-            <select
-              className={`${selectClass} ${errors.month ? 'border-rose-400' : ''}`}
-              value={month}
-              disabled={periodLocked || loadingExisting}
-              onChange={(e) => {
-                setMonth(e.target.value);
-                setErrors((prev) => ({ ...prev, month: undefined }));
-                setPeriodClaimed(false);
-                setSavedStepIds(new Set());
-              }}
-            >
-              <option value="">Select Month</option>
-              {FY_MONTHS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            {errors.month ? <p className={errorTextClass}>{errors.month}</p> : null}
+            {periodLocked ? (
+              <input id="traffic-month" className="module-form-input" value={periodInfo.monthLabel} disabled />
+            ) : (
+              <select
+                id="traffic-month"
+                className="module-form-select cursor-pointer"
+                value={month}
+                disabled={!fiscalYear || submitting}
+                onChange={(e) => setMonth(e.target.value)}
+              >
+                <option value="">Select Month</option>
+                {monthOptions.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            )}
           </div>
-          {blocksAddBecauseExists ? (
-            <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-xs font-semibold text-amber-800 dark:text-amber-200">
-              Data already exists for this period. Switch to the Data List and use{' '}
-              <strong>Update</strong> instead of Add.
+
+          {period.loading && (
+            <p className="md:col-span-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking saved traffic for this period…
+            </p>
+          )}
+          {blockedAsExisting && !period.loading && (
+            <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3">
+              <p className="text-xs font-semibold text-blue-800 dark:text-blue-200">
+                Traffic for {periodInfo.monthLabel} {fiscalYear} has already been entered.
+                {onOpenExisting
+                  ? ' Open it to review or change the values.'
+                  : ' You can view it under Actuals; you do not have permission to update it.'}
+              </p>
+              {onOpenExisting ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenExisting({ fiscal_year: fiscalYear, month: Number(month) })}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md cursor-pointer whitespace-nowrap"
+                >
+                  Open for Update
+                </button>
+              ) : null}
             </div>
-          ) : null}
-          {loadingExisting ? (
-            <div className="md:col-span-2 text-xs font-semibold text-slate-500">
-              Checking existing data for the selected period…
+          )}
+          {period.loaded && !period.entryOpen && !blockedAsExisting && (
+            <div className="md:col-span-2 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-xs font-semibold text-amber-800 dark:text-amber-200">
+              <Lock className="h-4 w-4 flex-shrink-0" />
+              Changes for {periodInfo.monthLabel} {fiscalYear} are closed. The values are shown read-only; ask the Ministry to unlock this period to edit them.
             </div>
-          ) : null}
-          {periodClaimed || (isUpdate && periodReady) ? (
-            <div className="md:col-span-2 text-[11px] font-semibold text-slate-500">
-              Tip: use <strong>Save Page</strong> on each step. Unsaved steps stay editable until you
-              save them.
-            </div>
-          ) : null}
+          )}
         </div>
 
-        {currentStep?.id === 'roro' ? (
+        {currentStep.id === 'roro' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
-              <h4 className="text-[13px] font-black uppercase tracking-wide text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-800 pb-2">
-                Ro-Ro Traffic
-              </h4>
-              <div className="space-y-1.5">
-                <label className={labelClass}>Total Ro-Ro Traffic (000 Tonnes)</label>
+            {[
+              { key: 'roRoTraffic', title: 'Ro-Ro Traffic', label: "Total Ro-Ro Traffic ('000 Tonnes)", value: roRoTraffic, set: setRoRoTraffic, placeholder: 'e.g. 12.50' },
+              { key: 'roPaxTraffic', title: 'Ro-Pax Traffic', label: "Total Ro-Pax Traffic ('000 Tonnes / Number)", value: roPaxTraffic, set: setRoPaxTraffic, placeholder: 'e.g. 3.25' },
+            ].map((field) => (
+              <div key={field.key} className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
+                <h4 className="module-form-section-title !mt-0">{field.title}</h4>
+                <label htmlFor={`traffic-${field.key}`} className="module-form-label">{field.label}</label>
                 <input
+                  id={`traffic-${field.key}`}
                   type="number"
                   min="0"
                   step="any"
-                  className={`${inputClass} ${errors.roRoTraffic ? 'border-rose-400' : ''}`}
-                  value={roRoTraffic}
-                  disabled={loadingMasters || loadingExisting || (!isUpdate && !periodReady && !periodClaimed)}
+                  inputMode="decimal"
+                  className={`module-form-input ${errors[field.key] ? '!border-rose-400' : ''}`}
+                  value={field.value}
+                  disabled={inputsDisabled}
+                  aria-invalid={Boolean(errors[field.key])}
                   onChange={(e) => {
-                    setRoRoTraffic(e.target.value);
-                    setErrors((prev) => ({ ...prev, roRoTraffic: undefined }));
+                    field.set(e.target.value);
+                    setErrors((prev) => ({ ...prev, [field.key]: undefined }));
+                    markDirty('roro');
                   }}
-                  placeholder="e.g. 12.50"
+                  placeholder={field.placeholder}
                 />
-                {errors.roRoTraffic ? <p className={errorTextClass}>{errors.roRoTraffic}</p> : null}
+                {errors[field.key] ? <p className={errorTextClass}>{errors[field.key]}</p> : null}
               </div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
-              <h4 className="text-[13px] font-black uppercase tracking-wide text-slate-800 dark:text-slate-100 border-b border-slate-200 dark:border-slate-800 pb-2">
-                Ro-Pax Traffic
-              </h4>
-              <div className="space-y-1.5">
-                <label className={labelClass}>Total Ro-Pax Traffic (000 Tonnes / Number)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  className={`${inputClass} ${errors.roPaxTraffic ? 'border-rose-400' : ''}`}
-                  value={roPaxTraffic}
-                  disabled={loadingMasters || loadingExisting || (!isUpdate && !periodReady && !periodClaimed)}
-                  onChange={(e) => {
-                    setRoPaxTraffic(e.target.value);
-                    setErrors((prev) => ({ ...prev, roPaxTraffic: undefined }));
-                  }}
-                  placeholder="e.g. 3.25"
-                />
-                {errors.roPaxTraffic ? <p className={errorTextClass}>{errors.roPaxTraffic}</p> : null}
-              </div>
-            </div>
+            ))}
           </div>
         ) : (
           <CommodityGroupGrid
@@ -744,122 +491,91 @@ export default function TrafficWizardForm({
             commodities={activeCommodities}
             valuesMap={valuesMap}
             onChange={handleValueChange}
-            disabled={(!periodReady && !isUpdate && !periodClaimed) || loadingMasters || loadingExisting}
-            loading={loadingMasters}
+            disabled={inputsDisabled}
+            loading={!commodities.length}
             fieldErrors={fieldErrors}
           />
         )}
 
         <div className="flex flex-col gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
-          <p className="text-[11px] text-slate-500 font-semibold">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
             Step {stepIndex + 1} of {TRAFFIC_WIZARD_STEPS.length}
-            {savedStepIds.has(currentStep?.id) ? ' · This page is saved' : ' · This page not saved yet'}
-            {!isUpdate ? ' · Add creates / extends a period entry' : ' · Update saves changes to this period'}
+            {dirtySteps.has(currentStep.id)
+              ? ' · This page has unsaved changes'
+              : savedSteps.has(currentStep.id) ? ' · This page is saved' : ' · This page is not saved yet'}
+            {dirtySteps.size ? ` · ${dirtySteps.size} page${dirtySteps.size === 1 ? '' : 's'} to save` : ''}
           </p>
           <div className="flex flex-wrap items-center gap-2 justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              {onBack ? (
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={submitting}
+                className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              {stepIndex > 0 && (
                 <button
                   type="button"
-                  onClick={onBack}
-                  className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
-                >
-                  Discard
-                </button>
-              ) : null}
-              {stepIndex > 0 ? (
-                <button
-                  type="button"
-                  onClick={goPrev}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+                  onClick={() => goToStep(stepIndex - 1)}
+                  disabled={submitting}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer disabled:opacity-50"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
                   Back
                 </button>
-              ) : null}
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2 justify-end">
               <button
                 type="button"
-                onClick={handleSaveDraft}
-                disabled={
-                  submitting ||
-                  savingDraft ||
-                  blocksAddBecauseExists ||
-                  !organisationId ||
-                  (!periodReady && !isUpdate && !fiscalYear)
-                }
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#0f417a]/40 text-[#0f417a] rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                {savingDraft ? 'Saving Draft…' : 'Save as Draft'}
-              </button>
-
-              <button
-                type="button"
                 onClick={handleSavePage}
-                disabled={
-                  submitting ||
-                  savingDraft ||
-                  blocksAddBecauseExists ||
-                  !organisationId ||
-                  (!isUpdate && !canProceedFromPeriod && !periodClaimed)
-                }
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-[#0f417a] text-[#0f417a] hover:bg-blue-50 dark:hover:bg-slate-800 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                disabled={!ready || submitting}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-[#0f417a] text-[#0f417a] dark:border-blue-400 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
               >
                 <Save className="h-3.5 w-3.5" />
-                {submitting ? 'Saving…' : 'Save Page'}
+                Save Page
               </button>
-
-              {!isLastStep ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleSaveAndNext}
-                    disabled={
-                      submitting ||
-                      savingDraft ||
-                      blocksAddBecauseExists ||
-                      !organisationId ||
-                      (!isUpdate && !canProceedFromPeriod && !periodClaimed)
-                    }
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#0f417a]/90 hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-50"
-                  >
-                    Save &amp; Next
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goNext}
-                    disabled={stepIndex === 0 && !isUpdate && !canProceedFromPeriod && !periodClaimed}
-                    className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-50"
-                  >
-                    Next
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </>
+              {isLastStep ? (
+                <button
+                  type="button"
+                  onClick={handleFinish}
+                  disabled={!ready || submitting}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-50"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {submitting ? 'Saving…' : 'Save & Submit'}
+                </button>
               ) : (
                 <button
                   type="button"
-                  onClick={handleComplete}
-                  disabled={
-                    submitting ||
-                    savingDraft ||
-                    blocksAddBecauseExists ||
-                    !organisationId ||
-                    (!isUpdate && !canProceedFromPeriod && !periodClaimed)
-                  }
+                  onClick={handleSaveAndNext}
+                  disabled={!ready || !canBrowse || submitting}
                   className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#0f417a] hover:bg-[#1a5ba3] text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer disabled:opacity-50"
                 >
-                  <Save className="h-4 w-4" />
-                  {submitting ? 'Saving…' : 'Save & Finish'}
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {submitting ? 'Saving…' : 'Save & Next'}
+                  {submitting ? null : <ArrowRight className="h-4 w-4" />}
                 </button>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmLeave}
+        onClose={() => setConfirmLeave(false)}
+        onConfirm={() => {
+          setConfirmLeave(false);
+          onBack?.();
+        }}
+        title="Discard Unsaved Changes"
+        confirmText="Discard"
+        message={`${dirtySteps.size} page${dirtySteps.size === 1 ? ' has' : 's have'} unsaved changes. Leave without saving them?`}
+      />
     </div>
   );
 }

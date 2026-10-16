@@ -1,18 +1,23 @@
 import TrafficWizardForm from './components/TrafficWizardForm';
 
+/** Add a new traffic period, or update the one passed in editData. */
 export default function TrafficInputForm({
-  onSwitchTab,
+  editData,
+  commodities,
+  organisationName,
+  onOpenExisting,
+  onBack,
   onSuccess,
   triggerNotification,
 }) {
   return (
     <TrafficWizardForm
-      mode="add"
-      onBack={onSwitchTab ? () => onSwitchTab('list') : undefined}
-      onSuccess={() => {
-        onSuccess?.();
-        onSwitchTab?.('list');
-      }}
+      editData={editData}
+      commodities={commodities}
+      organisationName={organisationName}
+      onOpenExisting={onOpenExisting}
+      onBack={onBack}
+      onSuccess={onSuccess}
       triggerNotification={triggerNotification}
     />
   );

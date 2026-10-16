@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearTrafficCache } from './store/trafficRequestCache';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -53,62 +54,85 @@ api.interceptors.response.use(
   }
 );
 
-// ---- Traffic: masters ----
-export function fetchTrafficCommodityGroups() {
-  return api.get('/get-traffic-commodity-groups');
+// ---- Traffic ----
+// The server takes the user and organisation from the session token, so no
+// request sends userId, and organisation users never send organisationId.
+// GETs accept { signal } so a newer request can cancel an older one; every
+// write clears the response cache so lists and the dashboard show the change.
+
+const afterWrite = (promise) => promise.then((res) => {
+  clearTrafficCache();
+  return res;
+});
+
+/** Commodity groups, commodities and the organisations visible to the user. */
+export function fetchTrafficMasters() {
+  return api.get('/kpi/traffic/masters');
 }
 
-export function fetchCommoditiesByGroup(groupId) {
-  return api.get('/get-commodities-by-group', { params: { groupId } });
+/** Entry window and the organisation's active ministry unlocks. */
+export function fetchTrafficEntryStatus() {
+  return api.get('/kpi/traffic/entry-status');
 }
 
-export function fetchTrafficCommodities(groupId) {
-  return api.get('/get-traffic-commodities', { params: { groupId } });
+/** view: 'period' | 'commodity' | 'roro' */
+export function fetchTrafficActuals(params = {}, config = {}) {
+  return api.get('/kpi/traffic/actuals', { ...config, params });
 }
 
-// ---- Traffic: actuals ----
-export function fetchTrafficActualData(params = {}, config = {}) {
-  return api.get('/get-traffic-actual-data', { params, ...config });
+export function fetchTrafficPeriod({ fiscalYear, month, organisationId }) {
+  return api.get('/kpi/traffic/period', { params: { fiscalYear, month, organisationId } });
 }
 
-export function fetchRoroTrafficActualData(organisationId) {
-  const params = {};
-  if (organisationId) params.organisationId = organisationId;
-  return api.get('/get-roro-traffic-actual-data', { params });
+/** Saves one wizard page: { fiscalYear, month, commodityData?, trafficData? } */
+export function saveTrafficPeriod(payload) {
+  return afterWrite(api.post('/kpi/traffic/period', payload));
 }
 
-export function fetchCommodityData({ fiscalYear, month, organisationId }) {
-  return api.get('/get-commodity-data', {
-    params: { fiscalYear, month, organisationId },
-  });
+export function deleteTrafficPeriod({ fiscalYear, month }) {
+  return afterWrite(api.delete('/kpi/traffic/period', { params: { fiscalYear, month } }));
 }
 
-export function submitCommodityData(payload) {
-  return api.post('/submit-commodity-data', payload);
+export function fetchTrafficTargets(params = {}, config = {}) {
+  return api.get('/kpi/traffic/targets', { ...config, params });
 }
 
-// ---- Traffic: fiscal targets ----
-export function fetchFiscalYearTargetList() {
-  return api.get('/get-fiscal-year-target-list');
+export function createTrafficTarget(payload) {
+  return afterWrite(api.post('/kpi/traffic/targets', payload));
 }
 
-export function fetchFiscalYearTargetData({ financialYear, organisationId }) {
-  return api.get('/get-fiscal-year-target-data', {
-    params: { financialYear, organisationId },
-  });
+export function updateTrafficTarget(id, payload) {
+  return afterWrite(api.put(`/kpi/traffic/targets/${id}`, payload));
 }
 
-export function submitFiscalYearTargetData(payload) {
-  return api.post('/submit-fiscal-year-target-data', payload);
+export function deleteTrafficTarget(id) {
+  return afterWrite(api.delete(`/kpi/traffic/targets/${id}`));
 }
 
-export function updateFiscalYearTargetData(payload) {
-  return api.post('/update-fiscal-year-target-data', payload);
+export function fetchTrafficAccessGrants(params = {}, config = {}) {
+  return api.get('/kpi/traffic/access', { ...config, params });
 }
 
-/** Shared org master used across finance/KPI input forms. */
-export function fetchOrganisationsForEntry() {
-  return api.get('/data-entry-capex');
+/** { organisationIds: [], financialYears: [], months: [] | 'ALL', expiryDate?, remarks? } */
+export function createTrafficAccessGrant(payload) {
+  return afterWrite(api.post('/kpi/traffic/access', payload));
+}
+
+export function revokeTrafficAccessGrant(accessId) {
+  return afterWrite(api.patch(`/kpi/traffic/access/${accessId}/revoke`));
+}
+
+// Dashboard: the earlier portal's queries. part = traffic | cargo | performance | coastal | summary
+// | drill/traffic | drill/cargo | drill/performance | drill/coastal | drill/cargo-wise
+// params: { fy: '2026-2027' | 'all', months: '4,5,6' | 'all', organisationId, kpi?, cargo?, commodity?, subcategoryId? }
+export const TRAFFIC_DASHBOARD_PARTS = [
+  'traffic', 'cargo', 'performance', 'coastal', 'summary',
+  'drill/traffic', 'drill/cargo', 'drill/performance', 'drill/coastal', 'drill/cargo-wise',
+];
+
+export function fetchTrafficDashboardPart(part, params = {}, config = {}) {
+  if (!TRAFFIC_DASHBOARD_PARTS.includes(part)) return Promise.reject(new Error(`Unknown dashboard part: ${part}`));
+  return api.get(`/kpi/traffic/dashboard/${part}`, { ...config, params });
 }
 
 export default api;
