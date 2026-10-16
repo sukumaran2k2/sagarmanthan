@@ -511,7 +511,11 @@ export default function IssueForm({
           />
         </div>
 
-        <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 border-t border-slate-100 dark:border-slate-800">
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
+          <div className="flex items-center space-x-3">
           <button
             type="button"
             onClick={onBack}
@@ -536,6 +540,7 @@ export default function IssueForm({
                   : 'Save Parliamentary Issue'}
             </button>
           )}
+          </div>
         </div>
       </form>
     </div>

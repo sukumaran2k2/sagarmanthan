@@ -3,7 +3,7 @@ import { SOCIAL_CHANNELS_KEYS, SOCIAL_METRICS } from './constants';
 /**
   Copies the filtered table data as Tab-Separated Values (TSV) to the clipboard
  */
-export function copyTableToClipboard({ gridApi, columnDefs, filteredRowData, activeMediaType, getOrgName, showYearWise, triggerNotification }) {
+export function copyTableToClipboard({ gridApi, columnDefs, filteredRowData, activeMediaType, getOrgName, showYearWise, isOrgView, triggerNotification }) {
   if (!gridApi && !Array.isArray(filteredRowData)) return;
 
   let tsv = '';
@@ -20,11 +20,11 @@ export function copyTableToClipboard({ gridApi, columnDefs, filteredRowData, act
   tsv += headers.join('\t') + '\n';
   
   filteredRowData.forEach((row, idx) => {
-    const line = [
-      idx + 1,
-      getOrgName(row.organisation_id),
-      row.financial_year
-    ];
+    const line = [idx + 1];
+    if (!isOrgView) {
+      line.push(getOrgName(row.organisation_id ?? row.organisation));
+    }
+    line.push(row.financial_year);
     if (!showYearWise) {
       line.push(row.month);
     }
@@ -70,13 +70,13 @@ export function exportTableCSV(gridApi, activeMediaType) {
 /**
   Opens printable window with styled HTML table for PDF saving or printing
  */
-export function printTablePDF({ filteredRowData, activeMediaType, getOrgName, showYearWise }) {
+export function printTablePDF({ filteredRowData, activeMediaType, getOrgName, showYearWise, isOrgView }) {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return;
 
   const title = `Media Outreach - ${activeMediaType === 'broadcast' ? 'Broadcast' : activeMediaType === 'print_media' ? 'Print Media' : activeMediaType === 'online' ? 'Online' : 'Social Media'}`;
   
-  let tableHeaders = `<th>S.No</th><th>Organisation</th><th>Financial Year</th>${showYearWise ? '' : '<th>Month</th>'}`;
+  let tableHeaders = `<th>S.No</th>${isOrgView ? '' : '<th>Organisation</th>'}<th>Financial Year</th>${showYearWise ? '' : '<th>Month</th>'}`;
   if (activeMediaType === 'broadcast') {
     tableHeaders += '<th>National</th><th>Regional</th><th>Overall</th>';
   } else if (activeMediaType === 'print_media') {
@@ -96,7 +96,9 @@ export function printTablePDF({ filteredRowData, activeMediaType, getOrgName, sh
   filteredRowData.forEach((row, idx) => {
     tableRows += '<tr>';
     tableRows += `<td>${idx + 1}</td>`;
-    tableRows += `<td>${getOrgName(row.organisation_id)}</td>`;
+    if (!isOrgView) {
+      tableRows += `<td>${getOrgName(row.organisation_id ?? row.organisation)}</td>`;
+    }
     tableRows += `<td>${row.financial_year || ''}</td>`;
     if (!showYearWise) {
       tableRows += `<td>${row.month || ''}</td>`;

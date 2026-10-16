@@ -190,9 +190,10 @@ export default function Reports({ triggerNotification, wings = [] }) {
   };
 
   return (
-    <div>
-      <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 p-5 md:p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-4 relative rounded-t-2xl">
-        <div className="flex items-center gap-3 min-w-[260px]">
+    <div className="rounded-2xl shadow-lg">
+    <div className="rounded-2xl overflow-hidden">
+      <div className="relative flex flex-wrap items-center justify-between gap-4 px-6 py-6 bg-gradient-to-r from-[#fdfcfc] to-slate-50 dark:from-slate-900 dark:to-slate-800 border-b border-slate-200 dark:border-slate-800 rounded-t-2xl">
+        <div className="flex items-center gap-3 flex-1 min-w-[260px]">
           {drillDownPath.length > 1 && (
             <button onClick={handleBack} className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shadow-sm">
               <ChevronLeft size={18} />
@@ -203,21 +204,21 @@ export default function Reports({ triggerNotification, wings = [] }) {
               <TrendingUp size={14} className="text-[#8c4242] dark:text-blue-400" strokeWidth={2.5} />
               <span className="text-[10.5px] font-black text-[#8c4242] dark:text-blue-400 uppercase tracking-widest">Bills/PreConstitutions Act Report</span>
             </div>
-            <h3 className="m-0 text-xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight">
+            <h3 className="m-0 text-xl font-bold text-[#4b2424] dark:text-blue-400 tracking-wide">
               {isAbstractLevel ? ABSTRACT_TITLE : currentView.title}
             </h3>
             {isAbstractLevel && (
               <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                <span>As on date: <strong className="text-slate-800 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</strong></span>
+                <span>As on date: <strong className="text-[#4b2424] dark:text-blue-400">{new Date().toISOString().split('T')[0]}</strong></span>
                 <span className="text-slate-300 dark:text-slate-700">•</span>
-                <span>Report for the month — <strong className="text-slate-800 dark:text-slate-200">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</strong></span>
+                <span>Report for the month — <strong className="text-[#4b2424] dark:text-blue-400">{new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</strong></span>
               </div>
             )}
           </div>
         </div>
 
         {isAbstractLevel && (
-          <div className="flex items-center justify-between gap-2.5 flex-wrap w-full">
+          <div className="flex items-center justify-between gap-2.5 flex-wrap">
             <div className="flex items-center gap-2.5 flex-wrap">
               <div className="relative w-56">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -251,7 +252,7 @@ export default function Reports({ triggerNotification, wings = [] }) {
 
             <div className="flex items-center gap-2.5">
               <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
-              <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} />
+              <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#4b2424" hoverColor="#6b3535" />
               <button onClick={fetchReportData} className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
                 <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
               </button>
@@ -316,6 +317,7 @@ export default function Reports({ triggerNotification, wings = [] }) {
           onBack={handleBack}
         />
       )}
+    </div>
     </div>
   );
 }

@@ -646,19 +646,18 @@ async function getEmployeeListByOrgId(req, res) {
 async function getEmployeeListByOrgDepPost(req, res) {
     const conn = await pool;
     const request = conn.request();
-    const roleID = parseInt(req.params.roleID, 10);
-    const orgID = req.params.orgID ? parseInt(req.params.orgID, 10) : null;
+    const rawRoleID = req.params.roleID;
+    const roleID = rawRoleID && !['null', 'None', 'undefined'].includes(rawRoleID) && !isNaN(parseInt(rawRoleID, 10)) ? parseInt(rawRoleID, 10) : null;
+    const rawOrgID = req.params.orgID;
+    const orgID = rawOrgID && !['null', 'None', 'undefined'].includes(rawOrgID) && !isNaN(parseInt(rawOrgID, 10)) ? parseInt(rawOrgID, 10) : null;
 
     request.input("roleID", roleID);
+    request.input("orgID", orgID);
 
-     if (orgID) {
-        request.input("orgID", orgID);
-    }
- 
     let orgFilterCondition = "";
     let orgWorkingFilterCondition = "";
 
-     if ((roleID === 6 || roleID === 7) && orgID) {
+    if ((roleID === 6 || roleID === 7) && orgID) {
         orgFilterCondition = " AND e.emp_curr_org_id = @orgID ";
         orgWorkingFilterCondition = " AND t.emp_working_org_id = @orgID ";
     }

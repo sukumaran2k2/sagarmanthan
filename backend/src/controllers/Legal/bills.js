@@ -172,7 +172,26 @@ async function createBill(req, res) {
 async function getBill(req, res) {
     const conn = await pool;
     try {
-        const result = await conn.query(`SELECT bill_id, subject, wing, division, stage_id,
+        const userID = req.query.userID;
+        let scopeClause = '';
+        const request = conn.request();
+
+        // Same scoping as Audit Para: MOPSW admin/other-user/wing-head/
+        // division-head roles see everything; any other role
+        // (organisation-level users) is scoped to their own wing, or to
+        // records they personally created.
+        if (userID) {
+            const userResult = await request.query(`SELECT role_id, wing_id FROM tbl_user WHERE user_id = ${userID}`);
+            const { role_id, wing_id } = userResult.recordset[0] || {};
+            const isMopswRole = [2, 3, 4, 5, 8].includes(role_id);
+            if (!isMopswRole) {
+                request.input("userWingId", wing_id);
+                request.input("requestingUserId", userID);
+                scopeClause = `WHERE (tbl_bill_change.wing = @userWingId OR tbl_bill_change.created_by = @requestingUserId)`;
+            }
+        }
+
+        const result = await request.query(`SELECT bill_id, subject, wing, division, stage_id,
             draft_bill_prepared_date, dcn_draft_bill_approved_minister_date, 
             circulated_imc_date, imc_comments_rec_date, 
             dcn_draft_bill_prepared_date, dcn_draft_bill_approved_date, 
@@ -193,6 +212,7 @@ async function getBill(req, res) {
             INNER JOIN mmt_division ON tbl_bill_change.division = mmt_division.division_id
             INNER JOIN mmt_wings ON tbl_bill_change.wing = mmt_wings.wing_id
             LEFT JOIN mmt_bill_stage ON mmt_bill_stage.bill_stage_id = tbl_bill_change.stage_id
+            ${scopeClause}
             ORDER BY tbl_bill_change.bill_id DESC;`);
         res.json(result.recordset);
     }

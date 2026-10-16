@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { 
-  Plus, Edit, Eye, Search, X, List, BarChart3, Building2, ChevronDown, Sparkles, FileText, Download, Filter 
+  Plus, Edit, Eye, Search, X, List, BarChart3, Building2, ChevronDown, Sparkles, FileText, Download, Filter, Check 
 } from 'lucide-react';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
@@ -260,7 +260,7 @@ export default function GMISDataList({
     {
       headerName: 'S.No',
       field: 'sNo',
-      width: 75,
+      minWidth: 80,
       pinned: 'left',
       valueGetter: (params) => {
         return (currentPage - 1) * pageSize + params.node.rowIndex + 1;
@@ -273,28 +273,20 @@ export default function GMISDataList({
       headerName: 'Organisation (1st Party)',
       field: 'organisation_name',
       flex: 1.5,
-      minWidth: 200,
+      minWidth: 150,
+      wrapText: true,
+      autoHeight: true,
       pinned: 'left',
       cellClass: 'font-bold text-slate-800 dark:text-slate-200',
       hide: !visibleCols.org,
-    },
-    {
-      headerName: 'Summit / Event',
-      field: 'event_name',
-      width: 130,
-      cellClass: 'text-xs font-bold text-blue-700 dark:text-blue-300',
-      hide: !visibleCols.event,
-      cellRenderer: (params) => (
-        <span className="bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[11px] font-bold border border-blue-200 dark:border-blue-800">
-          {params.value || 'GMIS 2025'}
-        </span>
-      ),
     },
     {
       headerName: 'Name of MoU / Project',
       field: 'name_of_mou',
       flex: 2.2,
       minWidth: 260,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'font-semibold text-slate-800 dark:text-slate-200 text-left',
       headerClass: 'text-left',
       hide: !visibleCols.name,
@@ -305,10 +297,31 @@ export default function GMISDataList({
       ),
     },
     {
+      headerName: 'Summit / Event',
+      field: 'event_name',
+      minWidth: 130,
+      cellClass: 'text-xs font-bold text-blue-700 dark:text-blue-300',
+      wrapText: true,
+      autoHeight: true,
+
+      // Hide automatically only when "All Summits" is selected.
+      // For individual GMIS tabs, respect the Visibility checkbox.
+      hide: selectedEvent === '' || !visibleCols.event,
+
+      cellRenderer: (params) => (
+        <span className="bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[11px] font-bold border border-blue-200 dark:border-blue-800">
+          {params.value || '-'}
+        </span>
+      ),
+    },
+    
+    {
       headerName: '2nd Party (Partner / Vendor)',
       field: 'name_of_second_party',
       flex: 1.5,
       minWidth: 180,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-slate-600 dark:text-slate-300 text-xs',
       hide: !visibleCols.party2,
       cellRenderer: (params) => (
@@ -320,7 +333,7 @@ export default function GMISDataList({
     {
       headerName: 'Nature of 2nd Party',
       field: 'nature_of_second_party',
-      width: 160,
+      minWidth: 160,
       cellClass: 'text-xs text-slate-700 dark:text-slate-300',
       hide: !visibleCols.nature,
       cellRenderer: (params) => (
@@ -332,7 +345,7 @@ export default function GMISDataList({
     {
       headerName: 'VIBHAS / NAVIC Cell',
       field: 'navic_name',
-      width: 170,
+      minWidth: 240,
       cellClass: 'text-xs font-semibold text-indigo-700 dark:text-indigo-300',
       hide: !visibleCols.navic,
       cellRenderer: (params) => (
@@ -344,7 +357,7 @@ export default function GMISDataList({
     {
       headerName: 'MoU Category',
       field: 'mou_category_name',
-      width: 150,
+      minWidth: 220,
       cellClass: 'text-slate-600 dark:text-slate-400 text-xs',
       hide: !visibleCols.category,
       cellRenderer: (params) => (
@@ -356,7 +369,7 @@ export default function GMISDataList({
     {
       headerName: 'MoU Value (₹ Cr)',
       field: 'amount',
-      width: 140,
+      minWidth: 140,
       cellClass: 'font-bold text-emerald-600 dark:text-emerald-400 text-right',
       headerClass: 'text-right',
       hide: !visibleCols.amount,
@@ -371,7 +384,7 @@ export default function GMISDataList({
     {
       headerName: 'Revised Amount (₹ Cr)',
       field: 'revised_amount',
-      width: 150,
+      minWidth: 150,
       cellClass: 'font-bold text-blue-600 dark:text-blue-400 text-right',
       headerClass: 'text-right',
       hide: !visibleCols.revisedAmount,
@@ -386,7 +399,7 @@ export default function GMISDataList({
     {
       headerName: 'Present Status',
       field: 'present_status',
-      width: 170,
+      minWidth: 220,
       hide: !visibleCols.status,
       cellRenderer: (params) => {
         const status = params.value || 'Active';
@@ -415,7 +428,7 @@ export default function GMISDataList({
     {
       headerName: 'Physical %',
       field: 'physical_progress_percentage',
-      width: 110,
+      minWidth: 110,
       cellClass: 'font-mono text-center font-bold text-purple-700 dark:text-purple-300 text-xs',
       headerClass: 'text-center',
       hide: !visibleCols.physicalProgress,
@@ -424,7 +437,7 @@ export default function GMISDataList({
     {
       headerName: 'Physical Date',
       field: 'physical_progress_date',
-      width: 130,
+      minWidth: 130,
       cellClass: 'text-xs text-slate-600 dark:text-slate-400 text-center',
       headerClass: 'text-center',
       hide: !visibleCols.physicalDate,
@@ -435,7 +448,7 @@ export default function GMISDataList({
     {
       headerName: 'Financial %',
       field: 'financial_progress_percentage',
-      width: 110,
+      minWidth: 110,
       cellClass: 'font-mono text-center font-bold text-blue-700 dark:text-blue-300 text-xs',
       headerClass: 'text-center',
       hide: !visibleCols.financialProgress,
@@ -444,7 +457,7 @@ export default function GMISDataList({
     {
       headerName: 'Financial Date',
       field: 'financial_progress_date',
-      width: 130,
+      minWidth: 130,
       cellClass: 'text-xs text-slate-600 dark:text-slate-400 text-center',
       headerClass: 'text-center',
       hide: !visibleCols.financialDate,
@@ -455,7 +468,9 @@ export default function GMISDataList({
     {
       headerName: 'MoU Brief',
       field: 'mou_brief',
-      width: 220,
+      minWidth: 220,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-xs text-slate-600 dark:text-slate-400',
       hide: !visibleCols.mouBrief,
       cellRenderer: (params) => (
@@ -465,7 +480,9 @@ export default function GMISDataList({
     {
       headerName: 'Remarks / Detailed Status',
       field: 'remark_or_detailed_status',
-      width: 220,
+      minWidth: 220,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-xs text-slate-600 dark:text-slate-400',
       hide: !visibleCols.remarks,
       cellRenderer: (params) => (
@@ -474,7 +491,7 @@ export default function GMISDataList({
     },
     {
       headerName: 'Next Steps',
-      field: 'next_steps',
+      minWidth: 'next_steps',
       width: 200,
       cellClass: 'text-xs text-slate-600 dark:text-slate-400',
       hide: !visibleCols.nextSteps,
@@ -485,7 +502,9 @@ export default function GMISDataList({
     {
       headerName: 'Reason for Dropping',
       field: 'reason_for_dropping',
-      width: 200,
+      minWidth: 200,
+      wrapText: true,
+      autoHeight: true,
       cellClass: 'text-xs text-rose-600 dark:text-rose-400 font-medium',
       hide: !visibleCols.reasonForDropping,
       cellRenderer: (params) => (
@@ -495,7 +514,7 @@ export default function GMISDataList({
     {
       headerName: 'MoU Document',
       field: 'document_uploader',
-      width: 130,
+      minWidth: 130,
       cellClass: 'text-center',
       headerClass: 'text-center',
       hide: !visibleCols.document,
@@ -512,7 +531,7 @@ export default function GMISDataList({
     },
     {
       headerName: 'Actions',
-      width: 110,
+      minWidth: 110,
       pinned: 'right',
       cellRenderer: (params) => (
         <div className="flex items-center justify-center space-x-1.5 h-full py-1">
@@ -535,7 +554,7 @@ export default function GMISDataList({
       sortable: false,
       filter: false,
     },
-  ], [visibleCols, currentPage, pageSize]);
+  ], [visibleCols, currentPage, pageSize, selectedEvent]);
 
   // Export handlers
   const handleExport = (type) => {
@@ -979,7 +998,7 @@ export default function GMISDataList({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {/* 1. Summit Event Filter */}
+{/*              
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">Summit / Event</label>
                 <select
@@ -992,7 +1011,7 @@ export default function GMISDataList({
                     <option key={i} value={ev}>{ev}</option>
                   ))}
                 </select>
-              </div>
+              </div> */}
 
               {/* 2. Organisation Filter */}
               <div>

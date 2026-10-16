@@ -106,6 +106,16 @@ export function fetchMouTotalCountAmount() {
   return api.get('/get-mou-total-count-amount');
 }
 
+// Dashboard: every aggregate in one call (KPI cards, category chart, summit trend,
+// organisation-wise stages). eventName '' or 'all' = every summit.
+export function fetchGmisMouDashboard(eventName = '') {
+  return api.get('/get-gmis-mou-dashboard', { params: { eventName } });
+}
+
+export function fetchGmisMouSummits() {
+  return api.get('/get-gmis-mou-summits');
+}
+
 export function fetchYearWiseGmisData() {
   return api.get('/get-yearwise-gmis-data');
 }
@@ -132,6 +142,31 @@ export function fetchRevisedPhysicalProgressDate(mouId) {
 
 export function fetchRevisedFinancialProgressDate(mouId) {
   return api.get(`/get-revised-financial-progress-date/${mouId}`);
+}
+
+//report 1.1
+export function getEventWiseSummary(userId) {
+  return api.get(`/get-event-wise-summary/${userId}`);
+}
+
+export function getorgWisePerformanceRankingReport(userId) {
+  return api.get(`/get-org-wise-performance-ranking-report/${userId}`);
+}
+
+export function getVibascellWiseSummary(userId) {
+  return api.get(`/get-vibas-cell-wise-summary/${userId}`);
+}
+
+export function getCategoryWiseSummary(userId) {
+  return api.get(`/get-category-wise-summary/${userId}`);
+}
+
+export function getPhysicalAndFinancialProgressWise(userId) {
+  return api.get(`/get-physical-and-financial-progress-wise/${userId}`);
+}
+
+export function getDroppedMousReport(userId) {
+  return api.get(`/get-dropped-mous-report/${userId}`);
 }
 
 export default api;

@@ -517,7 +517,7 @@ export default function Reports({ triggerNotification }) {
           accentColor="#f7f3f3"
           oddRowColor="#f8faf6"
           pinnedBottomRowData={pinnedBottomRowData}
-          totalLabel="Total Rows"
+          totalLabel="Total"
           pagination={currentView.type === 'detail'}
           loading={loading}
           onRefresh={fetchReportData}

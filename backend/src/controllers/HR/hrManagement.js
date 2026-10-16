@@ -525,8 +525,11 @@ async function getPermanentAbolishedPost(req, res) {
         h.post_code,
         h.updated_date,
         p.post_name,
+        c.class AS class_name,
         h.date_of_arise_in_vacancy,
         h.revival_stage_id,
+        h.revival_submission_date,
+        h.order_of_revival_issued_date,
         o.organisation_name
     FROM
         [tbl_hr_post_strength] h
@@ -536,6 +539,8 @@ async function getPermanentAbolishedPost(req, res) {
         [mmt_hr_post] p ON h.post_id = p.post_id
     LEFT JOIN
         [mmt_hr_department] d ON p.department_id = d.department_id
+    LEFT JOIN
+        [mmt_class] c ON p.class_id = c.class_id
     WHERE
         (h.vacant_or_filled='vacant' AND h.date_of_arise_in_vacancy < DATEADD(YEAR, -5, GETDATE())) OR h.revival_stage_id = 9;
 `;
@@ -579,8 +584,11 @@ async function getPermanentAbolishedPostOrg(req, res) {
             d.department_name,
             h.post_code,
             p.post_name,
+            c.class AS class_name,
             h.date_of_arise_in_vacancy,
             h.revival_stage_id,
+            h.revival_submission_date,
+            h.order_of_revival_issued_date,
             h.updated_date,
             o.organisation_name
         FROM
@@ -591,6 +599,8 @@ async function getPermanentAbolishedPostOrg(req, res) {
             [mmt_hr_post] p ON h.post_id = p.post_id
         LEFT JOIN
             [mmt_hr_department] d ON p.department_id = d.department_id
+        LEFT JOIN
+            [mmt_class] c ON p.class_id = c.class_id
         WHERE h.organisation_id = @organisationId
             AND ((
                 (h.vacant_or_filled = 'vacant'
@@ -1240,8 +1250,8 @@ async function addNewEmployee(req, res) {
         let empMasterId = req.body.empMasterId ?? null;
         
 
-        const ugDisciplinesStr = ugDisciplines.join(',');
-        const pgDisciplinesStr = pgDisciplines.join(',');
+        const ugDisciplinesStr = Array.isArray(ugDisciplines) ? ugDisciplines.join(',') : (ugDisciplines || '');
+        const pgDisciplinesStr = Array.isArray(pgDisciplines) ? pgDisciplines.join(',') : (pgDisciplines || '');
 
         request.input("activityName", activityName);
         request.input("absorptionDate", absorptionDate);

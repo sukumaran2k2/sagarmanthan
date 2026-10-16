@@ -80,6 +80,9 @@ export const rbacApi = {
     }),
   saveUserModuleCrud: (payload) => api.put('/rbac/user-module-crud', payload),
   getPermissionAudit: (params) => api.get('/rbac/permission-audit', { params }),
+  getSagarbotPermissions: () => api.get('/rbac/sagarbot-permissions'),
+  saveSagarbotPermissions: (payload) => api.put('/rbac/sagarbot-permissions', payload),
+  resetSagarbotPermissions: () => api.post('/rbac/sagarbot-permissions/reset'),
 };
 
 export default api;

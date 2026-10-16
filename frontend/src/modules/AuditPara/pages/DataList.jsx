@@ -5,6 +5,7 @@ import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { STATUS_STEPS, CATEGORIES, getParaStatusText } from '../constants';
 import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
+import { getWrapColumnProps, renderWrappedText } from '../../../utils/tableCellWrap';
 import { ChevronDown, Filter, ChevronUp } from 'lucide-react';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -145,7 +146,8 @@ export default function DataList({
     ...(visibleCols.subject ? [{
       headerName: 'Subject', field: 'subject', width: 280, minWidth: 200,
       tooltipField: 'subject',
-      cellClass: 'text-slate-700 flex items-center py-2 border-r border-slate-100 font-semibold'
+      ...getWrapColumnProps('text-slate-700 border-r border-slate-100 font-semibold'),
+      cellRenderer: (params) => renderWrappedText(params.value, 'text-slate-700 font-semibold'),
     }] : []),
     ...(visibleCols.wing ? [{ headerName: 'Wing', field: 'wing', minWidth: 120, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium' }] : []),
     ...(visibleCols.division ? [{ headerName: 'Division', field: 'division', minWidth: 120, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium' }] : []),
@@ -165,10 +167,17 @@ export default function DataList({
     ...(visibleCols.remarks ? [{
       headerName: 'Remarks', field: 'remarks', minWidth: 220,
       tooltipValueGetter: (params) => params.value || 'No remarks',
-      cellClass: 'text-slate-550 flex items-center py-2 border-r border-slate-100 font-medium',
-      valueFormatter: (params) => params.value || '--'
+      ...getWrapColumnProps('text-slate-550 border-r border-slate-100 font-medium'),
+      cellRenderer: (params) => renderWrappedText(params.value, 'text-slate-550 font-medium', '--'),
     }] : []),
-    ...(visibleCols.lastUpdated ? [{ headerName: 'Last Updated Date', field: 'lastUpdated', minWidth: 155, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium' }] : []),
+    ...(visibleCols.lastUpdated ? [{ headerName: 'Last Updated Date', field: 'lastUpdated', minWidth: 155, cellClass: 'text-center flex items-center justify-center border-r border-slate-100 font-medium',
+      valueFormatter: (params) => {
+        if (!params.value) return '—';
+        const d = new Date(params.value);
+        if (isNaN(d.getTime())) return params.value;
+        return d.toISOString().split('T')[0];
+      },
+    }] : []),
     ...(canEdit || canRemove ? [{
       headerName: 'Actions', field: 'id', pinned: 'right', width: canEdit && canRemove ? 90 : 60,
       cellClass: 'text-center flex items-center justify-center gap-1',
@@ -177,7 +186,7 @@ export default function DataList({
           {canEdit && (
             <button
               onClick={() => onEdit && onEdit(params.data)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+              className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
               title="Update Status Details"
             >
               <Edit className="h-4 w-4" />
@@ -239,7 +248,7 @@ export default function DataList({
 
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-            Total Rows: {loading ? '...' : totalEntries}
+            Total: {loading ? '...' : totalEntries}
           </div>
           <CopyButton onCopy={() => handleExport('Copy')} color="#0f417a" hoverBg="#f1f5f9" />
           <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#0f417a" hoverColor="#1d5594" />

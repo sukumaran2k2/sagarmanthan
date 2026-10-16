@@ -27,9 +27,9 @@ async function addLightsHouseMaster(req, res)
     request.input("userID", userID);
 
     const result = await request.query(`
-        INSERT INTO tbl_light_house_master (alol,light_house_name,light_status,commisioned_date,state_id,district_id,latitude,longitude,created_by)
+        INSERT INTO tbl_light_house_master (alol,light_house_name,light_status,commisioned_date,state_id,district_id,latitude,longitude,created_by,created_date)
         OUTPUT INSERTED.lights_house_id
-        VALUES (@alol, @lightsName, @status, @dateOfCommissioning, @state, @district, @latitude, @longitude, @userID)
+        VALUES (@alol, @lightsName, @status, @dateOfCommissioning, @state, @district, @latitude, @longitude, @userID, GETDATE())
     `);
 
     const insertedYPId = result.recordset[0].lights_house_id;
@@ -38,27 +38,76 @@ async function addLightsHouseMaster(req, res)
 } 
 
 async function getLightHouseMaster(req, res) {
-    const userID = req.params.userID;
-    console.log(userID,"userID")
-    const conn = await pool; 
-    const request = conn.request();
-
     try {
-    
-        request.input('userID', userID);
-        const result = await conn.query(`SELECT lights_house_id, alol,light_house_name,light_status,commisioned_date, mmt_state.state_name, mmt_district.district_name ,
-        latitude, longitude,created_by,updated_date
-        
-        from tbl_light_house_master
-        Left JOIN mmt_state on mmt_state.state_id = tbl_light_house_master.state_id
-        Left JOIN mmt_district on mmt_district.district_id = tbl_light_house_master.district_id;`);
-        // console.log(result.recordset);
-        res.json(result.recordset);
-    }
-    
-    catch(err) {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
+        const status = String(req.query.status || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active';
+        const statusValue = status === 'active' ? 1 : 0;
+
+        const FROM_SQL = `
+            FROM tbl_light_house_master
+            LEFT JOIN mmt_state ON mmt_state.state_id = tbl_light_house_master.state_id
+            LEFT JOIN mmt_district ON mmt_district.district_id = tbl_light_house_master.district_id
+        `;
+
+        const countsRequest = conn.request();
+        const totalRequest = conn.request();
+        const pageRequest = conn.request();
+        totalRequest.input("statusValue", statusValue);
+        pageRequest.input("statusValue", statusValue);
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let searchClause = '';
+        if (search) {
+            totalRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            searchClause = ` AND (tbl_light_house_master.alol LIKE @search OR tbl_light_house_master.light_house_name LIKE @search OR mmt_state.state_name LIKE @search OR mmt_district.district_name LIKE @search)`;
+        }
+
+        const [countsResult, totalResult, pageResult] = await Promise.all([
+            countsRequest.query(`
+                SELECT
+                    SUM(CASE WHEN light_status = 1 THEN 1 ELSE 0 END) AS active_count,
+                    SUM(CASE WHEN light_status = 1 THEN 0 ELSE 1 END) AS inactive_count
+                FROM tbl_light_house_master
+            `),
+            totalRequest.query(`SELECT COUNT(*) AS total ${FROM_SQL} WHERE tbl_light_house_master.light_status = @statusValue ${searchClause}`),
+            pageRequest.query(`
+                SELECT tbl_light_house_master.lights_house_id, tbl_light_house_master.alol, tbl_light_house_master.light_house_name,
+                       tbl_light_house_master.light_status, tbl_light_house_master.commisioned_date,
+                       mmt_state.state_name, mmt_district.district_name,
+                       tbl_light_house_master.latitude, tbl_light_house_master.longitude,
+                       tbl_light_house_master.created_by, tbl_light_house_master.updated_date
+                ${FROM_SQL}
+                WHERE tbl_light_house_master.light_status = @statusValue ${searchClause}
+                ORDER BY tbl_light_house_master.lights_house_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const countsRow = countsResult.recordset?.[0] || {};
+        const total = Number(totalResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            counts: {
+                active: Number(countsRow.active_count) || 0,
+                inactive: Number(countsRow.inactive_count) || 0,
+            },
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (err) {
         console.log(err);
-        return res.sendStatus(500);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
 };
     
@@ -194,9 +243,9 @@ async function addVtmsIntegration(req, res) {
             request.input("userID", userID);
 
             const insertResult = await request.query(`
-                INSERT INTO tbl_vtms_integration (financial_year, no_of_ports_vtms_integrated, created_by)
+                INSERT INTO tbl_vtms_integration (financial_year, no_of_ports_vtms_integrated, created_by, created_date)
                 OUTPUT INSERTED.vtms_id
-                VALUES (@financialYear, @vtmsIntegration, @userID)
+                VALUES (@financialYear, @vtmsIntegration, @userID, GETDATE())
             `);
 
             res.sendStatus(201);
@@ -208,22 +257,50 @@ async function addVtmsIntegration(req, res) {
 }
 
     
-async function getVtmsIntegration(req, res) 
-{ 
-
+async function getVtmsIntegration(req, res) {
     try {
         const conn = await pool;
-        const request = conn.request();
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-        const result = await request.query(`
-            SELECT * FROM tbl_vtms_integration
-            ORDER BY financial_year DESC;
-        `);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
 
-        res.json(result.recordset);
-    } catch (err) {
-        console.error("Error fetching Vtms Integration:", err);
-        res.sendStatus(500);
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (financial_year LIKE @search OR CAST(no_of_ports_vtms_integrated AS VARCHAR(50)) LIKE @search)';
+        }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_vtms_integration ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_vtms_integration
+                ${whereClause}
+                ORDER BY financial_year DESC, vtms_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
 }
 
@@ -349,9 +426,9 @@ async function addNaisUptime(req, res) {
         request.input("userID", userID);
 
         const insertResult = await request.query(`
-            INSERT INTO tbl_nais_uptime (financial_year, availability_of_nais, created_by)
+            INSERT INTO tbl_nais_uptime (financial_year, availability_of_nais, created_by, created_date)
             OUTPUT INSERTED.nais_id
-            VALUES (@financialYear, @naisAvailability, @userID)
+            VALUES (@financialYear, @naisAvailability, @userID, GETDATE())
         `);
 
         res.status(201).json({ insertedId: insertResult.recordset[0].nais_id });
@@ -365,23 +442,51 @@ async function addNaisUptime(req, res) {
     
 
         async function getnaisList(req, res) {
-        
-    
-            try {
-                const conn = await pool;
-                const request = conn.request();
-        
-                const result = await request.query(`
-                    SELECT * FROM tbl_nais_uptime
-                    ORDER BY financial_year DESC;
-                `);
-        
-                res.json(result.recordset);
-            } catch (err) {
-                console.error("Error fetching NAIS Uptime:", err);
-                res.sendStatus(500);
-            }
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
+
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (financial_year LIKE @search OR CAST(availability_of_nais AS VARCHAR(50)) LIKE @search)';
         }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_nais_uptime ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_nais_uptime
+                ${whereClause}
+                ORDER BY financial_year DESC, nais_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
         async function getUpdateNaisdata(req, res) 
         {
         
@@ -505,9 +610,9 @@ async function addNaisUptime(req, res) {
                 request.input("userID", userID);
         
                 const insertResult = await request.query(`
-                    INSERT INTO tbl_nais_integration (financial_year, nais_integrated_with_nmda, no_of_nais_upgraded, created_by)
+                    INSERT INTO tbl_nais_integration (financial_year, nais_integrated_with_nmda, no_of_nais_upgraded, created_by, created_date)
                     OUTPUT INSERTED.nais_integration_id
-                    VALUES (@financialYear, @NAISintegration, @NAISupgraded, @userID)
+                    VALUES (@financialYear, @NAISintegration, @NAISupgraded, @userID, GETDATE())
                 `);
         
                 res.status(201).json({ insertedId: insertResult.recordset[0].nais_integration_id });
@@ -520,23 +625,51 @@ async function addNaisUptime(req, res) {
         
             
         async function getnaisIntegrationList(req, res) {
-        
-    
-            try {
-                const conn = await pool;
-                const request = conn.request();
-        
-                const result = await request.query(`
-                    SELECT * FROM tbl_nais_integration
-                    ORDER BY financial_year DESC;
-                `);
-        
-                res.json(result.recordset);
-            } catch (err) {
-                console.error("Error fetching NAIS Integration:", err);
-                res.sendStatus(500);
-            }
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
+
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (financial_year LIKE @search OR CAST(nais_integrated_with_nmda AS VARCHAR(50)) LIKE @search OR CAST(no_of_nais_upgraded AS VARCHAR(50)) LIKE @search)';
         }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_nais_integration ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_nais_integration
+                ${whereClause}
+                ORDER BY financial_year DESC, nais_integration_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
 
         async function getUpdateNaisIntegrationdata(req, res) 
         {
@@ -659,9 +792,9 @@ async function addNaisUptime(req, res) {
                 request.input("userID", userID);
 
                 const insertResult = await request.query (`
-                    INSERT INTO tbl_kpi_dgll_3_5_1 (finacial_year, no_lighthouses_developed_tourist_destination, annual_tourist_footfall, created_by)
+                    INSERT INTO tbl_kpi_dgll_3_5_1 (finacial_year, no_lighthouses_developed_tourist_destination, annual_tourist_footfall, created_by, created_date)
                     OUTPUT INSERTED.tourist_destination_id
-                    VALUES (@financialYears, @lighthouseDeveloped, @annualTourist, @userID)
+                    VALUES (@financialYears, @lighthouseDeveloped, @annualTourist, @userID, GETDATE())
                     `);
                     res.status(201).json({insertedID: insertResult.recordset[0].tourist_destination_id})
             
@@ -673,18 +806,51 @@ async function addNaisUptime(req, res) {
 
 
        async function getTouristDestinations(req, res) {
-        
-        try{
-            const conn =await pool;
-            const request = conn.request();
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-            const result = await request.query (`SELECT * FROM tbl_kpi_dgll_3_5_1 ORDER BY finacial_year DESC`);
-            res.json(result.recordset);
-        } catch(err){
-            res.status(500);
-            console.log("err", err);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (finacial_year LIKE @search OR CAST(no_lighthouses_developed_tourist_destination AS VARCHAR(50)) LIKE @search OR CAST(annual_tourist_footfall AS VARCHAR(50)) LIKE @search)';
         }
-       }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_kpi_dgll_3_5_1 ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_kpi_dgll_3_5_1
+                ${whereClause}
+                ORDER BY finacial_year DESC, tourist_destination_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
 
 
 
@@ -713,9 +879,9 @@ async function addNaisUptime(req, res) {
             request.input("userID", userID);
 
             const insertresult = await request.query (`
-                INSERT INTO tbl_kpi_dgll_3_5_2 (year, collection_of_light_dues, footfall_in_the_lighthouses, created_by)
+                INSERT INTO tbl_kpi_dgll_3_5_2 (year, collection_of_light_dues, footfall_in_the_lighthouses, created_by, created_date)
                 OUTPUT INSERTED.tourist_destination_target_id
-                VALUES (@year, @collectionLightDue, @footFallLighthouse, @userID)
+                VALUES (@year, @collectionLightDue, @footFallLighthouse, @userID, GETDATE())
                 `);
                 res.status(201).json({insertedID: insertresult.recordset[0].tourist_destination_id})
         } 
@@ -730,18 +896,51 @@ async function addNaisUptime(req, res) {
 
 
        async function getTargetDetails(req, res) {
-        try{
-            const conn =await pool;
-            const request = conn.request();
+    try {
+        const conn = await pool;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
 
-            const result = await request.query (`SELECT * FROM tbl_kpi_dgll_3_5_2 ORDER BY year DESC`);
-            res.json(result.recordset);
-            console.log("result targeted", result);
-        } catch(err){
-            res.status(500);
-            console.log("err", err);
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (year LIKE @search OR CAST(collection_of_light_dues AS VARCHAR(50)) LIKE @search OR CAST(footfall_in_the_lighthouses AS VARCHAR(50)) LIKE @search)';
         }
-       }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_kpi_dgll_3_5_2 ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_kpi_dgll_3_5_2
+                ${whereClause}
+                ORDER BY year DESC, tourist_destination_target_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
 
 
 
@@ -1078,20 +1277,51 @@ async function submitFinancialPerformance(req,res) {
     }
 }
 
-async function getFinancialPerfomanceData(req,res) {
+async function getFinancialPerfomanceData(req, res) {
     try {
         const conn = await pool;
-        const request = conn.request();
-    
-        const result = await request.query(`SELECT * FROM tbl_dgll_k_3_6   ORDER BY 
-                financialyear DESC 
-                `);
-    
-        res.json(result.recordset);
-        } catch (error) {
-            console.log("error", error);
-            return res.status(500).json({ message: "Internal Server Error" });
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+        const offset = (page - 1) * limit;
+        const search = (req.query.search || '').trim();
+
+        const countRequest = conn.request();
+        const pageRequest = conn.request();
+        pageRequest.input("offset", offset);
+        pageRequest.input("limit", limit);
+
+        let whereClause = '';
+        if (search) {
+            countRequest.input("search", `%${search}%`);
+            pageRequest.input("search", `%${search}%`);
+            whereClause = 'WHERE (organisation_name LIKE @search OR financialyear LIKE @search)';
         }
+
+        const [countResult, pageResult] = await Promise.all([
+            countRequest.query(`SELECT COUNT(*) AS total FROM tbl_dgll_k_3_6 ${whereClause}`),
+            pageRequest.query(`
+                SELECT * FROM tbl_dgll_k_3_6
+                ${whereClause}
+                ORDER BY financialyear DESC, financial_id DESC
+                OFFSET @offset ROWS
+                FETCH NEXT @limit ROWS ONLY;
+            `),
+        ]);
+
+        const total = Number(countResult.recordset?.[0]?.total) || 0;
+        res.json({
+            data: pageResult.recordset || [],
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.log("error", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
 }
 
 async function getFinancialPerformanceDataByID(req,res) {

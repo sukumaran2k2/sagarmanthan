@@ -69,11 +69,12 @@ async function getYpDivisionWiseCandidate(req, res) {
                 FORMAT(yp.appointment_date, 'dd-MM-yyyy') AS [Appointment Date],
                 yp.appointment_document AS [Document],
                 FORMAT(yp.created_date, 'dd-MM-yyyy HH:mm') AS [Created At],
-                CAST(yp.created_by AS VARCHAR) AS [Created By],
+                COALESCE(u.name, CAST(yp.created_by AS VARCHAR), 'Admin') AS [Created By],
                 FORMAT(yp.last_updated_date, 'dd-MM-yyyy HH:mm') AS [Last Updated At]
             FROM dbo.tbl_young_professionals yp
             INNER JOIN mmt_wings w ON w.wing_id = yp.wing_id
             INNER JOIN mmt_division d ON d.division_id = yp.division_id
+            LEFT JOIN tbl_user u ON u.user_id = yp.created_by
             WHERE yp.division_id = @divisionID AND yp.is_active = 1
             ORDER BY yp.name
         `);
@@ -95,7 +96,10 @@ async function getYpDivisionWiseCandidate(req, res) {
             { headerName: "Experience (Years)", field: "Experience (Years)" },
             { headerName: "Skills", field: "Skills" },
             { headerName: "Appointment Date", field: "Appointment Date" },
-            { headerName: "Document", field: "Document" }
+            { headerName: "Document", field: "Document" },
+            { headerName: "Created At", field: "Created At" },
+            { headerName: "Created By", field: "Created By" },
+            { headerName: "Last Updated At", field: "Last Updated At" }
         ];
 
         res.json({ columnDefs, rowData });
@@ -127,11 +131,12 @@ async function getYpWingWiseCandidate(req, res) {
                 FORMAT(yp.appointment_date, 'dd-MM-yyyy') AS [Appointment Date],
                 yp.appointment_document AS [Document],
                 FORMAT(yp.created_date, 'dd-MM-yyyy HH:mm') AS [Created At],
-                CAST(yp.created_by AS VARCHAR) AS [Created By],
+                COALESCE(u.name, CAST(yp.created_by AS VARCHAR), 'Admin') AS [Created By],
                 FORMAT(yp.last_updated_date, 'dd-MM-yyyy HH:mm') AS [Last Updated At]
             FROM dbo.tbl_young_professionals yp
             INNER JOIN mmt_wings w ON w.wing_id = yp.wing_id
             INNER JOIN mmt_division d ON d.division_id = yp.division_id
+            LEFT JOIN tbl_user u ON u.user_id = yp.created_by
             WHERE yp.wing_id = @wingID AND yp.is_active = 1
             ORDER BY yp.name
         `);
@@ -153,7 +158,10 @@ async function getYpWingWiseCandidate(req, res) {
             { headerName: "Experience (Years)", field: "Experience (Years)" },
             { headerName: "Skills", field: "Skills" },
             { headerName: "Appointment Date", field: "Appointment Date" },
-            { headerName: "Document", field: "Document" }
+            { headerName: "Document", field: "Document" },
+            { headerName: "Created At", field: "Created At" },
+            { headerName: "Created By", field: "Created By" },
+            { headerName: "Last Updated At", field: "Last Updated At" }
         ];
 
         res.json({ columnDefs, rowData });

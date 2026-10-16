@@ -69,7 +69,7 @@ export default function AuditParaView({ activeSubTab: activeSubTabProp, setActiv
 
   const fetchData = () => {
     setLoading(true);
-    fetchAuditParas()
+    fetchAuditParas(getCurrentUserId())
       .then((res) => setRowData((res.data || []).map(parseAuditParaRow)))
       .catch((err) => console.error('Error loading Audit Paras:', err))
       .finally(() => setLoading(false));

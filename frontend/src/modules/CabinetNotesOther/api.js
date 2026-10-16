@@ -59,6 +59,10 @@ export function fetchCabinetMinistry(userId = 1) {
   return api.get(`/cabinet-ministry/${userId}`);
 }
 
+export function fetchCabinetNotesOtherDashboard() {
+  return api.get('/cabinet-notes-other-dashboard');
+}
+
 export function fetchCabinetMinistryById(id) {
   return api.get(`/cabinet-ministry-update/${id}`);
 }
@@ -76,7 +80,7 @@ export function deleteCabinetMinistry(id, userId = 1) {
 }
 
 export function fetchMinistryList() {
-  return api.get('/mmt-dropdown/mmt_ministry');
+  return api.get('/allvalue-dropdown/mmt_ministry');
 }
 
 export function fetchWings() {

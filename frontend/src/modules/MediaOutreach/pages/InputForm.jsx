@@ -117,7 +117,7 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
     const finalOrgId = organisationId || (hideOrgSelect ? sessionOrg : null) || (isEdit ? editData?.organisation_id : null);
 
     if (!financialYear || !month || !finalOrgId) {
-      if (triggerNotification) triggerNotification(hideOrgSelect ? 'Please select Financial Year and Month.' : 'Please select Financial Year, Month, and Organisation.', 'warning');
+      if (triggerNotification) triggerNotification(hideOrgSelect ? 'Please select Financial Year and Month.' : 'Please select Financial Year, Month, and Organisation.');
       return;
     }
 
@@ -174,11 +174,10 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
 
       try {
         await updateSocialMedia(updatePayload);
-        if (triggerNotification) triggerNotification('Media outreach record updated successfully.', 'success');
         onSuccess();
       } catch (err) {
         console.error(err);
-        if (triggerNotification) triggerNotification('Error updating record. Please try again.', 'error');
+        if (triggerNotification) triggerNotification('Error updating record. Please try again.');
       } finally {
         setSubmitting(false);
       }
@@ -221,17 +220,16 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
       try {
         const res = await createSocialMedia(payload);
         if (res.status === 302 || res.status === 200) {
-          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.', 'warning');
+          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.');
         } else {
-          if (triggerNotification) triggerNotification('Media outreach record registered successfully.', 'success');
           onSuccess();
         }
       } catch (err) {
         if (err.response?.status === 302) {
-          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.', 'warning');
+          if (triggerNotification) triggerNotification('Record already exists for this Financial Year, Month & Organisation.');
         } else {
           console.error(err);
-          if (triggerNotification) triggerNotification('Error saving record. Please try again.', 'error');
+          if (triggerNotification) triggerNotification('Error saving record. Please try again.');
         }
       } finally {
         setSubmitting(false);
@@ -273,7 +271,9 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
         {/* Financial Year, Month & Organisation selectors */}
         <div className={`grid grid-cols-1 ${hideOrgSelect ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-5`}>
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Financial Year <span className="text-red-500">*</span></label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+              Financial Year<span className="text-red-500 font-bold ml-0.5">*</span>
+            </label>
             <select
               value={financialYear}
               onChange={(e) => setFinancialYear(e.target.value)}
@@ -285,7 +285,9 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Month <span className="text-red-500">*</span></label>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+              Month<span className="text-red-500 font-bold ml-0.5">*</span>
+            </label>
             <select
               value={month}
               onChange={(e) => setMonth(e.target.value)}
@@ -298,7 +300,9 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
           </div>
           {!hideOrgSelect && (
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Organisation*</label>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+                Organisation<span className="text-red-500 font-bold ml-0.5">*</span>
+              </label>
               <select
                 value={organisationId}
                 onChange={(e) => setOrganisationId(e.target.value)}
@@ -459,8 +463,15 @@ export default function InputForm({ onBack, onSuccess, triggerNotification, edit
           </div>
         )}
 
-        {/* Navigation Buttons */}
-        <div className="flex items-center justify-between pt-5 border-t border-slate-100">
+        {/* Mandatory Note */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
+        </div>
+
+        {/* Navigation & Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-3">
             {!isEdit && currentStep > 0 && (
               <button

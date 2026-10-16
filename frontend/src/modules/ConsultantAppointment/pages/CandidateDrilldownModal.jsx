@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Download, Upload, FileText, User, Calendar, Briefcase, Award, DollarSign, CheckCircle2, AlertCircle, Plus, Edit2, Loader2 } from 'lucide-react';
-import { fetchCandidatesByConsultantAppointmentId, uploadCandidateDocument, API_BASE } from '../api';
+import { fetchCandidatesByConsultantAppointmentId, fetchCandidateDetail, fetchCandidateDocument, uploadCandidateDocument, API_BASE } from '../api';
 import CandidateModal from './CandidateModal';
 
 export default function CandidateDrilldownModal({
@@ -24,10 +24,56 @@ export default function CandidateDrilldownModal({
     setLoading(true);
     try {
       const res = await fetchCandidatesByConsultantAppointmentId(appointment.id);
-      setCandidates(res.data || []);
+      if (res.data && res.data.length > 0) {
+        setCandidates(res.data);
+      } else {
+        const candIdsStr = appointment.raw?.candidate_id || '';
+        if (candIdsStr) {
+          const idList = String(candIdsStr).split(',').map(s => s.trim()).filter(Boolean);
+          const loaded = await Promise.all(
+            idList.map(async (cid) => {
+              try {
+                const cres = await fetchCandidateDetail(cid);
+                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
+                const cdata = cres.data?.[0] || {};
+                const docName = docRes.data?.[0]?.appointment_order_document || '';
+                return { ...cdata, appointment_order_document: docName, documentName: docName };
+              } catch {
+                return { candidate_id: cid };
+              }
+            })
+          );
+          setCandidates(loaded);
+        } else {
+          setCandidates([]);
+        }
+      }
     } catch (err) {
       console.error('Error fetching candidates for drilldown:', err);
-      if (triggerNotification) {
+      const candIdsStr = appointment.raw?.candidate_id || '';
+      if (candIdsStr) {
+        try {
+          const idList = String(candIdsStr).split(',').map(s => s.trim()).filter(Boolean);
+          const loaded = await Promise.all(
+            idList.map(async (cid) => {
+              try {
+                const cres = await fetchCandidateDetail(cid);
+                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
+                const cdata = cres.data?.[0] || {};
+                const docName = docRes.data?.[0]?.appointment_order_document || '';
+                return { ...cdata, appointment_order_document: docName, documentName: docName };
+              } catch {
+                return { candidate_id: cid };
+              }
+            })
+          );
+          setCandidates(loaded);
+        } catch {
+          if (triggerNotification) {
+            triggerNotification('Failed to load candidate details.', 'error');
+          }
+        }
+      } else if (triggerNotification) {
         triggerNotification('Failed to load candidate details.', 'error');
       }
     } finally {
@@ -298,7 +344,7 @@ export default function CandidateDrilldownModal({
                                   setEditingCandidateIndex(idx);
                                   setIsEditModalOpen(true);
                                 }}
-                                className="p-1.5 text-[#0f417a] dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg transition cursor-pointer"
+                                className="p-1.5 text-orange-500 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
                                 title="Edit Candidate Details"
                               >
                                 <Edit2 className="h-4 w-4" />

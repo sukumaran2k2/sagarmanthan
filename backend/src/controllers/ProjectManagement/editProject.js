@@ -476,32 +476,36 @@ const upload = multer({
 });
 
 async function addProjectDocumentUploader(req, res) {
-
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ error: 'No files uploaded or incorrect field name' });
         }
 
-        const { projectID, subProjectID, folderName } = req.body;
+        const projectID = req.body.projectID ? String(req.body.projectID).trim() : null;
+        const rawSubProjectID = req.body.subProjectID;
+        const isMainProject = !rawSubProjectID || String(rawSubProjectID).trim() === '-1' || String(rawSubProjectID).trim() === 'null';
+        const subProjectID = isMainProject ? '-1' : String(rawSubProjectID).trim();
+        const folderName = req.body.folderName ? String(req.body.folderName).trim() : 'project_ppt';
+
+        if (!projectID) {
+            return res.status(400).json({ error: 'Project ID is required to upload documents' });
+        }
+
+        const subfolder = isMainProject ? 'mainProject' : 'subProject';
+        const targetDir = path.resolve(uploadDestinationBase, folderName, subfolder);
+        if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
+        }
 
         const filenames = [];
+        const conn = await pool;
 
         for (let index = 0; index < req.files.length; index++) {
             const file = req.files[index];
             const originalFileName = file.originalname;
-
             const uniqueFileName = generateUniqueFileName(originalFileName);
+            const destinationPath = path.join(targetDir, uniqueFileName);
 
-            let destinationPath;
-            console.log("projectID", projectID);
-            console.log("subProjectID", subProjectID);
-            if (subProjectID == -1) {
-                destinationPath = `${uploadDestinationBase}/${folderName}/mainProject/${uniqueFileName}`;
-            } else {
-                destinationPath = `${uploadDestinationBase}/${folderName}/subProject/${uniqueFileName}`;
-            }
-
-            const conn = await pool;
             const request = conn.request();
             request.input("projectID", projectID);
             request.input("subProjectID", subProjectID);
@@ -511,18 +515,23 @@ async function addProjectDocumentUploader(req, res) {
             await request.query(`INSERT INTO tbl_project_document (project_id, sub_project_id, document_type, document_name) 
                 VALUES (@projectID, @subProjectID, @documentType, @documentName)`);
 
-            fs.renameSync(file.path, destinationPath);
+            try {
+                fs.renameSync(file.path, destinationPath);
+            } catch (renameErr) {
+                fs.copyFileSync(file.path, destinationPath);
+                try { fs.unlinkSync(file.path); } catch (e) {}
+            }
             filenames.push(uniqueFileName);
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             message: 'Files uploaded successfully',
             filenames,
             status: 200,
         });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error("Error in addProjectDocumentUploader:", err);
+        return res.status(500).json({ error: err?.message || 'Internal server error' });
     }
 }
 
@@ -648,32 +657,37 @@ async function downloadErrorLogFile(req, res) {
 
 
 async function editProjectDocumentUploader(req, res) {
-
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ error: 'No files uploaded or incorrect field name' });
         }
 
-        const { projectID, subProjectID, documentName, documentType, folderName } = req.body;
+        const projectID = req.body.projectID ? String(req.body.projectID).trim() : null;
+        const rawSubProjectID = req.body.subProjectID;
+        const isMainProject = !rawSubProjectID || String(rawSubProjectID).trim() === '-1' || String(rawSubProjectID).trim() === 'null';
+        const subProjectID = isMainProject ? '-1' : String(rawSubProjectID).trim();
+        const documentName = req.body.documentName;
+        const folderName = req.body.folderName ? String(req.body.folderName).trim() : 'project_ppt';
+
+        if (!projectID) {
+            return res.status(400).json({ error: 'Project ID is required to edit documents' });
+        }
+
+        const subfolder = isMainProject ? 'mainProject' : 'subProject';
+        const targetDir = path.resolve(uploadDestinationBase, folderName, subfolder);
+        if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
+        }
 
         const filenames = [];
+        const conn = await pool;
 
         for (let index = 0; index < req.files.length; index++) {
             const file = req.files[index];
             const originalFileName = file.originalname;
-
             const uniqueFileName = generateUniqueFileName(originalFileName);
+            const destinationPath = path.join(targetDir, uniqueFileName);
 
-            let destinationPath;
-            console.log("projectID", projectID);
-            console.log("subProjectID", subProjectID);
-            if (subProjectID == -1) {
-                destinationPath = `${uploadDestinationBase}/${folderName}/mainProject/${uniqueFileName}`;
-            } else {
-                destinationPath = `${uploadDestinationBase}/${folderName}/subProject/${uniqueFileName}`;
-            }
-
-            const conn = await pool;
             const request = conn.request();
             request.input("projectID", projectID);
             request.input("subProjectID", subProjectID);
@@ -684,28 +698,38 @@ async function editProjectDocumentUploader(req, res) {
             await request.query(`INSERT INTO tbl_project_document (project_id, sub_project_id, document_type, document_name) 
                 VALUES (@projectID, @subProjectID, @documentType, @newDocumentName)`);
 
-            await request.query(`DELETE FROM tbl_project_document 
-            WHERE project_id = @projectID AND sub_project_id = @subProjectID AND document_name = @documentName`);
+            if (documentName) {
+                await request.query(`DELETE FROM tbl_project_document 
+                WHERE project_id = @projectID AND sub_project_id = @subProjectID AND document_name = @documentName`);
+            }
 
-            fs.renameSync(file.path, destinationPath);
+            try {
+                fs.renameSync(file.path, destinationPath);
+            } catch (renameErr) {
+                fs.copyFileSync(file.path, destinationPath);
+                try { fs.unlinkSync(file.path); } catch (e) {}
+            }
             filenames.push(uniqueFileName);
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             message: 'Files uploaded successfully',
             filenames,
             status: 200,
         });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error("Error in editProjectDocumentUploader:", err);
+        return res.status(500).json({ error: err?.message || 'Internal server error' });
     }
 }
 
 async function getProjectDocuments(req, res) {
-    const projectID = req.params.projectID;
-    const subProjectID = req.params.subProjectID;
-    // console.log("projectdatesui", projectID)
+    const projectID = req.params.projectID ? String(req.params.projectID).trim() : null;
+    const subProjectID = req.params.subProjectID ? String(req.params.subProjectID).trim() : '-1';
+
+    if (!projectID) {
+        return res.json([]);
+    }
 
     const conn = await pool;
     const request = conn.request();
@@ -714,19 +738,19 @@ async function getProjectDocuments(req, res) {
 
     try {
         let result;
-        if (subProjectID == -1) {
+        if (subProjectID === '-1' || subProjectID === '' || subProjectID === 'null') {
             result = await request.query(`SELECT * 
-            FROM tbl_project_document WHERE project_id = @projectID AND sub_project_id IS NOT NULL;`);
+            FROM tbl_project_document WHERE project_id = @projectID;`);
         }
         else {
             result = await request.query(`SELECT *
-            FROM tbl_project_document WHERE sub_project_id = @subProjectID AND sub_project_id IS NOT NULL;`);
+            FROM tbl_project_document WHERE sub_project_id = @subProjectID;`);
         }
 
-        res.json(result.recordset);
+        return res.json(result.recordset || []);
     }
     catch (err) {
-        console.log(err);
+        console.error("Error in getProjectDocuments:", err);
         return res.sendStatus(500);
     }
 }

@@ -486,22 +486,27 @@ export default function InputForm({
 
         {/* Footer actions */}
         {!readOnly && (
-          <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-slate-150 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-4 py-2 border border-slate-250 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 transition cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || !isDirty || !isFormValid}
-              className="flex items-center gap-2 px-5 py-2 bg-[#0f417a] hover:bg-[#16569e] disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-lg transition cursor-pointer"
-            >
-              <Save className="h-4.5 w-4.5" />
-              <span>{submitting ? "Saving..." : "Save details"}</span>
-            </button>
+          <div className="flex justify-between items-center gap-3 pt-6 mt-6 border-t border-slate-150 dark:border-slate-800">
+            <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-4 py-2 border border-slate-250 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !isDirty || !isFormValid}
+                className="flex items-center gap-2 px-5 py-2 bg-[#0f417a] hover:bg-[#16569e] disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-lg transition cursor-pointer"
+              >
+                <Save className="h-4.5 w-4.5" />
+                <span>{submitting ? "Saving..." : "Save details"}</span>
+              </button>
+            </div>
           </div>
         )}
       </form>

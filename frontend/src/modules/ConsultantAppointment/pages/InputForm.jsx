@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowLeft, Calendar, Upload, File, FileText, CheckCircle, ChevronUp, ChevronDown, X } from 'lucide-react';
 import {
   createConsultantAppointment,
@@ -12,6 +12,8 @@ import {
   addConsultantID
 } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { CA_TOASTS } from '../toastMessages';
 
 /**
  * Milestone Workflow Configuration
@@ -37,6 +39,7 @@ export default function InputForm({
   triggerNotification
 }) {
   const isEdit = !!editData;
+  const notify = useNotifier(triggerNotification);
 
   // Form states
   const [wing, setWing] = useState('');
@@ -225,6 +228,27 @@ export default function InputForm({
     }
   }, [editData]);
 
+  // Dynamically filter divisions based on the selected wing
+  const filteredDivisions = useMemo(() => {
+    if (!wing) return [];
+    return divisions.filter(d => String(d.wing_id) === String(wing));
+  }, [wing, divisions]);
+
+  // Sync division selection if current division is not in filtered list
+  useEffect(() => {
+    if (!wing) {
+      if (division) setDivision('');
+      return;
+    }
+    if (division) {
+      const exists = filteredDivisions.some(d => String(d.division_id) === String(division));
+      if (!exists) {
+        setDivision('');
+      }
+    }
+  }, [wing, filteredDivisions, division]);
+
+
   const isStageAccessible = (index) => {
     if (index === 0) return true;
     const prevStage = STAGES[index - 1];
@@ -285,15 +309,15 @@ export default function InputForm({
     e.preventDefault();
 
     if (!wing) {
-      if (triggerNotification) triggerNotification("Please select a Wing.", "warning");
+      notify(COMMON_TOASTS.requiredSelect('Wing'));
       return;
     }
     if (!division) {
-      if (triggerNotification) triggerNotification("Please select a Division.", "warning");
+      notify(COMMON_TOASTS.requiredSelect('Division'));
       return;
     }
     if (Object.keys(errors).length > 0) {
-      if (triggerNotification) triggerNotification("Please correct validation errors before submitting.", "warning");
+      notify(COMMON_TOASTS.fixValidationErrors());
       return;
     }
 
@@ -351,20 +375,14 @@ export default function InputForm({
         });
       }
 
-      if (triggerNotification) {
-        triggerNotification(
-          isEdit ? "Consultant Appointment updated successfully." : "New Consultant Appointment registered successfully.",
-          "success"
-        );
-      }
+      const wingName = wings.find(w => String(w.wing_id) === String(wing))?.wing_name;
+      const divisionName = divisions.find(d => String(d.division_id) === String(division))?.division_name;
+      notify(isEdit ? CA_TOASTS.updated(wingName, divisionName) : CA_TOASTS.created(wingName, divisionName));
 
       onSuccess();
     } catch (err) {
       console.error("Submit error details:", err.response?.data || err);
-      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
-      if (triggerNotification) {
-        triggerNotification(`Failed to save Consultant Appointment: ${serverMsg}`, "error");
-      }
+      notify(CA_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -419,7 +437,7 @@ export default function InputForm({
 
     if (Object.keys(errors).length > 0) {
       setCErrors(errors);
-      if (triggerNotification) triggerNotification('Please fill all mandatory candidate fields.', 'warning');
+      notify(COMMON_TOASTS.mandatoryFieldsMissing());
       return;
     }
 
@@ -486,16 +504,12 @@ export default function InputForm({
         return next;
       });
 
-      if (triggerNotification) {
-        triggerNotification(`Candidate ${activeCandidateIndex + 1} details saved!`, 'success');
-      }
+      notify(existingCand ? CA_TOASTS.candidateUpdated(cName) : CA_TOASTS.candidateAdded(cName));
 
       setIsCandidateFormOpen(false);
     } catch (err) {
       console.error('Error saving candidate inline:', err);
-      if (triggerNotification) {
-        triggerNotification(err.response?.data?.message || 'Failed to save candidate details.', 'error');
-      }
+      notify(CA_TOASTS.candidateSaveFailed(getErrorMessage(err)));
     } finally {
       setCSaving(false);
     }
@@ -510,13 +524,13 @@ export default function InputForm({
     submitting;
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+          <h3 className="module-form-banner-title">
             {isEdit ? "Update Consultant Appointment" : "Add Consultant Appointment"}
           </h3>
-          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+          <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
         </div>
       </div>
 
@@ -526,16 +540,18 @@ export default function InputForm({
           {/* Left Panel: Fixed Metadata (4 cols on lg screens) */}
           <div className="lg:col-span-4 space-y-4">
             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-4">
-              <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider pb-2 border-b border-slate-200 dark:border-slate-800">
+              <h4 className="module-form-section-title !mt-0 !mb-4">
                 Appointment Information
               </h4>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
+                <label className="module-form-label">Wing <span className="text-red-500">*</span></label>
                 <select
                   value={wing}
                   onChange={(e) => {
-                    setWing(e.target.value);
+                    const newWing = e.target.value;
+                    setWing(newWing);
+                    setDivision('');
                     handleBlur('wing');
                   }}
                   onBlur={() => handleBlur('wing')}
@@ -551,7 +567,7 @@ export default function InputForm({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
+                <label className="module-form-label">Division <span className="text-red-500">*</span></label>
                 <select
                   value={division}
                   onChange={(e) => {
@@ -559,10 +575,11 @@ export default function InputForm({
                     handleBlur('division');
                   }}
                   onBlur={() => handleBlur('division')}
-                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('division', division) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200`}
+                  disabled={!wing}
+                  className={`w-full text-xs p-2.5 bg-white dark:bg-slate-900 border ${isFieldInvalid('division', division) ? 'border-red-500' : 'border-slate-250 dark:border-slate-800'} rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 font-semibold text-slate-700 dark:text-slate-200 ${!wing ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
-                  <option value="">Select Division</option>
-                  {divisions.map((d) => (
+                  <option value="">{!wing ? 'Select Wing First' : 'Select Division'}</option>
+                  {filteredDivisions.map((d) => (
                     <option key={d.division_id} value={d.division_id}>
                       {d.division_name}
                     </option>
@@ -571,7 +588,7 @@ export default function InputForm({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Number of Resources <span className="text-red-500">*</span></label>
+                <label className="module-form-label">Number of Resources <span className="text-red-500">*</span></label>
                 <input
                   type="number"
                   min="1"
@@ -839,7 +856,7 @@ export default function InputForm({
                                     const file = e.target.files[0];
                                     if (file) {
                                       if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-                                        if (triggerNotification) triggerNotification('Only PDF files allowed.', 'error');
+                                        notify(COMMON_TOASTS.invalidFileType('PDF'));
                                         e.target.value = '';
                                         return;
                                       }

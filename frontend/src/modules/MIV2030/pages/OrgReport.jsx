@@ -10,11 +10,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   Coins,
-  Sparkles,
   Filter,
   ChevronDown,
+  ChevronUp,
   RotateCcw,
-  X,
   Tag
 } from 'lucide-react';
 import ReportTable from '../../../components/ReportTable';
@@ -28,49 +27,47 @@ import {
   detailedReportDelayedOverdueInitiatives
 } from '../api';
 
-/* ============================================================
-   REPORT CONFIGURATION (MIV 2030)
-   ============================================================ */
+const BRAND = '#4b2424';
+const BRAND_HOVER = '#6b3535';
+const BRAND_SOFT = '#8c4242';
+const ACCENT = '#f5eeea';
+const BORDER = '#e8d5c8';
+
 const REPORTS = [
   {
     id: '1.1',
     code: 'Report 1.1',
     label: 'Organisation Performance',
     fullTitle: 'Report No. 1.1 - Organisation-wise Performance Ranking Report - Maritime India Vision 2030',
-    icon: Building2,
-    badgeColor: 'from-blue-600 to-cyan-600'
+    icon: Building2
   },
   {
     id: '1.2',
     code: 'Report 1.2',
     label: 'Theme Performance',
     fullTitle: 'Report No. 1.2 - Theme-wise Performance Ranking Report - Maritime India Vision 2030',
-    icon: FolderTree,
-    badgeColor: 'from-indigo-600 to-blue-600'
+    icon: FolderTree
   },
   {
     id: '1.3',
     code: 'Report 1.3',
     label: 'Category Performance',
     fullTitle: 'Report No. 1.3 - Category-wise Performance Ranking Report - Maritime India Vision 2030',
-    icon: BarChart3,
-    badgeColor: 'from-purple-600 to-indigo-600'
+    icon: BarChart3
   },
   {
     id: '1.4',
     code: 'Report 1.4',
     label: 'Delayed Summary',
     fullTitle: 'Report No. 1.4 - Summary Report (Delayed / Overdue Initiatives) - Maritime India Vision 2030',
-    icon: Layers,
-    badgeColor: 'from-amber-600 to-orange-600'
+    icon: Layers
   },
   {
     id: '1.5',
     code: 'Report 1.5',
     label: 'Delayed Details',
     fullTitle: 'Report No. 1.5 - Detailed Report (Delayed / Overdue Initiatives) - Maritime India Vision 2030',
-    icon: FileText,
-    badgeColor: 'from-rose-600 to-red-600'
+    icon: FileText
   }
 ];
 
@@ -86,12 +83,16 @@ export default function MIVReports({ triggerNotification }) {
   const [filterOrg, setFilterOrg] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
 
+  const gridApiRef = useRef(null);
+
   const handleTabChange = (newTab) => {
     setActiveTab(newTab);
     if (newTab !== '1.5') {
       setShowFilterPanel(false);
       setFilterOrg('all');
       setFilterCategory('all');
+    } else {
+      setShowFilterPanel(true);
     }
   };
 
@@ -161,7 +162,12 @@ export default function MIVReports({ triggerNotification }) {
           progressOn: Number(item['In Progress - On Time'] ?? item.ProgressOn ?? item.progress_on ?? item.progressOn ?? 0),
           progressDelayed: Number(item['In Progress - Delayed'] ?? item.ProgressDelayed ?? item.progress_delayed ?? item.progressDelayed ?? 0),
           notStarted: Number(item['Not Started'] ?? item.NotStarted ?? item.not_started ?? item.notStarted ?? 0),
-          performanceScore: item.PerformanceScore ?? item.performance_score ?? item.performanceScore ?? item['Performance Score'] ?? '—'
+          performanceScore:
+            item['Performance Score'] ??
+            item.PerformanceScore ??
+            item.performance_score ??
+            item.performanceScore ??
+            0
         }));
         setReportRows(formatted);
       } else if (activeTab === '1.3') {
@@ -190,7 +196,7 @@ export default function MIVReports({ triggerNotification }) {
           totalDelayed: Number(item.TotalDelayedInitiatives ?? item.TotalDelayed ?? item.total_delayed_initiatives ?? 0),
           delayedLess6: Number(item.DelayedLess6Months ?? item.DelayedLessThan6Months ?? item.Delayed_Under_6_Months ?? item.delayed_less_than_6_months ?? 0),
           delayed6To12: Number(item.Delayed6To12Months ?? item.Delayed6_12Months ?? item.Delayed_6_12_Months ?? item.delayed_6_12_months ?? 0),
-          severelyDelayed: Number(item.SeverelyDelayed ?? item.SeverelyDelayedMoreThan1Year ?? item.Severely_Delayed ?? item.severely_delayed ?? 0),
+          severelyDelayed: Number(item.SeverelyDelayed ?? item.SeverelyDelayedMoreThan1Year ?? item.severely_delayed_more_than_1_year ?? item.severely_delayed_more_than_1_year ?? 0),
           totalCost: Number(item.TotalCost ?? item.TotalDelayedCost ?? item.total_cost ?? 0)
         }));
         setReportRows(formatted);
@@ -225,6 +231,10 @@ export default function MIVReports({ triggerNotification }) {
   useEffect(() => {
     fetchCurrentReport();
   }, [fetchCurrentReport]);
+
+  const onGridReady = useCallback((params) => {
+    gridApiRef.current = params.api;
+  }, []);
 
   /* ── Filter Options & Filtering (Specifically for Report 1.5) ── */
   const availableOrgs = useMemo(() => {
@@ -305,6 +315,8 @@ export default function MIVReports({ triggerNotification }) {
           minWidth: 260,
           flex: 1,
           pinned: 'left',
+          wrapText: true,
+          autoHeight: true,
           cellRenderer: (p) => {
             if (p.data?.isTotalRow) {
               return <span className="font-black text-slate-900 dark:text-white uppercase tracking-wider">Total</span>;
@@ -317,7 +329,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'totalInitiatives',
           minWidth: 150,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-[#4b2424] dark:text-amber-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)}
             </span>
           ),
@@ -328,7 +340,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'totalInvestment',
           minWidth: 180,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-emerald-700 dark:text-emerald-400">
+            <span className="p-2  text-right text-slate-700">
               ₹{formatInvestment(p.value)}
             </span>
           ),
@@ -343,7 +355,7 @@ export default function MIVReports({ triggerNotification }) {
               field: 'completed',
               minWidth: 125,
               cellRenderer: (p) => (
-                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="p-2  text-right text-slate-700">
                   {formatNumber(p.value)}
                 </span>
               ),
@@ -354,7 +366,7 @@ export default function MIVReports({ triggerNotification }) {
               field: 'progressOn',
               minWidth: 155,
               cellRenderer: (p) => (
-                <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                <span className="p-2  text-right text-slate-700">
                   {formatNumber(p.value)}
                 </span>
               ),
@@ -365,7 +377,7 @@ export default function MIVReports({ triggerNotification }) {
               field: 'progressDelayed',
               minWidth: 155,
               cellRenderer: (p) => (
-                <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                <span className="p-2  text-right text-slate-700">
                   {formatNumber(p.value)}
                 </span>
               ),
@@ -376,7 +388,7 @@ export default function MIVReports({ triggerNotification }) {
               field: 'notStarted',
               minWidth: 125,
               cellRenderer: (p) => (
-                <span className="font-mono font-bold text-slate-500 dark:text-slate-400">
+                <span className="p-2  text-right text-slate-700">
                   {formatNumber(p.value)}
                 </span>
               ),
@@ -385,20 +397,45 @@ export default function MIVReports({ triggerNotification }) {
           ]
         },
         {
-          headerName: 'Performance Score',
+          headerName: 'Performance Score (%)',
           field: 'performanceScore',
-          minWidth: 155,
-          cellRenderer: (p) => {
-            if (p.data?.isTotalRow) return '—';
-            const val = p.value;
-            if (!val || val === '—') return <span className="text-slate-400">—</span>;
-            return (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-50 dark:bg-[#4b2424]/60 text-[#4b2424] dark:text-amber-300 border border-[#8c4242]/30">
-                {val}
-              </span>
-            );
+          width: 180,
+
+          cellRenderer: (params) => {
+            const score = Number(params.value);
+
+            return Number.isFinite(score)
+              ? `${score.toFixed(2)}%`
+              : '—';
           },
-          cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
+
+          cellStyle: (params) => {
+            const score = Number(params.value);
+
+            let backgroundColor = '#fee2e2';
+            let color = '#b91c1c';
+
+            if (score > 100) {
+              backgroundColor = '#dbeafe';
+              color = '#1d4ed8';
+            } else if (score >= 75) {
+              backgroundColor = '#dcfce7';
+              color = '#15803d';
+            } else if (score >= 50) {
+              backgroundColor = '#ffedd5';
+              color = '#c2410c';
+            }
+
+            return {
+              backgroundColor,
+              color,
+              fontWeight: 'bold',
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            };
+          }
         }
       ];
     }
@@ -424,6 +461,8 @@ export default function MIVReports({ triggerNotification }) {
           minWidth: 260,
           flex: 1,
           pinned: 'left',
+          wrapText: true,
+          autoHeight: true,
           cellRenderer: (p) => {
             if (p.data?.isTotalRow) {
               return <span className="font-black text-slate-900 dark:text-white uppercase tracking-wider">Total</span>;
@@ -436,7 +475,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'totalDelayed',
           minWidth: 190,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-rose-600 dark:text-rose-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)}
             </span>
           ),
@@ -447,7 +486,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'delayedLess6',
           minWidth: 165,
           cellRenderer: (p) => (
-            <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)}
             </span>
           ),
@@ -458,7 +497,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'delayed6To12',
           minWidth: 175,
           cellRenderer: (p) => (
-            <span className="font-mono font-bold text-orange-600 dark:text-orange-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)}
             </span>
           ),
@@ -469,7 +508,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'severelyDelayed',
           minWidth: 200,
           cellRenderer: (p) => (
-            <span className="font-mono font-black text-rose-700 dark:text-rose-400">
+            <span className="p-2  text-right text-slate-700">
               {formatNumber(p.value)}
             </span>
           ),
@@ -480,7 +519,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'totalCost',
           minWidth: 170,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-emerald-700 dark:text-emerald-400">
+            <span className="p-2  text-right text-slate-700">
               ₹{formatInvestment(p.value)}
             </span>
           ),
@@ -508,6 +547,8 @@ export default function MIVReports({ triggerNotification }) {
           field: 'organisationName',
           minWidth: 220,
           pinned: 'left',
+          wrapText: true,
+          autoHeight: true,
           cellRenderer: (p) => <span className="font-bold text-slate-800 dark:text-slate-100">{p.value}</span>
         },
         {
@@ -515,7 +556,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'initiativeId',
           minWidth: 135,
           cellRenderer: (p) => (
-            <span className="font-mono font-bold text-[#8c4242] dark:text-amber-300">{p.value}</span>
+            <span className="p-2  text-right text-slate-700">{p.value}</span>
           ),
           cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
         },
@@ -526,14 +567,14 @@ export default function MIVReports({ triggerNotification }) {
           flex: 1,
           wrapText: true,
           autoHeight: true,
-          cellRenderer: (p) => <span className="font-medium text-slate-800 dark:text-slate-200 leading-snug">{p.value}</span>
+          cellRenderer: (p) => <span className="p-2  text-right text-slate-700">{p.value}</span>
         },
         {
           headerName: 'Category',
           field: 'category',
           minWidth: 160,
           cellRenderer: (p) => (
-            <span className="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-lg bg-amber-50 dark:bg-[#4b2424]/40 text-[#4b2424] dark:text-amber-300">
+            <span className="p-2  text-right text-slate-700">
               {p.value}
             </span>
           )
@@ -543,7 +584,7 @@ export default function MIVReports({ triggerNotification }) {
           field: 'totalCost',
           minWidth: 155,
           cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-emerald-700 dark:text-emerald-400">
+            <span className="p-2  text-right text-slate-700">
               ₹{formatInvestment(p.value)}
             </span>
           ),
@@ -553,19 +594,49 @@ export default function MIVReports({ triggerNotification }) {
           headerName: 'Expected / Actual Date',
           field: 'expectedActualDate',
           minWidth: 180,
-          cellRenderer: (p) => <span className="font-medium text-slate-700 dark:text-slate-300">{p.value}</span>,
+          cellRenderer: (p) => <span className="p-2  text-right text-slate-700">{p.value}</span>,
           cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
         },
         {
           headerName: 'Days Overdue',
           field: 'daysOverdue',
-          minWidth: 140,
-          cellRenderer: (p) => (
-            <span className="font-mono font-extrabold text-rose-600 dark:text-rose-400">
-              {formatNumber(p.value)} days
-            </span>
-          ),
-          cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
+          minWidth: 160,
+
+          cellRenderer: (p) => {
+            const days = Number(p.value || 0);
+
+            return (
+              <span className="font-bold">
+                {formatNumber(days)} days
+              </span>
+            );
+          },
+
+          cellStyle: (params) => {
+            const days = Number(params.value || 0);
+
+            if (days <= 180) {
+              return {
+                backgroundColor: '#ffedd5',
+                color: '#c2410c',
+                fontWeight: 'bold',
+                textAlign: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              };
+            }
+
+            return {
+              backgroundColor: '#fee2e2',
+              color: '#b91c1c',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            };
+          }
         },
         {
           headerName: 'Reason for Delay',
@@ -574,29 +645,7 @@ export default function MIVReports({ triggerNotification }) {
           flex: 1,
           wrapText: true,
           autoHeight: true,
-          cellRenderer: (p) => <span className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{p.value}</span>
-        },
-        {
-          headerName: 'Severity Status',
-          field: 'severityStatus',
-          minWidth: 160,
-          cellRenderer: (p) => {
-            const val = String(p.value || '').toLowerCase();
-            let color = 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300';
-            if (val.includes('severe') || val.includes('> 1') || val.includes('high')) {
-              color = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-500/30';
-            } else if (val.includes('6-12') || val.includes('moderate')) {
-              color = 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-500/30';
-            } else if (val.includes('< 6') || val.includes('low') || val.includes('minor')) {
-              color = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-500/30';
-            }
-            return (
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${color}`}>
-                {p.value}
-              </span>
-            );
-          },
-          cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
+          cellRenderer: (p) => <span className="p-2  text-right text-slate-700">{p.value}</span>
         }
       ];
     }
@@ -722,134 +771,23 @@ export default function MIVReports({ triggerNotification }) {
     };
   }, [displayedReportRows, activeReportConfig, columns, pinnedBottomRowData, registerReport, clearReport]);
 
-  /* ── Subtitle ─────────────────────────────────────────────── */
-  const subtitle = useMemo(() => {
-    const d = new Date();
-    const formattedDate = `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
-    const formattedMonth = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  /* ── As-on-date / Report month (header strip) ────────────── */
+  const asOnDateLabel = useMemo(() => {
+    const now = new Date();
 
-    return (
-      <div className="flex items-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
-        <span>As on date: <strong style={{ color: '#4b2424' }} className="font-extrabold">{formattedDate}</strong></span>
-        <span>•</span>
-        <span>Report for the month: <strong style={{ color: '#4b2424' }} className="font-extrabold">{formattedMonth}</strong></span>
-      </div>
-    );
+    const asOnDate = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+    const reportMonth = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+    return { asOnDate, reportMonth };
   }, []);
 
-  /* ── Filter Panel JSX (Specifically for Report 1.5) ───────── */
-  const filterPanel = (activeTab === '1.5' && showFilterPanel) ? (
-    <div className="space-y-3 select-none p-1">
-      <div className="flex items-center justify-between pb-2 border-b border-amber-900/10 dark:border-amber-500/20">
-        <div className="flex items-center space-x-2">
-          <Filter className="h-4 w-4 text-[#4b2424] dark:text-amber-400" />
-          <span className="text-xs font-black text-[#4b2424] dark:text-amber-200 uppercase tracking-wider">
-            Filter Delayed / Overdue Initiatives (Report 1.5)
-          </span>
-          {hasActiveFilters && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#4b2424] text-white dark:bg-amber-500 dark:text-slate-900">
-              {activeFilterCount} Active
-            </span>
-          )}
-        </div>
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center space-x-1 cursor-pointer transition"
-          >
-            <X className="h-3.5 w-3.5" />
-            <span>Reset All Filters</span>
-          </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
-        {/* Organization Filter */}
-        <div>
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-[#4b2424] dark:text-amber-400" />
-            <span>Organization</span>
-          </label>
-          <select
-            value={filterOrg}
-            onChange={(e) => setFilterOrg(e.target.value)}
-            className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-[#8c4242]/30 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#8c4242]/40 focus:outline-none cursor-pointer shadow-2xs"
-          >
-            <option value="all">-- All Organisations -- ({availableOrgs.length})</option>
-            {availableOrgs.map((org) => (
-              <option key={org} value={org}>
-                {org}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Category Filter */}
-        <div>
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-            <Tag className="h-3.5 w-3.5 text-[#4b2424] dark:text-amber-400" />
-            <span>Category</span>
-          </label>
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="w-full text-xs px-3 py-2 bg-white dark:bg-slate-950 border border-[#8c4242]/30 dark:border-slate-700 rounded-xl font-semibold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#8c4242]/40 focus:outline-none cursor-pointer shadow-2xs"
-          >
-            <option value="all">-- All Categories -- ({availableCategories.length})</option>
-            {availableCategories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-    </div>
-  ) : null;
-
-  /* ── Toolbar Extra: Filter Button (Report 1.5 alone) ──────── */
-  const toolbarExtra = activeTab === '1.5' ? (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => setShowFilterPanel((prev) => !prev)}
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer shadow-2xs ${
-          showFilterPanel || hasActiveFilters
-            ? 'bg-[#f7f3f3] border-[#4b2424] text-[#4b2424] dark:bg-amber-950/50 dark:border-amber-700 dark:text-amber-300'
-            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'
-        }`}
-      >
-        <Filter className="h-3.5 w-3.5 text-[#4b2424] dark:text-amber-400" />
-        <span>Filter</span>
-        {hasActiveFilters && (
-          <span className="bg-[#4b2424] dark:bg-amber-500 text-white dark:text-slate-900 text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
-            {activeFilterCount}
-          </span>
-        )}
-        <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {hasActiveFilters && (
-        <button
-          type="button"
-          onClick={resetFilters}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
-        >
-          <RotateCcw className="h-3 w-3" />
-          <span>Reset</span>
-        </button>
-      )}
-    </div>
-  ) : null;
+  const isCountReport = activeTab === '1.1' || activeTab === '1.2' || activeTab === '1.3';
+  const isDelayReport = activeTab === '1.4' || activeTab === '1.5';
 
   return (
-    <div className="space-y-6">
-      {/* ── Top Sub-Tabs Navigation (CSR Project Reports Style - Left Aligned) ── */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 select-none overflow-x-auto scrollbar-none">
-        <div className="flex space-x-1">
+    <div className="space-y-4 animate-fade-in select-none">
+      <div className="overflow-hidden border-b" style={{ borderColor: BORDER, background: '#ffffff' }}>
+        <div className="flex items-center overflow-x-auto px-2 gap-1 scrollbar-none">
           {REPORTS.map((r) => {
             const Icon = r.icon;
             const isActive = activeTab === r.id;
@@ -858,13 +796,14 @@ export default function MIVReports({ triggerNotification }) {
                 key={r.id}
                 type="button"
                 onClick={() => handleTabChange(r.id)}
-                className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-                  isActive
-                    ? 'border-[#4b2424] text-[#4b2424] bg-[#f7f3f3] dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-400 rounded-t-lg'
-                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                }`}
+                style={{
+                  color: isActive ? BRAND : '#9AA9BF',
+                  backgroundColor: isActive ? ACCENT : 'transparent',
+                  borderBottomColor: isActive ? BRAND : 'transparent'
+                }}
+                className="flex items-center gap-2 whitespace-nowrap px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide transition-all duration-200 cursor-pointer border-b-[3px] border-x-0 border-t-0 rounded-t-[8px] hover:bg-[#f5eeea] hover:text-[#4b2424]"
               >
-                <Icon className={`h-4 w-4 ${isActive ? 'text-[#4b2424] dark:text-amber-400' : 'text-slate-400'}`} />
+                <Icon size={16} strokeWidth={2.2} />
                 <span>{r.code}: {r.label}</span>
               </button>
             );
@@ -872,126 +811,79 @@ export default function MIVReports({ triggerNotification }) {
         </div>
       </div>
 
-      {/* ── KPI Summary Cards (Brown Theme Highlights) ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 animate-fade-in">
-        {(activeTab === '1.1' || activeTab === '1.2' || activeTab === '1.3') && (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {isCountReport && (
           <>
-            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Initiatives</span>
-                <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-[#4b2424]/40 text-[#4b2424] dark:text-amber-400">
-                  <TrendingUp className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-2 text-xl font-black font-mono text-[#4b2424] dark:text-amber-300">
+            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border shadow-xs" style={{ borderColor: '#eadede' }}>
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Initiatives</span>
+              <span className="text-lg font-black mt-0.5 block" style={{ color: BRAND }}>
                 {formatNumber(kpis.totalInitiatives)}
-              </div>
+              </span>
             </div>
 
-            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Investment</span>
-                <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-                  <Coins className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-2 text-lg font-black font-mono text-emerald-700 dark:text-emerald-400 truncate">
-                ₹{formatInvestment(kpis.totalInvestment)} Cr.
-              </div>
+            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border shadow-xs" style={{ borderColor: '#eadede' }}>
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Investment</span>
+              <span className="text-lg font-black text-emerald-700 dark:text-emerald-400 mt-0.5 block truncate">
+                ₹{formatInvestment(kpis.totalInvestment)} Cr
+              </span>
             </div>
 
-            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Completed</span>
-                <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-2 text-xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border shadow-xs" style={{ borderColor: '#eadede' }}>
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Completed</span>
+              <span className="text-lg font-black text-emerald-700 dark:text-emerald-400 mt-0.5 block">
                 {formatNumber(kpis.completed)}
-              </div>
+              </span>
             </div>
 
-            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Progress On Time</span>
-                <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
-                  <Clock className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-2 text-xl font-black font-mono text-blue-600 dark:text-blue-400">
+            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border shadow-xs" style={{ borderColor: '#eadede' }}>
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Progress On Time</span>
+              <span className="text-lg font-black mt-0.5 block" style={{ color: BRAND_HOVER }}>
                 {formatNumber(kpis.progressOn)}
-              </div>
+              </span>
             </div>
 
-            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Progress Delayed</span>
-                <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-2 text-xl font-black font-mono text-rose-600 dark:text-rose-400">
+            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border shadow-xs" style={{ borderColor: '#eadede' }}>
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Progress Delayed</span>
+              <span className="text-lg font-black text-rose-700 dark:text-rose-400 mt-0.5 block">
                 {formatNumber(kpis.progressDelayed)}
-              </div>
+              </span>
             </div>
 
-            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Not Started</span>
-                <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                  <Layers className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-2 text-xl font-black font-mono text-slate-600 dark:text-slate-300">
+            <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border shadow-xs" style={{ borderColor: '#eadede' }}>
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Not Started</span>
+              <span className="text-lg font-black text-amber-700 dark:text-amber-400 mt-0.5 block">
                 {formatNumber(kpis.notStarted)}
-              </div>
+              </span>
             </div>
           </>
         )}
 
-        {(activeTab === '1.4' || activeTab === '1.5') && (
+        {isDelayReport && (
           <>
-            <div className="p-3.5 col-span-1 sm:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Delayed Initiatives</span>
-                <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-2 text-2xl font-black font-mono text-rose-600 dark:text-rose-400">
+            <div className="p-3.5 col-span-1 sm:col-span-2 bg-white dark:bg-slate-900 rounded-xl border shadow-xs" style={{ borderColor: '#eadede' }}>
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Delayed Initiatives</span>
+              <span className="text-xl font-black text-rose-700 dark:text-rose-400 mt-0.5 block">
                 {formatNumber(kpis.totalDelayed)}
-              </div>
+              </span>
             </div>
 
-            <div className="p-3.5 col-span-1 sm:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Severely Delayed (&gt; 1 Year)</span>
-                <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400">
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-2 text-2xl font-black font-mono text-rose-700 dark:text-rose-400">
+            <div className="p-3.5 col-span-1 sm:col-span-2 bg-white dark:bg-slate-900 rounded-xl border shadow-xs" style={{ borderColor: '#eadede' }}>
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Severely Delayed (&gt; 1 Year)</span>
+              <span className="text-xl font-black text-rose-800 dark:text-rose-400 mt-0.5 block">
                 {formatNumber(kpis.severelyDelayed)}
-              </div>
+              </span>
             </div>
 
-            <div className="p-3.5 col-span-2 sm:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Delayed Cost</span>
-                <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-                  <Coins className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-2 text-xl font-black font-mono text-emerald-700 dark:text-emerald-400 truncate">
-                ₹{formatInvestment(kpis.totalInvestment)} Cr.
-              </div>
+            <div className="p-3.5 col-span-2 sm:col-span-2 bg-white dark:bg-slate-900 rounded-xl border shadow-xs" style={{ borderColor: '#eadede' }}>
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Delayed Cost</span>
+              <span className="text-lg font-black text-emerald-700 dark:text-emerald-400 mt-0.5 block truncate">
+                ₹{formatInvestment(kpis.totalInvestment)} Cr
+              </span>
             </div>
           </>
         )}
       </div>
 
-      {/* ── Error Banner ── */}
       {error && (
         <div className="p-4 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 rounded-2xl border border-rose-200 dark:border-rose-500/30 font-bold text-xs flex items-center justify-between">
           <span>{error}</span>
@@ -1004,27 +896,160 @@ export default function MIVReports({ triggerNotification }) {
         </div>
       )}
 
-      {/* ── Master Report Table (YP Brown Theme) ── */}
-      <ReportTable
-        title={activeReportConfig.fullTitle}
-        subtitle={subtitle}
-        rawData={displayedReportRows}
-        viewData={displayedReportRows}
-        columns={columns}
-        pinnedBottomRowData={pinnedBottomRowData}
-        loading={loading}
-        onRefresh={fetchCurrentReport}
-        triggerNotification={triggerNotification}
-        pagination={true}
-        themeClass="yp-pro-grid"
-        brandColor="#4b2424"
-        brandColorHover="#6b3535"
-        accentColor="#f3f7f5ff"
-        oddRowColor="#f8faf6"
-        totalLabel="Total"
-        toolbarExtra={toolbarExtra}
-        filterPanel={filterPanel}
-      />
+      <div className="rounded-2xl border shadow-sm overflow-hidden bg-white" style={{ borderColor: BORDER }}>
+        {/* ---- Header strip ---- */}
+        <div
+          className="relative flex flex-wrap items-center justify-between gap-4 px-[26px] py-5"
+          style={{
+            background: 'linear-gradient(to right, #fdfcfc, #f7f3f3)',
+            borderBottom: `1px solid ${BORDER}`
+          }}
+        >
+          <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp size={14} style={{ color: BRAND_SOFT }} strokeWidth={2.5} />
+                <span className="text-[10.5px] uppercase tracking-[0.12em] font-extrabold" style={{ color: BRAND_SOFT }}>
+                  MIV 2030 Reports
+                </span>
+              </div>
+
+              <h3 className="m-0 text-xl font-bold tracking-wide" style={{ color: BRAND }}>
+                {activeReportConfig.fullTitle}
+              </h3>
+
+              <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold flex-wrap" style={{ color: BRAND_SOFT }}>
+                <span>
+                  As on date:
+                  <strong style={{ color: BRAND, marginLeft: '4px' }}>{asOnDateLabel.asOnDate}</strong>
+                </span>
+                <span style={{ color: '#eadede' }}>•</span>
+                <span>
+                  Report for the month —
+                  <strong style={{ color: BRAND, marginLeft: '4px' }}>{asOnDateLabel.reportMonth}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ---- Filter panel (Report 1.5 only) ---- */}
+        {activeTab === '1.5' && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel((open) => !open)}
+              className="w-full px-[18px] py-3 flex items-center justify-between text-xs font-extrabold cursor-pointer transition"
+              style={{
+                background: ACCENT,
+                color: BRAND,
+                border: 'none',
+                borderBottom: showFilterPanel ? `1px solid ${BORDER}` : 'none'
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <Filter size={15} color={BRAND} />
+                <span>Filter Delayed / Overdue Initiatives</span>
+                {hasActiveFilters && (
+                  <span className="px-2 py-0.5 bg-[#4b2424] text-white text-[10px] rounded-full font-bold">
+                    {activeFilterCount} Active
+                  </span>
+                )}
+              </div>
+
+              {showFilterPanel ? <ChevronUp size={16} color={BRAND} /> : <ChevronDown size={16} color={BRAND} />}
+            </button>
+
+            {showFilterPanel && (
+              <div className="p-4 space-y-3 animate-fade-in bg-white" style={{ borderBottom: `1px solid ${BORDER}` }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Organization Filter */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[11.5px] font-extrabold mb-1.5" style={{ color: BRAND }}>
+                      <Building2 size={13} style={{ color: BRAND_SOFT }} />
+                      <span>Organization</span>
+                    </label>
+                    <select
+                      value={filterOrg}
+                      onChange={(e) => setFilterOrg(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-[10px] font-semibold outline-none cursor-pointer"
+                      style={{ background: '#fcf9f7', border: '1px solid #d7c4b7', color: BRAND }}
+                    >
+                      <option value="all">-- All Organisations -- ({availableOrgs.length})</option>
+                      {availableOrgs.map((org) => (
+                        <option key={org} value={org}>
+                          {org}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Category Filter */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[11.5px] font-extrabold mb-1.5" style={{ color: BRAND }}>
+                      <Tag size={13} style={{ color: BRAND_SOFT }} />
+                      <span>Category</span>
+                    </label>
+                    <select
+                      value={filterCategory}
+                      onChange={(e) => setFilterCategory(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-[10px] font-semibold outline-none cursor-pointer"
+                      style={{ background: '#fcf9f7', border: '1px solid #d7c4b7', color: BRAND }}
+                    >
+                      <option value="all">-- All Categories -- ({availableCategories.length})</option>
+                      {availableCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {hasActiveFilters && (
+                  <div className="flex justify-end pt-2 border-t" style={{ borderColor: '#eadede' }}>
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="px-3 py-1.5 rounded-lg text-xs font-extrabold transition cursor-pointer inline-flex items-center gap-1.5"
+                      style={{ background: ACCENT, color: BRAND }}
+                    >
+                      <RotateCcw size={12} />
+                      Reset Filters
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ---- Report Table ---- */}
+        <div>
+          <ReportTable
+            title={activeReportConfig.fullTitle}
+            subtitle={<></>}
+            rawData={displayedReportRows}
+            viewData={displayedReportRows}
+            columns={columns}
+            pinnedBottomRowData={pinnedBottomRowData}
+            loading={loading}
+            onRefresh={fetchCurrentReport}
+            triggerNotification={triggerNotification}
+            pagination={true}
+            suppressHorizontalScroll={false}
+            alwaysShowHorizontalScroll={true}
+            domLayout="normal"
+            themeClass="yp-pro-grid"
+            brandColor={BRAND}
+            brandColorHover={BRAND_HOVER}
+            accentColor="#f7f3f3"
+            oddRowColor="#f8faf6"
+            totalLabel="Total"
+            onGridReady={onGridReady}
+          />
+        </div>
+      </div>
     </div>
   );
 }

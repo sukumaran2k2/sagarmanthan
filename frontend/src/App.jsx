@@ -1,10 +1,11 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import MainLayout, { ROUTE_MAP, getTabFromSlug } from './layouts/MainLayout';
 import LoginView from './modules/Login/Login';
 import Loader from './components/Loader';
 import { Activity, Sparkles } from 'lucide-react';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
+import { resetAllStores } from './stores/resetRegistry';
 
 // Lazy-loaded feature modules for code splitting and instant initial page load
 const LandingView = lazy(() => import('./modules/Landing/Landing'));
@@ -36,6 +37,7 @@ const CSLView = lazy(() => import('./modules/CSL/CSL'));
 const IMUView = lazy(() => import('./modules/IMU/IMU'));
 const SCIView = lazy(() => import('./modules/SCI/SCI'));
 const UserMatrix = lazy(() => import('./modules/UserManagement/UserMatrix'));
+const FormBuilderView = lazy(() => import('./modules/FormBuilder/FormBuilder'));
 const ContactUs = lazy(() => import('./modules/Contact/Contact'));
 
 // Major Ports Components
@@ -53,85 +55,85 @@ const INITIAL_PROJECTS = [
     stage: 'Under Implementation',
     category: 'Digital Infrastructure',
     physicalProgress: '68',
-    financialProgress: '54',
+    financialProgress: '60',
   },
   {
     id: 2,
     projectId: 'PR1371',
     subProjectId: '-',
-    projectName: 'Deepening & widening of common portion of main channel of mumbai harbour & anchorages by JNPA',
+    projectName: 'Capacity Enhancement of Outer Harbour at Visakhapatnam Port Authority',
     subProjectName: '-',
-    cost: '5.00',
-    agency: 'Jawaharlal Nehru Port Authority',
-    stage: 'Under Implementation',
-    category: 'Dredging Projects',
-    physicalProgress: '85',
-    financialProgress: '70',
+    cost: '142.50',
+    agency: 'Visakhapatnam Port Authority',
+    stage: 'In Progress',
+    category: 'Port Infrastructure',
+    physicalProgress: '45',
+    financialProgress: '38',
   },
   {
     id: 3,
     projectId: 'PR1370',
     subProjectId: '-',
-    projectName: 'Coal Berth 4',
+    projectName: 'Construction of Multipurpose Cargo Berth at Deendayal Port Authority',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '12',
-    financialProgress: '0',
+    cost: '210.00',
+    agency: 'Deendayal Port Authority',
+    stage: 'Under Tendering',
+    category: 'Berth Modernization',
+    physicalProgress: '15',
+    financialProgress: '10',
   },
   {
     id: 4,
     projectId: 'PR1369',
     subProjectId: '-',
-    projectName: 'Coal Berth 3',
+    projectName: 'Development of Riverine Jetty on National Waterway-1 at Varanasi',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '10',
-    financialProgress: '0',
+    cost: '34.80',
+    agency: 'Inland Waterways Authority of India',
+    stage: 'Under Implementation',
+    category: 'Inland Waterways',
+    physicalProgress: '82',
+    financialProgress: '75',
   },
   {
     id: 5,
     projectId: 'PR1368',
     subProjectId: '-',
-    projectName: 'Coal Berth 1 & 2',
+    projectName: 'Procurement of High-Powered Tug for Marine Operations at Paradip Port',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Kamarajar Port Limited',
-    stage: 'Project Initiated',
-    category: 'Coastal Berth',
-    physicalProgress: '15',
-    financialProgress: '5',
+    cost: '48.00',
+    agency: 'Paradip Port Authority',
+    stage: 'Completed',
+    category: 'Vessel Acquisition',
+    physicalProgress: '100',
+    financialProgress: '100',
   },
   {
     id: 6,
     projectId: 'PR1367',
     subProjectId: '-',
-    projectName: 'Replacement of FLP-WP LED light fitting with poles & allied works at PirPau',
+    projectName: 'Installation of VTMS and Radar Integration along Gujarat Coastline',
     subProjectName: '-',
-    cost: '7.75',
-    agency: 'Mumbai Port Authority',
-    stage: 'Under Tendering',
-    category: 'Green Initiatives',
-    physicalProgress: '0',
-    financialProgress: '0',
+    cost: '72.30',
+    agency: 'Directorate General of Lighthouses and Lightships',
+    stage: 'In Progress',
+    category: 'Coastal Surveillance',
+    physicalProgress: '54',
+    financialProgress: '50',
   },
   {
     id: 7,
     projectId: 'PR1366',
     subProjectId: '-',
-    projectName: 'DRY-DOCKING/REPAIRS of SCI PANNA',
+    projectName: 'Green Hydrogen Bunkering Facility Pilot at VO Chidambaranar Port',
     subProjectName: '-',
-    cost: '0.00',
-    agency: 'Shipping Corporation of India',
-    stage: 'Project Initiated',
-    category: 'Shipyard Development',
-    physicalProgress: '5',
-    financialProgress: '0',
+    cost: '89.40',
+    agency: 'V.O. Chidambaranar Port Authority',
+    stage: 'Under Detailed Study',
+    category: 'Green Maritime',
+    physicalProgress: '20',
+    financialProgress: '12',
   },
   {
     id: 8,
@@ -147,6 +149,7 @@ const INITIAL_PROJECTS = [
     financialProgress: '0',
   },
 ];
+
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -160,12 +163,15 @@ export default function App() {
   const [isManualNetworkCheck, setIsManualNetworkCheck] = useState(false);
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
 
-  const triggerNotification = (message, type = 'success', title = '') => {
+  // options: { variant, duration } — used by the standardized notifier (utils/notify.js);
+  // legacy 3-argument calls keep the original look and 4s lifetime
+  const triggerNotification = (message, type = 'success', title = '', options = {}) => {
     const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, message, type, title }]);
+    const duration = options.duration ?? 4000;
+    setToasts(prev => [...prev, { id, message, type, title, variant: options.variant, duration }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 4300);
+    }, duration + 300);
   };
 
   const removeToast = (id) => {
@@ -188,6 +194,12 @@ export default function App() {
     setShowNetworkCheck(true);
     navigate('/');
   };
+
+  // Logout doesn't reload the page, so clear module stores whenever the session ends
+  // (covers both Sign Out and cancelling the network check in MainLayout)
+  useEffect(() => {
+    if (!isLoggedIn) resetAllStores();
+  }, [isLoggedIn]);
 
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
@@ -240,15 +252,75 @@ export default function App() {
             <Route path="profile" element={<ProfileView triggerNotification={triggerNotification} />} />
 
             {/* Projects Routes */}
+            <Route path="projects" element={<Navigate to="/projects/project/project-list" replace />} />
+            <Route path="projects/project" element={<Navigate to="/projects/project/project-list" replace />} />
             <Route path="projects/project/project-dashboard" element={<DashboardView projects={projects} />} />
+            <Route path="projects/project/dashboard" element={<DashboardView projects={projects} />} />
+            <Route path="projects/project-dashboard" element={<DashboardView projects={projects} />} />
+            <Route path="projects/dashboard" element={<DashboardView projects={projects} />} />
+
             <Route path="projects/project/project-list" element={
               <Projects
-                projects={projects}
-                onAddProject={handleAddProject}
-                onAddSubProject={handleAddSubProject}
+                onGoHome={() => navigate('/')}
                 triggerNotification={triggerNotification}
               />
             } />
+            <Route path="projects/project/data-list" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project/list" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project-list" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/data-list" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/list" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
+            <Route path="projects/project/input-form" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project/basic-info" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/input-form" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/basic-info" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
             <Route path="projects/project/projects-less-than-5-cr" element={
               <Projects
                 projects={projects}
@@ -257,6 +329,15 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
+            <Route path="projects/projects-less-than-5-cr" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
             <Route path="projects/project/lumpsum-iwai" element={
               <Projects
                 projects={projects}
@@ -265,6 +346,15 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
+            <Route path="projects/lumpsum-iwai" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
             <Route path="projects/project/view-drop-request" element={
               <Projects
                 projects={projects}
@@ -273,11 +363,81 @@ export default function App() {
                 triggerNotification={triggerNotification}
               />
             } />
+            <Route path="projects/project/drop-requests" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/view-drop-request" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/drop-requests" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
             <Route path="projects/project/reports" element={
               <Projects
                 projects={projects}
                 onAddProject={handleAddProject}
                 onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/reports" element={
+              <Projects
+                projects={projects}
+                onAddProject={handleAddProject}
+                onAddSubProject={handleAddSubProject}
+                triggerNotification={triggerNotification}
+              />
+            } />
+
+            <Route path="projects/project/view-project/:id/:subProjectId" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project/view-project/:id" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/project/view-project" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/view-project/:id/:subProjectId" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/view-project/:id" element={
+              <Projects
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
+            <Route path="projects/view-project" element={
+              <Projects
+                onGoHome={() => navigate('/')}
                 triggerNotification={triggerNotification}
               />
             } />
@@ -288,8 +448,13 @@ export default function App() {
 
             {/* KPI - Major Ports */}
             <Route path="kpi/major-ports/major-ports-dashboard" element={<PortsDashboardView />} />
-            <Route path="kpi/major-ports/major-ports-input-form" element={<PortsInputFormView />} />
+            <Route
+              path="kpi/major-ports/major-ports-input-form"
+              element={<PortsInputFormView triggerNotification={triggerNotification} />}
+            />
             <Route path="kpi/major-ports/major-ports-reports" element={<PortsReportsView />} />
+            <Route path="kpi/major-ports" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
+            <Route path="kpi/major-ports/*" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
 
             {/* KPI - DGLL, CSL, IMU, SCI */}
             <Route path="kpi/dgll/*" element={<KPIDGLLView triggerNotification={triggerNotification} />} />
@@ -309,20 +474,20 @@ export default function App() {
             <Route path="strategies/one-vision-one-document/*" element={<Navigate to="/strategies/drishti-portal/dashboard" replace />} />
 
             {/* Finance - Capex */}
-            <Route path="finance/capex/*" element={<CapexView />} />
+            <Route path="finance/capex/*" element={<CapexView triggerNotification={triggerNotification} />} />
 
             {/* Governance Routes */}
             <Route path="governance/e-office/*" element={<EOfficeView initialKpi={eOfficeKpi} />} />
             <Route path="governance/attendance/*" element={<AttendanceView />} />
             <Route path="governance/cpgrams" element={<CPGRAMSView />} />
             <Route path="governance/cabinet-notes/*" element={<CabinetNotes triggerNotification={triggerNotification} />} />
-            <Route path="governance/cabinet-notes-other-ministry/*" element={<CabinetNotesOther />} />
+            <Route path="governance/cabinet-notes-other-ministry/*" element={<CabinetNotesOther triggerNotification={triggerNotification} />} />
             <Route path="governance/vip-reference/*" element={<VIPReferenceView triggerNotification={triggerNotification} />} />
             <Route path="governance/media-outreach/*" element={<MediaOutreachView triggerNotification={triggerNotification} />} />
             <Route path="governance/parliamentary-issue/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
             <Route path="governance/parliamentary-issues/*" element={<ParliamentaryIssues triggerNotification={triggerNotification} />} />
             <Route path="governance/audit-paras/*" element={<AuditParaView triggerNotification={triggerNotification} />} />
-            <Route path="governance/gem-procurements" element={<GEMProcurementView />} />
+            <Route path="governance/gem-procurements/*" element={<GEMProcurementView triggerNotification={triggerNotification} />} />
 
             {/* Legal Routes */}
             <Route path="legal/courtcases" element={<ActsAndRulesView />} />
@@ -335,8 +500,12 @@ export default function App() {
             <Route path="hr/consultant-appointment/*" element={<ConsultantAppointmentView triggerNotification={triggerNotification} />} />
 
             {/* Admin Routes */}
-            <Route path="admin/user-module-permission" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
-            <Route path="admin/user-list" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-module-permission/*" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-list/*" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
+
+            {/* Form Builder Routes */}
+            <Route path="form-builder/*" element={<FormBuilderView triggerNotification={triggerNotification} />} />
+            <Route path="admin/form-builder/*" element={<FormBuilderView triggerNotification={triggerNotification} />} />
 
             {/* Contact */}
             <Route path="contact" element={<ContactUs />} />
@@ -364,18 +533,38 @@ export default function App() {
         </Routes>
       </Suspense>
 
-      {/* Floating Network Check FAB */}
-      <button
-        onClick={() => {
-          setIsManualNetworkCheck(true);
-          setShowNetworkCheck(true);
-        }}
-        className="fixed bottom-6 right-6 z-40 p-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-full shadow-lg cursor-pointer transition-all hover:shadow-blue-500/20 group flex items-center justify-center"
-        title="Check Network Speed & Compatibility"
-        aria-label="Network Check"
-      >
-        <Activity className="h-6 w-6" />
-      </button>
+      {/* Floating Network Check FAB (Positioned at bottom-6 below SagarBot) */}
+      <div className="fixed bottom-6 right-6 z-40 flex items-center space-x-3 select-none">
+        <div 
+          onClick={() => {
+            setIsManualNetworkCheck(true);
+            setShowNetworkCheck(true);
+          }}
+          className="hidden sm:flex items-center space-x-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-2 rounded-2xl shadow-xl hover:shadow-2xl transition cursor-pointer group"
+        >
+          <Activity className="h-4 w-4 text-blue-600 animate-pulse" />
+          <div className="flex flex-col text-left">
+            <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 group-hover:underline">
+              Network Tester
+            </span>
+            <span className="text-[9px] text-slate-400 font-semibold">
+              Speed & Latency
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            setIsManualNetworkCheck(true);
+            setShowNetworkCheck(true);
+          }}
+          className="w-14 h-14 bg-gradient-to-tr from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 active:scale-95 text-white rounded-full shadow-2xl cursor-pointer transition-all hover:shadow-blue-500/30 flex items-center justify-center ring-4 ring-blue-500/20 hover:ring-blue-500/40"
+          title="Check Network Speed & Compatibility"
+          aria-label="Network Check"
+        >
+          <Activity className="h-6 w-6" />
+        </button>
+      </div>
     </>
   );
 }

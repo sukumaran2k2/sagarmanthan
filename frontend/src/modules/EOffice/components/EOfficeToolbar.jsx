@@ -57,7 +57,7 @@ export default function EOfficeToolbar({
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            DataList
+            View Data List
           </button>
           <button
             type="button"
@@ -68,7 +68,7 @@ export default function EOfficeToolbar({
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            Abstract Report
+            Reports
           </button>
         </div>
 

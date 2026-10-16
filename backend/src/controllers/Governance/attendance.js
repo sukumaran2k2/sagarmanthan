@@ -317,6 +317,7 @@ async function storeCsvData(req, res) {
     if (!Number.isInteger(id)) {
         return res.status(400).json({ error: "Invalid id" });
     }
+    const userID = parseInt(req.body.userID, 10) || 1;
     const conn = await pool;
     console.log("Processing spreadsheet upload for file ID:", id);
     
@@ -397,10 +398,11 @@ async function storeCsvData(req, res) {
                 request.input("Month", sql.NVarChar, month);
                 request.input("Year", sql.Int, year);
                 request.input("file_id", sql.Int, fileId);
+                request.input("created_by", sql.Int, userID);
 
                 await request.query(`
-                    INSERT INTO exceldata (EmpId, Wing, Division, EmpName, Designation, AttendanceMarked, WorkingHours, InTimeAvg, OutTimeAvg, Month, Year, file_id)
-                    VALUES (@EmpId, @Wing, @Division, @EmpName, @Designation, @AttendanceMarked, @WorkingHours, @InTimeAvg, @OutTimeAvg, @Month, @Year, @file_id)
+                    INSERT INTO exceldata (EmpId, Wing, Division, EmpName, Designation, AttendanceMarked, WorkingHours, InTimeAvg, OutTimeAvg, Month, Year, file_id, created_by, created_date)
+                    VALUES (@EmpId, @Wing, @Division, @EmpName, @Designation, @AttendanceMarked, @WorkingHours, @InTimeAvg, @OutTimeAvg, @Month, @Year, @file_id, @created_by, GETDATE())
                 `);
 
                 insertedCount++;

@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
+import { useRef, useMemo, useState, useEffect, forwardRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { FileSpreadsheet } from 'lucide-react';
@@ -67,11 +67,11 @@ const Table = forwardRef(({
   const handleGridSizeChanged = (params) => {
     if (params?.api) {
       try {
-        if (shouldFitColumns) {
-          params.api.sizeColumnsToFit();
-        }
         params.api.resetRowHeights();
-      } catch (_) {}
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onGridSizeChanged) {
       onGridSizeChanged(params);
@@ -81,11 +81,11 @@ const Table = forwardRef(({
   const handleFirstDataRendered = (params) => {
     if (params?.api) {
       try {
-        if (shouldFitColumns) {
-          params.api.sizeColumnsToFit();
-        }
         params.api.resetRowHeights();
-      } catch (_) {}
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onFirstDataRendered) {
       onFirstDataRendered(params);
@@ -100,11 +100,11 @@ const Table = forwardRef(({
       setTotalRows(params.api.paginationGetRowCount());
       setPageSize(params.api.paginationGetPageSize());
       try {
-        if (shouldFitColumns) {
-          params.api.sizeColumnsToFit();
-        }
         params.api.resetRowHeights();
-      } catch (_) {}
+        params.api.sizeColumnsToFit();
+      } catch {
+        // ignore
+      }
     }
     if (onGridReady) {
       onGridReady(params);
@@ -120,6 +120,11 @@ const Table = forwardRef(({
       setTotalPages(params.api.paginationGetTotalPages());
       setTotalRows(params.api.paginationGetRowCount());
       setPageSize(params.api.paginationGetPageSize());
+      try {
+        params.api.resetRowHeights();
+      } catch {
+        // ignore
+      }
     }
     if (onPaginationChanged) {
       onPaginationChanged(params);
@@ -237,9 +242,6 @@ const Table = forwardRef(({
         .dark .${colorClass} .ag-row-odd {
           background-color: #0f172a !important;
         }
-        .dark .${colorClass} .ag-row:hover {
-          background-color: #1e293b !important;
-        }
         .dark .${colorClass} .ag-cell {
           color: #f8fafc !important;
           border-right-color: #1e293b !important;
@@ -247,24 +249,12 @@ const Table = forwardRef(({
         .${colorClass} .ag-cell {
           display: flex !important;
           align-items: center !important;
-          white-space: normal !important;
-          word-break: break-word !important;
-          overflow-wrap: anywhere !important;
-          line-height: 1.4 !important;
         }
         .${colorClass} .ag-cell-wrapper {
           display: flex !important;
           align-items: center !important;
           width: 100% !important;
           height: 100% !important;
-          white-space: normal !important;
-          word-break: break-word !important;
-          overflow-wrap: anywhere !important;
-        }
-        .${colorClass} .ag-cell-value {
-          white-space: normal !important;
-          word-break: break-word !important;
-          overflow-wrap: anywhere !important;
         }
         /* Wrap cells must be block + auto height so AG Grid can measure multi-line content */
         .${colorClass} .ag-cell.mopsw-wrap-cell,
@@ -303,8 +293,17 @@ const Table = forwardRef(({
         .${colorClass} .ag-cell-wrap-text .ag-cell-wrapper {
           white-space: normal !important;
           word-break: break-word !important;
-          overflow-wrap: break-word !important;
-          line-height: 1.35 !important;
+          overflow-wrap: anywhere !important;
+          line-height: 1.4 !important;
+        }
+        .${colorClass} .ag-row {
+          min-height: 42px;
+        }
+        .${colorClass} .ag-row.ag-row-auto-height {
+          height: auto !important;
+        }
+        .${colorClass} .ag-row.ag-row-auto-height .ag-cell {
+          overflow: visible !important;
         }
         @keyframes indeterminateProgress {
           0% { transform: translateX(-100%) scaleX(0.2); }

@@ -38,27 +38,35 @@ export default function DataList({
   const [organisations, setOrganisations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Column Visibility state
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+  // Column visibility checklist dropdown
   const [colDropdownOpen, setColDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
   const [visibleCols, setVisibleCols] = useState({
-    sno: true, org: true, financial_year: true, project_name: true,
-    project_value: true, project_status: true, completed_on: true,
-    remarks: true, actions: true,
+    sno: true,
+    org: true,
+    financial_year: true,
+    project_name: true,
+    project_value: true,
+    project_status: true,
+    completed_on: true,
+    remarks: true,
+    actions: true,
   });
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
+    function handleClickOutside(event) {
       if (colDropdownRef.current && !colDropdownRef.current.contains(event.target)) {
         setColDropdownOpen(false);
       }
-    };
+    }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [selectedOrg, setSelectedOrg] = useState('');
+  // Filter states
+  const [selectedOrg, setSelectedOrg] = useState(() => (isOrgUser && userOrgId ? String(userOrgId) : ''));
   const [selectedFY, setSelectedFY] = useState('');
   const [selectedFocus, setSelectedFocus] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
@@ -112,29 +120,32 @@ export default function DataList({
     if (!isOrgUser && selectedOrg) count++;
     if (selectedFY) count++;
     if (selectedFocus) count++;
-    if (selectedStatus) count++;
+    if (activeTab !== 'completed' && selectedStatus) count++;
     return count;
-  }, [isOrgUser, selectedOrg, selectedFY, selectedFocus, selectedStatus]);
+  }, [isOrgUser, selectedOrg, selectedFY, selectedFocus, selectedStatus, activeTab]);
 
   const allCount = scopedProjects.length;
   const completedCount = scopedProjects.filter(p => p.project_status === 'Completed').length;
   const activeCount = allCount - completedCount;
 
+  // Filtered available statuses based on sub-tab
   const availableStatuses = useMemo(() => {
     if (activeTab === 'active' || activeTab === 'pending') {
       return CSR_STATUSES.filter(s => s !== 'Completed');
     }
-    if (activeTab === 'completed') return ['Completed'];
+    if (activeTab === 'completed') {
+      return ['Completed'];
+    }
     return CSR_STATUSES;
   }, [activeTab]);
 
   const handleTabSwitch = (tab) => {
     setActiveTab(tab);
     setCurrentPage(1);
-    if ((tab === 'active' || tab === 'pending') && selectedStatus === 'Completed') {
-      setSelectedStatus('');
-    } else if (tab === 'completed' && selectedStatus && selectedStatus !== 'Completed') {
-      setSelectedStatus('');
+    if (tab === 'active' || tab === 'pending') {
+      if (selectedStatus === 'Completed') setSelectedStatus('');
+    } else if (tab === 'completed') {
+      if (selectedStatus && selectedStatus !== 'Completed') setSelectedStatus('');
     }
   };
 
@@ -170,10 +181,10 @@ export default function DataList({
   const totalPages = Math.ceil(filteredProjects.length / pageSize) || 1;
 
   const handleResetFilters = () => {
-    setSelectedOrg('');
+    if (!isOrgUser) setSelectedOrg('');
     setSelectedFY('');
     setSelectedFocus('');
-    setSelectedStatus('');
+    setSelectedStatus(activeTab === 'completed' ? 'Completed' : '');
     setSearchTerm('');
     setCurrentPage(1);
     triggerNotification?.('Filters have been reset', 'info');
@@ -280,27 +291,13 @@ export default function DataList({
     {
       headerName: "Name of the Project",
       field: "project_name",
-      width: 400,
-      minWidth: 400,
-      maxWidth: 400,
-      suppressSizeToFit: true,
+      minWidth: 260,
+      flex: 3,
       wrapText: true,
       autoHeight: true,
-      cellClass: 'mopsw-wrap-cell flex items-center',
-      cellStyle: {
-        fontWeight: 600,
-        whiteSpace: 'normal',
-        wordBreak: 'break-word',
-        lineHeight: '1.35',
-        display: 'flex',
-        alignItems: 'center',
-      },
-      cellRenderer: (p) => (
-        <div className="w-full flex items-center text-left font-semibold">
-          {p.value || '-'}
-        </div>
-      ),
-      hide: !visibleCols.project_name,
+      cellClass: 'mopsw-wrap-cell',
+      cellStyle: { fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.35' },
+      hide: !visibleCols.project_name
     },
     {
       headerName: "Project Value (₹ Lakhs)",
@@ -333,7 +330,7 @@ export default function DataList({
         </div>
       )
     },
-    {
+    ...(activeTab === 'completed' ? [{
       headerName: "Completed On",
       field: "completed_on",
       minWidth: 120,
@@ -347,7 +344,7 @@ export default function DataList({
           {p.value ? String(p.value).split('T')[0] : '-'}
         </div>
       )
-    },
+    }] : []),
     {
       headerName: "Remarks",
       field: "remarks",
@@ -410,7 +407,7 @@ export default function DataList({
                 type="button"
                 onClick={() => onEdit(p.data)}
                 title="Edit Project"
-                className="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-2xs transition cursor-pointer flex items-center justify-center"
+                className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer flex items-center justify-center"
               >
                 <Edit className="h-3.5 w-3.5" />
               </button>
@@ -419,7 +416,7 @@ export default function DataList({
         );
       }
     }
-  ], [currentPage, pageSize, onEdit, isOrgUser, visibleCols]);
+  ], [currentPage, pageSize, onEdit, isOrgUser, visibleCols, activeTab]);
 
   const exportColumns = useMemo(() => [
     { key: 'sno', label: 'S.No', render: (_, __, i) => i + 1 },
@@ -428,16 +425,16 @@ export default function DataList({
     { key: 'project_name', label: 'Name of the Project' },
     { key: 'project_value', label: 'Project Value(Rs. In Lakhs)', render: (v) => (v != null && v !== '' ? Number(v).toLocaleString() : '-') },
     { key: 'project_status', label: 'Project Status' },
-    { key: 'completed_on', label: 'Completed On', render: (v) => (v ? String(v).split('T')[0] : '-') },
+    ...(activeTab === 'completed' ? [{ key: 'completed_on', label: 'Completed On', render: (v) => (v ? String(v).split('T')[0] : '-') }] : []),
     { key: 'remarks', label: 'Remarks' },
-  ], [isOrgUser]);
+  ], [isOrgUser, activeTab]);
 
   return (
     <div className="space-y-4 animate-fade-in text-slate-800 dark:text-slate-100">
       {/* Sub-Tabs */}
       <div className="flex space-x-1 border-b border-slate-200 dark:border-slate-800">
         <button
-          onClick={() => { setActiveTab('all'); setCurrentPage(1); }}
+          onClick={() => handleTabSwitch('all')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeTab === 'all'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -447,7 +444,7 @@ export default function DataList({
           ALL ({allCount})
         </button>
         <button
-          onClick={() => { setActiveTab('active'); setCurrentPage(1); }}
+          onClick={() => handleTabSwitch('active')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeTab === 'active' || activeTab === 'pending'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -457,7 +454,7 @@ export default function DataList({
           ACTIVE ({activeCount})
         </button>
         <button
-          onClick={() => { setActiveTab('completed'); setCurrentPage(1); }}
+          onClick={() => handleTabSwitch('completed')}
           className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
             activeTab === 'completed'
               ? 'border-[#0f417a] text-[#0f417a] bg-blue-50/70 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
@@ -568,7 +565,7 @@ export default function DataList({
                     { key: 'project_name', label: 'Project Name' },
                     { key: 'project_value', label: 'Project Value' },
                     { key: 'project_status', label: 'Status' },
-                    { key: 'completed_on', label: 'Completed On' },
+                    ...(activeTab === 'completed' ? [{ key: 'completed_on', label: 'Completed On' }] : []),
                     { key: 'remarks', label: 'Remarks' },
                     { key: 'actions', label: 'Update' },
                   ].map(({ key, label }) => (
@@ -595,6 +592,8 @@ export default function DataList({
         {showFilterPanel && (
           <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              
+              {/* 1. Organisation Filter */}
               {!isOrgUser && (
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">Organization</label>
@@ -640,10 +639,13 @@ export default function DataList({
                 <select
                   value={selectedStatus}
                   onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
+                  disabled={activeTab === 'completed'}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
                 >
                   <option value="">All Statuses</option>
-                  {availableStatuses.map((st) => <option key={st} value={st}>{st}</option>)}
+                  {availableStatuses.map((st) => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
                 </select>
               </div>
             </div>

@@ -22,6 +22,8 @@ import CopyButton from '../../../components/CopyButton';
 import ExportDropdown from '../../../components/ExportDropdown';
 import {
   fetchCandidatesByConsultantAppointmentId,
+  fetchCandidateDetail,
+  fetchCandidateDocument,
   addCandidateDetail,
   updateCandidateDetail,
   deleteCandidateDetail,
@@ -30,6 +32,8 @@ import {
   API_BASE
 } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { CA_TOASTS } from '../toastMessages';
 
 export default function CandidateDrilldownView({
   appointment,
@@ -39,6 +43,7 @@ export default function CandidateDrilldownView({
   canAdd = true,
   canRemove = true
 }) {
+  const notify = useNotifier(triggerNotification);
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -84,11 +89,55 @@ export default function CandidateDrilldownView({
     setLoading(true);
     try {
       const res = await fetchCandidatesByConsultantAppointmentId(appointment.id);
-      setCandidates(res.data || []);
+      if (res.data && res.data.length > 0) {
+        setCandidates(res.data);
+      } else {
+        const candIdsStr = appointment.raw?.candidate_id || '';
+        if (candIdsStr) {
+          const idList = String(candIdsStr).split(',').map(s => s.trim()).filter(Boolean);
+          const loaded = await Promise.all(
+            idList.map(async (cid) => {
+              try {
+                const cres = await fetchCandidateDetail(cid);
+                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
+                const cdata = cres.data?.[0] || {};
+                const docName = docRes.data?.[0]?.appointment_order_document || '';
+                return { ...cdata, appointment_order_document: docName, documentName: docName };
+              } catch {
+                return { candidate_id: cid };
+              }
+            })
+          );
+          setCandidates(loaded);
+        } else {
+          setCandidates([]);
+        }
+      }
     } catch (err) {
       console.error('Error fetching candidates for drilldown:', err);
-      if (triggerNotification) {
-        triggerNotification('Failed to load candidate details.', 'error');
+      const candIdsStr = appointment.raw?.candidate_id || '';
+      if (candIdsStr) {
+        try {
+          const idList = String(candIdsStr).split(',').map(s => s.trim()).filter(Boolean);
+          const loaded = await Promise.all(
+            idList.map(async (cid) => {
+              try {
+                const cres = await fetchCandidateDetail(cid);
+                const docRes = await fetchCandidateDocument(cid).catch(() => ({ data: [] }));
+                const cdata = cres.data?.[0] || {};
+                const docName = docRes.data?.[0]?.appointment_order_document || '';
+                return { ...cdata, appointment_order_document: docName, documentName: docName };
+              } catch {
+                return { candidate_id: cid };
+              }
+            })
+          );
+          setCandidates(loaded);
+        } catch {
+          notify(CA_TOASTS.candidatesLoadFailed());
+        }
+      } else {
+        notify(CA_TOASTS.candidatesLoadFailed());
       }
     } finally {
       setLoading(false);
@@ -174,7 +223,7 @@ export default function CandidateDrilldownView({
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
-      if (triggerNotification) triggerNotification('Please fill in all mandatory fields highlighted in red.', 'warning');
+      notify(COMMON_TOASTS.mandatoryFieldsMissing());
       return;
     }
 
@@ -223,21 +272,14 @@ export default function CandidateDrilldownView({
         }
       }
 
-      if (triggerNotification) {
-        triggerNotification(
-          existingCand ? 'Candidate details updated successfully!' : 'New candidate added successfully!',
-          'success'
-        );
-      }
+      notify(existingCand ? CA_TOASTS.candidateUpdated(candName) : CA_TOASTS.candidateAdded(candName));
 
       await loadCandidates();
       setEditMode(false);
       setEditingIndex(null);
     } catch (err) {
       console.error('Error saving candidate in-place:', err);
-      if (triggerNotification) {
-        triggerNotification(err.response?.data?.message || 'Failed to save candidate details.', 'error');
-      }
+      notify(CA_TOASTS.candidateSaveFailed(getErrorMessage(err)));
     } finally {
       setFormSaving(false);
     }
@@ -248,13 +290,13 @@ export default function CandidateDrilldownView({
     if (!file) return;
 
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      if (triggerNotification) triggerNotification('Invalid file format. Only PDF files are allowed.', 'error');
+      notify(COMMON_TOASTS.invalidFileType('PDF'));
       e.target.value = '';
       return;
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      if (triggerNotification) triggerNotification('File size exceeds 20 MB. Please choose a smaller file.', 'warning');
+      notify(COMMON_TOASTS.fileTooLarge(20));
       e.target.value = '';
       return;
     }
@@ -267,16 +309,12 @@ export default function CandidateDrilldownView({
 
       await uploadCandidateDocument(formData);
 
-      if (triggerNotification) {
-        triggerNotification('Appointment Order PDF uploaded successfully!', 'success');
-      }
+      notify(CA_TOASTS.orderUploaded());
 
       await loadCandidates();
     } catch (err) {
       console.error('Error uploading candidate PDF:', err);
-      if (triggerNotification) {
-        triggerNotification('Failed to upload Appointment Order document.', 'error');
-      }
+      notify(CA_TOASTS.orderUploadFailed(getErrorMessage(err)));
     } finally {
       setUploadingForCandidateId(null);
       e.target.value = '';
@@ -291,21 +329,17 @@ export default function CandidateDrilldownView({
     const userId = getCurrentUserId() || 1;
     try {
       await deleteCandidateDetail(candidate.candidate_id, userId);
-      if (triggerNotification) {
-        triggerNotification(`Candidate ${candidate.name || ''} deleted successfully.`, 'success');
-      }
+      notify(CA_TOASTS.candidateDeleted(candidate.name));
       await loadCandidates();
     } catch (err) {
       console.error('Error deleting candidate:', err);
-      if (triggerNotification) {
-        triggerNotification('Failed to delete candidate.', 'error');
-      }
+      notify(CA_TOASTS.candidateDeleteFailed(candidate.name, getErrorMessage(err)));
     }
   };
 
   const handleDownload = (documentName) => {
     if (!documentName) {
-      if (triggerNotification) triggerNotification('No document attached.', 'warning');
+      notify(COMMON_TOASTS.noDocument());
       return;
     }
     const downloadUrl = `${API_BASE}/ca-candidate-document-download/${encodeURIComponent(documentName)}`;
@@ -317,9 +351,7 @@ export default function CandidateDrilldownView({
     link.click();
     document.body.removeChild(link);
 
-    if (triggerNotification) {
-      triggerNotification(`Downloading ${documentName}...`, 'info');
-    }
+    notify(CA_TOASTS.orderDownloading(documentName));
   };
 
   const formatDateDisplay = (dateVal) => {
@@ -351,8 +383,8 @@ export default function CandidateDrilldownView({
         ].join('\t') + '\n';
       });
       navigator.clipboard.writeText(tsv)
-        .then(() => { if (triggerNotification) triggerNotification('Candidate details copied to clipboard!', 'success'); })
-        .catch(() => { if (triggerNotification) triggerNotification('Failed to copy table data.', 'error'); });
+        .then(() => notify(CA_TOASTS.candidatesCopied(filteredCandidates.length)))
+        .catch(() => notify(COMMON_TOASTS.copyFailed()));
     } else if (type === 'Excel') {
       let csv = exportHeaders.map(h => `"${h}"`).join(',') + '\n';
       filteredCandidates.forEach((c, idx) => {
@@ -375,9 +407,14 @@ export default function CandidateDrilldownView({
       link.download = `Candidate_Details_${appointment.wing || 'Consultant'}.csv`;
       link.click();
       URL.revokeObjectURL(url);
-      if (triggerNotification) triggerNotification('Candidate data exported to Excel (CSV) successfully!', 'success');
+      notify(COMMON_TOASTS.excelExported(link.download));
     } else if (type === 'PDF') {
       const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        notify(COMMON_TOASTS.popupBlocked());
+        return;
+      }
+      notify(COMMON_TOASTS.pdfPreparing());
       const title = `Candidate Details — ${appointment.wing} / ${appointment.division}`;
       let headersHtml = exportHeaders.map(h => `<th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; background-color: #0f417a; color: #ffffff; font-size: 10px; font-weight: bold; text-transform: uppercase;">${h}</th>`).join('');
       let rowsHtml = filteredCandidates.map((c, idx) => `
@@ -420,7 +457,10 @@ export default function CandidateDrilldownView({
         valueGetter: (params) => (params.node ? params.node.rowIndex + 1 : ''),
         minWidth: 80,
         maxWidth: 90,
-        cellClass: 'text-center font-mono font-bold text-slate-800 dark:text-slate-100',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-center font-mono font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         headerClass: 'text-center',
         hide: !visibleCols.sNo
       },
@@ -429,6 +469,9 @@ export default function CandidateDrilldownView({
         headerName: 'Candidate Name',
         flex: 1.3,
         minWidth: 180,
+        wrapText: true,
+        autoHeight: true,
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center' },
         cellRenderer: (params) => {
           const val = params.value;
           return (
@@ -436,7 +479,7 @@ export default function CandidateDrilldownView({
               <div className="h-7 w-7 rounded-full bg-blue-100 dark:bg-blue-950 text-[#0f417a] dark:text-blue-300 flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
                 {val ? val.charAt(0).toUpperCase() : 'C'}
               </div>
-              <span className="font-bold text-slate-800 dark:text-slate-100 truncate" title={val || '-'}>
+              <span className="font-bold text-slate-800 dark:text-slate-100" title={val || '-'}>
                 {val || '-'}
               </span>
             </div>
@@ -449,7 +492,10 @@ export default function CandidateDrilldownView({
         headerName: 'Qualification',
         flex: 1,
         minWidth: 140,
-        cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-slate-700 dark:text-slate-300 font-medium flex items-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center' },
         hide: !visibleCols.qualification
       },
       {
@@ -457,8 +503,11 @@ export default function CandidateDrilldownView({
         headerName: 'Experience',
         flex: 0.8,
         minWidth: 110,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
-        cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300',
+        cellClass: 'text-center font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         valueFormatter: (params) =>
           params.value !== null && params.value !== undefined ? `${params.value} Yrs` : '-',
         hide: !visibleCols.work_experience
@@ -468,8 +517,11 @@ export default function CandidateDrilldownView({
         headerName: 'Salary (LPA)',
         flex: 0.9,
         minWidth: 115,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
-        cellClass: 'text-center font-bold text-slate-800 dark:text-slate-200',
+        cellClass: 'text-center font-bold text-slate-800 dark:text-slate-200 flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         valueFormatter: (params) => (params.value ? `₹ ${params.value} L` : '-'),
         hide: !visibleCols.salary
       },
@@ -478,6 +530,9 @@ export default function CandidateDrilldownView({
         headerName: 'Deployment Category',
         flex: 1.2,
         minWidth: 160,
+        wrapText: true,
+        autoHeight: true,
+        cellStyle: { display: 'flex', alignItems: 'center' },
         cellRenderer: (params) => {
           const cat = params.value || 'Direct Contract';
           return (
@@ -501,8 +556,11 @@ export default function CandidateDrilldownView({
         headerName: 'Appointment Date',
         flex: 1,
         minWidth: 130,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
-        cellClass: 'text-center font-mono text-slate-600 dark:text-slate-400',
+        cellClass: 'text-center font-mono text-slate-600 dark:text-slate-400 flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         valueFormatter: (params) => formatDateDisplay(params.value),
         hide: !visibleCols.date_of_appointment
       },
@@ -511,7 +569,10 @@ export default function CandidateDrilldownView({
         headerName: 'Skill Set',
         flex: 1,
         minWidth: 130,
-        cellClass: 'text-slate-700 dark:text-slate-300 font-medium',
+        wrapText: true,
+        autoHeight: true,
+        cellClass: 'text-slate-700 dark:text-slate-300 font-medium flex items-center',
+        cellStyle: { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: '1.4', display: 'flex', alignItems: 'center' },
         hide: !visibleCols.skill_set
       },
       {
@@ -519,7 +580,10 @@ export default function CandidateDrilldownView({
         headerName: 'Appointment Order (PDF)',
         flex: 1.6,
         minWidth: 230,
+        wrapText: true,
+        autoHeight: true,
         headerClass: 'text-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const row = params.data;
           if (!row) return null;
@@ -598,7 +662,7 @@ export default function CandidateDrilldownView({
                 <button
                   type="button"
                   onClick={() => handleOpenEditCandidate(row, idx)}
-                  className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded-lg text-[#0f417a] dark:text-blue-400 transition cursor-pointer"
+                  className="p-1.5 hover:bg-orange-50 dark:hover:bg-slate-800 rounded-lg text-orange-500 hover:text-orange-600 dark:text-orange-400 transition cursor-pointer"
                   title="Edit Candidate Details"
                 >
                   <Edit2 className="h-4 w-4" />
@@ -811,12 +875,12 @@ export default function CandidateDrilldownView({
                   const file = e.target.files[0];
                   if (file) {
                     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-                      if (triggerNotification) triggerNotification('Invalid file type. Only PDF files are allowed.', 'error');
+                      notify(COMMON_TOASTS.invalidFileType('PDF'));
                       e.target.value = '';
                       return;
                     }
                     if (file.size > 20 * 1024 * 1024) {
-                      if (triggerNotification) triggerNotification('File size exceeds 20 MB.', 'warning');
+                      notify(COMMON_TOASTS.fileTooLarge(20));
                       e.target.value = '';
                       return;
                     }
@@ -1015,6 +1079,30 @@ export default function CandidateDrilldownView({
             />
           </div>
         </div>
+
+        {/* Resource Slots Guidance Banner if incomplete */}
+        {!loading && candidates.length < totalRequiredResources && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl gap-3 animate-fade-in">
+            <div className="flex items-center gap-2.5 text-amber-800 dark:text-amber-300 text-xs font-semibold">
+              <User className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                {candidates.length === 0
+                  ? `No candidate profile recorded yet for this appointment (${totalRequiredResources} required resource${totalRequiredResources > 1 ? 's' : ''}).`
+                  : `${totalRequiredResources - candidates.length} more candidate profile(s) pending to be added (${candidates.length}/${totalRequiredResources} filled).`}
+              </span>
+            </div>
+            {canAdd && (
+              <button
+                type="button"
+                onClick={() => handleOpenEditCandidate(null, candidates.length)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0f417a] hover:bg-blue-800 text-white font-bold text-xs rounded-lg shadow-sm transition cursor-pointer shrink-0"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add Candidate {candidates.length + 1}</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Ag Grid Table */}
         <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">

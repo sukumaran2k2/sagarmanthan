@@ -353,7 +353,7 @@ export default function EOfficeView({ initialKpi, triggerNotification }) {
           if (params.data && params.data.Wing === "Total") {
             return "font-black text-slate-900 bg-slate-100 text-center flex items-center justify-center";
           }
-          if (isWingCol) return "font-semibold text-slate-800 text-left flex items-center";
+          if (isWingCol) return "font-semibold text-slate-800 text-center flex items-center justify-center";
           if (isNumeric) return "font-bold text-slate-700 text-center flex items-center justify-center";
           return "text-slate-600 text-center flex items-center justify-center";
         },
@@ -525,7 +525,7 @@ export default function EOfficeView({ initialKpi, triggerNotification }) {
         headerName: "Uploaded By",
         flex: 2,
         minWidth: 160,
-        cellClass: "text-slate-700 font-medium text-left flex items-center",
+        cellClass: "text-slate-700 font-medium text-center flex items-center justify-center",
         valueGetter: (params) =>
           params.data["Uploaded By"] ||
           params.data.Uploaded_By ||
@@ -543,6 +543,12 @@ export default function EOfficeView({ initialKpi, triggerNotification }) {
           params.data.date_of_upload ||
           params.data.Date_of_Upload ||
           "—",
+        valueFormatter: (params) => {
+          if (!params.value || params.value === "—") return "—";
+          const d = new Date(params.value);
+          if (isNaN(d.getTime())) return params.value;
+          return d.toISOString().split("T")[0];
+        },
       },
       {
         headerName: "Actions",

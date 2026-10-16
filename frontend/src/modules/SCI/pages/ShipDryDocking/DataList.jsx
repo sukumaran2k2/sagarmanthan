@@ -1,11 +1,8 @@
 import { useState, useMemo, useRef } from 'react';
 import { Edit, Trash2 } from 'lucide-react';
-import { AgGridReact } from 'ag-grid-react';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import Table from '../../../../components/Table';
 import DataListToolbar from '../../../../components/DataListToolbar';
 import { exportDataListToPdf } from '../../../../utils/exportReportPdf';
-
-ModuleRegistry.registerModules([AllCommunityModule]);
 
 const COLUMN_LABELS = {
   financial_year: 'Financial Year',
@@ -79,7 +76,7 @@ export default function ShipDryDockingDataList({
           {canEdit && (
             <button
               onClick={() => onEdit && onEdit(params.data)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0f417a] dark:text-blue-400 rounded-lg transition cursor-pointer"
+              className="p-1.5 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-600 dark:text-amber-400 rounded-lg transition cursor-pointer"
               title="Update Entry"
             >
               <Edit className="h-4 w-4" />
@@ -117,7 +114,7 @@ export default function ShipDryDockingDataList({
         }
         searchTerm={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search..."
+        searchPlaceholder="Search"
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
         totalRows={loading ? '...' : filteredData.length}
@@ -129,21 +126,18 @@ export default function ShipDryDockingDataList({
         columnLabels={COLUMN_LABELS}
       />
 
-      <div className="ag-theme-quartz rounded-xl border border-slate-200 dark:border-slate-700 shadow-md overflow-x-auto">
-        <AgGridReact
-          ref={gridRef}
-          theme="legacy"
-          rowData={filteredData}
-          columnDefs={colDefs}
-          pagination={true}
-          paginationPageSize={pageSize}
-          paginationPageSizeSelector={[10, 20, 50]}
-          domLayout="autoHeight"
-          rowHeight={50}
-          headerHeight={42}
-          suppressColumnVirtualisation={true}
-        />
-      </div>
+      <Table
+        ref={gridRef}
+        rowData={filteredData}
+        columnDefs={colDefs}
+        loading={loading}
+        pagination={true}
+        paginationPageSize={pageSize}
+        domLayout="autoHeight"
+        rowHeight={50}
+        headerHeight={42}
+        color="#0f417a"
+      />
     </div>
   );
 }

@@ -159,7 +159,11 @@ export default function NAISIntegrationInputForm({
           </div>
         </div>
 
-        <div className="flex items-center justify-end space-x-3 pt-5 border-t border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between space-x-3 pt-5 border-t border-slate-200 dark:border-slate-700">
+          <span className="text-xs text-rose-500 font-bold italic">
+            * Asterisks marked with red are mandatory fields
+          </span>
+          <div className="flex items-center space-x-3">
           {onBack && (
             <button
               type="button" onClick={onBack}
@@ -175,6 +179,7 @@ export default function NAISIntegrationInputForm({
             <Save className="h-4 w-4" />
             <span>{submitting ? 'Saving...' : 'Save Entry'}</span>
           </button>
+          </div>
         </div>
       </form>
     </div>

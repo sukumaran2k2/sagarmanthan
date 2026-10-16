@@ -251,7 +251,7 @@ export default function TableWithToolbar({
           )}
  
           <div className="text-xs font-bold text-slate-555 uppercase tracking-wider bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300">
-            Total Rows: {filteredRowData.length}
+            Total: {filteredRowData.length}
           </div>
           
           <CopyButton

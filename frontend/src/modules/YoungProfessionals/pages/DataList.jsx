@@ -1,12 +1,16 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Table from '../../../components/Table';
 import TablePagination from '../../../components/TablePagination';
-import { Search, X, Edit, UserMinus, BarChart3, List, ChevronDown, Filter, Loader2 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { Search, X, Edit, UserMinus, ChevronDown, Filter, Loader2 } from 'lucide-react';
 import api, { fetchYoungProfessionals, relieveYoungProfessional } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import { useShallow } from 'zustand/react/shallow';
+import { useYpStore } from '../store/useYpStore';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { YP_TOASTS } from '../toastMessages';
 
 export default function DataList({
   onEdit,
@@ -17,22 +21,55 @@ export default function DataList({
   canAdd = true,
   canRemove = true
 }) {
+  // Zustand YP Store (filter/pagination slice only; wings & divisions come from props)
+  const {
+    activeStatusTab,
+    setActiveStatusTab,
+    searchTerm,
+    setSearchTerm,
+    debouncedSearch,
+    setDebouncedSearch,
+    selectedWing,
+    setSelectedWing,
+    selectedDivision,
+    setSelectedDivision,
+    showFilterPanel,
+    setShowFilterPanel,
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    visibleCols,
+    setVisibleCols,
+    resetFilters
+  } = useYpStore(useShallow(state => ({
+    activeStatusTab: state.activeStatusTab,
+    setActiveStatusTab: state.setActiveStatusTab,
+    searchTerm: state.searchTerm,
+    setSearchTerm: state.setSearchTerm,
+    debouncedSearch: state.debouncedSearch,
+    setDebouncedSearch: state.setDebouncedSearch,
+    selectedWing: state.selectedWing,
+    setSelectedWing: state.setSelectedWing,
+    selectedDivision: state.selectedDivision,
+    setSelectedDivision: state.setSelectedDivision,
+    showFilterPanel: state.showFilterPanel,
+    setShowFilterPanel: state.setShowFilterPanel,
+    currentPage: state.currentPage,
+    setCurrentPage: state.setCurrentPage,
+    pageSize: state.pageSize,
+    setPageSize: state.setPageSize,
+    visibleCols: state.visibleCols,
+    setVisibleCols: state.setVisibleCols,
+    resetFilters: state.resetFilters
+  })));
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [activeYpCount, setActiveYpCount] = useState(0);
   const [relievedYpCount, setRelievedYpCount] = useState(0);
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [selectedWing, setSelectedWing] = useState('');
-  const [selectedDivision, setSelectedDivision] = useState('');
-  const [activeStatusTab, setActiveStatusTab] = useState('active'); // 'active' | 'relieved'
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
-  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   // Relieve Modal
   const [relieveModalOpen, setRelieveModalOpen] = useState(false);
@@ -41,42 +78,26 @@ export default function DataList({
   const [remarks, setRemarks] = useState('');
   const [submittingRelieve, setSubmittingRelieve] = useState(false);
   const [gridApi, setGridApi] = useState(null);
+  const notify = useNotifier(triggerNotification);
 
   // Column visibility checklist dropdown states
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const colDropdownRef = useRef(null);
-  const [visibleCols, setVisibleCols] = useState({
-    name: true,
-    role: true,
-    wing: true,
-    division: true,
-    status: true
-  });
 
   // Debounce search input
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-      setCurrentPage(1); // Reset to page 1 on new search
     }, 300);
     return () => clearTimeout(handler);
-  }, [searchTerm]);
+  }, [searchTerm, setDebouncedSearch]);
 
-  // Reset to page 1 on filter changes
-  const handleWingChange = (val) => {
-    setSelectedWing(val);
-    setCurrentPage(1);
-  };
+  // Store setters already reset to page 1 (and clear division on wing change)
+  const handleWingChange = (val) => setSelectedWing(val);
 
-  const handleDivisionChange = (val) => {
-    setSelectedDivision(val);
-    setCurrentPage(1);
-  };
+  const handleDivisionChange = (val) => setSelectedDivision(val);
 
-  const handleStatusTabChange = (status) => {
-    setActiveStatusTab(status);
-    setCurrentPage(1);
-  };
+  const handleStatusTabChange = (status) => setActiveStatusTab(status);
 
   const activeFiltersCount = (selectedWing ? 1 : 0) + (selectedDivision ? 1 : 0);
 
@@ -90,8 +111,11 @@ export default function DataList({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch server data
+  // Fetch server data; only the latest request may update state (avoids out-of-order responses)
+  const latestRequestRef = useRef(0);
   const fetchData = useCallback(async () => {
+    const requestId = ++latestRequestRef.current;
+    const isStale = () => requestId !== latestRequestRef.current;
     setLoading(true);
     try {
       const res = await fetchYoungProfessionals({
@@ -102,6 +126,7 @@ export default function DataList({
         division: selectedDivision,
         status: activeStatusTab
       });
+      if (isStale()) return;
 
       const payload = res.data;
       if (payload && payload.data && payload.pagination) {
@@ -122,10 +147,11 @@ export default function DataList({
         setTotalPages(Math.ceil(list.length / pageSize) || 1);
       }
     } catch (err) {
+      if (isStale()) return;
       console.error("Error loading young professionals:", err);
       setData([]);
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }, [currentPage, pageSize, debouncedSearch, selectedWing, selectedDivision, activeStatusTab]);
 
@@ -154,36 +180,46 @@ export default function DataList({
     if (wings.length > 0) {
       return wings.map(w => ({
         value: w.wing_name ?? w.label ?? w.value ?? String(w),
-        label: w.wing_name ?? w.label ?? w.value ?? String(w)
+        label: w.wing_name ?? w.label ?? w.value ?? String(w),
+        wing_id: w.wing_id
       }));
     }
     return STATIC_WINGS.map(name => ({ value: name, label: name }));
   }, [wings]);
 
   const divisionOptions = useMemo(() => {
+    if (!selectedWing) return [];
     if (divisions.length > 0) {
-      return divisions.map(d => ({
+      const matchingWing = wings.find(w => 
+        String(w.wing_name ?? w.label ?? w.value ?? '') === String(selectedWing) || 
+        String(w.wing_id ?? '') === String(selectedWing)
+      );
+      const targetWingId = matchingWing ? matchingWing.wing_id : null;
+      let filtered = divisions;
+      if (targetWingId !== undefined && targetWingId !== null) {
+        filtered = divisions.filter(d => String(d.wing_id) === String(targetWingId));
+      } else {
+        filtered = divisions.filter(d => 
+          String(d.wing_name ?? d.wing ?? '') === String(selectedWing)
+        );
+      }
+      return filtered.map(d => ({
         value: d.division_name ?? d.label ?? d.value ?? String(d),
         label: d.division_name ?? d.label ?? d.value ?? String(d)
       }));
     }
     return STATIC_DIVISIONS.map(name => ({ value: name, label: name }));
-  }, [divisions]);
+  }, [divisions, wings, selectedWing]);
 
-  // Group data by wing for the chart visualization
-  const chartData = useMemo(() => {
-    const counts = {};
-    data.forEach(item => {
-      const w = item.wing || 'Unknown';
-      counts[w] = (counts[w] || 0) + 1;
-    });
-    return Object.keys(counts).map(key => ({
-      name: key,
-      'In Position': counts[key]
-    }));
-  }, [data]);
-
-  const COLORS = ['#0f417a', '#1e5ea8', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  // Sync division selection if current division is not in filtered list
+  useEffect(() => {
+    if (selectedDivision) {
+      const exists = divisionOptions.some(d => String(d.value) === String(selectedDivision));
+      if (!exists) {
+        setSelectedDivision('');
+      }
+    }
+  }, [divisionOptions, selectedDivision, setSelectedDivision]);
 
   const handleOpenRelieve = (yp) => {
     setSelectedYp(yp);
@@ -195,7 +231,7 @@ export default function DataList({
   const handleRelieveSubmit = async (e) => {
     e.preventDefault();
     if (!lastWorkingDate) {
-      if (triggerNotification) triggerNotification("Please select the last working date.", "warning");
+      notify(YP_TOASTS.lastWorkingDateRequired());
       return;
     }
     setSubmittingRelieve(true);
@@ -209,14 +245,12 @@ export default function DataList({
         remarks,
         updated_by: activeUserId
       });
-      if (triggerNotification) {
-        triggerNotification(`${selectedYp.name} has been relieved successfully.`, 'success');
-      }
+      notify(YP_TOASTS.relieved(selectedYp.name));
       setRelieveModalOpen(false);
       fetchData();
     } catch (err) {
       console.error(err);
-      if (triggerNotification) triggerNotification("Failed to relieve young professional.", "error");
+      notify(YP_TOASTS.relieveFailed(selectedYp.name, getErrorMessage(err)));
     } finally {
       setSubmittingRelieve(false);
     }
@@ -253,32 +287,26 @@ export default function DataList({
         });
         
         navigator.clipboard.writeText(tsv)
-          .then(() => {
-            if (triggerNotification) triggerNotification('Current page data copied to clipboard!', 'success');
-          })
-          .catch(() => {
-            if (triggerNotification) triggerNotification('Failed to copy table data.', 'error');
-          });
+          .then(() => notify(COMMON_TOASTS.copySuccess(data.length)))
+          .catch(() => notify(COMMON_TOASTS.copyFailed()));
       } else {
-        if (triggerNotification) triggerNotification("Grid is not ready for copy yet.", "warning");
+        notify(COMMON_TOASTS.tableNotReady('copy'));
       }
     } else if (type === 'Excel') {
       if (gridApi) {
-        gridApi.exportDataAsCsv({
-          fileName: `Young_Professionals_Page_${currentPage}.csv`
-        });
-        if (triggerNotification) {
-          triggerNotification(`Register data exported to Excel (CSV) successfully!`, 'success');
-        }
+        const fileName = `Young_Professionals_Page_${currentPage}.csv`;
+        gridApi.exportDataAsCsv({ fileName });
+        notify(COMMON_TOASTS.excelExported(fileName));
       } else {
-        if (triggerNotification) triggerNotification("Grid is not ready for export yet.", "warning");
+        notify(COMMON_TOASTS.tableNotReady('export'));
       }
     } else if (type === 'PDF') {
-      if (triggerNotification) {
-        triggerNotification(`Preparing PDF document...`, 'info');
-      }
-
       const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        notify(COMMON_TOASTS.popupBlocked());
+        return;
+      }
+      notify(COMMON_TOASTS.pdfPreparing());
       const title = 'Young Professionals - Data List';
 
       let headersHtml = '';
@@ -312,7 +340,7 @@ export default function DataList({
           <head>
             <title>${title}</title>
             <style>
-              body { font-family: system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
+              body { font-family: 'Google Sans', system-ui, -apple-system, sans-serif; color: #1e293b; padding: 20px; }
               h1 { font-size: 18px; margin-bottom: 5px; color: #0f417a; }
               table { width: 100%; border-collapse: collapse; margin-top: 15px; }
             </style>
@@ -350,7 +378,7 @@ export default function DataList({
         maxWidth: 80,
         pinned: 'left',
         suppressSizeToFit: true,
-        cellClass: 'font-mono text-slate-600 dark:text-slate-400 text-center',
+        cellClass: 'text-slate-600 dark:text-slate-400 text-center font-bold',
         headerClass: 'text-center'
       },
       {
@@ -406,40 +434,24 @@ export default function DataList({
         }
       },
       {
-        field: 'is_active',
-        headerName: 'Status',
-        width: 120,
-        hide: !visibleCols.status,
-        cellRenderer: (params) => {
-          const isActive = params.value === 1 || params.value === true;
-          return (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
-              isActive
-                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400'
-                : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-400'
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isActive ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-              {isActive ? 'Active' : 'Relieved'}
-            </span>
-          );
-        }
-      },
-      {
         headerName: 'Action',
         width: 110,
         pinned: 'right',
+        headerClass: 'text-center',
+        cellClass: 'text-center flex items-center justify-center',
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params) => {
           const item = params.data;
           if (!item) return null;
           const isActive = item.is_active === 1 || item.is_active === true;
 
           return (
-            <div className="flex items-center space-x-1.5 h-full py-1">
+            <div className="flex items-center justify-center space-x-1.5 w-full h-full py-1">
               {canEdit && (
                 <button
                   onClick={() => onEdit(item)}
                   title="Edit Young Professional"
-                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+                  className="p-1.5 text-orange-500 hover:text-orange-600 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
                 >
                   <Edit className="h-4 w-4" />
                 </button>
@@ -463,33 +475,25 @@ export default function DataList({
   return (
     <div className="space-y-4 animate-fade-in relative">
       {/* Category selector tabs (Sub-tabs) */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 dark:border-slate-800 pb-1 mb-4 select-none px-1">
+      <div className="module-subtabs-strip">
         <button
           onClick={() => handleStatusTabChange('active')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeStatusTab === 'active'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-          }`}
+          className={`module-subtab-btn ${activeStatusTab === 'active' ? 'active' : ''}`}
         >
           ACTIVE YPS ({activeYpCount})
         </button>
         <button
           onClick={() => handleStatusTabChange('relieved')}
-          className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
-            activeStatusTab === 'relieved'
-              ? 'border-[#0f417a] text-[#0f417a] bg-blue-100/70 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400 rounded-t-lg'
-              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-350'
-          }`}
+          className={`module-subtab-btn ${activeStatusTab === 'relieved' ? 'active' : ''}`}
         >
           RELIEVED YPS ({relievedYpCount})
         </button>
       </div>
 
-      {/* Main Table Card Container matching GMIS style */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 dark:bg-slate-950 dark:border-slate-800">
+      {/* Main Table Card Container matching centralized design system */}
+      <div className="module-card space-y-4">
 
-        {/* Search, Filters and Actions Toolbar matching GMIS format */}
+        {/* Search, Filters and Actions Toolbar */}
         <div className="flex flex-col lg:flex-row gap-3 items-center justify-between border-b border-slate-100 dark:border-slate-800/60 pb-4">
           
           {/* 1. Left: Dedicated Filter Button + Reset */}
@@ -497,11 +501,7 @@ export default function DataList({
             <button
               type="button"
               onClick={() => setShowFilterPanel(prev => !prev)}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
-                showFilterPanel || activeFiltersCount > 0
-                  ? 'bg-blue-50 border-blue-300 text-[#0f417a] dark:bg-blue-950/50 dark:border-blue-700 dark:text-blue-300'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800'
-              }`}
+              className={`module-filter-btn ${showFilterPanel || activeFiltersCount > 0 ? 'active' : ''}`}
             >
               <Filter className="h-4 w-4 text-[#0f417a] dark:text-blue-400" />
               <span>Filter</span>
@@ -517,10 +517,8 @@ export default function DataList({
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedWing('');
-                  setSelectedDivision('');
-                  setCurrentPage(1);
-                  triggerNotification?.('Filters have been reset', 'info');
+                  resetFilters();
+                  notify(COMMON_TOASTS.filtersReset());
                 }}
                 className="px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 transition cursor-pointer"
               >
@@ -543,7 +541,7 @@ export default function DataList({
                 placeholder="Search YP details..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-400 text-slate-800 dark:text-slate-200"
+                className="w-full module-search-input"
               />
               {searchTerm && (
                 <button
@@ -555,91 +553,68 @@ export default function DataList({
               )}
             </div>
 
-            {viewMode === 'table' && (
-              <>
-                {/* Rows Limit Select Dropdown */}
-                <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
-                  >
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                  </select>
-                </div>
-
-                {/* Total Count Badge */}
-                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                  Total: {totalCount}
-                </div>
-
-                {/* Column Visibility Dropdown */}
-                <div className="relative" ref={colDropdownRef}>
-                  <button
-                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    <span>Visibility</span>
-                    <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-                  </button>
-                  {dropdownOpen && (
-                    <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
-                      {Object.keys(visibleCols).map(col => (
-                        <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={visibleCols[col]}
-                            onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
-                            className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span>{col === 'status' ? 'Status' : col}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Copy Button */}
-                <CopyButton
-                  onCopy={() => handleExport('Copy')}
-                  color="#0f417a"
-                  hoverBg="#f1f5f9"
-                />
-
-                {/* Export Dropdown */}
-                <ExportDropdown
-                  onExportExcel={() => handleExport('Excel')}
-                  onExportPdf={() => handleExport('PDF')}
-                  color="#0f417a"
-                  hoverColor="#1d5594"
-                />
-              </>
-            )}
-
-            {/* Toggle Switch Button Pair */}
-            <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50 dark:bg-slate-900 dark:border-slate-800">
-              <button
-                onClick={() => setViewMode('chart')}
-                className={`p-1.5 rounded transition cursor-pointer ${viewMode === 'chart' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
-                title="Chart View"
+            {/* Rows Limit Select Dropdown */}
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-xs select-none dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                }}
+                className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer p-0"
               >
-                <BarChart3 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded transition cursor-pointer ${viewMode === 'table' ? 'bg-white dark:bg-slate-800 shadow text-[#0f417a] dark:text-blue-400' : 'text-slate-400 hover:text-slate-700'}`}
-                title="Table View"
-              >
-                <List className="h-4 w-4" />
-              </button>
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
             </div>
+
+            {/* Total Count Badge */}
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              Total: {totalCount}
+            </div>
+
+            {/* Column Visibility Dropdown */}
+            <div className="relative" ref={colDropdownRef}>
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-50 transition cursor-pointer flex items-center space-x-1.5 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <span>Visibility</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+              </button>
+              {dropdownOpen && (
+                <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 animate-fade-in flex flex-col space-y-0.5 dark:bg-slate-900 dark:border-slate-800">
+                  {Object.keys(visibleCols).map(col => (
+                    <label key={col} className="flex items-center space-x-2 px-2.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 capitalize cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols[col]}
+                        onChange={() => setVisibleCols(prev => ({ ...prev, [col]: !prev[col] }))}
+                        className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span>{col === 'status' ? 'Status' : col}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Copy Button */}
+            <CopyButton
+              onCopy={() => handleExport('Copy')}
+              color="#0f417a"
+              hoverBg="#f1f5f9"
+            />
+
+            {/* Export Dropdown */}
+            <ExportDropdown
+              onExportExcel={() => handleExport('Excel')}
+              onExportPdf={() => handleExport('PDF')}
+              color="#0f417a"
+              hoverColor="#1d5594"
+            />
 
           </div>
         </div>
@@ -656,7 +631,7 @@ export default function DataList({
                 <select
                   value={selectedWing}
                   onChange={(e) => handleWingChange(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  className="appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <option value="">All Wings</option>
                   {wingOptions.map((w) => (
@@ -676,9 +651,14 @@ export default function DataList({
                 <select
                   value={selectedDivision}
                   onChange={(e) => handleDivisionChange(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                  disabled={!selectedWing}
+                  className={`appearance-none w-full text-xs pl-2.5 pr-8 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0f417a] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer ${
+                    !selectedWing ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : ''
+                  }`}
                 >
-                  <option value="">All Divisions</option>
+                  <option value="">
+                    {!selectedWing ? 'Select Wing First' : 'All Divisions'}
+                  </option>
                   {divisionOptions.map((d) => (
                     <option key={d.value} value={d.value}>{d.label}</option>
                   ))}
@@ -689,171 +669,114 @@ export default function DataList({
           </div>
         )}
 
-        {viewMode === 'table' ? (
-          <div className="ag-theme-quartz w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
-            <Table
-              rowData={data}
-              columnDefs={columnDefs}
-              loading={loading}
-              pagination={false}
-              enableExport={false}
-              onGridReady={(params) => setGridApi(params.api)}
-              defaultColDef={{
-                minWidth: 90,
-                filter: false,
-                sortable: true,
-                resizable: true
-              }}
-            />
-            
-            {/* Server-Side Pagination Bar */}
-            <TablePagination
-              currentPage={currentPage - 1}
-              totalPages={totalPages}
-              totalRows={totalCount}
-              pageSize={pageSize}
-              onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
-              onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              color="#0f417a"
-            />
-
-            <style dangerouslySetInnerHTML={{
-              __html: `
-              .ag-theme-quartz.rounded-xl,
-              .ag-theme-quartz.rounded-2xl {
-                border-radius: 16px !important;
-              }
-              .ag-theme-quartz .ag-root-wrapper {
-                border-radius: 16px 16px 0 0 !important;
-              }
-              .ag-theme-quartz .ag-header {
-                background-color: #0f417a !important;
-                border-bottom: 2px solid #0a2d55 !important;
-              }
-              .ag-theme-quartz .ag-header-cell {
-                color: #ffffff !important;
-                font-weight: 700 !important;
-                text-transform: uppercase !important;
-                font-size: 11px !important;
-                letter-spacing: 0.05em !important;
-              }
-              .ag-theme-quartz .ag-header-cell .ag-icon {
-                color: #ffffff !important;
-              }
-              .ag-theme-quartz .ag-header-cell-label {
-                color: #ffffff !important;
-              }
-              .ag-theme-quartz .ag-row {
-                font-size: 13px !important;
-                border-bottom: 1px solid #f1f5f9 !important;
-              }
-              .ag-theme-quartz .ag-row-hover {
-                background-color: #f8fafc !important;
-              }
-              .dark .ag-theme-quartz .ag-row-hover {
-                background-color: #1e293b !important;
-              }
-              `
-            }} />
-          </div>
-        ) : (
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 dark:bg-slate-900 dark:border-slate-800">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4">
-              Young Professionals Distribution by Wing ({activeStatusTab === 'active' ? 'Active' : 'Relieved'})
-            </h4>
-            <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="In Position" fill="#0f417a" radius={[4, 4, 0, 0]}>
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
+        <div className="ag-theme-quartz module-datalist-grid w-full relative border border-slate-200 rounded-2xl overflow-hidden shadow-sm dark:border-slate-800">
+          <Table
+            rowData={data}
+            columnDefs={columnDefs}
+            loading={loading}
+            pagination={false}
+            enableExport={false}
+            onGridReady={(params) => setGridApi(params.api)}
+            defaultColDef={{
+              minWidth: 90,
+              filter: false,
+              sortable: true,
+              resizable: true
+            }}
+          />
+          
+          {/* Server-Side Pagination Bar */}
+          <TablePagination
+            currentPage={currentPage - 1}
+            totalPages={totalPages}
+            totalRows={totalCount}
+            pageSize={pageSize}
+            onPageChange={(zeroIdx) => setCurrentPage(zeroIdx + 1)}
+            onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            onNextPage={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            color="#0f417a"
+          />
+        </div>
 
       </div>
 
       {/* Relieve Modal Dialog */}
-      {relieveModalOpen && selectedYp && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 dark:bg-slate-900 dark:border-slate-800 animate-scale-up">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center space-x-2">
-                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg dark:bg-rose-950/40 dark:text-rose-400">
-                  <UserMinus className="h-5 w-5" />
-                </div>
-                <h3 className="font-bold text-slate-800 dark:text-slate-100">Relieve Candidate</h3>
-              </div>
-              <button
-                onClick={() => setRelieveModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition cursor-pointer"
+      {relieveModalOpen && selectedYp
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 overflow-hidden"
+              onClick={() => !submittingRelieve && setRelieveModalOpen(false)}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-scale-up my-auto"
+                onClick={(e) => e.stopPropagation()}
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+                <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+                  <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">Relieve Candidate</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    You are about to relieve{' '}
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                      {selectedYp.name}
+                    </span>{' '}
+                    from the organization.
+                  </p>
+                </div>
 
-            <form onSubmit={handleRelieveSubmit} className="mt-4 space-y-4">
-              <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  You are about to relieve <strong className="text-slate-700 dark:text-slate-200">{selectedYp.name}</strong> from the organization.
-                </p>
-              </div>
+                <form onSubmit={handleRelieveSubmit}>
+                  <div className="px-5 py-4 space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Last Working Date <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={lastWorkingDate}
+                        onChange={(e) => setLastWorkingDate(e.target.value)}
+                        disabled={submittingRelieve}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs p-2.5 font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-400"
+                      />
+                    </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Last Working Date <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={lastWorkingDate}
-                  onChange={(e) => setLastWorkingDate(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 font-semibold"
-                />
-              </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Remarks / Reason
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={remarks}
+                        onChange={(e) => setRemarks(e.target.value)}
+                        placeholder="Enter remarks for relieving..."
+                        disabled={submittingRelieve}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs p-3 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
+                      />
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Remarks / Reason
-                </label>
-                <textarea
-                  rows="3"
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  placeholder="Enter remarks for relieving..."
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
-                ></textarea>
+                  <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRelieveModalOpen(false)}
+                      disabled={submittingRelieve}
+                      className="px-3 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-60 transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingRelieve}
+                      className="px-3 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      {submittingRelieve && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      <span>{submittingRelieve ? 'Relieving...' : 'Relieve Candidate'}</span>
+                    </button>
+                  </div>
+                </form>
               </div>
-
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setRelieveModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl dark:text-slate-400 dark:hover:bg-slate-800 transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingRelieve}
-                  className="px-4 py-2 text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50 flex items-center space-x-1.5"
-                >
-                  {submittingRelieve && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  <span>Relieve Candidate</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>,
+            document.body
+          )
+        : null}
 
     </div>
   );

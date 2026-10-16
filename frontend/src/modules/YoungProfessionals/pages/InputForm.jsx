@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Upload, X, ArrowLeft, Plus, FileText } from 'lucide-react';
 import api, { API_BASE, createYoungProfessional, updateYoungProfessional, uploadYPDocument } from '../api';
 import { getCurrentUserId } from '../../../utils/authSession';
+import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../utils/notify';
+import { YP_TOASTS } from '../toastMessages';
 
 const COMMON_SKILLS = [
   'SQL', 'Python', 'Java', 'React', 'Javascript', 'HTML', 'CSS',
@@ -19,6 +21,7 @@ export default function InputForm({
   triggerNotification 
 }) {
   const isEdit = !!editData;
+  const notify = useNotifier(triggerNotification);
   const fileInputRef = useRef(null);
 
   // Form states
@@ -171,7 +174,9 @@ export default function InputForm({
       initExperience = editData.total_experience !== undefined && editData.total_experience !== null ? String(editData.total_experience) : '';
       
       if (editData.skills) {
-        initSkillsList = editData.skills.split(',').map(s => s.trim()).filter(Boolean);
+        initSkillsList = Array.isArray(editData.skills) 
+          ? editData.skills 
+          : editData.skills.split(',').map(s => s.trim()).filter(Boolean);
       }
       initDocumentName = editData.appointment_document || '';
 
@@ -213,6 +218,27 @@ export default function InputForm({
 
     setTouched({});
   }, [editData]);
+
+  // Dynamically filter divisions based on the selected wing
+  const filteredDivisions = useMemo(() => {
+    if (!wing) return [];
+    return divisions.filter(d => String(d.wing_id) === String(wing));
+  }, [wing, divisions]);
+
+  // Sync division selection if current division is not in filtered list
+  useEffect(() => {
+    if (!wing) {
+      if (division) setDivision('');
+      return;
+    }
+    if (division) {
+      const exists = filteredDivisions.some(d => String(d.division_id) === String(division));
+      if (!exists) {
+        setDivision('');
+      }
+    }
+  }, [wing, filteredDivisions, division]);
+
 
   const isDirty = useMemo(() => {
     if (wing !== initialValues.wing) return true;
@@ -260,23 +286,23 @@ export default function InputForm({
     e.preventDefault();
 
     if (!wing) {
-      if (triggerNotification) triggerNotification("Please select a Wing.", "warning");
+      notify(COMMON_TOASTS.requiredSelect('Wing'));
       return;
     }
     if (!division) {
-      if (triggerNotification) triggerNotification("Please select a Division.", "warning");
+      notify(COMMON_TOASTS.requiredSelect('Division'));
       return;
     }
     if (!name.trim()) {
-      if (triggerNotification) triggerNotification("Name is required.", "warning");
+      notify(COMMON_TOASTS.requiredInput('Name'));
       return;
     }
     if (Object.keys(errors).length > 0) {
-      if (triggerNotification) triggerNotification("Please correct validation errors: " + Object.values(errors).join(" "), "warning");
+      notify(COMMON_TOASTS.fixValidationErrors(Object.values(errors).join(' ')));
       return;
     }
     if (!isEdit && (!fileInputRef.current || !fileInputRef.current.files[0])) {
-      if (triggerNotification) triggerNotification("Appointment order document is required.", "warning");
+      notify(YP_TOASTS.documentRequired());
       return;
     }
 
@@ -308,26 +334,26 @@ export default function InputForm({
         ypId = response.data?.insertedYPId;
       }
 
+      // The record is saved at this point; report an upload failure separately
+      // so the user isn't told the whole save failed
       if (fileInputRef.current && fileInputRef.current.files[0]) {
         const formData = new FormData();
         formData.append("file", fileInputRef.current.files[0]);
-        await uploadYPDocument(ypId, formData);
+        try {
+          await uploadYPDocument(ypId, formData);
+        } catch (uploadErr) {
+          console.error(uploadErr);
+          notify(YP_TOASTS.documentUploadFailed(payload.name, getErrorMessage(uploadErr)));
+          onSuccess();
+          return;
+        }
       }
 
-      if (triggerNotification) {
-        triggerNotification(
-          isEdit ? "Young Professional updated successfully." : "New Young Professional registered successfully.",
-          "success"
-        );
-      }
-
+      notify(isEdit ? YP_TOASTS.updated(payload.name) : YP_TOASTS.created(payload.name));
       onSuccess();
     } catch (err) {
       console.error(err);
-      const serverMsg = err.response?.data?.message || err.response?.data?.error || err.message;
-      if (triggerNotification) {
-        triggerNotification(`Failed to save Young Professional details: ${serverMsg || ''}`, "error");
-      }
+      notify(YP_TOASTS.saveFailed(isEdit, getErrorMessage(err)));
     } finally {
       setSubmitting(false);
     }
@@ -349,23 +375,28 @@ export default function InputForm({
     (isEdit && !isDirty);
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden border-l-4 border-l-[#0f417a] animate-fade-in">
-      <div className="bg-gradient-to-r from-[#0f417a] to-[#1a5ba3] px-6 py-4.5 flex items-center justify-between text-white border-b border-[#0a2d55]/20">
+    <div className="module-form-card animate-fade-in">
+      <div className="module-form-banner">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-wider font-display">
+          <h3 className="module-form-banner-title">
             {isEdit ? "Update Young Professional" : "Add Young Professional"}
           </h3>
-          <p className="text-[10px] text-[#eadede] font-semibold tracking-wide mt-0.5">Ministry of Ports, Shipping and Waterways</p>
+          <p className="module-form-banner-subtext">Ministry of Ports, Shipping and Waterways</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Wing <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Wing <span className="text-red-500">*</span></label>
             <select
               value={wing}
-              onChange={(e) => { setWing(e.target.value); if (touched.wing) handleBlur('wing'); }}
+              onChange={(e) => { 
+                const newWing = e.target.value;
+                setWing(newWing); 
+                setDivision('');
+                if (touched.wing) handleBlur('wing'); 
+              }}
               onBlur={() => handleBlur('wing')}
               required
               className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('wing', wing) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
@@ -376,21 +407,24 @@ export default function InputForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Division <span className="text-red-500">*</span></label>
+            <label className="module-form-label">Division <span className="text-red-500">*</span></label>
             <select
               value={division}
               onChange={(e) => { setDivision(e.target.value); if (touched.division) handleBlur('division'); }}
               onBlur={() => handleBlur('division')}
+              disabled={!wing}
               required
-              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer`}
+              className={`w-full text-xs px-3.5 py-2.5 bg-slate-50 dark:bg-slate-955 border ${isFieldInvalid('division', division) ? 'border-red-500 focus:border-red-550' : 'border-slate-250 dark:border-slate-800'} rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 font-semibold text-slate-755 dark:text-slate-300 cursor-pointer ${!wing ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
-              <option value="" className="dark:bg-slate-955 dark:text-slate-300">--Select Division--</option>
-              {divisions.map(d => <option key={d.division_id} value={d.division_id} className="dark:bg-slate-955 dark:text-slate-300">{d.division_name}</option>)}
+              <option value="" className="dark:bg-slate-955 dark:text-slate-300">
+                {!wing ? '--Select Wing First--' : '--Select Division--'}
+              </option>
+              {filteredDivisions.map(d => <option key={d.division_id} value={d.division_id} className="dark:bg-slate-955 dark:text-slate-300">{d.division_name}</option>)}
             </select>
           </div>
         </div>
 
-        <h3 className="text-[13px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide border-b border-slate-200 dark:border-slate-800 pb-2 mt-8 mb-5">Personal & Professional Info</h3>
+        <h3 className="module-form-section-title">Personal & Professional Info</h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div className="space-y-1.5">
@@ -534,10 +568,12 @@ export default function InputForm({
           </div>
         </div>
 
-        {/* Appointment document - Minimized towards the left */}
-        <div className="space-y-1.5 max-w-sm">
-          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Appointment Order Document <span className="text-red-500">*</span></label>
-          <div className={`flex items-center justify-center border-2 border-dashed ${isFieldInvalid('documentName', documentName) ? 'border-red-500 bg-red-50/10' : 'border-slate-250 dark:border-slate-800'} rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative`}>
+        {/* Appointment document - Auto grow with text wrapping */}
+        <div className="space-y-1.5 w-full max-w-md">
+          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+            Appointment Order Document <span className="text-red-500">*</span>
+          </label>
+          <div className={`flex flex-col items-center justify-center border-2 border-dashed ${isFieldInvalid('documentName', documentName) ? 'border-red-500 bg-red-50/10' : 'border-slate-250 dark:border-slate-800'} rounded-xl p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition cursor-pointer relative min-h-[110px] w-full`}>
             <input 
               type="file" 
               ref={fileInputRef}
@@ -548,14 +584,14 @@ export default function InputForm({
                 const file = e.target.files[0];
                 if (file) {
                   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-                    if (triggerNotification) triggerNotification("Invalid file type. Only PDF files are allowed.", "error");
+                    notify(COMMON_TOASTS.invalidFileType('PDF'));
                     e.target.value = '';
                     setDocumentName('');
                     if (touched.documentName) handleBlur('documentName');
                     return;
                   }
                   if (file.size > 10 * 1024 * 1024) {
-                    if (triggerNotification) triggerNotification("File size exceeds 10 MB. Please choose a smaller file.", "warning");
+                    notify(COMMON_TOASTS.fileTooLarge(10));
                     e.target.value = '';
                     setDocumentName('');
                     if (touched.documentName) handleBlur('documentName');
@@ -567,26 +603,28 @@ export default function InputForm({
               }}
               className="absolute inset-0 opacity-0 cursor-pointer"
             />
-            <div className="text-center space-y-1">
-              <Upload className="mx-auto h-6 w-6 text-slate-400" />
+            <div className="text-center space-y-1 w-full max-w-full px-2">
+              <Upload className="mx-auto h-6 w-6 text-slate-400 shrink-0" />
               <p className="text-[11px] font-bold text-slate-655 dark:text-slate-400 uppercase tracking-wide">Upload PDF file</p>
               <p className="text-[9px] text-slate-400 font-semibold">(Only PDF under 10 MB is allowed)</p>
               {documentName && (
-                <p className="text-[11px] font-black text-emerald-600">Selected: {documentName}</p>
+                <p className="text-[11px] font-black text-emerald-600 break-all whitespace-normal leading-relaxed pt-1 max-w-full">
+                  Selected: {documentName}
+                </p>
               )}
             </div>
           </div>
 
           {isEdit && editData.appointment_document && (
-            <div className="mt-2 text-xs">
+            <div className="mt-2 text-xs max-w-full">
               <a
                 href={`${API_BASE}/download-yp-document?fileName=${editData.appointment_document}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center space-x-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline"
+                className="inline-flex flex-wrap items-center gap-1 font-bold text-[#0f417a] dark:text-blue-400 hover:underline max-w-full"
               >
-                <span>View current document:</span>
-                <span className="text-slate-600 dark:text-slate-450 font-semibold truncate max-w-[200px]" title={editData.appointment_document}>
+                <span className="shrink-0">View current document:</span>
+                <span className="text-slate-600 dark:text-slate-450 font-semibold break-all" title={editData.appointment_document}>
                   {editData.appointment_document}
                 </span>
               </a>
