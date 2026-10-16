@@ -38,6 +38,7 @@ const IMUView = lazy(() => import('./modules/IMU/IMU'));
 const SCIView = lazy(() => import('./modules/SCI/SCI'));
 const UserMatrix = lazy(() => import('./modules/UserManagement/UserMatrix'));
 const FormBuilderView = lazy(() => import('./modules/FormBuilder/FormBuilder'));
+const MasterManagement = lazy(() => import("./modules/MasterManagement/pages/masterManagement"));
 const ContactUs = lazy(() => import('./modules/Contact/Contact'));
 
 // Major Ports Components
@@ -448,10 +449,11 @@ export default function App() {
 
             {/* KPI - Major Ports */}
             <Route path="kpi/major-ports/major-ports-dashboard" element={<PortsDashboardView />} />
-            <Route
+             <Route
               path="kpi/major-ports/major-ports-input-form"
               element={<PortsInputFormView triggerNotification={triggerNotification} />}
             />
+            <Route path="kpi/major-ports/major-ports-input-form" element={<PortsInputFormView />} />
             <Route path="kpi/major-ports/major-ports-reports" element={<PortsReportsView />} />
             <Route path="kpi/major-ports" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
             <Route path="kpi/major-ports/*" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
@@ -503,10 +505,14 @@ export default function App() {
             <Route path="admin/user-module-permission/*" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
             <Route path="admin/user-list/*" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
 
-            {/* Form Builder Routes */}
+             {/* Form Builder Routes */}
             <Route path="form-builder/*" element={<FormBuilderView triggerNotification={triggerNotification} />} />
             <Route path="admin/form-builder/*" element={<FormBuilderView triggerNotification={triggerNotification} />} />
 
+            <Route path="admin/user-module-permission" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-list" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-master-management/*" element={<MasterManagement mode="userMastermanagement" onGoHome={() => navigate('/')} triggerNotification={triggerNotification} />} />
+          
             {/* Contact */}
             <Route path="contact" element={<ContactUs />} />
             <Route path="contact/*" element={<ContactUs />} />
