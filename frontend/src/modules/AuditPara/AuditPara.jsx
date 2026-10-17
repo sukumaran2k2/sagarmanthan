@@ -8,15 +8,19 @@ import { useAuditParaPermissions } from './hooks/useAuditParaPermissions';
 import { fetchAuditParas, fetchWings, fetchDivisions, deleteAuditPara } from './api';
 import { getCurrentUserId } from '../../utils/authSession';
 
+// Stage flags are BIT columns (true/false); everything downstream (reports, status text,
+// edit form) expects 'Yes' / 'No'.
+const yesNo = (v) => (v === true || v === 1 || /^(yes|true|1)$/i.test(String(v ?? '').trim()) ? 'Yes' : 'No');
+
 function parseAuditParaRow(r) {
   const steps = {
-    1: r.received_at_ministry || 'No',
-    2: r.comments_sought || 'No',
-    3: r.comments_rec || 'No',
-    4: r.under_clarification || 'No',
-    5: r.comments_furnished || 'No',
-    6: r.cag_accepted || 'No',
-    7: r.disposed || 'No',
+    1: yesNo(r.received_at_ministry),
+    2: yesNo(r.comments_sought),
+    3: yesNo(r.comments_rec),
+    4: yesNo(r.under_clarification),
+    5: yesNo(r.comments_furnished),
+    6: yesNo(r.cag_accepted),
+    7: yesNo(r.disposed),
   };
   const dates = {
     1: r.date_of_receipt ? new Date(r.date_of_receipt).toISOString().split('T')[0] : '',

@@ -1,16 +1,19 @@
 import { useState, useMemo, useRef } from 'react';
-import { ChevronLeft, Search, RefreshCw, X, TrendingUp, Building2 } from 'lucide-react';
+import { ChevronLeft, Search, RefreshCw, X, TrendingUp, Building2, Tag } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
+import { CATEGORIES } from '../constants';
 
 export default function Reports({ rowData = [], wings = [], divisions = [] }) {
   const gridRef = useRef(null);
   const [reportView, setReportView] = useState('wing');
+  const [category, setCategory] = useState('all');
   const [quickFilter, setQuickFilter] = useState('');
   const [loading] = useState(false);
 
-  const title = 'Report No. 4.2A - Abstract ( Wing & Division Wise ) - Audit Paras';
+  // Title (and export file name) names the selected category, e.g. "... - Draft Paras".
+  const title = `Report No. 4.2A - Abstract ( Wing & Division Wise ) - ${category === 'all' ? 'Audit Paras (All Categories)' : `${category}s`}`;
 
   const computeCounts = (paras) => ({
     total: paras.length,
@@ -23,12 +26,18 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
     dropped: paras.filter((p) => p.statusSteps[7] === 'Yes').length,
   });
 
+  // Paras of the selected category ('all' = every category).
+  const categoryParas = useMemo(
+    () => (category === 'all' ? rowData : rowData.filter((p) => (p.category || '').toLowerCase() === category.toLowerCase())),
+    [rowData, category]
+  );
+
   /* ── Aggregation by current report view ─────────────────────── */
   const aggregatedData = useMemo(() => {
     if (reportView === 'wing') {
       return wings
         .map((w) => {
-          const paras = rowData.filter((p) => (p.wing || '').toLowerCase() === w.wing_name.toLowerCase());
+          const paras = categoryParas.filter((p) => (p.wing || '').toLowerCase() === w.wing_name.toLowerCase());
           return { Wing: w.wing_name, ...computeCounts(paras) };
         })
         .sort((a, b) => a.Wing.localeCompare(b.Wing));
@@ -36,7 +45,7 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
     if (reportView === 'division') {
       return divisions
         .map((d) => {
-          const paras = rowData.filter((p) => (p.division || '').toLowerCase() === d.division_name.toLowerCase());
+          const paras = categoryParas.filter((p) => (p.division || '').toLowerCase() === d.division_name.toLowerCase());
           return { Division: d.division_name, ...computeCounts(paras) };
         })
         .sort((a, b) => a.Division.localeCompare(b.Division));
@@ -46,14 +55,14 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
       .map((d) => {
         const wingObj = wings.find((w) => String(w.wing_id) === String(d.wing_id));
         const wingName = wingObj?.wing_name || '';
-        const paras = rowData.filter(
+        const paras = categoryParas.filter(
           (p) => (p.wing || '').toLowerCase() === wingName.toLowerCase() && (p.division || '').toLowerCase() === d.division_name.toLowerCase()
         );
         return { Wing: wingName, Division: d.division_name, ...computeCounts(paras) };
       })
       .sort((a, b) => a.Wing.localeCompare(b.Wing) || a.Division.localeCompare(b.Division))
       .map((r, idx) => ({ ...r, 'S No': idx + 1 }));
-  }, [rowData, wings, divisions, reportView]);
+  }, [categoryParas, wings, divisions, reportView]);
 
   const pinnedBottomRowData = useMemo(() => {
     const sum = (key) => aggregatedData.reduce((acc, r) => acc + (r[key] || 0), 0);
@@ -178,11 +187,26 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
                 <option value="all">Wing and Division</option>
               </select>
             </div>
+
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border-2 border-indigo-400/60 dark:border-indigo-500/60 text-xs shadow-sm">
+              <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold shrink-0">
+                <Tag className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-800 dark:text-indigo-300 whitespace-nowrap">Category:</span>
+              </div>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="bg-transparent border-none text-xs font-extrabold text-indigo-950 dark:text-indigo-100 outline-none cursor-pointer pr-1 max-w-[200px]"
+              >
+                <option value="all">All Categories</option>
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
 
           <div className="flex items-center gap-2.5">
             <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
-            <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} />
+            <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#4b2424" hoverColor="#6b3535" />
             <button
               onClick={() => {}}
               className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
