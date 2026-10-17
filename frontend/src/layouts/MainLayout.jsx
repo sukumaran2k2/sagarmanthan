@@ -11,8 +11,9 @@ import {
   canAccessTab, 
   normalizeTab, 
   usesOwnPageHeader, 
-  TAB_USER_MODULE_PERMISSION,
   TAB_USER_LIST,
+  TAB_USER_MODULE_PERMISSION ,
+  TAB_USER_MASTER_MANAGEMENT
 } from '../utils/moduleAccess';
 import { Home } from 'lucide-react';
 
@@ -141,6 +142,9 @@ export const ROUTE_MAP = {
   // SUPERADMIN
   [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission/users',
   [TAB_USER_LIST]: 'admin/user-list',
+  [TAB_USER_MODULE_PERMISSION]: 'admin/user-module-permission',
+  'admin/user-list': 'admin/user-list',
+  [TAB_USER_MASTER_MANAGEMENT]: 'admin/user-master-management',
 
   // HR nested routes
   'HR Dashboard': 'hr/hr-management/hr-dashboard',
@@ -211,6 +215,8 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('governance/cabinet-notes-other-ministry')) return 'Cabinet Notes - Other Ministries';
   if (cleanSlug.startsWith('governance/cabinet-notes')) return 'Cabinet Notes - MoPSW';
   if (cleanSlug.startsWith('governance/parliamentary-issue')) return 'Parliamentary Issues';
+  if (cleanSlug.startsWith('kpi/major-ports/major-ports-input-form')) return 'Major Ports Input Form';
+  if (cleanSlug.startsWith('kpi/major-ports/major-ports-reports')) return 'Major Ports Reports';
   if (cleanSlug.startsWith('kpi/major-ports')) return 'Major Ports Dashboard';
   if (cleanSlug.startsWith('kpi/dgll')) return 'DGLL Input Form';
   if (cleanSlug.startsWith('kpi/csl')) return 'CSL Input Form';
@@ -223,6 +229,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('form-builder/edit')) return 'Edit Form';
   if (cleanSlug.startsWith('admin/user-module-permission')) return TAB_USER_MODULE_PERMISSION;
   if (cleanSlug.startsWith('admin/user-list')) return TAB_USER_LIST;
+  if (cleanSlug.startsWith('admin/user-master-management')) return TAB_USER_MASTER_MANAGEMENT;
 
   // Exact match
   const entry = Object.entries(ROUTE_MAP).find(([, value]) => value === cleanSlug);

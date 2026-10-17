@@ -10,6 +10,7 @@ import {
   normalizeTab,
   TAB_USER_MODULE_PERMISSION,
   TAB_USER_LIST,
+  TAB_USER_MASTER_MANAGEMENT
 } from '../utils/moduleAccess';
 import { canCreateModule } from '../utils/modulePermissions';
 import { getDataScopeCode } from '../utils/authSession';
@@ -458,7 +459,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
       align: 'left-0',
       width: 'w-[220px]',
       items: [
-        // Only Ministry users author forms; organisation users only fill them in.
+          // Only Ministry users author forms; organisation users only fill them in.
+
         ...(!isOrgUser ? [m('FORM_BUILDER', { label: 'Form Studio', tab: 'Form Studio', icon: FileEdit })] : []),
         m('FORM_BUILDER', { label: 'Form Directory', tab: 'Form Directory', icon: FileText }),
         m('FORM_BUILDER', { label: 'Inbox Forms', tab: 'Inbox Forms', icon: ClipboardList }),
@@ -500,6 +502,12 @@ export default function Tabs({ activeTab, setActiveTab }) {
             label: TAB_USER_LIST,
             icon: UserCheck,
             directTab: TAB_USER_LIST,
+          },
+          {
+            id: 'userMasterManagement',
+            label: TAB_USER_MASTER_MANAGEMENT,
+            icon: UserCheck,
+            directTab: TAB_USER_MASTER_MANAGEMENT,
           },
         ]
       : []),
