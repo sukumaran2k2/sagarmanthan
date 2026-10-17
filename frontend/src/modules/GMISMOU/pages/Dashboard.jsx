@@ -8,6 +8,7 @@ import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 import { fetchGmisMouDashboard, fetchGmisMouSummits } from '../api';
 import ChartExportMenu from '../../../components/ChartExportMenu';
+import { newChartRoot, chartColors, useIsDark } from '../../../utils/amCharts';
 
 // Stage colours, shared by the KPI cards, the summit trend and the organisation table.
 const STAGE_STYLE = {
@@ -126,42 +127,6 @@ function Legend({ items }) {
       ))}
     </div>
   );
-}
-
-// The app zooms the whole page (index.css: #root { zoom: 1.06 }). amCharts measures its
-// box in zoomed pixels and the browser then zooms the canvas again, so a chart came out
-// ~6% bigger than its box and its bottom/right labels were cut off. calculateSize undoes
-// that so the canvas fits its box exactly at any page zoom.
-function pageZoom() {
-  const el = document.getElementById('root');
-  return (el && Number(getComputedStyle(el).zoom)) || 1;
-}
-function newChartRoot(div) {
-  return am5.Root.new(div, {
-    calculateSize: (size) => {
-      const z = pageZoom();
-      return { width: size.width / z, height: size.height / z };
-    },
-  });
-}
-
-// Chart text/line colours for the app's light or dark theme (the `dark` class on <html>).
-function chartColors() {
-  const dark = document.documentElement.classList.contains('dark');
-  return dark
-    ? { text: 0xe2e8f0, muted: 0x94a3b8, grid: 0x334155, value: 0xcbd5e1, total: 0xc7d2fe, totalBullet: 0x0f172a }
-    : { text: 0x1e293b, muted: 0x475569, grid: 0xe2e8f0, value: 0x334155, total: 0x1e1b4b, totalBullet: 0xffffff };
-}
-
-// Re-renders when the light/dark theme is switched, so the charts can recolour.
-function useIsDark() {
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
-  useEffect(() => {
-    const obs = new MutationObserver(() => setDark(document.documentElement.classList.contains('dark')));
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => obs.disconnect();
-  }, []);
-  return dark;
 }
 
 // 1. MoUs by category: one bar per category, as MoU count or MoU cost (tabs).

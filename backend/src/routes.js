@@ -92,6 +92,7 @@ import dropRequestTab from "./controllers/ProjectManagement/dropRequest.js";
 
 import addNewProjectTab from "./controllers/ProjectManagement/addNewProject.js";
 import capexController from "./controllers/ProjectManagement/capex.js";
+import capexDashboard from "./controllers/ProjectManagement/capexDashboard.js";
 import expenditureController from "./controllers/ProjectManagement/expenditureOutlay.js";
 import projectDashboardTab from "./controllers/ProjectManagement/projectDashboard.js";
 
@@ -335,11 +336,10 @@ router.get('/capex-monthly-data/:capexID', auth, requireModulePermission("CAPEX"
 router.get('/get-capex/:capexID', auth, requireModulePermission("CAPEX", "read"), capexController.getCapexExpediture);
 router.post('/capex-edit', auth, requireModulePermission("CAPEX", "update"), capexController.editCapexExpediture);
 router.post('/capex-monthly-data', auth, requireModulePermission("CAPEX", "update"), capexController.addCapexMonthlyData);
-router.get("/get-capex-dashboard/:clusterID/:financialYear", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboard);
-router.get("/get-capex-dashboard-bar-graph/:clusterID/:financialYear", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboardBarGraph);
-router.get("/get-capex-dashboard-org/:financialYear/:organisationID", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboardorg);
-router.get("/get-capex-org-wise-table/:organisationID/:financialYear", auth, requireModulePermission("CAPEX", "read"), capexController.getfinancialYearDataOrgwise);
-router.get("/get-capex-dashboard-bar-graph-org/:organisationID", auth, requireModulePermission("CAPEX", "read"), capexController.getCapexDashboardBarGraphorg);
+router.get("/get-capex-dashboard-filters", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardFilters);
+router.get("/get-capex-dashboard-summary", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardSummary);
+router.get("/get-capex-dashboard-fy-summary", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardFySummary);
+router.get("/get-capex-dashboard-yoy", auth, requireModulePermission("CAPEX", "read"), capexDashboard.getCapexDashboardYoy);
 
 // ExpenditureOutlay
 router.get('/get-main-scheme-dropdown', expenditureController.getMainSchemeDropdown);
