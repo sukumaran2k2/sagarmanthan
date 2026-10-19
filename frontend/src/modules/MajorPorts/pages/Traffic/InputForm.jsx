@@ -1,8 +1,24 @@
-import SectionPlaceholder from '../../components/SectionPlaceholder';
-import { MAJOR_PORTS_SECTIONS } from '../../constants';
+import TrafficWizardForm from './components/TrafficWizardForm';
 
-const SECTION = MAJOR_PORTS_SECTIONS.find((s) => s.id === 'traffic');
-
-export default function TrafficInputForm({ onSwitchTab }) {
-  return <SectionPlaceholder section={SECTION} mode="add" onSwitchTab={onSwitchTab} />;
+/** Add a new traffic period, or update the one passed in editData. */
+export default function TrafficInputForm({
+  editData,
+  commodities,
+  organisationName,
+  onOpenExisting,
+  onBack,
+  onSuccess,
+  triggerNotification,
+}) {
+  return (
+    <TrafficWizardForm
+      editData={editData}
+      commodities={commodities}
+      organisationName={organisationName}
+      onOpenExisting={onOpenExisting}
+      onBack={onBack}
+      onSuccess={onSuccess}
+      triggerNotification={triggerNotification}
+    />
+  );
 }

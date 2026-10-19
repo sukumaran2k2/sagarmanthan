@@ -193,6 +193,8 @@ import RoPaxTab from "./controllers/KPI/ropax.js";
 import SurveyVesselTab from "./controllers/KPI/surveyVessel.js";
 import CargoVesselTab from "./controllers/KPI/cargoVessel.js";
 import TrafficTab from "./controllers/KPI/traffic.js";
+import TrafficEntry from "./controllers/KPI/trafficEntry.js";
+import TrafficDashboard from "./controllers/KPI/trafficDashboardAccess.js";
 import TrafficVesselTab from "./controllers/KPI/trafficVessel.js";
 import vesselMovementTab from "./controllers/KPI/vesselTerminal.js";
 import PassengerTerminalController from "./controllers/KPI/PassengerTerminal.js";
@@ -2061,17 +2063,33 @@ router.get('/annually-major-ports-data/:userID', MajorPorts.getAnnuallyMajorPort
 // router.get("/quarterly-traffic-data/:userID", TrafficTab.getQuarterlyTrafficData);
 // router.get("/annually-traffic-data/:userID", TrafficTab.getAnnuallyTrafficData);
 
-router.get('/get-fiscal-year-target-data', TrafficTab.getFiscalYearTargetData);
-router.post('/submit-fiscal-year-target-data', TrafficTab.submitFiscalYearTargetData);
-router.get('/get-fiscal-year-target-list', TrafficTab.getFiscalYearTargetList);
-router.post('/update-fiscal-year-target-data', TrafficTab.updateFiscalYearTargetData);
-router.post('/submit-commodity-data', TrafficTab.submitCommodityData);
-router.get('/get-commodity-data', TrafficTab.getCommodityData);
-router.get('/get-commodities-by-group', TrafficTab.getCommoditiesByGroup);
-router.get('/get-traffic-actual-data', TrafficTab.getTrafficActualData);
-router.get('/get-roro-traffic-actual-data', TrafficTab.getrorotrafficData);
-router.get('/get-traffic-commodity-groups', TrafficTab.getTrafficCommodityGroup);
-router.get('/get-traffic-commodities', TrafficTab.getTrafficCommodities);
+// Traffic data entry: identity and organisation come from the JWT; data scope and
+// ministry/organisation write rules are enforced in the controller
+const TRAFFIC_MODULE = "KPI_MAJOR_PORTS";
+router.get('/kpi/traffic/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficMasters);
+router.get('/kpi/traffic/entry-status', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficEntryStatus);
+router.get('/kpi/traffic/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficActuals);
+router.get('/kpi/traffic/period', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficPeriod);
+router.post('/kpi/traffic/period', auth, requireAnyModulePermission(TRAFFIC_MODULE, ["create", "update"]), TrafficEntry.saveTrafficPeriod);
+router.delete('/kpi/traffic/period', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), TrafficEntry.deleteTrafficPeriod);
+router.get('/kpi/traffic/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficTargets);
+router.post('/kpi/traffic/targets', auth, requireModulePermission(TRAFFIC_MODULE, "create"), TrafficEntry.createTrafficTarget);
+router.put('/kpi/traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), TrafficEntry.updateTrafficTarget);
+router.delete('/kpi/traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), TrafficEntry.deleteTrafficTarget);
+router.get('/kpi/traffic/access', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficAccessGrants);
+router.post('/kpi/traffic/access', auth, requireModulePermission(TRAFFIC_MODULE, "create"), TrafficEntry.createTrafficAccessGrant);
+router.patch('/kpi/traffic/access/:accessId/revoke', auth, requireModulePermission(TRAFFIC_MODULE, "update"), TrafficEntry.revokeTrafficAccessGrant);
+// Traffic dashboard: the earlier portal's queries behind login, permission and organisation scope
+router.get('/kpi/traffic/dashboard/traffic', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.traffic);
+router.get('/kpi/traffic/dashboard/cargo', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.cargo);
+router.get('/kpi/traffic/dashboard/performance', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.performance);
+router.get('/kpi/traffic/dashboard/coastal', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.coastal);
+router.get('/kpi/traffic/dashboard/summary', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.summary);
+router.get('/kpi/traffic/dashboard/drill/traffic', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillTraffic);
+router.get('/kpi/traffic/dashboard/drill/cargo', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillCargo);
+router.get('/kpi/traffic/dashboard/drill/performance', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillPerformance);
+router.get('/kpi/traffic/dashboard/drill/coastal', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillCoastal);
+router.get('/kpi/traffic/dashboard/drill/cargo-wise', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillCargoWise);
 
 router.get('/get-kpi-traffic-dashboard/:organisationID/:fy/:months',TrafficTab.getKPITrafficDashboard);
 router.get('/get-kpi-traffic-commodies-wise-dashboard/:organisationID/:fy/:months',TrafficTab.getKPICargoDashboard);

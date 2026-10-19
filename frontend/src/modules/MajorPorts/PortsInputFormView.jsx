@@ -1,15 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import CommonTable from '../../components/CommonTable';
 import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import { useMajorPortsPermissions } from './hooks/useMajorPortsPermissions';
-import { MAJOR_PORTS_SECTIONS, MAJOR_PORTS_SECTION_IDS } from './constants';
+import { MAJOR_PORTS_SECTIONS } from './constants';
 
 import FinancialParametersInputForm from './pages/FinancialParameters/InputForm';
 import FinancialParametersDataList from './pages/FinancialParameters/DataList';
-import TrafficInputForm from './pages/Traffic/InputForm';
-import TrafficDataList from './pages/Traffic/DataList';
+import TrafficSection from './pages/Traffic/TrafficSection';
 import CruisePassengerTrafficInputForm from './pages/CruisePassengerTraffic/InputForm';
 import CruisePassengerTrafficDataList from './pages/CruisePassengerTraffic/DataList';
 import PortPerformanceInputForm from './pages/PortPerformance/InputForm';
@@ -17,83 +17,30 @@ import PortPerformanceDataList from './pages/PortPerformance/DataList';
 import RenewableEnergyInputForm from './pages/RenewableEnergy/InputForm';
 import RenewableEnergyDataList from './pages/RenewableEnergy/DataList';
 
-export default function PortsInputFormView() {
-  const permissions = useMajorPortsPermissions();
-  const { canAdd, canView, canEdit } = permissions;
+const HUB_PATH = '/kpi/major-ports/major-ports-input-form';
 
-  const getInitialStateFromURL = () => {
-    const params = new URLSearchParams(window.location.search);
-    const urlSection = params.get('section');
-    const urlTab = params.get('tab');
-    return {
-      section: MAJOR_PORTS_SECTION_IDS.includes(urlSection) ? urlSection : null,
-      subTab: ['add', 'list'].includes(urlTab) ? urlTab : 'list',
-    };
-  };
+// Sections that are still placeholders keep a simple Input Form / Data List switch
+const PLACEHOLDER_PAGES = {
+  financialParameters: { add: FinancialParametersInputForm, list: FinancialParametersDataList },
+  cruisePassengerTraffic: { add: CruisePassengerTrafficInputForm, list: CruisePassengerTrafficDataList },
+  portPerformance: { add: PortPerformanceInputForm, list: PortPerformanceDataList },
+  renewableEnergy: { add: RenewableEnergyInputForm, list: RenewableEnergyDataList },
+};
 
-  const [activeSection, setActiveSection] = useState(() => getInitialStateFromURL().section);
-  const [activeSubTab, setActiveSubTab] = useState(() => getInitialStateFromURL().subTab);
+function SectionHub({ onOpen }) {
+  const location = useLocation();
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (activeSection) {
-      params.set('section', activeSection);
-      params.set('tab', activeSubTab);
-    } else {
-      params.delete('section');
-      params.delete('tab');
-    }
-    const newSearch = params.toString() ? `?${params.toString()}` : '';
-    const next = `${window.location.pathname}${newSearch}`;
-    const current = `${window.location.pathname}${window.location.search}`;
-    if (current !== next) {
-      window.history.pushState(null, '', next);
-    }
-  }, [activeSection, activeSubTab]);
-
-  useEffect(() => {
-    const handlePopState = () => {
-      const { section, subTab } = getInitialStateFromURL();
-      setActiveSection(section);
-      setActiveSubTab(subTab);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  useEffect(() => {
-    if (activeSubTab === 'add' && !canAdd && canView) setActiveSubTab('list');
-    if (activeSubTab === 'list' && !canView && canAdd) setActiveSubTab('add');
-  }, [activeSubTab, canAdd, canView]);
-
-  const currentSection = MAJOR_PORTS_SECTIONS.find((s) => s.id === activeSection);
-
-  const formList = useMemo(
-    () =>
-      MAJOR_PORTS_SECTIONS.map((s, index) => ({
-        sno: index + 1,
-        desc: s.fullLabel,
-        sectionId: s.id,
-      })),
+  // Old links used ?section=<id>&tab=add|list
+  const legacySection = new URLSearchParams(location.search).get('section');
+  const legacyMatch = MAJOR_PORTS_SECTIONS.find((s) => s.id === legacySection);
+  const rows = useMemo(
+    () => MAJOR_PORTS_SECTIONS.map((s, index) => ({ sno: index + 1, desc: s.fullLabel, slug: s.slug })),
     []
   );
 
-  const tabs = [];
-  if (canAdd) tabs.push({ id: 'add', label: 'Input Form' });
-  if (canView) tabs.push({ id: 'list', label: 'Data List' });
+  if (legacyMatch) return <Navigate to={`${HUB_PATH}/${legacyMatch.slug}`} replace />;
 
-  const handleRowClick = (sectionId) => {
-    setActiveSection(sectionId);
-    setActiveSubTab(canView ? 'list' : 'add');
-  };
-
-  const handleBackToList = () => {
-    setActiveSection(null);
-  };
-
-  const handleSwitchTab = (tabId) => setActiveSubTab(tabId);
-
-  const listColDefs = [
+  const columnDefs = [
     { headerName: 'S.No.', field: 'sno', width: 100, cellClass: 'text-slate-500 font-bold' },
     {
       headerName: 'Description',
@@ -102,8 +49,8 @@ export default function PortsInputFormView() {
       cellRenderer: (params) => (
         <button
           type="button"
-          onClick={() => handleRowClick(params.data.sectionId)}
-          className="text-left font-extrabold underline text-[#1d428a] hover:text-blue-700 transition-colors cursor-pointer"
+          onClick={() => onOpen(params.data.slug)}
+          className="text-left font-extrabold underline text-[#1d428a] dark:text-blue-300 hover:text-blue-700 transition-colors cursor-pointer"
         >
           {params.value}
         </button>
@@ -111,92 +58,84 @@ export default function PortsInputFormView() {
     },
   ];
 
-  const renderSectionContent = () => {
-    if (activeSection === 'financialParameters') {
-      return activeSubTab === 'add'
-        ? <FinancialParametersInputForm onSwitchTab={handleSwitchTab} />
-        : <FinancialParametersDataList onSwitchTab={handleSwitchTab} />;
-    }
-    if (activeSection === 'traffic') {
-      return activeSubTab === 'add'
-        ? <TrafficInputForm onSwitchTab={handleSwitchTab} />
-        : <TrafficDataList onSwitchTab={handleSwitchTab} />;
-    }
-    if (activeSection === 'cruisePassengerTraffic') {
-      return activeSubTab === 'add'
-        ? <CruisePassengerTrafficInputForm onSwitchTab={handleSwitchTab} />
-        : <CruisePassengerTrafficDataList onSwitchTab={handleSwitchTab} />;
-    }
-    if (activeSection === 'portPerformance') {
-      return activeSubTab === 'add'
-        ? <PortPerformanceInputForm onSwitchTab={handleSwitchTab} />
-        : <PortPerformanceDataList onSwitchTab={handleSwitchTab} />;
-    }
-    if (activeSection === 'renewableEnergy') {
-      return activeSubTab === 'add'
-        ? <RenewableEnergyInputForm onSwitchTab={handleSwitchTab} />
-        : <RenewableEnergyDataList onSwitchTab={handleSwitchTab} />;
-    }
-    return null;
-  };
+  return (
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container">
+        <div>
+          <h1 className="module-header-title">KPI - Major Ports</h1>
+          <p className="module-header-subtitle">Select a KPI section to open its Input Form and Data List.</p>
+        </div>
+      </div>
+      <div className="module-card space-y-4">
+        <CommonTable rowData={rows} columnDefs={columnDefs} rowHeight={46} headerHeight={38} autoSize={true} />
+      </div>
+    </div>
+  );
+}
+
+function PlaceholderSection({ canAdd, canView, onBack }) {
+  const { sectionSlug } = useParams();
+  const section = MAJOR_PORTS_SECTIONS.find((s) => s.slug === sectionSlug);
+  const [tab, setTab] = useState(canView ? 'list' : 'add');
+  const pages = section ? PLACEHOLDER_PAGES[section.id] : null;
+
+  if (!pages) return <Navigate to={HUB_PATH} replace />;
+
+  const tabs = [];
+  if (canAdd) tabs.push({ id: 'add', label: 'Input Form' });
+  if (canView) tabs.push({ id: 'list', label: 'Data List' });
+  const Page = tab === 'add' ? pages.add : pages.list;
+
+  return (
+    <div className="module-page-container space-y-6 animate-fade-in">
+      <div className="module-header-container">
+        <div className="flex items-start gap-3 min-w-0">
+          <button
+            type="button"
+            onClick={onBack}
+            className="mt-0.5 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 transition cursor-pointer flex-shrink-0"
+            title="Back to KPI sections"
+            aria-label="Back to KPI sections"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div className="min-w-0">
+            <h1 className="module-header-title">{section.fullLabel}</h1>
+            <p className="module-header-subtitle">KPI data entry and list views for Major Ports.</p>
+          </div>
+        </div>
+        {tabs.length > 0 && <InternalNavigation tabs={tabs} currentTab={tab} onTabChange={setTab} />}
+      </div>
+      <div className="module-card space-y-4">
+        <Page onSwitchTab={setTab} />
+      </div>
+    </div>
+  );
+}
+
+export default function PortsInputFormView({ triggerNotification }) {
+  const navigate = useNavigate();
+  const { canAdd, canView, canEdit } = useMajorPortsPermissions();
 
   if (!canAdd && !canView && !canEdit) {
     return <RestrictedAccess moduleName="KPI - Major Ports" />;
   }
 
-  if (!activeSection) {
-    return (
-      <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800">
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-          <div className="text-center border-b border-slate-100 pb-4">
-            <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-wide font-display">
-              KPI - Major Ports (Input Forms)
-            </h1>
-          </div>
-
-          <CommonTable
-            rowData={formList}
-            columnDefs={listColDefs}
-            rowHeight={46}
-            headerHeight={38}
-            autoSize={true}
-          />
-        </div>
-      </div>
-    );
-  }
+  const openSection = (slug) => navigate(`${HUB_PATH}/${slug}`);
+  const backToSections = () => navigate(HUB_PATH);
 
   return (
-    <div className="space-y-6 px-1 md:px-2 py-4 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm space-y-6">
-        <div className="border-b border-slate-100 dark:border-slate-800 pb-3 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center space-x-3 min-w-0">
-            <button
-              type="button"
-              onClick={handleBackToList}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 transition cursor-pointer flex-shrink-0"
-              title="Back to Input Forms"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div className="min-w-0">
-              <h1 className="text-lg md:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight font-display truncate">
-                {currentSection?.fullLabel}
-              </h1>
-            </div>
-          </div>
-
-          {tabs.length > 0 && (
-            <InternalNavigation
-              tabs={tabs}
-              currentTab={activeSubTab}
-              onTabChange={setActiveSubTab}
-            />
-          )}
-        </div>
-
-        {renderSectionContent()}
-      </div>
-    </div>
+    <Routes>
+      <Route index element={<SectionHub onOpen={openSection} />} />
+      <Route
+        path="traffic/*"
+        element={<TrafficSection triggerNotification={triggerNotification} onBackToSections={backToSections} />}
+      />
+      <Route
+        path=":sectionSlug"
+        element={<PlaceholderSection canAdd={canAdd} canView={canView} onBack={backToSections} />}
+      />
+      <Route path="*" element={<Navigate to={HUB_PATH} replace />} />
+    </Routes>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import TrafficDashboard from './pages/Traffic/dashboard/TrafficDashboard';
 import { 
   CheckCircle2, 
   ChevronDown, 
@@ -13,8 +14,8 @@ import {
   Scale 
 } from 'lucide-react';
 
-export default function PortsDashboardView() {
-  const [activeTab, setActiveTab] = useState('traffic'); // 'traffic' or 'financial'
+export default function PortsDashboardView({ triggerNotification }) {
+  const [activeTab, setActiveTab] = useState('trafficKpi'); // 'trafficKpi' (live), 'traffic' or 'financial' (sample data)
   const [org, setOrg] = useState('All Organisations');
   const [fy, setFy] = useState('');
   const [month, setMonth] = useState('');
@@ -222,12 +223,22 @@ export default function PortsDashboardView() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
             <h1 className="text-base md:text-lg font-bold text-slate-900 tracking-wide font-display uppercase">
-              KPI Traffic & Port Performance Dashboard
+              KPI - Major Ports Dashboard
             </h1>
           </div>
           
           {/* Tab Switcher buttons */}
           <div className="flex space-x-1 border border-slate-200 rounded-xl overflow-hidden self-start md:self-auto shadow-sm bg-white p-1">
+            <button
+              onClick={() => setActiveTab('trafficKpi')}
+              className={`px-4.5 py-2 text-xs font-bold transition-all cursor-pointer rounded-lg ${
+                activeTab === 'trafficKpi'
+                  ? 'bg-[#0f417a] text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              Traffic
+            </button>
             <button
               onClick={() => setActiveTab('traffic')}
               className={`px-4.5 py-2 text-xs font-bold transition-all cursor-pointer rounded-lg ${
@@ -236,7 +247,7 @@ export default function PortsDashboardView() {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              Traffic & Port Performance Dashboard
+              Port Performance
             </button>
             <button
               onClick={() => setActiveTab('financial')}
@@ -246,12 +257,13 @@ export default function PortsDashboardView() {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              Financial Dashboard
+              Financial Parameters
             </button>
           </div>
         </div>
 
-        {/* Bottom Row: Filters */}
+        {/* Bottom Row: Filters (sample tabs only; the Traffic Dashboard has its own) */}
+        {activeTab !== 'trafficKpi' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Dropdown 1: Organisation */}
           <div className="space-y-1.5">
@@ -316,9 +328,18 @@ export default function PortsDashboardView() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
-      {activeTab === 'traffic' ? (
+      {activeTab !== 'trafficKpi' && (
+        <div role="note" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          Temporary dashboard: the figures below are sample data until the {activeTab === 'financial' ? 'Financial Parameters' : 'Port Performance'} section is built.
+        </div>
+      )}
+
+      {activeTab === 'trafficKpi' ? (
+        <TrafficDashboard triggerNotification={triggerNotification} />
+      ) : activeTab === 'traffic' ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-8">
           {/* Section 1. Traffic & Cargo */}
           <div className="space-y-4">

@@ -13,6 +13,7 @@ export default function ConfirmModal({
   confirmText = 'Delete',
   cancelText = 'Cancel',
   loading = false,
+  loadingText = 'Deleting...',
   children,
 }) {
   useEffect(() => {
@@ -70,7 +71,7 @@ export default function ConfirmModal({
             disabled={loading}
             className="px-3 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition shadow-sm cursor-pointer disabled:opacity-60"
           >
-            {loading ? 'Deleting...' : confirmText}
+            {loading ? loadingText : confirmText}
           </button>
         </div>
       </div>
