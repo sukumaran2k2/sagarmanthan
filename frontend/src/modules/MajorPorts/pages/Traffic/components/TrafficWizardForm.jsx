@@ -6,11 +6,8 @@ import { useNotifier, getErrorMessage } from '../../../../../utils/notify';
 import { TRAFFIC_TOASTS } from '../../../toastMessages';
 import {
   ENTRY_WINDOW_LAST_DAY,
-  FY_MONTHS,
   TRAFFIC_WIZARD_STEPS,
-  buildFinancialYearOptions,
   currentFinancialYear,
-  isFuturePeriod,
 } from '../trafficConstants';
 import {
   applyCommodityDataToMap,
@@ -22,32 +19,13 @@ import {
 } from '../trafficUtils';
 import { describePeriod } from '../trafficFormat';
 import { useLatestRef } from '../usePagedList';
+import { useEntryOptions } from '../useEntryOptions';
 import CommodityGroupGrid from './CommodityGroupGrid';
 
 const errorTextClass = 'text-[10px] font-semibold text-rose-600 dark:text-rose-400 mt-1';
-const ALL_FY_OPTIONS = buildFinancialYearOptions();
 const GROUP_STEP_IDS = Object.fromEntries(
   TRAFFIC_WIZARD_STEPS.filter((s) => s.groupId).map((s) => [s.groupId, s.id])
 );
-
-/** Financial years and months the organisation may enter now (window or ministry unlock). */
-function useEntryOptions(entryStatus, fiscalYear) {
-  return useMemo(() => {
-    if (!entryStatus) return { fyOptions: [], monthOptions: [] };
-    const grants = entryStatus.grants || [];
-    const fyOptions = entryStatus.windowOpen || grants.some((g) => g.financialYear === 'ALL')
-      ? ALL_FY_OPTIONS
-      : ALL_FY_OPTIONS.filter((fy) => grants.some((g) => g.financialYear === fy));
-
-    const unlocked = new Set(
-      grants.filter((g) => g.financialYear === 'ALL' || g.financialYear === fiscalYear).flatMap((g) => g.months)
-    );
-    const monthOptions = FY_MONTHS.filter(
-      (m) => (entryStatus.windowOpen || unlocked.has(m.value)) && !isFuturePeriod(fiscalYear, m.value)
-    );
-    return { fyOptions, monthOptions };
-  }, [entryStatus, fiscalYear]);
-}
 
 /**
  * Monthly traffic entry for the signed-in organisation, one page per step

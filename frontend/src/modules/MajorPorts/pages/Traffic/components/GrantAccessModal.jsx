@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Unlock, X } from 'lucide-react';
-import { createTrafficAccessGrant } from '../../../api';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../../../utils/notify';
 import { TRAFFIC_TOASTS } from '../../../toastMessages';
 import { FY_MONTHS, buildFinancialYearOptions, currentFinancialYear } from '../trafficConstants';
@@ -34,10 +33,18 @@ function Chip({ selected, onClick, children }) {
 const toggle = (set, value) => (set.includes(value) ? set.filter((v) => v !== value) : [...set, value]);
 
 /**
- * Ministry unlock: lets organisations change traffic for the chosen periods
- * after the monthly entry window has closed.
+ * Ministry unlock: lets organisations change a section's data (`subject`, e.g. "traffic")
+ * for the chosen periods after the monthly entry window has closed.
+ * createGrant: the section's API call, e.g. createTrafficAccessGrant.
  */
-export default function GrantAccessModal({ organisations = [], onClose, onSaved, triggerNotification }) {
+export default function GrantAccessModal({
+  subject = 'traffic',
+  createGrant,
+  organisations = [],
+  onClose,
+  onSaved,
+  triggerNotification,
+}) {
   const notify = useNotifier(triggerNotification);
   const [organisationIds, setOrganisationIds] = useState([]);
   const [financialYears, setFinancialYears] = useState([currentFinancialYear()]);
@@ -73,7 +80,7 @@ export default function GrantAccessModal({ organisations = [], onClose, onSaved,
 
     setSubmitting(true);
     try {
-      const res = await createTrafficAccessGrant({
+      const res = await createGrant({
         organisationIds,
         financialYears,
         months: allMonthsSelected ? 'ALL' : months,
@@ -110,7 +117,7 @@ export default function GrantAccessModal({ organisations = [], onClose, onSaved,
         <div className="module-form-banner">
           <div>
             <h3 id="grant-access-title" className="module-form-banner-title">Unlock Data Entry</h3>
-            <p className="module-form-banner-subtext">Allow organisations to change traffic after the monthly entry window</p>
+            <p className="module-form-banner-subtext">Allow organisations to change {subject} after the monthly entry window</p>
           </div>
           <button
             type="button"

@@ -1,8 +1,22 @@
-import SectionPlaceholder from '../../components/SectionPlaceholder';
-import { MAJOR_PORTS_SECTIONS } from '../../constants';
+import PerformanceWizardForm from './components/PerformanceWizardForm';
 
-const SECTION = MAJOR_PORTS_SECTIONS.find((s) => s.id === 'portPerformance');
-
-export default function PortPerformanceInputForm({ onSwitchTab }) {
-  return <SectionPlaceholder section={SECTION} mode="add" onSwitchTab={onSwitchTab} />;
+/** Add a new port performance period, or update the one passed in editData. */
+export default function PortPerformanceInputForm({
+  editData,
+  organisationName,
+  onOpenExisting,
+  onBack,
+  onSuccess,
+  triggerNotification,
+}) {
+  return (
+    <PerformanceWizardForm
+      editData={editData}
+      organisationName={organisationName}
+      onOpenExisting={onOpenExisting}
+      onBack={onBack}
+      onSuccess={onSuccess}
+      triggerNotification={triggerNotification}
+    />
+  );
 }
