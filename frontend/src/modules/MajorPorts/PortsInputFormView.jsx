@@ -12,8 +12,7 @@ import FinancialParametersDataList from './pages/FinancialParameters/DataList';
 import TrafficSection from './pages/Traffic/TrafficSection';
 import CruisePassengerTrafficInputForm from './pages/CruisePassengerTraffic/InputForm';
 import CruisePassengerTrafficDataList from './pages/CruisePassengerTraffic/DataList';
-import PortPerformanceInputForm from './pages/PortPerformance/InputForm';
-import PortPerformanceDataList from './pages/PortPerformance/DataList';
+import PortPerformanceSection from './pages/PortPerformance/PortPerformanceSection';
 import RenewableEnergyInputForm from './pages/RenewableEnergy/InputForm';
 import RenewableEnergyDataList from './pages/RenewableEnergy/DataList';
 
@@ -23,7 +22,6 @@ const HUB_PATH = '/kpi/major-ports/major-ports-input-form';
 const PLACEHOLDER_PAGES = {
   financialParameters: { add: FinancialParametersInputForm, list: FinancialParametersDataList },
   cruisePassengerTraffic: { add: CruisePassengerTrafficInputForm, list: CruisePassengerTrafficDataList },
-  portPerformance: { add: PortPerformanceInputForm, list: PortPerformanceDataList },
   renewableEnergy: { add: RenewableEnergyInputForm, list: RenewableEnergyDataList },
 };
 
@@ -130,6 +128,10 @@ export default function PortsInputFormView({ triggerNotification }) {
       <Route
         path="traffic/*"
         element={<TrafficSection triggerNotification={triggerNotification} onBackToSections={backToSections} />}
+      />
+      <Route
+        path="port-performance/*"
+        element={<PortPerformanceSection triggerNotification={triggerNotification} onBackToSections={backToSections} />}
       />
       <Route
         path=":sectionSlug"

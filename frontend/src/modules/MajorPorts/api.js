@@ -58,7 +58,8 @@ api.interceptors.response.use(
 // The server takes the user and organisation from the session token, so no
 // request sends userId, and organisation users never send organisationId.
 // GETs accept { signal } so a newer request can cancel an older one; every
-// write clears the response cache so lists and the dashboard show the change.
+// write clears the response cache (shared by Traffic and Port Performance) so
+// lists and the dashboard show the change.
 
 const afterWrite = (promise) => promise.then((res) => {
   clearTrafficCache();
@@ -133,6 +134,70 @@ export const TRAFFIC_DASHBOARD_PARTS = [
 export function fetchTrafficDashboardPart(part, params = {}, config = {}) {
   if (!TRAFFIC_DASHBOARD_PARTS.includes(part)) return Promise.reject(new Error(`Unknown dashboard part: ${part}`));
   return api.get(`/kpi/traffic/dashboard/${part}`, { ...config, params });
+}
+
+// ---- Port Performance ----
+// Same rules as Traffic: user and organisation come from the session token, GETs take
+// { signal }, and every write clears the response cache.
+
+/** Organisations visible to the user and the target KPI types. */
+export function fetchPortPerformanceMasters() {
+  return api.get('/kpi/port-performance/masters');
+}
+
+/** Entry window and the organisation's active ministry unlocks. */
+export function fetchPortPerformanceEntryStatus() {
+  return api.get('/kpi/port-performance/entry-status');
+}
+
+/** view: 'turnaround' | 'berthOutput' | 'timeAtPort' | 'vesselsCargo' | 'productivity' | 'callSize' */
+export function fetchPortPerformanceActuals(params = {}, config = {}) {
+  return api.get('/kpi/port-performance/actuals', { ...config, params });
+}
+
+export function fetchPortPerformancePeriod({ fiscalYear, month, organisationId }) {
+  return api.get('/kpi/port-performance/period', { params: { fiscalYear, month, organisationId } });
+}
+
+/** Saves one input step: { fiscalYear, month, section, values: { column: number } } */
+export function savePortPerformancePeriod(payload) {
+  return afterWrite(api.post('/kpi/port-performance/period', payload));
+}
+
+export function deletePortPerformancePeriod({ fiscalYear, month }) {
+  return afterWrite(api.delete('/kpi/port-performance/period', { params: { fiscalYear, month } }));
+}
+
+/** organisationId may also be 'overall' or 'total-smpa' (ministry users). */
+export function fetchPortPerformanceTargets(params = {}, config = {}) {
+  return api.get('/kpi/port-performance/targets', { ...config, params });
+}
+
+/** rowKey: 'org-<id>' | 'overall' | 'total-smpa' */
+export function fetchPortPerformanceTargetRecord({ financialYear, rowKey }) {
+  return api.get('/kpi/port-performance/targets/record', { params: { financialYear, rowKey } });
+}
+
+/** { financialYear, rowKey, values: { [kpiTypeId]: number | null } }; null clears a target. */
+export function savePortPerformanceTargetRecord(payload) {
+  return afterWrite(api.put('/kpi/port-performance/targets/record', payload));
+}
+
+export function deletePortPerformanceTargetRecord({ financialYear, rowKey }) {
+  return afterWrite(api.delete('/kpi/port-performance/targets/record', { params: { financialYear, rowKey } }));
+}
+
+export function fetchPortPerformanceAccessGrants(params = {}, config = {}) {
+  return api.get('/kpi/port-performance/access', { ...config, params });
+}
+
+/** { organisationIds: [], financialYears: [], months: [] | 'ALL', expiryDate?, remarks? } */
+export function createPortPerformanceAccessGrant(payload) {
+  return afterWrite(api.post('/kpi/port-performance/access', payload));
+}
+
+export function revokePortPerformanceAccessGrant(accessId) {
+  return afterWrite(api.patch(`/kpi/port-performance/access/${accessId}/revoke`));
 }
 
 export default api;

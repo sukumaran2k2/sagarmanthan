@@ -1,7 +1,7 @@
 import { toastSuccess, toastError, toastWarning, toastInfo, withReason } from '../../utils/notify';
 
 /**
- * KPI Major Ports toast messages (Traffic).
+ * KPI Major Ports toast messages (Traffic, Port Performance).
  * Module-specific wording only; shared ones (copy, export, filters, loading)
  * come from COMMON_TOASTS in utils/notify.js.
  */
@@ -61,4 +61,51 @@ export const TRAFFIC_TOASTS = {
     toastSuccess('Access Revoked', `Late data entry for ${orgLabel(orgName)} has been closed.`),
   accessRevokeFailed: (reason) =>
     toastError('Revoke Failed', withReason('The access could not be revoked.', reason)),
+};
+
+/** KPI Major Ports toast messages (Port Performance). Entry access reuses TRAFFIC_TOASTS. */
+export const PORT_PERFORMANCE_TOASTS = {
+  // Input form
+  stepSaved: (stepLabel, period, isUpdate) =>
+    toastSuccess(isUpdate ? 'Changes Saved' : 'Step Saved',
+      `${stepLabel} for ${periodLabel(period)} has been ${isUpdate ? 'updated' : 'saved'}.`),
+  periodCompleted: (period, isUpdate) =>
+    toastSuccess(isUpdate ? 'Port Performance Updated' : 'Port Performance Submitted',
+      `Port performance for ${periodLabel(period)} has been ${isUpdate ? 'updated' : 'submitted'}. It now appears under Actuals.`),
+  saveFailed: (stepLabel, reason) =>
+    toastError('Save Failed', withReason(`${stepLabel} could not be saved. Please check the values and try again.`, reason)),
+  periodExists: (period) =>
+    toastInfo('Period Already Has Data', `Port performance for ${periodLabel(period)} was entered earlier. Open it for update to change the values.`),
+  stepIncomplete: (stepLabel, missing) =>
+    toastWarning('Complete This Step', `${stepLabel} needs every value before it can be saved (${missing} still empty). Enter 0 where nothing applies.`),
+  invalidValues: () =>
+    toastWarning('Check the Values', 'Values must be numbers of zero or more (whole numbers for counts, at most 100 for percentages). Correct the cells highlighted in red.'),
+  nothingSaved: () =>
+    toastWarning('Nothing to Save', 'Save at least one step before submitting.'),
+  periodLoadFailed: (reason) =>
+    toastError('Could Not Load Period', withReason('The saved port performance for this period could not be loaded. Refresh the page and try again.', reason)),
+
+  // Data list
+  periodDeleted: (period) =>
+    toastSuccess('Port Performance Deleted', `Port performance for ${periodLabel(period)} has been deleted.`),
+  periodDeleteFailed: (period, reason) =>
+    toastError('Delete Failed', withReason(`Port performance for ${periodLabel(period)} could not be deleted.`, reason)),
+
+  // Targets
+  targetsSaved: (rowName, fiscalYear, isUpdate) =>
+    toastSuccess(isUpdate ? 'Targets Updated' : 'Targets Added',
+      `The ${fiscalYear} port performance targets for ${orgLabel(rowName)} have been ${isUpdate ? 'updated' : 'saved'}.`),
+  targetsExist: (rowName, fiscalYear) =>
+    toastInfo('Targets Already Exist', `${fiscalYear} targets for ${orgLabel(rowName)} already exist. Open them for update instead.`),
+  targetsEmpty: () =>
+    toastWarning('Nothing to Save', 'Enter at least one target value.'),
+  targetsSaveFailed: (isUpdate, reason) =>
+    toastError(isUpdate ? 'Update Failed' : 'Targets Not Saved',
+      withReason(`The targets could not be ${isUpdate ? 'updated' : 'saved'}. Please review the form and try again.`, reason)),
+  targetsDeleted: (rowName, fiscalYear) =>
+    toastSuccess('Targets Deleted', `The ${fiscalYear} targets for ${orgLabel(rowName)} have been deleted.`),
+  targetsDeleteFailed: (reason) =>
+    toastError('Delete Failed', withReason('The targets could not be deleted.', reason)),
+  targetsLoadFailed: (reason) =>
+    toastError('Could Not Load Targets', withReason('The saved targets could not be loaded. Refresh the page and try again.', reason)),
 };

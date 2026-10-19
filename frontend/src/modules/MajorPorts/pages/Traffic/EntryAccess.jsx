@@ -3,8 +3,6 @@ import { Info, Lock, Unlock } from 'lucide-react';
 import Table from '../../../../components/Table';
 import TablePagination from '../../../../components/TablePagination';
 import ConfirmModal from '../../../../components/ConfirmModal';
-import { fetchTrafficAccessGrants, revokeTrafficAccessGrant } from '../../api';
-import { useTrafficStore } from '../../store/useTrafficStore';
 import { useNotifier, COMMON_TOASTS, getErrorMessage } from '../../../../utils/notify';
 import { TRAFFIC_TOASTS } from '../../toastMessages';
 import { ACCESS_STATUS_TABS, ENTRY_WINDOW_LAST_DAY, FY_MONTHS, buildFinancialYearOptions } from './trafficConstants';
@@ -38,15 +36,20 @@ const wrapText = (className) => (params) => (
   </div>
 );
 
-/** Ministry view: late-entry unlocks granted to organisations, with grant and revoke. */
-export default function TrafficEntryAccess({
+/**
+ * Ministry view: late-entry unlocks granted to organisations, with grant and revoke.
+ * One page for every monthly KPI section; `source` says which one:
+ *   { id, label ('Traffic'), subject ('traffic'), list, actions, fetchGrants, createGrant, revokeGrant }
+ * list / actions are the section store's access slice; the API functions are the section's.
+ */
+export default function KpiEntryAccess({
+  source,
   organisations = [],
   canGrant,
   canRevoke,
   triggerNotification,
 }) {
-  const list = useTrafficStore((state) => state.access);
-  const actions = useTrafficStore((state) => state.accessActions);
+  const { list, actions, fetchGrants, revokeGrant } = source;
   const notify = useNotifier(triggerNotification);
   const [grantOpen, setGrantOpen] = useState(false);
   const [pendingRevoke, setPendingRevoke] = useState(null);
@@ -67,9 +70,9 @@ export default function TrafficEntryAccess({
 
   const handleLoadError = useCallback(() => notify(COMMON_TOASTS.loadFailed('Data entry access records')), [notify]);
   const { rows, total, totalPages, loading, refreshing, reload } = usePagedList({
-    scope: 'access',
+    scope: `${source.id}-access`,
     params,
-    request: fetchTrafficAccessGrants,
+    request: fetchGrants,
     onError: handleLoadError,
   });
   // Copy / export only what is on screen once the newest page has arrived
@@ -156,7 +159,7 @@ export default function TrafficEntryAccess({
     { field: 'status', label: 'Status' },
   ], []);
 
-  const exportBaseName = `Traffic_Entry_Access_${status}_Page_${currentPage}`;
+  const exportBaseName = `${source.label.replace(/[^A-Za-z]+/g, '_')}_Entry_Access_${status}_Page_${currentPage}`;
   const handleCopy = () => {
     if (busy) return notify(COMMON_TOASTS.tableNotReady('copy'));
     return copyRowsToClipboard(exportColumns, rowsWithSerial)
@@ -169,7 +172,7 @@ export default function TrafficEntryAccess({
   };
   const handlePdf = () => {
     if (busy) return notify(COMMON_TOASTS.tableNotReady('export'));
-    return downloadPdf('Traffic - Data Entry Access', exportColumns.filter((c) => c.field !== 'sNo'), rowsWithSerial, exportBaseName);
+    return downloadPdf(`${source.label} - Data Entry Access`, exportColumns.filter((c) => c.field !== 'sNo'), rowsWithSerial, exportBaseName);
   };
 
   const organisationOptions = useMemo(
@@ -181,7 +184,7 @@ export default function TrafficEntryAccess({
   const confirmRevoke = async () => {
     setRevoking(true);
     try {
-      await revokeTrafficAccessGrant(pendingRevoke.access_id);
+      await revokeGrant(pendingRevoke.access_id);
       notify(TRAFFIC_TOASTS.accessRevoked(pendingRevoke.organisation_name));
       setPendingRevoke(null);
       reload();
@@ -262,7 +265,7 @@ export default function TrafficEntryAccess({
         <p className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
           <Info className="h-3.5 w-3.5 text-[#0f417a] dark:text-blue-400 flex-shrink-0" aria-hidden="true" />
           <span>
-            Organisations can enter or change traffic on days 1–{ENTRY_WINDOW_LAST_DAY} of each month.
+            Organisations can enter or change {source.subject} on days 1–{ENTRY_WINDOW_LAST_DAY} of each month.
             Unlock a period to allow changes after that; access ends on its Valid Until date or when revoked.
           </span>
         </p>
@@ -292,6 +295,8 @@ export default function TrafficEntryAccess({
 
       {grantOpen && (
         <GrantAccessModal
+          subject={source.subject}
+          createGrant={source.createGrant}
           organisations={organisations}
           onClose={() => setGrantOpen(false)}
           onSaved={reload}
@@ -308,7 +313,7 @@ export default function TrafficEntryAccess({
         confirmText="Revoke"
         loadingText="Revoking..."
         message={pendingRevoke
-          ? `${pendingRevoke.organisation_name} will no longer be able to change traffic for ${pendingRevoke.months_label} (${pendingRevoke.financial_year}) after the entry window.`
+          ? `${pendingRevoke.organisation_name} will no longer be able to change ${source.subject} for ${pendingRevoke.months_label} (${pendingRevoke.financial_year}) after the entry window.`
           : ''}
       />
     </div>

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { fetchTrafficMasters } from '../api';
 import { registerStoreReset } from '../../../stores/resetRegistry';
 import { currentFinancialYear } from '../pages/Traffic/trafficConstants';
+import { createListActions, listState } from './listSlice';
 
 /**
  * KPI Major Ports — Traffic store.
@@ -27,15 +28,6 @@ const targetsFilterDefaults = () => ({ fiscalYear: '', organisationId: '' });
 
 const accessFilterDefaults = () => ({ fiscalYear: '', organisationId: '' });
 
-const listState = (filters) => ({
-  ...filters,
-  searchTerm: '',
-  debouncedSearch: '',
-  showFilterPanel: false,
-  currentPage: 1,
-  pageSize: 10,
-});
-
 const createInitialState = () => ({
   commodityGroups: [],
   commodities: [],
@@ -49,41 +41,6 @@ const createInitialState = () => ({
   access: { ...listState(accessFilterDefaults()), status: 'ACTIVE' },
 });
 
-// Accept a value or an updater function, like React's setState
-const resolve = (updater, prev) => (typeof updater === 'function' ? updater(prev) : updater);
-
-/** Same actions for every list; each one only touches its own slice. */
-function createListActions(key, filterDefaults, set, get) {
-  const patch = (changes) => set((state) => ({ [key]: { ...state[key], ...changes } }));
-
-  return {
-    setSearchTerm: (searchTerm) => patch({ searchTerm }),
-
-    // The debounce also fires on mount; skip it when nothing changed so the page is kept
-    setDebouncedSearch: (debouncedSearch) => {
-      if (get()[key].debouncedSearch === debouncedSearch) return;
-      patch({ debouncedSearch, currentPage: 1 });
-    },
-
-    // Any filter change returns to page 1
-    setFilters: (changes) => patch({ ...changes, currentPage: 1 }),
-
-    setShowFilterPanel: (updater) =>
-      set((state) => ({
-        [key]: { ...state[key], showFilterPanel: resolve(updater, state[key].showFilterPanel) },
-      })),
-
-    setCurrentPage: (updater) =>
-      set((state) => ({
-        [key]: { ...state[key], currentPage: resolve(updater, state[key].currentPage) },
-      })),
-
-    setPageSize: (pageSize) => patch({ pageSize, currentPage: 1 }),
-
-    resetFilters: () => patch({ ...filterDefaults(), currentPage: 1 }),
-  };
-}
-
 export const useTrafficStore = create((set, get) => ({
   ...createInitialState(),
 
@@ -91,19 +48,9 @@ export const useTrafficStore = create((set, get) => ({
     ...createListActions('actuals', actualsFilterDefaults, set, get),
     setActiveView: (activeView) =>
       set((state) => ({ actuals: { ...state.actuals, activeView, currentPage: 1 } })),
-    setVisibleCols: (updater) =>
-      set((state) => ({
-        actuals: { ...state.actuals, visibleCols: resolve(updater, state.actuals.visibleCols) },
-      })),
   },
 
-  targetsActions: {
-    ...createListActions('targets', targetsFilterDefaults, set, get),
-    setVisibleCols: (updater) =>
-      set((state) => ({
-        targets: { ...state.targets, visibleCols: resolve(updater, state.targets.visibleCols) },
-      })),
-  },
+  targetsActions: createListActions('targets', targetsFilterDefaults, set, get),
 
   accessActions: {
     ...createListActions('access', accessFilterDefaults, set, get),
