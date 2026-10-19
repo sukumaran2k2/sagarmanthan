@@ -7,12 +7,14 @@ import {
 
 export const TAB_USER_MODULE_PERMISSION = 'User/Module Permission';
 export const TAB_USER_LIST = 'User List';
+export const TAB_USER_MASTER_MANAGEMENT = 'Master Management';
 
 const PUBLIC_TABS = new Set(PUBLIC_UI_TABS);
 
 const SUPERADMIN_TABS = new Set([
   TAB_USER_MODULE_PERMISSION,
   TAB_USER_LIST,
+  TAB_USER_MASTER_MANAGEMENT,
 ]);
 
 const SENIOR_OFFICER_TABS = new Set([TAB_USER_MODULE_PERMISSION]);
@@ -20,6 +22,7 @@ const SENIOR_OFFICER_TABS = new Set([TAB_USER_MODULE_PERMISSION]);
 const SUPERADMIN_MENU_IDS = new Set([
   'userModulePermission',
   'userList',
+  'userMasterManagement',
 ]);
 
 export function normalizeTab(tab) {
@@ -27,7 +30,8 @@ export function normalizeTab(tab) {
   if (
     tab === 'Module/User Permission' ||
     tab === 'User Matrix' ||
-    tab === 'User Management'
+    tab === 'User Management' ||
+    tab === 'User Master Management'
   ) {
     return TAB_USER_MODULE_PERMISSION;
   }
