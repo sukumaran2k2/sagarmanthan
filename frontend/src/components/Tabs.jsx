@@ -14,6 +14,7 @@ import {
 } from '../utils/moduleAccess';
 import { canCreateModule } from '../utils/modulePermissions';
 import { getDataScopeCode } from '../utils/authSession';
+import { canViewVacancyManagement, canViewHrAdministration } from '../modules/HR/hooks/useHRPermissions';
 import {
   Home,
   Briefcase,
@@ -130,6 +131,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
   const canCreateConsultant = canCreateModule('CONSULTANT_APPOINTMENT');
   const canCreateYp = canCreateModule('YOUNG_PROFESSIONAL');
   const canCreateCapex = canCreateModule('CAPEX');
+  const canViewHrVacancy = canViewVacancyManagement();
+  const canViewHrAdmin = canViewHrAdministration();
 
   const accessKey = (() => {
     try {
@@ -345,13 +348,13 @@ export default function Tabs({ activeTab, setActiveTab }) {
           title: 'HR Management',
           icon: Users,
           items: [
-            m('HR_MANAGEMENT', { label: 'HR Dashboard', icon: LayoutDashboard }),
-            m('HR_MANAGEMENT', { label: 'Employee Database', icon: ClipboardList }),
-            m('HR_MANAGEMENT', { label: 'List of Abolished Ports', icon: UserX }),
-            m('HR_MANAGEMENT', { label: 'List of Abolished Posts', icon: UserX }),
-            m('HR_MANAGEMENT', { label: 'Contractual Employment', icon: UserPlus }),
-            m('HR_MANAGEMENT', { label: 'Training Details', icon: BookOpen }),
-            m('HR_MANAGEMENT', { label: 'HR Reports', icon: FilePieChart }),
+            m('HR_MANAGEMENT', { label: 'Employee Database', tab: 'Employee Database', icon: Users }),
+            m('HR_MANAGEMENT', { label: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', tab: isOrgUser ? 'Abolished Posts' : 'List of Abolished Posts', icon: Users }),
+            ...(canViewHrVacancy ? [m('HR_MANAGEMENT', { label: 'Vacancy Management', tab: 'Vacancy Management', icon: Briefcase })] : []),
+            ...(canViewHrAdmin ? [m('HR_MANAGEMENT', { label: 'HR Administration & Actions', tab: 'HR Administration & Actions', icon: ShieldCheck })] : []),
+            m('HR_MANAGEMENT', { label: 'Contractual Employment', tab: 'Contractual Employment', icon: UserPlus }),
+            m('HR_MANAGEMENT', { label: 'Training Details', tab: 'Training Details', icon: BookOpen }),
+            m('HR_MANAGEMENT', { label: 'Reports', tab: 'HR Reports', icon: FilePieChart }),
           ]
         },
         {
@@ -521,7 +524,7 @@ export default function Tabs({ activeTab, setActiveTab }) {
       directTab: 'Contact Us',
     },
   ]),
-    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex]
+    [accessKey, isOrgUser, canCreateParliamentary, canCreateCabinetMopsw, canCreateConsultant, canCreateYp, canCreateCapex, canViewHrVacancy, canViewHrAdmin]
   );
 
   const handleItemClick = (tabOrLabel) => {
@@ -562,8 +565,8 @@ export default function Tabs({ activeTab, setActiveTab }) {
             const Icon = menu.icon;
             const hasDropdown = !menu.directTab && (menu.subcategories || menu.items);
             const isHrActiveTab = [
-              'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts',
-              'Contractual Employment', 'Training Details', 'HR Reports'
+              'HR Dashboard', 'Employee Database', 'List of Abolished Ports', 'List of Abolished Posts', 'Abolished Posts',
+              'Vacancy Management', 'HR Administration & Actions', 'Contractual Employment', 'Training Details', 'HR Reports', 'HR Input Form'
             ].includes(activeTab);
             const isMainMenuActive =
               activeTab === menu.directTab ||
@@ -597,8 +600,19 @@ export default function Tabs({ activeTab, setActiveTab }) {
                     isMainMenuActive ? 'text-blue-700 font-bold' : 'text-slate-655 font-semibold hover:text-slate-900'
                   }`}
                 >
-                  <div>
+                  <div className="relative">
                     <Icon className="h-4.5 w-4.5 text-slate-500 group-hover:text-blue-600 transition-colors" />
+                    {menu.id === 'projects' && dropRequestCount > 0 && (
+                      <span
+                        title={`${dropRequestCount} Drop Request${dropRequestCount > 1 ? 's' : ''} Pending`}
+                        className="absolute -top-1.5 -right-2.5 flex items-center justify-center pointer-events-none"
+                      >
+                        <span className="relative flex items-center justify-center bg-rose-600 text-white font-black text-[9px] min-w-[17px] h-[17px] px-1 rounded-full shadow-md border border-white dark:border-slate-800 animate-pulse">
+                          <Bell className="h-2 w-2 mr-0.5 fill-current shrink-0" />
+                          <span>{dropRequestCount > 99 ? '99+' : dropRequestCount}</span>
+                        </span>
+                      </span>
+                    )}
                   </div>
                   <span className="text-[9px] tracking-tight uppercase flex items-center gap-0.5 select-none whitespace-nowrap">
                     {menu.label}

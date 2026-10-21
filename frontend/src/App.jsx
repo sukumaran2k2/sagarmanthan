@@ -497,7 +497,12 @@ export default function App() {
             <Route path="legal/acts-and-rules" element={<ActsAndRulesView />} />
 
             {/* HR Routes */}
-            <Route path="hr/hr-management/*" element={<HRDashboardView />} />
+            <Route path="hr/hr-management/*" element={
+              <HRDashboardView
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
             <Route path="hr/young-professionals/*" element={<YoungProfessionalsView triggerNotification={triggerNotification} />} />
             <Route path="hr/consultant-appointment/*" element={<ConsultantAppointmentView triggerNotification={triggerNotification} />} />
 

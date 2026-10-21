@@ -3,7 +3,7 @@ import multer from 'multer';
 import sql from 'mssql';
 import fs from 'fs';
 import path from 'path';
-import {convertIntoVacantPost, getNewEmployeeIDofOrg} from "../HR/hrHelperFunctions.js";
+import {convertIntoVacantPost, getNewEmployeeIDofOrg, resolveReportOrganisation, readListQuery, likePattern, resolveListOrganisation, runPagedQuery, buildPagination} from "../HR/hrHelperFunctions.js";
 
 const uploadDestination = "./fileuploads/HR";
 
@@ -525,8 +525,11 @@ async function getPermanentAbolishedPost(req, res) {
         h.post_code,
         h.updated_date,
         p.post_name,
+        c.class AS class_name,
         h.date_of_arise_in_vacancy,
         h.revival_stage_id,
+        h.revival_submission_date,
+        h.order_of_revival_issued_date,
         o.organisation_name
     FROM
         [tbl_hr_post_strength] h
@@ -536,6 +539,8 @@ async function getPermanentAbolishedPost(req, res) {
         [mmt_hr_post] p ON h.post_id = p.post_id
     LEFT JOIN
         [mmt_hr_department] d ON p.department_id = d.department_id
+    LEFT JOIN
+        [mmt_class] c ON p.class_id = c.class_id
     WHERE
         (h.vacant_or_filled='vacant' AND h.date_of_arise_in_vacancy < DATEADD(YEAR, -5, GETDATE())) OR h.revival_stage_id = 9;
 `;
@@ -579,8 +584,11 @@ async function getPermanentAbolishedPostOrg(req, res) {
             d.department_name,
             h.post_code,
             p.post_name,
+            c.class AS class_name,
             h.date_of_arise_in_vacancy,
             h.revival_stage_id,
+            h.revival_submission_date,
+            h.order_of_revival_issued_date,
             h.updated_date,
             o.organisation_name
         FROM
@@ -591,6 +599,8 @@ async function getPermanentAbolishedPostOrg(req, res) {
             [mmt_hr_post] p ON h.post_id = p.post_id
         LEFT JOIN
             [mmt_hr_department] d ON p.department_id = d.department_id
+        LEFT JOIN
+            [mmt_class] c ON p.class_id = c.class_id
         WHERE h.organisation_id = @organisationId
             AND ((
                 (h.vacant_or_filled = 'vacant'
@@ -1240,8 +1250,8 @@ async function addNewEmployee(req, res) {
         let empMasterId = req.body.empMasterId ?? null;
         
 
-        const ugDisciplinesStr = ugDisciplines.join(',');
-        const pgDisciplinesStr = pgDisciplines.join(',');
+        const ugDisciplinesStr = Array.isArray(ugDisciplines) ? ugDisciplines.join(',') : (ugDisciplines || '');
+        const pgDisciplinesStr = Array.isArray(pgDisciplines) ? pgDisciplines.join(',') : (pgDisciplines || '');
 
         request.input("activityName", activityName);
         request.input("absorptionDate", absorptionDate);
@@ -1830,27 +1840,45 @@ async function getAbolishedVacantPosts(req,res) {
     }
 }
 
+// Months that have a vacancy log (tbl_hr_post_strength_log), newest first.
+// organisationID 0 = every organisation (ministry view).
 async function getYearAndMonth(req, res) {
-    const conn = await pool;
-    const request = conn.request();
-    const organisationID = req.params.organisationID;
-
-    request.input("organisationID", organisationID);
+    // Organisation users read their own organisation; ministry users any (0 = all)
+    const organisationID = resolveReportOrganisation(req, req.params.organisationID);
+    if (organisationID === null) {
+        return res.status(403).json({ error: "Your account is not linked to an organisation." });
+    }
 
     try {
-        let result = await request.query(`
+        const conn = await pool;
+        const request = conn.request();
+        request.input("organisationID", sql.Int, organisationID);
+
+        const result = await request.query(`
             SELECT DISTINCT
-                YEAR(GETDATE()) AS log_year,
-                MONTH(GETDATE()) AS log_month
-            FROM tbl_hr_post_strength h
-            WHERE h.organisation_id = @organisationID
-            ORDER BY h.log_year DESC, MONTH(GETDATE()) DESC
+                l.log_year,
+                l.log_month
+            FROM tbl_hr_post_strength_log l
+            WHERE l.log_year IS NOT NULL
+              AND l.log_month IS NOT NULL
+              AND (@organisationID = 0 OR l.organisation_id = @organisationID)
+            ORDER BY l.log_year DESC, l.log_month DESC
         `);
 
         res.status(200).json(result.recordset);
 
     } catch (error) {
-        return res.status(500).json({ error: "Internal Server Error" });
+        console.error("Error fetching vacancy log years and months:", error);
+        // An Error serialises to {} in JSON, so copy out the fields that explain it.
+        return res.status(500).json({
+            message: "Error occurred while fetching vacancy log years and months",
+            error: {
+                name: error.name,
+                message: error.message,
+                code: error.code,
+                number: error.number,
+            },
+        });
     }
 }
 
@@ -2042,12 +2070,139 @@ async function getDeputationEndEmployees(req, res) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Server-side paginated list: abolished posts
+// ---------------------------------------------------------------------------
+
+// Vacant for 5+ years (not exempted from abolition), or revived (stage 9).
+const ABOLISHED_FROM_SQL = `
+    FROM tbl_hr_post_strength h
+    LEFT JOIN mmt_organisation o ON o.organisation_id = h.organisation_id
+    LEFT JOIN mmt_hr_post p ON h.post_id = p.post_id
+    LEFT JOIN mmt_hr_department d ON p.department_id = d.department_id
+    LEFT JOIN mmt_class c ON p.class_id = c.class_id
+    WHERE (
+        (h.vacant_or_filled = 'vacant'
+         AND (h.exception_abolish IS NULL OR h.exception_abolish = 0)
+         AND h.date_of_arise_in_vacancy < DATEADD(YEAR, -5, GETDATE()))
+        OR h.revival_stage_id = 9
+    )
+`;
+
+// Revival status shown on the list (same rules as the page's status buttons), and the
+// abolition date (vacancy date + 5 years) as dd-mm-yyyy, so search can match what is shown.
+const ABOLISHED_STATUS_SQL = `CASE
+    WHEN h.revival_stage_id = 9 OR h.order_of_revival_issued_date IS NOT NULL THEN 'Approved by Ministry'
+    WHEN h.revival_stage_id = 8 OR h.revive_rejection_date_from_doe IS NOT NULL THEN 'Rejected by Ministry'
+    WHEN h.revival_stage_id >= 5 OR h.revival_submission_date IS NOT NULL THEN 'Request Sent'
+    ELSE 'Request' END`;
+const ABOLITION_DATE_SQL = "CONVERT(VARCHAR(10), DATEADD(YEAR, 5, h.date_of_arise_in_vacancy), 105)";
+
+/**
+ * List of Abolished Posts, one page at a time.
+ * GET /hr/abolished-posts?page&limit&organisationName&departmentName&postName&className&search
+ * Organisation users see their own organisation; ministry users every organisation.
+ */
+async function listAbolishedPosts(req, res) {
+    const scope = resolveListOrganisation(req);
+    if (!scope.ok) return res.status(403).json({ message: "Your account is not linked to an organisation." });
+
+    const { page, limit, offset, search } = readListQuery(req.query);
+
+    const bindFilters = (request) => {
+        const parts = [];
+        if (scope.organisationId) {
+            request.input("orgId", sql.Int, scope.organisationId);
+            parts.push("h.organisation_id = @orgId");
+        }
+        [
+            ["organisationName", "o.organisation_name"],
+            ["departmentName", "d.department_name"],
+            ["postName", "p.post_name"],
+            ["className", "c.class"],
+        ].forEach(([param, column]) => {
+            const value = String(req.query[param] || "").trim();
+            if (!value) return;
+            request.input(param, sql.NVarChar(300), value);
+            parts.push(`LTRIM(RTRIM(${column})) = @${param}`);
+        });
+        if (search) {
+            request.input("search", sql.NVarChar(200), likePattern(search));
+            parts.push(`(o.organisation_name LIKE @search OR d.department_name LIKE @search OR p.post_name LIKE @search
+                OR h.post_code LIKE @search OR ${ABOLITION_DATE_SQL} LIKE @search OR ${ABOLISHED_STATUS_SQL} LIKE @search)`);
+        }
+        return parts.length ? ` AND ${parts.join(" AND ")}` : "";
+    };
+
+    try {
+        const conn = await pool;
+        const dataRequest = conn.request();
+        const dataWhere = bindFilters(dataRequest);
+        dataRequest.input("offset", sql.Int, offset);
+        dataRequest.input("limit", sql.Int, limit);
+        const countQuery = async () => {
+            const countRequest = conn.request();
+            const countWhere = bindFilters(countRequest);
+            return (await countRequest.query(`SELECT COUNT(*) AS total ${ABOLISHED_FROM_SQL} ${countWhere}`)).recordset[0];
+        };
+
+        const { rows, total } = await runPagedQuery(dataRequest, `
+            SELECT h.organisation_id, o.organisation_name, d.department_name, p.post_name, h.post_code,
+                   c.class AS class_name, h.date_of_arise_in_vacancy, h.revival_stage_id, h.updated_date,
+                   h.revival_submission_date, h.order_of_revival_issued_date, h.revive_rejection_date_from_doe,
+                   COUNT(*) OVER() AS total_count
+            ${ABOLISHED_FROM_SQL} ${dataWhere}
+            ORDER BY h.revival_stage_id DESC, o.organisation_name, d.department_name, p.post_name, h.post_code
+            OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+        `, countQuery, page);
+
+        return res.status(200).json({ data: rows, pagination: buildPagination(total, page, limit) });
+    } catch (error) {
+        console.error("Error fetching abolished posts:", error);
+        return res.status(500).json({ message: "Abolished posts could not be loaded." });
+    }
+}
+
+/** Dropdown values for the abolished-posts filters, within the user's organisation scope. */
+async function listAbolishedPostFilters(req, res) {
+    const scope = resolveListOrganisation(req);
+    if (!scope.ok) return res.status(403).json({ message: "Your account is not linked to an organisation." });
+
+    try {
+        const conn = await pool;
+        const request = conn.request();
+        let orgSql = "";
+        if (scope.organisationId) {
+            request.input("orgId", sql.Int, scope.organisationId);
+            orgSql = " AND h.organisation_id = @orgId";
+        }
+        const { recordset } = await request.query(`
+            SELECT DISTINCT LTRIM(RTRIM(o.organisation_name)) AS organisation_name,
+                            LTRIM(RTRIM(d.department_name)) AS department_name,
+                            LTRIM(RTRIM(p.post_name)) AS post_name,
+                            LTRIM(RTRIM(c.class)) AS class_name
+            ${ABOLISHED_FROM_SQL} ${orgSql}
+        `);
+        const distinct = (key) => [...new Set(recordset.map((r) => r[key]).filter(Boolean))].sort();
+        return res.status(200).json({
+            organisations: distinct("organisation_name"),
+            departments: distinct("department_name"),
+            classes: distinct("class_name"),
+            posts: recordset.filter((r) => r.post_name).map((r) => ({ department: r.department_name, post: r.post_name })),
+        });
+    } catch (error) {
+        console.error("Error fetching abolished post filters:", error);
+        return res.status(500).json({ message: "Abolished post filters could not be loaded." });
+    }
+}
+
 export default  {
     getOrganisationCode, getPostStrengthAbsoluteData, getDepartmentId, checkPostCode, addRevivePost, addPostStrengthDetail,
     getPostStrengthData, getFilledPost, getVacantPost, getPermanentAbolishedPostOrg, getPermanentAbolishedPost, postReviveDate,
     updateRevivePostApprovalDetails, addAnticipatedVancancies, updateAnticipatedVacancies, getAnticipatedVacancies,
     deleteAnticipatedVacancy, deleteHrPostData, deleteHrDepartment, getHRAllData, getHRAllEmployeeData,  getPostListByOrgId, addNewEmployee, editEmployeeDetails, upload,
-    getDetailedSanctionedStrength,getDetailedTotalFilledPosts,getTotalVacantPosts,getAbolishedVacantPosts,getYearAndMonth,updateActivityData,getDeputationEndEmployees
+    getDetailedSanctionedStrength,getDetailedTotalFilledPosts,getTotalVacantPosts,getAbolishedVacantPosts,getYearAndMonth,updateActivityData,getDeputationEndEmployees,
+    listAbolishedPosts, listAbolishedPostFilters
 };
 
 
