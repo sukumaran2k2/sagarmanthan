@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+// Shared client: sends the login token and refreshes it (HR routes require login)
+import { axiosInstance as axios } from '../../../api';
 import { Search, ChevronDown, X, Pencil, Trash2, Filter, RotateCcw } from 'lucide-react';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';

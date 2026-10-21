@@ -1,10 +1,11 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import MainLayout, { ROUTE_MAP, getTabFromSlug } from './layouts/MainLayout';
 import LoginView from './modules/Login/Login';
 import Loader from './components/Loader';
 import { Activity, Sparkles } from 'lucide-react';
 import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
+import { resetAllStores } from './stores/resetRegistry';
 
 // Lazy-loaded feature modules for code splitting and instant initial page load
 const LandingView = lazy(() => import('./modules/Landing/Landing'));
@@ -190,6 +191,12 @@ export default function App() {
     setShowNetworkCheck(true);
     navigate('/');
   };
+
+  // Logout doesn't reload the page, so clear module stores whenever the session ends
+  // (covers both Sign Out and cancelling the network check in MainLayout)
+  useEffect(() => {
+    if (!isLoggedIn) resetAllStores();
+  }, [isLoggedIn]);
 
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
@@ -485,7 +492,12 @@ export default function App() {
             <Route path="legal/acts-and-rules" element={<ActsAndRulesView />} />
 
             {/* HR Routes */}
-            <Route path="hr/hr-management/*" element={<HRDashboardView />} />
+            <Route path="hr/hr-management/*" element={
+              <HRDashboardView
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
             <Route path="hr/young-professionals/*" element={<YoungProfessionalsView triggerNotification={triggerNotification} />} />
             <Route path="hr/consultant-appointment/*" element={<ConsultantAppointmentView triggerNotification={triggerNotification} />} />
 

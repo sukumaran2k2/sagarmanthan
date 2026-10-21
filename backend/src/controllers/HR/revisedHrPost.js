@@ -3,7 +3,7 @@ import sql from 'mssql';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import {convertIntoVacantPost, getNewEmployeeIDofOrg} from "../HR/hrHelperFunctions.js";
+import {convertIntoVacantPost, getNewEmployeeIDofOrg, safeRollback} from "../HR/hrHelperFunctions.js";
 
 const uploadDestination = "./fileuploads/HR";
 
@@ -857,9 +857,9 @@ async function updatePostStrengthLog(req, res) {
     const currentDate = new Date().toISOString().slice(0, 10);
 
     const conn = await pool;
-    const request = conn.request();
-
+    // Every query below must run on the transaction, so the request is bound to it.
     const transaction = new sql.Transaction(conn);
+    const request = new sql.Request(transaction);
 
     request.input("organisationID", organisationID);
     request.input("processInitiatedDate", processInitiatedDate);
@@ -914,7 +914,11 @@ async function updatePostStrengthLog(req, res) {
     request.input("fromWhichPostCHD", fromWhichPostCHD);
     request.input("chdCategoryEmpMasterId", chdCategoryEmpMasterId);
 
-    await transaction.begin();
+    try {
+        await transaction.begin();
+    } catch (err) {
+        return res.status(500).json({ message: "Could not start the database transaction", error: err.message });
+    }
     switch (methodOfAppointment) {
         case 'directRecruitment':
             try {
@@ -968,6 +972,7 @@ async function updatePostStrengthLog(req, res) {
                 res.sendStatus(201);
             } catch (err) {
                 //console.log(err);
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1110,6 +1115,7 @@ async function updatePostStrengthLog(req, res) {
                 res.sendStatus(201);
             } catch (err) {
                 //console.log(err);
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1210,6 +1216,7 @@ async function updatePostStrengthLog(req, res) {
                 break;
             } catch (err) {
                 //console.log(err);
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
         case 'composite':
@@ -1345,6 +1352,7 @@ async function updatePostStrengthLog(req, res) {
                 await transaction.commit();
                 res.sendStatus(201);
             } catch (err) {
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1422,7 +1430,7 @@ async function updatePostStrengthLog(req, res) {
                 res.sendStatus(201);
                 break;
             } catch (err) {
-                await transaction.rollback();
+                await safeRollback(transaction);
                 res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1461,7 +1469,7 @@ async function updatePostStrengthLog(req, res) {
                 res.sendStatus(201);
                 break;
             } catch (err) {
-                await transaction.rollback();
+                await safeRollback(transaction);
                 return res.status(500).json({message:"Internal Server Error",error:err});
             }
             break;
@@ -1603,7 +1611,7 @@ async function updatePostStrengthLog(req, res) {
             break;
 
             } catch (err) {
-                await transaction.rollback();
+                await safeRollback(transaction);
                 return res.status(500).json({ message: "Internal Server Error", error: err });
             }
             break;
@@ -1707,7 +1715,7 @@ async function updatePostStrengthLog(req, res) {
 
         
     } catch (err) {
-        await transaction.rollback();
+        await safeRollback(transaction);
         return res.status(500).json({ message: "Internal Server Error", error: err });
     }
     break;
@@ -1831,10 +1839,14 @@ async function updatePostStrengthLog(req, res) {
         break;
 
     } catch (err) {
-        await transaction.rollback();
+        await safeRollback(transaction);
         return res.status(500).json({ message: "Internal Server Error", error: err });
     }
     break;
+
+    default:
+        await safeRollback(transaction);
+        return res.status(400).json({ message: `Unknown method of appointment: ${methodOfAppointment}` });
     }
     
 };
@@ -1893,9 +1905,85 @@ async function getVaccancyLogDetailsByPostCode(req, res) {
     request.input("postCode", postCode);
 
     try {
-        let query = ` SELECT *
-            FROM tbl_hr_post_strength
-            WHERE post_code=@postCode`;
+        let query = ` SELECT 
+                ps.id,
+                ps.post_code,
+                ps.post_id,
+                ps.department_id,
+                ps.vacant_or_filled,
+                ps.is_new,
+                ps.employee_id,
+                ps.emp_master_id,
+                ps.reference_id,
+                ps.date_of_arise_in_vacancy,
+                ps.vacancy_type,
+                ps.method_of_appointment,
+                ps.expected_anticipated_vacancy,
+                ps.exception_abolish,
+                ps.reason_for_exemption,
+                ps.exception_abolish_date,
+                ps.employee_joined_date,
+                ps.is_recruitment_through_ipa,
+                ps.process_initiated_date,
+                ps.notification_adv_issued_date,
+                ps.renotification_adv_issued_date,
+                ps.number_of_eligible_application,
+                ps.exam_conducted_date,
+                ps.interview_conducted_date,
+                ps.selection_process_completed_date,
+                ps.result_declared_date,
+                ps.appointment_letter_issued_date,
+                ps.vigilance_clr_received_date,
+                ps.dpc_conducted_date,
+                ps.approval_by_ca_date,
+                ps.promotion_order_issued_date,
+                ps.application_received_date,
+                ps.review_application_by_comm,
+                ps.approval_received_date,
+                ps.order_issued_date,
+                ps.discharge_reason,
+                ps.revival_process_initiated,
+                ps.revival_remarks,
+                ps.revival_date,
+                ps.revival_stage_id,
+                ps.revival_submission_date,
+                ps.revive_proposal_sent_to_doe_date,
+                ps.revive_approval_date_from_doe,
+                ps.revive_rejection_date_from_doe,
+                ps.revive_remarks_from_doe,
+                ps.revive_proposal_rejected_by_doe_date,
+                ps.order_of_revival_issued_date,
+                ps.revival_doc_name,
+                ps.revoke_reason,
+                ps.created_date,
+                ps.created_by,
+                ps.updated_date,
+                ps.updated_by,
+                ps.organisation_id,
+                ps.organisation_name,
+                ps.reason_for_process_not_initiated,
+                ps.post_chd,
+                a.A_is_recruitment_through_ipa,
+                a.A_process_initiated_date,
+                a.A_notification_adv_issued_date,
+                a.A_renotification_adv_issued_date,
+                a.A_number_of_eligible_application,
+                a.A_exam_conducted_date,
+                a.A_interview_conducted_date,
+                a.A_selection_process_completed_date,
+                a.A_result_declared_date,
+                a.A_appointment_letter_issued_date,
+                a.A_vigilance_clr_received_date,
+                a.A_dpc_conducted_date,
+                a.A_approval_by_ca_date,
+                a.A_promotion_order_issued_date,
+                a.A_application_received_date,
+                a.A_review_application_by_comm,
+                a.A_approval_received_date,
+                a.A_order_issued_date
+            FROM tbl_hr_post_strength ps
+            LEFT JOIN tbl_hr_anticipated_vacancies_details a ON ps.post_code = a.post_code
+            WHERE ps.post_code = @postCode`;
 
         const result = await request.query(query);
         res.json(result.recordset);

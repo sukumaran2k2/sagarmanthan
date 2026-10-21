@@ -149,10 +149,13 @@ export const ROUTE_MAP = {
   'Employee Database': 'hr/hr-management/employee-database',
   'List of Abolished Posts': 'hr/hr-management/abolished-posts',
   'Abolished Posts': 'hr/hr-management/abolished-posts',
+  'Vacancy Management': 'hr/hr-management/vacancy-management',
+  'HR Administration & Actions': 'hr/hr-management/administration',
   'Contractual Employment': 'hr/hr-management/contractual-employment',
   'Training Details': 'hr/hr-management/training-details',
   'HR Input Form': 'hr/hr-management/input-form',
   'Add Post': 'hr/hr-management/input-form/add-post',
+  'HR Reports': 'hr/hr-management/reports',
 
   // Young Professionals routes
   'Young Professionals': 'hr/young-professionals/list-view',
@@ -202,8 +205,13 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('projects/project/view-project') || cleanSlug.startsWith('projects/view-project') || cleanSlug.startsWith('projects/project/detail')) return 'projects-view-project';
   if (cleanSlug.startsWith('projects/project') || cleanSlug.startsWith('projects')) return 'projects-list';
 
+  if (cleanSlug.startsWith('hr/hr-management/reports')) return 'HR Reports';
+  if (cleanSlug.startsWith('hr/hr-management/vacancy-management') || cleanSlug.startsWith('hr/hr-management/vacancy-details')) return 'Vacancy Management';
   if (cleanSlug.startsWith('hr/hr-management/input-form')) return 'HR Input Form';
   if (cleanSlug.startsWith('hr/hr-management/abolished-posts')) return isOrganisationUser() ? 'Abolished Posts' : 'List of Abolished Posts';
+  if (cleanSlug.startsWith('hr/hr-management/administration')) return 'HR Administration & Actions';
+  if (cleanSlug.startsWith('hr/hr-management/contractual-employment')) return 'Contractual Employment';
+  if (cleanSlug.startsWith('hr/hr-management/training-details')) return 'Training Details';
   if (cleanSlug.startsWith('hr/young-professionals')) return 'YP Data List';
   if (cleanSlug.startsWith('hr/consultant-appointment')) return 'Consultant Data List';
   if (cleanSlug.startsWith('strategies/gmis-mou')) return 'GMIS & IMW MoUs';
@@ -294,9 +302,12 @@ const getBreadcrumbs = (tab) => {
     'Employee Database': ['HR & Institutional', 'HR Management'],
     'List of Abolished Posts': ['HR & Institutional', 'HR Management'],
     'Abolished Posts': ['HR & Institutional', 'HR Management'],
+    'Vacancy Management': ['HR & Institutional', 'HR Management'],
+    'HR Administration & Actions': ['HR & Institutional', 'HR Management'],
     'Contractual Employment': ['HR & Institutional', 'HR Management'],
     'Training Details': ['HR & Institutional', 'HR Management'],
     'HR Input Form': ['HR & Institutional', 'HR Management'],
+    'HR Reports': ['HR & Institutional', 'HR Management'],
     'Young Professionals': ['HR & Institutional', 'Young Professionals'],
     'YP Data List': ['HR & Institutional', 'Young Professionals'],
     'YP Input Form': ['HR & Institutional', 'Young Professionals'],

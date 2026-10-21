@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+// Shared client: sends the login token and refreshes it (HR routes require login)
+import { axiosInstance as axios } from '../../../api';
 import * as XLSX from 'xlsx';
 import { 
   FileSpreadsheet, 

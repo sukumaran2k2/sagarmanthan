@@ -29,4 +29,30 @@ async function refreshAccessToken() {
   return next;
 }
 
-export {axiosInstance}
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status !== 401 || !original || original._retry) {
+      return Promise.reject(error);
+    }
+    original._retry = true;
+    try {
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => {
+          refreshPromise = null;
+        });
+      }
+      const token = await refreshPromise;
+      original.headers = original.headers || {};
+      original.headers.Authorization = `Bearer ${token}`;
+      return axiosInstance(original);
+    } catch {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      return Promise.reject(error);
+    }
+  }
+);
+
+export { axiosInstance };

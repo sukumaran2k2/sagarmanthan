@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import axios from 'axios';
+// Shared client: sends the login token and refreshes it (HR routes require login)
+import { axiosInstance as axios } from '../../../api';
 import { 
   ArrowLeft, Search, ChevronDown, X, Building2, BookOpen, 
   Users, IndianRupee, MapPin, Globe, Award, Filter
