@@ -206,6 +206,21 @@ const fields = useMemo(() => {
   const isFormValid = Object.keys(validationErrors).length === 0;
   const shouldShowError = (name) => (touched[name] || formSubmitted) && validationErrors[name];
 
+const resolveTable = () => {
+  const label = `${meta?.table ?? ''} ${meta?.key ?? ''} ${meta?.label ?? ''}`;
+  const isOrg = /organi[sz]ation/i.test(label);
+  return (
+    meta?.table ??
+    (isOrg ? 'mmt_organisation'
+      : isOutputMeta(meta) ? 'mmt_output'
+      : isAgencyMeta(meta) ? 'mmt_implementing_agency'
+      : isPostMeta(meta) ? 'mmt_post'
+      : isConstituencyMeta(meta) ? 'mmt_mp_constituency'
+      : isFundingAgencyMeta(meta) ? 'mmt_funding_agency'
+      : undefined)
+  );
+};
+
 const handleSubmit = async (e) => {
   e.preventDefault();
   setFormSubmitted(true);
@@ -213,16 +228,7 @@ const handleSubmit = async (e) => {
 
   setSubmitting(true);
   try {
-    const isOrg = /organi[sz]ation/i.test(`${meta?.table ?? ''} ${meta?.key ?? ''} ${meta?.label ?? ''}`);
-    const table =
-      meta?.table ??
-      (isOrg ? 'mmt_organisation'
-        : isOutputMeta(meta) ? 'mmt_output'
-        : isAgencyMeta(meta) ? 'mmt_implementing_agency'
-        : isPostMeta(meta) ? 'mmt_post'
-        : isConstituencyMeta(meta) ? 'mmt_mp_constituency'
-        : isFundingAgencyMeta(meta) ? 'mmt_funding_agency'
-        : undefined);
+    const table = resolveTable();
 
     if (isEdit) {
       const pkField = idField ?? Object.keys(initialForm)[0];
@@ -233,7 +239,6 @@ const handleSubmit = async (e) => {
       notifyRef.current?.(`${meta.label} updated`, 'success');
       onSuccess?.();
     } else {
-      // trim text values so stray spaces never reach the DB
       const payload = Object.fromEntries(
         Object.entries(values).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
       );
@@ -243,6 +248,7 @@ const handleSubmit = async (e) => {
       setValues({});
       setTouched({});
       setFormSubmitted(false);
+      // onBack?.();  // uncomment if you want to return to the list after adding
     }
   } catch (err) {
     console.error('Save failed →', {
@@ -262,6 +268,7 @@ const handleSubmit = async (e) => {
     setSubmitting(false);
   }
 };
+
   const fieldClass = (name) =>
     `w-full text-xs px-3.5 py-2.5 bg-slate-50 border rounded-xl focus:outline-none font-semibold text-slate-700 dark:bg-slate-950 dark:text-slate-200 transition-all ${
       shouldShowError(name)
