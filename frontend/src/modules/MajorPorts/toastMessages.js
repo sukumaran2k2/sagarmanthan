@@ -1,7 +1,7 @@
 import { toastSuccess, toastError, toastWarning, toastInfo, withReason } from '../../utils/notify';
 
 /**
- * KPI Major Ports toast messages (Traffic, Port Performance, Financial Parameters).
+ * KPI Major Ports toast messages (Traffic, Port Performance, Financial Parameters, Cruise and Passenger Traffic).
  * Module-specific wording only; shared ones (copy, export, filters, loading)
  * come from COMMON_TOASTS in utils/notify.js.
  */
@@ -140,6 +140,40 @@ export const FINANCIAL_PARAMETERS_TOASTS = {
       withReason(`The targets could not be ${isUpdate ? 'updated' : 'saved'}. Please review the form and try again.`, reason)),
   targetDeleted: (orgName, fiscalYear) =>
     toastSuccess('Targets Deleted', `The ${fiscalYear} financial targets for ${orgLabel(orgName)} have been deleted.`),
+  targetDeleteFailed: (reason) =>
+    toastError('Delete Failed', withReason('The targets could not be deleted.', reason)),
+};
+
+/** KPI Major Ports toast messages (Cruise and Passenger Traffic). */
+export const CRUISE_PASSENGER_TOASTS = {
+  actualSaved: (period, isUpdate) =>
+    toastSuccess(isUpdate ? 'Cruise Traffic Updated' : 'Cruise Traffic Submitted',
+      `Cruise and passenger traffic for ${periodLabel(period)} has been ${isUpdate ? 'updated' : 'submitted'}. It now appears under Actuals.`),
+  actualSaveFailed: (isUpdate, reason) =>
+    toastError(isUpdate ? 'Update Failed' : 'Save Failed',
+      withReason(`The cruise and passenger traffic could not be ${isUpdate ? 'updated' : 'saved'}. Please check the values and try again.`, reason)),
+  periodExists: (period) =>
+    toastInfo('Period Already Has Data', `Cruise and passenger traffic for ${periodLabel(period)} was entered earlier. Open it for update to change the values.`),
+  invalidValues: () =>
+    toastWarning('Check the Values', 'Answer the ferry question and enter every value as a whole number of zero or more. Correct the fields highlighted in red.'),
+  actualLoadFailed: (reason) =>
+    toastError('Could Not Load Record', withReason('The saved cruise and passenger traffic could not be loaded. Refresh the page and try again.', reason)),
+
+  actualDeleted: (period) =>
+    toastSuccess('Cruise Traffic Deleted', `Cruise and passenger traffic for ${periodLabel(period)} has been deleted.`),
+  actualDeleteFailed: (period, reason) =>
+    toastError('Delete Failed', withReason(`Cruise and passenger traffic for ${periodLabel(period)} could not be deleted.`, reason)),
+
+  targetSaved: (orgName, fiscalYear, isUpdate) =>
+    toastSuccess(isUpdate ? 'Targets Updated' : 'Targets Added',
+      `The ${fiscalYear} cruise and ferry targets for ${orgLabel(orgName)} have been ${isUpdate ? 'updated' : 'saved'}.`),
+  targetExists: (orgName, fiscalYear) =>
+    toastInfo('Targets Already Exist', `${fiscalYear} cruise and ferry targets for ${orgLabel(orgName)} already exist. Open them for update instead.`),
+  targetSaveFailed: (isUpdate, reason) =>
+    toastError(isUpdate ? 'Update Failed' : 'Targets Not Saved',
+      withReason(`The targets could not be ${isUpdate ? 'updated' : 'saved'}. Please review the form and try again.`, reason)),
+  targetDeleted: (orgName, fiscalYear) =>
+    toastSuccess('Targets Deleted', `The ${fiscalYear} cruise and ferry targets for ${orgLabel(orgName)} have been deleted.`),
   targetDeleteFailed: (reason) =>
     toastError('Delete Failed', withReason('The targets could not be deleted.', reason)),
 };
