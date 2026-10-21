@@ -1,7 +1,8 @@
 import { toastSuccess, toastError, toastWarning, toastInfo, withReason } from '../../utils/notify';
 
 /**
- * KPI Major Ports toast messages (Traffic, Port Performance, Financial Parameters, Cruise and Passenger Traffic).
+ * KPI Major Ports toast messages (Traffic, Port Performance, Financial Parameters, Cruise and Passenger Traffic,
+ * Renewable Energy).
  * Module-specific wording only; shared ones (copy, export, filters, loading)
  * come from COMMON_TOASTS in utils/notify.js.
  */
@@ -176,4 +177,38 @@ export const CRUISE_PASSENGER_TOASTS = {
     toastSuccess('Targets Deleted', `The ${fiscalYear} cruise and ferry targets for ${orgLabel(orgName)} have been deleted.`),
   targetDeleteFailed: (reason) =>
     toastError('Delete Failed', withReason('The targets could not be deleted.', reason)),
+};
+
+/** KPI Major Ports toast messages (Renewable Energy). */
+export const RENEWABLE_ENERGY_TOASTS = {
+  actualSaved: (period, isUpdate) =>
+    toastSuccess(isUpdate ? 'Renewable Energy Updated' : 'Renewable Energy Submitted',
+      `Renewable energy for ${periodLabel(period)} has been ${isUpdate ? 'updated' : 'submitted'}. It now appears under Actuals.`),
+  actualSaveFailed: (isUpdate, reason) =>
+    toastError(isUpdate ? 'Update Failed' : 'Save Failed',
+      withReason(`The renewable energy could not be ${isUpdate ? 'updated' : 'saved'}. Please check the values and try again.`, reason)),
+  periodExists: (period) =>
+    toastInfo('Period Already Has Data', `Renewable energy for ${periodLabel(period)} was entered earlier. Open it for update to change the values.`),
+  invalidValues: () =>
+    toastWarning('Check the Values', 'Enter both energy values in MWh as numbers of zero or more, with at most 2 decimal places. Correct the fields highlighted in red.'),
+  actualLoadFailed: (reason) =>
+    toastError('Could Not Load Record', withReason('The saved renewable energy could not be loaded. Refresh the page and try again.', reason)),
+
+  actualDeleted: (period) =>
+    toastSuccess('Renewable Energy Deleted', `Renewable energy for ${periodLabel(period)} has been deleted.`),
+  actualDeleteFailed: (period, reason) =>
+    toastError('Delete Failed', withReason(`Renewable energy for ${periodLabel(period)} could not be deleted.`, reason)),
+
+  targetSaved: (orgName, fiscalYear, isUpdate) =>
+    toastSuccess(isUpdate ? 'Target Updated' : 'Target Added',
+      `The ${fiscalYear} renewable energy target for ${orgLabel(orgName)} has been ${isUpdate ? 'updated' : 'saved'}.`),
+  targetExists: (orgName, fiscalYear) =>
+    toastInfo('Target Already Exists', `A ${fiscalYear} renewable energy target for ${orgLabel(orgName)} already exists. Open it for update instead.`),
+  targetSaveFailed: (isUpdate, reason) =>
+    toastError(isUpdate ? 'Update Failed' : 'Target Not Saved',
+      withReason(`The target could not be ${isUpdate ? 'updated' : 'saved'}. Please review the form and try again.`, reason)),
+  targetDeleted: (orgName, fiscalYear) =>
+    toastSuccess('Target Deleted', `The ${fiscalYear} renewable energy target for ${orgLabel(orgName)} has been deleted.`),
+  targetDeleteFailed: (reason) =>
+    toastError('Delete Failed', withReason('The target could not be deleted.', reason)),
 };

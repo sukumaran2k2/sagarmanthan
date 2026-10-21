@@ -1,8 +1,6 @@
-import { useMemo, useState } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { useMemo } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import CommonTable from '../../components/CommonTable';
-import InternalNavigation from '../../components/InternalNavigation';
 import RestrictedAccess from '../../components/RestrictedAccess';
 import { useMajorPortsPermissions } from './hooks/useMajorPortsPermissions';
 import { MAJOR_PORTS_SECTIONS } from './constants';
@@ -11,15 +9,9 @@ import FinancialParametersSection from './pages/FinancialParameters/FinancialPar
 import TrafficSection from './pages/Traffic/TrafficSection';
 import CruisePassengerSection from './pages/CruisePassengerTraffic/CruisePassengerSection';
 import PortPerformanceSection from './pages/PortPerformance/PortPerformanceSection';
-import RenewableEnergyInputForm from './pages/RenewableEnergy/InputForm';
-import RenewableEnergyDataList from './pages/RenewableEnergy/DataList';
+import RenewableEnergySection from './pages/RenewableEnergy/RenewableEnergySection';
 
 const HUB_PATH = '/kpi/major-ports/major-ports-input-form';
-
-// Sections that are still placeholders keep a simple Input Form / Data List switch
-const PLACEHOLDER_PAGES = {
-  renewableEnergy: { add: RenewableEnergyInputForm, list: RenewableEnergyDataList },
-};
 
 function SectionHub({ onOpen }) {
   const location = useLocation();
@@ -67,46 +59,6 @@ function SectionHub({ onOpen }) {
   );
 }
 
-function PlaceholderSection({ canAdd, canView, onBack }) {
-  const { sectionSlug } = useParams();
-  const section = MAJOR_PORTS_SECTIONS.find((s) => s.slug === sectionSlug);
-  const [tab, setTab] = useState(canView ? 'list' : 'add');
-  const pages = section ? PLACEHOLDER_PAGES[section.id] : null;
-
-  if (!pages) return <Navigate to={HUB_PATH} replace />;
-
-  const tabs = [];
-  if (canAdd) tabs.push({ id: 'add', label: 'Input Form' });
-  if (canView) tabs.push({ id: 'list', label: 'Data List' });
-  const Page = tab === 'add' ? pages.add : pages.list;
-
-  return (
-    <div className="module-page-container space-y-6 animate-fade-in">
-      <div className="module-header-container">
-        <div className="flex items-start gap-3 min-w-0">
-          <button
-            type="button"
-            onClick={onBack}
-            className="mt-0.5 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 transition cursor-pointer flex-shrink-0"
-            title="Back to KPI sections"
-            aria-label="Back to KPI sections"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div className="min-w-0">
-            <h1 className="module-header-title">{section.fullLabel}</h1>
-            <p className="module-header-subtitle">KPI data entry and list views for Major Ports.</p>
-          </div>
-        </div>
-        {tabs.length > 0 && <InternalNavigation tabs={tabs} currentTab={tab} onTabChange={setTab} />}
-      </div>
-      <div className="module-card space-y-4">
-        <Page onSwitchTab={setTab} />
-      </div>
-    </div>
-  );
-}
-
 export default function PortsInputFormView({ triggerNotification }) {
   const navigate = useNavigate();
   const { canAdd, canView, canEdit } = useMajorPortsPermissions();
@@ -138,8 +90,8 @@ export default function PortsInputFormView({ triggerNotification }) {
         element={<CruisePassengerSection triggerNotification={triggerNotification} onBackToSections={backToSections} />}
       />
       <Route
-        path=":sectionSlug"
-        element={<PlaceholderSection canAdd={canAdd} canView={canView} onBack={backToSections} />}
+        path="renewable-energy/*"
+        element={<RenewableEnergySection triggerNotification={triggerNotification} onBackToSections={backToSections} />}
       />
       <Route path="*" element={<Navigate to={HUB_PATH} replace />} />
     </Routes>

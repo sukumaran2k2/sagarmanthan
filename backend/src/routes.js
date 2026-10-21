@@ -203,7 +203,7 @@ import vesselMovementTab from "./controllers/KPI/vesselTerminal.js";
 import PassengerTerminalController from "./controllers/KPI/PassengerTerminal.js";
 import cargoTerminalController from "./controllers/KPI/cargoTerminal.js";
 import KpiTimePerformanceTab from "./controllers/KPI/kpiTimePerformance.js";
-import KpiRenewableEnergyTab from "./controllers/KPI/kpiRenewableEnergy.js";
+import RenewableEnergyEntry from "./controllers/KPI/renewableEnergyEntry.js";
 import MMDTab from "./controllers/KPI/mmdMaster.js";
 import VesselSurveyTab from "./controllers/KPI/k_2_8.js";
 import MTIMasterTab from "./controllers/KPI/mtiMaster.js";
@@ -2138,6 +2138,19 @@ router.post('/kpi/cruise-passenger-traffic/targets', auth, requireModulePermissi
 router.put('/kpi/cruise-passenger-traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), CruisePassengerTrafficEntry.updateCruisePassengerTarget);
 router.delete('/kpi/cruise-passenger-traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), CruisePassengerTrafficEntry.deleteCruisePassengerTarget);
 
+// Renewable Energy data entry: same rules as Cruise and Passenger Traffic (identity and organisation
+// from the JWT; organisation users own the monthly actuals, ministry users the targets). No entry window.
+router.get('/kpi/renewable-energy/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), RenewableEnergyEntry.getRenewableEnergyMasters);
+router.get('/kpi/renewable-energy/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), RenewableEnergyEntry.getRenewableEnergyActuals);
+router.get('/kpi/renewable-energy/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "read"), RenewableEnergyEntry.getRenewableEnergyActual);
+router.post('/kpi/renewable-energy/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "create"), RenewableEnergyEntry.createRenewableEnergyActual);
+router.put('/kpi/renewable-energy/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), RenewableEnergyEntry.updateRenewableEnergyActual);
+router.delete('/kpi/renewable-energy/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), RenewableEnergyEntry.deleteRenewableEnergyActual);
+router.get('/kpi/renewable-energy/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), RenewableEnergyEntry.getRenewableEnergyTargets);
+router.post('/kpi/renewable-energy/targets', auth, requireModulePermission(TRAFFIC_MODULE, "create"), RenewableEnergyEntry.createRenewableEnergyTarget);
+router.put('/kpi/renewable-energy/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), RenewableEnergyEntry.updateRenewableEnergyTarget);
+router.delete('/kpi/renewable-energy/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), RenewableEnergyEntry.deleteRenewableEnergyTarget);
+
 router.get('/get-kpi-traffic-dashboard/:organisationID/:fy/:months',TrafficTab.getKPITrafficDashboard);
 router.get('/get-kpi-traffic-commodies-wise-dashboard/:organisationID/:fy/:months',TrafficTab.getKPICargoDashboard);
 router.get('/get-top-performing-ports/:kpi/:fy',TrafficTab.getTopPerformingPorts);
@@ -2217,18 +2230,6 @@ router.get('/get-container-trt-port-performance-k-1-21-3-report', PortPerformanc
 // router.get('/get-major-ports', KpiTimePerformanceTab.getMajorPorts);
 // router.get('/get-kpi-types', KpiTimePerformanceTab.getKpiTypes);
 // router.get('/get-target-kpi-time-performance-list', KpiTimePerformanceTab.getTargetKpiTimePerformanceList);
-
-// KPI Renewable Energy
-router.get('/get-kpi-renewable-energy-data', KpiRenewableEnergyTab.getKpiRenewableEnergyData);
-router.get('/get-kpi-renewable-energy-list', KpiRenewableEnergyTab.getKpiRenewableEnergyList);
-router.post('/submit-kpi-renewable-energy-data', KpiRenewableEnergyTab.submitKpiRenewableEnergyData);
-router.post('/update-kpi-renewable-energy-data', KpiRenewableEnergyTab.updateKpiRenewableEnergyData);
-router.post('/submit-kpi-renewable-energy-target-data', KpiRenewableEnergyTab.submitKpiRenewableEnergyTargetData);
-router.get('/get-kpi-renewable-energy-target-data', KpiRenewableEnergyTab.getKpiRenewableEnergyTargetData);
-// router.post('/update-kpi-renewable-energy-target-data', KpiRenewableEnergyTab.updateKpiRenewableEnergyTargetData);
-router.get('/get-renewable-energy-target', KpiRenewableEnergyTab.getRenewableenergyTargetData);
-router.get('/get-renewable-target-data', KpiRenewableEnergyTab.getRenewbleTargetData);
-router.post('/update-renewable-energy-target-data', KpiRenewableEnergyTab.updateRenewableEnergyTargetData);
 
 //KPI 12.1- 12.3
 router.get('/get-kpi-majorports-12-1-report', financialReportTab.getKPIMajorPorts_12_1);
