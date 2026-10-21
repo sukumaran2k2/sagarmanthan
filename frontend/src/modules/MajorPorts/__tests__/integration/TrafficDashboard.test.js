@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { fetchTrafficDashboardPart } from '../../api';
 import { resetAllStores } from '../../../../stores/resetRegistry';
 import TrafficDashboard from '../../pages/Traffic/dashboard/TrafficDashboard';
+import KpiDrillDown from '../../pages/Traffic/dashboard/KpiDrillDown';
 
 const mockPermissions = { current: {} };
 jest.mock('../../hooks/useTrafficPermissions', () => ({
@@ -127,5 +128,34 @@ describe('Traffic & Port Performance dashboard', () => {
     render(<TrafficDashboard triggerNotification={jest.fn()} />);
     await waitFor(() => expect(screen.getByLabelText('Organisation')).toBeDisabled());
     await waitFor(() => expect(screen.getByLabelText('Organisation')).toHaveDisplayValue('Chennai Port Authority'));
+  });
+});
+
+describe('Commodity-wise detail', () => {
+  it('keeps the Total group last and shows every number with two decimals', async () => {
+    fetchTrafficDashboardPart.mockResolvedValue({
+      data: [{
+        organisation_id: 1,
+        organisation_name: 'Chennai Port Authority',
+        'Total - Current FY YTD': 5, 'Total - Last FY YTD': 4, 'Total - YoY (%)': 25,
+        'Coal - Current FY YTD': 2.5, 'Coal - Last FY YTD': 2, 'Coal - YoY (%)': 25,
+      }],
+    });
+    render(
+      <KpiDrillDown
+        drill={{ type: 'cargoWise', cargo: 'btndry' }}
+        filters={{ fy: 'all', months: 'all', organisationId: 0 }}
+        labels={{ current: 'FY26-27', last: 'FY25-26' }}
+        onBack={jest.fn()}
+        onOpenCargoWise={jest.fn()}
+        triggerNotification={jest.fn()}
+      />
+    );
+
+    expect(await screen.findByText('Chennai Port Authority')).toBeInTheDocument();
+    const headers = screen.getByTestId('grid-headers').textContent.split(' | ');
+    expect(headers.indexOf('Coal')).toBeLessThan(headers.indexOf('Total'));
+    expect(screen.getByText('5.00')).toBeInTheDocument();
+    expect(screen.getByText('2.50')).toBeInTheDocument();
   });
 });

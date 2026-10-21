@@ -18,13 +18,13 @@ function sendError(res, status, message) {
 }
 
 /** "2025-2026" (consecutive years) or "all" (the running year vs the one before). */
-function cleanFiscalYear(value) {
+export function cleanFiscalYear(value) {
     const match = String(value ?? "").trim().match(/^(\d{4})-(\d{4})$/);
     return match && Number(match[2]) === Number(match[1]) + 1 ? `${match[1]}-${match[2]}` : "all";
 }
 
 /** "4,5,6" (unique months 1-12) or "all" (April to the last completed month). */
-function cleanMonths(value) {
+export function cleanMonths(value) {
     const months = [...new Set(
         String(value ?? "").split(",").map((m) => Number(m.trim())).filter((m) => Number.isInteger(m) && m >= 1 && m <= 12)
     )];
@@ -37,7 +37,7 @@ const cleanKey = (value, pattern) => {
 };
 
 /** Own organisation for organisation users; the requested one (0 = all) for ministry users. */
-function resolveOrganisation(req) {
+export function resolveOrganisation(req) {
     const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
     if (isWide) {
         const requested = Number.parseInt(req.query.organisationId, 10);

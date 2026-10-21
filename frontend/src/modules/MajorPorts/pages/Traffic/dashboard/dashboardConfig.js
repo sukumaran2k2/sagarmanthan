@@ -401,13 +401,16 @@ export function fiscalYearLabels(fiscalYear, today = new Date()) {
 const FISCAL_ORDER = FY_MONTHS.map((m) => m.value);
 const SHORT_MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** "All Months (FY April-March)": the running year stops at the last completed month. */
+/**
+ * "All Months (FY April-March)": the running year stops at the last completed month.
+ * In April nothing is complete yet, so nothing is selected (the server then uses its default).
+ */
 export function allMonthsFor(fiscalYear, today = new Date()) {
   const year = fiscalYear || currentFinancialYear(today);
   if (year !== currentFinancialYear(today)) return [...FISCAL_ORDER];
   const month = today.getMonth() + 1;
   const completed = month >= 4 ? month - 4 : month + 8;
-  return FISCAL_ORDER.slice(0, Math.max(1, completed));
+  return FISCAL_ORDER.slice(0, completed);
 }
 
 export function sortFiscalMonths(months = []) {

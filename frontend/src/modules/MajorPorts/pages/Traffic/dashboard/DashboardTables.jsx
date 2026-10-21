@@ -95,6 +95,7 @@ export function OverallKpiTable({ data, fiscalYear, months, labels, triggerNotif
         defaultColDef={DEFAULT_COL_DEF}
         triggerNotification={triggerNotification}
         autoHeaderHeight
+        reportExport
         {...REPORT_THEME}
       />
     </div>
@@ -175,6 +176,7 @@ export function TrafficKpiSummaryTable({ summary, title, fiscalYear, months, lab
         pinnedBottomRowData={pinnedRows}
         triggerNotification={triggerNotification}
         autoHeaderHeight
+        reportExport
         {...REPORT_THEME}
       />
     </div>

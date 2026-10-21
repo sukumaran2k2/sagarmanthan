@@ -180,9 +180,22 @@ export function splitDrillRows(rows = [], { type, kpi, organisationId }) {
     const normal = list.filter((r) => !pinned.includes(r));
     return { rows: normal, pinned };
   }
+  // Organisation 4 stands for the SMPA group: its two docks and SMPA Total only
   if (org === 4) {
-    const smpa = list.filter((r) => SMPA_DOCK_IDS.includes(Number(r.organisation_id)) || r.organisation_name === 'SMPA Total');
-    return { rows: [...smpa, ...list.filter((r) => !smpa.includes(r) && !isTotal(r))], pinned: [] };
+    const rowsOf = [
+      ...SMPA_DOCK_IDS.map((id) => list.find((r) => Number(r.organisation_id) === id && !isTotal(r))),
+      list.find((r) => r.organisation_name === 'SMPA Total'),
+    ];
+    return { rows: rowsOf.filter(Boolean), pinned: [] };
   }
   return { rows: list.filter((r) => !isTotal(r)), pinned: [] };
 }
+
+// The earlier detail pages: green above, red below, grey at zero
+export const YOY_BG = { up: '#A9D08E', down: '#F4CCCC', zero: '#D9D9D9' };
+export const yoyCellStyle = (params) => {
+  const n = Number(params.value);
+  const bg = params.value === null || params.value === undefined || params.value === '' || Number.isNaN(n)
+    ? null : n > 0 ? YOY_BG.up : n < 0 ? YOY_BG.down : YOY_BG.zero;
+  return { justifyContent: 'center', textAlign: 'center', fontWeight: 700, color: bg ? '#000' : undefined, backgroundColor: bg || undefined };
+};

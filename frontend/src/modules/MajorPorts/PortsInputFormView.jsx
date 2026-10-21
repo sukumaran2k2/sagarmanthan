@@ -7,8 +7,7 @@ import RestrictedAccess from '../../components/RestrictedAccess';
 import { useMajorPortsPermissions } from './hooks/useMajorPortsPermissions';
 import { MAJOR_PORTS_SECTIONS } from './constants';
 
-import FinancialParametersInputForm from './pages/FinancialParameters/InputForm';
-import FinancialParametersDataList from './pages/FinancialParameters/DataList';
+import FinancialParametersSection from './pages/FinancialParameters/FinancialParametersSection';
 import TrafficSection from './pages/Traffic/TrafficSection';
 import CruisePassengerTrafficInputForm from './pages/CruisePassengerTraffic/InputForm';
 import CruisePassengerTrafficDataList from './pages/CruisePassengerTraffic/DataList';
@@ -20,7 +19,6 @@ const HUB_PATH = '/kpi/major-ports/major-ports-input-form';
 
 // Sections that are still placeholders keep a simple Input Form / Data List switch
 const PLACEHOLDER_PAGES = {
-  financialParameters: { add: FinancialParametersInputForm, list: FinancialParametersDataList },
   cruisePassengerTraffic: { add: CruisePassengerTrafficInputForm, list: CruisePassengerTrafficDataList },
   renewableEnergy: { add: RenewableEnergyInputForm, list: RenewableEnergyDataList },
 };
@@ -128,6 +126,10 @@ export default function PortsInputFormView({ triggerNotification }) {
       <Route
         path="traffic/*"
         element={<TrafficSection triggerNotification={triggerNotification} onBackToSections={backToSections} />}
+      />
+      <Route
+        path="financial-parameters/*"
+        element={<FinancialParametersSection triggerNotification={triggerNotification} onBackToSections={backToSections} />}
       />
       <Route
         path="port-performance/*"
