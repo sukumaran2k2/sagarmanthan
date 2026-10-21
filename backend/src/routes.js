@@ -196,6 +196,8 @@ import TrafficTab from "./controllers/KPI/traffic.js";
 import TrafficEntry from "./controllers/KPI/trafficEntry.js";
 import TrafficDashboard from "./controllers/KPI/trafficDashboardAccess.js";
 import PortPerformanceEntry from "./controllers/KPI/portPerformanceEntry.js";
+import FinancialParameterEntry from "./controllers/KPI/financialParameterEntry.js";
+import FinancialDashboard from "./controllers/KPI/financialDashboardAccess.js";
 import TrafficVesselTab from "./controllers/KPI/trafficVessel.js";
 import vesselMovementTab from "./controllers/KPI/vesselTerminal.js";
 import PassengerTerminalController from "./controllers/KPI/PassengerTerminal.js";
@@ -1799,26 +1801,13 @@ router.get("/iwai-getDetail-financialprogress/:organisationID/:modOfImp/:columnN
 router.get('/lumpsum-report', lumpsumReportTab.lumpsumReport);
 
 
-//financial parameters for major ports
-router.post("/financial-parameter", financialParameterTab.createFinancialParameter);
-router.get("/financial-parameter/:userID", financialParameterTab.getFinancialParameter);
-router.get("/monthly-financial-parameter/:userID", financialParameterTab.getMonthlyFinancialParameter);
-router.get("/quarterly-financial-parameter/:userID", financialParameterTab.getQuarterlyFinancialParameter);
-router.get("/annually-financial-parameter/:userID", financialParameterTab.getAnnuallyFinancialParameter);
 router.get("/get-organisation-name/:organisationID", financialParameterTab.getOrganisationName);
 //financial Report for major ports
 router.post("/filtered-financial-report", financialParameterTab.getFilteredFinancialReport);
 //Financial Chart Data
 router.get("/Financial-Chart-Data/:getCurrentFinancialYear", financialParameterTab.getFinancialChartData);
 router.get("/Financial-Fin-Year-Chart-Data", financialParameterTab.getFinancialFinYearChartData);
-router.post("/financial-mopsw-parameter", financialParameterTab.createMopswFinancialParameters);
-router.get("/kpi-finanacial-data-update/:finanacialparameterID", financialParameterTab.getKpifinancialparameterData);
-router.post("/update-financial-data-parameter", financialParameterTab.updateFinanacialkpidataupdate);
 
-//KPI Financial Target
-router.get("/get-monthly-financial-target", financialParameterTab.getMonthlyFinancialTargetData);
-router.get("/get-quaterly-financial-target", financialParameterTab.getQuaterlyFinancialTargetData);
-router.get("/get-annually-financial-target", financialParameterTab.getAnnuallyFinancialTargetData);
 
 // -------------------------------------------kpi-----------------------------------------------------
 router.post('/add-kpi2-1-1', dgsTabList.createDgsKpi2_1_1Data);
@@ -2108,6 +2097,22 @@ router.get('/kpi/port-performance/access', auth, requireModulePermission(TRAFFIC
 router.post('/kpi/port-performance/access', auth, requireModulePermission(TRAFFIC_MODULE, "create"), PortPerformanceEntry.createPortPerformanceAccessGrant);
 router.patch('/kpi/port-performance/access/:accessId/revoke', auth, requireModulePermission(TRAFFIC_MODULE, "update"), PortPerformanceEntry.revokePortPerformanceAccessGrant);
 
+// Financial Parameters data entry: identity and organisation from the JWT; organisation users
+// own the monthly actuals and ministry users the targets (enforced in the controller). No entry window.
+router.get('/kpi/financial-parameters/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterMasters);
+router.get('/kpi/financial-parameters/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterActuals);
+router.get('/kpi/financial-parameters/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterActual);
+router.post('/kpi/financial-parameters/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "create"), FinancialParameterEntry.createFinancialParameterActual);
+router.put('/kpi/financial-parameters/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), FinancialParameterEntry.updateFinancialParameterActual);
+router.delete('/kpi/financial-parameters/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), FinancialParameterEntry.deleteFinancialParameterActual);
+router.get('/kpi/financial-parameters/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterTargets);
+router.post('/kpi/financial-parameters/targets', auth, requireModulePermission(TRAFFIC_MODULE, "create"), FinancialParameterEntry.createFinancialParameterTarget);
+router.put('/kpi/financial-parameters/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), FinancialParameterEntry.updateFinancialParameterTarget);
+router.delete('/kpi/financial-parameters/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), FinancialParameterEntry.deleteFinancialParameterTarget);
+// Financial dashboard: the earlier portal's queries behind login, read permission and input validation
+router.get('/kpi/financial-parameters/dashboard/summary', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.summary);
+router.get('/kpi/financial-parameters/dashboard/drill', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.drill);
+
 router.get('/get-kpi-traffic-dashboard/:organisationID/:fy/:months',TrafficTab.getKPITrafficDashboard);
 router.get('/get-kpi-traffic-commodies-wise-dashboard/:organisationID/:fy/:months',TrafficTab.getKPICargoDashboard);
 router.get('/get-top-performing-ports/:kpi/:fy',TrafficTab.getTopPerformingPorts);
@@ -2117,9 +2122,6 @@ router.get('/detailed-kpi-cargo-card-dashboard',TrafficTab.detailedKPICargoCardD
 router.get('/get-all-traffic-dashboard-kpis/:organisationID/:fy/:months',TrafficTab.getAllTrafficDashboardKPIs);
 router.get('/detailed-all-traffic-dashboard-kpi',TrafficTab.detailedAllTrafficDashboardKPIs);
 
-router.get('/detailed-kpi-financial-card-dashboard',financialParameterTab.detailedKPIFinancialCardDashboard);
-router.get('/get-kpi-financial-dashboard/:organisationID/:fy/:months',financialParameterTab.getKPIFinancialDashboard);
-// router.get('/get-kpi-cargo-dashboard/:organisationID/:fy/:months',financialParameterTab.getKPIcargoDashboard);
 router.get('/get-top-financial-performing-ports/:kpi/:fy',financialParameterTab.getTopFinancialPerformingPorts);
 router.get('/get-least-financial-performing-ports/:kpi/:fy',financialParameterTab.getLeastFinancialPerformingPorts);
 

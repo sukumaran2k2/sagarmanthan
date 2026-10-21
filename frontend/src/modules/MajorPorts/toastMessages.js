@@ -1,7 +1,7 @@
 import { toastSuccess, toastError, toastWarning, toastInfo, withReason } from '../../utils/notify';
 
 /**
- * KPI Major Ports toast messages (Traffic, Port Performance).
+ * KPI Major Ports toast messages (Traffic, Port Performance, Financial Parameters).
  * Module-specific wording only; shared ones (copy, export, filters, loading)
  * come from COMMON_TOASTS in utils/notify.js.
  */
@@ -108,4 +108,38 @@ export const PORT_PERFORMANCE_TOASTS = {
     toastError('Delete Failed', withReason('The targets could not be deleted.', reason)),
   targetsLoadFailed: (reason) =>
     toastError('Could Not Load Targets', withReason('The saved targets could not be loaded. Refresh the page and try again.', reason)),
+};
+
+/** KPI Major Ports toast messages (Financial Parameters). */
+export const FINANCIAL_PARAMETERS_TOASTS = {
+  actualSaved: (period, isUpdate) =>
+    toastSuccess(isUpdate ? 'Financial Parameters Updated' : 'Financial Parameters Submitted',
+      `Financial parameters for ${periodLabel(period)} have been ${isUpdate ? 'updated' : 'submitted'}. They now appear under Actuals.`),
+  actualSaveFailed: (isUpdate, reason) =>
+    toastError(isUpdate ? 'Update Failed' : 'Save Failed',
+      withReason(`The financial parameters could not be ${isUpdate ? 'updated' : 'saved'}. Please check the values and try again.`, reason)),
+  periodExists: (period) =>
+    toastInfo('Period Already Has Data', `Financial parameters for ${periodLabel(period)} were entered earlier. Open them for update to change the values.`),
+  invalidValues: () =>
+    toastWarning('Check the Values', 'Enter every mandatory value. Income, expenditure and handling cost cannot be negative. Correct the fields highlighted in red.'),
+  actualLoadFailed: (reason) =>
+    toastError('Could Not Load Record', withReason('The saved financial parameters could not be loaded. Refresh the page and try again.', reason)),
+
+  actualDeleted: (period) =>
+    toastSuccess('Financial Parameters Deleted', `Financial parameters for ${periodLabel(period)} have been deleted.`),
+  actualDeleteFailed: (period, reason) =>
+    toastError('Delete Failed', withReason(`Financial parameters for ${periodLabel(period)} could not be deleted.`, reason)),
+
+  targetSaved: (orgName, fiscalYear, isUpdate) =>
+    toastSuccess(isUpdate ? 'Targets Updated' : 'Targets Added',
+      `The ${fiscalYear} financial targets for ${orgLabel(orgName)} have been ${isUpdate ? 'updated' : 'saved'}.`),
+  targetExists: (orgName, fiscalYear) =>
+    toastInfo('Targets Already Exist', `${fiscalYear} financial targets for ${orgLabel(orgName)} already exist. Open them for update instead.`),
+  targetSaveFailed: (isUpdate, reason) =>
+    toastError(isUpdate ? 'Update Failed' : 'Targets Not Saved',
+      withReason(`The targets could not be ${isUpdate ? 'updated' : 'saved'}. Please review the form and try again.`, reason)),
+  targetDeleted: (orgName, fiscalYear) =>
+    toastSuccess('Targets Deleted', `The ${fiscalYear} financial targets for ${orgLabel(orgName)} have been deleted.`),
+  targetDeleteFailed: (reason) =>
+    toastError('Delete Failed', withReason('The targets could not be deleted.', reason)),
 };

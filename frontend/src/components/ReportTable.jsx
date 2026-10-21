@@ -3,6 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ChevronLeft, FileSpreadsheet, Download, Search, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
 import TablePagination from './TablePagination';
 import { useAICopilot } from '../context/AICopilotContext';
+import { exportGridToExcel, exportGridToPdf } from '../utils/exportGridReport';
 
 export default function ReportTable({
   title,
@@ -29,6 +30,9 @@ export default function ReportTable({
   filterPanel = null,
   autoHeaderHeight = false,
   showColumnVisibility = true,
+  // true: Excel = .xlsx and PDF = file download, each with title, subtitle (period), merged group
+  // headers and total rows, as the earlier portal's dashboard exports. false keeps CSV / print.
+  reportExport = false,
 }) {
   const { registerReport, clearReport } = useAICopilot();
 
@@ -236,8 +240,35 @@ export default function ReportTable({
     return val === undefined || val === null || typeof val === 'object' ? '' : val;
   };
 
+  // Rows as the grid shows them now (quick search and sort applied)
+  const displayedRows = () => {
+    const api = gridRef.current?.api;
+    if (!api) return viewData || [];
+    const list = [];
+    api.forEachNodeAfterFilterAndSort((node) => { if (node.data) list.push(node.data); });
+    return list;
+  };
+
+  const handleReportExport = (type) => {
+    const options = {
+      title: title || 'Report',
+      subtitle: typeof subtitle === 'string' ? subtitle : undefined,
+      columns: effectiveColumns,
+      rows: displayedRows(),
+      pinnedRows: pinnedBottomRowData || [],
+    };
+    const fileName = type === 'Excel'
+      ? exportGridToExcel(options)
+      : exportGridToPdf({ ...options, brand: brandColor });
+    triggerNotification?.(`Report exported successfully! (${fileName})`);
+  };
+
   const handleExport = (type) => {
     try {
+      if (reportExport) {
+        handleReportExport(type);
+        return;
+      }
       const fileName = formatExportFileName(type);
       if (type === 'Excel') {
         if (gridRef.current?.api) {
@@ -478,7 +509,7 @@ export default function ReportTable({
                   className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 border-0 bg-transparent cursor-pointer font-medium"
                 >
                   <FileSpreadsheet size={14} className="text-emerald-500" />
-                  <span>CSV (Excel)</span>
+                  <span>{reportExport ? 'Excel (.xlsx)' : 'CSV (Excel)'}</span>
                 </button>
                 <button
                   type="button"
@@ -489,7 +520,7 @@ export default function ReportTable({
                   className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 border-0 bg-transparent cursor-pointer font-medium"
                 >
                   <Download size={14} className="text-rose-500" />
-                  <span>Print / PDF</span>
+                  <span>{reportExport ? 'PDF' : 'Print / PDF'}</span>
                 </button>
               </div>
             )}

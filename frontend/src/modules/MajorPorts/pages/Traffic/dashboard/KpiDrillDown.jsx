@@ -7,19 +7,10 @@ import { useCachedRequest } from '../usePagedList';
 import { RefreshBar } from '../components/ListToolbar';
 import { describePeriod } from './dashboardConfig';
 import {
-  DRILL_PART, cargoToggleFor, cargoWiseTitle, drillTitle, drillUnit, splitDrillRows,
+  DRILL_PART, YOY_BG, cargoToggleFor, cargoWiseTitle, drillTitle, drillUnit, splitDrillRows, yoyCellStyle,
 } from './drillConfig';
 
-const DEFAULT_COL_DEF = { sortable: true, filter: false, resizable: true, minWidth: 100, cellClass: 'text-center', headerClass: 'text-center' };
-
-// The earlier detail pages: green above, red below, grey at zero
-const YOY_BG = { up: '#A9D08E', down: '#F4CCCC', zero: '#D9D9D9' };
-const yoyCellStyle = (params) => {
-  const n = Number(params.value);
-  const bg = params.value === null || params.value === undefined || params.value === '' || Number.isNaN(n)
-    ? null : n > 0 ? YOY_BG.up : n < 0 ? YOY_BG.down : YOY_BG.zero;
-  return { justifyContent: 'center', textAlign: 'center', fontWeight: 700, color: bg ? '#000' : undefined, backgroundColor: bg || undefined };
-};
+const DEFAULT_COL_DEF = { sortable: true, filter: true, resizable: true, minWidth: 100, cellClass: 'text-center', headerClass: 'text-center' };
 
 const UNIT_COLUMNS = ['target_value', 'achievement_for_last_FY', 'current_fy_ytd', 'last_fy_ytd'];
 const isBlank = (v) => v === null || v === undefined || v === '';
@@ -32,12 +23,14 @@ function valueFormatterFor(type, kpi, field) {
     const n = Number(v);
     if (field.includes('yoy')) return Number.isFinite(n) ? `${n.toFixed(2)} %` : `${v} %`;
     if (!Number.isFinite(n)) return v;
+    // The commodity-wise page showed every number with two decimals
+    if (type === 'cargoWise') return n.toFixed(2);
     if ((type === 'cargo' || type === 'coastal') && kpi.startsWith('osbd') && UNIT_COLUMNS.includes(field)) return String(Math.round(n));
     return Number.isInteger(n) ? String(n) : n.toFixed(2);
   };
 }
 
-function YoyLegend() {
+export function YoyLegend() {
   return (
     <div className="ml-auto w-fit flex flex-col gap-2 px-4 py-3 border border-[#d5dce5] dark:border-slate-700 rounded-md bg-white dark:bg-slate-900 shadow-sm">
       {[['up', 'Positive Value — Above Target'], ['down', 'Negative Value — Below Target']].map(([key, text]) => (
@@ -97,7 +90,9 @@ export default function KpiDrillDown({ drill, filters, labels, onBack, onOpenCar
         if (!groups.has(match[1])) groups.set(match[1], []);
         groups.get(match[1]).push({ key, kind: match[2] });
       });
-      return [serial, organisation, ...[...groups.entries()].map(([name, leaves]) => ({
+      // The "Total" commodity group always comes last, as on the earlier page
+      const ordered = [...groups.entries()].sort(([a], [b]) => Number(/^total$/i.test(a)) - Number(/^total$/i.test(b)));
+      return [serial, organisation, ...ordered.map(([name, leaves]) => ({
         headerName: name,
         marryChildren: true,
         children: leaves.map(({ key, kind }) => ({
@@ -166,6 +161,7 @@ export default function KpiDrillDown({ drill, filters, labels, onBack, onOpenCar
           pinnedBottomRowData={numberedPinned}
           triggerNotification={triggerNotification}
           autoHeaderHeight
+          reportExport
           toolbarExtra={toggle ? (
             <button
               type="button"

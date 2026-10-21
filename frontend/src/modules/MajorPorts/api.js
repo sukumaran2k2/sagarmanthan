@@ -200,4 +200,62 @@ export function revokePortPerformanceAccessGrant(accessId) {
   return afterWrite(api.patch(`/kpi/port-performance/access/${accessId}/revoke`));
 }
 
+// Same rules as Traffic: user and organisation come from the session token, GETs take
+// { signal }, and every write clears the response cache. There is no monthly entry window.
+
+/** Organisations visible to the user. */
+export function fetchFinancialParameterMasters() {
+  return api.get('/kpi/financial-parameters/masters');
+}
+
+/** Monthly records: { fiscalYear?, month?, organisationId?, search?, page, limit } */
+export function fetchFinancialParameterActuals(params = {}, config = {}) {
+  return api.get('/kpi/financial-parameters/actuals', { ...config, params });
+}
+
+export function fetchFinancialParameterActual(id) {
+  return api.get(`/kpi/financial-parameters/actuals/${id}`);
+}
+
+/** { fiscalYear, month, values: { column: number | null } }; the calculated values are set by the server. */
+export function createFinancialParameterActual(payload) {
+  return afterWrite(api.post('/kpi/financial-parameters/actuals', payload));
+}
+
+/** { values: { column: number | null } } */
+export function updateFinancialParameterActual(id, payload) {
+  return afterWrite(api.put(`/kpi/financial-parameters/actuals/${id}`, payload));
+}
+
+export function deleteFinancialParameterActual(id) {
+  return afterWrite(api.delete(`/kpi/financial-parameters/actuals/${id}`));
+}
+
+export function fetchFinancialParameterTargets(params = {}, config = {}) {
+  return api.get('/kpi/financial-parameters/targets', { ...config, params });
+}
+
+/** { financialYear, organisationId, values: { key: number } } */
+export function createFinancialParameterTarget(payload) {
+  return afterWrite(api.post('/kpi/financial-parameters/targets', payload));
+}
+
+/** { values: { key: number } } */
+export function updateFinancialParameterTarget(id, payload) {
+  return afterWrite(api.put(`/kpi/financial-parameters/targets/${id}`, payload));
+}
+
+export function deleteFinancialParameterTarget(id) {
+  return afterWrite(api.delete(`/kpi/financial-parameters/targets/${id}`));
+}
+
+// Financial dashboard: the earlier portal's queries. part = summary (the eight cards) | drill (one card's detail)
+// params: { fy: '2026-2027' | 'all', months: '4,5,6' | 'all', organisationId, kpi? (drill) }
+export const FINANCIAL_DASHBOARD_PARTS = ['summary', 'drill'];
+
+export function fetchFinancialDashboardPart(part, params = {}, config = {}) {
+  if (!FINANCIAL_DASHBOARD_PARTS.includes(part)) return Promise.reject(new Error(`Unknown dashboard part: ${part}`));
+  return api.get(`/kpi/financial-parameters/dashboard/${part}`, { ...config, params });
+}
+
 export default api;

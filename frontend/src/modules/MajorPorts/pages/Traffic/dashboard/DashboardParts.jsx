@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Anchor, ArrowDown, ArrowUp, Boxes, ChartBar, ChartLine, ChevronDown, Clock, Cog, Droplet, Factory,
+  Anchor, ArrowDown, ArrowUp, Boxes, ChartBar, ChartLine, ChevronDown, Clock, Cog, Coins, Droplet, Factory,
   Hourglass, Info, Ship, ShipWheel, Truck,
 } from 'lucide-react';
 import { FY_MONTHS } from '../trafficConstants';
@@ -10,7 +10,7 @@ import { allMonthsFor, formatValue, readPath, sortFiscalMonths } from './dashboa
 const ICONS = {
   ship: Ship, up: ArrowUp, down: ArrowDown, clock: Clock, line: ChartLine, industry: Factory, anchor: Anchor,
   boxes: Boxes, gears: Cog, droplet: Droplet, truck: Truck, hourglass: Hourglass, ferry: ShipWheel,
-  bars: ChartBar, info: Info,
+  bars: ChartBar, info: Info, coins: Coins,
 };
 
 /** Card YoY: ▲ green / ▼ red (reversed for lower-is-better KPIs), grey at zero, "0%" when unknown. */
