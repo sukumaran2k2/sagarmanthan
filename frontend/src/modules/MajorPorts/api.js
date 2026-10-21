@@ -258,4 +258,54 @@ export function fetchFinancialDashboardPart(part, params = {}, config = {}) {
   return api.get(`/kpi/financial-parameters/dashboard/${part}`, { ...config, params });
 }
 
+// ---- Cruise and Passenger Traffic ----
+// Same rules as Financial Parameters: user and organisation come from the session token, GETs take
+// { signal }, every write clears the response cache, and there is no monthly entry window.
+
+/** Organisations visible to the user. */
+export function fetchCruisePassengerMasters() {
+  return api.get('/kpi/cruise-passenger-traffic/masters');
+}
+
+/** Monthly records: { fiscalYear?, month?, organisationId?, search?, page, limit } */
+export function fetchCruisePassengerActuals(params = {}, config = {}) {
+  return api.get('/kpi/cruise-passenger-traffic/actuals', { ...config, params });
+}
+
+export function fetchCruisePassengerActual(id) {
+  return api.get(`/kpi/cruise-passenger-traffic/actuals/${id}`);
+}
+
+/** { fiscalYear, month, handlesPassengerFerry, values: { column: number } }; ferry values only when handled. */
+export function createCruisePassengerActual(payload) {
+  return afterWrite(api.post('/kpi/cruise-passenger-traffic/actuals', payload));
+}
+
+/** { handlesPassengerFerry, values: { column: number } } */
+export function updateCruisePassengerActual(id, payload) {
+  return afterWrite(api.put(`/kpi/cruise-passenger-traffic/actuals/${id}`, payload));
+}
+
+export function deleteCruisePassengerActual(id) {
+  return afterWrite(api.delete(`/kpi/cruise-passenger-traffic/actuals/${id}`));
+}
+
+export function fetchCruisePassengerTargets(params = {}, config = {}) {
+  return api.get('/kpi/cruise-passenger-traffic/targets', { ...config, params });
+}
+
+/** { financialYear, organisationId, values: { target_cruise_vessel_calls, target_ferry_calls } } */
+export function createCruisePassengerTarget(payload) {
+  return afterWrite(api.post('/kpi/cruise-passenger-traffic/targets', payload));
+}
+
+/** { values: { target_cruise_vessel_calls, target_ferry_calls } } */
+export function updateCruisePassengerTarget(id, payload) {
+  return afterWrite(api.put(`/kpi/cruise-passenger-traffic/targets/${id}`, payload));
+}
+
+export function deleteCruisePassengerTarget(id) {
+  return afterWrite(api.delete(`/kpi/cruise-passenger-traffic/targets/${id}`));
+}
+
 export default api;

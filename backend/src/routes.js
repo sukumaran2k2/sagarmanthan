@@ -198,7 +198,7 @@ import TrafficDashboard from "./controllers/KPI/trafficDashboardAccess.js";
 import PortPerformanceEntry from "./controllers/KPI/portPerformanceEntry.js";
 import FinancialParameterEntry from "./controllers/KPI/financialParameterEntry.js";
 import FinancialDashboard from "./controllers/KPI/financialDashboardAccess.js";
-import TrafficVesselTab from "./controllers/KPI/trafficVessel.js";
+import CruisePassengerTrafficEntry from "./controllers/KPI/cruisePassengerTrafficEntry.js";
 import vesselMovementTab from "./controllers/KPI/vesselTerminal.js";
 import PassengerTerminalController from "./controllers/KPI/PassengerTerminal.js";
 import cargoTerminalController from "./controllers/KPI/cargoTerminal.js";
@@ -1956,10 +1956,6 @@ router.get("/cruise-passenger-data", cruiseTab.getCruisePassengerData);
 router.get("/monthly-cruise-data", cruiseTab.getMonthlyCruiseData);
 router.get("/quarterly-cruise-data", cruiseTab.getQuarterlyCruiseData);
 router.get("/annually-cruise-data", cruiseTab.getAnnuallyCruiseData);
-router.get('/get-cruie-passengers-target', TrafficVesselTab.getCruiepassengersTargetData);
-
-//vessel traffic Dashbord
-router.get("/get-curise-chart/:orgID/:monthId/:finYear", TrafficVesselTab.getCurisePassengerChart);
 
 //Digital portals
 router.post('/digital-data', digitalPortalTab.createDigitalData);
@@ -2113,6 +2109,19 @@ router.delete('/kpi/financial-parameters/targets/:id', auth, requireModulePermis
 router.get('/kpi/financial-parameters/dashboard/summary', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.summary);
 router.get('/kpi/financial-parameters/dashboard/drill', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.drill);
 
+// Cruise and Passenger Traffic data entry: same rules as Financial Parameters (identity and organisation
+// from the JWT; organisation users own the monthly actuals, ministry users the targets). No entry window.
+router.get('/kpi/cruise-passenger-traffic/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), CruisePassengerTrafficEntry.getCruisePassengerMasters);
+router.get('/kpi/cruise-passenger-traffic/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), CruisePassengerTrafficEntry.getCruisePassengerActuals);
+router.get('/kpi/cruise-passenger-traffic/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "read"), CruisePassengerTrafficEntry.getCruisePassengerActual);
+router.post('/kpi/cruise-passenger-traffic/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "create"), CruisePassengerTrafficEntry.createCruisePassengerActual);
+router.put('/kpi/cruise-passenger-traffic/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), CruisePassengerTrafficEntry.updateCruisePassengerActual);
+router.delete('/kpi/cruise-passenger-traffic/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), CruisePassengerTrafficEntry.deleteCruisePassengerActual);
+router.get('/kpi/cruise-passenger-traffic/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), CruisePassengerTrafficEntry.getCruisePassengerTargets);
+router.post('/kpi/cruise-passenger-traffic/targets', auth, requireModulePermission(TRAFFIC_MODULE, "create"), CruisePassengerTrafficEntry.createCruisePassengerTarget);
+router.put('/kpi/cruise-passenger-traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), CruisePassengerTrafficEntry.updateCruisePassengerTarget);
+router.delete('/kpi/cruise-passenger-traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), CruisePassengerTrafficEntry.deleteCruisePassengerTarget);
+
 router.get('/get-kpi-traffic-dashboard/:organisationID/:fy/:months',TrafficTab.getKPITrafficDashboard);
 router.get('/get-kpi-traffic-commodies-wise-dashboard/:organisationID/:fy/:months',TrafficTab.getKPICargoDashboard);
 router.get('/get-top-performing-ports/:kpi/:fy',TrafficTab.getTopPerformingPorts);
@@ -2130,16 +2139,6 @@ router.get('/get-container-traffic-k-1-1-1-a-report', TrafficReportTab.getContai
 
 router.get('/get-month-traffic-trend-data', TrafficTab.getMonthTrafficTrendData);
 router.get('/get-year-traffic-trend-data', TrafficTab.getYearTrafficTrendData);
-
-//vessel traffic
-router.get('/get-vessel-traffic-data', TrafficVesselTab.getVesselTrafficData);
-router.post('/submit-vessel-traffic-data', TrafficVesselTab.submitVesselTrafficData);
-router.post('/update-vessel-traffic-data', TrafficVesselTab.updateVesselTrafficData);
-router.post('/submit-target-data', TrafficVesselTab.submitTargetData);
-router.get('/get-target-data', TrafficVesselTab.getTargetData);
-router.post('/update-target-data', TrafficVesselTab.updateTargetData);
-router.get('/get-yearly-vessel-traffic-list', TrafficVesselTab.getYearlyVesselTrafficList);
-router.get('/get-monthly-vessel-traffic-list', TrafficVesselTab.getMonthlyVesselTrafficList);
 
 //vessel traffic reports
 router.get('/get-vessel-traffic-k-1-10-1-report', TrafficVesselReportTab.getVesselTraffic_k_1_10_1_Report);

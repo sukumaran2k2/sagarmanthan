@@ -9,8 +9,7 @@ import { MAJOR_PORTS_SECTIONS } from './constants';
 
 import FinancialParametersSection from './pages/FinancialParameters/FinancialParametersSection';
 import TrafficSection from './pages/Traffic/TrafficSection';
-import CruisePassengerTrafficInputForm from './pages/CruisePassengerTraffic/InputForm';
-import CruisePassengerTrafficDataList from './pages/CruisePassengerTraffic/DataList';
+import CruisePassengerSection from './pages/CruisePassengerTraffic/CruisePassengerSection';
 import PortPerformanceSection from './pages/PortPerformance/PortPerformanceSection';
 import RenewableEnergyInputForm from './pages/RenewableEnergy/InputForm';
 import RenewableEnergyDataList from './pages/RenewableEnergy/DataList';
@@ -19,7 +18,6 @@ const HUB_PATH = '/kpi/major-ports/major-ports-input-form';
 
 // Sections that are still placeholders keep a simple Input Form / Data List switch
 const PLACEHOLDER_PAGES = {
-  cruisePassengerTraffic: { add: CruisePassengerTrafficInputForm, list: CruisePassengerTrafficDataList },
   renewableEnergy: { add: RenewableEnergyInputForm, list: RenewableEnergyDataList },
 };
 
@@ -134,6 +132,10 @@ export default function PortsInputFormView({ triggerNotification }) {
       <Route
         path="port-performance/*"
         element={<PortPerformanceSection triggerNotification={triggerNotification} onBackToSections={backToSections} />}
+      />
+      <Route
+        path="cruise-passenger-traffic/*"
+        element={<CruisePassengerSection triggerNotification={triggerNotification} onBackToSections={backToSections} />}
       />
       <Route
         path=":sectionSlug"

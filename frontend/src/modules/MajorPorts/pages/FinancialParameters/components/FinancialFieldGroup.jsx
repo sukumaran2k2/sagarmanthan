@@ -3,13 +3,14 @@ import { fieldLabel } from '../financialParametersConfig';
 
 const errorTextClass = 'text-[10px] font-semibold text-rose-600 dark:text-rose-400 mt-1';
 
-const formatComputed = (value) => (value === null || value === undefined
+const formatComputed = (value, digits = 2) => (value === null || value === undefined
   ? ''
-  : Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  : Number(value).toLocaleString('en-IN', { minimumFractionDigits: digits, maximumFractionDigits: digits }));
 
 /**
- * One titled group of the Financial Parameters forms. Computed fields are shown read-only
- * from `derived`; every other field is a number input bound to `values`.
+ * One titled group of the KPI number forms (Financial Parameters, Cruise and Passenger Traffic).
+ * Computed fields are shown read-only from `derived`; every other field is a number input bound
+ * to `values`. kind "count" takes whole numbers; "amount" and "count" cannot be negative.
  */
 export default function FinancialFieldGroup({
   title,
@@ -21,6 +22,7 @@ export default function FinancialFieldGroup({
   onChange,
   disabled,
   idPrefix,
+  formatLabel = fieldLabel,
 }) {
   return (
     <section className="space-y-3" aria-label={title}>
@@ -41,12 +43,12 @@ export default function FinancialFieldGroup({
               <div key={f.key} className="rounded-xl bg-blue-50/60 dark:bg-slate-800/50 p-2 -m-2">
                 <label htmlFor={id} className="module-form-label flex items-center gap-1.5">
                   <Calculator className="h-3 w-3 text-[#0f417a] dark:text-blue-400" aria-hidden="true" />
-                  {fieldLabel(f)}
+                  {formatLabel(f)}
                 </label>
                 <input
                   id={id}
                   className="module-form-input font-black tabular-nums"
-                  value={formatComputed(derived[f.key])}
+                  value={formatComputed(derived[f.key], f.digits)}
                   placeholder="Calculated automatically"
                   readOnly
                   disabled
@@ -58,14 +60,14 @@ export default function FinancialFieldGroup({
           return (
             <div key={f.key}>
               <label htmlFor={id} className="module-form-label">
-                {fieldLabel(f)} {f.required ? <span className="text-red-500">*</span> : null}
+                {formatLabel(f)} {f.required ? <span className="text-red-500">*</span> : null}
               </label>
               <input
                 id={id}
                 type="number"
-                step="any"
-                min={f.kind === 'amount' ? '0' : undefined}
-                inputMode="decimal"
+                step={f.kind === 'count' ? '1' : 'any'}
+                min={f.kind === 'amount' || f.kind === 'count' ? '0' : undefined}
+                inputMode={f.kind === 'count' ? 'numeric' : 'decimal'}
                 className={`module-form-input tabular-nums ${error ? '!border-rose-400' : ''}`}
                 value={values[f.key] ?? ''}
                 disabled={disabled}
