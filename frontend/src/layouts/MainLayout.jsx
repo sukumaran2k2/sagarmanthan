@@ -49,6 +49,7 @@ export const ROUTE_MAP = {
   // KPI nested routes
   'Major Ports Dashboard': 'kpi/major-ports/major-ports-dashboard',
   'Major Ports Input Form': 'kpi/major-ports/major-ports-input-form',
+  'Major Ports Entry Access': 'kpi/major-ports/major-ports-entry-access',
   'Major Ports Reports': 'kpi/major-ports/major-ports-reports',
   'DGLL Input Form': 'kpi/dgll',
   'DGLL Reports': 'kpi/dgll',
@@ -217,6 +218,7 @@ export const getTabFromSlug = (slug) => {
   if (cleanSlug.startsWith('governance/parliamentary-issue')) return 'Parliamentary Issues';
   if (cleanSlug.startsWith('kpi/major-ports/major-ports-input-form')) return 'Major Ports Input Form';
   if (cleanSlug.startsWith('kpi/major-ports/major-ports-reports')) return 'Major Ports Reports';
+  if (cleanSlug.startsWith('kpi/major-ports/major-ports-entry-access')) return 'Major Ports Entry Access';
   if (cleanSlug.startsWith('kpi/major-ports')) return 'Major Ports Dashboard';
   if (cleanSlug.startsWith('kpi/dgll')) return 'DGLL Input Form';
   if (cleanSlug.startsWith('kpi/csl')) return 'CSL Input Form';
@@ -271,6 +273,7 @@ const getBreadcrumbs = (tab) => {
   const kpiItems = {
     'Major Ports Dashboard': ['KPI', 'Major Ports'],
     'Major Ports Input Form': ['KPI', 'Major Ports'],
+    'Major Ports Entry Access': ['KPI', 'Major Ports'],
     'Major Ports Reports': ['KPI', 'Major Ports'],
     'MMD Master': ['KPI', 'DSG'],
     'DSG Input Form': ['KPI', 'DSG'],
@@ -392,7 +395,10 @@ export default function MainLayout({
   const tabAllowed = canAccessTab(activeTab);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans relative antialiased selection:bg-blue-100">
+    <div
+      className="min-h-screen flex flex-col font-sans relative antialiased selection:bg-blue-100 transition-colors"
+      style={{ backgroundColor: 'var(--module-page-bg, #f8fafc)' }}
+    >
       {showNetworkCheck && (
         <NetworkCheckView
           isManual={isManualNetworkCheck}

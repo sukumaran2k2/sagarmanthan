@@ -193,6 +193,11 @@ import RoPaxTab from "./controllers/KPI/ropax.js";
 import SurveyVesselTab from "./controllers/KPI/surveyVessel.js";
 import CargoVesselTab from "./controllers/KPI/cargoVessel.js";
 import TrafficTab from "./controllers/KPI/traffic.js";
+import TrafficEntry from "./controllers/KPI/trafficEntry.js";
+import TrafficDashboard from "./controllers/KPI/trafficDashboardAccess.js";
+import PortPerformanceEntry from "./controllers/KPI/portPerformanceEntry.js";
+import FinancialParameterEntry from "./controllers/KPI/financialParameterEntry.js";
+import FinancialDashboard from "./controllers/KPI/financialDashboardAccess.js";
 import TrafficVesselTab from "./controllers/KPI/trafficVessel.js";
 import vesselMovementTab from "./controllers/KPI/vesselTerminal.js";
 import PassengerTerminalController from "./controllers/KPI/PassengerTerminal.js";
@@ -1796,26 +1801,13 @@ router.get("/iwai-getDetail-financialprogress/:organisationID/:modOfImp/:columnN
 router.get('/lumpsum-report', lumpsumReportTab.lumpsumReport);
 
 
-//financial parameters for major ports
-router.post("/financial-parameter", financialParameterTab.createFinancialParameter);
-router.get("/financial-parameter/:userID", financialParameterTab.getFinancialParameter);
-router.get("/monthly-financial-parameter/:userID", financialParameterTab.getMonthlyFinancialParameter);
-router.get("/quarterly-financial-parameter/:userID", financialParameterTab.getQuarterlyFinancialParameter);
-router.get("/annually-financial-parameter/:userID", financialParameterTab.getAnnuallyFinancialParameter);
 router.get("/get-organisation-name/:organisationID", financialParameterTab.getOrganisationName);
 //financial Report for major ports
 router.post("/filtered-financial-report", financialParameterTab.getFilteredFinancialReport);
 //Financial Chart Data
 router.get("/Financial-Chart-Data/:getCurrentFinancialYear", financialParameterTab.getFinancialChartData);
 router.get("/Financial-Fin-Year-Chart-Data", financialParameterTab.getFinancialFinYearChartData);
-router.post("/financial-mopsw-parameter", financialParameterTab.createMopswFinancialParameters);
-router.get("/kpi-finanacial-data-update/:finanacialparameterID", financialParameterTab.getKpifinancialparameterData);
-router.post("/update-financial-data-parameter", financialParameterTab.updateFinanacialkpidataupdate);
 
-//KPI Financial Target
-router.get("/get-monthly-financial-target", financialParameterTab.getMonthlyFinancialTargetData);
-router.get("/get-quaterly-financial-target", financialParameterTab.getQuaterlyFinancialTargetData);
-router.get("/get-annually-financial-target", financialParameterTab.getAnnuallyFinancialTargetData);
 
 // -------------------------------------------kpi-----------------------------------------------------
 router.post('/add-kpi2-1-1', dgsTabList.createDgsKpi2_1_1Data);
@@ -2061,17 +2053,65 @@ router.get('/annually-major-ports-data/:userID', MajorPorts.getAnnuallyMajorPort
 // router.get("/quarterly-traffic-data/:userID", TrafficTab.getQuarterlyTrafficData);
 // router.get("/annually-traffic-data/:userID", TrafficTab.getAnnuallyTrafficData);
 
-router.get('/get-fiscal-year-target-data', TrafficTab.getFiscalYearTargetData);
-router.post('/submit-fiscal-year-target-data', TrafficTab.submitFiscalYearTargetData);
-router.get('/get-fiscal-year-target-list', TrafficTab.getFiscalYearTargetList);
-router.post('/update-fiscal-year-target-data', TrafficTab.updateFiscalYearTargetData);
-router.post('/submit-commodity-data', TrafficTab.submitCommodityData);
-router.get('/get-commodity-data', TrafficTab.getCommodityData);
-router.get('/get-commodities-by-group', TrafficTab.getCommoditiesByGroup);
-router.get('/get-traffic-actual-data', TrafficTab.getTrafficActualData);
-router.get('/get-roro-traffic-actual-data', TrafficTab.getrorotrafficData);
-router.get('/get-traffic-commodity-groups', TrafficTab.getTrafficCommodityGroup);
-router.get('/get-traffic-commodities', TrafficTab.getTrafficCommodities);
+// Traffic data entry: identity and organisation come from the JWT; data scope and
+// ministry/organisation write rules are enforced in the controller
+const TRAFFIC_MODULE = "KPI_MAJOR_PORTS";
+router.get('/kpi/traffic/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficMasters);
+router.get('/kpi/traffic/entry-status', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficEntryStatus);
+router.get('/kpi/traffic/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficActuals);
+router.get('/kpi/traffic/period', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficPeriod);
+router.post('/kpi/traffic/period', auth, requireAnyModulePermission(TRAFFIC_MODULE, ["create", "update"]), TrafficEntry.saveTrafficPeriod);
+router.delete('/kpi/traffic/period', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), TrafficEntry.deleteTrafficPeriod);
+router.get('/kpi/traffic/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficTargets);
+router.post('/kpi/traffic/targets', auth, requireModulePermission(TRAFFIC_MODULE, "create"), TrafficEntry.createTrafficTarget);
+router.put('/kpi/traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), TrafficEntry.updateTrafficTarget);
+router.delete('/kpi/traffic/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), TrafficEntry.deleteTrafficTarget);
+router.get('/kpi/traffic/access', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficEntry.getTrafficAccessGrants);
+router.post('/kpi/traffic/access', auth, requireModulePermission(TRAFFIC_MODULE, "create"), TrafficEntry.createTrafficAccessGrant);
+router.patch('/kpi/traffic/access/:accessId/revoke', auth, requireModulePermission(TRAFFIC_MODULE, "update"), TrafficEntry.revokeTrafficAccessGrant);
+// Traffic dashboard: the earlier portal's queries behind login, permission and organisation scope
+router.get('/kpi/traffic/dashboard/traffic', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.traffic);
+router.get('/kpi/traffic/dashboard/cargo', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.cargo);
+router.get('/kpi/traffic/dashboard/performance', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.performance);
+router.get('/kpi/traffic/dashboard/coastal', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.coastal);
+router.get('/kpi/traffic/dashboard/summary', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.summary);
+router.get('/kpi/traffic/dashboard/drill/traffic', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillTraffic);
+router.get('/kpi/traffic/dashboard/drill/cargo', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillCargo);
+router.get('/kpi/traffic/dashboard/drill/performance', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillPerformance);
+router.get('/kpi/traffic/dashboard/drill/coastal', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillCoastal);
+router.get('/kpi/traffic/dashboard/drill/cargo-wise', auth, requireModulePermission(TRAFFIC_MODULE, "read"), TrafficDashboard.drillCargoWise);
+
+// Port Performance data entry: same rules as Traffic (identity and organisation from the JWT,
+// data scope and ministry/organisation write rules in the controller)
+router.get('/kpi/port-performance/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceMasters);
+router.get('/kpi/port-performance/entry-status', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceEntryStatus);
+router.get('/kpi/port-performance/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceActuals);
+router.get('/kpi/port-performance/period', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformancePeriod);
+router.post('/kpi/port-performance/period', auth, requireAnyModulePermission(TRAFFIC_MODULE, ["create", "update"]), PortPerformanceEntry.savePortPerformancePeriod);
+router.delete('/kpi/port-performance/period', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), PortPerformanceEntry.deletePortPerformancePeriod);
+router.get('/kpi/port-performance/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceTargets);
+router.get('/kpi/port-performance/targets/record', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceTargetRecord);
+router.put('/kpi/port-performance/targets/record', auth, requireAnyModulePermission(TRAFFIC_MODULE, ["create", "update"]), PortPerformanceEntry.savePortPerformanceTargetRecord);
+router.delete('/kpi/port-performance/targets/record', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), PortPerformanceEntry.deletePortPerformanceTargetRecord);
+router.get('/kpi/port-performance/access', auth, requireModulePermission(TRAFFIC_MODULE, "read"), PortPerformanceEntry.getPortPerformanceAccessGrants);
+router.post('/kpi/port-performance/access', auth, requireModulePermission(TRAFFIC_MODULE, "create"), PortPerformanceEntry.createPortPerformanceAccessGrant);
+router.patch('/kpi/port-performance/access/:accessId/revoke', auth, requireModulePermission(TRAFFIC_MODULE, "update"), PortPerformanceEntry.revokePortPerformanceAccessGrant);
+
+// Financial Parameters data entry: identity and organisation from the JWT; organisation users
+// own the monthly actuals and ministry users the targets (enforced in the controller). No entry window.
+router.get('/kpi/financial-parameters/masters', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterMasters);
+router.get('/kpi/financial-parameters/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterActuals);
+router.get('/kpi/financial-parameters/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterActual);
+router.post('/kpi/financial-parameters/actuals', auth, requireModulePermission(TRAFFIC_MODULE, "create"), FinancialParameterEntry.createFinancialParameterActual);
+router.put('/kpi/financial-parameters/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), FinancialParameterEntry.updateFinancialParameterActual);
+router.delete('/kpi/financial-parameters/actuals/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), FinancialParameterEntry.deleteFinancialParameterActual);
+router.get('/kpi/financial-parameters/targets', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialParameterEntry.getFinancialParameterTargets);
+router.post('/kpi/financial-parameters/targets', auth, requireModulePermission(TRAFFIC_MODULE, "create"), FinancialParameterEntry.createFinancialParameterTarget);
+router.put('/kpi/financial-parameters/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "update"), FinancialParameterEntry.updateFinancialParameterTarget);
+router.delete('/kpi/financial-parameters/targets/:id', auth, requireModulePermission(TRAFFIC_MODULE, "delete"), FinancialParameterEntry.deleteFinancialParameterTarget);
+// Financial dashboard: the earlier portal's queries behind login, read permission and input validation
+router.get('/kpi/financial-parameters/dashboard/summary', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.summary);
+router.get('/kpi/financial-parameters/dashboard/drill', auth, requireModulePermission(TRAFFIC_MODULE, "read"), FinancialDashboard.drill);
 
 router.get('/get-kpi-traffic-dashboard/:organisationID/:fy/:months',TrafficTab.getKPITrafficDashboard);
 router.get('/get-kpi-traffic-commodies-wise-dashboard/:organisationID/:fy/:months',TrafficTab.getKPICargoDashboard);
@@ -2082,9 +2122,6 @@ router.get('/detailed-kpi-cargo-card-dashboard',TrafficTab.detailedKPICargoCardD
 router.get('/get-all-traffic-dashboard-kpis/:organisationID/:fy/:months',TrafficTab.getAllTrafficDashboardKPIs);
 router.get('/detailed-all-traffic-dashboard-kpi',TrafficTab.detailedAllTrafficDashboardKPIs);
 
-router.get('/detailed-kpi-financial-card-dashboard',financialParameterTab.detailedKPIFinancialCardDashboard);
-router.get('/get-kpi-financial-dashboard/:organisationID/:fy/:months',financialParameterTab.getKPIFinancialDashboard);
-// router.get('/get-kpi-cargo-dashboard/:organisationID/:fy/:months',financialParameterTab.getKPIcargoDashboard);
 router.get('/get-top-financial-performing-ports/:kpi/:fy',financialParameterTab.getTopFinancialPerformingPorts);
 router.get('/get-least-financial-performing-ports/:kpi/:fy',financialParameterTab.getLeastFinancialPerformingPorts);
 
@@ -2155,16 +2192,16 @@ router.get('/get-container-trt-port-performance-k-1-21-1-report', PortPerformanc
 router.get('/get-container-trt-port-performance-k-1-21-2-report', PortPerformanceContainerTrtReportTab.getContainerTrtPortPerformance_k_1_21_2_Report);
 router.get('/get-container-trt-port-performance-k-1-21-3-report', PortPerformanceContainerTrtReportTab.getContainerTrtPortPerformance_k_1_21_3_Report);
 
-//KPI Time Performance
-router.get('/get-kpi-time-performance-data', KpiTimePerformanceTab.getKpiTimePerformanceData);
-router.post('/submit-kpi-time-performance-data', KpiTimePerformanceTab.submitKpiTimePerformanceData);
-router.get('/get-kpi-time-performance-list', KpiTimePerformanceTab.getKpiTimePerformanceList);
-router.post('/update-kpi-time-performance-data', KpiTimePerformanceTab.updateKpiTimePerformanceData);
-router.post('/submit-kpi-time-performance-target-data', KpiTimePerformanceTab.submitKpiTimePerformanceTargetData);
-router.get('/get-kpi-time-performance-target-data', KpiTimePerformanceTab.getKpiTimePerformanceTargetData);
-router.get('/get-major-ports', KpiTimePerformanceTab.getMajorPorts);
-router.get('/get-kpi-types', KpiTimePerformanceTab.getKpiTypes);
-router.get('/get-target-kpi-time-performance-list', KpiTimePerformanceTab.getTargetKpiTimePerformanceList);
+//KPI Time Performance: replaced by the authenticated /kpi/port-performance/* routes
+// router.get('/get-kpi-time-performance-data', KpiTimePerformanceTab.getKpiTimePerformanceData);
+// router.post('/submit-kpi-time-performance-data', KpiTimePerformanceTab.submitKpiTimePerformanceData);
+// router.get('/get-kpi-time-performance-list', KpiTimePerformanceTab.getKpiTimePerformanceList);
+// router.post('/update-kpi-time-performance-data', KpiTimePerformanceTab.updateKpiTimePerformanceData);
+// router.post('/submit-kpi-time-performance-target-data', KpiTimePerformanceTab.submitKpiTimePerformanceTargetData);
+// router.get('/get-kpi-time-performance-target-data', KpiTimePerformanceTab.getKpiTimePerformanceTargetData);
+// router.get('/get-major-ports', KpiTimePerformanceTab.getMajorPorts);
+// router.get('/get-kpi-types', KpiTimePerformanceTab.getKpiTypes);
+// router.get('/get-target-kpi-time-performance-list', KpiTimePerformanceTab.getTargetKpiTimePerformanceList);
 
 // KPI Renewable Energy
 router.get('/get-kpi-renewable-energy-data', KpiRenewableEnergyTab.getKpiRenewableEnergyData);

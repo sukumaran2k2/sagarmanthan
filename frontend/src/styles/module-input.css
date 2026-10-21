@@ -1,0 +1,143 @@
+/**
+ * ==============================================================================
+ * MODULE INPUT FORM DESIGN SYSTEM
+ * ==============================================================================
+ * Centralized styles for all module input forms:
+ *  - Form container card & accent border
+ *  - Header banner (gradient, title, subtext)
+ *  - Section dividers & section titles
+ *  - Field labels (size, color, casing)
+ *  - Text inputs, selects, textareas (bg, border, focus ring, radius)
+ * ==============================================================================
+ */
+
+:root {
+  /* ── Input Form Styling Variables ───────────────────────────── */
+  --module-form-font-family: var(--font-sans, 'Google Sans', sans-serif);
+  --module-form-accent-border: #0f417a;
+  --module-form-header-bg: linear-gradient(to right, #0f417a, #1a5ba3);
+  --module-form-header-text: #ffffff;
+  --module-form-header-size: 0.875rem; /* 14px / text-sm */
+  --module-form-subtext-color: #eadede;
+  --module-form-subtext-size: 0.625rem; /* 10px */
+  
+  --module-form-section-title-color: #1e293b;
+  --module-form-section-title-size: 0.8125rem; /* 13px */
+  --module-form-section-border: #e2e8f0;
+
+  --module-form-label-color: #334155;
+  --module-form-label-size: 0.6875rem; /* 11px */
+  --module-form-label-weight: 700;
+  
+  --module-form-input-bg: #f8fafc;
+  --module-form-input-border: #cbd5e1;
+  --module-form-input-focus-border: #0f417a;
+  --module-form-input-focus-bg: #ffffff;
+  --module-form-input-text: #1e293b;
+  --module-form-input-font-size: 0.75rem; /* 12px */
+  --module-form-input-radius: 0.75rem; /* rounded-xl */
+}
+
+/* ── Dark Mode Form Overrides ────────────────────────────────── */
+.dark {
+  --module-form-accent-border: #3b82f6;
+  --module-form-header-bg: linear-gradient(to right, #090d16, #1e3a8a);
+  --module-form-section-title-color: #f1f5f9;
+  --module-form-section-border: #1e293b;
+  --module-form-label-color: #cbd5e1;
+  --module-form-input-bg: #0f172a;
+  --module-form-input-border: #334155;
+  --module-form-input-focus-border: #3b82f6;
+  --module-form-input-focus-bg: #090d16;
+  --module-form-input-text: #f1f5f9;
+}
+
+/* ── Reusable Input Form Utility Classes ─────────────────────── */
+
+/* Form Container Card with Left Accent Border */
+.module-form-card {
+  font-family: var(--module-form-font-family);
+  background-color: var(--module-card-bg, #ffffff);
+  border: 1px solid var(--module-card-border, #e2e8f0);
+  border-left: 4px solid var(--module-form-accent-border);
+  border-radius: var(--module-card-radius, 1rem);
+  box-shadow: var(--module-card-shadow, 0 1px 3px 0 rgb(0 0 0 / 0.05));
+  overflow: hidden;
+}
+
+/* Form Header Banner */
+.module-form-banner {
+  font-family: var(--module-form-font-family);
+  background: var(--module-form-header-bg);
+  color: var(--module-form-header-text);
+  padding: 1.125rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(10, 45, 85, 0.2);
+}
+
+.module-form-banner-title {
+  font-size: var(--module-form-header-size);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--module-form-font-family);
+}
+
+.module-form-banner-subtext {
+  font-size: var(--module-form-subtext-size);
+  color: var(--module-form-subtext-color);
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  margin-top: 0.125rem;
+  font-family: var(--module-form-font-family);
+}
+
+/* Form Section Header */
+.module-form-section-title {
+  font-family: var(--module-form-font-family);
+  font-size: var(--module-form-section-title-size);
+  font-weight: 900;
+  color: var(--module-form-section-title-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--module-form-section-border);
+  padding-bottom: 0.5rem;
+  margin-top: 1.75rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Form Labels */
+.module-form-label {
+  font-family: var(--module-form-font-family);
+  display: block;
+  font-size: var(--module-form-label-size);
+  font-weight: var(--module-form-label-weight);
+  color: var(--module-form-label-color);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.375rem;
+}
+
+/* Form Inputs, Selects, and Textareas */
+.module-form-input,
+.module-form-select {
+  font-family: var(--module-form-font-family);
+  width: 100%;
+  font-size: var(--module-form-input-font-size);
+  padding: 0.625rem 0.875rem;
+  background-color: var(--module-form-input-bg);
+  border: 1px solid var(--module-form-input-border);
+  border-radius: var(--module-form-input-radius);
+  color: var(--module-form-input-text);
+  font-weight: 600;
+  transition: all 0.2s ease-in-out;
+}
+
+.module-form-input:focus,
+.module-form-select:focus {
+  outline: none;
+  border-color: var(--module-form-input-focus-border);
+  background-color: var(--module-form-input-focus-bg);
+}

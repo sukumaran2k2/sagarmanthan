@@ -88,11 +88,13 @@ export const MODULE_PAGES = {
     tabs: [
       'Major Ports Dashboard',
       'Major Ports Input Form',
+      'Major Ports Entry Access',
       'Ports Reports',
     ],
     uiTabs: [
       'Major Ports Dashboard',
       'Major Ports Input Form',
+      'Major Ports Entry Access',
     ],
   },
 

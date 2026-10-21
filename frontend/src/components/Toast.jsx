@@ -42,9 +42,68 @@ const TOAST_CONFIG = {
 
 const DURATION = 4000;
 
+/**
+ * Standardized variant (toast.variant === 'standard'), raised via utils/notify.js.
+ * Colours come from styles/module-toast.css tokens. Currently used by the
+ * Young Professionals and Consultant Appointment modules; switch other modules to
+ * notify() to adopt it, then make it the default here.
+ */
+const STANDARD_ICONS = {
+  success: CheckCircle2,
+  error: XCircle,
+  warning: AlertTriangle,
+  info: Info,
+};
+
+const STANDARD_TITLES = {
+  success: 'Success',
+  error: 'Something Went Wrong',
+  warning: 'Action Needed',
+  info: 'Information',
+};
+
+function StandardToastItem({ toast, progress, visible, onDismiss }) {
+  const type = STANDARD_ICONS[toast.type] ? toast.type : 'info';
+  const Icon = STANDARD_ICONS[type];
+  const isUrgent = type === 'error' || type === 'warning';
+
+  return (
+    <div
+      className={`std-toast std-toast--${type} ${visible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}
+      role={isUrgent ? 'alert' : 'status'}
+      aria-live={isUrgent ? 'assertive' : 'polite'}
+      aria-atomic="true"
+    >
+      <div className="std-toast-body">
+        <span className="std-toast-icon" aria-hidden="true">
+          <Icon className="h-3.5 w-3.5" strokeWidth={2.5} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="std-toast-title">{toast.title || STANDARD_TITLES[type]}</p>
+          <p className="std-toast-message">{toast.message}</p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="std-toast-close"
+        aria-label={`Dismiss notification: ${toast.title || STANDARD_TITLES[type]}`}
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+
+      <div className="std-toast-track" aria-hidden="true">
+        <div className="std-toast-bar" style={{ width: `${progress}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function ToastItem({ toast, onRemove }) {
   const [progress, setProgress] = useState(100);
   const [visible, setVisible] = useState(false);
+  const duration = toast.duration || DURATION;
 
   const config = TOAST_CONFIG[toast.type] || TOAST_CONFIG.success;
   const Icon = config.icon;
@@ -60,17 +119,28 @@ function ToastItem({ toast, onRemove }) {
     const start = Date.now();
     const interval = setInterval(() => {
       const elapsed = Date.now() - start;
-      const remaining = Math.max(0, 100 - (elapsed / DURATION) * 100);
+      const remaining = Math.max(0, 100 - (elapsed / duration) * 100);
       setProgress(remaining);
       if (remaining <= 0) clearInterval(interval);
     }, 30);
     return () => clearInterval(interval);
-  }, []);
+  }, [duration]);
 
   const handleDismiss = () => {
     setVisible(false);
     setTimeout(() => onRemove(toast.id), 300);
   };
+
+  if (toast.variant === 'standard') {
+    return (
+      <StandardToastItem
+        toast={toast}
+        progress={progress}
+        visible={visible}
+        onDismiss={handleDismiss}
+      />
+    );
+  }
 
   return (
     <div
