@@ -8,9 +8,11 @@ const formatComputed = (value, digits = 2) => (value === null || value === undef
   : Number(value).toLocaleString('en-IN', { minimumFractionDigits: digits, maximumFractionDigits: digits }));
 
 /**
- * One titled group of the KPI number forms (Financial Parameters, Cruise and Passenger Traffic).
+ * One titled group of the KPI number forms (Financial Parameters, Cruise and Passenger Traffic,
+ * Renewable Energy).
  * Computed fields are shown read-only from `derived`; every other field is a number input bound
  * to `values`. kind "count" takes whole numbers; "amount" and "count" cannot be negative.
+ * hint: optional small line under a field's label, e.g. "(Including self-generated + grid procurement)".
  */
 export default function FinancialFieldGroup({
   title,
@@ -60,7 +62,14 @@ export default function FinancialFieldGroup({
           return (
             <div key={f.key}>
               <label htmlFor={id} className="module-form-label">
-                {formatLabel(f)} {f.required ? <span className="text-red-500">*</span> : null}
+                {formatLabel(f)}
+                {f.hint ? (
+                  <>
+                    <br />
+                    <small className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">{f.hint}</small>
+                  </>
+                ) : null}
+                {' '}{f.required ? <span className="text-red-500">*</span> : null}
               </label>
               <input
                 id={id}

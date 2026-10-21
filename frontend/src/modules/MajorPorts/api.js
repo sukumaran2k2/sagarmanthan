@@ -308,4 +308,54 @@ export function deleteCruisePassengerTarget(id) {
   return afterWrite(api.delete(`/kpi/cruise-passenger-traffic/targets/${id}`));
 }
 
+// ---- Renewable Energy ----
+// Same rules as Cruise and Passenger Traffic: user and organisation come from the session token, GETs take
+// { signal }, every write clears the response cache, and there is no monthly entry window.
+
+/** Organisations visible to the user. */
+export function fetchRenewableEnergyMasters() {
+  return api.get('/kpi/renewable-energy/masters');
+}
+
+/** Monthly records: { fiscalYear?, month?, organisationId?, search?, page, limit } */
+export function fetchRenewableEnergyActuals(params = {}, config = {}) {
+  return api.get('/kpi/renewable-energy/actuals', { ...config, params });
+}
+
+export function fetchRenewableEnergyActual(id) {
+  return api.get(`/kpi/renewable-energy/actuals/${id}`);
+}
+
+/** { fiscalYear, month, values: { electrical_energy_consumption, renewable_energy_consumption } } in MWh */
+export function createRenewableEnergyActual(payload) {
+  return afterWrite(api.post('/kpi/renewable-energy/actuals', payload));
+}
+
+/** { values: { electrical_energy_consumption, renewable_energy_consumption } } in MWh */
+export function updateRenewableEnergyActual(id, payload) {
+  return afterWrite(api.put(`/kpi/renewable-energy/actuals/${id}`, payload));
+}
+
+export function deleteRenewableEnergyActual(id) {
+  return afterWrite(api.delete(`/kpi/renewable-energy/actuals/${id}`));
+}
+
+export function fetchRenewableEnergyTargets(params = {}, config = {}) {
+  return api.get('/kpi/renewable-energy/targets', { ...config, params });
+}
+
+/** { financialYear, organisationId, values: { target_renewable_energy_consumption } } in MWh */
+export function createRenewableEnergyTarget(payload) {
+  return afterWrite(api.post('/kpi/renewable-energy/targets', payload));
+}
+
+/** { values: { target_renewable_energy_consumption } } in MWh */
+export function updateRenewableEnergyTarget(id, payload) {
+  return afterWrite(api.put(`/kpi/renewable-energy/targets/${id}`, payload));
+}
+
+export function deleteRenewableEnergyTarget(id) {
+  return afterWrite(api.delete(`/kpi/renewable-energy/targets/${id}`));
+}
+
 export default api;
