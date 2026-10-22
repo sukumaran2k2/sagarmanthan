@@ -1,16 +1,27 @@
-import { useState, useMemo, useRef } from 'react';
-import { ChevronLeft, Search, RefreshCw, X, TrendingUp, Building2, Tag } from 'lucide-react';
+import { useMemo, useRef } from 'react';
+import { Search, RefreshCw, X, TrendingUp, Building2, Tag } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import Table from '../../../components/Table';
 import ExportDropdown from '../../../components/ExportDropdown';
 import CopyButton from '../../../components/CopyButton';
 import { CATEGORIES } from '../constants';
+import { useAuditParaStore } from '../store/useAuditParaStore';
 
-export default function Reports({ rowData = [], wings = [], divisions = [] }) {
+export default function Reports({ rowData = [], wings = [], divisions = [], loading = false, onRefresh }) {
   const gridRef = useRef(null);
-  const [reportView, setReportView] = useState('wing');
-  const [category, setCategory] = useState('all');
-  const [quickFilter, setQuickFilter] = useState('');
-  const [loading] = useState(false);
+  // View, category and search are kept in the store across tab switches
+  const {
+    reportView, setReportView,
+    category, setCategory,
+    quickFilter, setQuickFilter,
+  } = useAuditParaStore(useShallow((state) => ({
+    reportView: state.reportView,
+    setReportView: state.setReportView,
+    category: state.reportCategory,
+    setCategory: state.setReportCategory,
+    quickFilter: state.reportSearch,
+    setQuickFilter: state.setReportSearch,
+  })));
 
   // Title (and export file name) names the selected category, e.g. "... - Draft Paras".
   const title = `Report No. 4.2A - Abstract ( Wing & Division Wise ) - ${category === 'all' ? 'Audit Paras (All Categories)' : `${category}s`}`;
@@ -208,7 +219,10 @@ export default function Reports({ rowData = [], wings = [], divisions = [] }) {
             <CopyButton onCopy={handleCopy} color="#4b2424" className="!rounded-xl !py-2 !px-4" />
             <ExportDropdown onExportExcel={() => handleExport('Excel')} onExportPdf={() => handleExport('PDF')} color="#4b2424" hoverColor="#6b3535" />
             <button
-              onClick={() => {}}
+              type="button"
+              onClick={() => onRefresh?.()}
+              disabled={loading}
+              title="Reload audit paras"
               className="flex items-center justify-center w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             >
               <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
