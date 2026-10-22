@@ -764,6 +764,21 @@ export default function ProjectBasicInfoForm({
   const showOutputOthers = String(formData.projectOutput) === 'Others';
   const showOutcomeOthers = String(formData.projectOutcome) === 'Others';
 
+  const filteredOutcomeOptions = useMemo(() => {
+  if (
+    !formData.projectOutput ||
+    String(formData.projectOutput) === 'Others'
+  ) {
+    return [];
+  }
+
+  return outcomeOptions.filter(
+    (outcome) =>
+      String(outcome.project_output_id) ===
+      String(formData.projectOutput)
+  );
+}, [outcomeOptions, formData.projectOutput]);
+
   useEffect(() => {
     if (isEditMode) return;
     const draft = loadProjectBasicInfoDraft();
@@ -1091,6 +1106,23 @@ export default function ProjectBasicInfoForm({
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
+
+  const handleProjectOutputChange = (value) => {
+  setFormData((prev) => ({
+    ...prev,
+    projectOutput: value,
+    projectOutcome: '',
+    newProjectOutcome: '',
+    newProjectOutcomeUnits: '',
+  }));
+
+  setErrors((prev) => ({
+    ...prev,
+    projectOutcome: undefined,
+    newProjectOutcome: undefined,
+    newProjectOutcomeUnits: undefined,
+  }));
+};
 
   const handleFormSubmit = async (e) => {
     e?.preventDefault();
@@ -1846,13 +1878,13 @@ export default function ProjectBasicInfoForm({
                 />
               </div>
 
-              <div>
+              {/* <div>
                 <Label>Project Output</Label>
                 <select
                   value={formData.projectOutput}
-                  onChange={(e) => handleInputChange('projectOutput', e.target.value)}
-                  disabled={!canInteract}
-                  className={getInputClass('projectOutput')}
+                onChange={(e) =>
+                    handleProjectOutputChange(e.target.value)
+                  }
                 >
                   <option value="">Select Project Output</option>
                   {outputOptions.map((out, idx) => {
@@ -1865,8 +1897,38 @@ export default function ProjectBasicInfoForm({
                     );
                   })}
                   <option value="Others">Others</option>
-                </select>
-              </div>
+                </select> */}
+
+                <div>
+  <Label>Project Output</Label>
+  <select
+    value={formData.projectOutput}
+    onChange={(e) =>
+      handleProjectOutputChange(e.target.value)
+    }
+    className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+  >
+    <option value="">Select Project Output</option>
+
+    {outputOptions.map((out, idx) => {
+      const val =
+        out.project_output_id ?? out.id ?? out.output_id ?? idx;
+      const label =
+        out.project_output_name ||
+        out.output_name ||
+        out.name ||
+        String(val);
+
+      return (
+        <option key={`out-${val}-${idx}`} value={val}>
+          {label}
+        </option>
+      );
+    })}
+
+    <option value="Others">Others</option>
+  </select>
+</div>
 
               {showOutputOthers ? (
                 <>
@@ -1904,7 +1966,7 @@ export default function ProjectBasicInfoForm({
                   className={getInputClass('projectOutcome')}
                 >
                   <option value="">Select Project Outcome</option>
-                  {outcomeOptions.map((outc, idx) => {
+                  {filteredOutcomeOptions.map((outc, idx) => {
                     const val = outc.project_outcome_id ?? outc.id ?? outc.outcome_id ?? idx;
                     const label =
                       outc.project_outcome_name || outc.outcome_name || outc.name || String(val);
@@ -2760,11 +2822,57 @@ export default function ProjectBasicInfoForm({
                 <select
                   value={formData.projectOutcome}
                   onChange={(e) => handleInputChange('projectOutcome', e.target.value)}
-                  disabled={!canInteract}
+                  // disabled={!canInteract}
+                  disabled={!canInteract || !formData.projectOutput}
                   className={getInputClass('projectOutcome')}
                 >
+
+
+                  {showOutcomeOthers && (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+    <div>
+      <Label>Project Outcome Name</Label>
+      <input
+        type="text"
+        value={formData.newProjectOutcome || ''}
+        onChange={(e) =>
+          handleInputChange('newProjectOutcome', e.target.value)
+        }
+        placeholder="Enter Project Outcome Name"
+        className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
+      />
+      {errors.newProjectOutcome && (
+        <p className="text-red-500 text-xs mt-1">
+          {errors.newProjectOutcome}
+        </p>
+      )}
+    </div>
+
+    <div>
+      <Label>Project Outcome Units</Label>
+      <input
+        type="text"
+        value={formData.newProjectOutcomeUnits || ''}
+        onChange={(e) =>
+          handleInputChange(
+            'newProjectOutcomeUnits',
+            e.target.value
+          )
+        }
+        placeholder="Enter Project Outcome Units"
+        className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-800 dark:text-slate-200"
+      />
+      {errors.newProjectOutcomeUnits && (
+        <p className="text-red-500 text-xs mt-1">
+          {errors.newProjectOutcomeUnits}
+        </p>
+      )}
+    </div>
+  </div>
+)}
+
                   <option value="">Select Project Outcome</option>
-                  {outcomeOptions.map((outc, idx) => {
+                  {filteredOutcomeOptions.map((outc, idx) => {
                     const val = outc.project_outcome_id ?? outc.id ?? outc.outcome_id ?? idx;
                     const label =
                       outc.project_outcome_name || outc.outcome_name || outc.name || String(val);
