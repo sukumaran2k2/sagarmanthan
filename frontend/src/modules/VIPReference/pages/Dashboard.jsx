@@ -7,16 +7,6 @@ import { fetchVIPReferenceDashboard } from '../api';
 import ChartExportMenu from '../../../components/ChartExportMenu';
 import { MoreVertical, FileSpreadsheet, Printer } from 'lucide-react';
 
-function SlaBadge({ status }) {
-  if (!status) return <span className="text-slate-600 dark:text-slate-300 text-[10px]">—</span>;
-  const map = {
-    Good:     'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800',
-    'At Risk':'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800',
-    Critical: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800',
-  };
-  return <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-full border ${map[status] || ''}`}>{status}</span>;
-}
-
 function KpiCard({ label, value, subtext, icon: Icon, valueColorClass, iconWrapClass, subtextColorClass }) {
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-sm">
@@ -226,7 +216,6 @@ export default function VIPReferenceDashboard() {
     Count: row.note_count,
     'Avg days': row.note_count ? row.avg_days : '—',
     'Max days': row.note_count ? row.max_days : '—',
-    'SLA status': row.sla_status || '—',
   }));
 
   const longPendingExportData = longPending.map((row, i) => ({
@@ -294,7 +283,7 @@ export default function VIPReferenceDashboard() {
               <span className="text-indigo-200">1.</span> Stage-wise heat map
             </h3>
             <TableExportMenu
-              headers={['Stage', 'Count', 'Avg days', 'Max days', 'SLA status']}
+              headers={['Stage', 'Count', 'Avg days', 'Max days']}
               data={heatMapExportData}
               fileName="vip_reference_stage_heat_map"
               title="VIP Reference Stage-wise Heat Map"
@@ -305,7 +294,7 @@ export default function VIPReferenceDashboard() {
             <table className="w-full text-[11px] border-collapse">
               <thead>
                 <tr className="bg-[#4f46e5] text-white relative z-10">
-                  {['Stage','Count','Avg days','Max days','SLA status'].map((h) => (
+                  {['Stage','Count','Avg days','Max days'].map((h) => (
                     <th key={h} className="px-3 py-2 text-center font-semibold tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -317,7 +306,6 @@ export default function VIPReferenceDashboard() {
                     <td className="px-3 py-2 text-center font-bold text-[#6366f1] dark:text-indigo-400">{row.note_count}</td>
                     <td className="px-3 py-2 text-center text-slate-800 dark:text-slate-100 font-semibold">{row.note_count ? row.avg_days : '—'}</td>
                     <td className="px-3 py-2 text-center text-slate-800 dark:text-slate-100 font-semibold">{row.note_count ? row.max_days : '—'}</td>
-                    <td className="px-3 py-2"><SlaBadge status={row.sla_status} /></td>
                   </tr>
                 ))}
               </tbody>
