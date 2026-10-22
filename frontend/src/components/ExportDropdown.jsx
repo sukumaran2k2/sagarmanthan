@@ -183,7 +183,7 @@ export default function ExportDropdown({
       >
         <span>Export</span>
         {chevron
-          ? <ChevronDown className="h-3.5 w-3.5" />
+          ? <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           : <span className="text-[10px]">▼</span>}
       </button>
 

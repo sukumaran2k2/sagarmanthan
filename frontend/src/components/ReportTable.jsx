@@ -3,6 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ChevronLeft, FileSpreadsheet, Download, Search, Loader2, RefreshCw, X, TrendingUp, Copy } from 'lucide-react';
 import TablePagination from './TablePagination';
 import { useAICopilot } from '../context/AICopilotContext';
+import { exportGridToExcel, exportGridToPdf } from '../utils/exportGridReport';
 
 export default function ReportTable({
   title,
@@ -29,6 +30,9 @@ export default function ReportTable({
   filterPanel = null,
   autoHeaderHeight = false,
   showColumnVisibility = true,
+  // true: Excel = .xlsx and PDF = file download, each with title, subtitle (period), merged group
+  // headers and total rows, as the earlier portal's dashboard exports. false keeps CSV / print.
+  reportExport = false,
 }) {
   const { registerReport, clearReport } = useAICopilot();
 
@@ -193,8 +197,78 @@ export default function ReportTable({
     return result;
   };
 
+  // Leaf header with its group names in front ("Direct EXIM - Loaded - PY"), for flat exports like Copy
+  const getLeafLabels = (cols, prefix = '') => (cols || []).flatMap((col) => {
+    const name = col.headerName || col.field || '';
+    if (col.children && Array.isArray(col.children)) {
+      return getLeafLabels(col.children, prefix ? `${prefix} - ${name}` : name);
+    }
+    return col.field || col.headerName ? [{ col, label: prefix ? `${prefix} - ${name}` : name }] : [];
+  });
+
+  // Header rows for the PDF, one per column-group level (a single row when there are no groups)
+  const buildHeaderRows = (cols, keepLeaf) => {
+    const prune = (list) => (list || [])
+      .map((c) => (c.children && Array.isArray(c.children) ? { ...c, children: prune(c.children) } : c))
+      .filter((c) => (c.children ? c.children.length > 0 : (c.field || c.headerName) && keepLeaf(c)));
+    const tree = prune(cols);
+    const depth = (c) => (c.children ? 1 + Math.max(...c.children.map(depth)) : 1);
+    const leafCount = (c) => (c.children ? c.children.reduce((s, ch) => s + leafCount(ch), 0) : 1);
+    const maxDepth = Math.max(1, ...tree.map(depth));
+    const rows = Array.from({ length: maxDepth }, () => []);
+    const walk = (c, level) => {
+      const name = c.headerName || c.field || '';
+      if (c.children) {
+        rows[level].push({ name, colspan: leafCount(c), rowspan: 1 });
+        c.children.forEach((ch) => walk(ch, level + 1));
+      } else {
+        rows[level].push({ name, colspan: 1, rowspan: maxDepth - level });
+      }
+    };
+    tree.forEach((c) => walk(c, 0));
+    return rows;
+  };
+
+  const isSerialCol = (col) => ['S No', 'S.No'].includes(col.field) || ['S No', 'S.No'].includes(col.headerName);
+  const cellText = (col, row) => {
+    let val;
+    if (col.valueFormatter && typeof col.valueFormatter === 'function') {
+      try { val = col.valueFormatter({ value: row[col.field], data: row }); } catch { val = row[col.field]; }
+    } else {
+      val = row[col.field];
+    }
+    return val === undefined || val === null || typeof val === 'object' ? '' : val;
+  };
+
+  // Rows as the grid shows them now (quick search and sort applied)
+  const displayedRows = () => {
+    const api = gridRef.current?.api;
+    if (!api) return viewData || [];
+    const list = [];
+    api.forEachNodeAfterFilterAndSort((node) => { if (node.data) list.push(node.data); });
+    return list;
+  };
+
+  const handleReportExport = (type) => {
+    const options = {
+      title: title || 'Report',
+      subtitle: typeof subtitle === 'string' ? subtitle : undefined,
+      columns: effectiveColumns,
+      rows: displayedRows(),
+      pinnedRows: pinnedBottomRowData || [],
+    };
+    const fileName = type === 'Excel'
+      ? exportGridToExcel(options)
+      : exportGridToPdf({ ...options, brand: brandColor });
+    triggerNotification?.(`Report exported successfully! (${fileName})`);
+  };
+
   const handleExport = (type) => {
     try {
+      if (reportExport) {
+        handleReportExport(type);
+        return;
+      }
       const fileName = formatExportFileName(type);
       if (type === 'Excel') {
         if (gridRef.current?.api) {
@@ -206,29 +280,27 @@ export default function ReportTable({
           }
         }
       } else if (type === 'PDF') {
-        const leafCols = getLeafColumns(columns).filter(c => c.field !== 'Ministry Id' && c.field !== 'Ministry ID');
+        const keepLeaf = (c) => c.field !== 'Ministry Id' && c.field !== 'Ministry ID';
+        const leafCols = getLeafColumns(columns).filter(keepLeaf);
         const docTitle = title || 'Report';
 
         let headersHtml = '';
-        leafCols.forEach(col => {
-          const hName = col.headerName || col.field || '';
-          headersHtml += `<th style="border:1px solid ${brandColor}; padding:10px 14px; text-align:center; background:${brandColor}; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${hName}</th>`;
+        buildHeaderRows(columns, keepLeaf).forEach((cells) => {
+          headersHtml += '<tr>';
+          cells.forEach(({ name, colspan, rowspan }) => {
+            headersHtml += `<th colspan="${colspan}" rowspan="${rowspan}" style="border:1px solid rgba(255,255,255,0.35); padding:10px 14px; text-align:center; background:${brandColor}; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">${name}</th>`;
+          });
+          headersHtml += '</tr>';
         });
 
         let rowsHtml = '';
-        (viewData || []).forEach((row, i) => {
-          const bg = i % 2 === 0 ? '#fff' : oddRowColor;
-          rowsHtml += `<tr style="background:${bg}">`;
+        const bodyRows = viewData || [];
+        [...bodyRows, ...(pinnedBottomRowData || [])].forEach((row, i) => {
+          const isPinned = i >= bodyRows.length;
+          const bg = isPinned ? accentColor : i % 2 === 0 ? '#fff' : oddRowColor;
+          rowsHtml += `<tr style="background:${bg};${isPinned ? 'font-weight:800;' : ''}">`;
           leafCols.forEach(col => {
-            let val = '';
-            if (col.field === 'S No' || col.field === 'S.No' || col.headerName === 'S No' || col.headerName === 'S.No') {
-              val = i + 1;
-            } else if (col.valueFormatter && typeof col.valueFormatter === 'function') {
-              try { val = col.valueFormatter({ value: row[col.field], data: row }); } catch (_) { val = row[col.field]; }
-            } else {
-              val = row[col.field] !== undefined && row[col.field] !== null ? row[col.field] : '';
-            }
-            if (typeof val === 'object') val = '';
+            const val = isSerialCol(col) ? (isPinned ? '' : i + 1) : cellText(col, row);
             rowsHtml += `<td style="border:1px solid #e2e8f0; padding:8px 14px; font-size:12px; color:#334155; text-align:center;">${val}</td>`;
           });
           rowsHtml += '</tr>';
@@ -242,7 +314,7 @@ export default function ReportTable({
           return;
         }
 
-        printWindow.document.write(`<html><head><title>${docTitle}</title><style>body{font-family:'Inter',system-ui,sans-serif;color:#334155;padding:24px}h1{font-size:18px;margin-bottom:4px;color:${brandColor}}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${docTitle}</h1><p style="font-size:11px;color:#64748b;margin:0 0 20px">Generated on: ${new Date().toLocaleString()}</p><table><thead><tr>${headersHtml}</tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
+        printWindow.document.write(`<html><head><title>${docTitle}</title><style>body{font-family:'Google Sans',system-ui,sans-serif;color:#334155;padding:24px}h1{font-size:18px;margin-bottom:4px;color:${brandColor}}table{width:100%;border-collapse:collapse;margin-top:16px}</style></head><body><h1>${docTitle}</h1><p style="font-size:11px;color:#64748b;margin:0 0 20px">Generated on: ${new Date().toLocaleString()}</p><table><thead>${headersHtml}</thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print();window.close()}</script></body></html>`);
         printWindow.document.close();
 
         if (triggerNotification && typeof triggerNotification === 'function') {
@@ -263,23 +335,21 @@ export default function ReportTable({
       return;
     }
     let tsv = '';
-    const activeCols = columns.filter(c => c.headerName && c.field !== 'Document');
-    tsv += activeCols.map(c => c.headerName).join('\t') + '\n';
+    const activeCols = getLeafLabels(columns).filter(({ col }) => col.headerName && col.field !== 'Document');
+    tsv += activeCols.map(({ label }) => label).join('\t') + '\n';
 
     let index = 1;
-    gridRef.current.api.forEachNodeAfterFilterAndSort((node) => {
-      const row = node.data;
-      if (!row) return;
-      const rowTsv = activeCols.map(col => {
-        let val = '';
-        if (col.field === 'S No' || col.headerName === 'S.No') val = index++;
-        else if (col.valueFormatter) val = col.valueFormatter({ value: row[col.field], data: row });
-        else val = row[col.field] !== undefined ? row[col.field] : '';
-        val = String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
-        return val;
+    const addRow = (row, pinned) => {
+      const rowTsv = activeCols.map(({ col }) => {
+        const val = isSerialCol(col) ? (pinned ? '' : index++) : cellText(col, row);
+        return String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
       }).join('\t');
       tsv += rowTsv + '\n';
+    };
+    gridRef.current.api.forEachNodeAfterFilterAndSort((node) => {
+      if (node.data) addRow(node.data, false);
     });
+    (pinnedBottomRowData || []).forEach((row) => addRow(row, true));
 
     navigator.clipboard.writeText(tsv)
       .then(() => {
@@ -439,7 +509,7 @@ export default function ReportTable({
                   className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 border-0 bg-transparent cursor-pointer font-medium"
                 >
                   <FileSpreadsheet size={14} className="text-emerald-500" />
-                  <span>CSV (Excel)</span>
+                  <span>{reportExport ? 'Excel (.xlsx)' : 'CSV (Excel)'}</span>
                 </button>
                 <button
                   type="button"
@@ -450,7 +520,7 @@ export default function ReportTable({
                   className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-[13px] text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 border-0 bg-transparent cursor-pointer font-medium"
                 >
                   <Download size={14} className="text-rose-500" />
-                  <span>Print / PDF</span>
+                  <span>{reportExport ? 'PDF' : 'Print / PDF'}</span>
                 </button>
               </div>
             )}
@@ -558,7 +628,7 @@ export default function ReportTable({
       <style dangerouslySetInnerHTML={{
         __html: `
         .${themeClass}.ag-theme-quartz {
-          --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          --ag-font-family: var(--font-sans, 'Google Sans', system-ui, -apple-system, sans-serif);
           --ag-font-size: 13px;
           --ag-border-color: #cbd5e1;
           --ag-row-border-color: #e2e8f0;

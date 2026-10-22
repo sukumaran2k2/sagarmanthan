@@ -41,66 +41,68 @@ function getCodeCandidates(moduleCode) {
 }
 
 // View Only Admin: read allowed if module is in allowedModuleCodes; writes denied.
-export function requireModulePermission(moduleCode, action) {
+// Same rules as requireModulePermission, for controllers that pick the action at runtime
+// (e.g. create vs update decided by whether the record already exists).
+// Returns { ok: true } or { ok: false, status, message }.
+export function checkModulePermission(user, moduleCode, action) {
   const normalizedAction = normalizeAction(action);
   const code = String(moduleCode || '').toUpperCase();
   const candidates = getCodeCandidates(code);
 
+  if (!normalizedAction) {
+    return { ok: false, status: 500, message: 'Invalid permission action configured' };
+  }
+
+  if (!user) {
+    return { ok: false, status: 401, message: 'Unauthorized!' };
+  }
+
+  const roleId = Number(user.roleId || user.role_id || 0);
+  const isSuperAdmin = user.roleCode === 'SUPERADMIN' || roleId === 1;
+  const isMinistryAdmin = [1, 2, 3, 4, 5].includes(roleId);
+
+  // Superadmins and Ministry Admins have full access
+  if (isSuperAdmin || isMinistryAdmin) {
+    return { ok: true };
+  }
+
+  const allowedCodes = Array.isArray(user.allowedModuleCodes)
+    ? user.allowedModuleCodes.map((c) => String(c).toUpperCase())
+    : [];
+  const moduleAllowed = candidates.some((c) => allowedCodes.includes(c));
+
+  if (user.roleCode === 'VIEW_ONLY_ADMIN') {
+    if (normalizedAction === 'read' && moduleAllowed) {
+      return { ok: true };
+    }
+    return { ok: false, status: 403, message: 'View Only Admin has read-only access' };
+  }
+
+  if (!moduleAllowed) {
+    return { ok: false, status: 403, message: 'Module not allowed for organisation' };
+  }
+
+  let perm = null;
+  for (const c of candidates) {
+    perm = findModulePermission(user, c);
+    if (perm) break;
+  }
+
+  if (perm && !hasAction(perm, normalizedAction)) {
+    return { ok: false, status: 403, message: `Missing ${normalizedAction} permission for ${code}` };
+  }
+
+  return { ok: true };
+}
+
+export function requireModulePermission(moduleCode, action) {
   return (req, res, next) => {
-    if (!normalizedAction) {
-      return res.status(500).json({ message: 'Invalid permission action configured' });
+    const result = checkModulePermission(req.user, moduleCode, action);
+    if (result.ok) return next();
+    if (result.status === 500) {
+      return res.status(500).json({ message: result.message });
     }
-
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({ status: 'fail', message: 'Unauthorized!' });
-    }
-
-    const roleId = Number(user.roleId || user.role_id || 0);
-    const isSuperAdmin = user.roleCode === 'SUPERADMIN' || roleId === 1;
-    const isMinistryAdmin = [1, 2, 3, 4, 5].includes(roleId);
-
-    // Superadmins and Ministry Admins have full access
-    if (isSuperAdmin || isMinistryAdmin) {
-      return next();
-    }
-
-    const allowedCodes = Array.isArray(user.allowedModuleCodes)
-      ? user.allowedModuleCodes.map((c) => String(c).toUpperCase())
-      : [];
-    const moduleAllowed = candidates.some((c) => allowedCodes.includes(c));
-
-    if (user.roleCode === 'VIEW_ONLY_ADMIN') {
-      if (normalizedAction === 'read' && moduleAllowed) {
-        return next();
-      }
-      return res.status(403).json({
-        status: 'fail',
-        message: 'View Only Admin has read-only access',
-      });
-    }
-
-    if (!moduleAllowed) {
-      return res.status(403).json({
-        status: 'fail',
-        message: 'Module not allowed for organisation',
-      });
-    }
-
-    let perm = null;
-    for (const c of candidates) {
-      perm = findModulePermission(user, c);
-      if (perm) break;
-    }
-
-    if (perm && !hasAction(perm, normalizedAction)) {
-      return res.status(403).json({
-        status: 'fail',
-        message: `Missing ${normalizedAction} permission for ${code}`,
-      });
-    }
-
-    return next();
+    return res.status(result.status).json({ status: 'fail', message: result.message });
   };
 }
 

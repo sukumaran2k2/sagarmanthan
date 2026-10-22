@@ -1,10 +1,11 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import MainLayout, { ROUTE_MAP, getTabFromSlug } from './layouts/MainLayout';
 import LoginView from './modules/Login/Login';
 import Loader from './components/Loader';
 import { Activity, Sparkles } from 'lucide-react';
-import { TAB_USER_MODULE_PERMISSION, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
+import { TAB_USER_MODULE_PERMISSION, TAB_USER_MASTER_MANAGEMENT, TAB_USER_LIST, normalizeTab } from './utils/moduleAccess';
+import { resetAllStores } from './stores/resetRegistry';
 
 // Lazy-loaded feature modules for code splitting and instant initial page load
 const LandingView = lazy(() => import('./modules/Landing/Landing'));
@@ -37,10 +38,11 @@ const IMUView = lazy(() => import('./modules/IMU/IMU'));
 const SCIView = lazy(() => import('./modules/SCI/SCI'));
 const UserMatrix = lazy(() => import('./modules/UserManagement/UserMatrix'));
 const FormBuilderView = lazy(() => import('./modules/FormBuilder/FormBuilder'));
+const MasterManagement = lazy(() => import("./modules/MasterManagement/pages/masterManagement"));
 const ContactUs = lazy(() => import('./modules/Contact/Contact'));
 
 // Major Ports Components
-import { PortsDashboardView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
+import { PortsDashboardView, PortsEntryAccessView, PortsInputFormView, PortsReportsView } from './modules/MajorPorts/MajorPorts';
 
 const INITIAL_PROJECTS = [
   {
@@ -162,12 +164,15 @@ export default function App() {
   const [isManualNetworkCheck, setIsManualNetworkCheck] = useState(false);
   const [eOfficeKpi, setEOfficeKpi] = useState('file-pendency');
 
-  const triggerNotification = (message, type = 'success', title = '') => {
+  // options: { variant, duration } — used by the standardized notifier (utils/notify.js);
+  // legacy 3-argument calls keep the original look and 4s lifetime
+  const triggerNotification = (message, type = 'success', title = '', options = {}) => {
     const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, message, type, title }]);
+    const duration = options.duration ?? 4000;
+    setToasts(prev => [...prev, { id, message, type, title, variant: options.variant, duration }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 4300);
+    }, duration + 300);
   };
 
   const removeToast = (id) => {
@@ -190,6 +195,12 @@ export default function App() {
     setShowNetworkCheck(true);
     navigate('/');
   };
+
+  // Logout doesn't reload the page, so clear module stores whenever the session ends
+  // (covers both Sign Out and cancelling the network check in MainLayout)
+  useEffect(() => {
+    if (!isLoggedIn) resetAllStores();
+  }, [isLoggedIn]);
 
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
@@ -437,9 +448,15 @@ export default function App() {
             <Route path="projects/csr-project/*" element={<Navigate to="/projects/csr-projects/dashboard" replace />} />
 
             {/* KPI - Major Ports */}
-            <Route path="kpi/major-ports/major-ports-dashboard" element={<PortsDashboardView />} />
-            <Route path="kpi/major-ports/major-ports-input-form" element={<PortsInputFormView />} />
+            <Route path="kpi/major-ports/major-ports-dashboard" element={<PortsDashboardView triggerNotification={triggerNotification} />} />
+            <Route path="kpi/major-ports/major-ports-entry-access" element={<PortsEntryAccessView triggerNotification={triggerNotification} />} />
+            <Route
+              path="kpi/major-ports/major-ports-input-form/*"
+              element={<PortsInputFormView triggerNotification={triggerNotification} />}
+            />
             <Route path="kpi/major-ports/major-ports-reports" element={<PortsReportsView />} />
+            <Route path="kpi/major-ports" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
+            <Route path="kpi/major-ports/*" element={<Navigate to="/kpi/major-ports/major-ports-input-form" replace />} />
 
             {/* KPI - DGLL, CSL, IMU, SCI */}
             <Route path="kpi/dgll/*" element={<KPIDGLLView triggerNotification={triggerNotification} />} />
@@ -480,7 +497,12 @@ export default function App() {
             <Route path="legal/acts-and-rules" element={<ActsAndRulesView />} />
 
             {/* HR Routes */}
-            <Route path="hr/hr-management/*" element={<HRDashboardView />} />
+            <Route path="hr/hr-management/*" element={
+              <HRDashboardView
+                onGoHome={() => navigate('/')}
+                triggerNotification={triggerNotification}
+              />
+            } />
             <Route path="hr/young-professionals/*" element={<YoungProfessionalsView triggerNotification={triggerNotification} />} />
             <Route path="hr/consultant-appointment/*" element={<ConsultantAppointmentView triggerNotification={triggerNotification} />} />
 
@@ -488,10 +510,14 @@ export default function App() {
             <Route path="admin/user-module-permission/*" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
             <Route path="admin/user-list/*" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
 
-            {/* Form Builder Routes */}
+             {/* Form Builder Routes */}
             <Route path="form-builder/*" element={<FormBuilderView triggerNotification={triggerNotification} />} />
             <Route path="admin/form-builder/*" element={<FormBuilderView triggerNotification={triggerNotification} />} />
 
+            <Route path="admin/user-module-permission" element={<UserMatrix mode="permissions" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-list" element={<UserMatrix mode="userlist" triggerNotification={triggerNotification} />} />
+            <Route path="admin/user-master-management/*" element={<MasterManagement mode="userMastermanagement" onGoHome={() => navigate('/')} triggerNotification={triggerNotification} />} />
+          
             {/* Contact */}
             <Route path="contact" element={<ContactUs />} />
             <Route path="contact/*" element={<ContactUs />} />

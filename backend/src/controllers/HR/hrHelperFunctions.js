@@ -1,4 +1,6 @@
 import { pool } from "../../db.js";
+import sql from "mssql";
+import { getDataScope } from "../../middleware/dataScope.js";
 
 export async function convertIntoVacantPost(request,postCode,newDateOfVacancy) {
     // const conn = await pool;
@@ -9,29 +11,31 @@ export async function convertIntoVacantPost(request,postCode,newDateOfVacancy) {
     request.input("revisedNewDateOfVacancy", revisedNewDateOfVacancy);
     request.input("newPostCode", newPostCode);
 
-    await request.query(`UPDATE tbl_hr_post_strength
+    await request.query(`UPDATE ps
                         SET
-                          process_initiated_date = A_process_initiated_date,
-                          notification_adv_issued_date = A_notification_adv_issued_date,
-                          renotification_adv_issued_date = A_renotification_adv_issued_date,
-                          number_of_eligible_application = A_number_of_eligible_application,
-                          exam_conducted_date = A_exam_conducted_date,
-                          interview_conducted_date = A_interview_conducted_date,
-                          selection_process_completed_date = A_selection_process_completed_date,
-                          result_declared_date = A_result_declared_date,
-                          appointment_letter_issued_date = A_appointment_letter_issued_date,
-                          vigilance_clr_received_date = A_vigilance_clr_received_date,
-                          dpc_conducted_date = A_dpc_conducted_date,
-                          approval_by_ca_date = A_approval_by_ca_date,
-                          promotion_order_issued_date = A_promotion_order_issued_date,
-                          application_received_date = A_application_received_date,
-                          review_application_by_comm = A_review_application_by_comm,
-                          approval_received_date = A_approval_received_date,
-                          order_issued_date = A_order_issued_date,
-                          is_recruitment_through_ipa = A_is_recruitment_through_ipa,
-                          method_of_appointment = expected_anticipated_vacancy,
-                          vacancy_type = expected_anticipated_vacancy
-                        WHERE post_code = @newPostCode`);
+                          process_initiated_date = a.A_process_initiated_date,
+                          notification_adv_issued_date = a.A_notification_adv_issued_date,
+                          renotification_adv_issued_date = a.A_renotification_adv_issued_date,
+                          number_of_eligible_application = a.A_number_of_eligible_application,
+                          exam_conducted_date = a.A_exam_conducted_date,
+                          interview_conducted_date = a.A_interview_conducted_date,
+                          selection_process_completed_date = a.A_selection_process_completed_date,
+                          result_declared_date = a.A_result_declared_date,
+                          appointment_letter_issued_date = a.A_appointment_letter_issued_date,
+                          vigilance_clr_received_date = a.A_vigilance_clr_received_date,
+                          dpc_conducted_date = a.A_dpc_conducted_date,
+                          approval_by_ca_date = a.A_approval_by_ca_date,
+                          promotion_order_issued_date = a.A_promotion_order_issued_date,
+                          application_received_date = a.A_application_received_date,
+                          review_application_by_comm = a.A_review_application_by_comm,
+                          approval_received_date = a.A_approval_received_date,
+                          order_issued_date = a.A_order_issued_date,
+                          is_recruitment_through_ipa = a.A_is_recruitment_through_ipa,
+                          method_of_appointment = ps.expected_anticipated_vacancy,
+                          vacancy_type = ps.expected_anticipated_vacancy
+                        FROM tbl_hr_post_strength ps
+                        LEFT JOIN tbl_hr_anticipated_vacancies_details a ON ps.post_code = a.post_code
+                        WHERE ps.post_code = @newPostCode`);
 
     await request.query(`UPDATE tbl_hr_post_strength
                         SET vacant_or_filled = 'vacant',
@@ -57,26 +61,10 @@ export async function convertIntoVacantPost(request,postCode,newDateOfVacancy) {
                         revive_proposal_rejected_by_doe_date = NULL,
                         order_of_revival_issued_date = NULL,
                         revoke_reason = NULL,
-                        revival_doc_name = NULL,
-                        A_process_initiated_date = NULL,
-                        A_notification_adv_issued_date = NULL,
-                        A_renotification_adv_issued_date = NULL,
-                        A_number_of_eligible_application = NULL,
-                        A_exam_conducted_date = NULL,
-                        A_interview_conducted_date = NULL,
-                        A_selection_process_completed_date = NULL,
-                        A_result_declared_date = NULL,
-                        A_appointment_letter_issued_date = NULL,
-                        A_vigilance_clr_received_date = NULL,
-                        A_dpc_conducted_date = NULL,
-                        A_approval_by_ca_date = NULL,
-                        A_promotion_order_issued_date = NULL,
-                        A_application_received_date = NULL,
-                        A_review_application_by_comm = NULL,
-                        A_approval_received_date = NULL,
-                        A_order_issued_date = NULL,
-                        A_is_recruitment_through_ipa = NULL
+                        revival_doc_name = NULL
                         WHERE post_code = @newPostCode`);
+
+    await request.query(`DELETE FROM tbl_hr_anticipated_vacancies_details WHERE post_code = @newPostCode`);
 };
 
 export async function getNewEmployeeIDofOrg(organisationID) {
@@ -165,6 +153,117 @@ export async function checkReferenceNumberExistence(req,res) {
         console.error("Error occurred while checking the reference number existence", error);
         res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
+}
+
+// ---------------------------------------------------------------------------
+// Transactions
+// ---------------------------------------------------------------------------
+
+/**
+ * Roll back a transaction without throwing when it already finished
+ * (mssql aborts some transactions itself on error, and rolling those back throws).
+ */
+export async function safeRollback(transaction) {
+    if (!transaction) return;
+    try {
+        await transaction.rollback();
+    } catch {
+        // already committed, aborted or never begun
+    }
+}
+
+/** Error carrying an HTTP status, for early exits inside withTransaction. */
+export function httpError(status, message) {
+    const err = new Error(message);
+    err.status = status;
+    return err;
+}
+
+/**
+ * Run `work(request, transaction)` inside one transaction. The request passed in is bound
+ * to the transaction (create more with `new sql.Request(transaction)` when a loop needs
+ * fresh parameters), so every query in `work` commits or rolls back together.
+ * Throw httpError(...) from `work` to abort with a specific status.
+ */
+export async function withTransaction(pool, work) {
+    const conn = await pool;
+    const transaction = new sql.Transaction(conn);
+    try {
+        await transaction.begin();
+        const result = await work(new sql.Request(transaction), transaction);
+        await transaction.commit();
+        return result;
+    } catch (err) {
+        await safeRollback(transaction);
+        throw err;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Server-side paginated lists (HR Administration, Vacancy Management, Abolished Posts)
+// ---------------------------------------------------------------------------
+
+/** page >= 1, limit 1..100 (default 10), search trimmed to 100 characters. */
+export function readListQuery(query = {}) {
+    const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(query.limit, 10) || 10));
+    const search = String(query.search || "").trim().slice(0, 100);
+    return { page, limit, offset: (page - 1) * limit, search };
+}
+
+/** Search text for LIKE, with %, _ and [ matched literally. */
+export function likePattern(search) {
+    return `%${String(search).replace(/[%_[\]]/g, "[$&]")}%`;
+}
+
+/**
+ * Organisation a list is read for, from the login: organisation users always get their own;
+ * ministry (wide) users may pass ?organisationId (null = every organisation); anyone else
+ * gets { ok: false } (403).
+ */
+export function resolveListOrganisation(req) {
+    const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+    if (isOrganisation) {
+        return Number.isFinite(organisationId) && organisationId > 0 ? { ok: true, organisationId } : { ok: false };
+    }
+    if (isWide) {
+        const requested = Number.parseInt(req.query?.organisationId, 10);
+        return { ok: true, organisationId: requested > 0 ? requested : null };
+    }
+    return { ok: false };
+}
+
+/**
+ * Organisation for a report route that takes :organisationID (0 = every organisation):
+ * organisation users are pinned to their own, ministry users keep what they asked for.
+ * Returns null when the user may not read any organisation.
+ */
+export function resolveReportOrganisation(req, requested) {
+    const { isWide, isOrganisation, organisationId } = getDataScope(req.user);
+    if (isOrganisation) return Number.isFinite(organisationId) && organisationId > 0 ? organisationId : null;
+    if (isWide) {
+        const n = Number.parseInt(requested, 10);
+        return Number.isFinite(n) && n >= 0 ? n : null;
+    }
+    return null;
+}
+
+/**
+ * Runs a page query that also returns COUNT(*) OVER() AS total_count, so one query gives the
+ * rows and the total. Only a page past the end (no rows) needs the separate count, which runs
+ * then and only then. `countQuery` resolves to the count row (it may carry extra counts).
+ */
+export async function runPagedQuery(dataRequest, dataSql, countQuery, page) {
+    const { recordset } = await dataRequest.query(dataSql);
+    const first = recordset[0];
+    const countRow = first ?? (page > 1 ? await countQuery() : null);
+    const rows = recordset.map(({ total_count: _total, ...row }) => row);
+    return { rows, total: Number(countRow?.total_count ?? countRow?.total) || 0, countRow: countRow || {} };
+}
+
+/** { total, page, limit, totalPages }; totalPages is 0 when there are no rows. */
+export function buildPagination(total, page, limit) {
+    return { total, page, limit, totalPages: total ? Math.ceil(total / limit) : 0 };
 }
 
 export default {
